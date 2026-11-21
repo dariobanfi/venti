@@ -96,6 +96,7 @@ mod same_place;
 mod shape;
 mod share;
 mod sites;
+mod social;
 mod stations;
 mod takeoffs;
 mod thermals;
@@ -270,6 +271,10 @@ pub struct Api<S> {
     uploads: Throttle,
     /// Reports sent, by account.
     reports: Throttle,
+    /// Comments written, by account.
+    comments: Throttle,
+    /// Pilots followed and flights cheered, by account.
+    follows_and_cheers: Throttle,
     /// Archives asked for, by account, and the one turn at making one.
     archives: archive::Archives,
     /// Uploads under way.
@@ -379,6 +384,16 @@ impl<S: Store> Api<S> {
             ),
             reports: Throttle::new(
                 "accounts that sent reports",
+                chrono::Duration::days(1),
+                limits.watched_keys,
+            ),
+            comments: Throttle::new(
+                "accounts that wrote comments",
+                chrono::Duration::days(1),
+                limits.watched_keys,
+            ),
+            follows_and_cheers: Throttle::new(
+                "accounts that followed pilots and cheered flights",
                 chrono::Duration::days(1),
                 limits.watched_keys,
             ),
@@ -687,6 +702,39 @@ impl<S: Store> Api<S> {
             .route(
                 "/v1/pilots/{handle}/statistics",
                 get(pilots::statistics::<S>),
+            )
+            .route(
+                "/v1/pilots/{handle}/follow",
+                put(social::follow::<S>).delete(social::unfollow::<S>),
+            )
+            .route("/v1/pilots/{handle}/following", get(social::following::<S>))
+            .route("/v1/pilots/{handle}/followers", get(social::followers::<S>))
+            .route(
+                venti_api_types::v1::ACCOUNT_FOLLOWING_PATH,
+                get(social::own_following::<S>),
+            )
+            .route(
+                venti_api_types::v1::ACCOUNT_FEED_PATH,
+                get(social::feed::<S>),
+            )
+            .route(
+                venti_api_types::v1::ACCOUNT_NOTIFICATIONS_PATH,
+                get(social::notifications::<S>),
+            )
+            .route(
+                "/v1/flights/{id}/cheer",
+                put(social::cheer::<S>).delete(social::uncheer::<S>),
+            )
+            .route("/v1/flights/{id}/cheers", get(social::cheers::<S>))
+            .route(
+                "/v1/flights/{id}/comments",
+                get(social::comments::<S>)
+                    .post(social::add_comment::<S>)
+                    .patch(social::open_comments::<S>),
+            )
+            .route(
+                "/v1/flights/{id}/comments/{comment}",
+                delete(social::remove_comment::<S>),
             )
             .route(LIVE_PATH, get(live::list::<S>))
             .route(LIVE_OTHERS_PATH, get(live::others::<S>))

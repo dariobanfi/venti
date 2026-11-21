@@ -15,6 +15,7 @@
 //! - `group` shows one group with its members and its plans,
 //!   `rename-group` gives it another name, `remove-plan` removes one of
 //!   its plans and `remove-group` the group with everything in it;
+//! - `remove-comment` removes one comment under a flight;
 //! - `site` shows one site of Venti's own two layers with its whole
 //!   history, `revert-site` puts it back to what an earlier revision
 //!   said, and `remove-site` takes it down;
@@ -139,6 +140,11 @@ pub enum Action {
     RemovePlan {
         /// The plan's identifier.
         plan: String,
+    },
+    /// Remove one comment under a flight.
+    RemoveComment {
+        /// The comment's identifier.
+        comment: String,
     },
     /// Remove a group, with its members' places in it and all its plans.
     RemoveGroup {
@@ -684,6 +690,36 @@ pub async fn perform(
                 format_day(plan.details.day),
                 quoted(&plan.details.place),
                 in_on_it(&plan, false),
+            )))
+        }
+        Action::RemoveComment { comment } => {
+            let id = comment.trim();
+            let none = || {
+                Ok(Outcome::nothing(format!(
+                    "There is no comment with the identifier {}: none ever was, or it was \
+                     removed by its author, by the flight's pilot or here, or it went with its \
+                     author or its flight. An identifier is 26 characters, as `venti-server \
+                     reports` prints it.",
+                    on_one_line(id)
+                )))
+            };
+            if !secret::is_id(id) {
+                return none();
+            }
+            let Some(removed) = store.remove_comment(id).await.map_err(failed)? else {
+                return none();
+            };
+            Ok(Outcome::found(format!(
+                "The comment {} of {} under flight {} is removed: {}.\n\
+                 To everyone it is as if its author had removed it: it is in no list, and \
+                 nobody is told that it was removed or by whom.\n\
+                 This cannot be undone. It does not stop its author from writing again: \
+                 `venti-server suspend-publishing {}` does. No report was closed.",
+                removed.id,
+                who(&removed.author_handle, &removed.author_name),
+                on_one_line(&removed.flight_id),
+                quoted(&removed.text),
+                on_one_line(&removed.author_handle),
             )))
         }
         Action::RemoveGroup { group } => {
@@ -1249,8 +1285,8 @@ async fn list(
         said.push_str(
             "\n\nA report is one pilot's word about another. Nothing was done about any of \
              them: see `venti-server --help` for take-down, remove-live-track, \
-             suspend-publishing, group, rename-group, remove-plan, remove-group and \
-             close-report.",
+             suspend-publishing, group, rename-group, remove-plan, remove-group, \
+             remove-comment and close-report.",
         );
     }
     Ok(Outcome::found(said))
@@ -1355,6 +1391,33 @@ async fn described(
                     on_one_line(group_id)
                 ),
                 None,
+            )
+        }
+        ReportSubject::Comment {
+            id,
+            flight_id,
+            text,
+        } => {
+            labelled(&mut kept, "Words then:", text);
+            let now = match store.comment(id).await? {
+                Some(comment) if comment.text == *text => "still there, the same".to_owned(),
+                Some(_) => "still there".to_owned(),
+                None => "gone: removed, or gone with its author or its flight".to_owned(),
+            };
+            labelled(&mut kept, "Now:", &now);
+            labelled(
+                &mut kept,
+                "Remove it:",
+                &format!("venti-server remove-comment {}", on_one_line(id)),
+            );
+            let address = flight_id.parse::<FlightId>().ok().map(|id| share_path(&id));
+            (
+                format!(
+                    "comment {} of {about}, under flight {}",
+                    on_one_line(id),
+                    on_one_line(flight_id)
+                ),
+                address.and_then(link),
             )
         }
         ReportSubject::Flight(id) => {

@@ -859,7 +859,7 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
         "  Place then:   Beispielwiese\n  Note then:    A made-up plan. Ground handling if the wind allows, coffee if not.",
         "  Now:          the same words, for 2026-11-19 at 09:00; its group is called \"Mustergruppe\"",
         "  Reported by:  jonas",
-        "rename-group, remove-plan, remove-group and close-report",
+        "rename-group, remove-plan, remove-group, remove-comment and close-report",
     ] {
         assert!(
             listed.said.contains(expected),
@@ -2954,6 +2954,7 @@ fn the_operators_guide_shows_the_commands_as_they_are() {
         "rename-group",
         "remove-plan",
         "remove-group",
+        "remove-comment",
         "site",
         "revert-site",
         "remove-site",

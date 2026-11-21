@@ -1,0 +1,52 @@
+{
+  "notifications": [
+    {
+      "kind": "followed",
+      "at": "2026-11-18T17:35:00Z",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      }
+    },
+    {
+      "kind": "cheered",
+      "at": "2026-11-18T18:05:00Z",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "flight": {
+        "id": "5t1eshypdtvrq7rxw39a18vsrg",
+        "start": "2026-08-15T10:30:00Z"
+      }
+    },
+    {
+      "kind": "commented",
+      "at": "2026-11-18T18:10:00Z",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "flight": {
+        "id": "5t1eshypdtvrq7rxw39a18vsrg",
+        "start": "2026-08-15T10:30:00Z"
+      },
+      "comment": "0000000000000000000000c001"
+    },
+    {
+      "kind": "cheered",
+      "at": "2026-11-18T18:20:00Z",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "flight": {
+        "id": "5t1eshypdtvrq7rxw39a18vsrg",
+        "start": "2026-08-15T10:30:00Z"
+      }
+    }
+  ],
+  "cursor": "1795026000000000",
+  "more": false,
+  "reset": false
+}

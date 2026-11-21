@@ -1,0 +1,24 @@
+{
+  "count": 2,
+  "open": true,
+  "comments": [
+    {
+      "id": "0000000000000000000000c001",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "text": "Well flown. How was the air above the ridge?",
+      "at": "2026-11-18T18:10:00Z"
+    },
+    {
+      "id": "0000000000000000000000c002",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "text": "Rough at first, calm above 2000 m.\nA made-up answer of the development mode.",
+      "at": "2026-11-18T18:15:00Z"
+    }
+  ]
+}

@@ -85,6 +85,11 @@ usage: venti-server <command>
       plan's identifier, as reports and group print it. Tells nobody, and
       cannot be undone.
 
+  remove-comment <COMMENT> [--config FILE]
+      Remove one comment under a flight. COMMENT is the comment's
+      identifier, as reports prints it. Tells nobody, and cannot be
+      undone.
+
   remove-group <GROUP> [--config FILE]
       Remove a group with its members' places in it and all its plans.
       Touches no account, tells nobody, and cannot be undone.
@@ -176,8 +181,8 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         "invite" => parse_invite(args),
         "reports" | "close-report" | "take-down" | "release" | "remove-live-track"
         | "suspend-publishing" | "resume-publishing" | "group" | "rename-group" | "remove-plan"
-        | "remove-group" | "site" | "revert-site" | "remove-site" | "grant-sites"
-        | "withdraw-sites" | "site-partners" => parse_moderation(&command, args),
+        | "remove-group" | "remove-comment" | "site" | "revert-site" | "remove-site"
+        | "grant-sites" | "withdraw-sites" | "site-partners" => parse_moderation(&command, args),
         "derive" => match args.next() {
             None => Ok(Command::Derive),
             Some(other) => Err(format!("derive does not take {other:?}")),
@@ -367,6 +372,9 @@ fn parse_moderation(
         },
         "remove-plan" => Action::RemovePlan {
             plan: target("a plan's identifier")?,
+        },
+        "remove-comment" => Action::RemoveComment {
+            comment: target("a comment's identifier")?,
         },
         "remove-group" => Action::RemoveGroup {
             group: target("a group's identifier")?,

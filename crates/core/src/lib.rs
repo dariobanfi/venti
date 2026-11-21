@@ -61,6 +61,7 @@ mod site_edit;
 mod site_filter;
 mod site_offers;
 mod sites;
+mod social;
 mod station_air;
 mod statistics;
 mod storage;
@@ -118,6 +119,7 @@ pub use site_offers::{
     site_withdrawn, site_words, sites_removed_path,
 };
 pub use sites::*;
+pub use social::*;
 pub use station_air::*;
 pub use statistics::*;
 pub use takeoffs::*;

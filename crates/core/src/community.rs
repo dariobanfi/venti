@@ -306,7 +306,7 @@ pub fn pilot_page(status: u16, body: Vec<u8>) -> Result<PilotPage, CoreError> {
     })
 }
 
-fn row(flight: &Flight) -> PublicFlight {
+pub(crate) fn row(flight: &Flight) -> PublicFlight {
     PublicFlight {
         id: flight.id.to_string(),
         handle: flight.pilot.handle.to_string(),

@@ -30,6 +30,8 @@ fn report_from(row: &Row) -> Result<Report, StoreError> {
                 u32::try_from(revision).map_err(|_| corrupt("revision of a reported site", kind))
             })
             .transpose()?,
+        flight_id: row.get("flight_id"),
+        comment: row.get("reported_comment"),
     };
     // A report about a site has no second account; every other has one,
     // which the database holds it to.
@@ -122,8 +124,9 @@ pub(super) async fn save(client: &Client, new: &NewReport) -> Result<ReportSaved
         .prepare_cached(
             "INSERT INTO reports
                  (id, created_at, reporter_id, about_account_id, kind, subject_id, reason,
-                  reporter_text, group_id, reported_name, reported_place, reported_note)
-             SELECT $1, $2, reporter.id, about.id, $5, $6, $7, $8, $9, $10, $11, $12
+                  reporter_text, group_id, reported_name, reported_place, reported_note,
+                  flight_id, reported_comment)
+             SELECT $1, $2, reporter.id, about.id, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
              FROM accounts reporter, accounts about
              WHERE reporter.id = $3 AND about.id = $4
              ON CONFLICT (reporter_id, about_account_id, kind, subject_id)
@@ -148,6 +151,8 @@ pub(super) async fn save(client: &Client, new: &NewReport) -> Result<ReportSaved
                 &words.name,
                 &words.place,
                 &words.note,
+                &words.flight_id,
+                &words.comment,
             ],
         )
         .await;
@@ -207,7 +212,8 @@ pub(super) async fn list(
         "SELECT r.id, r.created_at, reporter.handle AS reporter_handle, r.about_account_id,
                 about.handle AS about_handle, about.display_name AS about_name,
                 r.kind, r.subject_id, r.group_id, r.reported_name, r.reported_place,
-                r.reported_note, r.site_revision, r.reason, r.reporter_text, r.closed_at,
+                r.reported_note, r.site_revision, r.flight_id, r.reported_comment, r.reason,
+                r.reporter_text, r.closed_at,
                 r.closing_note
          FROM reports r
          JOIN accounts reporter ON reporter.id = r.reporter_id
@@ -236,7 +242,8 @@ pub(super) async fn sent_by(client: &Client, account_id: &str) -> Result<Vec<Rep
             "SELECT r.id, r.created_at, reporter.handle AS reporter_handle, r.about_account_id,
                     about.handle AS about_handle, about.display_name AS about_name,
                     r.kind, r.subject_id, r.group_id, r.reported_name, r.reported_place,
-                    r.reported_note, r.site_revision, r.reason, r.reporter_text, r.closed_at,
+                    r.reported_note, r.site_revision, r.flight_id, r.reported_comment, r.reason,
+                r.reporter_text, r.closed_at,
                     r.closing_note
              FROM reports r
              JOIN accounts reporter ON reporter.id = r.reporter_id

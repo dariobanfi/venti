@@ -162,6 +162,20 @@ pub enum ErrorCode {
     /// The account has as many browsers subscribed as it may. Remove one
     /// first.
     TooManyPushSubscriptions,
+    /// A pilot does not follow themselves.
+    InvalidFollow,
+    /// The account follows as many pilots as it may. Stop following one
+    /// first.
+    TooManyFollows,
+    /// A pilot does not cheer their own flight.
+    InvalidCheer,
+    /// A comment cannot be kept: nothing is left of it, or it is too
+    /// long.
+    InvalidComment,
+    /// The flight's pilot takes no comments on it.
+    CommentsOff,
+    /// The flight has no comment with this identifier.
+    CommentNotFound,
     /// No flight has this address, or it is not the caller's to see.
     FlightNotFound,
     /// No pilot has this handle.

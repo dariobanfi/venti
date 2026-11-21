@@ -1091,6 +1091,7 @@ async fn add_demo_account(
     add_demo_sites(store, &pilots, now).await?;
     add_demo_takeoffs(store, password_cost).await?;
     add_demo_alerts(store, &account.id, now).await?;
+    add_demo_social(store, now).await?;
 
     let session = Session {
         id: DEMO_SESSION_ID.to_owned(),
@@ -1140,6 +1141,187 @@ async fn add_demo_account(
             .map_err(|e| e.to_string())?;
         if !matches!(saved, LiveSaved::Kept(kept) if kept.created && kept.full == 0) {
             return Err("a demo live track could not be begun".to_owned());
+        }
+    }
+    Ok(())
+}
+
+/// The comments the development mode starts with, by these identifiers:
+/// two under the demo account's public flight and one under a flight of
+/// the first further pilot.
+pub const DEMO_COMMENTS: [&str; 3] = [
+    "0000000000000000000000c001",
+    "0000000000000000000000c002",
+    "0000000000000000000000c003",
+];
+
+/// Makes the made-up pilots follow each other, cheer a few of each
+/// other's public flights and write three comments, and tells the demo
+/// account of what concerned it. Adds no flight and changes none.
+async fn add_demo_social(store: &MemoryStore, now: Timestamp) -> Result<(), String> {
+    use venti_api_types::v1::{MAX_FOLLOWS, Notification, NotificationKind, NotifiedFlight, Pilot};
+    use venti_store::{Cheering, Commenting, Following, NewComment};
+
+    let failed = |error: venti_store::StoreError| error.to_string();
+    let ago = |minutes: i64| now - Duration::minutes(minutes);
+    let (demo, mara, jonas, lena) = (
+        DEMO_ACCOUNT_ID,
+        DEMO_PILOTS[0].id,
+        DEMO_PILOTS[1].id,
+        DEMO_TAKEOFF_PILOTS[0].id,
+    );
+    let follows = [
+        (demo, mara, 600),
+        (demo, jonas, 590),
+        (demo, lena, 580),
+        (mara, demo, 570),
+        (mara, jonas, 560),
+        (jonas, demo, 550),
+        (lena, demo, 90),
+    ];
+    for (follower, followed, minutes) in follows {
+        let made = store
+            .follow(follower, followed, ago(minutes), MAX_FOLLOWS)
+            .await
+            .map_err(failed)?;
+        if made != (Following::Follows { new: true }) {
+            return Err(format!(
+                "a made-up pilot could not follow another: {made:?}"
+            ));
+        }
+    }
+
+    // The newest public flight of each of the three.
+    let mut newest = Vec::new();
+    for pilot in [demo, mara, jonas] {
+        let flight = store
+            .flights_of(pilot, Listing::Public, None, 1)
+            .await
+            .map_err(failed)?
+            .pop()
+            .ok_or("a made-up pilot has no public flight to cheer")?;
+        newest.push(flight);
+    }
+    let (of_demo, of_mara, of_jonas) = (&newest[0], &newest[1], &newest[2]);
+    let cheers = [
+        (mara, of_demo, 60),
+        (lena, of_demo, 45),
+        (demo, of_mara, 500),
+        (jonas, of_mara, 480),
+        (demo, of_jonas, 470),
+    ];
+    for (pilot, flight, minutes) in cheers {
+        let made = store
+            .cheer(pilot, &flight.id, ago(minutes))
+            .await
+            .map_err(failed)?;
+        if made != (Cheering::Cheers { new: true }) {
+            return Err(format!(
+                "a made-up pilot could not cheer a flight: {made:?}"
+            ));
+        }
+    }
+    let comments = [
+        (
+            DEMO_COMMENTS[0],
+            of_demo,
+            mara,
+            "Well flown. How was the air above the ridge?",
+            55,
+        ),
+        (
+            DEMO_COMMENTS[1],
+            of_demo,
+            demo,
+            "Rough at first, calm above 2000 m.\nA made-up answer of the development mode.",
+            50,
+        ),
+        (
+            DEMO_COMMENTS[2],
+            of_mara,
+            demo,
+            "A made-up comment of the development mode.",
+            490,
+        ),
+    ];
+    for (id, flight, author, text, minutes) in comments {
+        let new = NewComment {
+            id: id.to_owned(),
+            flight_id: flight.id.clone(),
+            author_id: author.to_owned(),
+            text: text.to_owned(),
+            created_at: ago(minutes),
+        };
+        let made = store.add_comment(&new).await.map_err(failed)?;
+        if !matches!(made, Commenting::Added(_)) {
+            return Err(format!("a made-up comment could not be written: {made:?}"));
+        }
+    }
+
+    // What the demo account was told of it, as the API would have noted
+    // it. No site is named: these flights were not looked up.
+    let pilot = |pilot: &DemoPilot| -> Result<Pilot, String> {
+        Ok(Pilot {
+            handle: pilot
+                .handle
+                .parse()
+                .map_err(|_| "a made-up handle is none")?,
+            display_name: pilot.name.to_owned(),
+        })
+    };
+    let flight = NotifiedFlight {
+        id: of_demo
+            .id
+            .parse()
+            .map_err(|_| "a demo flight has no address")?,
+        start: of_demo.derived.start,
+        takeoff_site: None,
+    };
+    let told = [
+        (
+            NotificationKind::Followed,
+            &DEMO_TAKEOFF_PILOTS[0],
+            90,
+            None,
+            None,
+        ),
+        (
+            NotificationKind::Cheered,
+            &DEMO_PILOTS[0],
+            60,
+            Some(flight.clone()),
+            None,
+        ),
+        (
+            NotificationKind::Commented,
+            &DEMO_PILOTS[0],
+            55,
+            Some(flight.clone()),
+            Some(DEMO_COMMENTS[0].to_owned()),
+        ),
+        (
+            NotificationKind::Cheered,
+            &DEMO_TAKEOFF_PILOTS[0],
+            45,
+            Some(flight),
+            None,
+        ),
+    ];
+    for (kind, by, minutes, flight, comment) in told {
+        let notification = Notification {
+            kind,
+            at: ago(minutes),
+            pilot: pilot(by)?,
+            flight,
+            comment,
+        };
+        let record = serde_json::to_string(&notification).map_err(|e| e.to_string())?;
+        let noted = store
+            .add_notice(demo, by.id, ago(minutes), &record)
+            .await
+            .map_err(failed)?;
+        if !noted {
+            return Err("the demo account could not be told of a made-up cheer".to_owned());
         }
     }
     Ok(())

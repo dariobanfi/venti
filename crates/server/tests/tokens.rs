@@ -91,9 +91,14 @@ fn scoped() -> Vec<(Method, String, Scope)> {
     let kept = format!("{KEPT_SITES_PATH}/venti:{ID}");
     use Scope::{
         AccountRead, AlertsRead, AlertsWrite, FlightsRead, FlightsWrite, GroupsRead, GroupsWrite,
-        KeptSitesRead, KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite,
+        KeptSitesRead, KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite, SocialRead,
+        SocialWrite,
     };
     let alert = venti_api_types::v1::alert_path(ID);
+    let follow = venti_api_types::v1::pilot_follow_path("nobody");
+    let cheer = format!("{flight}/cheer");
+    let comments = format!("{flight}/comments");
+    let comment = format!("{flight}/comments/{ID}");
     vec![
         (Method::GET, ACCOUNT_PATH.to_owned(), AccountRead),
         (Method::GET, FLIGHTS_PATH.to_owned(), FlightsRead),
@@ -150,6 +155,28 @@ fn scoped() -> Vec<(Method, String, Scope)> {
         ),
         (Method::PUT, alert.clone(), AlertsWrite),
         (Method::DELETE, alert, AlertsWrite),
+        (Method::PUT, follow.clone(), SocialWrite),
+        (Method::DELETE, follow, SocialWrite),
+        (
+            Method::GET,
+            venti_api_types::v1::ACCOUNT_FOLLOWING_PATH.to_owned(),
+            SocialRead,
+        ),
+        (
+            Method::GET,
+            venti_api_types::v1::ACCOUNT_FEED_PATH.to_owned(),
+            SocialRead,
+        ),
+        (
+            Method::GET,
+            venti_api_types::v1::ACCOUNT_NOTIFICATIONS_PATH.to_owned(),
+            SocialRead,
+        ),
+        (Method::PUT, cheer.clone(), SocialWrite),
+        (Method::DELETE, cheer, SocialWrite),
+        (Method::POST, comments.clone(), SocialWrite),
+        (Method::PATCH, comments, FlightsWrite),
+        (Method::DELETE, comment, SocialWrite),
     ]
 }
 
@@ -623,6 +650,8 @@ fn the_documentation_lists_every_request_with_its_scope() {
         let path = path
             .replace(&format!("plans/{ID}"), "plans/{plan}")
             .replace("members/demo", "members/{handle}")
+            .replace("pilots/nobody", "pilots/{handle}")
+            .replace(&format!("comments/{ID}"), "comments/{comment}")
             .replace(&format!("venti-pilots:{ID}"), "{id}")
             .replace(&format!("venti:{ID}"), "{id}")
             .replace(ID, "{id}");

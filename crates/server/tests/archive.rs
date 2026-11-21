@@ -232,6 +232,23 @@ async fn every_file_of_the_archive_is_listed_and_is_the_record_the_api_answers()
     assert!(!alerts.fired.is_empty());
     assert_eq!(alerts.fired, fired.fired);
 
+    // What the pilot gave among pilots: whom they follow as their own
+    // list has it, their cheers and their comments.
+    let social: venti_api_types::v1::ArchiveSocial = archive.json("social.json");
+    let theirs: venti_api_types::v1::FollowsResponse =
+        own(&router, token, venti_api_types::v1::ACCOUNT_FOLLOWING_PATH).await;
+    assert_eq!(social.following.len(), 3);
+    assert_eq!(social.following, theirs.pilots);
+    assert_eq!(social.cheers.len(), 2);
+    let written: Vec<&str> = social.comments.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(
+        written,
+        [
+            venti_server::dev::DEMO_COMMENTS[2],
+            venti_server::dev::DEMO_COMMENTS[1]
+        ]
+    );
+
     // The plans the pilot posted, and those of others they are in on.
     let plans: PlansResponse = archive.json("plans.json");
     assert!(!plans.plans.is_empty());

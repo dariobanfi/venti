@@ -102,6 +102,15 @@ pub struct Limits {
     /// bury whoever runs the server. It also bounds how fast an account
     /// can try addresses through this endpoint.
     pub reports_per_day: u32,
+    /// Comments one account may write on flights within a day. A hundred
+    /// is more than a pilot writes who reads what they answer (an
+    /// estimate), and few enough that one account cannot fill the pages
+    /// of others.
+    pub comments_per_day: u32,
+    /// Times one account may follow a pilot or cheer a flight within a
+    /// day, each of which may tell another pilot something. Taking one
+    /// back is not counted.
+    pub follows_and_cheers_per_day: u32,
     /// Archives one account may ask for within a day
     /// (`GET /v1/account/archive`), whatever becomes of the request. An
     /// archive reads every flight file the account has and packs them
@@ -213,6 +222,8 @@ impl Default for Limits {
             uploads_per_day: 1000,
             slow_upload_weight: 50,
             reports_per_day: 20,
+            comments_per_day: venti_api_types::v1::COMMENTS_PER_DAY,
+            follows_and_cheers_per_day: venti_api_types::v1::FOLLOWS_AND_CHEERS_PER_DAY,
             archives_per_day: 4,
             connector_requests_per_address: 120,
             connector_requests_per_network: 480,
@@ -251,6 +262,8 @@ impl Limits {
             registrations_per_network: u32::MAX,
             uploads_per_day: u32::MAX,
             reports_per_day: u32::MAX,
+            comments_per_day: u32::MAX,
+            follows_and_cheers_per_day: u32::MAX,
             archives_per_day: u32::MAX,
             connector_requests_per_address: u32::MAX,
             connector_requests_per_network: u32::MAX,

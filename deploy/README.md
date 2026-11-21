@@ -184,6 +184,7 @@ docker compose exec server venti-server group <GROUP>                # one group
 docker compose exec server venti-server rename-group <GROUP> --name "Flying friends"
 docker compose exec server venti-server remove-plan <PLAN>
 docker compose exec server venti-server remove-group <GROUP>
+docker compose exec server venti-server remove-comment <COMMENT>
 ```
 
 Each command does one thing, takes effect at once, and says what it did and what it did not. One pointed at something that is not there says so and fails. None deletes a flight or an account, and none closes a report: taking a flight down and closing its report are two commands.
@@ -230,7 +231,7 @@ Report 0000000000000000000000rep5, open, made 2026-11-18 19:03 UTC
   Text:         An advertisement, not a plan.
   Reported by:  demo
 
-A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing, group, rename-group, remove-plan, remove-group and close-report.
+A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing, group, rename-group, remove-plan, remove-group, remove-comment and close-report.
 ```
 
 | Command | What it does | What it does not do |
@@ -246,6 +247,7 @@ A report is one pilot's word about another. Nothing was done about any of them: 
 | `rename-group <GROUP> --name TEXT` | Gives the group another name of 1 to 60 characters, which its members see when their apps next ask | Tells nobody, and marks nothing: the group does not say who named it. Does not stop its keeper from naming it back: against that, remove the group |
 | `remove-plan <PLAN>` | Deletes one plan with who was in on it, as its author could | Tells nobody. Does not stop its author from posting it again. Cannot be undone |
 | `remove-group <GROUP>` | Deletes one group with its members' places in it, all its plans and its invite code, as its keeper could | Tells nobody, touches no account, and does not stop anyone from making a group again. Cannot be undone |
+| `remove-comment <COMMENT>` | Deletes one comment under a flight, as its author or the flight's pilot could. `<COMMENT>` is the identifier `reports` prints with a report about a comment | Tells nobody. Does not stop its author from writing again: `suspend-publishing` does, and takes following and cheering from the account as well. Cannot be undone |
 
 - **Look at what was reported before you act.** The server checked nothing of it, and anyone with an account can send one.
 - **What `reports` and `group` print is for your eyes.** `reports` names who reported, and a live track's identifier is the key to where a person is. `group` says who is in a group and where its members mean to be on a day, which nobody outside the group is shown anywhere else. Do not paste either where others read.

@@ -15,6 +15,7 @@ mod pilot_sites;
 mod push;
 mod reports;
 mod sites;
+mod social;
 mod takeoffs;
 
 use std::time::Duration;
@@ -920,6 +921,155 @@ impl Store for PgStore {
         limit: usize,
     ) -> Result<crate::FiredAlerts, StoreError> {
         alerts::fired(&self.client().await?, account_id, since, limit).await
+    }
+
+    async fn follow(
+        &self,
+        follower_id: &str,
+        followed_id: &str,
+        now: Timestamp,
+        most: usize,
+    ) -> Result<crate::Following, StoreError> {
+        social::follow(
+            &mut self.client().await?,
+            follower_id,
+            followed_id,
+            now,
+            most,
+        )
+        .await
+    }
+
+    async fn unfollow(&self, follower_id: &str, followed_id: &str) -> Result<bool, StoreError> {
+        social::unfollow(&self.client().await?, follower_id, followed_id).await
+    }
+
+    async fn follow_counts(&self, account_id: &str) -> Result<crate::FollowCounts, StoreError> {
+        social::counts(&self.client().await?, account_id).await
+    }
+
+    async fn follows_pilot(
+        &self,
+        follower_id: &str,
+        followed_id: &str,
+    ) -> Result<bool, StoreError> {
+        social::follows_pilot(&self.client().await?, follower_id, followed_id).await
+    }
+
+    async fn follows(
+        &self,
+        account_id: &str,
+        side: crate::FollowSide,
+        with_a_page: bool,
+        after: Option<&crate::SocialKey>,
+        limit: usize,
+    ) -> Result<Vec<crate::SocialPilot>, StoreError> {
+        social::follows(
+            &self.client().await?,
+            account_id,
+            side,
+            with_a_page,
+            after,
+            limit,
+        )
+        .await
+    }
+
+    async fn followed_flights(
+        &self,
+        account_id: &str,
+        after: Option<&crate::FlightKey>,
+        limit: usize,
+    ) -> Result<Vec<crate::Flight>, StoreError> {
+        social::followed_flights(&self.client().await?, account_id, after, limit).await
+    }
+
+    async fn cheer(
+        &self,
+        account_id: &str,
+        flight_id: &str,
+        now: Timestamp,
+    ) -> Result<crate::Cheering, StoreError> {
+        social::cheer(&self.client().await?, account_id, flight_id, now).await
+    }
+
+    async fn uncheer(&self, account_id: &str, flight_id: &str) -> Result<bool, StoreError> {
+        social::uncheer(&self.client().await?, account_id, flight_id).await
+    }
+
+    async fn cheers(
+        &self,
+        flight_id: &str,
+        after: Option<&crate::SocialKey>,
+        limit: usize,
+    ) -> Result<Vec<crate::SocialPilot>, StoreError> {
+        social::cheers(&self.client().await?, flight_id, after, limit).await
+    }
+
+    async fn flight_social(
+        &self,
+        flight_ids: &[String],
+        viewer: Option<&str>,
+    ) -> Result<Vec<crate::FlightSocial>, StoreError> {
+        social::of_flights(&self.client().await?, flight_ids, viewer).await
+    }
+
+    async fn add_comment(&self, new: &crate::NewComment) -> Result<crate::Commenting, StoreError> {
+        social::add_comment(&mut self.client().await?, new).await
+    }
+
+    async fn comments(
+        &self,
+        flight_id: &str,
+        after: Option<&crate::SocialKey>,
+        limit: usize,
+    ) -> Result<Vec<crate::Comment>, StoreError> {
+        social::comments(&self.client().await?, flight_id, after, limit).await
+    }
+
+    async fn comment(&self, id: &str) -> Result<Option<crate::Comment>, StoreError> {
+        social::comment(&self.client().await?, id).await
+    }
+
+    async fn remove_comment(&self, id: &str) -> Result<Option<crate::Comment>, StoreError> {
+        social::remove_comment(&self.client().await?, id).await
+    }
+
+    async fn close_comments(
+        &self,
+        account_id: &str,
+        flight_id: &str,
+        closed: bool,
+        now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        social::close_comments(&self.client().await?, account_id, flight_id, closed, now).await
+    }
+
+    async fn social_given(&self, account_id: &str) -> Result<crate::SocialGiven, StoreError> {
+        social::given(&self.client().await?, account_id).await
+    }
+
+    async fn add_notice(
+        &self,
+        account_id: &str,
+        actor_id: &str,
+        at: Timestamp,
+        record: &str,
+    ) -> Result<bool, StoreError> {
+        social::add_notice(&mut self.client().await?, account_id, actor_id, at, record).await
+    }
+
+    async fn notices(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> Result<crate::Notices, StoreError> {
+        social::notices(&self.client().await?, account_id, since, limit).await
+    }
+
+    async fn prune_notices(&self, before: Timestamp) -> Result<u64, StoreError> {
+        social::prune_notices(&self.client().await?, before).await
     }
 
     async fn prune_fired_alerts(&self, before: Timestamp) -> Result<u64, StoreError> {

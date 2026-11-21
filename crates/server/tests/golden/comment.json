@@ -1,0 +1,12 @@
+{
+  "comment": {
+    "id": "0000000000000000000000c009",
+    "pilot": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "text": "A made-up comment of a test.",
+    "at": "2026-11-18T19:05:00Z"
+  },
+  "count": 1
+}

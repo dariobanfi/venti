@@ -108,6 +108,7 @@ mod report;
 mod request;
 mod route;
 mod sites;
+mod social;
 mod stations;
 mod takeoffs;
 mod text;
@@ -198,7 +199,7 @@ pub use radar::{
 };
 pub use report::{
     MAX_REPORT_TEXT_LENGTH, ReportReason, ReportRequest, ReportResponse, ReportSubject,
-    ReportTextError, ReportedPlan, ReportedSite, parse_report_text,
+    ReportTextError, ReportedComment, ReportedPlan, ReportedSite, parse_report_text,
 };
 pub use request::{
     ACCOUNT_GOOGLE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH,
@@ -232,6 +233,16 @@ pub use sites::{
     SiteRecord, SiteRemoval, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding, SiteVia,
     SitesResponse, VENTI_PILOTS_SITES_SOURCE, VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL,
     VENTI_SITES_SOURCE, parse_site_comment,
+};
+pub use social::{
+    ACCOUNT_FEED_PATH, ACCOUNT_FOLLOWING_PATH, ACCOUNT_NOTIFICATIONS_PATH, ArchiveCheer,
+    ArchiveComment, ArchiveSocial, COMMENTS_PER_DAY, Cheer, CheerResponse, CheersResponse, Comment,
+    CommentError, CommentRequest, CommentResponse, CommentsOpen, CommentsResponse,
+    FOLLOWS_AND_CHEERS_PER_DAY, FeedFlight, FeedResponse, FollowResponse, FollowedPilot,
+    FollowsResponse, MAX_COMMENT_LENGTH, MAX_FOLLOWS, NOTIFICATIONS_KEPT_DAYS, Notification,
+    NotificationKind, NotificationsResponse, NotifiedFlight, feed_path, flight_cheer_path,
+    flight_cheers_path, flight_comment_path, flight_comments_path, notifications_path,
+    parse_comment, pilot_follow_path, pilot_followers_path, pilot_following_path, social_page_path,
 };
 pub use stations::{Station, StationWithLatest, StationsResponse};
 pub use takeoffs::{

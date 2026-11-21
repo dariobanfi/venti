@@ -66,6 +66,12 @@
       "holds": "The account's alarms, and what they fired in the last 30 days.",
       "record": "ArchiveAlerts",
       "entries": 3
+    },
+    {
+      "path": "social.json",
+      "holds": "The pilots the account follows, the flights it cheered and the comments it wrote under flights.",
+      "record": "ArchiveSocial",
+      "entries": 7
     }
   ],
   "flights": [

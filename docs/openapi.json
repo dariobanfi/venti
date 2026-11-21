@@ -634,6 +634,64 @@
         ],
         "type": "object"
       },
+      "Cheer": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          }
+        },
+        "required": [
+          "pilot",
+          "at"
+        ],
+        "type": "object"
+      },
+      "CheerResponse": {
+        "properties": {
+          "cheered": {
+            "type": "boolean"
+          },
+          "cheers": {
+            "description": "How many pilots cheer the flight now.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cheered",
+          "cheers"
+        ],
+        "type": "object"
+      },
+      "CheersResponse": {
+        "properties": {
+          "cheered": {
+            "description": "Whether the account that asks cheered the flight. Absent when nobody is signed in.",
+            "type": "boolean"
+          },
+          "cheers": {
+            "items": {
+              "$ref": "#/components/schemas/Cheer"
+            },
+            "type": "array"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next": {
+            "description": "The cursor of the next page: send it as `after`. Absent on the last page.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "cheers"
+        ],
+        "type": "object"
+      },
       "Circle": {
         "properties": {
           "centre": {
@@ -655,6 +713,97 @@
           "seen",
           "hidden"
         ]
+      },
+      "Comment": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "text": {
+            "description": "Plain text of at most 500 characters. Show it as text, never as markup.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "pilot",
+          "text",
+          "at"
+        ],
+        "type": "object"
+      },
+      "CommentRequest": {
+        "properties": {
+          "text": {
+            "description": "Plain text; at most 500 characters once trimmed.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "CommentResponse": {
+        "properties": {
+          "comment": {
+            "$ref": "#/components/schemas/Comment"
+          },
+          "count": {
+            "description": "How many comments the flight has now.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "comment",
+          "count"
+        ],
+        "type": "object"
+      },
+      "CommentsOpen": {
+        "properties": {
+          "open": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "open"
+        ],
+        "type": "object"
+      },
+      "CommentsResponse": {
+        "properties": {
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/Comment"
+            },
+            "type": "array"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next": {
+            "description": "The cursor of the next page: send it as `after`. Absent on the last page.",
+            "type": "string"
+          },
+          "open": {
+            "description": "False once the flight's pilot turned comments off; those written before stay.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "count",
+          "open",
+          "comments"
+        ],
+        "type": "object"
       },
       "ConfirmSiteRequest": {
         "description": "\"I took off here and it was good\": the day, a line if wanted, and one of the pilot's own flights if wanted, by its address.",
@@ -1074,6 +1223,12 @@
           "alert_not_found",
           "invalid_push_subscription",
           "too_many_push_subscriptions",
+          "invalid_follow",
+          "too_many_follows",
+          "invalid_cheer",
+          "invalid_comment",
+          "comments_off",
+          "comment_not_found",
           "flight_not_found",
           "pilot_not_found",
           "invalid_flight",
@@ -1146,6 +1301,52 @@
         },
         "required": [
           "id"
+        ],
+        "type": "object"
+      },
+      "FeedFlight": {
+        "properties": {
+          "cheered": {
+            "description": "Whether the account that asks cheered the flight.",
+            "type": "boolean"
+          },
+          "cheers": {
+            "type": "integer"
+          },
+          "comments": {
+            "type": "integer"
+          },
+          "flight": {
+            "$ref": "#/components/schemas/Flight"
+          }
+        },
+        "required": [
+          "flight",
+          "cheers",
+          "comments",
+          "cheered"
+        ],
+        "type": "object"
+      },
+      "FeedResponse": {
+        "properties": {
+          "flights": {
+            "items": {
+              "$ref": "#/components/schemas/FeedFlight"
+            },
+            "type": "array"
+          },
+          "next": {
+            "description": "The cursor of the next page: send it as `before`. Absent on the last page.",
+            "type": "string"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/FlightTerms"
+          }
+        },
+        "required": [
+          "flights",
+          "terms"
         ],
         "type": "object"
       },
@@ -1553,6 +1754,70 @@
         "required": [
           "site",
           "flights"
+        ],
+        "type": "object"
+      },
+      "FollowResponse": {
+        "properties": {
+          "followers": {
+            "description": "How many accounts follow the pilot now.",
+            "type": "integer"
+          },
+          "following": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "following",
+          "followers"
+        ],
+        "type": "object"
+      },
+      "FollowedPilot": {
+        "properties": {
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "since": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pilot",
+          "since"
+        ],
+        "type": "object"
+      },
+      "FollowsResponse": {
+        "properties": {
+          "followers": {
+            "description": "How many accounts follow the pilot, those the list does not name included.",
+            "type": "integer"
+          },
+          "following": {
+            "description": "How many accounts the pilot follows, those the list does not name included.",
+            "type": "integer"
+          },
+          "next": {
+            "description": "The cursor of the next page: send it as `after`. Absent on the last page.",
+            "type": "string"
+          },
+          "pilots": {
+            "items": {
+              "$ref": "#/components/schemas/FollowedPilot"
+            },
+            "type": "array"
+          },
+          "you_follow": {
+            "description": "Whether the account that asks follows the pilot. Absent when nobody is signed in, and in the account's own list.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pilots",
+          "followers",
+          "following"
         ],
         "type": "object"
       },
@@ -2572,6 +2837,91 @@
         ],
         "type": "object"
       },
+      "Notification": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "comment": {
+            "description": "For a comment, its identifier.",
+            "type": "string"
+          },
+          "flight": {
+            "$ref": "#/components/schemas/NotifiedFlight"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NotificationKind"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          }
+        },
+        "required": [
+          "kind",
+          "at",
+          "pilot"
+        ],
+        "type": "object"
+      },
+      "NotificationKind": {
+        "description": "What a pilot is told of. A client skips a kind it does not know.",
+        "type": "string",
+        "x-venti-values": [
+          "followed",
+          "cheered",
+          "commented"
+        ]
+      },
+      "NotificationsResponse": {
+        "properties": {
+          "cursor": {
+            "description": "Send it as `since` with the next request.",
+            "type": "string"
+          },
+          "more": {
+            "description": "Whether more waits: ask again at once with `cursor`.",
+            "type": "boolean"
+          },
+          "notifications": {
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            },
+            "type": "array"
+          },
+          "reset": {
+            "description": "True when the cursor sent was not this server's: what follows starts from the oldest kept.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "notifications",
+          "cursor",
+          "more",
+          "reset"
+        ],
+        "type": "object"
+      },
+      "NotifiedFlight": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "takeoff_site": {
+            "description": "The name of the site the flight took off from, as it stood then.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "start"
+        ],
+        "type": "object"
+      },
       "ObservationsResponse": {
         "properties": {
           "attributions": {
@@ -3469,6 +3819,21 @@
       },
       "ReportSubject": {
         "properties": {
+          "comment": {
+            "properties": {
+              "flight": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "flight",
+              "id"
+            ],
+            "type": "object"
+          },
           "flight": {
             "type": "string"
           },
@@ -3690,7 +4055,9 @@
           "kept-sites:read",
           "kept-sites:write",
           "alerts:read",
-          "alerts:write"
+          "alerts:write",
+          "social:read",
+          "social:write"
         ]
       },
       "Session": {
@@ -5394,7 +5761,9 @@
           "kept-sites:read",
           "kept-sites:write",
           "alerts:read",
-          "alerts:write"
+          "alerts:write",
+          "social:read",
+          "social:write"
         ]
       }
     }
@@ -5765,6 +6134,126 @@
         "x-venti-docs": "GET /v1/account/archive"
       }
     },
+    "/v1/account/feed": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:read`.",
+        "operationId": "get_account_feed",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {}
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:read"
+            ]
+          }
+        ],
+        "summary": "The public flights of the pilots the account follows, newest first",
+        "x-venti-docs": "GET /v1/account/feed?before=&limit="
+      }
+    },
+    "/v1/account/following": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:read`.",
+        "operationId": "get_account_following",
+        "parameters": [
+          {
+            "description": "Paging: the `next` of the page before, as the server gave it. Left out for the first page. A page is followed until an answer has no `next`.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:read"
+            ]
+          }
+        ],
+        "summary": "Everyone the account follows",
+        "x-venti-docs": "GET /v1/account/following?after=&limit="
+      }
+    },
     "/v1/account/google": {
       "delete": {
         "description": "The pilot's own sign-in only: a session's token. No token for a program.",
@@ -5994,6 +6483,67 @@
         ],
         "summary": "Keep a site as the pilot's own",
         "x-venti-docs": "PUT /v1/account/kept-sites/{id}"
+      }
+    },
+    "/v1/account/notifications": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:read`.",
+        "operationId": "get_account_notifications",
+        "parameters": [
+          {
+            "description": "Following changes: the `cursor` of the answer before, as the server gave it. Left out to begin with everything. While an answer says `more`, ask again at once with its `cursor`; `reset` says the cursor was not this server's.",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:read"
+            ]
+          }
+        ],
+        "summary": "What the account was told",
+        "x-venti-docs": "GET /v1/account/notifications?since=&limit="
       }
     },
     "/v1/account/password": {
@@ -7076,6 +7626,382 @@
         ],
         "summary": "Change who may see a flight",
         "x-venti-docs": "PATCH /v1/flights/{id}"
+      }
+    },
+    "/v1/flights/{id}/cheer": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:write`.",
+        "operationId": "delete_flights_id_cheer",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheerResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:write"
+            ]
+          }
+        ],
+        "summary": "Take a cheer back",
+        "x-venti-docs": "DELETE /v1/flights/{id}/cheer"
+      },
+      "put": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:write`.",
+        "operationId": "put_flights_id_cheer",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheerResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:write"
+            ]
+          }
+        ],
+        "summary": "Cheer a public flight",
+        "x-venti-docs": "PUT /v1/flights/{id}/cheer"
+      }
+    },
+    "/v1/flights/{id}/cheers": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_flights_id_cheers",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Paging: the `next` of the page before, as the server gave it. Left out for the first page. A page is followed until an answer has no `next`.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheersResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Who cheered a public flight, the newest first, and how many did",
+        "x-venti-docs": "GET /v1/flights/{id}/cheers?after=&limit="
+      }
+    },
+    "/v1/flights/{id}/comments": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_flights_id_comments",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Paging: the `next` of the page before, as the server gave it. Left out for the first page. A page is followed until an answer has no `next`.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The comments under a public flight, the oldest first",
+        "x-venti-docs": "GET /v1/flights/{id}/comments?after=&limit="
+      },
+      "patch": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `flights:write`.",
+        "operationId": "patch_flights_id_comments",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentsOpen"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentsOpen"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "flights:write"
+            ]
+          }
+        ],
+        "summary": "Say whether a flight of the pilot's own takes comments",
+        "x-venti-docs": "PATCH /v1/flights/{id}/comments"
+      },
+      "post": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:write`.",
+        "operationId": "post_flights_id_comments",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:write"
+            ]
+          }
+        ],
+        "summary": "Write a comment under a public flight",
+        "x-venti-docs": "POST /v1/flights/{id}/comments"
+      }
+    },
+    "/v1/flights/{id}/comments/{comment}": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:write`.",
+        "operationId": "delete_flights_id_comments_comment",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "comment",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:write"
+            ]
+          }
+        ],
+        "summary": "Remove a comment: its author, or the flight's pilot",
+        "x-venti-docs": "DELETE /v1/flights/{id}/comments/{comment}"
       }
     },
     "/v1/flights/{id}/igc": {
@@ -8648,6 +9574,214 @@
         "security": [],
         "summary": "A pilot's page: their public flights, newest first",
         "x-venti-docs": "GET /v1/pilots/{handle}?after=&limit="
+      }
+    },
+    "/v1/pilots/{handle}/follow": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:write`.",
+        "operationId": "delete_pilots_handle_follow",
+        "parameters": [
+          {
+            "description": "A pilot's handle.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:write"
+            ]
+          }
+        ],
+        "summary": "Follow a pilot no more",
+        "x-venti-docs": "DELETE /v1/pilots/{handle}/follow"
+      },
+      "put": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:write`.",
+        "operationId": "put_pilots_handle_follow",
+        "parameters": [
+          {
+            "description": "A pilot's handle.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:write"
+            ]
+          }
+        ],
+        "summary": "Follow a pilot",
+        "x-venti-docs": "PUT /v1/pilots/{handle}/follow"
+      }
+    },
+    "/v1/pilots/{handle}/followers": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_pilots_handle_followers",
+        "parameters": [
+          {
+            "description": "A pilot's handle.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Paging: the `next` of the page before, as the server gave it. Left out for the first page. A page is followed until an answer has no `next`.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Who follows a pilot, the newest first, and how many do",
+        "x-venti-docs": "GET /v1/pilots/{handle}/followers?after=&limit="
+      }
+    },
+    "/v1/pilots/{handle}/following": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_pilots_handle_following",
+        "parameters": [
+          {
+            "description": "A pilot's handle.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Paging: the `next` of the page before, as the server gave it. Left out for the first page. A page is followed until an answer has no `next`.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Whom a pilot follows, the newest first, and how many",
+        "x-venti-docs": "GET /v1/pilots/{handle}/following?after=&limit="
       }
     },
     "/v1/pilots/{handle}/statistics": {

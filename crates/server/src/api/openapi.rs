@@ -31,16 +31,17 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
-    ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_GOOGLE_PATH, ACCOUNT_PASSWORD_PATH,
-    ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH,
-    ALERTS_PATH, ARCHIVE_MEDIA_TYPE, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, CABLES_PATH,
-    CSV_MEDIA_TYPE, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
-    FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
-    JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
-    LIVE_POSITIONS_PATH, MAPS_PATH, PILOTS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
-    PUBLIC_FLIGHTS_PATH, PUSH_KEY_PATH, PUSH_SUBSCRIPTION_PATH, RADAR_PATH, RANKING_PATH,
-    REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH,
-    SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
+    ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_FEED_PATH, ACCOUNT_FOLLOWING_PATH,
+    ACCOUNT_GOOGLE_PATH, ACCOUNT_NOTIFICATIONS_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
+    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH, ALERTS_PATH,
+    ARCHIVE_MEDIA_TYPE, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, CABLES_PATH, CSV_MEDIA_TYPE,
+    DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
+    GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, JSON_LINES_MEDIA_TYPE,
+    KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH,
+    PILOTS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, PUSH_KEY_PATH,
+    PUSH_SUBSCRIPTION_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH,
+    SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope,
+    THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 
 use super::cache;
@@ -227,7 +228,8 @@ fn delete(path: &'static str, summary: &'static str) -> Op {
 fn operations() -> Vec<Op> {
     use Scope::{
         AccountRead, AlertsRead, AlertsWrite, FlightsRead, FlightsWrite, GroupsRead, GroupsWrite,
-        KeptSitesRead, KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite,
+        KeptSitesRead, KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite, SocialRead,
+        SocialWrite,
     };
     const PAGE: &[&str] = &["after:cursor", "limit"];
     const SINCE: &[&str] = &["since:cursor", "limit"];
@@ -611,6 +613,88 @@ fn operations() -> Vec<Op> {
             "What a pilot's public flights add up to, all together and year by year",
         )
         .json("PilotStatisticsResponse"),
+        // Pilots among each other.
+        put("/v1/pilots/{handle}/follow", "Follow a pilot")
+            .with(SocialWrite)
+            .json("FollowResponse"),
+        delete("/v1/pilots/{handle}/follow", "Follow a pilot no more")
+            .with(SocialWrite)
+            .statuses(&[200])
+            .json("FollowResponse"),
+        get(
+            "/v1/pilots/{handle}/followers",
+            "Who follows a pilot, the newest first, and how many do",
+        )
+        .docs("GET /v1/pilots/{handle}/followers?after=&limit=")
+        .query(PAGE)
+        .json("FollowsResponse"),
+        get(
+            "/v1/pilots/{handle}/following",
+            "Whom a pilot follows, the newest first, and how many",
+        )
+        .docs("GET /v1/pilots/{handle}/following?after=&limit=")
+        .query(PAGE)
+        .json("FollowsResponse"),
+        get(ACCOUNT_FOLLOWING_PATH, "Everyone the account follows")
+            .docs("GET /v1/account/following?after=&limit=")
+            .with(SocialRead)
+            .query(PAGE)
+            .json("FollowsResponse"),
+        get(
+            ACCOUNT_FEED_PATH,
+            "The public flights of the pilots the account follows, newest first",
+        )
+        .docs("GET /v1/account/feed?before=&limit=")
+        .with(SocialRead)
+        .query(&["before:cursor", "limit"])
+        .json("FeedResponse"),
+        put("/v1/flights/{id}/cheer", "Cheer a public flight")
+            .with(SocialWrite)
+            .json("CheerResponse"),
+        delete("/v1/flights/{id}/cheer", "Take a cheer back")
+            .with(SocialWrite)
+            .statuses(&[200])
+            .json("CheerResponse"),
+        get(
+            "/v1/flights/{id}/cheers",
+            "Who cheered a public flight, the newest first, and how many did",
+        )
+        .docs("GET /v1/flights/{id}/cheers?after=&limit=")
+        .query(PAGE)
+        .json("CheersResponse"),
+        get(
+            "/v1/flights/{id}/comments",
+            "The comments under a public flight, the oldest first",
+        )
+        .docs("GET /v1/flights/{id}/comments?after=&limit=")
+        .query(PAGE)
+        .json("CommentsResponse"),
+        post(
+            "/v1/flights/{id}/comments",
+            "Write a comment under a public flight",
+        )
+        .with(SocialWrite)
+        .takes("CommentRequest")
+        .statuses(&[201])
+        .json("CommentResponse"),
+        patch(
+            "/v1/flights/{id}/comments",
+            "Say whether a flight of the pilot's own takes comments",
+        )
+        .with(FlightsWrite)
+        .takes("CommentsOpen")
+        .json("CommentsOpen"),
+        delete(
+            "/v1/flights/{id}/comments/{comment}",
+            "Remove a comment: its author, or the flight's pilot",
+        )
+        .with(SocialWrite)
+        .nothing(),
+        get(ACCOUNT_NOTIFICATIONS_PATH, "What the account was told")
+            .docs("GET /v1/account/notifications?since=&limit=")
+            .with(SocialRead)
+            .query(SINCE)
+            .json("NotificationsResponse"),
         get(PUBLIC_FLIGHTS_PATH, "Everyone's public flights")
             .docs("GET /v1/flights/public?pilot=&bbox=&from=&to=&sort=&after=&limit=")
             .query(&[

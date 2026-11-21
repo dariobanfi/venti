@@ -1040,6 +1040,12 @@
       "alert_not_found",
       "invalid_push_subscription",
       "too_many_push_subscriptions",
+      "invalid_follow",
+      "too_many_follows",
+      "invalid_cheer",
+      "invalid_comment",
+      "comments_off",
+      "comment_not_found",
       "flight_not_found",
       "pilot_not_found",
       "invalid_flight",
@@ -3257,6 +3263,21 @@
         "required": [
           "id"
         ]
+      },
+      "comment": {
+        "type": "object",
+        "properties": {
+          "flight": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "flight",
+          "id"
+        ]
       }
     }
   },
@@ -3446,7 +3467,9 @@
       "kept-sites:read",
       "kept-sites:write",
       "alerts:read",
-      "alerts:write"
+      "alerts:write",
+      "social:read",
+      "social:write"
     ]
   },
   "Session": {
@@ -5335,6 +5358,350 @@
     "required": [
       "site",
       "flights"
+    ]
+  },
+  "FollowedPilot": {
+    "type": "object",
+    "properties": {
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "since": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "pilot",
+      "since"
+    ]
+  },
+  "FollowResponse": {
+    "type": "object",
+    "properties": {
+      "following": {
+        "type": "boolean"
+      },
+      "followers": {
+        "type": "integer",
+        "description": "How many accounts follow the pilot now."
+      }
+    },
+    "required": [
+      "following",
+      "followers"
+    ]
+  },
+  "FollowsResponse": {
+    "type": "object",
+    "properties": {
+      "pilots": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FollowedPilot"
+        }
+      },
+      "followers": {
+        "type": "integer",
+        "description": "How many accounts follow the pilot, those the list does not name included."
+      },
+      "following": {
+        "type": "integer",
+        "description": "How many accounts the pilot follows, those the list does not name included."
+      },
+      "you_follow": {
+        "type": "boolean",
+        "description": "Whether the account that asks follows the pilot. Absent when nobody is signed in, and in the account's own list."
+      },
+      "next": {
+        "type": "string",
+        "description": "The cursor of the next page: send it as `after`. Absent on the last page."
+      }
+    },
+    "required": [
+      "pilots",
+      "followers",
+      "following"
+    ]
+  },
+  "Cheer": {
+    "type": "object",
+    "properties": {
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "pilot",
+      "at"
+    ]
+  },
+  "CheerResponse": {
+    "type": "object",
+    "properties": {
+      "cheered": {
+        "type": "boolean"
+      },
+      "cheers": {
+        "type": "integer",
+        "description": "How many pilots cheer the flight now."
+      }
+    },
+    "required": [
+      "cheered",
+      "cheers"
+    ]
+  },
+  "CheersResponse": {
+    "type": "object",
+    "properties": {
+      "count": {
+        "type": "integer"
+      },
+      "cheered": {
+        "type": "boolean",
+        "description": "Whether the account that asks cheered the flight. Absent when nobody is signed in."
+      },
+      "cheers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Cheer"
+        }
+      },
+      "next": {
+        "type": "string",
+        "description": "The cursor of the next page: send it as `after`. Absent on the last page."
+      }
+    },
+    "required": [
+      "count",
+      "cheers"
+    ]
+  },
+  "Comment": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "text": {
+        "type": "string",
+        "description": "Plain text of at most 500 characters. Show it as text, never as markup."
+      },
+      "at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id",
+      "pilot",
+      "text",
+      "at"
+    ]
+  },
+  "CommentRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "Plain text; at most 500 characters once trimmed."
+      }
+    },
+    "required": [
+      "text"
+    ]
+  },
+  "CommentResponse": {
+    "type": "object",
+    "properties": {
+      "comment": {
+        "$ref": "#/components/schemas/Comment"
+      },
+      "count": {
+        "type": "integer",
+        "description": "How many comments the flight has now."
+      }
+    },
+    "required": [
+      "comment",
+      "count"
+    ]
+  },
+  "CommentsResponse": {
+    "type": "object",
+    "properties": {
+      "count": {
+        "type": "integer"
+      },
+      "open": {
+        "type": "boolean",
+        "description": "False once the flight's pilot turned comments off; those written before stay."
+      },
+      "comments": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Comment"
+        }
+      },
+      "next": {
+        "type": "string",
+        "description": "The cursor of the next page: send it as `after`. Absent on the last page."
+      }
+    },
+    "required": [
+      "count",
+      "open",
+      "comments"
+    ]
+  },
+  "CommentsOpen": {
+    "type": "object",
+    "properties": {
+      "open": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "open"
+    ]
+  },
+  "FeedFlight": {
+    "type": "object",
+    "properties": {
+      "flight": {
+        "$ref": "#/components/schemas/Flight"
+      },
+      "cheers": {
+        "type": "integer"
+      },
+      "comments": {
+        "type": "integer"
+      },
+      "cheered": {
+        "type": "boolean",
+        "description": "Whether the account that asks cheered the flight."
+      }
+    },
+    "required": [
+      "flight",
+      "cheers",
+      "comments",
+      "cheered"
+    ]
+  },
+  "FeedResponse": {
+    "type": "object",
+    "properties": {
+      "flights": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FeedFlight"
+        }
+      },
+      "next": {
+        "type": "string",
+        "description": "The cursor of the next page: send it as `before`. Absent on the last page."
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "flights",
+      "terms"
+    ]
+  },
+  "NotificationKind": {
+    "description": "What a pilot is told of. A client skips a kind it does not know.",
+    "type": "string",
+    "x-venti-values": [
+      "followed",
+      "cheered",
+      "commented"
+    ]
+  },
+  "NotifiedFlight": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "start": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "takeoff_site": {
+        "type": "string",
+        "description": "The name of the site the flight took off from, as it stood then."
+      }
+    },
+    "required": [
+      "id",
+      "start"
+    ]
+  },
+  "Notification": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/NotificationKind"
+      },
+      "at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "flight": {
+        "$ref": "#/components/schemas/NotifiedFlight"
+      },
+      "comment": {
+        "type": "string",
+        "description": "For a comment, its identifier."
+      }
+    },
+    "required": [
+      "kind",
+      "at",
+      "pilot"
+    ]
+  },
+  "NotificationsResponse": {
+    "type": "object",
+    "properties": {
+      "notifications": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Notification"
+        }
+      },
+      "cursor": {
+        "type": "string",
+        "description": "Send it as `since` with the next request."
+      },
+      "more": {
+        "type": "boolean",
+        "description": "Whether more waits: ask again at once with `cursor`."
+      },
+      "reset": {
+        "type": "boolean",
+        "description": "True when the cursor sent was not this server's: what follows starts from the oldest kept."
+      }
+    },
+    "required": [
+      "notifications",
+      "cursor",
+      "more",
+      "reset"
     ]
   }
 }

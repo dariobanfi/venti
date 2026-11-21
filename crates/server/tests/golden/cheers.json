@@ -1,0 +1,19 @@
+{
+  "count": 2,
+  "cheers": [
+    {
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "at": "2026-11-18T18:20:00Z"
+    },
+    {
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "at": "2026-11-18T18:05:00Z"
+    }
+  ]
+}

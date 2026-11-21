@@ -20,6 +20,7 @@ mod moderation;
 mod pilot_sites;
 mod push;
 mod sites;
+mod social;
 mod takeoffs;
 
 pub(crate) use accounts::*;
@@ -34,6 +35,7 @@ pub(crate) use moderation::*;
 pub(crate) use pilot_sites::*;
 pub(crate) use push::*;
 pub(crate) use sites::*;
+pub(crate) use social::*;
 pub(crate) use takeoffs::*;
 
 use chrono::{Duration, TimeZone, Utc};
@@ -118,6 +120,13 @@ macro_rules! store_suite {
             an_alarm_is_added_changed_and_removed,
             alarms_are_found_by_station_and_by_kind_when_on,
             what_fired_is_numbered_kept_and_pruned,
+            pilots_follow_each_other,
+            the_feed_is_what_followed_pilots_share,
+            a_flight_is_cheered_once_per_pilot,
+            comments_are_kept_listed_and_removed,
+            notices_are_numbered_kept_and_pruned,
+            what_pilots_gave_goes_with_them,
+            a_comment_is_reported_with_its_words,
             a_browser_is_subscribed_bounded_and_removed,
             a_browser_is_of_the_account_that_subscribed_it_last,
             the_first_push_key_kept_is_the_one,

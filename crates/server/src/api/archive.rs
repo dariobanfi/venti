@@ -159,6 +159,13 @@ fn report(report: venti_store::Report) -> Option<ArchiveReport> {
             id,
             revision: Some(revision),
         }),
+        // The words the report kept are another pilot's.
+        Stored::Comment { id, flight_id, .. } => {
+            ReportSubject::Comment(venti_api_types::v1::ReportedComment {
+                flight: flight_id,
+                id,
+            })
+        }
     };
     Some(ArchiveReport {
         sent_at: report.created_at,
@@ -464,6 +471,68 @@ impl<S: Store> Api<S> {
             ),
             made.alerts.len() + made.fired.len(),
             &made,
+        )?);
+
+        // What the account gave to other pilots: whom it follows, the
+        // flights it cheered, the comments it wrote.
+        let mut following = Vec::new();
+        let mut after = None;
+        loop {
+            let page = store
+                .follows(
+                    account_id,
+                    venti_store::FollowSide::Following,
+                    false,
+                    after.as_ref(),
+                    PAGE,
+                )
+                .await?;
+            after = page.last().map(venti_store::SocialPilot::key);
+            let last_page = page.len() < PAGE;
+            for pilot in &page {
+                following.push(venti_api_types::v1::FollowedPilot {
+                    pilot: wire::pilot(&pilot.handle, &pilot.name)?,
+                    since: pilot.at,
+                });
+            }
+            if last_page {
+                break;
+            }
+        }
+        let given = store.social_given(account_id).await?;
+        let flight_id = |id: &str| id.parse().map_err(|_| ApiError::internal());
+        let social = venti_api_types::v1::ArchiveSocial {
+            following,
+            cheers: given
+                .cheers
+                .iter()
+                .map(|(flight, at)| {
+                    Ok(venti_api_types::v1::ArchiveCheer {
+                        flight: flight_id(flight)?,
+                        at: *at,
+                    })
+                })
+                .collect::<Result<_, ApiError>>()?,
+            comments: given
+                .comments
+                .iter()
+                .map(|comment| {
+                    Ok(venti_api_types::v1::ArchiveComment {
+                        id: comment.id.clone(),
+                        flight: flight_id(&comment.flight_id)?,
+                        text: comment.text.clone(),
+                        at: comment.created_at,
+                    })
+                })
+                .collect::<Result<_, ApiError>>()?,
+        };
+        files.push(ready(
+            "social.json",
+            "ArchiveSocial",
+            "The pilots the account follows, the flights it cheered and the comments it wrote \
+             under flights.",
+            social.following.len() + social.cheers.len() + social.comments.len(),
+            &social,
         )?);
 
         Ok(Gathered { files, flights })

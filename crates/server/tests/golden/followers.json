@@ -1,0 +1,27 @@
+{
+  "pilots": [
+    {
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "since": "2026-11-18T17:35:00Z"
+    },
+    {
+      "pilot": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "since": "2026-11-18T09:55:00Z"
+    },
+    {
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "since": "2026-11-18T09:35:00Z"
+    }
+  ],
+  "followers": 3,
+  "following": 3
+}

@@ -28,6 +28,9 @@ pub(crate) fn check(new: &NewReport) -> Result<(), StoreError> {
         | ReportSubject::LiveTrack(_)
         | ReportSubject::Site { .. } => ("", ["", ""]),
         ReportSubject::Group { name, .. } => ("", [name.as_str(), ""]),
+        ReportSubject::Comment {
+            flight_id, text, ..
+        } => (flight_id.as_str(), [text.as_str(), ""]),
         ReportSubject::Plan {
             group_id,
             place,
@@ -137,6 +140,16 @@ pub enum ReportSubject {
         /// reporter named, or the one the site stood at.
         revision: u32,
     },
+    /// A comment on a flight. The report's other account is the
+    /// comment's author.
+    Comment {
+        /// The comment's identifier.
+        id: String,
+        /// The flight it was written under.
+        flight_id: String,
+        /// Its words as they stood when the report was made.
+        text: String,
+    },
 }
 
 /// What a report kept of a group or a plan, as the database holds it
@@ -153,6 +166,10 @@ pub(crate) struct ReportedWords {
     pub(crate) note: Option<String>,
     /// The revision a report about a site is about.
     pub(crate) site_revision: Option<u32>,
+    /// The flight a reported comment was written under.
+    pub(crate) flight_id: Option<String>,
+    /// A reported comment's words.
+    pub(crate) comment: Option<String>,
 }
 
 impl ReportSubject {
@@ -165,6 +182,7 @@ impl ReportSubject {
             Self::Group { .. } => "group",
             Self::Plan { .. } => "plan",
             Self::Site { .. } => "site",
+            Self::Comment { .. } => "comment",
         }
     }
 
@@ -176,7 +194,8 @@ impl ReportSubject {
             | Self::LiveTrack(id)
             | Self::Group { id, .. }
             | Self::Plan { id, .. }
-            | Self::Site { id, .. } => id,
+            | Self::Site { id, .. }
+            | Self::Comment { id, .. } => id,
             Self::Pilot => "",
         }
     }
@@ -207,7 +226,14 @@ impl ReportSubject {
                 name: None,
                 place: Some(place.clone()),
                 note: note.clone(),
-                site_revision: None,
+                ..ReportedWords::default()
+            },
+            Self::Comment {
+                flight_id, text, ..
+            } => ReportedWords {
+                flight_id: Some(flight_id.clone()),
+                comment: Some(text.clone()),
+                ..ReportedWords::default()
             },
             Self::Site { revision, .. } => ReportedWords {
                 site_revision: Some(*revision),
@@ -237,6 +263,11 @@ impl ReportSubject {
             "site" => Some(Self::Site {
                 id: id.to_owned(),
                 revision: words.site_revision?,
+            }),
+            "comment" => Some(Self::Comment {
+                id: id.to_owned(),
+                flight_id: words.flight_id?,
+                text: words.comment?,
             }),
             _ => None,
         }
@@ -385,6 +416,11 @@ mod tests {
             ReportSubject::Site {
                 id: "venti:s".to_owned(),
                 revision: 3,
+            },
+            ReportSubject::Comment {
+                id: "c".to_owned(),
+                flight_id: "f".to_owned(),
+                text: "Well flown.".to_owned(),
             },
         ] {
             let read = ReportSubject::from_parts(subject.kind(), subject.id(), subject.words());

@@ -183,6 +183,14 @@ fn words(scope: Scope) -> Option<(&'static str, &'static str)> {
         ),
         Scope::AlertsRead => ("Alarms: read", "your alarms, and what they fired"),
         Scope::AlertsWrite => ("Alarms: write", "set, change and remove your alarms"),
+        Scope::SocialRead => (
+            "Pilots you follow: read",
+            "the flights of the pilots you follow, whom you follow, and what you were told",
+        ),
+        Scope::SocialWrite => (
+            "Pilots you follow: write",
+            "follow pilots, cheer flights and write comments in your name",
+        ),
         Scope::Other => return None,
     })
 }

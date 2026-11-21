@@ -7,6 +7,7 @@ mod live;
 mod pilot_sites;
 mod push;
 mod reports;
+mod social;
 
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
@@ -70,6 +71,7 @@ struct Inner {
     kept_sites: kept_sites::KeptSites,
     alerts: alerts::Alerts,
     push: push::Push,
+    social: social::Social,
 }
 
 #[derive(Debug)]
@@ -684,6 +686,8 @@ impl Store for MemoryStore {
         let mut inner = self.lock();
         inner.accounts.delete(account_id);
         inner.pilot_sites.delete_account(account_id);
+        let its_flights = inner.flights.ids_of(account_id);
+        inner.social.delete_account(account_id, &its_flights);
         inner.flights.delete_account(account_id);
         inner.live.delete_account(account_id);
         inner.groups.delete_account(account_id);
@@ -902,6 +906,201 @@ impl Store for MemoryStore {
         limit: usize,
     ) -> Result<crate::FiredAlerts, StoreError> {
         Ok(self.lock().alerts.fired(account_id, since, limit))
+    }
+
+    async fn follow(
+        &self,
+        follower_id: &str,
+        followed_id: &str,
+        now: Timestamp,
+        most: usize,
+    ) -> Result<crate::Following, StoreError> {
+        Ok({
+            let inner = &mut *self.lock();
+            inner
+                .social
+                .follow(follower_id, followed_id, now, most, &inner.accounts)
+        })
+    }
+
+    async fn unfollow(&self, follower_id: &str, followed_id: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().social.unfollow(follower_id, followed_id))
+    }
+
+    async fn follow_counts(&self, account_id: &str) -> Result<crate::FollowCounts, StoreError> {
+        Ok(self.lock().social.counts(account_id))
+    }
+
+    async fn follows_pilot(
+        &self,
+        follower_id: &str,
+        followed_id: &str,
+    ) -> Result<bool, StoreError> {
+        Ok(self.lock().social.follows_pilot(follower_id, followed_id))
+    }
+
+    async fn follows(
+        &self,
+        account_id: &str,
+        side: crate::FollowSide,
+        with_a_page: bool,
+        after: Option<&crate::SocialKey>,
+        limit: usize,
+    ) -> Result<Vec<crate::SocialPilot>, StoreError> {
+        Ok({
+            let inner = &*self.lock();
+            inner.social.follows(
+                account_id,
+                side,
+                |other| !with_a_page || inner.flights.has_public(other),
+                after,
+                limit,
+                &inner.accounts,
+            )
+        })
+    }
+
+    async fn followed_flights(
+        &self,
+        account_id: &str,
+        after: Option<&crate::FlightKey>,
+        limit: usize,
+    ) -> Result<Vec<crate::Flight>, StoreError> {
+        Ok({
+            let inner = &*self.lock();
+            let pilots = inner.social.followed_by(account_id);
+            inner
+                .flights
+                .public_of(&pilots, after, limit, &inner.accounts)
+        })
+    }
+
+    async fn cheer(
+        &self,
+        account_id: &str,
+        flight_id: &str,
+        now: Timestamp,
+    ) -> Result<crate::Cheering, StoreError> {
+        Ok({
+            let inner = &mut *self.lock();
+            inner
+                .social
+                .cheer(account_id, flight_id, now, &inner.accounts, &inner.flights)
+        })
+    }
+
+    async fn uncheer(&self, account_id: &str, flight_id: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().social.uncheer(account_id, flight_id))
+    }
+
+    async fn cheers(
+        &self,
+        flight_id: &str,
+        after: Option<&crate::SocialKey>,
+        limit: usize,
+    ) -> Result<Vec<crate::SocialPilot>, StoreError> {
+        Ok({
+            let inner = &*self.lock();
+            inner
+                .social
+                .cheers(flight_id, after, limit, &inner.accounts)
+        })
+    }
+
+    async fn flight_social(
+        &self,
+        flight_ids: &[String],
+        viewer: Option<&str>,
+    ) -> Result<Vec<crate::FlightSocial>, StoreError> {
+        Ok(self.lock().social.of_flights(flight_ids, viewer))
+    }
+
+    async fn add_comment(&self, new: &crate::NewComment) -> Result<crate::Commenting, StoreError> {
+        Ok({
+            let inner = &mut *self.lock();
+            inner
+                .social
+                .add_comment(new, &inner.accounts, &inner.flights)
+        })
+    }
+
+    async fn comments(
+        &self,
+        flight_id: &str,
+        after: Option<&crate::SocialKey>,
+        limit: usize,
+    ) -> Result<Vec<crate::Comment>, StoreError> {
+        Ok({
+            let inner = &*self.lock();
+            inner
+                .social
+                .comments(flight_id, after, limit, &inner.accounts)
+        })
+    }
+
+    async fn comment(&self, id: &str) -> Result<Option<crate::Comment>, StoreError> {
+        Ok({
+            let inner = &*self.lock();
+            inner.social.comment(id, &inner.accounts)
+        })
+    }
+
+    async fn remove_comment(&self, id: &str) -> Result<Option<crate::Comment>, StoreError> {
+        Ok({
+            let inner = &mut *self.lock();
+            inner.social.remove_comment(id, &inner.accounts)
+        })
+    }
+
+    async fn close_comments(
+        &self,
+        account_id: &str,
+        flight_id: &str,
+        closed: bool,
+        now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        Ok({
+            let _ = now;
+            let inner = &mut *self.lock();
+            inner
+                .social
+                .close_comments(account_id, flight_id, closed, &inner.flights)
+        })
+    }
+
+    async fn social_given(&self, account_id: &str) -> Result<crate::SocialGiven, StoreError> {
+        Ok({
+            let inner = &*self.lock();
+            inner.social.given(account_id, &inner.accounts)
+        })
+    }
+
+    async fn add_notice(
+        &self,
+        account_id: &str,
+        actor_id: &str,
+        at: Timestamp,
+        record: &str,
+    ) -> Result<bool, StoreError> {
+        Ok({
+            let inner = &mut *self.lock();
+            inner
+                .social
+                .add_notice(account_id, actor_id, at, record, &inner.accounts)
+        })
+    }
+
+    async fn notices(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> Result<crate::Notices, StoreError> {
+        Ok(self.lock().social.notices(account_id, since, limit))
+    }
+
+    async fn prune_notices(&self, before: Timestamp) -> Result<u64, StoreError> {
+        Ok(self.lock().social.prune_notices(before))
     }
 
     async fn prune_fired_alerts(&self, before: Timestamp) -> Result<u64, StoreError> {
@@ -1129,9 +1328,13 @@ impl Store for MemoryStore {
         now: Timestamp,
     ) -> Result<bool, StoreError> {
         let inner = &mut *self.lock();
-        Ok(inner
+        let deleted = inner
             .flights
-            .delete(account_id, id, now, &mut inner.accounts))
+            .delete(account_id, id, now, &mut inner.accounts);
+        if deleted {
+            inner.social.delete_flight(id);
+        }
+        Ok(deleted)
     }
 
     async fn outdated_flights(

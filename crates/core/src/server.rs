@@ -165,6 +165,20 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
         // A code this version has no words for is shown for a bug report,
         // if it looks like one of the API's codes. The address may be any
         // server's, and what it sends is not put before the pilot as it is.
+        (_, Some("invalid_follow")) => "You cannot follow yourself.".to_owned(),
+        (_, Some("too_many_follows")) => {
+            "You follow as many pilots as an account can. Stop following one first.".to_owned()
+        }
+        (_, Some("invalid_cheer")) => "You cannot cheer your own flight.".to_owned(),
+        (_, Some("invalid_comment")) => {
+            "A comment says something and has room for 500 characters.".to_owned()
+        }
+        (_, Some("comments_off")) => {
+            "The pilot has turned comments off for this flight.".to_owned()
+        }
+        (_, Some("comment_not_found")) => {
+            "This comment is gone, or is not yours to remove.".to_owned()
+        }
         (_, Some(code)) if is_a_code(code) => format!("The server could not answer ({code})."),
         _ => format!("The server could not answer (status {status})."),
     };

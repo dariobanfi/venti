@@ -469,6 +469,126 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn follow(
+        &self,
+        _: &str,
+        _: &str,
+        _: Timestamp,
+        _: usize,
+    ) -> Result<crate::Following, StoreError> {
+        self.fail().await
+    }
+
+    async fn unfollow(&self, _: &str, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn follow_counts(&self, _: &str) -> Result<crate::FollowCounts, StoreError> {
+        self.fail().await
+    }
+
+    async fn follows_pilot(&self, _: &str, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn follows(
+        &self,
+        _: &str,
+        _: crate::FollowSide,
+        _: bool,
+        _: Option<&crate::SocialKey>,
+        _: usize,
+    ) -> Result<Vec<crate::SocialPilot>, StoreError> {
+        self.fail().await
+    }
+
+    async fn followed_flights(
+        &self,
+        _: &str,
+        _: Option<&crate::FlightKey>,
+        _: usize,
+    ) -> Result<Vec<crate::Flight>, StoreError> {
+        self.fail().await
+    }
+
+    async fn cheer(&self, _: &str, _: &str, _: Timestamp) -> Result<crate::Cheering, StoreError> {
+        self.fail().await
+    }
+
+    async fn uncheer(&self, _: &str, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn cheers(
+        &self,
+        _: &str,
+        _: Option<&crate::SocialKey>,
+        _: usize,
+    ) -> Result<Vec<crate::SocialPilot>, StoreError> {
+        self.fail().await
+    }
+
+    async fn flight_social(
+        &self,
+        _: &[String],
+        _: Option<&str>,
+    ) -> Result<Vec<crate::FlightSocial>, StoreError> {
+        self.fail().await
+    }
+
+    async fn add_comment(&self, _: &crate::NewComment) -> Result<crate::Commenting, StoreError> {
+        self.fail().await
+    }
+
+    async fn comments(
+        &self,
+        _: &str,
+        _: Option<&crate::SocialKey>,
+        _: usize,
+    ) -> Result<Vec<crate::Comment>, StoreError> {
+        self.fail().await
+    }
+
+    async fn comment(&self, _: &str) -> Result<Option<crate::Comment>, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_comment(&self, _: &str) -> Result<Option<crate::Comment>, StoreError> {
+        self.fail().await
+    }
+
+    async fn close_comments(
+        &self,
+        _: &str,
+        _: &str,
+        _: bool,
+        _: Timestamp,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn social_given(&self, _: &str) -> Result<crate::SocialGiven, StoreError> {
+        self.fail().await
+    }
+
+    async fn add_notice(
+        &self,
+        _: &str,
+        _: &str,
+        _: Timestamp,
+        _: &str,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn notices(&self, _: &str, _: i64, _: usize) -> Result<crate::Notices, StoreError> {
+        self.fail().await
+    }
+
+    async fn prune_notices(&self, _: Timestamp) -> Result<u64, StoreError> {
+        self.fail().await
+    }
+
     async fn prune_fired_alerts(&self, _: Timestamp) -> Result<u64, StoreError> {
         self.fail().await
     }

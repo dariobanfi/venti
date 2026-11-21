@@ -51,6 +51,7 @@ pub async fn run<S: Store>(
             }
             look_at_reports(&*store, retention, now).await;
             remove_old_fired_alerts(&*store, now).await;
+            remove_old_notices(&*store, now).await;
         }
         remove_live_tracks(&*store, retention, now).await;
         remove_old_plans(&*store, retention, now).await;
@@ -93,6 +94,26 @@ async fn remove_old_fired_alerts<S: Store>(store: &S, now: Timestamp) {
             tracing::info!("removed {fired} fired alarms older than {days} days");
         }
         Err(error) => tracing::warn!("old fired alarms could not be removed: {error}"),
+    }
+}
+
+/// Removes what pilots were told of follows, cheers and comments longer
+/// ago than
+/// [`NOTIFICATIONS_KEPT_DAYS`](venti_api_types::v1::NOTIFICATIONS_KEPT_DAYS)
+/// days.
+///
+/// The log line says how many, and nothing about whose.
+async fn remove_old_notices<S: Store>(store: &S, now: Timestamp) {
+    let days = venti_api_types::v1::NOTIFICATIONS_KEPT_DAYS;
+    match store
+        .prune_notices(now - chrono::Duration::days(days))
+        .await
+    {
+        Ok(0) => {}
+        Ok(told) => {
+            tracing::info!("removed {told} notices to pilots older than {days} days");
+        }
+        Err(error) => tracing::warn!("old notices to pilots could not be removed: {error}"),
     }
 }
 

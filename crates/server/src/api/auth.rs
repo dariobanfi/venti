@@ -142,6 +142,17 @@ impl Viewer {
         }
     }
 
+    /// The account that asks, where the answer may say what is that
+    /// account's own: with a session, or with a token that has the scope
+    /// the request names. `None` for nobody, and for a token without it,
+    /// which is answered as a stranger is.
+    pub(crate) fn account(&self) -> Option<&Account> {
+        let signed = self.signed.as_ref()?;
+        self.opens
+            .is_none_or(|scope| signed.may(scope))
+            .then_some(&signed.account)
+    }
+
     /// Whether the request carries a good token, of either kind.
     pub(crate) fn is_signed(&self) -> bool {
         self.signed.is_some()
@@ -380,6 +391,10 @@ needs! {
     ReadAlerts => AlertsRead,
     /// `alerts:write`.
     WriteAlerts => AlertsWrite,
+    /// `social:read`.
+    ReadSocial => SocialRead,
+    /// `social:write`.
+    WriteSocial => SocialWrite,
 }
 
 /// The address a request came from; see [`crate::accounts::client`].

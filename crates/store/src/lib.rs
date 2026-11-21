@@ -48,6 +48,7 @@ mod postgres;
 mod push;
 mod report;
 mod site;
+mod social;
 mod takeoff;
 pub mod testing;
 
@@ -98,6 +99,10 @@ pub use report::{
     ReportSaved, ReportSubject,
 };
 pub use site::{SiteDelivery, SiteLayer, SiteSet};
+pub use social::{
+    Cheering, Comment, Commenting, FlightSocial, FollowCounts, FollowSide, Following, NewComment,
+    Notice, Notices, SocialGiven, SocialKey, SocialPilot,
+};
 pub use takeoff::{
     CANDIDATE_ALTITUDE_STEP_M, CANDIDATE_STEPS_PER_DEGREE, CELLS_PER_DEGREE, CandidateRule,
     FlightsFrom, TakeoffCandidate, solar_day,
@@ -943,6 +948,156 @@ pub trait Store: Send + Sync + 'static {
 
     /// Removes what alarms fired before `before`. Returns how many.
     fn prune_fired_alerts(
+        &self,
+        before: Timestamp,
+    ) -> impl Future<Output = Result<u64, StoreError>> + Send;
+
+    // --- Pilots among each other -------------------------------------------
+
+    /// Makes `follower_id` follow `followed_id` from `now` on, unless it follows `most`
+    /// accounts already. Following an account one follows already changes nothing.
+    fn follow(
+        &self,
+        follower_id: &str,
+        followed_id: &str,
+        now: Timestamp,
+        most: usize,
+    ) -> impl Future<Output = Result<Following, StoreError>> + Send;
+
+    /// Ends that. Returns whether the one followed the other.
+    fn unfollow(
+        &self,
+        follower_id: &str,
+        followed_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// How many accounts follow an account, and how many it follows.
+    fn follow_counts(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<FollowCounts, StoreError>> + Send;
+
+    /// Whether `follower_id` follows `followed_id`.
+    fn follows_pilot(
+        &self,
+        follower_id: &str,
+        followed_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// One page of the accounts that follow an account, or that it follows, the newest
+    /// first, behind `after`. With `with_a_page`, only accounts that have a public flight.
+    fn follows(
+        &self,
+        account_id: &str,
+        side: FollowSide,
+        with_a_page: bool,
+        after: Option<&SocialKey>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<SocialPilot>, StoreError>> + Send;
+
+    /// One page of the public flights of the accounts an account follows, the newest
+    /// first, behind `after`. No flight that is not public is among them.
+    fn followed_flights(
+        &self,
+        account_id: &str,
+        after: Option<&FlightKey>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Flight>, StoreError>> + Send;
+
+    /// Makes an account cheer a public flight. Cheering it again changes nothing.
+    fn cheer(
+        &self,
+        account_id: &str,
+        flight_id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Cheering, StoreError>> + Send;
+
+    /// Takes a cheer back, whoever may see the flight. Returns whether there was one.
+    fn uncheer(
+        &self,
+        account_id: &str,
+        flight_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// One page of the accounts that cheer a flight, the newest first, behind `after`.
+    /// Whether the flight shows them is the caller's to ask.
+    fn cheers(
+        &self,
+        flight_id: &str,
+        after: Option<&SocialKey>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<SocialPilot>, StoreError>> + Send;
+
+    /// What pilots made of some flights, in the order they were asked for, and whether
+    /// `viewer` cheers each. Whether a flight shows it is the caller's to ask.
+    fn flight_social(
+        &self,
+        flight_ids: &[String],
+        viewer: Option<&str>,
+    ) -> impl Future<Output = Result<Vec<FlightSocial>, StoreError>> + Send;
+
+    /// Stores a comment on a public flight whose pilot takes comments.
+    fn add_comment(
+        &self,
+        new: &NewComment,
+    ) -> impl Future<Output = Result<Commenting, StoreError>> + Send;
+
+    /// One page of a flight's comments, the oldest first, behind `after`. Whether the
+    /// flight shows them is the caller's to ask.
+    fn comments(
+        &self,
+        flight_id: &str,
+        after: Option<&SocialKey>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Comment>, StoreError>> + Send;
+
+    /// One comment by its identifier.
+    fn comment(&self, id: &str)
+    -> impl Future<Output = Result<Option<Comment>, StoreError>> + Send;
+
+    /// Removes a comment, whoever asks: who may is the caller's to decide. Returns the
+    /// comment as it was.
+    fn remove_comment(
+        &self,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<Comment>, StoreError>> + Send;
+
+    /// Sets whether a flight of an account takes no more comments. Returns `false` when
+    /// the account has no such flight.
+    fn close_comments(
+        &self,
+        account_id: &str,
+        flight_id: &str,
+        closed: bool,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The cheers and the comments an account gave, for its archive.
+    fn social_given(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<SocialGiven, StoreError>> + Send;
+
+    /// Tells an account something that `actor_id` did, under the next number of the
+    /// account's notices. Returns `false` when either account is not there.
+    fn add_notice(
+        &self,
+        account_id: &str,
+        actor_id: &str,
+        at: Timestamp,
+        record: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// What an account was told after number `since`, oldest first, up to `limit`.
+    fn notices(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> impl Future<Output = Result<Notices, StoreError>> + Send;
+
+    /// Removes what accounts were told before `before`. Returns how many.
+    fn prune_notices(
         &self,
         before: Timestamp,
     ) -> impl Future<Output = Result<u64, StoreError>> + Send;

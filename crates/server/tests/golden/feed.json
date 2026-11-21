@@ -1,0 +1,289 @@
+{
+  "flights": [
+    {
+      "flight": {
+        "id": "nfmvgygyr34epnfbcekb04nwqc",
+        "identity": "e721900dacb914a34358110db513e503",
+        "pilot": {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        "visibility": "public",
+        "uploaded_at": "2026-11-18T19:05:00Z",
+        "start": "2026-09-06T13:00:00Z",
+        "airtime_s": 1752,
+        "takeoff": {
+          "time": "2026-09-06T13:00:00Z",
+          "position": {
+            "lat": 47.6642,
+            "lon": 11.7967
+          },
+          "altitude_m": 1620
+        },
+        "landing": {
+          "time": "2026-09-06T13:29:12Z",
+          "position": {
+            "lat": 47.692167,
+            "lon": 11.767483
+          },
+          "altitude_m": 786
+        },
+        "track_length_m": 18402.3,
+        "max_altitude_m": 2117,
+        "max_climb_ms": 2.4,
+        "score": {
+          "kind": "free_flight",
+          "closed": false,
+          "distance_m": 11975.7,
+          "points": 11.98
+        },
+        "glider": "Sample Wing",
+        "outline": [
+          [
+            47.6642,
+            11.7967
+          ],
+          [
+            47.6697,
+            11.78986
+          ],
+          [
+            47.67054,
+            11.78942
+          ],
+          [
+            47.67075,
+            11.79003
+          ],
+          [
+            47.67073,
+            11.79875
+          ],
+          [
+            47.68876,
+            11.75225
+          ],
+          [
+            47.68935,
+            11.75136
+          ],
+          [
+            47.68954,
+            11.75173
+          ],
+          [
+            47.68932,
+            11.75721
+          ],
+          [
+            47.66357,
+            11.74306
+          ],
+          [
+            47.69144,
+            11.75818
+          ],
+          [
+            47.6922,
+            11.75985
+          ],
+          [
+            47.69217,
+            11.76748
+          ]
+        ],
+        "file_bytes": 68008,
+        "analysis_version": 1,
+        "published_at": "2026-11-18T19:05:00Z"
+      },
+      "cheers": 1,
+      "comments": 0,
+      "cheered": true
+    },
+    {
+      "flight": {
+        "id": "fbyw03atd9qdt5bfe177ra1k94",
+        "identity": "5782b33df19716953603d69bacb63a14",
+        "pilot": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        "visibility": "public",
+        "uploaded_at": "2026-11-18T19:05:00Z",
+        "start": "2026-08-16T12:05:00Z",
+        "airtime_s": 1752,
+        "takeoff": {
+          "time": "2026-08-16T12:05:00Z",
+          "position": {
+            "lat": 47.6642,
+            "lon": 11.7967
+          },
+          "altitude_m": 1620
+        },
+        "landing": {
+          "time": "2026-08-16T12:34:12Z",
+          "position": {
+            "lat": 47.692167,
+            "lon": 11.767483
+          },
+          "altitude_m": 786
+        },
+        "track_length_m": 18402.3,
+        "max_altitude_m": 2117,
+        "max_climb_ms": 2.4,
+        "score": {
+          "kind": "free_flight",
+          "closed": false,
+          "distance_m": 11975.7,
+          "points": 11.98
+        },
+        "glider": "Sample Wing",
+        "outline": [
+          [
+            47.6642,
+            11.7967
+          ],
+          [
+            47.6697,
+            11.78986
+          ],
+          [
+            47.67054,
+            11.78942
+          ],
+          [
+            47.67075,
+            11.79003
+          ],
+          [
+            47.67073,
+            11.79875
+          ],
+          [
+            47.68876,
+            11.75225
+          ],
+          [
+            47.68935,
+            11.75136
+          ],
+          [
+            47.68954,
+            11.75173
+          ],
+          [
+            47.68932,
+            11.75721
+          ],
+          [
+            47.66357,
+            11.74306
+          ],
+          [
+            47.69144,
+            11.75818
+          ],
+          [
+            47.6922,
+            11.75985
+          ],
+          [
+            47.69217,
+            11.76748
+          ]
+        ],
+        "file_bytes": 68008,
+        "analysis_version": 1,
+        "published_at": "2026-11-18T19:05:00Z"
+      },
+      "cheers": 2,
+      "comments": 1,
+      "cheered": true
+    },
+    {
+      "flight": {
+        "id": "7hn3e0ef6twjgq0g51ckxtxsx8",
+        "identity": "19862fa9f3ba275d0e4ab08d146ea67d",
+        "pilot": {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        "visibility": "public",
+        "uploaded_at": "2026-11-18T19:05:00Z",
+        "start": "2026-08-16T10:00:00Z",
+        "airtime_s": 1200,
+        "takeoff": {
+          "time": "2026-08-16T10:00:00Z",
+          "position": {
+            "lat": 47.6642,
+            "lon": 11.7967
+          },
+          "altitude_m": 1620
+        },
+        "track_length_m": 12723.3,
+        "max_altitude_m": 2117,
+        "max_climb_ms": 2.4,
+        "score": {
+          "kind": "free_flight",
+          "closed": false,
+          "distance_m": 9023.4,
+          "points": 9.02
+        },
+        "glider": "Sample Wing",
+        "outline": [
+          [
+            47.6642,
+            11.7967
+          ],
+          [
+            47.6697,
+            11.78986
+          ],
+          [
+            47.67054,
+            11.78942
+          ],
+          [
+            47.67075,
+            11.79003
+          ],
+          [
+            47.67073,
+            11.79875
+          ],
+          [
+            47.68876,
+            11.75225
+          ],
+          [
+            47.68935,
+            11.75136
+          ],
+          [
+            47.68954,
+            11.75173
+          ],
+          [
+            47.68932,
+            11.75721
+          ],
+          [
+            47.66377,
+            11.74317
+          ]
+        ],
+        "file_bytes": 44550,
+        "analysis_version": 1,
+        "published_at": "2026-11-18T19:05:00Z"
+      },
+      "cheers": 0,
+      "comments": 0,
+      "cheered": false
+    }
+  ],
+  "next": "1786874400000000_7hn3e0ef6twjgq0g51ckxtxsx8",
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}

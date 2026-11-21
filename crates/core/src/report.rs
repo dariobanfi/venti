@@ -151,12 +151,14 @@ enum Reported {
     Plan,
     /// A site that pilots made: its place, its name and its texts.
     Site,
+    /// A comment under a flight: its words.
+    Comment,
 }
 
 /// What a reason is called in a form and what it means there. `None` for
 /// a reason that a report about this kind of thing cannot give.
 fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'static str)> {
-    use Reported::{Group, Plan, Shared, Site};
+    use Reported::{Comment, Group, Plan, Shared, Site};
     Some(match (reason, reported) {
         (ReportReason::Offensive, Shared) => (
             "Insulting or threatening",
@@ -179,9 +181,24 @@ fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'s
             "Nobody takes off or lands here, or nobody may.",
         ),
         // The reasons of a site are about a site.
-        (ReportReason::WrongOrDangerous | ReportReason::NotASite, Shared | Group | Plan) => {
+        (
+            ReportReason::WrongOrDangerous | ReportReason::NotASite,
+            Shared | Group | Plan | Comment,
+        ) => {
             return None;
         }
+        (ReportReason::Offensive, Comment) => (
+            "Insulting or threatening",
+            "The comment insults, threatens or harasses.",
+        ),
+        (ReportReason::Impersonation, Comment) => (
+            "Pretends to be someone else",
+            "The comment is written as if by another person or an organisation.",
+        ),
+        (ReportReason::Privacy, Comment) => (
+            "Shows something private",
+            "The comment says something about a person who did not agree to it: a name, where someone lives.",
+        ),
         (ReportReason::Offensive, Site) => (
             "Insulting or threatening",
             "The site's name or one of its texts insults, threatens or harasses.",
@@ -221,7 +238,7 @@ fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'s
             "A track that is made up or altered, or that this pilot did not fly.",
         ),
         // A group and a plan are words and no flight.
-        (ReportReason::NotAFlight, Group | Plan) => return None,
+        (ReportReason::NotAFlight, Group | Plan | Comment) => return None,
         (ReportReason::Spam, _) => (
             "Advertising",
             "Advertising, or something that has nothing to do with flying.",
@@ -264,6 +281,9 @@ fn form(reported: Reported) -> ReportForm {
         }
         Reported::Plan => {
             "Whoever runs Venti reads the report, with the plan's place and note as they are now, and sees that it came from you. Nobody in the group is told, and no answer comes back."
+        }
+        Reported::Comment => {
+            "Whoever runs Venti reads the report, with the comment as it is now, and sees that it came from you. Its author is not told, and no answer comes back."
         }
         Reported::Site => {
             "Whoever runs Venti reads the report, with the site and its history, and sees that it came from you. The pilots who added or changed the site are not told, and no answer comes back. If you know what is right, correcting the site yourself is quicker."
@@ -314,14 +334,6 @@ pub fn report_request(
     reason: ReportReason,
     text: String,
 ) -> Result<ServerRequest, CoreError> {
-    let text = parse_report_text(&text).map_err(|_| CoreError::Server {
-        message: format!("A report has room for {MAX_REPORT_TEXT_LENGTH} characters. Shorten it."),
-    })?;
-    if reason == ReportReason::Other && text.is_none() {
-        return Err(CoreError::Server {
-            message: "Say in a few words what is wrong.".to_owned(),
-        });
-    }
     let subject = match subject {
         ReportSubject::Flight { id } => api::ReportSubject::Flight(id),
         ReportSubject::Pilot { handle } => api::ReportSubject::Pilot(handle),
@@ -341,6 +353,53 @@ pub fn report_request(
             })
         }
     };
+    request_about(subject, reason, &text)
+}
+
+/// The form for a report about a comment under a flight: the reasons
+/// such a report can give, each with what it means there, and what the
+/// pilot is told before sending one. A comment has a form and a request
+/// of its own, [`comment_report_request`], beside [`ReportSubject`].
+#[uniffi::export]
+pub fn comment_report_form() -> ReportForm {
+    form(Reported::Comment)
+}
+
+/// The request that reports a comment under a public flight: its words.
+/// `text` is what the pilot wrote, and may be empty except with
+/// [`ReportReason::Other`]. The answer is read by [`report_sent`].
+///
+/// # Errors
+///
+/// As [`report_request`].
+#[uniffi::export]
+pub fn comment_report_request(
+    flight_id: String,
+    comment_id: String,
+    reason: ReportReason,
+    text: String,
+) -> Result<ServerRequest, CoreError> {
+    let subject = api::ReportSubject::Comment(api::ReportedComment {
+        flight: flight_id.trim().to_owned(),
+        id: comment_id.trim().to_owned(),
+    });
+    request_about(subject, reason, &text)
+}
+
+/// The request that reports `subject`, checked as the server checks it.
+fn request_about(
+    subject: api::ReportSubject,
+    reason: ReportReason,
+    text: &str,
+) -> Result<ServerRequest, CoreError> {
+    let text = parse_report_text(text).map_err(|_| CoreError::Server {
+        message: format!("A report has room for {MAX_REPORT_TEXT_LENGTH} characters. Shorten it."),
+    })?;
+    if reason == ReportReason::Other && text.is_none() {
+        return Err(CoreError::Server {
+            message: "Say in a few words what is wrong.".to_owned(),
+        });
+    }
     // The server's list of subjects, read to its end: a kind it gains has
     // to be given words here before the core builds again.
     let names_something = match &subject {
@@ -350,6 +409,9 @@ pub fn report_request(
         api::ReportSubject::Group(id) => id.parse::<GroupId>().is_ok(),
         api::ReportSubject::Plan(plan) => {
             plan.group.parse::<GroupId>().is_ok() && plan.id.parse::<PlanId>().is_ok()
+        }
+        api::ReportSubject::Comment(comment) => {
+            comment.flight.parse::<api::FlightId>().is_ok() && comment.id.len() == 26
         }
         // Only a site that pilots made is reported, as it stands or at a
         // revision it has had.
@@ -420,6 +482,7 @@ pub fn report_sent(status: u16, body: Vec<u8>) -> Result<String, CoreError> {
         (_, Some("live_track_not_found")) => Some("This track is no longer there."),
         (_, Some("site_not_found" | "site_gone")) => Some("This site is no longer there."),
         (_, Some("site_revision_not_found")) => Some("The site has no such revision."),
+        (_, Some("comment_not_found")) => Some("This comment is no longer there."),
         // A site of a source, which the form is not offered for.
         (_, Some("invalid_report")) => Some(
             "This cannot be reported here. A site of another source is corrected at its source.",
@@ -1019,5 +1082,65 @@ mod tests {
                 "This site is no longer there."
             );
         }
+    }
+    #[test]
+    fn a_comment_is_reported_with_the_reasons_of_words() {
+        let form = comment_report_form();
+        let listed: Vec<_> = form.reasons.iter().map(|choice| choice.reason).collect();
+        assert_eq!(
+            listed,
+            [
+                ReportReason::Offensive,
+                ReportReason::Impersonation,
+                ReportReason::Privacy,
+                ReportReason::Spam,
+                ReportReason::Other,
+            ]
+        );
+        assert!(form.reasons[0].explanation.contains("The comment"));
+        assert!(form.notice.contains("Its author is not told"));
+
+        let flight = "5t1eshypdtvrq7rxw39a18vsrg";
+        let comment = "0000000000000000000000c001";
+        let request = comment_report_request(
+            format!(" {flight} "),
+            comment.to_owned(),
+            ReportReason::Offensive,
+            String::new(),
+        )
+        .unwrap();
+        assert_eq!(
+            (request.method.as_str(), request.path.as_str()),
+            ("POST", "/v1/reports")
+        );
+        assert!(request.needs_token);
+        let body: serde_json::Value = serde_json::from_slice(&request.body.unwrap()).unwrap();
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "subject": { "comment": { "flight": flight, "id": comment } },
+                "reason": "offensive"
+            })
+        );
+        // What the server would refuse is refused before it is sent.
+        let refused = |flight: &str, comment: &str, reason, text: &str| {
+            comment_report_request(
+                flight.to_owned(),
+                comment.to_owned(),
+                reason,
+                text.to_owned(),
+            )
+            .unwrap_err()
+            .to_string()
+        };
+        assert!(refused("nothing", comment, ReportReason::Spam, "").contains("nothing here"));
+        assert!(refused(flight, "short", ReportReason::Spam, "").contains("nothing here"));
+        assert!(refused(flight, comment, ReportReason::NotAFlight, "").contains("about a flight"));
+        assert!(refused(flight, comment, ReportReason::Other, " ").contains("a few words"));
+        let gone = br#"{"error":{"code":"comment_not_found","message":"x"}}"#;
+        assert_eq!(
+            report_sent(404, gone.to_vec()).unwrap_err().to_string(),
+            "This comment is no longer there."
+        );
     }
 }

@@ -60,6 +60,10 @@ use venti_core::{
 };
 use venti_core::{AlertDraft, AlertFaultView, AlertFormWords, AlertView, FiredLine, FiredPage};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
+use venti_core::{
+    CheerList, CheerState, CommentDraft, CommentList, CommentPosted, CommentsSwitch, Feed,
+    FollowList, FollowState, Notifications,
+};
 use venti_core::{GoogleSignIn, GoogleWords};
 use venti_core::{PilotStatistics, PilotsFound};
 use venti_core::{
@@ -2820,6 +2824,266 @@ pub fn report_request(
 #[wasm_bindgen(js_name = reportSent)]
 pub fn report_sent(status: u16, body: Vec<u8>) -> Result<String, JsValue> {
     venti_core::report_sent(status, body).map_err(thrown)
+}
+
+// --- Pilots among each other ------------------------------------------------
+
+/// The form for a report about a comment under a flight: the reasons it
+/// can give and what the pilot is told before sending one.
+#[wasm_bindgen(js_name = commentReportForm)]
+pub fn comment_report_form() -> Result<Ts<ReportForm>, JsValue> {
+    to_js(&venti_core::comment_report_form())
+}
+
+/// The request that reports a comment under a public flight. The answer
+/// is read by `reportSent`.
+#[wasm_bindgen(js_name = commentReportRequest)]
+pub fn comment_report_request(
+    flight_id: String,
+    comment_id: String,
+    reason: Ts<ReportReason>,
+    text: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let request =
+        venti_core::comment_report_request(flight_id, comment_id, from_js(&reason)?, text)
+            .map_err(thrown)?;
+    to_js(&request)
+}
+
+/// What a follow button says: "Following" for a pilot one follows,
+/// "Follow" otherwise.
+#[wasm_bindgen(js_name = followButton)]
+pub fn follow_button(following: bool) -> String {
+    venti_core::follow_button(following)
+}
+
+/// "12 followers".
+#[wasm_bindgen(js_name = followersLine)]
+pub fn followers_line(count: u32) -> String {
+    venti_core::followers_line(count)
+}
+
+/// "Follows 3 pilots".
+#[wasm_bindgen(js_name = followingLine)]
+pub fn following_line(count: u32) -> String {
+    venti_core::following_line(count)
+}
+
+/// The request that follows a pilot (`follow`) or follows them no more.
+/// The answer is read by `followAnswer`.
+#[wasm_bindgen(js_name = followRequest)]
+pub fn follow_request(handle: String, follow: bool) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::follow_request(handle, follow).map_err(thrown)?)
+}
+
+/// Reads the answer to `followRequest`: how following the pilot stands.
+#[wasm_bindgen(js_name = followAnswer)]
+pub fn follow_answer(status: u16, body: Vec<u8>) -> Result<Ts<FollowState>, JsValue> {
+    to_js(&venti_core::follow_answer(status, body).map_err(thrown)?)
+}
+
+/// The request for who follows a pilot. With `signed_in` the session
+/// token goes along and the answer says whether the pilot follows them.
+/// The answer is read by `followList`.
+#[wasm_bindgen(js_name = followersRequest)]
+pub fn followers_request(
+    handle: String,
+    after: Option<String>,
+    signed_in: bool,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::followers_request(handle, after, signed_in).map_err(thrown)?)
+}
+
+/// The request for whom a pilot follows. The answer is read by
+/// `followList`.
+#[wasm_bindgen(js_name = followingRequest)]
+pub fn following_request(
+    handle: String,
+    after: Option<String>,
+    signed_in: bool,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::following_request(handle, after, signed_in).map_err(thrown)?)
+}
+
+/// The request for everyone the signed-in pilot follows. The answer is
+/// read by `followList`.
+#[wasm_bindgen(js_name = ownFollowingRequest)]
+pub fn own_following_request(after: Option<String>) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::own_following_request(after))
+}
+
+/// Reads a page of followers or of followed pilots, with the counts.
+#[wasm_bindgen(js_name = followList)]
+pub fn follow_list(status: u16, body: Vec<u8>) -> Result<Ts<FollowList>, JsValue> {
+    to_js(&venti_core::follow_list(status, body).map_err(thrown)?)
+}
+
+/// The request for the public flights of the pilots the signed-in pilot
+/// follows. `before` is the `next` of the page before. The answer is
+/// read by `feed`.
+#[wasm_bindgen(js_name = feedRequest)]
+pub fn feed_request(before: Option<String>) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::feed_request(before))
+}
+
+/// Reads the answer to `feedRequest`: the rows of the public list, each
+/// with its cheers and comments.
+#[wasm_bindgen]
+pub fn feed(status: u16, body: Vec<u8>) -> Result<Ts<Feed>, JsValue> {
+    to_js(&venti_core::feed(status, body).map_err(thrown)?)
+}
+
+/// Who cheered, in words: "You and 2 others cheered", "3 pilots cheered".
+#[wasm_bindgen(js_name = cheersLine)]
+pub fn cheers_line(count: u32, cheered: bool) -> String {
+    venti_core::cheers_line(count, cheered)
+}
+
+/// What the cheer button says: "Cheered" or "Cheer".
+#[wasm_bindgen(js_name = cheerButton)]
+pub fn cheer_button(cheered: bool) -> String {
+    venti_core::cheer_button(cheered)
+}
+
+/// The request that cheers a public flight (`cheer`) or takes the cheer
+/// back. The answer is read by `cheerAnswer`.
+#[wasm_bindgen(js_name = cheerRequest)]
+pub fn cheer_request(flight_id: String, cheer: bool) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::cheer_request(flight_id, cheer).map_err(thrown)?)
+}
+
+/// Reads the answer to `cheerRequest`.
+#[wasm_bindgen(js_name = cheerAnswer)]
+pub fn cheer_answer(status: u16, body: Vec<u8>) -> Result<Ts<CheerState>, JsValue> {
+    to_js(&venti_core::cheer_answer(status, body).map_err(thrown)?)
+}
+
+/// The request for who cheered a public flight. The answer is read by
+/// `cheerList`.
+#[wasm_bindgen(js_name = cheersRequest)]
+pub fn cheers_request(
+    flight_id: String,
+    after: Option<String>,
+    signed_in: bool,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::cheers_request(flight_id, after, signed_in).map_err(thrown)?)
+}
+
+/// Reads the answer to `cheersRequest`.
+#[wasm_bindgen(js_name = cheerList)]
+pub fn cheer_list(status: u16, body: Vec<u8>) -> Result<Ts<CheerList>, JsValue> {
+    to_js(&venti_core::cheer_list(status, body).map_err(thrown)?)
+}
+
+/// "2 comments"; empty without one.
+#[wasm_bindgen(js_name = commentsLine)]
+pub fn comments_line(count: u32) -> String {
+    venti_core::comments_line(count)
+}
+
+/// The request for the comments under a public flight, the oldest first.
+/// The answer is read by `commentList`.
+#[wasm_bindgen(js_name = commentsRequest)]
+pub fn comments_request(
+    flight_id: String,
+    after: Option<String>,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::comments_request(flight_id, after).map_err(thrown)?)
+}
+
+/// Reads the answer to `commentsRequest`. With the signed-in pilot's
+/// handle and the handle of the flight's pilot, each comment says
+/// whether the pilot may remove it.
+#[wasm_bindgen(js_name = commentList)]
+pub fn comment_list(
+    status: u16,
+    body: Vec<u8>,
+    now_unix_s: f64,
+    own_handle: Option<String>,
+    flight_handle: Option<String>,
+) -> Result<Ts<CommentList>, JsValue> {
+    let now = whole_seconds(now_unix_s);
+    to_js(&venti_core::comment_list(status, body, now, own_handle, flight_handle).map_err(thrown)?)
+}
+
+/// Looks at a comment while the pilot writes it: what would be posted,
+/// the room left, and what is wrong.
+#[wasm_bindgen(js_name = commentDraft)]
+pub fn comment_draft(text: String) -> Result<Ts<CommentDraft>, JsValue> {
+    to_js(&venti_core::comment_draft(text))
+}
+
+/// The request that posts a comment under a public flight. The answer is
+/// read by `commentPosted`.
+#[wasm_bindgen(js_name = commentRequest)]
+pub fn comment_request(flight_id: String, text: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::comment_request(flight_id, text).map_err(thrown)?)
+}
+
+/// Reads the answer to `commentRequest`.
+#[wasm_bindgen(js_name = commentPosted)]
+pub fn comment_posted(
+    status: u16,
+    body: Vec<u8>,
+    now_unix_s: f64,
+) -> Result<Ts<CommentPosted>, JsValue> {
+    to_js(&venti_core::comment_posted(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+/// The request that removes a comment: the pilot's own, or one under a
+/// flight of theirs. The answer is read by `socialDone`.
+#[wasm_bindgen(js_name = commentRemoveRequest)]
+pub fn comment_remove_request(
+    flight_id: String,
+    comment_id: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::comment_remove_request(flight_id, comment_id).map_err(thrown)?)
+}
+
+/// The switch on the pilot's own flight: whether it takes comments, and
+/// what that means.
+#[wasm_bindgen(js_name = commentsSwitch)]
+pub fn comments_switch(open: bool) -> Result<Ts<CommentsSwitch>, JsValue> {
+    to_js(&venti_core::comments_switch(open))
+}
+
+/// The request by which the pilot says whether a flight of their own
+/// takes comments. The answer is read by `commentsOpenAnswer`.
+#[wasm_bindgen(js_name = commentsOpenRequest)]
+pub fn comments_open_request(flight_id: String, open: bool) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::comments_open_request(flight_id, open).map_err(thrown)?)
+}
+
+/// Reads the answer to `commentsOpenRequest`.
+#[wasm_bindgen(js_name = commentsOpenAnswer)]
+pub fn comments_open_answer(status: u16, body: Vec<u8>) -> Result<Ts<CommentsSwitch>, JsValue> {
+    to_js(&venti_core::comments_open_answer(status, body).map_err(thrown)?)
+}
+
+/// Reads the answer to a request that carries nothing back
+/// (`commentRemoveRequest`): throws the refusal in words when it did not
+/// work.
+#[wasm_bindgen(js_name = socialDone)]
+pub fn social_done(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
+    venti_core::social_done(status, body).map_err(thrown)
+}
+
+/// The request for what the signed-in pilot was told since `since`, the
+/// `cursor` of the answer before. The answer is read by `notifications`.
+#[wasm_bindgen(js_name = notificationsRequest)]
+pub fn notifications_request(since: Option<String>) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::notifications_request(since))
+}
+
+/// Reads the answer to `notificationsRequest` into lines: "Lena Probe
+/// (@lena) cheered your flight from Wallberg".
+#[wasm_bindgen]
+pub fn notifications(
+    status: u16,
+    body: Vec<u8>,
+    now_unix_s: f64,
+) -> Result<Ts<Notifications>, JsValue> {
+    to_js(&venti_core::notifications(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
 }
 
 /// A flight that is not in the logbook, prepared for display from its

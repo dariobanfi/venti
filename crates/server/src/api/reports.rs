@@ -93,7 +93,7 @@ pub(crate) async fn create<S: Store>(
         ));
     }
 
-    // What is reported, as the reporter may see it. Each of the six is
+    // What is reported, as the reporter may see it. Each of the seven is
     // found as the endpoint that shows it finds it, and what that endpoint
     // would not show is not there to report. A group and a plan are shown
     // to the members of the group and to nobody else.
@@ -145,6 +145,18 @@ pub(crate) async fn create<S: Store>(
                 subject,
                 groups::no_such_plan(),
             )
+        }
+        ReportSubject::Comment(named) => {
+            // A comment is read under a public flight and nowhere else.
+            // Its words go along as they stand: its author or the
+            // flight's pilot can remove it a moment later.
+            let comment = api.reported_comment(&named.flight, &named.id).await?;
+            let subject = venti_store::ReportSubject::Comment {
+                id: comment.id,
+                flight_id: comment.flight_id,
+                text: comment.text,
+            };
+            (Some(comment.author_id), subject, flights::no_such_flight())
         }
         ReportSubject::Site(named) => {
             // A site that pilots made is nobody's: the report names no

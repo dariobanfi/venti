@@ -14,7 +14,7 @@ use super::text;
 /// The most characters the text of a report may have.
 pub const MAX_REPORT_TEXT_LENGTH: usize = 1000;
 
-/// What a report is about. Exactly one of the six.
+/// What a report is about. Exactly one of the seven.
 ///
 /// The list is closed, and a subject travels one way only, from a client
 /// to the server: no answer carries one. A server that is sent a kind of
@@ -43,6 +43,19 @@ pub enum ReportSubject {
     /// place, its name and its texts. A site of a source the server
     /// collects is not reported here: it is corrected at its source.
     Site(ReportedSite),
+    /// A comment on a public flight. What is reported is its words.
+    Comment(ReportedComment),
+}
+
+/// A comment, as a report names it: by its identifier and its flight's,
+/// which is how every request about a comment names it
+/// (`/v1/flights/{id}/comments/{comment}`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ReportedComment {
+    /// The address of the flight the comment is on.
+    pub flight: String,
+    /// The comment's identifier.
+    pub id: String,
 }
 
 /// A site that pilots made, as a report names it.
@@ -78,7 +91,7 @@ impl ReportSubject {
     pub fn reasons(&self) -> &'static [ReportReason] {
         match self {
             Self::Flight(_) | Self::Pilot(_) | Self::LiveTrack(_) => &ReportReason::ALL,
-            Self::Group(_) | Self::Plan(_) => &ReportReason::ABOUT_WORDS,
+            Self::Group(_) | Self::Plan(_) | Self::Comment(_) => &ReportReason::ABOUT_WORDS,
             Self::Site(_) => &ReportReason::ABOUT_A_SITE,
         }
     }

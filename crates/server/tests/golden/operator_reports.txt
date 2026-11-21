@@ -37,4 +37,4 @@ Report 0000000000000000000000rep5, open, made 2026-11-18 19:03 UTC
   Text:         An advertisement, not a plan.
   Reported by:  demo
 
-A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing, group, rename-group, remove-plan, remove-group and close-report.
+A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing, group, rename-group, remove-plan, remove-group, remove-comment and close-report.

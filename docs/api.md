@@ -105,6 +105,8 @@ Three more made-up pilots have flights that say something about [where pilots ta
 
 Each of these starts at 10:30 UTC. So the mode has sixteen flights, of which eleven are public, by six pilots. A `bbox` around the Tegernsee holds the five from the Wallberg, one around the made-up sites the six from the Lechtal Alps. The ranking is, by the sum of each pilot's best three flights: `lena` (28.19 points, three flights), `mara` (23.42), `jonas` (21.0), `timo` (17.83), `demo` (11.98, one flight) and `ines` (6.32, one flight). The Musterkogel has three public flights of two pilots, and the place without a site is a [candidate](#get-v1sitescandidatesbboxwestsoutheastnorth): three flights of three pilots, Ines's private one not counted.
 
+The made-up pilots know each other ([pilots among each other](#pilots-among-each-other)): `demo` follows `mara`, `jonas` and `lena`, and those three follow `demo`; `mara` follows `jonas`. The demo account's public flight has two cheers (`mara`, `lena`) and two comments, `0000000000000000000000c001` by `mara` and `0000000000000000000000c002` by `demo`; the newest public flight of `mara` has two cheers and the comment `0000000000000000000000c003`, the newest of `jonas` one cheer. The demo account was told of four of these. None of it adds a flight or changes one.
+
 ```bash
 curl http://127.0.0.1:8080/v1/flights/public                          # the eleven public flights, newest first
 curl http://127.0.0.1:8080/v1/ranking                                 # their six pilots, by the sum of their best three flights
@@ -266,6 +268,12 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 404 | `google_not_linked` | The account is not linked to a Google account |
 | 409 | `too_many_kept_sites` | The account keeps as many [sites as its own](#the-sites-a-pilot-keeps) as it may |
 | 409 | `too_many_alerts` | The account has as many [alarms](#alarms) as it may |
+| 400 | `invalid_follow` | A pilot does not [follow](#pilots-among-each-other) themselves |
+| 409 | `too_many_follows` | The account follows as many pilots as it may: 1,000 |
+| 400 | `invalid_cheer` | A pilot does not cheer their own flight |
+| 400 | `invalid_comment` | A comment that says nothing, or has more than 500 characters |
+| 403 | `comments_off` | The flight's pilot takes no comments on the flight |
+| 404 | `comment_not_found` | The flight has no comment with this identifier, or none that is the caller's to remove |
 | 409 | `too_many_push_subscriptions` | The account has as many [browsers subscribed to Web Push](#web-push) as it may |
 | 409 | `too_many_tokens` | The account holds as many [tokens for programs](#tokens-for-other-programs) as it may |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
@@ -4669,6 +4677,7 @@ The answer is `200` with `Content-Type: application/zip` and a name for the file
 | `kept-sites.json` | The answer of [`GET /v1/account/kept-sites/changes`](#get-v1accountkept-siteschangessincelimit) from the beginning, all pages in one | The sites the account keeps as its own |
 | `reports.json` | `{"reports": [{"sent_at": "…", "report": {…}}]}` | The [reports](#reports) the account sent and the server still keeps: `report` is the body of `POST /v1/reports` as it was sent, a site with the revision the server noted |
 | `alerts.json` | `{"alerts": […], "fired": […]}` | The account's [alarms](#alarms), each as [`GET /v1/account/alerts`](#get-v1accountalerts) lists it, and what they fired of the last 30 days, each as [`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit) hands it out, the oldest first |
+| `social.json` | `{"following": […], "cheers": […], "comments": […]}` | What the account gave [among pilots](#pilots-among-each-other): the pilots it follows with since when, the newest first; the flights it cheered, each by its address with the moment, the oldest first, those among them that are not public at the moment; and the comments it wrote, each with its identifier, the address of its flight, its text and its moment. Who follows the account and what others wrote under its flights are theirs and not in it |
 
 Never in it: the password or its fingerprint, and the secret of a session or of a token. `index.json` says in `not_included` what else the account has on the server that the archive does not hold: live tracks, which the server removes 48 hours after their last position; what other pilots put into the groups; and what whoever runs the server noted about a report.
 
@@ -4743,6 +4752,12 @@ This is `index.json` of the demo account's archive:
       "holds": "The account's alarms, and what they fired in the last 30 days.",
       "record": "ArchiveAlerts",
       "entries": 3
+    },
+    {
+      "path": "social.json",
+      "holds": "The pilots the account follows, the flights it cheered and the comments it wrote under flights.",
+      "record": "ArchiveSocial",
+      "entries": 7
     }
   ],
   "flights": [
@@ -4871,6 +4886,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `kept-sites:write` | Keeping a site as the pilot's own, and forgetting one |
 | `alerts:read` | [The pilot's alarms](#alarms), and what they fired |
 | `alerts:write` | Setting, changing and removing an alarm |
+| `social:read` | What is the pilot's own [among pilots](#pilots-among-each-other): the flights of the pilots they follow, everyone they follow, what they were told, and in a public list whether they follow or cheered |
+| `social:write` | Following a pilot, cheering a flight, writing a comment and removing one, in the pilot's name |
 
 **Which request needs which scope.** A session, which Venti's own apps get by signing in, may do all of it.
 
@@ -4918,6 +4935,16 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `DELETE /v1/account/alerts/{id}` | `alerts:write` |
 | `POST /v1/account/push` | `alerts:write` |
 | `DELETE /v1/account/push` | `alerts:write` |
+| `PUT /v1/pilots/{handle}/follow` | `social:write` |
+| `DELETE /v1/pilots/{handle}/follow` | `social:write` |
+| `GET /v1/account/following` | `social:read` |
+| `GET /v1/account/feed` | `social:read` |
+| `GET /v1/account/notifications` | `social:read` |
+| `PUT /v1/flights/{id}/cheer` | `social:write` |
+| `DELETE /v1/flights/{id}/cheer` | `social:write` |
+| `POST /v1/flights/{id}/comments` | `social:write` |
+| `DELETE /v1/flights/{id}/comments/{comment}` | `social:write` |
+| `PATCH /v1/flights/{id}/comments` | `flights:write` |
 | `GET /v1/sessions` | the session only |
 | `DELETE /v1/sessions` | the session only |
 | `DELETE /v1/sessions/{id}` | the session only |
@@ -6049,6 +6076,56 @@ The pilots whose handle or display name holds a text: the search of a list of fl
 
 ```bash
 curl 'http://127.0.0.1:8080/v1/pilots?q=le'
+## Pilots among each other
+
+A signed-in pilot follows other pilots, reads their public flights as one list, cheers a public flight ("well flown") and writes under it. Since 2026-11-22. What a client has to know:
+
+- **What is public.** That a pilot follows another, who cheered a public flight and what was written under it, each with the handle and the name of the pilot who did it, and the counts. Following, cheering and commenting put a pilot's name where everyone reads it: say so where the button is.
+- **A pilot without a page is counted and not named** in the two public lists of following. A pilot has a [page](#pilots) once they have made a flight public; the handle of one who shares nothing is in no list of followers and in no list of followed pilots, and `followers` and `following` count them all the same. A cheer and a comment name their pilot always: both are written onto somebody's flight for everyone to read.
+- **What is the account's own.** The feed, the whole list of whom the account follows, and what it was told. They need a session, or a token with `social:read`.
+- **Only a public flight has cheers and comments.** For a flight that is private, shared by link or taken down, every request below answers `404` with `flight_not_found`, to its pilot as to everyone. What was given is kept while the flight is, and is back when the flight is public again. A flight that is deleted takes its cheers and comments with it, and they are not back when its file is uploaded again.
+- **Who writes.** Any signed-in pilot whose publishing is not suspended; a suspended account gets `403` with `publishing_suspended` when it follows, cheers or comments, and can still take back what it gave. A token for a program needs `social:write`.
+- **An account that is deleted takes all of it along**: whom it followed and who followed it, its cheers, its comments, the cheers and comments under its flights, what it was told and what others were told of it. The counts of other pilots' flights and pages go down by what it gave.
+- **Bounds.** An account follows at most 1,000 pilots; it follows and cheers at most 1,000 times in a day, taking back not counted, and writes at most 100 comments in a day (`429` with `rate_limited` beyond); a comment has at most 500 characters. The public lists are read within the bound of the [public flights](#public-flights). Pages hold 50 entries, 100 with `limit=100`.
+- **A comment is plain text.** The server keeps line breaks and drops control characters and what hides text or turns it round; it makes no link of anything. Show it as text and never as markup.
+- **Comments are reported** as [`subject.comment`](#post-v1reports), and whoever runs the server removes one with `venti-server remove-comment`.
+
+### `PUT /v1/pilots/{handle}/follow`
+
+Needs a token. The account follows the pilot. Following a pilot one follows already changes nothing and answers the same. The pilot is [told](#get-v1accountnotificationssincelimit) the first time.
+
+```bash
+curl -X PUT http://127.0.0.1:8080/v1/pilots/timo/follow \
+  -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
+```
+
+```json
+{
+  "following": true,
+  "followers": 1
+}
+```
+
+`followers` is how many accounts follow the pilot now.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_follow` | The handle is the account's own |
+| 403 | `publishing_suspended` | The account may not publish |
+| 404 | `pilot_not_found` | Nobody has the handle, or its pilot shares no flight publicly |
+| 409 | `too_many_follows` | The account follows 1,000 pilots already |
+| 429 | `rate_limited` | The account has followed and cheered 1,000 times today |
+
+### `DELETE /v1/pilots/{handle}/follow`
+
+Needs a token. The account follows the pilot no more: `200` with `"following": false` and the pilot's `followers`, also when it did not follow them. A pilot who shares nothing by now can still be let go of; a handle the account does not follow and that leads to no page gives `404` with `pilot_not_found`.
+
+### `GET /v1/pilots/{handle}/followers?after=&limit=`
+
+Who follows the pilot, the newest first, and how many do. Anyone may ask.
+
+```bash
+curl http://127.0.0.1:8080/v1/pilots/demo/followers
 ```
 
 ```json
@@ -6197,6 +6274,283 @@ curl http://127.0.0.1:8080/v1/pilots/lena/statistics
 **Who has totals.** A pilot who has a [page](#get-v1pilotshandleafterlimit): one with at least one public flight. Any other handle gives `404` `pilot_not_found`, the same answer as for a handle nobody has.
 
 **The bound.** It counts as a read of public flights for the address that asks: [600 an hour](#how-often-an-address-may-read). `Cache-Control: public, no-cache` and an `ETag`: a flight that is made private is in no number of the next answer.
+      "since": "2026-11-18T17:35:00Z"
+    },
+    {
+      "pilot": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "since": "2026-11-18T09:55:00Z"
+    },
+    {
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "since": "2026-11-18T09:35:00Z"
+    }
+  ],
+  "followers": 3,
+  "following": 3
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `pilots` | One page of the followers who have a page, each with `since`, the moment they began to follow |
+| `followers`, `following` | How many accounts follow the pilot and how many the pilot follows, those the lists do not name included |
+| `you_follow` | Whether the account that asks follows the pilot. Only in an answer to a request with a session, or with a token that has `social:read`; such an answer is made for that account and kept by nobody |
+| `next` | Pass it as `after` for the next page. Left out on the last one |
+
+A handle without a page gives `404` with `pilot_not_found`.
+
+### `GET /v1/pilots/{handle}/following?after=&limit=`
+
+Whom the pilot follows, the newest first: the same answer, with the followed pilots who have a page in `pilots`.
+
+### `GET /v1/account/following?after=&limit=`
+
+Needs a token. Everyone the account follows, the newest first, those without a page among them: the answer of the public list without `you_follow`, with the account's own counts.
+
+### `GET /v1/account/feed?before=&limit=`
+
+Needs a token. The public flights of the pilots the account follows, the newest first by their start.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/account/feed?limit=3' \
+  -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
+```
+
+Each entry of `flights` is `flight`, the flight as [`GET /v1/flights/public`](#get-v1flightspublicpilotbboxfromtosortafterlimit) lists it, with its `takeoff_site`; `cheers` and `comments`, how many it has; and `cheered`, whether the account cheered it. `next` is passed as `before` for the flights that started before the last of the page, and is left out on the last page. `terms` says under what the flights are given. A flight that is made private leaves the list at once; the account's own flights are not in it. For someone who is not signed in there is no feed: the list of everyone's public flights is that.
+
+```json
+{
+  "flights": [
+    {
+      "flight": { ... },
+      "cheers": 1,
+      "comments": 0,
+      "cheered": true
+    },
+    ...
+  ],
+  "next": "1786874400000000_7hn3e0ef6twjgq0g51ckxtxsx8",
+  "terms": { ... }
+}
+```
+
+### `PUT /v1/flights/{id}/cheer`
+
+Needs a token. The account cheers a public flight of another pilot. Cheering it again changes nothing. The flight's pilot is told the first time.
+
+```json
+{
+  "cheered": true,
+  "cheers": 1
+}
+```
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_cheer` | The flight is the account's own |
+| 403 | `publishing_suspended` | The account may not publish |
+| 404 | `flight_not_found` | No public flight has this address |
+| 429 | `rate_limited` | The account has followed and cheered 1,000 times today |
+
+### `DELETE /v1/flights/{id}/cheer`
+
+Needs a token. Takes the account's cheer back: `200` with `"cheered": false` and the flight's `cheers`. A cheer on a flight that is public no more can be taken back too, and the answer then says `"cheers": 0`; without a cheer to take back such a flight gives `404` with `flight_not_found`.
+
+### `GET /v1/flights/{id}/cheers?after=&limit=`
+
+Who cheered a public flight, the newest first. Anyone may ask.
+
+```bash
+curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg/cheers
+```
+
+```json
+{
+  "count": 2,
+  "cheers": [
+    {
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "at": "2026-11-18T18:20:00Z"
+    },
+    {
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "at": "2026-11-18T18:05:00Z"
+    }
+  ]
+}
+```
+
+`count` is how many pilots cheered. `cheered`, whether the account that asks is one of them, is only in an answer to a request with a session or with a token that has `social:read`.
+
+### `GET /v1/flights/{id}/comments?after=&limit=`
+
+The comments under a public flight, the oldest first. Anyone may ask; the answer is the same for everyone.
+
+```json
+{
+  "count": 2,
+  "open": true,
+  "comments": [
+    {
+      "id": "0000000000000000000000c001",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "text": "Well flown. How was the air above the ridge?",
+      "at": "2026-11-18T18:10:00Z"
+    },
+    {
+      "id": "0000000000000000000000c002",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "text": "Rough at first, calm above 2000 m.\nA made-up answer of the development mode.",
+      "at": "2026-11-18T18:15:00Z"
+    }
+  ]
+}
+```
+
+`open` is `false` once the flight's pilot turned comments off; the comments written before stay and are shown.
+
+### `POST /v1/flights/{id}/comments`
+
+Needs a token. Writes a comment under a public flight; a pilot may write under their own. The body:
+
+```json
+{
+  "text": "A made-up comment of a test."
+}
+```
+
+The answer is `201` with the comment as the server keeps it and `count`, how many the flight has now. The flight's pilot is told, unless they wrote it.
+
+```json
+{
+  "comment": {
+    "id": "0000000000000000000000c009",
+    "pilot": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "text": "A made-up comment of a test.",
+    "at": "2026-11-18T19:05:00Z"
+  },
+  "count": 1
+}
+```
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_comment` | Nothing is left of `text` after cleaning, or more than 500 characters |
+| 403 | `comments_off` | The flight's pilot takes no comments on it |
+| 403 | `publishing_suspended` | The account may not publish |
+| 404 | `flight_not_found` | No public flight has this address |
+| 429 | `rate_limited` | The account has written 100 comments today |
+
+### `PATCH /v1/flights/{id}/comments`
+
+Needs a token, with `flights:write` for a program: it is a setting of the pilot's own flight, of any visibility. The body says whether the flight takes comments, and the answer repeats it:
+
+```json
+{
+  "open": false
+}
+```
+
+A flight takes comments unless its pilot said otherwise. Turning them off removes nothing. A flight that is not the account's gives `404` with `flight_not_found`.
+
+### `DELETE /v1/flights/{id}/comments/{comment}`
+
+Needs a token. Removes a comment: its author may, and the pilot of the flight it is under. `204`. Anything else gives `404` with `comment_not_found`: no such comment under this flight, or one that is neither the account's nor under its flight. Nobody is told.
+
+### `GET /v1/account/notifications?since=&limit=`
+
+Needs a token. What the account was told since the device last asked, the oldest first: a pilot follows it, cheered a flight of its, or commented on one. Kept for 30 days. `since`, `cursor`, `more` and `reset` work as for [`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit). The phone apps and the web app fetch this; nothing is pushed.
+
+```bash
+curl http://127.0.0.1:8080/v1/account/notifications \
+  -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
+```
+
+```json
+{
+  "notifications": [
+    {
+      "kind": "followed",
+      "at": "2026-11-18T17:35:00Z",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      }
+    },
+    {
+      "kind": "cheered",
+      "at": "2026-11-18T18:05:00Z",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "flight": {
+        "id": "5t1eshypdtvrq7rxw39a18vsrg",
+        "start": "2026-08-15T10:30:00Z"
+      }
+    },
+    {
+      "kind": "commented",
+      "at": "2026-11-18T18:10:00Z",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "flight": {
+        "id": "5t1eshypdtvrq7rxw39a18vsrg",
+        "start": "2026-08-15T10:30:00Z"
+      },
+      "comment": "0000000000000000000000c001"
+    },
+    {
+      "kind": "cheered",
+      "at": "2026-11-18T18:20:00Z",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "flight": {
+        "id": "5t1eshypdtvrq7rxw39a18vsrg",
+        "start": "2026-08-15T10:30:00Z"
+      }
+    }
+  ],
+  "cursor": "1795026000000000",
+  "more": false,
+  "reset": false
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `followed`, `cheered` or `commented`. A client skips a kind it does not know |
+| `at` | When |
+| `pilot` | Who did it, as they were called then |
+| `flight` | For a cheer and a comment, the account's flight: its `id`, its `start` and `takeoff_site`, the name of the site it took off from as it stood then, left out when none was known |
+| `comment` | For a comment, its identifier. The words are read where the [comments](#get-v1flightsidcommentsafterlimit) are, and are not there once the comment is removed |
+
+A pilot is told when a follow or a cheer is new: following or cheering again while it stands tells nothing, and one that was taken back and is given again tells again. Nobody is told of what they did themselves. What an account was told goes when the account that did it is deleted.
 
 ## Public flights
 
@@ -7977,7 +8331,7 @@ What a client has to know:
 - **A report about a group or a plan takes the words along.** A name, a place and a note can be changed or deleted a moment after they were reported, so the server keeps, with the report, the group's name or the plan's place and note as they stood when the report was made. Nothing else is copied: not who is in the group, and of a plan neither its day, its time, its position nor who was in on it. The copy is kept as long as the report and goes with it. It is the one place where words of a plan outlast the two days a plan is kept, and the one place where they are in a backup. Say so where the report is written.
 - **A report is about an account as well**: the pilot of a flight, a page or a live track, the author of a plan, and for a group the member who keeps it at that moment. A report is removed when that account or the reporter's is deleted.
 - **A report about a site is about nobody's account.** A site that pilots made is nobody's: any pilot corrects it, and it stays when the account that added it goes. Such a report names the site and one revision of it, the one the request names or the one the site stands at, and no pilot; it is removed with its reporter's account and with no other. Nothing the site says is copied into it: every revision of a site is kept, and whoever runs the server reads the words there. Only a site of the layer `venti` is reported: a site of a source the server collects is that source's record and is corrected there (`400` with `invalid_report`). A site that a pilot removed can still be reported, because its history can still be read; one that whoever runs the server took down shows nothing and answers `410` with `site_gone`. One open report per account and site, whichever revision each names. Anyone signed in may report a site, as anyone may read it.
-- **A server from before 2026-11-21 knows three kinds of subject, or five.** The list of subjects is closed: a server that is sent a kind it does not know cannot read the request and answers `400` with `invalid_request`, and stores nothing. A client that gets this answer to a report about a group, a plan or a site is talking to an older server.
+- **A server from before 2026-11-21 knows three kinds of subject, or five.** The list of subjects is closed: a server that is sent a kind it does not know cannot read the request and answers `400` with `invalid_request`, and stores nothing. A client that gets this answer to a report about a group, a plan or a site is talking to an older server, and so is one that gets it to a report about a comment: comments, and reports about them, are there since 2026-11-22.
 
 ### `POST /v1/reports`
 
@@ -8004,13 +8358,14 @@ The body of that request:
 
 | Field | Meaning |
 |---|---|
-| `subject` | What is reported: an object with exactly one of the six members below |
+| `subject` | What is reported: an object with exactly one of the seven members below |
 | `subject.flight` | A flight, by its address: the `id` of the flight, which is the end of its share link |
 | `subject.pilot` | A pilot's page, by the pilot's handle, in upper or lower case |
 | `subject.live_track` | A live track, by its identifier, which is the end of its link |
 | `subject.group` | A group the reporter is in, by its `id` |
 | `subject.plan` | A plan of a group the reporter is in: an object with `group`, the group's `id`, and `id`, the plan's. A plan is named with its group here as in every path about a plan, and the `plan` of every answer carries both |
 | `subject.site` | A site that pilots made: an object with `id`, the site's identifier (`venti:` or `venti-pilots:` and 26 characters: a site of either layer is reported the same way), and, if the report is about one revision of it, `revision`, that revision's number. Without `revision` the report is about the site as it stands, and the server notes the revision it stands at |
+| `subject.comment` | A [comment](#pilots-among-each-other) under a public flight: an object with `flight`, the address of the flight, and `id`, the comment's. What is reported is its words, which the server keeps with the report as they stood: its author or the flight's pilot can remove it a moment later. The reasons are those of a group and a plan. The report is about the comment's author |
 | `reason` | Why; one of the values below |
 | `text` | What the reporter wants to add, in their own words: at most 1,000 characters. May be left out, except with the reason `other` |
 
@@ -8084,7 +8439,7 @@ The answer carries `Cache-Control: no-store`, like every answer to a request wit
 
 | Status | Code | When |
 |---|---|---|
-| 400 | `invalid_report` | `reason` is not one the kind of subject takes: not one of the six, `not_a_flight` for a group or a plan, a reason of a site for anything else, or `impersonation` or `not_a_flight` for a site; `subject.site` is a site of a source and not one that pilots made; `text` has more than 1,000 characters after cleaning; or `reason` is `other` and nothing is left of `text`. `message` says which, and repeats nothing that was sent. Whether the reason fits is decided by the kind of subject alone, before anything is looked up |
+| 400 | `invalid_report` | `reason` is not one the kind of subject takes: not one of the six, `not_a_flight` for a group, a plan or a comment, a reason of a site for anything else, or `impersonation` or `not_a_flight` for a site; `subject.site` is a site of a source and not one that pilots made; `text` has more than 1,000 characters after cleaning; or `reason` is `other` and nothing is left of `text`. `message` says which, and repeats nothing that was sent. Whether the reason fits is decided by the kind of subject alone, before anything is looked up |
 | 400 | `invalid_request` | The body is not JSON of this shape: no `subject`, two subjects in one, a kind of subject the server does not know, a plan without its group, no `reason` |
 | 401 | `unauthorized` | No valid token |
 | 404 | `flight_not_found` | `subject.flight` is no flight the reporter may see: nobody's address, text that is no address, or another pilot's private flight. The answer is the one `GET /v1/flights/{id}` gives the reporter |
@@ -8257,4 +8612,4 @@ One tile of the Web Mercator scheme every web map uses: zoom `z`, column `x` fro
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps (of the thermal map the server's side is here since 2026-11-21, and no app draws it yet), a second radar source for what DWD's radars do not see (of the rain radar the server's side is here since 2026-11-21, with DWD's composite, and no app draws it yet), pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here; since 2026-11-20 the iPhone and the Android app send them, and those two and the web app draw the public ones on their maps. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app send them about a flight, a pilot's page and a live track. A group and a plan can be reported since 2026-11-21, on the server and in the apps' shared core; no app offers it yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app show them. Not built for them: a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, a push message for what a pilot is [told among pilots](#get-v1accountnotificationssincelimit), blocking a pilot, a name for the place a flight took off from, forecast maps (of the thermal map the server's side is here since 2026-11-21, and no app draws it yet), a second radar source for what DWD's radars do not see (of the rain radar the server's side is here since 2026-11-21, with DWD's composite, and no app draws it yet), pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here; since 2026-11-20 the iPhone and the Android app send them, and those two and the web app draw the public ones on their maps. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app send them about a flight, a pilot's page and a live track. A group and a plan can be reported since 2026-11-21, on the server and in the apps' shared core; no app offers it yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app show them. Not built for them: a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

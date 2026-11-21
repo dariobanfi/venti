@@ -175,6 +175,57 @@ impl Flights {
             .map(|entry| Self::read(entry, accounts))
     }
 
+    /// Whether there is a public flight with this address.
+    pub(super) fn is_public(&self, id: &str) -> bool {
+        self.flights
+            .get(id)
+            .is_some_and(|entry| entry.flight.visibility == Visibility::Public)
+    }
+
+    /// The account a flight is of.
+    pub(super) fn owner_of(&self, id: &str) -> Option<&str> {
+        self.flights
+            .get(id)
+            .map(|entry| entry.flight.account_id.as_str())
+    }
+
+    /// Whether an account has a public flight.
+    pub(super) fn has_public(&self, account_id: &str) -> bool {
+        self.flights.values().any(|entry| {
+            entry.flight.account_id == account_id && entry.flight.visibility == Visibility::Public
+        })
+    }
+
+    /// The addresses of an account's flights.
+    pub(super) fn ids_of(&self, account_id: &str) -> Vec<String> {
+        self.flights
+            .values()
+            .filter(|entry| entry.flight.account_id == account_id)
+            .map(|entry| entry.flight.id.clone())
+            .collect()
+    }
+
+    /// The public flights of some accounts, newest first.
+    pub(super) fn public_of(
+        &self,
+        pilots: &std::collections::BTreeSet<String>,
+        after: Option<&FlightKey>,
+        limit: usize,
+        accounts: &Accounts,
+    ) -> Vec<Flight> {
+        let mut flights: Vec<Flight> = self
+            .flights
+            .values()
+            .filter(|entry| entry.flight.visibility == Visibility::Public)
+            .filter(|entry| pilots.contains(&entry.flight.account_id))
+            .filter(|entry| after.is_none_or(|after| &entry.flight.key() < after))
+            .map(|entry| Self::read(entry, accounts))
+            .collect();
+        flights.sort_by_key(|flight| std::cmp::Reverse(flight.key()));
+        flights.truncate(limit);
+        flights
+    }
+
     pub(super) fn file(&self, id: &str) -> Option<Vec<u8>> {
         self.flights.get(id).map(|entry| entry.file.clone())
     }

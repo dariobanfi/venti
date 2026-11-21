@@ -1222,7 +1222,7 @@ impl FlightSession {
     }
 
     /// Sets the task to fly, from its file's text as the core keeps it
-    /// ([`Core::kept_task_file`]), or with `None` flies no task. The
+    /// ([`crate::Core::kept_task_file`]), or with `None` flies no task. The
     /// cockpit then navigates to the task's next turnpoint unless the
     /// pilot chose another place. `now_unix_s` says which day the task's
     /// times of day mean.

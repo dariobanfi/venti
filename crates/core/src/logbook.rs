@@ -40,7 +40,7 @@ const INDEX_VERSION: u32 = 4;
 /// means. Figures kept under another version count as not yet worked out
 /// and are worked out again the next time they are asked for, without the
 /// whole index being rebuilt.
-const HABITS_VERSION: u32 = 1;
+const HABITS_VERSION: u32 = 2;
 
 /// The most points an outline keeps. Enough for a recognisable thumbnail and
 /// an overview map, small enough to hold thousands of flights in memory.
@@ -97,6 +97,9 @@ pub(crate) struct StoredHabits {
     pub thermals_measured: u32,
     pub thermals_ended_weak: u32,
     pub after_the_top_s: i64,
+    /// Kept since version 2 of the rules; missing from figures kept before.
+    #[serde(default)]
+    pub below_the_top_m: i64,
     pub height_gained_m: i64,
     pub thermalling_s: i64,
     pub best_climb_ms: Option<f64>,
@@ -119,6 +122,7 @@ impl From<FlightHabits> for StoredHabits {
             thermals_measured: habits.thermals_measured,
             thermals_ended_weak: habits.thermals_ended_weak,
             after_the_top_s: habits.after_the_top_s,
+            below_the_top_m: habits.below_the_top_m,
             height_gained_m: habits.height_gained_m,
             thermalling_s: habits.thermalling_s,
             best_climb_ms: habits.best_climb_ms,
@@ -143,6 +147,7 @@ impl StoredHabits {
             thermals_measured: self.thermals_measured,
             thermals_ended_weak: self.thermals_ended_weak,
             after_the_top_s: self.after_the_top_s,
+            below_the_top_m: self.below_the_top_m,
             height_gained_m: self.height_gained_m,
             thermalling_s: self.thermalling_s,
             best_climb_ms: self.best_climb_ms,
@@ -161,6 +166,10 @@ pub(crate) struct FlightWithHabits {
     pub id: String,
     pub start_unix_s: i64,
     pub habits: FlightHabits,
+    /// How far from where it began the flight ended, metres, in a straight
+    /// line between the first and last points of its outline, which are the
+    /// track's own.
+    pub ended_from_start_m: Option<f64>,
 }
 
 /// A flight's score as the index keeps it.
@@ -350,6 +359,7 @@ impl Logbook {
                     id: id.clone(),
                     start_unix_s: summary.start_unix_s,
                     habits: summary.habits?.current()?,
+                    ended_from_start_m: ended_from_start_m(&summary.outline),
                 })
             })
             .collect();
@@ -432,6 +442,14 @@ fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
         habits: Some(habits::habits(flown, &analysis).into()),
     };
     Ok((file, summary))
+}
+
+/// The straight distance between the first and last points of an outline,
+/// metres.
+fn ended_from_start_m(outline: &[[f64; 2]]) -> Option<f64> {
+    let point = |[lat, lon]: [f64; 2]| venti_domain::GeoPoint::new(lat, lon).ok();
+    let (first, last) = (point(*outline.first()?)?, point(*outline.last()?)?);
+    Some(first.distance_m(last))
 }
 
 /// Whether the text has the form of a flight identifier. Identifiers arrive
@@ -740,15 +758,23 @@ mod tests {
             let storage = backing.open();
             let mut index: serde_json::Value =
                 serde_json::from_slice(&storage.read(INDEX_FILE).unwrap().unwrap()).unwrap();
+            // As version 1 wrote them: without the height below the top.
             for summary in index["flights"].as_object_mut().unwrap().values_mut() {
-                summary["habits"]["version"] = (HABITS_VERSION - 1).into();
-                summary["habits"]["thermals_right"] = 99.into();
+                let habits = summary["habits"].as_object_mut().unwrap();
+                habits.insert("version".into(), 1.into());
+                habits.insert("thermals_right".into(), 99.into());
+                habits.remove("below_the_top_m").unwrap();
             }
             storage
                 .write(INDEX_FILE, &serde_json::to_vec(&index).unwrap())
                 .unwrap();
 
-            assert_eq!(open(backing).habits(), before);
+            // The index opens as it is, and the figures are counted again.
+            let logbook = open(backing);
+            assert_eq!(logbook.flights().len(), 1);
+            assert_eq!(logbook.habits(), before);
+            let kept = open(backing).flights()[0].1.habits.unwrap();
+            assert_eq!(kept.version, HABITS_VERSION);
         });
     }
 

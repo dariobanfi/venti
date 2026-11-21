@@ -74,6 +74,9 @@ pub struct FlightHabits {
     /// Over the measured thermals, the seconds between reaching each one's
     /// highest point and leaving it, together.
     pub after_the_top_s: i64,
+    /// Over the measured thermals, the height between each one's highest
+    /// point and its exit, metres, together.
+    pub below_the_top_m: i64,
     /// Height gained in thermals, metres. A thermal that lost height adds
     /// nothing.
     pub height_gained_m: i64,
@@ -111,6 +114,7 @@ impl std::ops::AddAssign for FlightHabits {
         self.thermals_measured += other.thermals_measured;
         self.thermals_ended_weak += other.thermals_ended_weak;
         self.after_the_top_s += other.after_the_top_s;
+        self.below_the_top_m += other.below_the_top_m;
         self.height_gained_m += other.height_gained_m;
         self.thermalling_s += other.thermalling_s;
         self.best_climb_ms = match (self.best_climb_ms, other.best_climb_ms) {
@@ -175,10 +179,11 @@ pub fn habits(fixes: &[Fix], analysis: &Analysis) -> FlightHabits {
             Direction::BothWays => habits.thermals_both_ways += 1,
         }
 
-        if let Some((weak, after_the_top_s)) = ending(thermal, &altitudes, &seconds) {
+        if let Some(end) = ending(thermal, &altitudes, &seconds) {
             habits.thermals_measured += 1;
-            habits.thermals_ended_weak += u32::from(weak);
-            habits.after_the_top_s += after_the_top_s;
+            habits.thermals_ended_weak += u32::from(end.weak);
+            habits.after_the_top_s += end.after_the_top_s;
+            habits.below_the_top_m += end.below_the_top_m;
         }
 
         habits.height_gained_m += i64::from(thermal.gain_m.max(0));
@@ -237,10 +242,18 @@ fn direction(fixes: &[Fix]) -> Direction {
     }
 }
 
-/// How a thermal ended, if it is one to measure: whether its last minute
-/// climbed at less than a third of its average, and the seconds from its
-/// highest point to its exit.
-fn ending(thermal: &Thermal, altitudes: &[i32], seconds: &[i64]) -> Option<(bool, i64)> {
+/// How a measured thermal ended.
+struct Ending {
+    /// Whether its last minute climbed at less than a third of its average.
+    weak: bool,
+    /// Seconds from its highest point to its exit.
+    after_the_top_s: i64,
+    /// Metres from its highest point down to its exit.
+    below_the_top_m: i64,
+}
+
+/// How a thermal ended, if it is one to measure.
+fn ending(thermal: &Thermal, altitudes: &[i32], seconds: &[i64]) -> Option<Ending> {
     let (entry, exit) = (thermal.entry.index, thermal.exit.index);
     let duration_s = thermal.exit.seconds - thermal.entry.seconds;
     if duration_s < MEASURED_THERMAL_S || thermal.climb_ms < MEASURED_THERMAL_CLIMB_MS {
@@ -259,10 +272,11 @@ fn ending(thermal: &Thermal, altitudes: &[i32], seconds: &[i64]) -> Option<(bool
         .enumerate()
         .max_by_key(|&(offset, altitude)| (*altitude, std::cmp::Reverse(offset)))
         .map_or(exit, |(offset, _)| entry + offset);
-    Some((
-        last_climb_ms < WEAK_END_SHARE * thermal.climb_ms,
-        seconds[exit] - seconds[top],
-    ))
+    Some(Ending {
+        weak: last_climb_ms < WEAK_END_SHARE * thermal.climb_ms,
+        after_the_top_s: seconds[exit] - seconds[top],
+        below_the_top_m: i64::from(altitudes[top] - altitudes[exit]),
+    })
 }
 
 #[cfg(test)]
@@ -381,6 +395,8 @@ mod tests {
         assert_eq!(habits.thermals_measured, 2, "{habits:?}");
         assert_eq!(habits.thermals_ended_weak, 0, "{habits:?}");
         assert!(habits.after_the_top_s <= 2 * 15, "{habits:?}");
+        // A few seconds of the glide after, at 1.1 m/s, below each top.
+        assert!((0..=2 * 20).contains(&habits.below_the_top_m), "{habits:?}");
         assert!((habits.height_gained_m - (605 + 269)).abs() < 60);
         assert!((habits.best_climb_ms.unwrap() - 2.4).abs() < 0.15);
     }
@@ -415,6 +431,33 @@ mod tests {
             (84 - 15..=84 + 15).contains(&habits.after_the_top_s),
             "{habits:?}"
         );
+        // It held its height at the top: little below it, from the glide.
+        assert!((0..=20).contains(&habits.below_the_top_m), "{habits:?}");
+    }
+
+    #[test]
+    fn a_thermal_circled_on_as_it_sank_is_left_below_its_top() {
+        // Eight circles at 2 m/s, then two sinking at 1 m/s: 56 m below
+        // the top when the circling ends.
+        let flight = made_up_flight(&[
+            glide(60),
+            Leg::Circles {
+                circles: 8,
+                climb: 2.0,
+            },
+            Leg::Circles {
+                circles: 2,
+                climb: -1.0,
+            },
+            glide(200),
+        ]);
+        let habits = habits_of(&flight.fixes);
+
+        assert_eq!(habits.thermals_measured, 1, "{habits:?}");
+        assert!(
+            (56 - 15..=56 + 20).contains(&habits.below_the_top_m),
+            "{habits:?}"
+        );
     }
 
     #[test]
@@ -433,6 +476,7 @@ mod tests {
         assert_eq!(habits.thermals_right, 1, "{habits:?}");
         assert_eq!(habits.thermals_measured, 0, "{habits:?}");
         assert_eq!(habits.after_the_top_s, 0);
+        assert_eq!(habits.below_the_top_m, 0);
         // At over a minute it is still the best thermal of the flight.
         assert!((habits.best_climb_ms.unwrap() - 2.0).abs() < 0.3);
     }

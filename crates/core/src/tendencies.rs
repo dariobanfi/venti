@@ -1,5 +1,6 @@
 //! What the pilot's own tracks say about how they fly: which way they
-//! circle, how their thermals end, how they climb and glide.
+//! circle, how their thermals end, how they climb and glide, and where
+//! their flights end.
 //!
 //! The figures of each flight are [`venti_flight::habits`], kept with the
 //! flight in the logbook's index. Here they are added up over the whole
@@ -24,6 +25,12 @@ const MIN_MEASURED_THERMALS: u32 = 10;
 const MIN_MEASURED_IN_A_FLIGHT: u32 = 3;
 /// The glides are said from this many glides of a kilometre on.
 const MIN_GLIDES: u32 = 10;
+/// Where flights end is said from this many flights on.
+const MIN_FLIGHTS: u32 = 10;
+/// A flight that ended closer than this to where it began, metres, ended
+/// where it began: on the take-off's own landing field, or back at the
+/// hill. A straight line, so a flight out and back counts too.
+const ENDED_NEAR_M: f64 = 1000.0;
 /// The share of the airtime spent circling is said from this much
 /// airtime on, seconds: two hours.
 const MIN_AIRTIME_S: i64 = 2 * 3600;
@@ -39,12 +46,16 @@ pub enum TendencyKind {
     ThermalEnds,
     /// The time between a thermal's highest point and leaving it.
     AfterTheTop,
+    /// How far below a thermal's highest point it is left.
+    BelowTheTop,
     /// How the pilot climbs.
     Climb,
     /// How the pilot glides.
     Glides,
     /// The share of the airtime spent circling.
     TimeCircling,
+    /// How far from where they began flights end.
+    Landings,
 }
 
 /// One thing the pilot's tracks show.
@@ -112,9 +123,11 @@ fn tendencies(flights: &[FlightWithHabits]) -> Tendencies {
         circling(flights, &all),
         thermal_ends(flights, &all),
         after_the_top(flights, &all),
+        below_the_top(flights, &all),
         climb(flights, &all),
         glides(&all),
         time_circling(&all),
+        landings(flights),
     ]
     .into_iter()
     .flatten()
@@ -262,6 +275,27 @@ fn after_the_top(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Ten
     ))
 }
 
+/// "On average 35 m below a thermal's highest point when you leave it."
+fn below_the_top(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Tendency> {
+    if all.thermals_measured < MIN_MEASURED_THERMALS {
+        return None;
+    }
+    let average_m = all.below_the_top_m as f64 / f64::from(all.thermals_measured);
+    Some(observation(
+        TendencyKind::BelowTheTop,
+        "Leaving a thermal",
+        format!(
+            "On average {} below a thermal's highest point when you leave it.",
+            metres(average_m)
+        ),
+        None,
+        most(flights, |habits| {
+            (habits.thermals_measured >= MIN_MEASURED_IN_A_FLIGHT)
+                .then(|| habits.below_the_top_m as f64 / f64::from(habits.thermals_measured))
+        }),
+    ))
+}
+
 /// "1.4 m/s on average over 12300 m gained in thermals; the best thermal
 /// gave 3.1 m/s."
 fn climb(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Tendency> {
@@ -320,6 +354,45 @@ fn time_circling(all: &FlightHabits) -> Option<Tendency> {
         ),
         Some(share),
         None,
+    ))
+}
+
+/// "23 of 45 flights ended within a kilometre of where they began; the
+/// farthest ended 44 km away." The flight is the one that ended farthest
+/// away.
+fn landings(flights: &[FlightWithHabits]) -> Option<Tendency> {
+    let ended: Vec<(&FlightWithHabits, f64)> = flights
+        .iter()
+        .filter_map(|flight| Some((flight, flight.ended_from_start_m?)))
+        .collect();
+    let counted = ended.len() as u32;
+    if counted < MIN_FLIGHTS {
+        return None;
+    }
+    let near = ended.iter().filter(|(_, m)| *m < ENDED_NEAR_M).count() as u32;
+    // The farthest; of flights as far, the newest, since they come newest
+    // first.
+    let mut farthest: Option<(&FlightWithHabits, f64)> = None;
+    for &(flight, m) in &ended {
+        if farthest.is_none_or(|(_, most)| m > most) {
+            farthest = Some((flight, m));
+        }
+    }
+    let (flight, farthest_m) = farthest?;
+    let mut words = format!(
+        "{} of {} flights ended within a kilometre of where they began",
+        count(near),
+        count(counted)
+    );
+    if farthest_m >= ENDED_NEAR_M {
+        words += &format!("; the farthest ended {} away", kilometres(farthest_m));
+    }
+    Some(observation(
+        TendencyKind::Landings,
+        "Where your flights end",
+        words + ".",
+        Some(f64::from(near) / f64::from(counted)),
+        (farthest_m >= ENDED_NEAR_M).then_some(flight),
     ))
 }
 
@@ -418,6 +491,50 @@ mod tests {
             ]);
         }
         made_up_flight(&legs)
+    }
+
+    /// Three thermals that climb at 2 m/s for eight circles and sink at
+    /// 1 m/s for two more, 56 m below their top, with a glide after each.
+    fn sinking_ends() -> IgcFile {
+        let mut legs = vec![glide(60)];
+        for _ in 0..3 {
+            legs.extend([
+                Leg::Circles {
+                    circles: 8,
+                    climb: 2.0,
+                },
+                Leg::Circles {
+                    circles: 2,
+                    climb: -1.0,
+                },
+                glide(380),
+            ]);
+        }
+        made_up_flight(&legs)
+    }
+
+    /// Out to the north for five minutes, a thermal, and back south to
+    /// where it began, give or take the thermal's drift of half a
+    /// kilometre.
+    fn out_and_back() -> IgcFile {
+        made_up_flight(&[
+            Leg::Glide {
+                seconds: 300,
+                heading: 0.0,
+                speed: 10.0,
+                climb: -1.0,
+            },
+            Leg::Circles {
+                circles: 6,
+                climb: 2.0,
+            },
+            Leg::Glide {
+                seconds: 300,
+                heading: 180.0,
+                speed: 10.0,
+                climb: -1.0,
+            },
+        ])
     }
 
     fn find(tendencies: &Tendencies, kind: TendencyKind) -> Option<&Tendency> {
@@ -526,6 +643,69 @@ mod tests {
     }
 
     #[test]
+    fn how_far_below_the_top_a_thermal_is_left_is_counted() {
+        let (_folder, core) = core();
+        for day in 1..=4 {
+            core.import_flight(on_day(&synthetic_flight(), day))
+                .unwrap();
+        }
+        let sinking = core.import_flight(on_day(&sinking_ends(), 5)).unwrap().id;
+        let tendencies = core.tendencies();
+
+        let below = find(&tendencies, TendencyKind::BelowTheTop).unwrap();
+        assert_eq!(below.title, "Leaving a thermal");
+        // Three thermals left some 56 m below their top and eight a few
+        // metres below: some twenty on average.
+        let average: i64 = below
+            .words
+            .strip_prefix("On average ")
+            .and_then(|rest| {
+                rest.strip_suffix(" m below a thermal's highest point when you leave it.")
+            })
+            .map(|number| number.parse().unwrap())
+            .unwrap_or_else(|| panic!("{}", below.words));
+        assert!((10..=35).contains(&average), "{}", below.words);
+        assert_eq!(below.share, None);
+        assert_eq!(below.flight_id.as_deref(), Some(sinking.as_str()));
+    }
+
+    #[test]
+    fn where_flights_end_is_counted_from_ten_flights() {
+        let (_folder, core) = core();
+        for day in 1..=4 {
+            core.import_flight(on_day(&out_and_back(), day)).unwrap();
+        }
+        for day in 10..=14 {
+            core.import_flight(on_day(&synthetic_flight(), day))
+                .unwrap();
+        }
+        // Nine flights: under the ten needed.
+        assert_eq!(find(&core.tendencies(), TendencyKind::Landings), None);
+
+        let newest = core
+            .import_flight(on_day(&synthetic_flight(), 15))
+            .unwrap()
+            .id;
+        let tendencies = core.tendencies();
+        let landings = find(&tendencies, TendencyKind::Landings).unwrap();
+        assert_eq!(landings.title, "Where your flights end");
+        // The made-up flight ends some kilometres from its take-off.
+        let km: f64 = landings
+            .words
+            .strip_prefix(
+                "4 of 10 flights ended within a kilometre of where they began; the farthest \
+                 ended ",
+            )
+            .and_then(|rest| rest.strip_suffix(" km away."))
+            .map(|number| number.parse().unwrap())
+            .unwrap_or_else(|| panic!("{}", landings.words));
+        assert!((2.0..10.0).contains(&km), "{}", landings.words);
+        assert!((landings.share.unwrap() - 0.4).abs() < 1e-9);
+        // Six flights end as far: the newest of them.
+        assert_eq!(landings.flight_id.as_deref(), Some(newest.as_str()));
+    }
+
+    #[test]
     fn the_climb_names_the_flight_with_the_best_thermal() {
         let (_folder, core, newest, _) = five_flights();
         let tendencies = core.tendencies();
@@ -625,9 +805,11 @@ mod tests {
                 TendencyKind::Circling,
                 TendencyKind::ThermalEnds,
                 TendencyKind::AfterTheTop,
+                TendencyKind::BelowTheTop,
                 TendencyKind::Climb,
                 TendencyKind::Glides,
                 TendencyKind::TimeCircling,
+                TendencyKind::Landings,
             ]
         );
     }

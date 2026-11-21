@@ -4,6 +4,7 @@ import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.PointF
 import android.graphics.RectF
+import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.View
@@ -259,6 +260,33 @@ object TestDevice {
         }
         asked.await(10, TimeUnit.SECONDS)
         return place
+    }
+
+    /**
+     * Makes the screen 360 dp wide and the text 130 % of its size: what
+     * `design/AGENTS.md` asks every screen to be looked at with. A Pixel 6
+     * is 1080 pixels wide, which are 360 dp at 480 dots an inch. Put back
+     * with [asItWasBuilt], in a `finally`: the emulator keeps both for
+     * every test after this one.
+     */
+    fun narrowWithLargeText() {
+        shell("wm density 480")
+        shell("settings put system font_scale 1.3")
+    }
+
+    /** The screen's own density and text at its own size again. */
+    fun asItWasBuilt() {
+        shell("wm density reset")
+        shell("settings put system font_scale 1.0")
+    }
+
+    /**
+     * Says something in the test's log for whoever reads it: a figure the
+     * test measured. `am instrument -r` prints it as a status line,
+     * `INSTRUMENTATION_STATUS: <name>=<words>`.
+     */
+    fun say(name: String, words: String) {
+        instrumentation.sendStatus(0, Bundle().apply { putString(name, words) })
     }
 
     /** A tap with a finger, as the phone itself takes one. */

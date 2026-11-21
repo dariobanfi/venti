@@ -13,6 +13,7 @@ import fly.venti.core.CoreException
 import fly.venti.core.ThermalMap
 import fly.venti.core.ThermalMapCell
 import fly.venti.core.ThermalMapDay
+import fly.venti.core.ThermalMapHoursView
 import fly.venti.app.HttpAnswer
 import fly.venti.core.ThermalStripDay
 import fly.venti.core.thermalMap
@@ -264,6 +265,21 @@ object ThermalMapWords {
 
     /** What TalkBack calls the line of hours. */
     const val HOUR = "Hour"
+
+    /** The line that unfolds the key, the model's run and the notes. */
+    const val KEY_AND_NOTES = "Key and notes"
+
+    /** What TalkBack says of that line. */
+    const val EXPANDED = "Expanded"
+    const val COLLAPSED = "Collapsed"
+
+    /**
+     * What the map shows now, under the line of hours: the layer and the
+     * hour, "Wind at 2000 m, 13:00", both the core's; on "Day" the day's
+     * name stands where the hour would, "Thermals, Today".
+     */
+    fun said(view: ThermalMapHoursView, hour: Int?, day: ThermalMapDay): String =
+        "${view.title}, ${hour?.let { view.hours.getOrNull(it)?.label } ?: day.name}"
     const val UNREACHABLE = "Venti could not be reached for the forecast map."
     const val NO_DAYS = "The forecast map has no days from today on."
     const val NONE_HERE = "The forecast map has no squares for this part of the map."

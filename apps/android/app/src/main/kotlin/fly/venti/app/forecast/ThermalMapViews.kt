@@ -1,6 +1,15 @@
 package fly.venti.app.forecast
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.collapse
+import androidx.compose.ui.semantics.expand
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -94,10 +103,12 @@ import fly.venti.core.ThermalMapCell
 import fly.venti.core.ThermalMapDay
 
 /**
- * The card at the map's lower edge while the forecast map shows: the days
- * the map has, the key, the model with when its run began, and what to know
- * of a day that was not judged whole. While the map is asked for it says
- * so; when there is none, why, with "Try again".
+ * The card at the map's lower edge while the forecast map shows. It leaves
+ * the map to be seen: the layers, the days, the line of hours and one line
+ * of words for what the map shows now are always there; the key, the model
+ * with when its run began and the notes stand behind "Key and notes",
+ * closed when the card opens. While the map is asked for it says so; when
+ * there is none, why, with "Try again".
  */
 @Composable
 fun ThermalMapCard(
@@ -114,9 +125,12 @@ fun ThermalMapCard(
     onTryAgainHours: () -> Unit = {},
 ) {
     val colours = Venti.colours
-    // A long note at a large text size scrolls inside the card rather
-    // than pushing it over the chips.
-    val tallest = with(LocalDensity.current) { (LocalWindowInfo.current.containerSize.height * MAX_HEIGHT_SHARE).toDp() }
+    // The key and the notes: unfolded by the pilot, folded when the card opens.
+    var showsKey by remember { mutableStateOf(false) }
+    // What is too much at a large text size scrolls inside the card rather
+    // than pushing it over the chips; unfolded, the card may take more.
+    val share = if (showsKey) OPEN_HEIGHT_SHARE else MAX_HEIGHT_SHARE
+    val tallest = with(LocalDensity.current) { (LocalWindowInfo.current.containerSize.height * share).toDp() }
     Surface(
         modifier = modifier.testTag("forecast-map-card"),
         shape = MaterialTheme.shapes.medium,
@@ -128,12 +142,12 @@ fun ThermalMapCard(
             modifier = Modifier
                 .heightIn(max = tallest)
                 .verticalScroll(rememberScrollState())
-                .padding(VentiSpace.s3),
+                .padding(start = VentiSpace.s3, end = VentiSpace.s3, top = VentiSpace.s3),
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
         ) {
             when (state) {
                 ThermalMapState.Asking -> Row(
-                    modifier = Modifier.testTag("forecast-map-asking"),
+                    modifier = Modifier.padding(bottom = VentiSpace.s3).testTag("forecast-map-asking"),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                 ) {
@@ -145,8 +159,11 @@ fun ThermalMapCard(
                     val days = state.map.days
                     val layers = state.map.layers
                     val chosen = hours?.let { model -> layers.firstOrNull { it.layer == model.layer } }
+                    val hoursState = hours?.state
+                    val view = (hoursState as? ThermalHoursState.There)?.view
+                    val byTheHour = hours?.isOn == true && chosen != null
                     if (hours != null && layers.isNotEmpty()) {
-                        LayerRow(layers, hours.layer, state.map.levels, hours.heightM, onLayer, onLevel)
+                        LayerRow(layers, hours.layer, onLayer)
                     }
                     if (days.size > 1) {
                         SegmentedPills(
@@ -158,70 +175,82 @@ fun ThermalMapCard(
                             onChoose = { index -> onChoose(days[index].date) },
                         )
                     }
-                    val hoursState = hours?.state
-                    val view = (hoursState as? ThermalHoursState.There)?.view
-                    if (hours != null && chosen != null) {
-                        when (hoursState) {
-                            is ThermalHoursState.There -> HourStrip(
-                                hoursState.view,
-                                withDay = hours.layer == ThermalHoursLayer.THERMALS,
-                                chosen = hours.hour,
-                                onChoose = { hours.hour = it },
-                            )
-                            ThermalHoursState.Asking -> Row(
-                                modifier = Modifier.testTag("forecast-hours-asking"),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
-                            ) {
-                                CircularProgressIndicator(Modifier.size(VentiSpace.s4), strokeWidth = 2.dp)
-                                Text(ThermalMapWords.ASKING_HOURS, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
-                            }
-                            is ThermalHoursState.Failed -> Column(Modifier.testTag("forecast-hours-problem")) {
-                                Text(hoursState.message, style = MaterialTheme.typography.bodyMedium, color = colours.text)
-                                TextButton(onClick = onTryAgainHours, modifier = Modifier.heightIn(min = VentiSize.touch)) {
-                                    Text(ThermalMapWords.TRY_AGAIN)
+                    // The hours, the words and "Key and notes" stand close:
+                    // each has the height a finger needs around it.
+                    Column {
+                        if (hours != null && chosen != null) {
+                            when (hoursState) {
+                                is ThermalHoursState.There -> HourStrip(
+                                    hoursState.view,
+                                    withDay = hours.layer == ThermalHoursLayer.THERMALS,
+                                    chosen = hours.hour,
+                                    onChoose = { hours.hour = it },
+                                )
+                                ThermalHoursState.Asking -> Row(
+                                    modifier = Modifier.heightIn(min = VentiSize.touch).testTag("forecast-hours-asking"),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                                ) {
+                                    CircularProgressIndicator(Modifier.size(VentiSpace.s4), strokeWidth = 2.dp)
+                                    Text(ThermalMapWords.ASKING_HOURS, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
                                 }
+                                is ThermalHoursState.Failed -> Column(Modifier.testTag("forecast-hours-problem")) {
+                                    Text(hoursState.message, style = MaterialTheme.typography.bodyMedium, color = colours.text)
+                                    TextButton(onClick = onTryAgainHours, modifier = Modifier.heightIn(min = VentiSize.touch)) {
+                                        Text(ThermalMapWords.TRY_AGAIN)
+                                    }
+                                }
+                                else -> Unit
                             }
-                            else -> Unit
+                            // The layer and the hour in words and, with the
+                            // wind, its height at their right: it stays in
+                            // its place while its hours are asked for.
+                            val said = view?.let { ThermalMapWords.said(it, hours.hour, state.day) }
+                            val levels = state.map.levels.takeIf { chosen.hasLevels && it.isNotEmpty() }
+                            if (said != null || levels != null) {
+                                Said(said, levels, hours.heightM, onLevel)
+                            }
                         }
-                    }
-                    val byTheHour = hours?.isOn == true && chosen != null
-                    if (region != null && !ThermalMapModel.hasSquaresIn(state.day, region)) {
-                        Problem(ThermalMapWords.NONE_HERE, onTryAgain)
-                    } else if (byTheHour && chosen != null) {
-                        HourKey(chosen.legend)
-                    } else {
-                        Key(state.map.legend)
-                    }
-                    Text(
-                        if (byTheHour && view != null) {
-                            "${view.model}, run of ${fly.venti.app.design.Format.dayAndTime(view.runUnixS)}"
-                        } else {
-                            ThermalMapWords.run(state.day)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colours.textSecondary,
-                        modifier = Modifier.testTag("forecast-map-run"),
-                    )
-                    // The layer's note, and the hours' when the day is not whole.
-                    if (byTheHour && chosen != null && chosen.note.isNotEmpty()) {
-                        Text(
-                            chosen.note,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colours.textSecondary,
-                            modifier = Modifier.testTag("forecast-layer-note"),
-                        )
-                    }
-                    if (byTheHour && view != null && !view.whole && view.note.isNotEmpty()) {
-                        Text(view.note, style = MaterialTheme.typography.bodySmall, color = colours.textSecondary)
-                    }
-                    if (state.day.note.isNotEmpty()) {
-                        Text(
-                            state.day.note,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colours.textSecondary,
-                            modifier = Modifier.testTag("forecast-map-day-note"),
-                        )
+                        if (region != null && !ThermalMapModel.hasSquaresIn(state.day, region)) {
+                            Problem(ThermalMapWords.NONE_HERE, onTryAgain, Modifier.padding(top = VentiSpace.s2))
+                        }
+                        KeyAndNotes(showsKey, onChange = { showsKey = it }) {
+                            if (byTheHour && chosen != null) {
+                                HourKey(chosen.legend)
+                            } else {
+                                Key(state.map.legend)
+                            }
+                            Text(
+                                if (byTheHour && view != null) {
+                                    "${view.model}, run of ${fly.venti.app.design.Format.dayAndTime(view.runUnixS)}"
+                                } else {
+                                    ThermalMapWords.run(state.day)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colours.textSecondary,
+                                modifier = Modifier.testTag("forecast-map-run"),
+                            )
+                            // The layer's note, and the hours' when the day is not whole.
+                            if (byTheHour && chosen != null && chosen.note.isNotEmpty()) {
+                                Text(
+                                    chosen.note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colours.textSecondary,
+                                    modifier = Modifier.testTag("forecast-layer-note"),
+                                )
+                            }
+                            if (byTheHour && view != null && !view.whole && view.note.isNotEmpty()) {
+                                Text(view.note, style = MaterialTheme.typography.bodySmall, color = colours.textSecondary)
+                            }
+                            if (state.day.note.isNotEmpty()) {
+                                Text(
+                                    state.day.note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colours.textSecondary,
+                                    modifier = Modifier.testTag("forecast-map-day-note"),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -230,58 +259,127 @@ fun ThermalMapCard(
 }
 
 /**
- * The layers to choose from, as the pack's chips of which one is on,
- * scrolling sideways where they do not fit; with "Wind", the level beside
- * them as a menu.
+ * The layers to choose from, as the pack's chips of which one is on: a row
+ * that scrolls sideways across the card where they do not fit.
  */
 @Composable
 private fun LayerRow(
     layers: List<ThermalMapLayerChoice>,
     chosen: ThermalHoursLayer,
-    levels: List<ThermalMapLevel>,
-    heightM: Int?,
     onLayer: (ThermalHoursLayer) -> Unit,
-    onLevel: (Int?) -> Unit,
 ) {
     val colours = Venti.colours
-    val layer = layers.firstOrNull { it.layer == chosen }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .horizontalScroll(rememberScrollState())
-                .selectableGroup()
-                .testTag("forecast-layers"),
-            horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            for (choice in layers) {
-                val isOn = choice.layer == chosen
-                Box(
-                    modifier = Modifier
-                        .heightIn(min = VentiSize.touch)
-                        .selectable(selected = isOn, role = Role.Tab, onClick = { onLayer(choice.layer) }),
-                    contentAlignment = Alignment.Center,
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .selectableGroup()
+            .testTag("forecast-layers"),
+        horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        for (choice in layers) {
+            val isOn = choice.layer == chosen
+            Box(
+                modifier = Modifier
+                    .heightIn(min = VentiSize.touch)
+                    .selectable(selected = isOn, role = Role.Tab, onClick = { onLayer(choice.layer) }),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    shape = PillShape,
+                    color = if (isOn) colours.primary else colours.surfaceRaised,
+                    contentColor = if (isOn) colours.onPrimary else colours.text,
                 ) {
-                    Surface(
-                        shape = PillShape,
-                        color = if (isOn) colours.primary else colours.surfaceRaised,
-                        contentColor = if (isOn) colours.onPrimary else colours.text,
-                    ) {
-                        Text(
-                            choice.name,
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            modifier = Modifier.padding(horizontal = VentiSpace.s3, vertical = VentiSpace.s2),
-                        )
-                    }
+                    Text(
+                        choice.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = VentiSpace.s3, vertical = VentiSpace.s2),
+                    )
                 }
             }
         }
-        // The level stands beside the row, not in it: it stays in view
-        // where the chips scroll.
-        if (layer?.hasLevels == true && levels.isNotEmpty()) {
+    }
+}
+
+/**
+ * What the map shows now, in the core's words: "Wind at 2000 m, 13:00".
+ * With the wind, the menu of its height stands at the right of the words,
+ * also while the hours of a height are asked for and there are no words.
+ */
+@Composable
+private fun Said(words: String?, levels: List<ThermalMapLevel>?, heightM: Int?, onLevel: (Int?) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+    ) {
+        // Long words at a large text size take a second line beside the menu.
+        Text(
+            words.orEmpty(),
+            style = MaterialTheme.typography.titleSmall,
+            color = Venti.colours.text,
+            modifier = Modifier.weight(1f).testTag("forecast-said"),
+        )
+        if (levels != null) {
             LevelMenu(levels, heightM, onLevel)
+        }
+    }
+}
+
+/**
+ * "Key and notes": one line that unfolds the key, the model's run and the
+ * notes under it, and folds them away again. TalkBack says whether it is
+ * expanded or collapsed. Unfolded, what it holds is brought into the
+ * card's view, which scrolls inside itself where it is at its height.
+ */
+@Composable
+private fun KeyAndNotes(isOpen: Boolean, onChange: (Boolean) -> Unit, content: @Composable () -> Unit) {
+    val intoView = remember { BringIntoViewRequester() }
+    LaunchedEffect(isOpen) {
+        if (isOpen) intoView.bringIntoView()
+    }
+    Column(Modifier.bringIntoViewRequester(intoView)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = VentiSize.touch)
+                .testTag("forecast-key-and-notes")
+                .clickable(role = Role.Button, onClick = { onChange(!isOpen) })
+                .semantics {
+                    stateDescription = if (isOpen) ThermalMapWords.EXPANDED else ThermalMapWords.COLLAPSED
+                    if (isOpen) {
+                        collapse {
+                            onChange(false)
+                            true
+                        }
+                    } else {
+                        expand {
+                            onChange(true)
+                            true
+                        }
+                    }
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(VentiSpace.s1),
+        ) {
+            Text(ThermalMapWords.KEY_AND_NOTES, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Icon(
+                painterResource(R.drawable.ic_arrow_drop_down),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                // The arrow points up while what it unfolded can be folded away.
+                modifier = Modifier.rotate(if (isOpen) HALF_TURN else 0f),
+            )
+        }
+        if (isOpen) {
+            Column(
+                modifier = Modifier.padding(bottom = VentiSpace.s3),
+                verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+            ) {
+                content()
+            }
         }
     }
 }
@@ -319,7 +417,9 @@ private fun LevelMenu(levels: List<ThermalMapLevel>, heightM: Int?, onLevel: (In
  * hours with the clock's hour in it ("13"), the chosen cell marked; on
  * "Thermals" a first cell "Day". A tap chooses an hour, a finger drawn
  * along the strip chooses hour by hour. TalkBack reads it as one value to
- * adjust, which says the hour.
+ * adjust, which says the hour. Where the cells are narrower than two
+ * digits, at a narrow width or a large text size, every other cell has its
+ * hour written: none is cut, and the words under the strip say the hour.
  */
 @Composable
 private fun HourStrip(view: ThermalMapHoursView, withDay: Boolean, chosen: Int?, onChoose: (Int?) -> Unit) {
@@ -330,52 +430,67 @@ private fun HourStrip(view: ThermalMapHoursView, withDay: Boolean, chosen: Int?,
     val at = cells.indexOf(chosen).coerceAtLeast(0)
     val choose by rememberUpdatedState { place: Int -> onChoose(cells[place.coerceIn(0, cells.lastIndex)]) }
     fun spoken(place: Int): String = cells[place]?.let { view.hours[it].label } ?: ThermalMapWords.DAY
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("forecast-hours")
-            .clearAndSetSemantics {
-                contentDescription = ThermalMapWords.HOUR
-                stateDescription = spoken(at)
-                progressBarRangeInfo = ProgressBarRangeInfo(at.toFloat(), 0f..cells.lastIndex.toFloat(), (cells.size - 2).coerceAtLeast(0))
-                setProgress { value ->
-                    choose(kotlin.math.round(value).toInt())
-                    true
-                }
-            }
-            .pointerInput(cells.size) {
-                fun place(x: Float) = (x / size.width * cells.size).toInt().coerceIn(0, cells.lastIndex)
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    choose(place(down.position.x))
-                    drag(down.id) { change ->
-                        choose(place(change.position.x))
-                        change.consume()
+    val style = MaterialTheme.typography.labelMedium.numbers
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val gap = VentiSpace.s1 / 2
+    // What two digits need, with air beside them.
+    val twoDigits = remember(style, density) {
+        measurer.measure("00", style).size.width + with(density) { VentiSpace.s1.roundToPx() }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val cell = (constraints.maxWidth - with(density) { gap.roundToPx() } * (cells.size - 1)) / cells.size
+        val everyOther = cell < twoDigits
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("forecast-hours")
+                .clearAndSetSemantics {
+                    contentDescription = ThermalMapWords.HOUR
+                    stateDescription = spoken(at)
+                    progressBarRangeInfo = ProgressBarRangeInfo(at.toFloat(), 0f..cells.lastIndex.toFloat(), (cells.size - 2).coerceAtLeast(0))
+                    setProgress { value ->
+                        choose(kotlin.math.round(value).toInt())
+                        true
                     }
                 }
-            },
-        horizontalArrangement = Arrangement.spacedBy(VentiSpace.s1 / 2),
-    ) {
-        cells.forEachIndexed { place, cell ->
-            val isChosen = place == at
-            Column(
-                modifier = Modifier.weight(1f).heightIn(min = VentiSize.touch),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VentiSpace.s1),
-            ) {
-                Text(
-                    cell?.let { view.hours[it].clockHour.toString() } ?: ThermalMapWords.DAY,
-                    style = MaterialTheme.typography.labelMedium.numbers,
-                    color = if (isChosen) colours.text else colours.textSecondary,
-                    maxLines = 1,
-                    softWrap = false,
-                )
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(VentiSpace.s2)
-                        .background(if (isChosen) colours.primary else colours.surfaceRaised),
-                )
+                .pointerInput(cells.size) {
+                    fun place(x: Float) = (x / size.width * cells.size).toInt().coerceIn(0, cells.lastIndex)
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        choose(place(down.position.x))
+                        drag(down.id) { change ->
+                            choose(place(change.position.x))
+                            change.consume()
+                        }
+                    }
+                },
+            horizontalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            cells.forEachIndexed { place, hour ->
+                val isChosen = place == at
+                Column(
+                    modifier = Modifier.weight(1f).heightIn(min = VentiSize.touch),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(VentiSpace.s1, Alignment.CenterVertically),
+                ) {
+                    Text(
+                        // Every cell keeps its line, written or not, so the bars stand in one row.
+                        if (everyOther && place % 2 == 1) "" else hour?.let { view.hours[it].clockHour.toString() } ?: ThermalMapWords.DAY,
+                        style = style,
+                        color = if (isChosen) colours.text else colours.textSecondary,
+                        maxLines = 1,
+                        softWrap = false,
+                        // "Day" is wider than a narrow cell: it is written whole, over the edge.
+                        modifier = Modifier.wrapContentWidth(unbounded = true),
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(VentiSpace.s2)
+                            .background(if (isChosen) colours.primary else colours.surfaceRaised),
+                    )
+                }
             }
         }
     }
@@ -417,10 +532,20 @@ private fun HourKey(legend: List<ThermalMapKey>) {
 /** At most this share of the screen's height is the card's. */
 private const val MAX_HEIGHT_SHARE = 0.4f
 
+/**
+ * And this share while "Key and notes" is unfolded: the pilot asked to read
+ * them. No more, or at 360 dp with large text the card reaches the map's
+ * chips; what does not fit scrolls inside the card.
+ */
+private const val OPEN_HEIGHT_SHARE = 0.5f
+
+/** The arrow of "Key and notes" turned to point up, degrees. */
+private const val HALF_TURN = 180f
+
 /** Why there is no map to show, and the button that asks again. */
 @Composable
-private fun Problem(message: String, onTryAgain: () -> Unit) {
-    Column(Modifier.testTag("forecast-map-problem")) {
+private fun Problem(message: String, onTryAgain: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.testTag("forecast-map-problem")) {
         Text(message, style = MaterialTheme.typography.bodyMedium, color = Venti.colours.text)
         TextButton(onClick = onTryAgain, modifier = Modifier.heightIn(min = VentiSize.touch)) {
             Text(ThermalMapWords.TRY_AGAIN)

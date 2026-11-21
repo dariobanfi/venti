@@ -43,7 +43,8 @@ sealed interface ThermalHoursState {
  * core's. This class asks, keeps each answer for this run of the app while
  * the map of the days it belongs to is the one at hand (one answer per
  * path: wind at the ground and gusts share theirs), closes the core's
- * objects when they are let go, and remembers the hour.
+ * objects when they are let go, and remembers the hour the pilot chose
+ * across the layers and heights of a day.
  */
 class ThermalHoursModel(
     private val transport: WindTransport,
@@ -66,16 +67,28 @@ class ThermalHoursModel(
 
     /**
      * The hour looked at, by its place in the day's hours; `null` on
-     * "Thermals" for the day as a whole ("Day"). Not kept.
+     * "Thermals" for the day as a whole ("Day"). Set by the pilot, on the
+     * line of hours. Not kept from one run of the app to the next.
      */
     var hour: Int?
         get() = hourNow
         set(value) {
+            picked = value
             if (value == hourNow) return
             hourNow = value
             refreshShapes()
         }
     private var hourNow: Int? by mutableStateOf(null)
+
+    /**
+     * The hour the pilot chose, which stays across a change of layer or
+     * of height; `null` while none was chosen, or "Day" was: a layer then
+     * opens where it opens by itself.
+     */
+    private var picked: Int? = null
+
+    /** The day the hour chosen belongs to: another day opens at its own first hour. */
+    private var pickedOn: String? = null
 
     /** The map of the days the kept answers belong to. */
     private var keptFor: ThermalMap? = null
@@ -133,8 +146,13 @@ class ThermalHoursModel(
         }
         val key = path to layer
         wanted = key
+        // Another day opens at its own first hour, whatever was chosen on the day before.
+        if (pickedOn != date) {
+            picked = null
+            pickedOn = date
+        }
         read[key]?.let { kept ->
-            settle(kept, opening = state !is ThermalHoursState.There || (state as ThermalHoursState.There).view.date != date)
+            settle(kept)
             return
         }
         // The squares of the layer before are taken away, not left under another key.
@@ -150,7 +168,7 @@ class ThermalHoursModel(
             }
             read[key] = hours
             if (wanted != key) return
-            settle(hours, opening = true)
+            settle(hours)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -164,17 +182,20 @@ class ThermalHoursModel(
         }
     }
 
-    /** Shows a layer read; at the hour the core names first when it opens, else at the hour looked at. */
-    private fun settle(hours: ThermalMapHours, opening: Boolean) {
+    /**
+     * Shows a layer read: at the hour the pilot chose on this day, in
+     * whatever layer; without one, "Thermals" on the day as a whole,
+     * "Day", and the others at the hour the core names first.
+     */
+    private fun settle(hours: ThermalMapHours) {
         val view = hours.view()
         val last = view.hours.lastIndex
+        val chosen = picked
         hourNow = when {
             last < 0 -> null
-            // "Thermals" opens on the day as a whole, "Day"; the others at the hour the core names.
-            opening && layer == ThermalHoursLayer.THERMALS -> null
-            opening -> view.firstHour.toInt().coerceIn(0, last)
-            layer == ThermalHoursLayer.THERMALS -> hour?.coerceIn(0, last)
-            else -> (hour ?: view.firstHour.toInt()).coerceIn(0, last)
+            chosen != null -> chosen.coerceIn(0, last)
+            layer == ThermalHoursLayer.THERMALS -> null
+            else -> view.firstHour.toInt().coerceIn(0, last)
         }
         state = ThermalHoursState.There(hours, view)
     }
@@ -188,6 +209,8 @@ class ThermalHoursModel(
         wanted = null
         state = ThermalHoursState.Days
         if (layer == ThermalHoursLayer.THERMALS) hour = null
+        picked = null
+        pickedOn = null
     }
 
     /** Whether a layer of hours is what the map shows: an hour of a layer read, not the day. */

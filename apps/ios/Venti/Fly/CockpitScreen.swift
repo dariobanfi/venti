@@ -62,6 +62,15 @@ struct CockpitScreen: View {
     /// Whether the map shows the whole flight instead of following closely.
     @State private var showsWholeFlight = false
     @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
+    /// The aerial view: one choice for every map of the app.
+    @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+
+    /// Whether the map shows the photographs: as chosen, on the pages where
+    /// the map is large. The first page's small map keeps the drawn ground,
+    /// which has no credit to carry.
+    private var mapIsAerial: Bool {
+        showsAerial && page != .instruments
+    }
 
     /// Whether the cockpit's map is drawn from a region kept on the iPhone.
     private var mapIsKept: Bool {
@@ -274,7 +283,8 @@ struct CockpitScreen: View {
             source: maps.flyingSource,
             // On the first page the thermal view beside it is where the
             // circle is looked at.
-            followsTheCircle: page != .instruments
+            followsTheCircle: page != .instruments,
+            aerial: mapIsAerial
         )
             // Drawn from the region kept on the iPhone wherever one covers
             // the glider: the map is made anew when the glider comes into
@@ -331,22 +341,27 @@ struct CockpitScreen: View {
             }
             .overlay(alignment: .bottomLeading) {
                 if page == .map {
-                    HStack(spacing: VentiSpace.s2) {
-                        // The whole flight at a glance, with the scored
-                        // route and where to go for an FAI triangle; again
-                        // for the close view that follows the glider.
-                        MapButton(
-                            name: showsWholeFlight ? "Follow the glider" : "Show the whole flight",
-                            symbol: showsWholeFlight ? "location.fill" : "arrow.up.left.and.arrow.down.right"
-                        ) {
-                            showsWholeFlight.toggle()
-                        }
-                        // With airspace to warn from, or the ground to
-                        // draw: what lies on the line ahead, seen from the
-                        // side.
-                        if fly.airspaceCheck != .noAirspace || view.groundElevationM != nil {
-                            MapButton(name: "Ahead, from the side", symbol: "chart.line.downtrend.xyaxis") {
-                                isShowingAhead = true
+                    VStack(alignment: .leading, spacing: VentiSpace.s2) {
+                        // The ground under everything: the drawn map, or
+                        // photographs from above, as on the app's other maps.
+                        CockpitAerialButton(isOn: $showsAerial)
+                        HStack(spacing: VentiSpace.s2) {
+                            // The whole flight at a glance, with the scored
+                            // route and where to go for an FAI triangle; again
+                            // for the close view that follows the glider.
+                            MapButton(
+                                name: showsWholeFlight ? "Follow the glider" : "Show the whole flight",
+                                symbol: showsWholeFlight ? "location.fill" : "arrow.up.left.and.arrow.down.right"
+                            ) {
+                                showsWholeFlight.toggle()
+                            }
+                            // With airspace to warn from, or the ground to
+                            // draw: what lies on the line ahead, seen from the
+                            // side.
+                            if fly.airspaceCheck != .noAirspace || view.groundElevationM != nil {
+                                MapButton(name: "Ahead, from the side", symbol: "chart.line.downtrend.xyaxis") {
+                                    isShowingAhead = true
+                                }
                             }
                         }
                     }
@@ -376,17 +391,35 @@ struct CockpitScreen: View {
                 .padding(VentiSpace.s2)
             }
             .overlay(alignment: .bottomTrailing) {
-                // Whose airspace the map draws: its licence asks for the
-                // credit next to the data.
-                if let credit = Self.airspaceCredit(airspace.credits) {
-                    Text(credit)
-                        .font(.ventiType(.label))
-                        .padding(.horizontal, VentiSpace.s2)
-                        .padding(.vertical, VentiSpace.s1)
-                        .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
-                        .padding(VentiSpace.s2)
-                        .accessibilityIdentifier("cockpit-airspace-credit")
+                VStack(alignment: .trailing, spacing: 0) {
+                    // Who made the photographs, while they show: in the
+                    // flight theme's smallest size, which is the label's.
+                    if mapIsAerial {
+                        Text(AerialButton.credit)
+                            .font(.ventiType(.label))
+                            .multilineTextAlignment(.trailing)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, VentiSpace.s2)
+                            .padding(.vertical, VentiSpace.s1)
+                            .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
+                            .padding([.top, .horizontal], VentiSpace.s2)
+                            .accessibilityIdentifier("photo-credits")
+                    }
+                    // Whose airspace the map draws: its licence asks for the
+                    // credit next to the data.
+                    if let credit = Self.airspaceCredit(airspace.credits) {
+                        Text(credit)
+                            .font(.ventiType(.label))
+                            .padding(.horizontal, VentiSpace.s2)
+                            .padding(.vertical, VentiSpace.s1)
+                            .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
+                            .padding(VentiSpace.s2)
+                            .accessibilityIdentifier("cockpit-airspace-credit")
+                    }
                 }
+                // Clear of the two round buttons side by side in the other
+                // corner.
+                .padding(.leading, page == .map ? 2 * VentiSize.touchInFlight + VentiSpace.s2 + VentiSpace.s4 : 0)
             }
     }
 
@@ -455,6 +488,32 @@ private struct MapButton: View {
         .buttonStyle(.plain)
         .ventiFloating(in: .circle)
         .accessibilityLabel(name)
+    }
+}
+
+/// The round layers button over the cockpit's map, at the flight theme's
+/// size: the drawn ground or photographs from above. The same choice as
+/// `AerialButton` everywhere else, with the pack's layers sign; on, the
+/// sign is in the link colour.
+private struct CockpitAerialButton: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Button {
+            isOn.toggle()
+        } label: {
+            Image("icon-layers")
+                .resizable()
+                .frame(width: VentiSize.icon, height: VentiSize.icon)
+                .foregroundStyle(.venti(isOn ? .link : .text))
+                .frame(width: VentiSize.touchInFlight, height: VentiSize.touchInFlight)
+                .contentShape(.circle)
+        }
+        .buttonStyle(.plain)
+        .ventiFloating(in: .circle)
+        .accessibilityLabel("Aerial view")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier("cockpit-aerial")
     }
 }
 

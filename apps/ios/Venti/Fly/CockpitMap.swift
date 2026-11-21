@@ -42,6 +42,9 @@ struct CockpitMap: UIViewRepresentable {
     /// circles and pictures the lift among the circles. Not where the
     /// thermal view stands beside it and does that.
     var followsTheCircle = true
+    /// Whether the ground is photographs from above instead of the drawn
+    /// map, as on the app's other maps.
+    var aerial = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -70,6 +73,7 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.task = task
         context.coordinator.taskStatus = taskStatus
         context.coordinator.followsTheCircle = followsTheCircle
+        context.coordinator.showAerial(aerial, on: map)
         context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
     }
@@ -82,6 +86,10 @@ struct CockpitMap: UIViewRepresentable {
         static let widestZoom = 10.0
 
         private var isStyleLoaded = false
+        private var aerial = false
+        /// The light casings under the map's plain dark lines, shown while
+        /// the photographs show, on which a dark line alone is lost.
+        private static let casings = ["cockpit-task-casing", "cockpit-task-way-casing", "cockpit-course-casing"]
         private var shown: CockpitView?
         private var route: [Coordinate] = []
         private var drawnRoute: [Coordinate]?
@@ -113,7 +121,32 @@ struct CockpitMap: UIViewRepresentable {
         private var drawnTaskNext: UInt32?
         private var drawnTaskWay: [Coordinate]?
 
+        /// Shows the drawn ground or the aerial view, now or once the
+        /// style is there.
+        func showAerial(_ aerial: Bool, on map: MLNMapView) {
+            guard aerial != self.aerial else { return }
+            self.aerial = aerial
+            if isStyleLoaded {
+                MapSetup.showAerial(aerial, on: map)
+                showCasings(on: map)
+            }
+        }
+
+        private func showCasings(on map: MLNMapView) {
+            for name in Self.casings {
+                map.style?.layer(withIdentifier: name)?.isVisible = aerial
+            }
+        }
+
+        /// A light casing under a dark line, hidden on the drawn map.
+        private static func casing(_ identifier: String, from source: MLNSource, width: Double) -> MLNLineStyleLayer {
+            let layer = MapSetup.line(identifier, from: source, color: Palette.haloOnMap, width: width + 3)
+            layer.isVisible = false
+            return layer
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            MapSetup.showAerial(aerial, on: mapView)
             // Airspace lowest of all.
             AirspaceLayers.add(to: style)
 
@@ -142,6 +175,7 @@ struct CockpitMap: UIViewRepresentable {
             // to fly as a thin line through them.
             let zones = MLNShapeSource(identifier: "cockpit-task", shape: nil, options: nil)
             style.addSource(zones)
+            style.addLayer(Self.casing("cockpit-task-casing", from: zones, width: 3.5))
             let rings = MapSetup.line("cockpit-task-line", from: zones, color: Palette.inkOnMap, width: 1.5)
             rings.predicate = NSPredicate(format: "next == 0")
             style.addLayer(rings)
@@ -150,6 +184,7 @@ struct CockpitMap: UIViewRepresentable {
             style.addLayer(nextRing)
             let ahead = MLNShapeSource(identifier: "cockpit-task-way", shape: nil, options: nil)
             style.addSource(ahead)
+            style.addLayer(Self.casing("cockpit-task-way-casing", from: ahead, width: 1.5))
             let aheadLine = MapSetup.line(
                 "cockpit-task-way-line", from: ahead, color: Palette.inkOnMap, width: 1.5
             )
@@ -168,6 +203,7 @@ struct CockpitMap: UIViewRepresentable {
             // lies under the trail and the glider.
             let course = MLNShapeSource(identifier: "cockpit-course", shape: nil, options: nil)
             style.addSource(course)
+            style.addLayer(Self.casing("cockpit-course-casing", from: course, width: 2))
             let line = MapSetup.line("cockpit-course-line", from: course, color: Palette.inkOnMap, width: 2)
             line.lineDashPattern = NSExpression(forConstantValue: [2, 2])
             style.addLayer(line)
@@ -279,6 +315,7 @@ struct CockpitMap: UIViewRepresentable {
             style.addLayer(arrow)
 
             isStyleLoaded = true
+            showCasings(on: mapView)
             drawnThermals = nil
             drawnLift = nil
             drawnFaiSide = nil

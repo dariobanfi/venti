@@ -453,6 +453,26 @@ final class VentiUITests: XCTestCase {
         app.buttons["Follow the glider"].tap()
         XCTAssertTrue(app.buttons["Show the whole flight"].waitForExistence(timeout: 10))
 
+        // The aerial view, at the layers button over the map. The
+        // photographs need the network and may not come in CI: what is
+        // kept is a screenshot of the button switched on, and the choice,
+        // which every map shares, is switched off again. Not a condition.
+        let aerial = element("cockpit-aerial", in: app)
+        if aerial.waitForExistence(timeout: 5) {
+            if aerial.isSelected {
+                aerial.tap()
+                usleep(700_000)
+            }
+            aerial.tap()
+            usleep(700_000)
+            if aerial.isSelected {
+                sleep(4)
+                keepScreenshot("cockpit-aerial")
+                aerial.tap()
+                usleep(700_000)
+            }
+        }
+
         // The third page: how the flight stands, and what can be switched.
         nextPage(in: app)
         let lock = element("cockpit-lock", in: app)

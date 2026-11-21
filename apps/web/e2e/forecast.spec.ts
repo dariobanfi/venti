@@ -52,6 +52,12 @@ test('a site’s page leads to the forecast for its place, a day and a model at 
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
 	const site = await openTheTakeOff(page, mapDrawn, wide);
+	// The recorded days have nothing to climb in: the air through the day
+	// is a picture of the wind at heights.
+	const air = site.getByRole('img', { name: /^The air through the day: / });
+	await air.scrollIntoViewIfNeeded();
+	await expect(air.locator('.arrow').first()).toBeAttached();
+	await keep('107-site-air-recorded');
 	await site.getByRole('button', { name: 'Forecast for this place' }).click();
 
 	// The finest model first, and the first day with the sun up: the day
@@ -188,4 +194,12 @@ test('a take-off’s page names the kind of day under the forecast’s line', as
 	});
 	await expect(site.getByText(/^(\d\.\d m\/s to .*|None to climb in)$/)).toBeVisible();
 	await keep('106-site-thermals');
+	// The air through the day: a column for the thermals of each hour, and
+	// a cloud on it where cumulus caps them.
+	const air = site.getByRole('img', { name: /^The air through the day: \d\.\d m\/s/ });
+	await air.scrollIntoViewIfNeeded();
+	await expect(air.locator('.column').first()).toBeAttached();
+	await expect(air.locator('.cloud').first()).toBeAttached();
+	await expect(air.getByText('Take-off')).toBeAttached();
+	await keep('108-site-air-thermals');
 });

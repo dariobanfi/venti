@@ -78,6 +78,19 @@
 	const climbs = $derived(best?.day.hours.some((hour) => (hour.climbMs ?? 0) > 0) ?? false);
 	/** Whose forecast it is, and of when: from any take-off that has one. */
 	const outlook = $derived(shown.places.find((place) => place.outlook)?.outlook);
+	/**
+	 * Which model the day shown is read from, its run and what it is: the
+	 * best take-off's day's own, since a day after the fine model's run
+	 * ends is the coarser one's; the outlook's where the day has none.
+	 */
+	const reading = $derived.by(() => {
+		const day = best?.day;
+		return {
+			note: day?.note || outlook?.note || '',
+			model: day?.model || outlook?.model || '',
+			runUnixS: day?.model ? day.runUnixS : (outlook?.runUnixS ?? 0)
+		};
+	});
 	const waiting = $derived(
 		shown.phase === 'loaded' && shown.places.some((place) => !place.outlook && !place.problem)
 	);
@@ -311,10 +324,10 @@
 
 			<footer>
 				{#if outlook}
-					<p>{outlook.note}</p>
+					<p>{reading.note}</p>
 					<p class="numeric">
-						{outlook.model}, run of {text.day(outlook.runUnixS)}
-						{text.time(outlook.runUnixS)}. Venti last looked for a newer run at {text.time(
+						{reading.model}, run of {text.day(reading.runUnixS)}
+						{text.time(reading.runUnixS)}. Venti last looked for a newer run at {text.time(
 							outlook.fetchedUnixS
 						)}.
 					</p>

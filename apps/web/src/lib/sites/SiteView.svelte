@@ -8,6 +8,7 @@
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import StatusChip from '#lib/today/StatusChip.svelte';
+	import AirChart from '#lib/today/AirChart.svelte';
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
 	import { asOf, CAUTION, forecastLine, marks, siteLine, withLinks } from './words';
 	import WindRose from './WindRose.svelte';
@@ -55,6 +56,13 @@
 			{/if}
 		{/if}
 	</div>
+	{#if day && day.hours.length > 0 && day.groundM !== undefined}
+		<section class="card chart" aria-label="The air through the day">
+			<h3>The air through the day</h3>
+			<AirChart {day} takeoffM={site.elevationM} />
+		</section>
+	{/if}
+
 	<dl class="card">
 		<div class="row">
 			<dt>What it is</dt>
@@ -138,6 +146,18 @@
 
 	.lesser {
 		color: var(--text-secondary);
+	}
+
+	.chart {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-3) var(--space-4) var(--space-4);
+	}
+
+	.chart h3 {
+		font-size: var(--subheadline);
+		font-weight: 600;
 	}
 
 	.site {

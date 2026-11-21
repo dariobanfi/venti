@@ -46,6 +46,9 @@ enum ThermalMapLayers {
             from: NSExpression(forConstantValue: Palette.notFlyableOnMap),
             stops: NSExpression(forConstantValue: steps)
         )
+        // No antialiased outline: with see-through fills it adds up where
+        // neighbours meet, and a day of one kind would read as a grid.
+        fill.isFillAntialiased = NSExpression(forConstantValue: false)
         fill.fillOpacity = NSExpression(
             forMLNInterpolating: .zoomLevelVariable,
             curveType: .linear,

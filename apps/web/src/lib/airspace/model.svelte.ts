@@ -12,6 +12,8 @@
 
 import {
 	type AirspaceFile,
+	type AirspaceHeightFilter,
+	type AirspaceOverPlace,
 	type AirspaceShape,
 	type Bounds,
 	type Coordinate,
@@ -23,6 +25,7 @@ import {
 } from '#lib/core/index.ts';
 import type { Notice } from '#lib/logbook/import-report.ts';
 import { reasonFor } from '#lib/logbook/model.svelte.ts';
+import { ceilingKept, keepCeiling } from './height';
 import { importSummary, type Writing } from './words';
 
 /** After a request that failed, the server is left alone for this long, in milliseconds. */
@@ -80,6 +83,12 @@ export class AirspaceModel {
 	/** Whether the server is asked for airspace at all. The pilot's choice, remembered. */
 	usesServer = $state(true);
 
+	/**
+	 * The height the maps' airspace is filtered by, in metres: airspace that
+	 * certainly begins above it is not drawn. Nothing for all heights.
+	 */
+	ceilingM = $state<number>();
+
 	#core: CoreClient;
 	#choice: ServerChoice;
 	#now: () => number;
@@ -91,6 +100,7 @@ export class AirspaceModel {
 		this.#choice = choice;
 		this.#now = now;
 		this.usesServer = !choice.read();
+		this.ceilingM = ceilingKept(globalThis.localStorage);
 	}
 
 	/** Opens the airspace the browser holds for this site. */
@@ -121,13 +131,32 @@ export class AirspaceModel {
 	async shapes(area: Bounds): Promise<AirspaceShape[]> {
 		if (this.isEmpty) return [];
 		try {
-			const shapes = await this.#core.airspaceIn(area);
+			const shapes = await this.#core.airspaceIn(area, this.ceilingM);
 			this.problem = undefined;
 			return shapes;
 		} catch (error) {
 			this.problem = `Your airspace could not be loaded, so none is drawn. ${words(error)}`;
 			return [];
 		}
+	}
+
+	/** Filters every map's airspace by a height, or by none; the browser remembers it. */
+	filterBelow(ceilingM: number | undefined): void {
+		if (ceilingM === this.ceilingM) return;
+		this.ceilingM = ceilingM;
+		keepCeiling(globalThis.localStorage, ceilingM);
+		// The maps draw again.
+		this.revision += 1;
+	}
+
+	/** The heights the maps' airspace can be filtered by, in the core's words. */
+	heightFilter(): Promise<AirspaceHeightFilter> {
+		return this.#core.airspaceHeightFilter();
+	}
+
+	/** What airspace lies over a place, in the core's words. */
+	over(place: Coordinate): Promise<AirspaceOverPlace> {
+		return this.#core.airspaceOver(place);
 	}
 
 	/**

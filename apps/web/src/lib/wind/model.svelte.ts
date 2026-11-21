@@ -6,7 +6,15 @@
  * its worker to ask, timers, and whether the tab is in front.
  */
 
-import type { Bounds, CoreClient, StationHistory, WindStation } from '#lib/core/index.ts';
+import type {
+	Bounds,
+	CoreClient,
+	StationAir,
+	StationDay,
+	StationDays,
+	StationHistory,
+	WindStation
+} from '#lib/core/index.ts';
 import { NO_WIND, REFRESH_MS, type WindState, WindWatch } from './watch';
 
 /** How long the map has to rest before the server is asked, in milliseconds. */
@@ -64,4 +72,24 @@ export class WindModel {
 	history(stationId: string): Promise<StationHistory> {
 		return this.#core.stationHistory(stationId);
 	}
+
+	/** What a station's readings say about the air, beside the other stations on the map. */
+	air(station: WindStation): Promise<StationAir> {
+		return this.#core.stationAir(station, this.state.stations);
+	}
+
+	/** The days a station's readings can be asked for, by the reader's clock. */
+	days(): Promise<StationDays> {
+		return this.#core.stationDays(readerOffsetS());
+	}
+
+	/** What a station measured on one day, a date as `days` names it. */
+	day(stationId: string, date: string): Promise<StationDay> {
+		return this.#core.stationDay(stationId, date, readerOffsetS());
+	}
+}
+
+/** The reader's offset from UTC now, in seconds, which days of readings are cut by. */
+function readerOffsetS(): number {
+	return -new Date().getTimezoneOffset() * 60;
 }

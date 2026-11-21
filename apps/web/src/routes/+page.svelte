@@ -21,6 +21,7 @@
 	import Sheet from '#lib/design/Sheet.svelte';
 	import { reportedTrack } from '#lib/community/report.ts';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
+	import AirspaceOver from '#lib/airspace/AirspaceOver.svelte';
 	import ForecastView from '#lib/forecast/ForecastView.svelte';
 	import type { OpenOn } from '#lib/forecast/table.ts';
 	import {
@@ -222,9 +223,36 @@
 			: { left: 0, right: 0, bottom: gliderPage.height }
 	);
 
-	/** One thing is open beside the map at a time: a station, a site, a glider or a square. */
+	/**
+	 * The place whose airspace is open, with what lies over it, after a
+	 * click where nothing else of the map's lies under the pointer.
+	 */
+	let chosenAirspace = $state.raw<{ place: Coordinate; name: string }>();
+	/** Counts the clicks on airspace, so that a slow answer for an older one is dropped. */
+	let airspaceAsked = 0;
+
+	/** Opens what airspace lies over a place, if any does: a click elsewhere on the map does nothing. */
+	function openAirspace(place: Coordinate) {
+		const model = app.airspace;
+		if (!model || model.isEmpty) return;
+		const mine = ++airspaceAsked;
+		model.over(place).then(
+			(over) => {
+				if (mine !== airspaceAsked || over.airspaces.length === 0) return;
+				chosenSquare = undefined;
+				chosen = undefined;
+				chosenSite = undefined;
+				chosenGlider = undefined;
+				chosenAirspace = { place, name: text.place(place.lat, place.lon) };
+			},
+			() => {}
+		);
+	}
+
+	/** One thing is open beside the map at a time: a station, a site, a glider, a square or airspace. */
 	function openStation(picked: WindStation | undefined) {
 		if (!picked) return;
+		chosenAirspace = undefined;
 		chosenSquare = undefined;
 		chosenSite = undefined;
 		chosenGlider = undefined;
@@ -232,6 +260,7 @@
 	}
 
 	function openGlider(id: string) {
+		chosenAirspace = undefined;
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenSite = undefined;
@@ -240,6 +269,7 @@
 
 	function openSite(picked: SiteView | undefined) {
 		if (!picked) return;
+		chosenAirspace = undefined;
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenGlider = undefined;
@@ -253,6 +283,7 @@
 	function openSquare(cell: number) {
 		const picked = thermalDay?.cells[cell];
 		if (!picked) return;
+		chosenAirspace = undefined;
 		chosen = undefined;
 		chosenSite = undefined;
 		chosenGlider = undefined;
@@ -312,6 +343,7 @@
 		{aerial}
 		{thermalDay}
 		onsquare={openSquare}
+		onairspaceat={openAirspace}
 	/>
 	<!-- The design pack's chips: what the map shows, switched on and off. -->
 	{#if app.account?.hasServer}
@@ -463,6 +495,21 @@
 						onforecast={() => square && thermalDay && squareForecast(square, thermalDay)}
 						named={false}
 					/>
+				{/if}
+			</MapPanel>
+		{/if}
+		{#if app.airspace}
+			<!-- What airspace lies over a place clicked on the map. -->
+			<MapPanel
+				shown={chosenAirspace
+					? `${chosenAirspace.place.lat},${chosenAirspace.place.lon}`
+					: undefined}
+				title={chosenAirspace?.name ?? 'Airspace'}
+				wide={wide.current}
+				onclose={() => (chosenAirspace = undefined)}
+			>
+				{#if chosenAirspace}
+					<AirspaceOver place={chosenAirspace.place} airspace={app.airspace} />
 				{/if}
 			</MapPanel>
 		{/if}

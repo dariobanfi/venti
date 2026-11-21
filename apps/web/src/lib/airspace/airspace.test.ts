@@ -8,6 +8,7 @@ import type {
 	KeptAirspace
 } from '#lib/core/index.ts';
 import { createFormat } from '#lib/design/format.ts';
+import { ceilingKept, keepCeiling } from './height';
 import { airspaceFeatures, airspaceLayers, AIRSPACE_COLORS, rank } from './layers';
 import { AirspaceInView } from './view';
 import {
@@ -361,5 +362,36 @@ describe('when a map asks for its airspace', () => {
 
 		expect(view.wanted({ south: 44, west: 5, north: 51, east: 18 }, 6.9, 1)).toBeUndefined();
 		expect(view.wanted({ south: 44, west: 5, north: 51, east: 18 }, 7, 1)).toBeDefined();
+	});
+});
+
+describe("the height the maps' airspace is filtered by", () => {
+	function storage(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+		const kept = new Map<string, string>();
+		return {
+			getItem: (key) => kept.get(key) ?? null,
+			setItem: (key, value) => void kept.set(key, value),
+			removeItem: (key) => void kept.delete(key)
+		};
+	}
+
+	it('is all heights until the pilot chooses one, and is remembered', () => {
+		const kept = storage();
+		expect(ceilingKept(kept)).toBeUndefined();
+		keepCeiling(kept, 3500);
+		expect(ceilingKept(kept)).toBe(3500);
+		keepCeiling(kept, undefined);
+		expect(ceilingKept(kept)).toBeUndefined();
+	});
+
+	it('is all heights where the browser keeps nothing or something else', () => {
+		const broken = {
+			getItem: () => {
+				throw new Error('blocked');
+			}
+		};
+		expect(ceilingKept(broken)).toBeUndefined();
+		expect(ceilingKept(undefined)).toBeUndefined();
+		expect(ceilingKept({ getItem: () => 'high' })).toBeUndefined();
 	});
 });

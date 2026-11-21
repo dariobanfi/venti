@@ -19,9 +19,17 @@ import {
 	type Registration,
 	serverStatus,
 	serverStatusPath,
+	stationAir,
+	type StationAir,
+	stationDay,
+	type StationDay,
+	stationDayPath,
+	stationDays,
+	type StationDays,
 	stationHistory,
 	type StationHistory,
 	stationHistoryPath,
+	type WindStation,
 	windMap,
 	type WindMap,
 	windMapPath
@@ -126,6 +134,26 @@ export class WindSource {
 	async stationHistory(stationId: string): Promise<StationHistory> {
 		const answer = await this.#get(stationHistoryPath(stationId));
 		return stationHistory(answer.status, answer.body, this.#serverNow());
+	}
+
+	/**
+	 * What a station's readings say about the air: the cloud base they
+	 * give, and the change in temperature to a station much higher or
+	 * lower nearby, of `stations`.
+	 */
+	air(station: WindStation, stations: WindStation[]): StationAir {
+		return stationAir(station, stations);
+	}
+
+	/** The days a station's readings can be asked for, by Venti's clock and the reader's offset from UTC. */
+	async days(utcOffsetS: number): Promise<StationDays> {
+		return stationDays(await this.now(), utcOffsetS);
+	}
+
+	/** What a station measured on one day, a date such as "2026-11-18". */
+	async day(stationId: string, date: string, utcOffsetS: number): Promise<StationDay> {
+		const answer = await this.#get(stationDayPath(stationId, date, utcOffsetS));
+		return stationDay(answer.status, answer.body, date, utcOffsetS);
 	}
 
 	/**

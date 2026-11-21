@@ -4,7 +4,14 @@
 	`StationScreen.swift`.
 -->
 <script lang="ts">
-	import { isInWords, type StationHistory, type WindStation } from '#lib/core/index.ts';
+	import {
+		isInWords,
+		type StationAir,
+		type StationDay,
+		type StationDays,
+		type StationHistory,
+		type WindStation
+	} from '#lib/core/index.ts';
 	import { age, compassPoint, format } from '#lib/design/format.ts';
 	import Metric from '#lib/design/Metric.svelte';
 	import type { WindModel } from './model.svelte';
@@ -50,6 +57,67 @@
 	// fetched when another station is chosen, not every minute.
 	const id = $derived(station.id);
 	$effect(() => load(id));
+
+	/** What the readings say about the air; asked again with every new reading. */
+	let air = $state.raw<StationAir>();
+	$effect(() => {
+		const now = station;
+		air = undefined;
+		wind.air(now).then(
+			(said) => {
+				if (now === station) air = said;
+			},
+			() => {}
+		);
+	});
+
+	/** The days that can be chosen, back from today. */
+	let days = $state.raw<StationDays>();
+	$effect(() => {
+		void wind.days().then(
+			(range) => (days = range),
+			() => {}
+		);
+	});
+
+	/** A past day chosen, by its date; nothing for the last 24 hours. */
+	let chosenDate = $state<string>();
+	type DayPhase =
+		{ is: 'loading' } | { is: 'ready'; day: StationDay } | { is: 'failed'; why: string };
+	let dayPhase = $state.raw<DayPhase>({ is: 'loading' });
+	let dayAsked = 0;
+
+	function loadDay(stationId: string, date: string) {
+		const mine = ++dayAsked;
+		dayPhase = { is: 'loading' };
+		wind.day(stationId, date).then(
+			(day) => {
+				if (mine === dayAsked) dayPhase = { is: 'ready', day };
+			},
+			(error) => {
+				if (mine !== dayAsked) return;
+				const said = error instanceof Error ? error.message : String(error);
+				dayPhase = {
+					is: 'failed',
+					why: isInWords(error) ? said : `The day could not be loaded. ${said}`
+				};
+			}
+		);
+	}
+
+	// Another station starts again at its last 24 hours.
+	$effect(() => {
+		void id;
+		chosenDate = undefined;
+	});
+	$effect(() => {
+		if (chosenDate) loadDay(id, chosenDate);
+	});
+
+	/** The day picker's choice: today stands for the last 24 hours. */
+	function pickDay(value: string) {
+		chosenDate = !value || value === days?.lastDate ? undefined : value;
+	}
 
 	const reading = $derived(station.latest);
 	const dash = '–';
@@ -112,10 +180,78 @@
 		<p class="footnote">{ageText}</p>
 	</section>
 
+	{#if air?.cloudBase || air?.temperatureStep}
+		{@const base = air.cloudBase}
+		{@const step = air.temperatureStep}
+		<section aria-label="The air">
+			<h3>The air</h3>
+			<div class="card air">
+				{#if base}
+					<dl class="base">
+						<Metric caption={base.words} value={text.metres(base.baseM)} unit="m" />
+					</dl>
+					<p class="small">{base.note}</p>
+				{/if}
+				{#if step}
+					<div class="step">
+						<p>
+							{step.otherName}, {text.kilometres(step.distanceM)} km away and
+							<span class="numeric">{text.metres(Math.abs(step.higherByM))} m</span>
+							{step.higherByM >= 0 ? 'higher' : 'lower'}:
+							<span class="numeric">{text.perHundredMetres(step.per100mC)} °C</span> per 100 m
+						</p>
+						<p class="words">{step.words}</p>
+						<p class="small">{step.rule}</p>
+						<p class="small">{step.note}</p>
+					</div>
+				{/if}
+			</div>
+		</section>
+	{/if}
+
 	<section>
-		<h3>Last 24 hours</h3>
+		<div class="history-head">
+			<h3 id="history-heading">
+				{#if chosenDate && dayPhase.is === 'ready'}{text.day(
+						dayPhase.day.startUnixS
+					)}{:else if chosenDate}A past day{:else}Last 24 hours{/if}
+			</h3>
+			{#if days}
+				<label class="pick">
+					<span class="visually-hidden">Day</span>
+					<input
+						type="date"
+						min={days.firstDate}
+						max={days.lastDate}
+						value={chosenDate ?? days.lastDate}
+						onchange={(event) => pickDay(event.currentTarget.value)}
+					/>
+				</label>
+			{/if}
+		</div>
+		{#if days}<p class="footnote picked">{days.note}</p>{/if}
 		<div class="card history">
-			{#if phase.is === 'loading'}
+			{#if chosenDate}
+				{#if dayPhase.is === 'loading'}
+					<p class="waiting" role="status">Loading…</p>
+				{:else if dayPhase.is === 'failed'}
+					<p>{dayPhase.why}</p>
+					<button class="again" type="button" onclick={() => chosenDate && loadDay(id, chosenDate)}
+						>Try again</button
+					>
+				{:else if dayPhase.day.emptyWords}
+					<p>{dayPhase.day.emptyWords}</p>
+				{:else if dayPhase.day.readings.length < 2}
+					<p>Venti has too few readings from this day for a chart.</p>
+				{:else}
+					<WindChart
+						readings={dayPhase.day.readings}
+						from={dayPhase.day.startUnixS}
+						until={dayPhase.day.endUnixS}
+						span="on {text.day(dayPhase.day.startUnixS)}"
+					/>
+				{/if}
+			{:else if phase.is === 'loading'}
 				<p class="waiting" role="status">Loading…</p>
 			{:else if phase.is === 'failed'}
 				<p>{phase.why}</p>
@@ -181,6 +317,54 @@
 
 	.history p {
 		color: var(--text-secondary);
+	}
+
+	.air {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.step {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.words {
+		font-weight: 600;
+	}
+
+	.small {
+		font-size: var(--footnote);
+		color: var(--text-secondary);
+	}
+
+	.history-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding-right: 1rem;
+	}
+
+	.history-head h3 {
+		padding-bottom: 0;
+	}
+
+	.picked {
+		padding-bottom: 0.5rem;
+	}
+
+	.pick input {
+		min-height: var(--target);
+		padding: 0 0.5rem;
+		border: 0;
+		border-radius: var(--radius-control);
+		background: var(--fill);
+		color: var(--text);
+		font: inherit;
 	}
 
 	.waiting {

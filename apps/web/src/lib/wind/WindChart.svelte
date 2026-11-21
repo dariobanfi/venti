@@ -22,7 +22,16 @@
 		speedCeiling
 	} from './history';
 
-	let { readings }: { readings: WindReading[] } = $props();
+	interface Props {
+		readings: WindReading[];
+		/** The moments the chart spans, in seconds; the readings' own first and last by default. */
+		from?: number;
+		until?: number;
+		/** What span it is, for a screen reader: "over the last 24 hours", "on Wed, 18 Nov". */
+		span?: string;
+	}
+
+	let { readings, from, until, span = 'over the last 24 hours' }: Props = $props();
 
 	const text = format();
 
@@ -37,8 +46,8 @@
 	let hovered = false;
 
 	const samples = $derived(inChartUnits(readings));
-	const start = $derived(samples[0].timeUnixS);
-	const duration = $derived(Math.max(samples.at(-1)!.timeUnixS - start, 1));
+	const start = $derived(from ?? samples[0].timeUnixS);
+	const duration = $derived(Math.max((until ?? samples.at(-1)!.timeUnixS) - start, 1));
 	const ceiling = $derived(speedCeiling(samples));
 
 	const x = $derived(scale([start, start + duration], [0, width]));
@@ -144,7 +153,7 @@
 			bind:clientHeight={speedHeight}
 			role="slider"
 			tabindex="0"
-			aria-label="Wind and gusts over the last 24 hours, in kilometres per hour"
+			aria-label="Wind and gusts {span}, in kilometres per hour"
 			aria-orientation="horizontal"
 			aria-valuemin={0}
 			aria-valuemax={samples.length - 1}
@@ -187,7 +196,7 @@
 			class="plot"
 			bind:clientHeight={directionHeight}
 			role="img"
-			aria-label="Wind direction over the last 24 hours"
+			aria-label="Wind direction {span}"
 			onpointerdown={pressed}
 			onpointermove={moved}
 			onpointerleave={left}

@@ -9,6 +9,7 @@
 	import type { MapLayer } from './layers';
 	import { onMount } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
+	import { AIRSPACE_MIN_ZOOM } from '#lib/airspace/layers.ts';
 	import type {
 		Bounds,
 		Coordinate,
@@ -93,6 +94,12 @@
 		 * chooses it where nothing else the map draws is under the pointer.
 		 */
 		onsquare?: (cell: number) => void;
+		/**
+		 * Called with the place the pilot clicked where nothing else the map
+		 * draws is under the pointer, while the airspace layer is shown: for
+		 * what airspace lies over it.
+		 */
+		onairspaceat?: (at: { lat: number; lon: number }) => void;
 	}
 
 	let {
@@ -115,7 +122,8 @@
 		hidden = [],
 		aerial = false,
 		thermalDay,
-		onsquare
+		onsquare,
+		onairspaceat
 	}: Props = $props();
 
 	/** The northern Alps between Lake Constance and Salzburg. */
@@ -306,10 +314,16 @@
 			}
 		}
 		// Nothing else under the pointer: the square of the thermal map there.
-		if (!thermalDay || !onsquare) return;
 		const at = map.unproject([point.x, point.y]);
-		const square = squareAt(thermalDay, { lat: at.lat, lon: at.lng });
-		if (square) onsquare(thermalDay.cells.indexOf(square));
+		const square = thermalDay && squareAt(thermalDay, { lat: at.lat, lon: at.lng });
+		if (square && thermalDay && onsquare) {
+			onsquare(thermalDay.cells.indexOf(square));
+			return;
+		}
+		// Else what airspace lies there, where the map draws airspace.
+		if (!hidden.includes('airspace') && map.getZoom() >= AIRSPACE_MIN_ZOOM) {
+			onairspaceat?.({ lat: at.lat, lon: at.lng });
+		}
 	}
 
 	// Draws the airspace again when the app gets it, and when it changes:

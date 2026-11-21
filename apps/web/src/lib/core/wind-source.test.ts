@@ -211,4 +211,36 @@ describe('wind from the server', () => {
 		expect((failure as Error).name).toBe('Server');
 		expect(asked).toEqual([]);
 	});
+
+	it('says what two stations far apart in height say about the air between them', async () => {
+		const { get } = server();
+		const wind = new WindSource(get, () => SERVER_NOW);
+		const stations = (await wind.windMap(ALPS))!.map.stations;
+		const valley = stations.find((station) => station.name === 'Innsbruck/Universitaet')!;
+
+		const air = wind.air(valley, stations);
+
+		// After dark nothing rises from the station: no cloud base.
+		expect(air.cloudBase).toBeUndefined();
+		expect(air.temperatureStep).toMatchObject({
+			otherName: 'Patscherkofel',
+			higherByM: 1673,
+			words: 'Cooler above, as in air at rest'
+		});
+	});
+
+	it('reads one day of a station, a year back at most, by the reader’s clock', async () => {
+		const { asked, get } = server();
+		const wind = new WindSource(get, () => SERVER_NOW);
+		await wind.windMap(ALPS);
+
+		const days = await wind.days(3600);
+		const day = await wind.day('dwd-10min:05792', days.lastDate, 3600);
+
+		expect([days.firstDate, days.lastDate]).toEqual(['2025-11-18', '2026-11-18']);
+		expect(asked.at(-1)).toMatch(/^\/v1\/stations\/dwd-10min:05792\/observations\?/);
+		expect(day.date).toBe('2026-11-18');
+		expect(day.endUnixS - day.startUnixS).toBe(86_400);
+		expect(day.readings.length + (day.emptyWords ? 1 : 0)).toBeGreaterThan(0);
+	});
 });

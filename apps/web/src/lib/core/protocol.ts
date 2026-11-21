@@ -22,7 +22,9 @@ import { flightFileText } from './flight-text';
 import type {
 	AccountView,
 	AirspaceFile,
+	AirspaceHeightFilter,
 	AirspaceImport,
+	AirspaceOverPlace,
 	AirspaceShape,
 	Bounds,
 	Coordinate,
@@ -58,7 +60,11 @@ import type {
 	ThermalMap,
 	SitesMap,
 	SiteView,
-	StationHistory
+	StationAir,
+	StationDay,
+	StationDays,
+	StationHistory,
+	WindStation
 } from './pkg/venti_core_wasm.js';
 import type { ForecastSource } from './forecast-source';
 import type { GroupsSource } from './groups-source';
@@ -108,6 +114,18 @@ export interface Calls {
 	wind: { given: Bounds; answer: WindAnswer | undefined };
 	/** Given a station's identifier: what it measured over the last 24 hours. */
 	stationHistory: { given: string; answer: StationHistory };
+	/**
+	 * What a station's readings say about the air, beside the other
+	 * stations on the wind map.
+	 */
+	stationAir: { given: { station: WindStation; stations: WindStation[] }; answer: StationAir };
+	/** Given the reader's offset from UTC in seconds: the days a station can be asked about. */
+	stationDays: { given: number; answer: StationDays };
+	/** One day of a station's readings, by its date as `stationDays` names dates. */
+	stationDay: {
+		given: { stationId: string; date: string; utcOffsetS: number };
+		answer: StationDay;
+	};
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
 	sites: { given: Bounds; answer: SitesMap | undefined };
 	/** What the server's weather models say about a place. Nothing if this site has no server. */
@@ -230,7 +248,11 @@ export interface Calls {
 	/** Given the name a file is stored under. */
 	deleteAirspaceFile: { given: string; answer: undefined };
 	/** The airspaces that touch a box of the map, from the server's and from the pilot's files. */
-	airspaceIn: { given: Bounds; answer: AirspaceShape[] };
+	airspaceIn: { given: Bounds & { ceilingM?: number }; answer: AirspaceShape[] };
+	/** What airspace lies over a place, in the core's words. */
+	airspaceOver: { given: Coordinate; answer: AirspaceOverPlace };
+	/** The heights the map's airspace can be filtered by. */
+	airspaceHeightFilter: { given: undefined; answer: AirspaceHeightFilter };
 	/** Given a flight's identifier: the flight checked against the airspace there is now. */
 	flightAirspace: { given: string; answer: FlightAirspace };
 	/**
@@ -312,6 +334,9 @@ export async function answer<Name extends CallName>(
 		forgetFlightGround: (asking) => terrain.forget(asking),
 		wind: (box) => wind.windMap(box),
 		stationHistory: (id) => wind.stationHistory(id),
+		stationAir: ({ station, stations }) => wind.air(station, stations),
+		stationDays: (utcOffsetS) => wind.days(utcOffsetS),
+		stationDay: ({ stationId, date, utcOffsetS }) => wind.day(stationId, date, utcOffsetS),
 		sites: (box) => sites.sites(box),
 		forecast: (place) => forecast.forecast(place),
 		live: (box) => live.gliders(box),
@@ -359,7 +384,9 @@ export async function answer<Name extends CallName>(
 			session.importAirspace(name, new Uint8Array(bytes), Math.floor(Date.now() / 1000)),
 		airspaceFiles: () => session.airspaceFiles(),
 		deleteAirspaceFile: (storedName) => session.deleteAirspaceFile(storedName),
-		airspaceIn: (box) => session.airspaceIn(box),
+		airspaceIn: (box) => session.airspaceIn(box, box.ceilingM),
+		airspaceOver: (place) => session.airspaceOver(place),
+		airspaceHeightFilter: () => session.airspaceHeightFilter(),
 		flightAirspace: (id) => session.flightAirspace(id),
 		refreshAirspace: (place) => airspace.refresh(place),
 		keptAirspace: () => airspace.kept(),

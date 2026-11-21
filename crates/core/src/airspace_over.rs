@@ -119,7 +119,8 @@ pub struct AirspaceHeightStep {
     /// The height to hand to [`AirspaceSet::in_area_below`], metres above
     /// mean sea level. `None` for the step that shows all airspace.
     pub ceiling_m: Option<f64>,
-    /// The step's name: "All heights", "Up to 2500 m".
+    /// The step's name, short enough for four of them to stand side by
+    /// side on a phone under the filter's title: "All", "2500 m".
     pub words: String,
 }
 
@@ -131,6 +132,8 @@ pub struct AirspaceHeightFilter {
     /// The steps to offer: all airspace first, then from the highest
     /// height down.
     pub steps: Vec<AirspaceHeightStep>,
+    /// What stands over the steps: "Airspace on the map, up to".
+    pub title: String,
     /// What the filter does and does not do, to show where it is chosen.
     pub note: String,
 }
@@ -140,14 +143,15 @@ pub struct AirspaceHeightFilter {
 pub fn airspace_height_filter() -> AirspaceHeightFilter {
     let all = AirspaceHeightStep {
         ceiling_m: None,
-        words: "All heights".to_owned(),
+        words: "All".to_owned(),
     };
     let steps = HEIGHT_STEPS_M.iter().map(|&ceiling_m| AirspaceHeightStep {
         ceiling_m: Some(ceiling_m),
-        words: format!("Up to {ceiling_m:.0} m"),
+        words: format!("{ceiling_m:.0} m"),
     });
     AirspaceHeightFilter {
         steps: std::iter::once(all).chain(steps).collect(),
+        title: "Airspace on the map, up to".to_owned(),
         note: "Leaves airspace that begins above the chosen height off the map. A floor \
                above ground or at a flight level is taken as low as it can be, so nothing \
                that could reach down to the height is left out. Only the map changes: \
@@ -683,10 +687,10 @@ DC 2
         assert_eq!(
             steps,
             [
-                (None, "All heights"),
-                (Some(4500.0), "Up to 4500 m"),
-                (Some(3500.0), "Up to 3500 m"),
-                (Some(2500.0), "Up to 2500 m"),
+                (None, "All"),
+                (Some(4500.0), "4500 m"),
+                (Some(3500.0), "3500 m"),
+                (Some(2500.0), "2500 m"),
             ]
         );
         assert!(

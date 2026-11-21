@@ -29,6 +29,8 @@ export interface Format {
 	climb(metresPerSecond: number): string;
 	/** A forecast climb in metres per second, one decimal and no sign: "1.8", "0.0". */
 	forecastClimb(metresPerSecond: number): string;
+	/** A change in temperature for every 100 m up, two decimals and a sign: "−0.65", "+0.20". */
+	perHundredMetres(celsius: number): string;
 	/** Kilometres per hour, whole, from metres per second. */
 	kilometresPerHour(metresPerSecond: number): string;
 	/** A glide ratio with one decimal. */
@@ -133,6 +135,7 @@ export function createFormat(locale: string, timeZone?: string): Format {
 	const trueMinus = (text: string) => text.replace('-', '\u2212');
 	const percent = number(0, { style: 'percent' });
 	const hundredths = number(2);
+	const signedHundredths = number(2, { signDisplay: 'exceptZero' });
 	const tenThousandths = number(4);
 	const plain = new Intl.NumberFormat(NUMBERS);
 	const at = (unixSeconds: number) => new Date(unixSeconds * 1000);
@@ -176,6 +179,7 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		metres: (metres) => trueMinus(height.format(metres)),
 		signedMetres: (metres) => trueMinus(signedHeight.format(metres)),
 		climb: (metresPerSecond) => trueMinus(signedTenths.format(metresPerSecond)),
+		perHundredMetres: (celsius) => trueMinus(signedHundredths.format(celsius)),
 		forecastClimb: (metresPerSecond) => tenths.format(metresPerSecond),
 		kilometresPerHour: (metresPerSecond) => whole.format(metresPerSecond * 3.6),
 		glideRatio: (ratio) => tenths.format(ratio),

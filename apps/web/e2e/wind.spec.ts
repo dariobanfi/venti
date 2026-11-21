@@ -123,6 +123,79 @@ test('the map shows the wind, lists its stations and opens one', async ({
 	expect(problems).toEqual([]);
 });
 
+test('a station’s page says what its readings tell of the air, and shows a past day', async ({
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	problems
+}) => {
+	await page.goto('/');
+	await mapTabDrawn(page, mapDrawn);
+	await page.getByRole('button', { name: 'Wind stations' }).click();
+	const list = page.getByRole('dialog', { name: 'Wind stations' });
+	await list.getByRole('searchbox', { name: 'Station' }).fill('Innsbruck');
+	await list.getByRole('listitem').first().getByRole('button').click();
+	const station = stationPanel(page, wide, 'Innsbruck/Universitaet');
+
+	// In the valley, with the Patscherkofel 1673 m above it 8 km away. The
+	// server's clock stands after dark, when nothing rises from a station:
+	// no cloud base, none of the six stations gives one then.
+	const air = station.getByRole('region', { name: 'The air' });
+	await expect(air).toContainText('Patscherkofel, 8.2 km away and 1673 m higher');
+	await expect(air).toContainText('−0.60 °C per 100 m');
+	await expect(air).toContainText('Cooler above, as in air at rest');
+	await expect(air).toContainText('The standard atmosphere has 0.65 °C.');
+	await expect(air).toContainText('not a sounding');
+	await expect(air).not.toContainText('cloud base');
+	await air.scrollIntoViewIfNeeded();
+	await keep('116-wind-station-air');
+
+	// A station with a recorded history: today first, a year back at most.
+	await closeButton(station, wide).click();
+	await page.getByRole('button', { name: 'Wind stations' }).click();
+	await list.getByRole('searchbox', { name: 'Station' }).fill('Zugspitze');
+	await list.getByRole('listitem').first().getByRole('button').click();
+	const summit = stationPanel(page, wide, 'Zugspitze');
+	const day = summit.getByLabel('Day', { exact: true });
+	await expect(day).toHaveValue('2026-11-18');
+	await expect(day).toHaveAttribute('min', '2025-11-18');
+	await expect(summit).toContainText('shown for the last year');
+	await expect(summit.getByRole('slider', { name: /over the last 24 hours/ })).toBeVisible();
+
+	// A day the server has nothing of says so in words: the development
+	// server keeps no readings of the days before its clock.
+	await day.fill('2026-11-17');
+	await expect(summit).toContainText('The server has no readings of this station for this day.');
+	await expect(summit.getByRole('heading', { name: /^Tue,? 17 Nov/ })).toBeVisible();
+	await day.scrollIntoViewIfNeeded();
+	await keep('117-wind-station-day-empty');
+
+	// A day it has readings of is drawn from midnight to midnight. MADE UP:
+	// the development server has readings of its own day only, so the
+	// question for the 17th is answered with the recorded readings of the
+	// 18th, moved back a day.
+	await page.route('**/v1/stations/*/observations?*', async (route) => {
+		const asked = new URL(route.request().url());
+		const response = await route.fetch({ url: `${asked.origin}${asked.pathname}` });
+		const body = (await response.text()).replaceAll('2026-11-18T', '2026-11-17T');
+		await route.fulfill({ response, body });
+	});
+	await day.fill('2026-11-16');
+	await day.fill('2026-11-17');
+	await expect(
+		summit.getByRole('slider', { name: /^Wind and gusts on Tue,? 17 Nov/ })
+	).toBeVisible();
+	await expect(summit.getByRole('heading', { name: /^Tue,? 17 Nov/ })).toBeVisible();
+	await day.scrollIntoViewIfNeeded();
+	await keep('117-wind-station-day');
+
+	// Back to today: the last 24 hours.
+	await day.fill('2026-11-18');
+	await expect(summit.getByRole('slider', { name: /over the last 24 hours/ })).toBeVisible();
+	expect(problems).toEqual([]);
+});
+
 test('a station is opened by its arrow, also one that gave way to a windier neighbour', async ({
 	context,
 	page,

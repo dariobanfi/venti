@@ -393,6 +393,80 @@ test('a site without a server draws the pilot’s own files and credits nobody',
 	await keep('38-map-airspace-names');
 });
 
+/**
+ * Two airspaces over the valley: a control zone from the ground, and an
+ * area whose floor, FL 100, certainly lies above 2500 m.
+ */
+const OVER_THE_VALLEY = `AC D
+AY CTR
+AN CTR VALLEY
+AL GND
+AH 9000ft AMSL
+V X=47:40:55 N 011:45:54 E
+DC 2
+
+AC R
+AN ED-R HIGH VALLEY
+AL FL 100
+AH FL 150
+DP 47:35:00 N 011:35:00 E
+DP 47:35:00 N 011:55:00 E
+DP 47:48:00 N 011:55:00 E
+DP 47:48:00 N 011:35:00 E
+`;
+
+test('a click on the map says what airspace lies over the place, and the height filter thins every map', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	problems
+}) => {
+	// The pilot's own file alone, on a site without a server: what the map
+	// draws is known to the airspace.
+	await context.route('**/v1/**', (route) => route.fulfill({ status: 404, body: 'Not found' }));
+	await page.goto('/settings/airspace/');
+	await addFiles(page, [upload('Over the valley.txt', OVER_THE_VALLEY)]);
+	await page.getByRole('dialog', { name: 'Airspace' }).getByRole('button', { name: 'OK' }).click();
+	await sections(page).getByRole('link', { name: 'Map', exact: true }).click();
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(IN_THE_VALLEY);
+	await page.getByRole('button', { name: 'Show my position' }).click();
+	await mapDrawn();
+	await expect(drawn(page)).toHaveText('Airspace on this part of the map: 2.');
+
+	// A click where nothing else of the map's lies: what lies over the place,
+	// from the lowest floor up, in the core's words.
+	const canvas = page.locator('canvas.maplibregl-canvas');
+	const box = (await canvas.boundingBox())!;
+	await canvas.click({ position: { x: box.width / 2 + 40, y: box.height / 3 } });
+	const sheet = page.getByRole(wide ? 'complementary' : 'dialog', { name: /° N, .*° E$/ });
+	await expect(sheet).toBeVisible();
+	const listed = sheet.getByRole('list', { name: 'Airspace over this place' }).getByRole('heading');
+	await expect(listed).toHaveText(['CTR VALLEY', 'ED-R HIGH VALLEY']);
+	await expect(sheet).toContainText('not certified');
+	await expect(sheet).toContainText('not a clearance');
+	const heights = sheet.getByRole('radiogroup', { name: 'Airspace on the map' });
+	await expect(heights.getByRole('radio', { name: 'All', exact: true })).toBeChecked();
+	await keep('118-map-airspace-over');
+
+	// Up to 2500 m: the area above it leaves the map; the zone from the
+	// ground stays.
+	await heights.locator('label', { hasText: '2500 m' }).click();
+	await expect(heights.getByRole('radio', { name: '2500 m' })).toBeChecked();
+	await mapDrawn();
+	await expect(drawn(page)).toHaveText('Airspace on this part of the map: 1.');
+	await keep('119-map-airspace-filtered');
+
+	// Kept, as the aerial view is.
+	await page.reload();
+	await page.getByRole('button', { name: 'Show my position' }).click();
+	await mapDrawn();
+	await expect(drawn(page)).toHaveText('Airspace on this part of the map: 1.');
+	expect(problems).toEqual([]);
+});
+
 test('a server that cannot be asked for airspace is named on the airspace screen, and left alone', async ({
 	context,
 	page,

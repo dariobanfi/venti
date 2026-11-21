@@ -99,6 +99,12 @@ describe('numbers', () => {
 		expect(format.metres(786.4)).toBe('786');
 	});
 
+	it('writes a change in temperature per 100 m with two decimals and a sign', () => {
+		expect(format.perHundredMetres(-0.654)).toBe('−0.65');
+		expect(format.perHundredMetres(0.2)).toBe('+0.20');
+		expect(format.perHundredMetres(0)).toBe('0.00');
+	});
+
 	it('gives a climb rate a sign unless it is zero', () => {
 		expect(format.climb(2.4)).toBe('+2.4');
 		expect(format.climb(-1.94)).toBe('\u22121.9');

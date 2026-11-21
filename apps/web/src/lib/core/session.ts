@@ -11,12 +11,15 @@
  * account and airspace is in the core.
  */
 
-import { Core, type FlightSync, StoredFiles } from './pkg/venti_core_wasm.js';
+import { airspaceHeightFilter, Core, type FlightSync, StoredFiles } from './pkg/venti_core_wasm.js';
 import type {
 	AirspaceFile,
+	AirspaceHeightFilter,
 	AirspaceImport,
+	AirspaceOverPlace,
 	AirspaceShape,
 	Bounds,
+	Coordinate,
 	FlightAirspace,
 	FlightAnalysis,
 	FlightFile,
@@ -187,9 +190,22 @@ export class CoreSession {
 		return this.change((core) => core.deleteAirspaceFile(storedName));
 	}
 
-	/** The airspaces that touch a box of the map. */
-	airspaceIn(box: Bounds): Promise<AirspaceShape[]> {
-		return this.ask((core) => core.airspaceIn(box.south, box.west, box.north, box.east));
+	/**
+	 * The airspaces that touch a box of the map; with a ceiling, without
+	 * those that certainly begin above it.
+	 */
+	airspaceIn(box: Bounds, ceilingM?: number): Promise<AirspaceShape[]> {
+		return this.ask((core) => core.airspaceIn(box.south, box.west, box.north, box.east, ceilingM));
+	}
+
+	/** What airspace lies over a place, from the lowest floor up, in the core's words. */
+	airspaceOver(place: Coordinate): Promise<AirspaceOverPlace> {
+		return this.ask((core) => core.airspaceOver(place.lat, place.lon));
+	}
+
+	/** The heights the map's airspace can be filtered by, in the core's words. */
+	airspaceHeightFilter(): AirspaceHeightFilter {
+		return airspaceHeightFilter();
 	}
 
 	/**

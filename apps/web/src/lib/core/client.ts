@@ -14,7 +14,8 @@ import type {
 	PlanDraft,
 	ReportReason,
 	ReportSubject,
-	SiteView
+	SiteView,
+	WindStation
 } from './pkg/venti_core_wasm.js';
 import {
 	type CallName,
@@ -141,6 +142,21 @@ export class CoreClient {
 	/** What a wind station measured over the last 24 hours. */
 	stationHistory(stationId: string) {
 		return this.#call('stationHistory', stationId);
+	}
+
+	/** What a station's readings say about the air, beside the other stations on the map. */
+	stationAir(station: WindStation, stations: WindStation[]) {
+		return this.#call('stationAir', { station, stations });
+	}
+
+	/** The days a station's readings can be asked for, by the reader's offset from UTC. */
+	stationDays(utcOffsetS: number) {
+		return this.#call('stationDays', utcOffsetS);
+	}
+
+	/** What a station measured on one day, a date as `stationDays` names it. */
+	stationDay(stationId: string, date: string, utcOffsetS: number) {
+		return this.#call('stationDay', { stationId, date, utcOffsetS });
 	}
 
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
@@ -389,9 +405,19 @@ export class CoreClient {
 		return this.#call('deleteAirspaceFile', storedName);
 	}
 
-	/** The airspaces that touch a box of the map. */
-	airspaceIn(box: Bounds) {
-		return this.#call('airspaceIn', box);
+	/** The airspaces that touch a box of the map; with a ceiling, without those certainly above it. */
+	airspaceIn(box: Bounds, ceilingM?: number) {
+		return this.#call('airspaceIn', { ...box, ceilingM });
+	}
+
+	/** What airspace lies over a place, in the core's words. */
+	airspaceOver(place: Coordinate) {
+		return this.#call('airspaceOver', place);
+	}
+
+	/** The heights the map's airspace can be filtered by. */
+	airspaceHeightFilter() {
+		return this.#call('airspaceHeightFilter', undefined);
 	}
 
 	/** A flight of the logbook checked against the airspace there is now. */

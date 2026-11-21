@@ -788,6 +788,27 @@ final class VentiUITests: XCTestCase {
         }
         sleep(1)
         keepScreenshot("today-8-the-air")
+
+        // Under the picture, the forecast for the place, with the two rows
+        // of thermals at the foot of its table. Kept as a screenshot when
+        // it is reached; the test does not depend on it.
+        let forecast = element("site-forecast", in: app)
+        for _ in 0..<4 where !(forecast.exists && forecast.isHittable) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+                .press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+            sleep(1)
+        }
+        if forecast.exists, forecast.isHittable {
+            forecast.tap()
+            let table = element("forecast-table", in: app)
+            if table.waitForExistence(timeout: 60) {
+                // The rows of thermals are the table's last: the table's
+                // hours scroll sideways, its rows stand in the page.
+                _ = element("forecast-thermals-note", in: app).waitForExistence(timeout: 10)
+                sleep(1)
+                keepScreenshot("forecast-thermals")
+            }
+        }
     }
 
     /// The forecast map on the map tab: the kind of day square by square,

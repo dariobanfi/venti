@@ -156,6 +156,31 @@ final class ForecastTests: XCTestCase {
         XCTAssertEqual(rows[8].cells, [.number("3900"), .empty, .empty])
     }
 
+    func testTheThermalsAreTwoRowsAtTheFootWhereSomeHourHasAnEstimate() async throws {
+        let model = try await fetched().models[0]
+        // The canned answer has no heat from the ground: the core makes no
+        // estimate, and the table has no row of thermals.
+        var hours = model.days.flatMap(\.hours)
+        XCTAssertTrue(hours.allSatisfy { $0.thermalClimbMs == nil })
+        XCTAssertFalse(ForecastTable.rows(for: model, hours: hours).contains { $0.id.hasPrefix("thermal") })
+
+        // The core's estimate, as it gives it for each hour.
+        hours[0].thermalClimbMs = 1.8
+        hours[0].thermalTopM = 2900
+        hours[0].thermalCloud = true
+        hours[1].thermalClimbMs = 0
+        hours[2].thermalClimbMs = 1.2
+        hours[2].thermalTopM = 2450
+        hours[2].thermalCloud = false
+        let rows = ForecastTable.rows(for: model, hours: hours)
+        XCTAssertEqual(rows.suffix(2).map(\.id), ["thermal-climb", "thermal-top"])
+        XCTAssertEqual(rows.suffix(2).map(\.name), ["Thermals, climb", "Thermals, top"])
+        XCTAssertEqual(rows.suffix(2).map(\.detail), ["m/s", "m"])
+        XCTAssertEqual(rows[rows.count - 2].cells, [.number("1.8"), .number("0.0"), .number("1.2")])
+        // A top that is the cloud base says so under the figure.
+        XCTAssertEqual(rows[rows.count - 1].cells, [.figure("2900", under: "base"), .empty, .number("2450")])
+    }
+
     func testAModelWithOnlyAGroundWindHasOnlyThatRow() async throws {
         let coarse = try await fetched().models[1]
         let rows = ForecastTable.rows(for: coarse, hours: coarse.days.flatMap(\.hours))

@@ -3,7 +3,7 @@ import VentiCore
 
 /// What the weather models say about one place: the wind through the day
 /// at the ground and higher up, the cloud base, cloud, rain and
-/// temperature, hour by hour.
+/// temperature, hour by hour, and the core's estimate of the thermals.
 ///
 /// It shows magnitudes and no verdict. Whether a day can be flown depends
 /// on the pilot, the wing and the place, and a model's cell of a few
@@ -100,7 +100,13 @@ struct ForecastScreen: View {
                 } header: {
                     Text("Wind in km/h, and the sky")
                 } footer: {
-                    Text(Self.caveat(for: shown))
+                    VStack(alignment: .leading, spacing: VentiSpace.s2) {
+                        Text(Self.caveat(for: shown))
+                        if chosen.hours.contains(where: { $0.thermalClimbMs != nil }) {
+                            Text(Self.thermalsNote)
+                                .accessibilityIdentifier("forecast-thermals-note")
+                        }
+                    }
                 }
             }
             Section {
@@ -143,6 +149,11 @@ struct ForecastScreen: View {
         return date.formatted(.dateTime.weekday(.abbreviated).day())
     }
 
+    /// What the thermals' rows are, under the table, where it has them:
+    /// the web's words.
+    static let thermalsNote =
+        "The two rows of thermals are an estimate Venti works out from the model’s heat and temperatures, not a value of the model: the climb a paraglider can expect, and how high the thermals go, at the cloud base where “base” stands under it. They say nothing of whether the day can be flown."
+
     /// What the numbers are, and what they are not.
     static func caveat(for model: ModelForecast) -> String {
         var text = "What the weather model \(model.name) computes for the cell of its grid that holds this place"
@@ -170,6 +181,9 @@ struct ForecastTable: View {
         enum Cell: Equatable {
             case wind(ForecastWind)
             case number(String)
+            /// A figure with a word in small print under it: "base" under
+            /// a thermals' top that is the cloud base.
+            case figure(String, under: String)
             case cloud(percent: Double)
             /// The model has nothing for the hour.
             case empty
@@ -293,7 +307,21 @@ struct ForecastTable: View {
                 return Row.Cell.number(hundreds(level))
             }),
         ]
-        for row in sky where row.cells.contains(where: { $0 != Row.Cell.empty }) {
+        // The thermals: the core's estimate from the model's heat and
+        // temperatures, shown only where some hour has one.
+        let thermals = [
+            Row(id: "thermal-climb", name: "Thermals, climb", detail: "m/s", cells: hours.map { hour -> Row.Cell in
+                guard let climb = hour.thermalClimbMs else { return Row.Cell.empty }
+                return Row.Cell.number(Format.decimal(climb, places: 1))
+            }),
+            Row(id: "thermal-top", name: "Thermals, top", detail: "m", cells: hours.map { hour -> Row.Cell in
+                guard let top = hour.thermalTopM else { return Row.Cell.empty }
+                return hour.thermalCloud
+                    ? Row.Cell.figure(Format.metres(top), under: "base")
+                    : Row.Cell.number(Format.metres(top))
+            }),
+        ]
+        for row in sky + thermals where row.cells.contains(where: { $0 != Row.Cell.empty }) {
             rows.append(row)
         }
         return rows
@@ -332,6 +360,7 @@ struct ForecastTable: View {
                     let from = wind.fromDeg.map { " from \(Format.compassPoint(degrees: $0))" } ?? ""
                     return "\(at) \(wind.label.replacingOccurrences(of: "/", with: " gusting "))\(from)"
                 case .number(let text): return text == dry ? nil : "\(at) \(text)"
+                case .figure(let text, let under): return "\(at) \(text), \(under)"
                 case .cloud(let percent): return "\(at) \(Int(percent.rounded())) percent"
                 case .empty: return nil
                 }
@@ -370,6 +399,17 @@ private struct ForecastCell: View {
                 .font(.venti(.caption, .medium))
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
+        case .figure(let text, let under):
+            VStack(spacing: 0) {
+                Text(text)
+                    .font(.venti(.caption, .medium))
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                Text(under)
+                    .font(.venti(.caption2))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         case .cloud(let percent):
             // More sky covered, more of the square filled in.
             RoundedRectangle(cornerRadius: 4)

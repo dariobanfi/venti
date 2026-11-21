@@ -19,7 +19,9 @@
  * - `forecast-source.ts` asks it what its weather models say about a place.
  * - `live-source.ts` asks it who is in the air, and follows one flight.
  * - `account-source.ts` talks to the Venti server about the pilot's account
- *   and keeps the logbook in step with it, also from the worker.
+ *   and keeps the logbook and the pilot's own sites in step with it, also
+ *   from the worker.
+ * - `tokens-source.ts` talks to it about the programs a pilot gave access.
  * - `airspace-source.ts` fetches the airspace around a place from the Venti
  *   server when the core says it is time, for the core to keep.
  * - `community-source.ts` asks it for the flights other pilots share with
@@ -171,6 +173,11 @@ export type {
 	TemperatureStep,
 	SyncSummary,
 	ThermalSummary,
+	TokenCreated,
+	TokenForm,
+	TokenScope,
+	TokenView,
+	TokenWithdrawal,
 	Totals,
 	TrackPoint,
 	TrailPointView,
@@ -187,6 +194,7 @@ import type { CoreErrorKind } from './pkg/venti_core_wasm.js';
 import { UNREACHABLE } from './protocol';
 
 export type { NewAccount, SyncOutcome } from './account-source';
+export type { AccessWanted, ProgramView } from './tokens-source';
 export { CoreClient } from './client';
 export type { TodayAnswer } from './today-source';
 export type { SiteDraftChecked, SiteSent } from './site-edit-source';

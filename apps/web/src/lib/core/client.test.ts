@@ -19,6 +19,7 @@ import { RadarSource } from './radar-source';
 import { ThermalMapSource } from './thermal-map-source';
 import { sampleFlight, startCore } from './testing';
 import { TodaySource } from './today-source';
+import { TokensSource } from './tokens-source';
 import { WindSource } from './wind-source';
 
 beforeAll(startCore);
@@ -50,6 +51,7 @@ class SameProcess implements Channel {
 						session,
 						wind: this.#wind,
 						account: account(session),
+						tokens: new TokensSource(session, unreachable),
 						airspace: airspace(session),
 						// Flying sites from a site that has no server.
 						sites: new SitesSource(async () => false),

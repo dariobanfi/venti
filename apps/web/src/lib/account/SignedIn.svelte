@@ -7,6 +7,7 @@
 	time of the last sync in the reader's own clock.
 -->
 <script lang="ts">
+	import { programsHref } from '#lib/app/routes.ts';
 	import type { AccountView } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Dialog from '#lib/design/Dialog.svelte';
@@ -135,6 +136,20 @@
 	</p>
 </section>
 
+<!-- What else the account holds. The row's name is the core's, as the page's title is. -->
+{#await account.programsForm() then programs}
+	<section class="group" aria-label="Access">
+		<div class="group-card">
+			<a class="group-row" href={programsHref()}>
+				<span>{programs.title}</span>
+				<span class="chevron"><Icon name="forward" /></span>
+			</a>
+		</div>
+	</section>
+{:catch}
+	<!-- Without the core's words there is no row. -->
+{/await}
+
 <section class="group" aria-label="Leaving">
 	<div class="group-card">
 		<button
@@ -220,6 +235,11 @@
 </Dialog>
 
 <style>
+	.chevron {
+		color: var(--icon-quiet);
+		font-size: 0.75rem;
+	}
+
 	/* The words of a sync are a phrase, not a number: they may wrap. */
 	dd {
 		max-width: 60%;

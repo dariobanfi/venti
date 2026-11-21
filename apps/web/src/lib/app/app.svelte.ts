@@ -63,7 +63,7 @@ export class App {
 
 	/** Adding and correcting a site of Venti's own layer. Nothing until the core has started. */
 	siteEdits = $state.raw<SiteEditsModel>();
-	/** The sites the pilot marks as their own, kept in this browser. */
+	/** The sites the pilot marks as their own, kept in this browser and, signed in, on the account. */
 	kept = $state.raw<KeptSitesModel>();
 
 	/** The kind of day, square by square, for the map's "Forecast" layer. */
@@ -112,8 +112,12 @@ export class App {
 				this.thermals = new ThermalMapModel(core);
 				this.radar = new RadarModel(core);
 				const logbook = await LogbookModel.open(core);
-				// A sync may have fetched or removed flights.
-				const account = await AccountModel.open(core, () => logbook.refresh());
+				// A sync may have fetched or removed flights, and take-offs the
+				// pilot keeps as their own.
+				const account = await AccountModel.open(core, async (keptSites) => {
+					await logbook.refresh();
+					await kept.synced(keptSites).catch(() => {});
+				});
 				const airspace = await AirspaceModel.open(core);
 				// Another tab imported, deleted, synced or signed out: show
 				// what is stored now.

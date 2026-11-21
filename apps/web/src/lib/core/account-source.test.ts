@@ -9,8 +9,8 @@ import {
 	wholeSeconds
 } from './account-source';
 import { IdbStore } from './idb-store';
-import type { ServerRequest } from './pkg/venti_core_wasm.js';
-import { UNREACHABLE } from './protocol';
+import { type ServerRequest, sitesMap } from './pkg/venti_core_wasm.js';
+import { UNREACHABLE, unreachable as unreachableError } from './protocol';
 import { CoreSession } from './session';
 import { sampleFlight, sampleFlightOn, startCore } from './testing';
 
@@ -45,6 +45,14 @@ function changes(given: { flights?: unknown[]; deleted?: unknown[] } = {}): Serv
 	);
 }
 
+/** The account's list of kept sites, with nothing after it. */
+function keptChanges(given: { kept?: unknown[]; forgotten?: string[] } = {}): ServerAnswer {
+	return answer(
+		200,
+		json({ kept: [], forgotten: [], cursor: '1', more: false, reset: false, ...given })
+	);
+}
+
 function answer(status: number, body: Uint8Array = new Uint8Array()): ServerAnswer {
 	return { status, body, retryAfterS: undefined };
 }
@@ -62,6 +70,8 @@ class Server {
 	asked: { method: string; path: string; token: string | undefined; body: string }[] = [];
 	/** What the server's list of changes says. */
 	changes = changes();
+	/** What the account's list of kept sites says has changed. */
+	keptChanges = keptChanges();
 	instead: (request: ServerRequest) => ServerAnswer | undefined = () => undefined;
 
 	send: Send = async (request, token) => {
@@ -79,6 +89,14 @@ class Server {
 			return answer(201, recorded('sign_in.json'));
 		}
 		if (method === 'GET' && path.startsWith('/v1/flights/changes')) return this.changes;
+		if (method === 'GET' && path.startsWith('/v1/account/kept-sites/changes')) {
+			return this.keptChanges;
+		}
+		if (method === 'PUT' && path.startsWith('/v1/account/kept-sites/')) {
+			// The site as sent, kept from the moment the request names or from now.
+			const kept = JSON.parse(text(request.body));
+			return answer(200, json({ kept: { kept_at: '2026-11-18T19:05:00Z', ...kept } }));
+		}
 		if (method === 'GET' && path.endsWith('/igc')) {
 			return answer(200, new TextEncoder().encode(sampleFlight()));
 		}
@@ -267,15 +285,18 @@ describe('a sync', () => {
 		expect(outcome).toEqual({
 			kind: 'finished',
 			summary: { sent: 1, fetched: 1, removedHere: 0, removedThere: 0, refused: 0 },
-			said: '1 sent, 1 fetched'
+			said: '1 sent, 1 fetched',
+			// The pilot's own sites follow the logbook: none here, none there.
+			keptSites: { sent: 0, fetched: 0, removedHere: 0, removedThere: 0, refused: 0 }
 		});
 		expect(browser.server.lines).toEqual([
 			'GET /v1/flights/changes',
 			`GET /v1/flights/${SAMPLE_THERE.id}/igc`,
-			'POST /v1/flights'
+			'POST /v1/flights',
+			'GET /v1/account/kept-sites/changes'
 		]);
 		// Every one of them carried the token, and the flight went as its file.
-		expect(browser.server.asked.map((asked) => asked.token)).toEqual([TOKEN, TOKEN, TOKEN]);
+		expect(browser.server.asked.map((asked) => asked.token)).toEqual([TOKEN, TOKEN, TOKEN, TOKEN]);
 		expect(browser.server.asked[2].body).toBe(sampleFlightOn(3));
 		expect(session.logbook().totals.flights).toBe(2);
 		expect(await account.account()).toMatchObject({
@@ -308,7 +329,8 @@ describe('a sync', () => {
 		expect(outcome).toMatchObject({ kind: 'finished', said: '1 removed on the server' });
 		expect(browser.server.lines).toEqual([
 			`DELETE /v1/flights/${SAMPLE_THERE.id}`,
-			'GET /v1/flights/changes'
+			'GET /v1/flights/changes',
+			'GET /v1/account/kept-sites/changes'
 		]);
 		expect(session.logbook().totals.flights).toBe(0);
 	});
@@ -326,7 +348,12 @@ describe('a sync', () => {
 
 		expect(outcome).toMatchObject({ kind: 'finished', said: '1 removed here' });
 		expect(session.logbook().totals.flights).toBe(0);
-		expect((await browser.stored()).names).toEqual(['account.json', 'logbook-index.json']);
+		// What the account's kept sites were read up to is noted beside the logbook.
+		expect((await browser.stored()).names).toEqual([
+			'account.json',
+			'kept-sites-account.json',
+			'logbook-index.json'
+		]);
 	});
 
 	it('stops when the session has ended, says so, and forgets the token', async () => {
@@ -414,6 +441,141 @@ describe('a sync', () => {
 		// Both flights end up on the server, whichever run sent them.
 		expect(outcome.kind).toBe('finished');
 		expect(await account.account()).toMatchObject({ flightsOnServer: 2, flightsToSend: 0 });
+	});
+});
+
+describe('the pilot’s own sites, signed in', () => {
+	/** The Wallberg's ramp and the Jägerkamp, as the server's recorded map has them. */
+	const RAMP = 'osm-free-flying:node/5964676196';
+	const JAEGERKAMP = 'osm-free-flying:way/1080986173';
+
+	async function keep(session: CoreSession, id: string): Promise<void> {
+		const map = sitesMap(47, 11, 48, 12.5, 200, recorded('sites.json'));
+		const site = map.sites.find((one) => one.id === id)!;
+		await session.keepSite(site, map.credits, map.asOfUnixS);
+	}
+
+	const note = async (session: CoreSession) => (await session.keptSites(undefined)).note;
+	const held = async (session: CoreSession) =>
+		(await session.keptSites(undefined)).sites.map((kept) => kept.site.id);
+
+	it('stay in the browser alone while it is not signed in: nothing is asked', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		await keep(session, RAMP);
+
+		expect(await account.syncKeptSites()).toBeUndefined();
+		expect(browser.server.asked).toEqual([]);
+		expect(await note(session)).toMatch(/^Kept on this device only: sign in/);
+	});
+
+	it('go to the account with the sync after signing in, and the note says where the list lives', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		await keep(session, RAMP);
+		await account.signIn('demo', 'demo-pilot-password');
+		expect(await note(session)).toMatch(
+			/^Kept on this device, and on your Venti account after the next sync\./
+		);
+		browser.server.asked = [];
+
+		const outcome = await account.sync();
+
+		expect(outcome.keptSites).toEqual({
+			sent: 1,
+			fetched: 0,
+			removedHere: 0,
+			removedThere: 0,
+			refused: 0
+		});
+		// After the logbook's run, with the session: what the account has, then the offer.
+		expect(browser.server.lines).toEqual([
+			'GET /v1/flights/changes',
+			'GET /v1/account/kept-sites/changes',
+			`PUT /v1/account/kept-sites/${RAMP}`
+		]);
+		expect(browser.server.asked.map((asked) => asked.token)).toEqual([TOKEN, TOKEN, TOKEN]);
+		expect(JSON.parse(browser.server.asked[2].body).site.id).toBe(RAMP);
+		expect(await note(session)).toMatch(/^Kept on your Venti account and on this device\./);
+
+		// Every step was stored: a reload has the same to say and nothing to send.
+		browser.closeTabs();
+		const reloaded = await browser.tab();
+		expect(await note(reloaded.session)).toMatch(
+			/^Kept on your Venti account and on this device\./
+		);
+		browser.server.asked = [];
+		expect(await reloaded.account.syncKeptSites()).toMatchObject({ sent: 0, fetched: 0 });
+		expect(browser.server.lines).toEqual(['GET /v1/account/kept-sites/changes']);
+	});
+
+	it('are sent and taken back one at a time when one is kept or forgotten', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		await account.sync();
+
+		await keep(session, RAMP);
+		browser.server.asked = [];
+		expect(await account.syncKeptSites()).toMatchObject({ sent: 1 });
+		// The logbook is not asked about.
+		expect(browser.server.lines).toEqual([
+			'GET /v1/account/kept-sites/changes',
+			`PUT /v1/account/kept-sites/${RAMP}`
+		]);
+
+		await session.forgetSite(RAMP);
+		browser.server.asked = [];
+		expect(await account.syncKeptSites()).toMatchObject({ removedThere: 1 });
+		expect(browser.server.lines[0]).toBe(`DELETE /v1/account/kept-sites/${RAMP}`);
+		expect(browser.server.asked[0].token).toBe(TOKEN);
+		expect(await held(session)).toEqual([]);
+	});
+
+	it('come back from the account in a browser that held none, and stay after a reload', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		// The server's recorded list keeps the Jägerkamp.
+		browser.server.keptChanges = answer(200, recorded('kept_site_changes.json'));
+		await account.signIn('demo', 'demo-pilot-password');
+
+		const outcome = await account.sync();
+
+		expect(outcome.keptSites).toMatchObject({ sent: 0, fetched: 1 });
+		expect(await held(session)).toEqual([JAEGERKAMP]);
+		expect(await note(session)).toMatch(/^Kept on your Venti account and on this device\./);
+
+		browser.closeTabs();
+		const reloaded = await browser.tab();
+		expect(await held(reloaded.session)).toEqual([JAEGERKAMP]);
+	});
+
+	it('wait in the browser when the server cannot be reached, and the note says so', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		await account.sync();
+		await keep(session, RAMP);
+		browser.server.instead = () => {
+			throw unreachableError('Venti could not be reached.');
+		};
+
+		expect(await account.syncKeptSites()).toBeUndefined();
+		expect(await held(session)).toEqual([RAMP]);
+		expect(await note(session)).toMatch(
+			/^Kept on this device, and on your Venti account after the next sync\./
+		);
+	});
+
+	it('are not asked about once the session has ended', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.instead = () => refusal(401, 'unauthorized');
+		browser.server.asked = [];
+
+		expect(await account.sync()).toMatchObject({ kind: 'failed', needsSignIn: true });
+		expect(browser.server.lines).toEqual(['GET /v1/flights/changes']);
 	});
 });
 

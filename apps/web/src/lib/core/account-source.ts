@@ -4,7 +4,8 @@
  * What to ask the server and what its answers mean is the core's: it hands
  * out a request and reads the answer. This file sends the requests in
  * between, with the session token where a request needs it and nowhere
- * else, and runs the sync that keeps the logbook and the server in step. It
+ * else, and runs the sync that keeps the logbook and the server in step,
+ * and after it the one of the pilot's own sites (`Core.keptSitesSync`). It
  * is the browser's counterpart of the iPhone app's `AccountModel.swift`.
  *
  * The server is the one this site is served from, as for the wind.
@@ -30,7 +31,7 @@ import {
 	syncSummaryInWords
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
-import type { CoreSession } from './session';
+import type { CoreSession, SyncRun } from './session';
 import { StaleStoreError } from './store';
 
 /** What the server answered. */
@@ -44,8 +45,8 @@ export interface ServerAnswer {
 /** Sends one of the core's requests to the server. Throws when no answer came at all. */
 export type Send = (request: ServerRequest, token: string | undefined) => Promise<ServerAnswer>;
 
-/** How a sync ended. */
-export type SyncOutcome =
+/** How a run of the core's sync ended. */
+export type RunOutcome =
 	| {
 			kind: 'finished';
 			summary: SyncSummary;
@@ -59,6 +60,19 @@ export type SyncOutcome =
 			/** Whether the session has ended and the pilot has to sign in again. */
 			needsSignIn: boolean;
 	  };
+
+/**
+ * How a sync ended: the logbook's run, and with it what the run of the
+ * pilot's own sites did, which follows it.
+ */
+export type SyncOutcome = RunOutcome & {
+	/**
+	 * What the run of the pilot's own sites did, where it came to its end:
+	 * `sent` and `fetched` count sites. Nothing when it did not, which the
+	 * list's own note says ("…after the next sync").
+	 */
+	keptSites?: SyncSummary;
+};
 
 /** What a pilot enters to create an account. */
 export interface NewAccount {
@@ -271,20 +285,48 @@ export class AccountSource {
 
 	/**
 	 * Brings the logbook and the server in step, one of the core's steps
-	 * after another. Throws when the server cannot be reached; what was done
-	 * until then is kept, and the next sync goes on from there.
+	 * after another, and then the pilot's own sites and their account.
+	 * Throws when the server cannot be reached; what was done until then is
+	 * kept, and the next sync goes on from there.
 	 *
 	 * Only one tab of the site syncs at a time. A second one waits and then
 	 * finds the work done.
 	 */
 	sync(): Promise<SyncOutcome> {
-		const locks = globalThis.navigator?.locks;
-		return locks ? locks.request('venti-sync', () => this.#sync()) : this.#sync();
+		return alone(async () => {
+			const logbook = await this.#run(() => this.#session.beginSync());
+			// A session that has ended sends nothing more.
+			if (logbook.kind === 'failed' && logbook.needsSignIn) return logbook;
+			return { ...logbook, keptSites: await this.#keptSites() };
+		});
 	}
 
-	async #sync(): Promise<SyncOutcome> {
+	/**
+	 * Brings the pilot's own sites and their account in step: after a site
+	 * was kept or forgotten. What the run did, or nothing when it did not
+	 * come to its end. In a browser that is not signed in nothing is asked
+	 * and nothing changes: the sites are this browser's alone.
+	 */
+	syncKeptSites(): Promise<SyncSummary | undefined> {
+		return alone(() => this.#keptSites());
+	}
+
+	/** The run of the pilot's own sites. It is quiet: the list says itself where it is kept. */
+	async #keptSites(): Promise<SyncSummary | undefined> {
+		if ((await this.#session.token()) === undefined) return undefined;
+		try {
+			const outcome = await this.#run(() => this.#session.beginKeptSitesSync());
+			return outcome.kind === 'finished' ? outcome.summary : undefined;
+		} catch {
+			// Out of reach: what was kept here waits for the next sync.
+			return undefined;
+		}
+	}
+
+	/** Takes a run of the core's to its end, sending each request with the session. */
+	async #run(begin: () => Promise<SyncRun>): Promise<RunOutcome> {
 		for (let attempt = 1; ; attempt += 1) {
-			const run = await this.#session.beginSync();
+			const run = await begin();
 			try {
 				let step = await run.start(Math.floor(this.#now() / 1000));
 				while (step.kind === 'send') {
@@ -313,4 +355,10 @@ export class AccountSource {
 			}
 		}
 	}
+}
+
+/** Runs a sync when no other tab of the site runs one. */
+function alone<T>(task: () => Promise<T>): Promise<T> {
+	const locks = globalThis.navigator?.locks;
+	return locks ? locks.request('venti-sync', task) : task();
 }

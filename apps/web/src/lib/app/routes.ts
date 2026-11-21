@@ -39,6 +39,11 @@ export function accountHref(): string {
 	return resolve('/settings/account');
 }
 
+/** "Programs with access", under the account. */
+export function programsHref(): string {
+	return resolve('/settings/account/programs');
+}
+
 export function airspaceHref(): string {
 	return resolve('/settings/airspace');
 }

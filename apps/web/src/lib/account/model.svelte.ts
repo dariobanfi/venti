@@ -9,16 +9,21 @@
  */
 
 import {
+	type AccessWanted,
 	type AccountView,
 	type CoreClient,
 	type FlightSharing,
 	type FlightVisibility,
 	isInWords,
 	type NewAccount,
+	type ProgramView,
 	type Registration,
 	type ReportForm,
 	type ReportReason,
-	type ReportSubject
+	type ReportSubject,
+	type SyncSummary,
+	type TokenCreated,
+	type TokenForm
 } from '#lib/core/index.ts';
 import { reasonFor } from '#lib/logbook/model.svelte.ts';
 
@@ -53,17 +58,22 @@ export class AccountModel {
 
 	#core: CoreClient;
 	#now: () => number;
-	/** Called after a sync, which may have changed the logbook. */
-	#onSynced: () => Promise<void>;
+	/**
+	 * Called after a sync, which may have changed the logbook, with what it
+	 * did to the pilot's own sites where their run came to its end.
+	 */
+	#onSynced: (keptSites: SyncSummary | undefined) => Promise<void>;
 	#lastSyncAt: number | undefined;
 	/** What a report can say, once the core was asked. */
 	/** The report forms asked for, one for each kind of subject. */
 	#reportForms = new Map<ReportSubject['kind'], Promise<ReportForm>>();
+	/** The words of "Programs with access", once the core was asked. */
+	#programsForm: Promise<TokenForm> | undefined;
 
 	private constructor(
 		core: CoreClient,
 		account: AccountView | undefined,
-		onSynced: () => Promise<void>,
+		onSynced: (keptSites: SyncSummary | undefined) => Promise<void>,
 		now: () => number
 	) {
 		this.#core = core;
@@ -75,7 +85,7 @@ export class AccountModel {
 	/** Opens the account this browser remembers, if any. */
 	static async open(
 		core: CoreClient,
-		onSynced: () => Promise<void> = async () => {},
+		onSynced: (keptSites: SyncSummary | undefined) => Promise<void> = async () => {},
 		now: () => number = () => Date.now()
 	): Promise<AccountModel> {
 		const model = new AccountModel(core, await core.account(), onSynced, now);
@@ -218,8 +228,10 @@ export class AccountModel {
 	async #runSync(reportsProblems: boolean): Promise<void> {
 		this.#lastSyncAt = this.#now();
 		if (reportsProblems) this.problem = undefined;
+		let keptSites: SyncSummary | undefined;
 		try {
 			const outcome = await this.#core.sync();
+			keptSites = outcome.keptSites;
 			if (outcome.kind === 'finished') {
 				this.lastSync = outcome.said;
 				this.problem = undefined;
@@ -231,7 +243,7 @@ export class AccountModel {
 			if (reportsProblems) this.problem = words(error);
 		}
 		await this.refresh();
-		await this.#onSynced();
+		await this.#onSynced(keptSites);
 	}
 
 	/** Reads the account as it is stored now: after a sync, or a change in another tab. */
@@ -241,6 +253,44 @@ export class AccountModel {
 		} catch {
 			// The screens keep what they have.
 		}
+	}
+
+	/**
+	 * "Programs with access": the words of the screen and of the form that
+	 * gives a program access. The core's, asked for once.
+	 */
+	programsForm(): Promise<TokenForm> {
+		this.#programsForm ??= this.#core.tokenForm();
+		// One that failed is asked for again.
+		this.#programsForm.catch(() => (this.#programsForm = undefined));
+		return this.#programsForm;
+	}
+
+	/**
+	 * The programs that have access to the account, the newest first. Each
+	 * of the four below throws an error whose message is in words for the
+	 * pilot: the core's refusal, or that Venti could not be reached.
+	 */
+	programs(): Promise<ProgramView[]> {
+		return inWords(this.#core.programs());
+	}
+
+	/** A program's name as it will be kept, or the core's words on why it cannot be one. */
+	checkProgramName(name: string): Promise<string> {
+		return inWords(this.#core.tokenNameCheck(name));
+	}
+
+	/**
+	 * Gives a program access. The answer holds the token's secret, this
+	 * once; nothing here keeps it.
+	 */
+	giveAccess(wanted: AccessWanted): Promise<TokenCreated> {
+		return inWords(this.#core.giveAccess(wanted));
+	}
+
+	/** Withdraws a program's access, by its token's identifier. */
+	withdrawAccess(id: string): Promise<void> {
+		return inWords(this.#core.withdrawAccess(id));
 	}
 
 	/** How a flight is shared, if the server has it. */
@@ -266,6 +316,15 @@ export class AccountModel {
 		} finally {
 			this.working = false;
 		}
+	}
+}
+
+/** An answer of the core's, or an error whose message is in words for the pilot. */
+async function inWords<T>(asked: Promise<T>): Promise<T> {
+	try {
+		return await asked;
+	} catch (error) {
+		throw new Error(words(error), { cause: error });
 	}
 }
 

@@ -12,11 +12,13 @@
 		message: string;
 		/** The words on the button that goes ahead. */
 		confirm: string;
+		/** The words on the button that leaves things as they are, where the core has its own. */
+		cancel?: string;
 		onconfirm: () => void;
 		oncancel: () => void;
 	}
 
-	let { open, title, message, confirm, onconfirm, oncancel }: Props = $props();
+	let { open, title, message, confirm, cancel = 'Cancel', onconfirm, oncancel }: Props = $props();
 </script>
 
 <Dialog
@@ -34,7 +36,7 @@
 	<div class="choices">
 		<button class="choice destructive" type="button" onclick={onconfirm}>{confirm}</button>
 		<!-- svelte-ignore a11y_autofocus -->
-		<button class="choice cancel" type="button" autofocus onclick={oncancel}>Cancel</button>
+		<button class="choice cancel" type="button" autofocus onclick={oncancel}>{cancel}</button>
 	</div>
 </Dialog>
 

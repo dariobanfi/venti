@@ -22,6 +22,7 @@ import { type FileStore, MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
 import { ThermalMapSource } from './thermal-map-source';
 import { TodaySource } from './today-source';
+import { TokensSource } from './tokens-source';
 import { WindSource } from './wind-source';
 
 const send = (reply: Reply) => postMessage(reply);
@@ -49,6 +50,7 @@ const starting: Promise<Answering> = (async () => {
 		session,
 		wind,
 		account: new AccountSource(session),
+		tokens: new TokensSource(session),
 		airspace: new AirspaceSource(session, () => wind.present()),
 		sites,
 		siteEdits: new SiteEditSource(session, () => sites.wrote()),

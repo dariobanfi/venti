@@ -9,6 +9,7 @@ import type { FlightRef, PublicFlightsAsked } from './community-source';
 import type { GroundAsked } from './terrain-source';
 import type { RadarColours } from './radar-source';
 import type { HoursAsked } from './thermal-map-source';
+import type { AccessWanted } from './tokens-source';
 import type {
 	Bounds,
 	Coordinate,
@@ -450,9 +451,45 @@ export class CoreClient {
 		return this.#call('deleteAccount', password);
 	}
 
-	/** Brings the logbook and the server in step. */
+	/** Brings the logbook and the server in step, and then the pilot's own sites. */
 	sync() {
 		return this.#call('sync', undefined);
+	}
+
+	/**
+	 * Brings the pilot's own sites and their account in step, after one was
+	 * kept or forgotten. Nothing is asked from a browser that is not signed in.
+	 */
+	syncKeptSites() {
+		return this.#call('syncKeptSites', undefined);
+	}
+
+	/** "Programs with access": the words of the screen and of its form. */
+	tokenForm() {
+		return this.#call('tokenForm', undefined);
+	}
+
+	/** A program's name as it will be kept. Fails in the core's words when it cannot be one. */
+	tokenNameCheck(name: string) {
+		return this.#call('tokenNameCheck', name);
+	}
+
+	/** The programs that have access to the pilot's account, the newest first. */
+	programs() {
+		return this.#call('programs', undefined);
+	}
+
+	/**
+	 * Gives a program access. The answer holds the token's secret, this
+	 * once: show it and keep it nowhere.
+	 */
+	giveAccess(wanted: AccessWanted) {
+		return this.#call('giveAccess', wanted);
+	}
+
+	/** Withdraws a program's access, by its token's identifier. */
+	withdrawAccess(id: string) {
+		return this.#call('withdrawAccess', id);
 	}
 
 	/** How a flight is shared, if the server has it. */

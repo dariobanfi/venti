@@ -11,7 +11,7 @@
  * account and airspace is in the core.
  */
 
-import { airspaceHeightFilter, Core, type FlightSync, StoredFiles } from './pkg/venti_core_wasm.js';
+import { airspaceHeightFilter, Core, StoredFiles } from './pkg/venti_core_wasm.js';
 import type {
 	AirspaceFile,
 	AirspaceHeightFilter,
@@ -53,9 +53,20 @@ const ATTEMPTS = 4;
 export type TokenChange = string | null | undefined;
 
 /**
- * One run of the core's sync: the core says what to send to the server and
- * reads each answer, and what a step changed is stored before the next one
- * is taken. `account-source.ts` sends the requests in between.
+ * A run of the core's as the core hands it out: the logbook's sync
+ * (`Core.sync`) and the one of the pilot's own sites (`Core.keptSitesSync`)
+ * have the same steps.
+ */
+interface CoreRun {
+	start(nowUnixS: number): SyncStep;
+	receive(status: number, body: Uint8Array, retryAfterS?: number | null): SyncStep;
+	free(): void;
+}
+
+/**
+ * One run of a sync of the core's: the core says what to send to the server
+ * and reads each answer, and what a step changed is stored before the next
+ * one is taken. `account-source.ts` sends the requests in between.
  */
 export interface SyncRun {
 	/** Begins. `nowUnixS` is kept as the time of the sync. */
@@ -289,20 +300,21 @@ export class CoreSession {
 	}
 
 	/**
-	 * Starts a run of the core's sync. Other calls take their turns between
-	 * its steps, so the page stays usable while flights travel.
+	 * Starts a run of the core's sync: the logbook's, or the one `of` names.
+	 * Other calls take their turns between its steps, so the page stays
+	 * usable while flights travel.
 	 *
 	 * A run belongs to the core that began it. When the store changes behind
 	 * that core, in another tab or because a step could not be stored, the
 	 * run's next step throws a {@link StaleStoreError}: every step before it
 	 * is stored, and a new run goes on from there.
 	 */
-	async beginSync(): Promise<SyncRun> {
+	async beginSync(of: (core: Core) => CoreRun = (core) => core.sync()): Promise<SyncRun> {
 		const { run, generation } = await this.#inTurn(async () => ({
-			run: this.#core.sync(),
+			run: of(this.#core),
 			generation: this.#generation
 		}));
-		const step = (take: (run: FlightSync) => SyncStep) =>
+		const step = (take: (run: CoreRun) => SyncStep) =>
 			this.#inTurn(async () => {
 				if (generation !== this.#generation) throw new StaleStoreError();
 				const result = await fetching(this.#files, this.#store, () => take(run));
@@ -319,6 +331,14 @@ export class CoreSession {
 			receive: (status, body, retryAfterS) => step((run) => run.receive(status, body, retryAfterS)),
 			end: () => run.free()
 		};
+	}
+
+	/**
+	 * Starts a run that brings the pilot's own sites in step with their
+	 * account. It is run and stored as the logbook's sync is.
+	 */
+	beginKeptSitesSync(): Promise<SyncRun> {
+		return this.beginSync((core) => core.keptSitesSync());
 	}
 
 	/** Starts again from what is stored. */

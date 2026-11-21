@@ -79,6 +79,9 @@ import type {
 	ThermalStripDay,
 	StationDays,
 	StationHistory,
+	SyncSummary,
+	TokenCreated,
+	TokenForm,
 	TodayOrder,
 	TodayStanding,
 	WindStation
@@ -91,6 +94,7 @@ import type { SiteDraftChecked, SiteEditSource, SiteSent } from './site-edit-sou
 import type { SitesSource } from './sites-source';
 import type { RadarColours, RadarSource } from './radar-source';
 import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
+import type { AccessWanted, ProgramView, TokensSource } from './tokens-source';
 import { type TodayAnswer, todayOrders, type TodaySource } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
 import type { WindAnswer, WindSource } from './wind-source';
@@ -315,8 +319,23 @@ export interface Calls {
 	signOut: { given: undefined; answer: undefined };
 	/** Given the password: deletes the account on the server. */
 	deleteAccount: { given: string; answer: undefined };
-	/** Brings the logbook and the server in step. */
+	/** Brings the logbook and the server in step, and then the pilot's own sites. */
 	sync: { given: undefined; answer: SyncOutcome };
+	/**
+	 * Brings the pilot's own sites and their account in step. What the run
+	 * did, or nothing: not signed in, out of reach, or stopped.
+	 */
+	syncKeptSites: { given: undefined; answer: SyncSummary | undefined };
+	/** "Programs with access": the words of the screen and of its form. */
+	tokenForm: { given: undefined; answer: TokenForm };
+	/** Given a program's name: the name as it will be kept. Fails in the core's words. */
+	tokenNameCheck: { given: string; answer: string };
+	/** The programs that have access to the pilot's account, the newest first. */
+	programs: { given: undefined; answer: ProgramView[] };
+	/** Gives a program access. The answer holds the token's secret, this once. */
+	giveAccess: { given: AccessWanted; answer: TokenCreated };
+	/** Given a token's identifier: withdraws that program's access. */
+	withdrawAccess: { given: string; answer: undefined };
 	/** Given a flight's identifier: how it is shared, if the server has it. */
 	flightSharing: { given: string; answer: FlightSharing | undefined };
 	shareFlight: { given: { id: string; visibility: FlightVisibility }; answer: FlightSharing };
@@ -405,6 +424,7 @@ export interface Answering {
 	session: CoreSession;
 	wind: WindSource;
 	account: AccountSource;
+	tokens: TokensSource;
 	airspace: AirspaceSource;
 	sites: SitesSource;
 	siteEdits: SiteEditSource;
@@ -424,6 +444,7 @@ export async function answer<Name extends CallName>(
 		session,
 		wind,
 		account,
+		tokens,
 		airspace,
 		sites,
 		siteEdits,
@@ -510,6 +531,12 @@ export async function answer<Name extends CallName>(
 		signOut: () => account.signOut(),
 		deleteAccount: (password) => account.deleteAccount(password),
 		sync: () => account.sync(),
+		syncKeptSites: () => account.syncKeptSites(),
+		tokenForm: () => tokens.form(),
+		tokenNameCheck: (name) => tokens.checkName(name),
+		programs: () => tokens.list(),
+		giveAccess: (wanted) => tokens.give(wanted),
+		withdrawAccess: (id) => tokens.withdraw(id),
 		flightSharing: (id) => account.sharing(id),
 		shareFlight: ({ id, visibility }) => account.share(id, visibility),
 		reportForm: (subject) => account.reportForm(subject),

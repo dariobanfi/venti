@@ -36,8 +36,10 @@ enum Palette {
     static var goodOnMap: UIColor { UIColor(VentiTheme.light.good) }
 
     /// What is not flyable on the map: the forecast map's squares of
-    /// such a day, and their line in its key.
-    static var dangerOnMap: UIColor { UIColor(VentiTheme.light.danger) }
+    /// such a day, and their line in its key, as a quiet veil in the
+    /// muted ink. Not the danger colour, which is nearly the thermal
+    /// scale's darkest step: the best day and the worst would look alike.
+    static var notFlyableOnMap: UIColor { UIColor(VentiTheme.light.textMuted) }
 
     /// What has gone quiet on the map: an old reading, a glider nothing
     /// was heard of for a while.

@@ -60,7 +60,7 @@ private actor ThermalServer {
 
     func answer(_ url: URL) throws -> (Int, Data) {
         asked.append(url)
-        let next = answers.isEmpty ? .unreachable : answers.removeFirst()
+        let next: Answer = answers.isEmpty ? .unreachable : answers.removeFirst()
         switch next {
         case .body(let status, let text):
             return (status, Data(text.utf8))
@@ -199,13 +199,13 @@ final class ThermalMapTests: XCTestCase {
         // estimate of its thermals is not drawn.
         XCTAssertEqual(today.cells.count, 3)
         XCTAssertEqual(today.cells.map(\.status), ["Flyable", "Not flyable", "Marginal"])
-        XCTAssertEqual(ThermalSquares.fill(of: today.cells[0]), 4)
+        XCTAssertEqual(ThermalSquares.fill(of: today.cells[0]), 5)
         XCTAssertEqual(ThermalSquares.fill(of: today.cells[1]), 0)
         XCTAssertNil(ThermalSquares.fill(of: today.cells[2]))
 
         let squares = ThermalSquares.squares(of: today)
         XCTAssertEqual(squares.map(\.index), [0, 1])
-        XCTAssertEqual(squares.map(\.fill), [4, 0])
+        XCTAssertEqual(squares.map(\.fill), [5, 0])
         // A closed ring around the square, from its south-west corner.
         let ring = squares[0].ring
         XCTAssertEqual(ring.count, 5)
@@ -221,8 +221,8 @@ final class ThermalMapTests: XCTestCase {
         XCTAssertEqual(drawn.attribute(forKey: "fill") as? Int, 0)
 
         // Tomorrow every square has a kind of day: weak thermals in the
-        // scale's first step, a big day in its sixth.
-        XCTAssertEqual(ThermalSquares.squares(of: map.days[1]).map(\.fill), [6, 2, 1, 6])
+        // scale's second step, a big day in its sixth.
+        XCTAssertEqual(ThermalSquares.squares(of: map.days[1]).map(\.fill), [6, 3, 2, 6])
         // Its words are the core's.
         let big = map.days[1].cells[0]
         XCTAssertEqual(big.thermalWords, "Big day")

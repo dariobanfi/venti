@@ -4,8 +4,8 @@ import VentiCore
 
 /// How the forecast map is drawn: every square of the chosen day that has
 /// a kind of day, filled in the step of the design language's thermal
-/// scale the core names, and a day that is not flyable in the danger
-/// colour. One source and one fill layer: choosing another day swaps the
+/// scale the core names, and a day that is not flyable as a quiet veil in
+/// the muted ink. One source and one fill layer: choosing another day swaps the
 /// source's shape.
 ///
 /// The fills are see-through, half at the zoom of a region and less as
@@ -43,7 +43,7 @@ enum ThermalMapLayers {
         }
         fill.fillColor = NSExpression(
             forMLNStepping: NSExpression(forKeyPath: "fill"),
-            from: NSExpression(forConstantValue: Palette.dangerOnMap),
+            from: NSExpression(forConstantValue: Palette.notFlyableOnMap),
             stops: NSExpression(forConstantValue: steps)
         )
         fill.fillOpacity = NSExpression(

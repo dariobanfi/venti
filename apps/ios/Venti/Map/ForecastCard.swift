@@ -103,10 +103,7 @@ struct ForecastCard: View {
                         .padding(.top, 3)
                     Text(entry.words)
                         .font(.ventiType(.label))
-                        // A day that is not flyable is a status: its word
-                        // in the status colour. A kind of day is not, and
-                        // its word stays in the ink.
-                        .foregroundStyle(.venti(entry.scaleStep == nil ? .danger : .text))
+                        .foregroundStyle(.venti(.text))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .accessibilityElement(children: .combine)
@@ -137,7 +134,7 @@ struct ForecastCard: View {
 }
 
 /// A square of the key in the colour the map fills with: the step of the
-/// thermal scale, or the danger colour for a day that is not flyable. The
+/// thermal scale, or the veil of a day that is not flyable. The
 /// map's colours, which are the light theme's in both appearances, with
 /// an edge so that the palest step stands out on any surface.
 private struct Swatch: View {
@@ -147,7 +144,7 @@ private struct Swatch: View {
         // The pack's scale legend (`.v-scale`) has its swatches 12 high,
         // square-cornered.
         Rectangle()
-            .fill(step.map { ThermalBand(scaleStep: $0).colorOnMap } ?? VentiTheme.light.danger)
+            .fill(step.map { ThermalBand(scaleStep: $0).colorOnMap } ?? Color(uiColor: Palette.notFlyableOnMap))
             .overlay {
                 Rectangle()
                     .strokeBorder(.venti(.borderStrong), lineWidth: 1)

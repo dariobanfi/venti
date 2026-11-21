@@ -158,7 +158,7 @@ enum ThermalSquares {
         /// Its place among the day's cells, to find it again when tapped.
         let index: Int
         /// The step of the pack's thermal scale, 1 to 6, or 0 for a day
-        /// that is not flyable, which is filled in the danger colour.
+        /// that is not flyable, which is filled as a quiet veil.
         let fill: Int
         /// Its corners from the south-west, round to the first again.
         let ring: [Coordinate]

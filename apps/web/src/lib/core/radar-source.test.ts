@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { crc32, deflateSync } from 'node:zlib';
+import { crc32, deflateSync, inflateSync } from 'node:zlib';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { isInWords, type RadarView } from './index';
 import { RADAR_UNREACHABLE, RadarSource } from './radar-source';
@@ -71,17 +71,26 @@ function chunks(png: Uint8Array): Record<string, number[]> {
 
 /**
  * A picture as the server sends one, two pixels by two: no rain, the third
- * step, not seen, the sixth step. Its palette is the server's plain one.
+ * step, not seen, the sixth step, unless other pixels are given. Its
+ * palette is the server's plain one.
  */
-function picture(): Uint8Array {
+function picture(pixels: [number, number, number, number] = [0, 3, 7, 6]): Uint8Array {
+	const [one, two, three, four] = pixels;
 	return Buffer.concat([
 		Buffer.from('\x89PNG\r\n\x1a\n', 'latin1'),
 		chunk('IHDR', Uint8Array.from([0, 0, 0, 2, 0, 0, 0, 2, 8, 3, 0, 0, 0])),
 		chunk('PLTE', new Uint8Array(24).fill(128)),
 		chunk('tRNS', Uint8Array.from([0, 255, 255, 255, 255, 255, 255, 48])),
-		chunk('IDAT', deflateSync(Uint8Array.from([0, 0, 3, 0, 7, 6]))),
+		chunk('IDAT', deflateSync(Uint8Array.from([0, one, two, 0, three, four]))),
 		chunk('IEND', new Uint8Array())
 	]);
+}
+
+/** The pixels of a picture two by two, row by row, as long as its rows are written plainly. */
+function pixels(png: Uint8Array): number[] {
+	const [first, one, two, second, three, four] = inflateSync(Uint8Array.from(chunks(png).IDAT));
+	expect([first, second]).toEqual([0, 0]);
+	return [one, two, three, four];
 }
 
 function server(answers: Record<string, () => Answer>) {
@@ -98,6 +107,9 @@ function server(answers: Record<string, () => Answer>) {
 const LIST = '/v1/radar';
 /** A frame's path, for the tests of a picture, which answer it themselves. */
 const FRAME = '/v1/radar/dwd-radar-ry/20261121T1140Z.png';
+/** The paths of a frame that lies under it at a moment, and of one that lies between the two. */
+const UNDER = '/v1/radar/geosphere-inca-rr/20261121T1130Z.png';
+const BETWEEN = '/v1/radar/made-up/20261121T1135Z.png';
 const COLOURS = {
 	rain: [0xaab4b8ff, 0x9ad8d2ff, 0x4db8acff, 0x1f8a80ff, 0x7a4fc9ff, 0x4b259eff],
 	unseen: 0x6c5f8cff
@@ -238,7 +250,7 @@ describe('the rain radar from the server', () => {
 			get
 		);
 
-		const png = await source.picture(FRAME, COLOURS);
+		const png = await source.picture(FRAME, [], COLOURS);
 
 		expect(asked).toEqual([FRAME]);
 		const [before, after] = [chunks(picture()), chunks(png)];
@@ -259,13 +271,104 @@ describe('the rain radar from the server', () => {
 			get
 		);
 
-		const png = await source.picture(FRAME, { ...COLOURS, unseen: 0 });
+		const png = await source.picture(FRAME, [], { ...COLOURS, unseen: 0 });
 
 		const after = chunks(png);
 		// The rain as solid as in any picture, and nothing where the source saw nothing.
 		expect(after.tRNS).toEqual([0, 255, 255, 255, 255, 255, 255, 0]);
 		expect(after.PLTE.slice(3, 6)).toEqual([0xaa, 0xb4, 0xb8]);
 		expect(after.IDAT).toEqual(chunks(picture()).IDAT);
+	});
+
+	it('makes a picture clear wherever a picture over it sees, rain or dry, and leaves it where none does', async () => {
+		// Under: rain, rain, not seen, rain. Over it: dry, not seen, rain, not seen.
+		const { asked, get } = server({
+			[UNDER]: () => ({ status: 200, body: picture([2, 3, 7, 6]) }),
+			[FRAME]: () => ({ status: 200, body: picture([0, 7, 4, 7]) })
+		});
+		const source = new RadarSource(
+			async () => true,
+			async () => AT,
+			get
+		);
+
+		const png = await source.picture(UNDER, [FRAME], COLOURS);
+
+		// Both are asked for as the server sends them.
+		expect(asked.toSorted()).toEqual([FRAME, UNDER].toSorted());
+		// Clear where the upper saw dry and where it saw rain, the veil of "not seen" too.
+		expect(pixels(png)).toEqual([0, 3, 0, 6]);
+		// The colours are those of any picture.
+		const after = chunks(png);
+		expect(after.PLTE.slice(0, 6)).toEqual([0, 0, 0, 0xaa, 0xb4, 0xb8]);
+		expect(after.tRNS).toEqual([0, 255, 255, 255, 255, 255, 255, 255]);
+
+		// The upper one itself, the topmost, is as the server sent it, and is not asked for again.
+		const top = await source.picture(FRAME, [], COLOURS);
+		expect(chunks(top).IDAT).toEqual(chunks(picture([0, 7, 4, 7])).IDAT);
+		expect(asked).toHaveLength(2);
+	});
+
+	it('makes a picture clear under every picture over it', async () => {
+		const { get } = server({
+			[UNDER]: () => ({ status: 200, body: picture([2, 3, 4, 6]) }),
+			[BETWEEN]: () => ({ status: 200, body: picture([1, 7, 7, 7]) }),
+			[FRAME]: () => ({ status: 200, body: picture([7, 7, 0, 7]) })
+		});
+		const source = new RadarSource(
+			async () => true,
+			async () => AT,
+			get
+		);
+
+		expect(pixels(await source.picture(UNDER, [BETWEEN, FRAME], COLOURS))).toEqual([0, 3, 0, 6]);
+		// The one between is clear where the topmost saw dry: its own "not seen" there too.
+		expect(pixels(await source.picture(BETWEEN, [FRAME], COLOURS))).toEqual([1, 7, 0, 7]);
+	});
+
+	it('asks again for a picture the server refused, and has no picture under a refusal', async () => {
+		const refusal = new TextEncoder().encode('{"error":{"code":"not_found","message":"x"}}');
+		let there = false;
+		const { asked, get } = server({
+			[UNDER]: () => ({ status: 200, body: picture() }),
+			[FRAME]: () => (there ? { status: 200, body: picture() } : { status: 404, body: refusal })
+		});
+		const source = new RadarSource(
+			async () => true,
+			async () => AT,
+			get
+		);
+
+		const failure = await source.picture(UNDER, [FRAME], COLOURS).catch((error: unknown) => error);
+		expect(isInWords(failure)).toBe(true);
+		expect((failure as Error).message).toBe('The radar picture could not be read.');
+
+		there = true;
+		expect(pixels(await source.picture(UNDER, [FRAME], COLOURS))).toEqual([0, 0, 7, 0]);
+		// The refused one was asked for again, the one that came was not.
+		expect(asked).toEqual([UNDER, FRAME, FRAME]);
+	});
+
+	it('lets go of the pictures of frames the server no longer lists', async () => {
+		const listed = recordedFrames(RADARS).at(-1)!.path;
+		const { asked, get } = server({
+			[LIST]: () => ({ status: 200, body: recorded() }),
+			[listed]: () => ({ status: 200, body: picture() }),
+			[FRAME]: () => ({ status: 200, body: picture() })
+		});
+		const source = new RadarSource(
+			async () => true,
+			async () => AT,
+			get
+		);
+		await source.picture(listed, [], COLOURS);
+		await source.picture(FRAME, [], COLOURS);
+
+		await source.radar();
+		await source.picture(listed, [], COLOURS);
+		await source.picture(FRAME, [], COLOURS);
+
+		expect(asked).toEqual([listed, FRAME, LIST, FRAME]);
 	});
 
 	it('says in the core’s words that a refusal is no picture', async () => {
@@ -277,7 +380,7 @@ describe('the rain radar from the server', () => {
 			get
 		);
 
-		const failure = await source.picture(FRAME, COLOURS).catch((error: unknown) => error);
+		const failure = await source.picture(FRAME, [], COLOURS).catch((error: unknown) => error);
 
 		expect(isInWords(failure)).toBe(true);
 		expect((failure as Error).message).toBe('The radar picture could not be read.');

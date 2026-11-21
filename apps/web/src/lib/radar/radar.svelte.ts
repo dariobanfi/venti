@@ -24,6 +24,7 @@ import {
 	isDue,
 	momentOf,
 	pictureAddress,
+	type Pictured,
 	pictureKey,
 	PLAY_MS,
 	WORDS
@@ -124,7 +125,8 @@ export class RadarModel {
 	#askedMs: number | undefined;
 	/**
 	 * The pictures fetched in this visit as addresses the map loads: each
-	 * layer's frames by their paths, and by whether the veil is drawn in them.
+	 * layer's frames by their paths, by whether the veil is drawn in them,
+	 * and by the frames that lie over them (`pictureKey`).
 	 */
 	#pictures = new Map<string, Promise<string>>();
 	/** Counts the moments asked for and the plays, so that a slow answer is dropped. */
@@ -273,25 +275,19 @@ export class RadarModel {
 
 	#take(read: RadarView): void {
 		this.view = read;
-		// A frame the server no longer holds cannot be drawn again: its pictures are let go.
-		const held = new Set(
-			read.layers.flatMap((layer) =>
-				layer.frames.flatMap((frame) =>
-					[true, false].map((drawsUnseen) => pictureKey({ path: frame.path, drawsUnseen }))
-				)
-			)
-		);
+		// A picture no moment of the list draws is not drawn again: it is let go.
+		const held = new Set(read.moments.flatMap((moment) => drawn(read, moment).map(pictureKey)));
 		for (const key of this.#pictures.keys()) {
 			if (!held.has(key)) this.#pictures.delete(key);
 		}
 	}
 
-	#picture(wanted: Pick<Drawn, 'path' | 'drawsUnseen'>, view: RadarView): Promise<string> {
+	#picture(wanted: Pictured, view: RadarView): Promise<string> {
 		const key = pictureKey(wanted);
 		let picture = this.#pictures.get(key);
 		if (!picture) {
 			picture = this.#core
-				.radarPicture(wanted.path, colours(view.key, wanted.drawsUnseen))
+				.radarPicture(wanted.path, wanted.above, colours(view.key, wanted.drawsUnseen))
 				.then(pictureAddress);
 			this.#pictures.set(key, picture);
 			// A failure is not kept: "Try again" asks again.

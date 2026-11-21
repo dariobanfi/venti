@@ -193,7 +193,8 @@ test('the radar layer shows both layers at the newest moment with its time, the 
 
 	// A step to the moment before, with the keyboard: the radars' picture of
 	// it is fetched and the card says its time. The analysis under it is the
-	// one already there, and is not asked for again.
+	// one already fetched, and the server is not asked for it again: the
+	// worker has it as it was sent, and colours it anew under these radars.
 	await strip(page).focus();
 	await page.keyboard.press('ArrowLeft');
 	await expect(strip(page)).toHaveAttribute('aria-valuetext', lineOf(list, before.time));

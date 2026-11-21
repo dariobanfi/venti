@@ -261,8 +261,14 @@ export interface Calls {
 	radar: { given: undefined; answer: RadarView | undefined };
 	/** The list last fetched, read again at this moment; nothing before one was fetched. */
 	radarAgain: { given: undefined; answer: RadarView | undefined };
-	/** A frame's picture, by the frame's path, in the app's colours: a PNG. */
-	radarPicture: { given: { path: string; colours: RadarColours }; answer: Uint8Array };
+	/**
+	 * A frame's picture, by the frame's path, in the app's colours: a PNG,
+	 * clear wherever one of the frames `above` it, by their paths, sees the place.
+	 */
+	radarPicture: {
+		given: { path: string; above: string[]; colours: RadarColours };
+		answer: Uint8Array;
+	};
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -444,7 +450,7 @@ export async function answer<Name extends CallName>(
 		thermalStrip: (place) => thermals.strip(place.lat, place.lon),
 		radar: () => radar.radar(),
 		radarAgain: () => radar.again(),
-		radarPicture: ({ path, colours }) => radar.picture(path, colours),
+		radarPicture: ({ path, above, colours }) => radar.picture(path, above, colours),
 		compareFlights: ({ first, other }) =>
 			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
 		hasServer: () => wind.present(),

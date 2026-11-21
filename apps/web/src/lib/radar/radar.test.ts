@@ -189,6 +189,7 @@ describe('what a moment draws', () => {
 				layer: 0,
 				path: '/v1/radar/made-up-analysis/1.png',
 				drawsUnseen: true,
+				above: ['/v1/radar/made-up/0.png'],
 				corners: corners(stale.layers[0]),
 				faded: false
 			},
@@ -196,11 +197,43 @@ describe('what a moment draws', () => {
 				layer: 1,
 				path: '/v1/radar/made-up/0.png',
 				drawsUnseen: false,
+				above: [],
 				corners: corners(stale.layers[1]),
 				faded: true
 			}
 		]);
 		expect(drawn(both, undefined)).toEqual([]);
+	});
+
+	it('names for each picture the frames that lie over it, the lowest first, and none for the topmost', () => {
+		const both = two();
+		expect(drawn(both, both.moments[2]).map((picture) => picture.above)).toEqual([
+			['/v1/radar/made-up/2.png'],
+			[]
+		]);
+		// Three at a moment: each under all that come after it.
+		const three: RadarMoment = {
+			...both.moments[2],
+			frames: [
+				{ layer: 0, frame: 0, drawsUnseen: true },
+				{ layer: 0, frame: 1, drawsUnseen: false },
+				{ layer: 1, frame: 2, drawsUnseen: false }
+			]
+		};
+		expect(drawn(both, three).map((picture) => picture.above)).toEqual([
+			['/v1/radar/made-up-analysis/1.png', '/v1/radar/made-up/2.png'],
+			['/v1/radar/made-up/2.png'],
+			[]
+		]);
+		// A frame the list does not have lies over nothing.
+		const gone: RadarMoment = {
+			...both.moments[2],
+			frames: [
+				{ layer: 0, frame: 1, drawsUnseen: true },
+				{ layer: 1, frame: 9, drawsUnseen: false }
+			]
+		};
+		expect(drawn(both, gone).map((picture) => picture.above)).toEqual([[]]);
 	});
 
 	it('is nothing of a layer that has no frame at the moment, and the app lays none of its own under it', () => {
@@ -217,11 +250,25 @@ describe('what a moment draws', () => {
 	});
 
 	it('keeps a frame’s picture with the veil apart from the same frame’s without', () => {
-		const veiled = { path: '/v1/radar/made-up/0.png', drawsUnseen: true };
+		const veiled = { path: '/v1/radar/made-up/0.png', drawsUnseen: true, above: [] as string[] };
 		const clear = { ...veiled, drawsUnseen: false };
 		expect(pictureKey(veiled)).not.toBe(pictureKey(clear));
 		expect(drawnKey([veiled, clear])).not.toBe(drawnKey([clear, veiled]));
 		expect(drawnKey([veiled])).toBe(drawnKey([{ ...veiled }]));
+	});
+
+	it('keeps a frame’s picture under one frame apart from the same frame’s under another, and from its own alone', () => {
+		const alone = { path: '/v1/radar/made-up-analysis/1.png', drawsUnseen: true, above: [] };
+		const underOne = { ...alone, above: ['/v1/radar/made-up/1.png'] };
+		const underOther = { ...alone, above: ['/v1/radar/made-up/2.png'] };
+		expect(pictureKey(underOne)).toBe(
+			'/v1/radar/made-up-analysis/1.png veiled under /v1/radar/made-up/1.png'
+		);
+		expect(new Set([alone, underOne, underOther].map(pictureKey)).size).toBe(3);
+		expect(pictureKey(underOne)).toBe(pictureKey({ ...underOne, above: [...underOne.above] }));
+		// The same analysis under two moments' radars: the moments do not draw the same.
+		const both = two();
+		expect(drawnKey(drawn(both, both.moments[1]))).not.toBe(drawnKey(drawn(both, both.moments[2])));
 	});
 });
 
@@ -334,8 +381,9 @@ describe('asking for the list', () => {
 
 /**
  * A core that has a list and a picture for every frame, and counts what it
- * is asked. A picture is its path and, where the veil is drawn in it, the
- * word for that: what `address` makes of the two.
+ * is asked. A picture is its path, where the veil is drawn in it the word
+ * for that, and the paths of the frames it was asked to be coloured
+ * under: what `address` makes of them.
  */
 function core(list: () => RadarView | undefined) {
 	const asked = { lists: 0, again: 0, pictures: [] as string[] };
@@ -351,8 +399,13 @@ function core(list: () => RadarView | undefined) {
 			asked.again += 1;
 			return list();
 		},
-		radarPicture: async (path: string, given: { rain: number[]; unseen: number }) => {
-			const picture = given.unseen === CLEAR ? path : `${path} veiled`;
+		radarPicture: async (
+			path: string,
+			above: string[],
+			given: { rain: number[]; unseen: number }
+		) => {
+			const veil = given.unseen === CLEAR ? '' : ' veiled';
+			const picture = `${path}${veil}${above.map((over) => ` under ${over}`).join('')}`;
 			asked.pictures.push(picture);
 			if (path === fail) throw new Error('lost on the way');
 			return new TextEncoder().encode(picture);
@@ -382,7 +435,7 @@ describe('the radar as the map tab sees it', () => {
 		expect(server.asked.pictures).toEqual([`${RADARS}/2.png veiled`]);
 	});
 
-	it('draws both layers of a moment, the analysis under the radars, whose "not seen" is clear', async () => {
+	it('draws both layers of a moment, the analysis coloured under the radars’ picture, whose "not seen" is clear', async () => {
 		const list = two();
 		const server = core(() => list);
 		const model = new RadarModel(server);
@@ -396,15 +449,16 @@ describe('the radar as the map tab sees it', () => {
 		expect(model.onMap).toEqual([
 			{
 				layer: 0,
-				url: address(`${ANALYSIS}/1.png veiled`),
+				url: address(`${ANALYSIS}/1.png veiled under ${RADARS}/2.png`),
 				corners: corners(list.layers[0]),
 				faded: false
 			},
 			{ layer: 1, url: address(`${RADARS}/2.png`), corners: corners(list.layers[1]), faded: false }
 		]);
 		// The veil is drawn once, by the lowest: the radars' would hide the analysis' rain.
+		// The lower is asked for under the upper's picture as the server sent it, the topmost under none.
 		expect(server.asked.pictures.toSorted()).toEqual([
-			`${ANALYSIS}/1.png veiled`,
+			`${ANALYSIS}/1.png veiled under ${RADARS}/2.png`,
 			`${RADARS}/2.png`
 		]);
 		// Both are credited while both are drawn.
@@ -414,7 +468,7 @@ describe('the radar as the map tab sees it', () => {
 		]);
 	});
 
-	it('keeps each layer’s pictures for the visit: a step to another moment asks for the radars’ alone', async () => {
+	it('keeps a picture by its frame and the frames over it: the same analysis is asked for anew under another moment’s radars, and each once', async () => {
 		const server = core(() => two());
 		const model = new RadarModel(server);
 		await model.load();
@@ -424,17 +478,53 @@ describe('the radar as the map tab sees it', () => {
 		model.choose(1);
 		await model.showMoment();
 		expect(model.shownMoment?.clock).toBe('11:05');
+		// The analysis of 11:00 again, but clear where the radars of 11:05 see, not those of 11:10.
 		expect(model.onMap.map((picture) => picture.url)).toEqual([
-			address(`${ANALYSIS}/1.png veiled`),
+			address(`${ANALYSIS}/1.png veiled under ${RADARS}/1.png`),
 			address(`${RADARS}/1.png`)
 		]);
-		expect(server.asked.pictures).toEqual([`${RADARS}/1.png`]);
+		expect(server.asked.pictures.toSorted()).toEqual([
+			`${ANALYSIS}/1.png veiled under ${RADARS}/1.png`,
+			`${RADARS}/1.png`
+		]);
 
+		// Back at the newest, and at the one before again: both are at hand.
 		model.choose(2);
 		await model.showMoment();
 		expect(model.chosenTimeUnixS).toBeUndefined();
 		expect(model.shownMoment?.clock).toBe('11:10');
-		expect(server.asked.pictures).toEqual([`${RADARS}/1.png`]);
+		expect(model.onMap.map((picture) => picture.url)).toEqual([
+			address(`${ANALYSIS}/1.png veiled under ${RADARS}/2.png`),
+			address(`${RADARS}/2.png`)
+		]);
+		model.choose(1);
+		await model.showMoment();
+		expect(model.shownMoment?.clock).toBe('11:05');
+		expect(server.asked.pictures).toHaveLength(2);
+	});
+
+	it('lets a picture go when the list no longer draws it, and keeps those it still draws', async () => {
+		let count = 3;
+		const server = core(() => {
+			const list = two(count);
+			// The oldest stop falls out of a longer list, as the server's does.
+			return count > 3 ? { ...list, moments: list.moments.slice(1) } : list;
+		});
+		const model = new RadarModel(server);
+		await model.load();
+		model.choose(0);
+		await model.showMoment();
+		model.choose(1);
+		await model.showMoment();
+		server.asked.pictures.length = 0;
+
+		count = 4;
+		await model.load();
+		// 11:05 is still a stop: its pictures are at hand.
+		model.choose(0);
+		await model.showMoment();
+		expect(model.shownMoment?.clock).toBe('11:05');
+		expect(server.asked.pictures).toEqual([]);
 	});
 
 	it('draws a layer that is alone at a moment with the veil, and nothing of the other', async () => {
@@ -595,9 +685,12 @@ describe('the radar as the map tab sees it', () => {
 		expect(model.moment?.clock).toBe('11:15');
 		expect(model.chosenTimeUnixS).toBeUndefined();
 		expect(model.playing).toBe(false);
-		// Every picture was fetched before the first step: the radars' four, and the analysis' one once.
+		// Every picture was fetched before the first step: the radars' four, and the analysis' one under each.
 		expect(server.asked.pictures.toSorted()).toEqual([
-			`${ANALYSIS}/1.png veiled`,
+			`${ANALYSIS}/1.png veiled under ${RADARS}/0.png`,
+			`${ANALYSIS}/1.png veiled under ${RADARS}/1.png`,
+			`${ANALYSIS}/1.png veiled under ${RADARS}/2.png`,
+			`${ANALYSIS}/1.png veiled under ${RADARS}/3.png`,
 			`${RADARS}/0.png`,
 			`${RADARS}/1.png`,
 			`${RADARS}/2.png`,

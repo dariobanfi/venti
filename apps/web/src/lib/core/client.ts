@@ -330,9 +330,13 @@ export class CoreClient {
 		return this.#call('radarAgain', undefined);
 	}
 
-	/** A frame's picture in the colours given, as the bytes of a PNG. */
-	radarPicture(path: string, colours: RadarColours) {
-		return this.#call('radarPicture', { path, colours });
+	/**
+	 * A frame's picture in the colours given, as the bytes of a PNG, clear
+	 * wherever one of the frames drawn over it, `above` by their paths, sees
+	 * the place.
+	 */
+	radarPicture(path: string, above: string[], colours: RadarColours) {
+		return this.#call('radarPicture', { path, above, colours });
 	}
 
 	/** What the forecast says about flying from one of the take-offs last listed. */

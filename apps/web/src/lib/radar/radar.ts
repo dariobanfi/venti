@@ -69,6 +69,11 @@ export interface Drawn {
 	layer: number;
 	/** The path of the frame the picture is of. */
 	path: string;
+	/**
+	 * The paths of the frames drawn over it at the moment, the lowest
+	 * first: the picture is clear wherever one of them sees the place.
+	 */
+	above: string[];
 	/** Whether what the source did not see is drawn as the veil; clear in a picture that lies over another. */
 	drawsUnseen: boolean;
 	/** The corners the layer's pictures are pinned by. */
@@ -80,11 +85,12 @@ export interface Drawn {
 /**
  * What a moment draws, the lowest first, as the core says: for each of its
  * frames the layer's picture at that frame's path, with the veil of "not
- * seen" only where the moment says so. A layer without a frame at the
- * moment is not among them.
+ * seen" only where the moment says so, and the frames that lie over it,
+ * under which the core makes it clear (`radarFrameImageUnder`). A layer
+ * without a frame at the moment is not among them.
  */
 export function drawn(view: RadarView, moment: RadarMoment | undefined): Drawn[] {
-	return (moment?.frames ?? []).flatMap((at) => {
+	const pictures = (moment?.frames ?? []).flatMap((at) => {
 		const layer = view.layers[at.layer];
 		const frame = layer?.frames[at.frame];
 		return layer && frame
@@ -99,18 +105,28 @@ export function drawn(view: RadarView, moment: RadarMoment | undefined): Drawn[]
 				]
 			: [];
 	});
+	return pictures.map((picture, place) => ({
+		...picture,
+		above: pictures.slice(place + 1).map((over) => over.path)
+	}));
 }
+
+/** What says which picture one is: its frame, the veil, and the frames over it. */
+export type Pictured = Pick<Drawn, 'path' | 'drawsUnseen' | 'above'>;
 
 /**
  * What a picture is kept by for the visit: its frame's path, which names
- * its layer, and whether the veil is drawn in it.
+ * its layer, whether the veil is drawn in it, and the paths of the frames
+ * that lie over it. The same frame of the analysis lies under another
+ * frame of the radars at every moment, and is another picture under each.
  */
-export function pictureKey(picture: Pick<Drawn, 'path' | 'drawsUnseen'>): string {
-	return `${picture.path}${picture.drawsUnseen ? ' veiled' : ''}`;
+export function pictureKey(picture: Pictured): string {
+	const under = picture.above.map((path) => ` under ${path}`).join('');
+	return `${picture.path}${picture.drawsUnseen ? ' veiled' : ''}${under}`;
 }
 
 /** The pictures of a moment in one word: two moments that draw the same have the same. */
-export function drawnKey(pictures: readonly Pick<Drawn, 'path' | 'drawsUnseen'>[]): string {
+export function drawnKey(pictures: readonly Pictured[]): string {
 	return pictures.map(pictureKey).join('\n');
 }
 

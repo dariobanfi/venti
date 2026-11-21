@@ -31,16 +31,25 @@ final class VentiUITests: XCTestCase {
         app.descendants(matching: .any)[name].firstMatch
     }
 
+    /// Whether an element lies wholly on the screen. `isHittable` cannot
+    /// be asked of an element that was scrolled out of a row: XCTest
+    /// fails the test with "Failed to determine hittability".
+    private func isOnScreen(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        guard element.exists else { return false }
+        let frame = element.frame
+        return !frame.isEmpty && app.windows.firstMatch.frame.contains(frame)
+    }
+
     /// Switches one of the map tab's layer chips on or off. The row
     /// scrolls: a chip off the screen is brought into it first, by
     /// swiping the row on a chip that is on screen.
     private func setLayer(_ identifier: String, on: Bool, in app: XCUIApplication) {
         let chip = element(identifier, in: app)
         guard chip.waitForExistence(timeout: 10) else { return }
-        for direction in [true, true, false, false, false, false] where !chip.isHittable {
+        for direction in [true, true, false, false, false, false] where !isOnScreen(chip, in: app) {
             let handle = ["layer-airspace", "layer-wind", "layer-sites", "forecast-chip"]
                 .map { element($0, in: app) }
-                .first { $0.exists && $0.isHittable }
+                .first { isOnScreen($0, in: app) }
             if direction {
                 handle?.swipeLeft()
             } else {
@@ -48,7 +57,7 @@ final class VentiUITests: XCTestCase {
             }
             usleep(600_000)
         }
-        if chip.isHittable, chip.isSelected != on {
+        if isOnScreen(chip, in: app), chip.isSelected != on {
             chip.tap()
             usleep(700_000)
         }

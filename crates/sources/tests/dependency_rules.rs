@@ -145,9 +145,16 @@ fn crate_dependencies_point_inward() {
             // into what is asked and builds the answer, for any tools.
             "venti-mcp" => Some(&[]),
             // The tools read the server's answers, in the server's own
-            // wire format, and say what an airspace means for a paraglider
-            // from the table the cockpit warns by.
-            "venti-tools" => Some(&["venti-domain", "venti-api-types", "venti-airspace"]),
+            // wire format, say what an airspace means for a paraglider
+            // from the table the cockpit warns by, and work out a
+            // forecast's thermals by the flight engine's code, which is
+            // what the apps show.
+            "venti-tools" => Some(&[
+                "venti-domain",
+                "venti-api-types",
+                "venti-airspace",
+                "venti-flight",
+            ]),
             "venti-core" => Some(&[
                 "venti-domain",
                 "venti-flight",

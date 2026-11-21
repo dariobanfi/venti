@@ -1,6 +1,7 @@
 /target
 /var
 .DS_Store
+__pycache__/
 
 # Working copies of parallel AI sessions.
 .claude/worktrees/

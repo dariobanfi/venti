@@ -236,6 +236,10 @@ object ThermalMapWords {
     /** "Judged at the model's ground, 1240 m" */
     fun judgedAt(groundM: Double): String = "Judged at the model's ground, ${Format.metres(groundM)} m"
 
-    /** "ICON-D2, run of Sat, 21 Nov at 06:00" */
-    fun run(map: ThermalMap): String = "${map.model}, run of ${Format.dayAndTime(map.runUnixS)}"
+    /**
+     * "ICON-D2, run of Sat, 21 Nov at 06:00": the model a day is read from
+     * and that model's run. Each day is one model's; the days after
+     * ICON-D2's are ICON-EU's.
+     */
+    fun run(day: ThermalMapDay): String = "${day.model}, run of ${Format.dayAndTime(day.runUnixS)}"
 }

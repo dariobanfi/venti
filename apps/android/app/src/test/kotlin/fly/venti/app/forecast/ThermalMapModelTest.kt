@@ -96,7 +96,7 @@ class ThermalMapModelTest {
             state.map.legend.map { it.words },
         )
         assertNull(state.map.legend.last().scaleStep)
-        assertTrue(ThermalMapWords.run(state.map).startsWith("ICON-D2, run of "))
+        assertTrue(ThermalMapWords.run(state.day).startsWith("ICON-D2, run of "))
     }
 
     @Test

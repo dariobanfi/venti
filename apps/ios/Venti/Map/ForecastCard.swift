@@ -31,7 +31,8 @@ struct ForecastCard: View {
                         .accessibilityIdentifier("forecast-none-here")
                 }
                 VStack(alignment: .leading, spacing: VentiSpace.s1) {
-                    Text("\(map.model), run of \(Format.dayAndTime(unixSeconds: map.runUnixS))")
+                    // Each day is one model's: the days after ICON-D2's are ICON-EU's.
+                    Text("\(day.model), run of \(Format.dayAndTime(unixSeconds: day.runUnixS))")
                     if !day.note.isEmpty {
                         Text(day.note)
                     }

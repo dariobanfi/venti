@@ -124,12 +124,12 @@ fun ThermalMapCard(
                         Key(state.map.legend)
                     }
                     Text(
-                        ThermalMapWords.run(state.map),
+                        ThermalMapWords.run(state.day),
                         style = MaterialTheme.typography.bodySmall,
                         color = colours.textSecondary,
                         modifier = Modifier.testTag("forecast-map-run"),
                     )
-                    if (!state.day.whole && state.day.note.isNotEmpty()) {
+                    if (state.day.note.isNotEmpty()) {
                         Text(
                             state.day.note,
                             style = MaterialTheme.typography.bodySmall,
@@ -309,7 +309,7 @@ fun ThermalSquareSheet(
                             )
                         }
                     }
-                    if (!day.whole && day.note.isNotEmpty()) {
+                    if (day.note.isNotEmpty()) {
                         Text(day.note, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
                     }
                     Text(
@@ -318,7 +318,7 @@ fun ThermalSquareSheet(
                         color = colours.textSecondary,
                         modifier = Modifier.testTag("square-note"),
                     )
-                    Text(ThermalMapWords.run(map), style = MaterialTheme.typography.bodySmall, color = colours.textSecondary)
+                    Text(ThermalMapWords.run(day), style = MaterialTheme.typography.bodySmall, color = colours.textSecondary)
                     for (credit in map.credits) {
                         Text(
                             "${credit.text}. ${credit.licence}.",

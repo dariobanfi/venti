@@ -16,8 +16,10 @@
 //! offers the wind and airspace tools and skips the first step: it builds
 //! the answer from its own database. It does not offer the forecast, which
 //! the server has to fetch when it is asked for, and nothing a connector's
-//! tool call does may make the server fetch; it does not offer the sites
-//! yet.
+//! tool call does may make the server fetch. For sites and public flights
+//! the connector offers the tools of [`community`], which take what the API
+//! takes (a box, an identifier, a handle) and are its own; the app keeps
+//! [`sites`] and [`flights`], which ask around a place.
 //!
 //! Rules for tools:
 //!
@@ -31,6 +33,7 @@
 use serde_json::{Value, json};
 
 pub mod airspace;
+pub mod community;
 pub mod flights;
 pub mod forecast;
 pub mod sites;
@@ -275,7 +278,10 @@ mod tests {
         let all = TOOLS
             .iter()
             .chain(&wind::SERVER_TOOLS)
-            .chain(&airspace::AIRSPACE_TOOLS);
+            .chain(&airspace::AIRSPACE_TOOLS)
+            .chain(&sites::SITES_TOOLS)
+            .chain(&flights::FLIGHTS_TOOLS)
+            .chain(&community::COMMUNITY_TOOLS);
         for tool in all {
             let schema = tool.input_schema();
             assert_eq!(schema["type"], "object", "{}", tool.name);

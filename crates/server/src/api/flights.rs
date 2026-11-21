@@ -83,6 +83,23 @@ impl<S: Store> Api<S> {
     }
 }
 
+impl<S: Store> Api<S> {
+    /// A public flight by its address, as `GET /v1/flights/{id}` answers it
+    /// to someone without a token, for the connector's `public_flight`. A
+    /// flight shared by link only is no public flight here: the connector
+    /// offers what is public, and a link is its pilot's to hand out.
+    pub(crate) async fn public_flight(&self, id: &str) -> Result<FlightResponse, ApiError> {
+        let flight = self.visible_flight(id, &Viewer::nobody()).await?;
+        if flight.visibility != Visibility::Public {
+            return Err(no_such_flight());
+        }
+        Ok(FlightResponse {
+            flight: wire::flight(&flight)?,
+            terms: terms_of(&flight),
+        })
+    }
+}
+
 /// Under what a flight is given to whoever reads it: said for a flight
 /// that others than its pilot can read, and left out for a private one.
 fn terms_of(flight: &Flight) -> Option<FlightTerms> {

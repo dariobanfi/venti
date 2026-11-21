@@ -605,8 +605,7 @@ pub(crate) async fn show<S: Store>(
 ) -> Result<Response, ApiError> {
     match target(&rest)? {
         Target::Site(id) if Layer::of(&id).is_some() => {
-            let site = api.standing(&id).await?;
-            Ok(cache::json(&headers, &answer(site)?))
+            Ok(cache::json(&headers, &api.site_answer(&id).await?))
         }
         Target::Flights(id) => {
             let site = api.standing(&id).await?;
@@ -622,13 +621,7 @@ pub(crate) async fn show<S: Store>(
                 let site = api.of_a_source(&of).await?.ok_or_else(no_such_site)?;
                 return api.flights_at(client, &headers, of, &site).await;
             };
-            let answer = SiteResponse {
-                attributions: api.attributions([id.source()]),
-                site,
-                standing: None,
-                lasting: false,
-            };
-            Ok(cache::slow_json(&headers, &answer))
+            Ok(cache::slow_json(&headers, &api.source_answer(&id, site)))
         }
         Target::History(id) => {
             let limit = body::page_size(params.limit.as_deref())?;
@@ -641,30 +634,7 @@ pub(crate) async fn show<S: Store>(
                     )
                 })?,
             };
-            let (site, revisions) = api
-                .store
-                .pilot_site_revisions(&id, after, limit)
-                .await?
-                .ok_or_else(no_such_site)?;
-            // A site that was taken down shows nothing of what it said.
-            if site.taken_down {
-                return Err(gone());
-            }
-            let revisions = revisions
-                .into_iter()
-                .map(revision)
-                .collect::<Result<Vec<_>, ApiError>>()?;
-            let more = revisions
-                .last()
-                .is_some_and(|last| last.number < site.revision);
-            let answer = SiteHistoryResponse {
-                id,
-                revision: site.revision,
-                removed: !site.stands(),
-                revisions,
-                more,
-                attributions: vec![layer_of(&site.site.id)?.attribution()],
-            };
+            let answer = api.site_history(&id, after, limit).await?;
             Ok(cache::json(&headers, &answer))
         }
         Target::Confirmations(id) => {
@@ -707,6 +677,75 @@ pub(crate) async fn show<S: Store>(
             "a pilot's confirmation is sent with PUT and taken back with DELETE; what pilots \
              confirm of a site is read at its confirmations",
         )),
+    }
+}
+
+impl<S: Store> Api<S> {
+    /// A site of any layer by its identifier, as `GET /v1/sites/{id}`
+    /// answers it, and the connector's `site` too.
+    pub(crate) async fn site_answer(&self, id: &SiteId) -> Result<SiteResponse, ApiError> {
+        if Layer::of(id).is_some() {
+            return answer(self.standing(id).await?);
+        }
+        let site = self.of_a_source(id).await?.ok_or_else(no_such_site)?;
+        Ok(self.source_answer(id, site))
+    }
+
+    /// A source's site as its address answers it.
+    fn source_answer(&self, id: &SiteId, site: Site) -> SiteResponse {
+        SiteResponse {
+            attributions: self.attributions([id.source()]),
+            site,
+            standing: None,
+            lasting: false,
+        }
+    }
+
+    /// A site of one of Venti's own layers as it stands, for what public
+    /// flights say about it; a source's site as the set holds it now.
+    pub(crate) async fn site_of_any_layer(&self, id: &SiteId) -> Result<Site, ApiError> {
+        if Layer::of(id).is_some() {
+            return Ok(self.standing(id).await?.site);
+        }
+        self.of_a_source(id).await?.ok_or_else(no_such_site)
+    }
+
+    /// The revisions of a site of Venti's own after a number, as
+    /// `GET /v1/sites/{id}/history` answers them, and the connector's
+    /// `site_history` too.
+    pub(crate) async fn site_history(
+        &self,
+        id: &SiteId,
+        after: u32,
+        limit: usize,
+    ) -> Result<SiteHistoryResponse, ApiError> {
+        if !is_made_here(id) {
+            return Err(no_such_site());
+        }
+        let (site, revisions) = self
+            .store
+            .pilot_site_revisions(id, after, limit)
+            .await?
+            .ok_or_else(no_such_site)?;
+        // A site that was taken down shows nothing of what it said.
+        if site.taken_down {
+            return Err(gone());
+        }
+        let revisions = revisions
+            .into_iter()
+            .map(revision)
+            .collect::<Result<Vec<_>, ApiError>>()?;
+        let more = revisions
+            .last()
+            .is_some_and(|last| last.number < site.revision);
+        Ok(SiteHistoryResponse {
+            id: id.clone(),
+            revision: site.revision,
+            removed: !site.stands(),
+            revisions,
+            more,
+            attributions: vec![layer_of(&site.site.id)?.attribution()],
+        })
     }
 }
 

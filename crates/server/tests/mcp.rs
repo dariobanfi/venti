@@ -21,7 +21,7 @@ use venti_server::flights::share::PublicUrl;
 use venti_sources::testing::assert_golden;
 use venti_store::testing::TroubledStore;
 use venti_store::{MemoryStore, Store};
-use venti_tools::{ToolError, airspace, wind};
+use venti_tools::{ToolError, airspace, community, wind};
 
 mod common;
 
@@ -199,6 +199,7 @@ async fn the_tools_are_the_apps_own_definitions() {
     let defined: Vec<&venti_tools::Tool> = wind::SERVER_TOOLS
         .iter()
         .chain(&airspace::AIRSPACE_TOOLS)
+        .chain(&community::COMMUNITY_TOOLS)
         .collect();
 
     for revision in OLDER.into_iter().chain([NEWEST]) {
@@ -212,7 +213,21 @@ async fn the_tools_are_the_apps_own_definitions() {
             .iter()
             .map(|tool| tool["name"].as_str().unwrap())
             .collect();
-        assert_eq!(names, ["wind_stations", "station_history", "airspace_at"]);
+        assert_eq!(
+            names,
+            [
+                "wind_stations",
+                "station_history",
+                "airspace_at",
+                "sites_in_box",
+                "site",
+                "site_history",
+                "site_flights",
+                "takeoff_candidates",
+                "public_flights",
+                "public_flight"
+            ]
+        );
         for (tool, definition) in listed.iter().zip(&defined) {
             assert_eq!(tool["description"], definition.description, "{revision}");
             assert_eq!(tool["inputSchema"], definition.input_schema());
@@ -882,6 +897,270 @@ async fn a_call_that_takes_too_long_is_given_up() {
 
 // --- The documentation -------------------------------------------------------
 
+// --- The community's data -----------------------------------------------------
+
+/// The text of a call of the newest revision, which must have worked.
+async fn called(router: &Router, name: &str, arguments: Value) -> Value {
+    let answer = newest("tools/call", call(name, arguments))
+        .send(router)
+        .await;
+    let (text, failed) = tool_result(&answer);
+    assert!(!failed, "{name}: {text}");
+    serde_json::from_str(&text).unwrap()
+}
+
+/// What an assistant does with "which take-offs near Innsbruck face west":
+/// it lists the tools, finds the one for sites in a box and what it says of
+/// wind, makes a box around Innsbruck of its own knowledge, and asks for
+/// the take-offs that work in a west wind. The made-up partners' site of
+/// the development mode, "Musterkogel West", faces west.
+#[tokio::test]
+async fn an_assistant_finds_the_take_offs_near_innsbruck_that_face_west() {
+    let router = recorded().await;
+
+    let listed = result_of(&newest("tools/list", json!({})).send(&router).await);
+    let tool = listed["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|tool| tool["name"] == "sites_in_box")
+        .expect("a tool for the sites in a box")
+        .clone();
+    assert!(
+        tool["description"]
+            .as_str()
+            .unwrap()
+            .contains("wind_from W")
+    );
+    let points = tool["inputSchema"]["properties"]["wind_from"]["enum"]
+        .as_array()
+        .unwrap();
+    assert!(points.contains(&json!("W")));
+
+    // Innsbruck is at 47.27 N, 11.39 E; some 50 km each way.
+    let read = called(
+        &router,
+        "sites_in_box",
+        json!({"west": 10.7, "south": 46.95, "east": 12.1, "north": 47.6,
+               "used_for": "take-off", "wind_from": "W"}),
+    )
+    .await;
+    assert_eq!(read["asked"]["wind_from"], "W");
+    let layers = read["layers"].as_array().unwrap();
+    let venti = layers
+        .iter()
+        .find(|layer| layer["layer"] == "venti")
+        .expect("the partners' layer");
+    let west = venti["sites"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|site| site["name"] == "Musterkogel West")
+        .expect("the west-facing take-off");
+    assert_eq!(west["wind_from"], json!(["SW to NW"]));
+    assert_eq!(west["used_for"], json!(["take-off"]));
+    assert_eq!(west["standing"]["confirmed_by_pilots"], 2);
+    // Its layer carries its licence and notice; every site that passes is
+    // one that works in a west wind, and the layers are not mixed.
+    assert_eq!(venti["licence"], "CC0 1.0");
+    assert!(venti["notice"].as_str().unwrap().contains("partner"));
+    for layer in layers {
+        let name = layer["layer"].as_str().unwrap();
+        for site in layer["sites"].as_array().unwrap() {
+            assert!(
+                site["id"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with(&format!("{name}:"))
+            );
+            assert!(site["wind_from"].is_array(), "{site}");
+        }
+    }
+    let osm = layers
+        .iter()
+        .find(|layer| layer["layer"] == "osm-free-flying")
+        .unwrap();
+    assert_eq!(osm["licence"], "ODbL 1.0");
+    // The places from pilots are not in it unless asked for.
+    assert!(layers.iter().all(|layer| layer["layer"] != "venti-pilots"));
+
+    // The site itself, as the assistant would look at it next.
+    let id = west["id"].as_str().unwrap();
+    let site = called(&router, "site", json!({"site_id": id})).await;
+    assert_eq!(site["site"]["name"], "Musterkogel West");
+    assert_eq!(site["standing"]["revision"], 2);
+    assert_eq!(site["licence"], "CC0 1.0");
+
+    // What the model read, as the documentation shows it.
+    assert_golden(&golden("mcp_sites_in_box.json"), &read);
+}
+
+#[tokio::test]
+async fn the_places_from_pilots_come_when_asked_for_and_say_they_are_not_official() {
+    let router = recorded().await;
+    let lechtal = json!({"west": 10.85, "south": 47.25, "east": 10.95, "north": 47.32});
+    let mut asked = lechtal.clone();
+    asked["places_from_pilots"] = json!(true);
+    let read = called(&router, "sites_in_box", asked).await;
+    let pilots = read["layers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|layer| layer["layer"] == "venti-pilots")
+        .expect("the places from pilots")
+        .clone();
+    assert_eq!(pilots["licence"], "CC0 1.0");
+    let site = &pilots["sites"][0];
+    assert_eq!(site["name"], "Beispieljoch");
+    assert_eq!(site["not_official"], community::FROM_PILOTS);
+
+    // Its history, as the API keeps it.
+    let id = site["id"].as_str().unwrap();
+    let history = called(&router, "site_history", json!({"site_id": id})).await;
+    let revisions = history["revisions"].as_array().unwrap();
+    assert_eq!(revisions.len(), 3);
+    assert_eq!(revisions[2]["kind"], "restored");
+    assert_eq!(revisions[2]["restores"], 1);
+    assert_eq!(revisions[1]["by"]["handle"], "mara");
+    assert_eq!(history["licence"], "CC0 1.0");
+    // A page of one says where to go on.
+    let first = called(&router, "site_history", json!({"site_id": id, "limit": 1})).await;
+    assert!(first["more"].as_str().unwrap().contains("after 1"));
+
+    // A site that was removed is said to be gone, and one that never was
+    // is said not to be.
+    for (id, said) in [
+        ("venti-pilots:0000000000000000000000s004", "removed"),
+        ("venti:00000000000000000000000000", "no site"),
+        ("nothing at all", "no site"),
+    ] {
+        let answer = newest("tools/call", call("site", json!({"site_id": id})))
+            .send(&router)
+            .await;
+        let (text, failed) = tool_result(&answer);
+        assert!(failed, "{id}");
+        assert!(text.contains(said), "{id}: {text}");
+    }
+}
+
+#[tokio::test]
+async fn public_flights_are_read_as_the_api_reads_them_and_carry_their_terms() {
+    let router = recorded().await;
+    let listed = called(&router, "public_flights", json!({"limit": 2})).await;
+    let flights = listed["flights"].as_array().unwrap();
+    assert_eq!(flights.len(), 2);
+    assert!(listed["next"].is_string());
+    assert_eq!(listed["terms"]["decided"], false);
+    // The same flights as the API's list, in the same order.
+    let api: Value = get(&router, "/v1/flights/public?limit=2").await.json();
+    for (read, flight) in flights.iter().zip(api["flights"].as_array().unwrap()) {
+        assert_eq!(read["flight_id"], flight["id"]);
+    }
+    // The next page follows from the cursor.
+    let next = called(
+        &router,
+        "public_flights",
+        json!({"limit": 2, "after": listed["next"]}),
+    )
+    .await;
+    assert_ne!(next["flights"][0]["flight_id"], flights[0]["flight_id"]);
+
+    // By pilot, and one flight whole.
+    let demo = called(&router, "public_flights", json!({"pilot": "demo"})).await;
+    let first = &demo["flights"][0];
+    assert_eq!(first["pilot"]["handle"], "demo");
+    let id = first["flight_id"].as_str().unwrap();
+    let whole = called(&router, "public_flight", json!({"flight_id": id})).await;
+    assert_eq!(whole["flight"]["flight_id"], id);
+    assert!(whole["flight"]["landing"]["position"].is_object());
+    assert_eq!(whole["terms"]["decided"], false);
+
+    // What flights say about a site, and the candidates of a box.
+    let said = called(
+        &router,
+        "site_flights",
+        json!({"site_id": "osm-free-flying:node/5964676196"}),
+    )
+    .await;
+    assert!(said["flights"].as_u64().unwrap() > 0, "{said}");
+    assert!(said["terms"]["text"].is_string());
+    let candidates = called(
+        &router,
+        "takeoff_candidates",
+        json!({"west": 10.92, "south": 47.25, "east": 10.95, "north": 47.27}),
+    )
+    .await;
+    assert!(candidates["candidates"].is_array());
+    assert_eq!(candidates["min_pilots"], 3);
+    // The API's largest box is the tool's.
+    let answer = newest(
+        "tools/call",
+        call(
+            "takeoff_candidates",
+            json!({"west": 10.0, "south": 46.0, "east": 13.0, "north": 47.0}),
+        ),
+    )
+    .send(&router)
+    .await;
+    let (text, failed) = tool_result(&answer);
+    assert!(failed && text.contains("smaller box"), "{text}");
+}
+
+#[tokio::test]
+async fn a_pilot_who_shares_nothing_and_a_flight_shared_by_link_are_not_found() {
+    let router = recorded().await;
+    let answer = newest(
+        "tools/call",
+        call("public_flights", json!({"pilot": "nobody-here"})),
+    )
+    .send(&router)
+    .await;
+    let (text, failed) = tool_result(&answer);
+    assert!(failed && text.contains("No pilot"), "{text}");
+    let answer = newest(
+        "tools/call",
+        call(
+            "public_flight",
+            json!({"flight_id": "00000000000000000000000000"}),
+        ),
+    )
+    .send(&router)
+    .await;
+    let (text, failed) = tool_result(&answer);
+    assert!(failed && text.contains("no public flight"), "{text}");
+}
+
+/// A tool that reads public flights counts as the API's read of them
+/// does, for the same address and against the same budget.
+#[tokio::test]
+async fn reading_public_flights_through_the_connector_counts_as_the_api_does() {
+    let clock = TestClock::new();
+    let settings = Settings {
+        limits: Limits {
+            public_flight_reads_per_address: 2,
+            ..Limits::default()
+        },
+        ..settings()
+    };
+    let router = over(MemoryStore::new(), &clock, settings);
+    for _ in 0..2 {
+        let answer = newest("tools/call", call("public_flights", json!({})))
+            .send(&router)
+            .await;
+        assert!(!tool_result(&answer).1);
+    }
+    let answer = newest("tools/call", call("public_flights", json!({})))
+        .send(&router)
+        .await;
+    let (text, failed) = tool_result(&answer);
+    assert!(failed && text.contains("Try again later"), "{text}");
+    // And the API's read is refused for the same address.
+    assert_eq!(
+        get(&router, "/v1/flights/public").await.status,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+}
+
 /// `docs/mcp.md` says that its examples are the development mode's
 /// answers and names the bounds on a request. This is what holds it to
 /// that.
@@ -895,6 +1174,7 @@ fn the_documentation_shows_the_connector_as_it_is() {
         "mcp_wind_stations.json",
         "mcp_station_history.json",
         "mcp_airspace_at.json",
+        "mcp_sites_in_box.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(
@@ -903,7 +1183,11 @@ fn the_documentation_shows_the_connector_as_it_is() {
              copy the file from crates/server/tests/golden into the document"
         );
     }
-    for tool in wind::SERVER_TOOLS.iter().chain(&airspace::AIRSPACE_TOOLS) {
+    for tool in wind::SERVER_TOOLS
+        .iter()
+        .chain(&airspace::AIRSPACE_TOOLS)
+        .chain(&community::COMMUNITY_TOOLS)
+    {
         assert!(
             docs.contains(&format!("| `{}` |", tool.name)),
             "{}",

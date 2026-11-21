@@ -5,7 +5,7 @@
     "capabilities": {
       "tools": {}
     },
-    "instructions": "Venti is a free app for paraglider pilots. This connector answers from public data the Venti server collects: wind measured by weather stations, and airspace. Give places as coordinates. Say how old a reading is and name the source of the data. Airspace answers are advice from data that is not certified and never a clearance: nothing here knows what is active today. The connector is open to everyone and knows nothing about the person asking.",
+    "instructions": "Venti is a free app for paraglider pilots. This connector answers from public data the Venti server holds: wind measured by weather stations, airspace, flying sites (OpenStreetMap's, those of Venti's partners, and on request the places from pilots, which are not official), and the flights pilots made public. Give places as coordinates. Say how old a reading is, name the source of the data and pass on each source's licence and notice. Airspace answers are advice from data that is not certified and never a clearance: nothing here knows what is active today. A site is not permission to fly there. The connector is open to everyone and knows nothing about the person asking.",
     "protocolVersion": "2025-11-25",
     "serverInfo": {
       "name": "venti",

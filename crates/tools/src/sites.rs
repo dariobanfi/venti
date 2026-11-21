@@ -280,7 +280,7 @@ pub fn sites_near(
 /// which an address could carry a sentence, quotes and brackets, with
 /// which it could end the value it stands in, and letters that look like
 /// others.
-fn is_plain_address(text: &str) -> bool {
+pub(crate) fn is_plain_address(text: &str) -> bool {
     let Some(rest) = text.strip_prefix("https://") else {
         return false;
     };
@@ -294,7 +294,7 @@ fn is_plain_address(text: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
 }
 
-fn use_word(used_for: SiteUse) -> &'static str {
+pub(crate) fn use_word(used_for: SiteUse) -> &'static str {
     match used_for {
         SiteUse::Takeoff => "take-off",
         SiteUse::Landing => "landing",
@@ -305,7 +305,7 @@ fn use_word(used_for: SiteUse) -> &'static str {
 }
 
 /// A span of wind directions in compass points: "W", or "SW to NW".
-fn sector_words(sector: &WindSector) -> String {
+pub(crate) fn sector_words(sector: &WindSector) -> String {
     let (from, to) = (compass(sector.from_deg), compass(sector.to_deg));
     if sector.to_deg - sector.from_deg >= 360.0 {
         "any".to_owned()

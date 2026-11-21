@@ -50,7 +50,7 @@ use venti_api_types::v1::{
     MAX_CANDIDATE_BOX_DEG, MAX_SITE_CANDIDATES, SITE_BEST_FLIGHTS, SITE_FLIGHTS_WITHIN_M,
     SiteBestFlight, SiteCandidate, SiteCandidatesResponse, SiteFlightsResponse, parse_bbox,
 };
-use venti_domain::{Site, SiteId, SiteUse, SourceId};
+use venti_domain::{BoundingBox, Site, SiteId, SiteUse, SourceId};
 use venti_sources::Kind;
 use venti_store::{CandidateRule, FlightsFrom, Store, Visibility, solar_day};
 
@@ -99,6 +99,18 @@ impl<S: Store> Api<S> {
         site: &Site,
     ) -> Result<Response, ApiError> {
         self.count_public_flight_read(client)?;
+        let answer = self.site_flights(id, site).await?;
+        Ok(cache::shared_json(headers, &answer, Keeper::Anyone))
+    }
+
+    /// What the public flights that began at a site say about it, as
+    /// [`Api::flights_at`] answers it and the connector's `site_flights`
+    /// does. Counting the read is the caller's.
+    pub(crate) async fn site_flights(
+        &self,
+        id: SiteId,
+        site: &Site,
+    ) -> Result<SiteFlightsResponse, ApiError> {
         let takeoff = is_a_takeoff(site);
         let said = if takeoff {
             self.store
@@ -153,7 +165,7 @@ impl<S: Store> Api<S> {
             best,
             terms: FlightTerms::current(),
         };
-        Ok(cache::shared_json(headers, &answer, Keeper::Anyone))
+        Ok(answer)
     }
 }
 
@@ -185,58 +197,72 @@ pub(crate) async fn candidates<S: Store>(
     let area = parse_bbox(&bbox).map_err(|error| {
         ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
     })?;
-    if area.north() - area.south() > MAX_CANDIDATE_BOX_DEG
-        || area.east() - area.west() > MAX_CANDIDATE_BOX_DEG
-    {
-        return Err(ApiError::bad_request(
-            ErrorCode::BoxTooLarge,
-            format!(
-                "candidates are asked for in a box of at most {MAX_CANDIDATE_BOX_DEG} degrees \
-                 of latitude and of longitude; ask for it in several smaller boxes"
-            ),
-        ));
-    }
-
-    let rule = CandidateRule {
-        min_pilots: CANDIDATE_MIN_PILOTS,
-        clear_m: CANDIDATE_CLEAR_OF_SITES_M,
-    };
-    // One more than an answer carries, to know whether the box holds more.
-    let mut found = api
-        .store
-        .takeoff_candidates(&api.site_sources(), &area, &rule, MAX_SITE_CANDIDATES + 1)
-        .await?;
-    // The store offers no place with fewer pilots. Looking again costs
-    // nothing, and a mistake there would point at one pilot's field.
-    if found
-        .iter()
-        .any(|candidate| candidate.pilots < CANDIDATE_MIN_PILOTS)
-    {
-        static GATE: Sparse = Sparse::new();
-        GATE.error("the store offered a candidate with fewer pilots than a candidate has");
-        return Err(ApiError::internal());
-    }
-    let more = found.len() > MAX_SITE_CANDIDATES;
-    found.truncate(MAX_SITE_CANDIDATES);
-    let answer = SiteCandidatesResponse {
-        candidates: found
-            .into_iter()
-            .map(|candidate| SiteCandidate {
-                position: candidate.position,
-                altitude_m: candidate.altitude_m,
-                flights: candidate.flights,
-                pilots: candidate.pilots,
-                latest_day: candidate.latest_day,
-                by_month: candidate.by_month,
-            })
-            .collect(),
-        more,
-        min_pilots: CANDIDATE_MIN_PILOTS,
-        cell_deg: CANDIDATE_CELL_DEG,
-        clear_of_sites_m: CANDIDATE_CLEAR_OF_SITES_M,
-        terms: FlightTerms::current(),
-    };
+    let answer = api.candidates_in(&area).await?;
     Ok(cache::json(&headers, &answer))
+}
+
+impl<S: Store> Api<S> {
+    /// The candidates in a box, as `GET /v1/sites/candidates` answers them
+    /// and the connector's `takeoff_candidates` does: a box of at most
+    /// [`MAX_CANDIDATE_BOX_DEG`] each way. Counting the read is the
+    /// caller's.
+    pub(crate) async fn candidates_in(
+        &self,
+        area: &BoundingBox,
+    ) -> Result<SiteCandidatesResponse, ApiError> {
+        if area.north() - area.south() > MAX_CANDIDATE_BOX_DEG
+            || area.east() - area.west() > MAX_CANDIDATE_BOX_DEG
+        {
+            return Err(ApiError::bad_request(
+                ErrorCode::BoxTooLarge,
+                format!(
+                    "candidates are asked for in a box of at most {MAX_CANDIDATE_BOX_DEG} degrees \
+                     of latitude and of longitude; ask for it in several smaller boxes"
+                ),
+            ));
+        }
+
+        let rule = CandidateRule {
+            min_pilots: CANDIDATE_MIN_PILOTS,
+            clear_m: CANDIDATE_CLEAR_OF_SITES_M,
+        };
+        // One more than an answer carries, to know whether the box holds more.
+        let mut found = self
+            .store
+            .takeoff_candidates(&self.site_sources(), area, &rule, MAX_SITE_CANDIDATES + 1)
+            .await?;
+        // The store offers no place with fewer pilots. Looking again costs
+        // nothing, and a mistake there would point at one pilot's field.
+        if found
+            .iter()
+            .any(|candidate| candidate.pilots < CANDIDATE_MIN_PILOTS)
+        {
+            static GATE: Sparse = Sparse::new();
+            GATE.error("the store offered a candidate with fewer pilots than a candidate has");
+            return Err(ApiError::internal());
+        }
+        let more = found.len() > MAX_SITE_CANDIDATES;
+        found.truncate(MAX_SITE_CANDIDATES);
+        let answer = SiteCandidatesResponse {
+            candidates: found
+                .into_iter()
+                .map(|candidate| SiteCandidate {
+                    position: candidate.position,
+                    altitude_m: candidate.altitude_m,
+                    flights: candidate.flights,
+                    pilots: candidate.pilots,
+                    latest_day: candidate.latest_day,
+                    by_month: candidate.by_month,
+                })
+                .collect(),
+            more,
+            min_pilots: CANDIDATE_MIN_PILOTS,
+            cell_deg: CANDIDATE_CELL_DEG,
+            clear_of_sites_m: CANDIDATE_CLEAR_OF_SITES_M,
+            terms: FlightTerms::current(),
+        };
+        Ok(answer)
+    }
 }
 
 #[cfg(test)]

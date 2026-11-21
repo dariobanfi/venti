@@ -68,7 +68,10 @@ impl<S: Store> Api<S> {
 
     /// The account whose public flights a request's `pilot` means: the
     /// pilot with this handle, if they have a page.
-    async fn pilot_asked_for(&self, pilot: Option<&str>) -> Result<Option<String>, ApiError> {
+    pub(crate) async fn pilot_asked_for(
+        &self,
+        pilot: Option<&str>,
+    ) -> Result<Option<String>, ApiError> {
         match pilot {
             None => Ok(None),
             Some(handle) => Ok(Some(self.pilot_with_a_page(handle).await?.id)),
@@ -203,39 +206,56 @@ pub(crate) async fn list<S: Store>(
                 ApiError::bad_request(ErrorCode::InvalidSort, error.to_string())
             })?,
     };
-    // A cursor belongs to the order it was given out for; one of the other
-    // order does not read as one of this.
-    let after = params.after.as_deref();
-    let order = match sort {
-        FlightSort::Newest => PublicOrder::Newest(after.map(page_key).transpose()?),
-        FlightSort::Score => PublicOrder::Best(after.map(score_key).transpose()?),
-    };
-
-    // One more than asked for, to know whether a page follows.
-    let mut flights = api.store.public_flights(&which, &order, limit + 1).await?;
-    // The store hands out public flights only. Looking again costs
-    // nothing, and this list is the one place where a mistake there would
-    // show a flight to everyone.
-    if flights
-        .iter()
-        .any(|flight| flight.visibility != Visibility::Public)
-    {
-        static GATE: Sparse = Sparse::new();
-        GATE.error("the store listed a flight that is not public among the public ones");
-        return Err(ApiError::internal());
-    }
-    let more = flights.len() > limit;
-    flights.truncate(limit);
-    let next = flights.last().filter(|_| more).and_then(|last| match sort {
-        FlightSort::Newest => Some(page_token(&last.key())),
-        FlightSort::Score => last.score_key().as_ref().map(score_token),
-    });
-    let answer = FlightsResponse {
-        flights: wire::flights(&flights)?,
-        next,
-        terms: Some(FlightTerms::current()),
-    };
+    let answer = api
+        .public_flights_page(&which, sort, params.after.as_deref(), limit)
+        .await?;
     Ok(cache::shared_json(&headers, &answer, Keeper::Anyone))
+}
+
+impl<S: Store> Api<S> {
+    /// A page of everyone's public flights, as `GET /v1/flights/public`
+    /// answers it and the connector's `public_flights` does: `which` with
+    /// its pilot, in the order of `sort`, behind the cursor `after`.
+    /// Counting the read is the caller's.
+    pub(crate) async fn public_flights_page(
+        &self,
+        which: &PublicFlights,
+        sort: FlightSort,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<FlightsResponse, ApiError> {
+        // A cursor belongs to the order it was given out for; one of the other
+        // order does not read as one of this.
+        let order = match sort {
+            FlightSort::Newest => PublicOrder::Newest(after.map(page_key).transpose()?),
+            FlightSort::Score => PublicOrder::Best(after.map(score_key).transpose()?),
+        };
+
+        // One more than asked for, to know whether a page follows.
+        let mut flights = self.store.public_flights(which, &order, limit + 1).await?;
+        // The store hands out public flights only. Looking again costs
+        // nothing, and this list is the one place where a mistake there would
+        // show a flight to everyone.
+        if flights
+            .iter()
+            .any(|flight| flight.visibility != Visibility::Public)
+        {
+            static GATE: Sparse = Sparse::new();
+            GATE.error("the store listed a flight that is not public among the public ones");
+            return Err(ApiError::internal());
+        }
+        let more = flights.len() > limit;
+        flights.truncate(limit);
+        let next = flights.last().filter(|_| more).and_then(|last| match sort {
+            FlightSort::Newest => Some(page_token(&last.key())),
+            FlightSort::Score => last.score_key().as_ref().map(score_token),
+        });
+        Ok(FlightsResponse {
+            flights: wire::flights(&flights)?,
+            next,
+            terms: Some(FlightTerms::current()),
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]

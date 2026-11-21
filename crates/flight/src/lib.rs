@@ -8,11 +8,12 @@
 //! So far it reads and writes IGC flight files, says what makes two of them
 //! the same flight, summarises and analyses a track, prepares it for
 //! drawing, runs the live flight computer, reads, measures and follows
-//! competition tasks, and works out the thermals of an hour of a weather
-//! model.
+//! competition tasks, works out the thermals of an hour of a weather model,
+//! and says what a forecast's hours make of a day for flying.
 
 pub mod analysis;
 pub mod convection;
+pub mod day;
 pub mod fai;
 pub mod geodesy;
 mod identity;

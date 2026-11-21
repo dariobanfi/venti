@@ -14,14 +14,22 @@
 //! model speaks for a grid cell kilometres wide, whose ground can lie
 //! hundreds of metres from the take-off's; it knows no rotor, no valley
 //! wind and nothing of the pilot. So the words never say "safe" or "go",
-//! every limit below is plain to read, and the view names the model, its
-//! run and its cell. The limits are our own, round numbers a cautious
-//! pilot would nod to. To verify with pilots, all of them.
+//! every limit is plain to read, and the view names the model, its run
+//! and its cell. The limits are our own, round numbers a cautious pilot
+//! would nod to. To verify with pilots, all of them.
+//!
+//! The rules that judge by the air alone, with their limits, are the
+//! flight engine's ([`venti_flight::day`]), which the server's thermal map
+//! uses too. What a take-off adds is here: the directions it works in, and
+//! the words.
 
 use chrono::{DateTime, Duration, Timelike, Utc};
 use venti_api_types::v1::ForecastResponse;
 use venti_domain::{ForecastHour, ForecastSeries};
 use venti_flight::convection::{Convection, convection};
+use venti_flight::day::{
+    self as rating, Against, Kind, RatedHour, Verdict, against, kind_of_hour, worst,
+};
 use venti_flight::sun;
 
 use crate::airspace::compass;
@@ -31,50 +39,13 @@ use crate::sites::{WindSpan, wind_fits, wind_spans_in_words};
 use crate::wind::credit;
 use crate::{CoreError, Credit, ForecastWind};
 
-/// Rain or snow in an hour, millimetres, from which the hour is not for
-/// flying.
-const RAIN_MM: f64 = 0.2;
-/// Mean wind 10 m above the model's ground, km/h: marginal from the
-/// first, not flyable from the second.
-const WIND_KMH: (f64, f64) = (20.0, 30.0);
-/// The same for the gusts.
-const GUSTS_KMH: (f64, f64) = (30.0, 40.0);
 /// A wind that does not come from a direction the take-off works in:
 /// below the first it is light enough not to count, from the second it
 /// makes the hour not flyable, in between marginal. km/h.
 const WRONG_WAY_KMH: (f64, f64) = (8.0, 15.0);
-/// Wind higher up, at the model's levels within [`ALOFT_REACH_M`] above
-/// the take-off, km/h: marginal from the first, not flyable from the
-/// second. A calm valley cell under a strong wind at the ridges is the
-/// day this is for.
-const ALOFT_KMH: (f64, f64) = (35.0, 50.0);
-/// How far above the take-off the wind higher up is looked at, metres.
-const ALOFT_REACH_M: f64 = 1500.0;
-/// A base of convective cloud less than this above the take-off is
-/// marginal, metres; one below the take-off is not flyable.
-const CLOUD_BASE_CLEAR_M: f64 = 200.0;
-/// Convective available potential energy from which showers and
-/// thunderstorms can grow, J/kg: marginal.
-const CAPE_J_KG: f64 = 800.0;
-/// A stretch of flyable hours counts from this many in a row.
-const WINDOW_HOURS: usize = 2;
 /// Up to this height above sea level an hour lists the wind at the
 /// model's levels, metres: the air a paraglider flies in.
 const WINDS_UP_TO_M: f64 = 5000.0;
-/// The climb a paraglider needs in thermals, m/s: to stay up around the
-/// take-off, to fly cross-country, and on a big day.
-const CLIMB_MS: [f64; 3] = [0.5, 1.0, 2.0];
-/// How far above the take-off the thermals have to reach for the same
-/// three, metres.
-const REACH_M: [f64; 3] = [300.0, 800.0, 1500.0];
-/// The strongest wind in the thermals' layer with which an hour still
-/// counts for cross-country, and for a big day, km/h. More wind than this
-/// tears thermals apart and carries a circling glider away.
-const DRIFT_KMH: [f64; 2] = [25.0, 20.0];
-/// How many hours in a row make a day of local thermals, a cross-country
-/// day and a big day.
-const THERMAL_HOURS: [usize; 3] = [2, 4, 6];
-
 /// How a take-off looks for flying, by a forecast.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, uniffi::Enum)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -96,6 +67,26 @@ impl Flyability {
             Self::Flyable => "Flyable",
             Self::Marginal => "Marginal",
             Self::NotFlyable => "Not flyable",
+        }
+    }
+}
+
+impl From<Verdict> for Flyability {
+    fn from(verdict: Verdict) -> Self {
+        match verdict {
+            Verdict::Flyable => Self::Flyable,
+            Verdict::Marginal => Self::Marginal,
+            Verdict::NotFlyable => Self::NotFlyable,
+        }
+    }
+}
+
+impl From<Flyability> for Verdict {
+    fn from(flyability: Flyability) -> Self {
+        match flyability {
+            Flyability::Flyable => Self::Flyable,
+            Flyability::Marginal => Self::Marginal,
+            Flyability::NotFlyable => Self::NotFlyable,
         }
     }
 }
@@ -127,6 +118,28 @@ impl Thermals {
             Self::Local => "Local thermals",
             Self::CrossCountry => "Cross-country day",
             Self::Big => "Big day",
+        }
+    }
+}
+
+impl From<Kind> for Thermals {
+    fn from(kind: Kind) -> Self {
+        match kind {
+            Kind::Weak => Self::Weak,
+            Kind::Local => Self::Local,
+            Kind::CrossCountry => Self::CrossCountry,
+            Kind::Big => Self::Big,
+        }
+    }
+}
+
+impl From<Thermals> for Kind {
+    fn from(thermals: Thermals) -> Self {
+        match thermals {
+            Thermals::Weak => Self::Weak,
+            Thermals::Local => Self::Local,
+            Thermals::CrossCountry => Self::CrossCountry,
+            Thermals::Big => Self::Big,
         }
     }
 }
@@ -385,37 +398,24 @@ struct Judged<'a> {
     thermals: Option<Thermals>,
 }
 
-/// What an hour's thermals count as for a take-off at `launch_m`, in an
-/// hour with this verdict.
-fn thermals(air: &Convection, launch_m: f64, verdict: Flyability) -> Option<Thermals> {
-    let reach = air.top_m - launch_m;
-    let calm = |limit_kmh: f64| air.wind_ms.is_none_or(|wind| wind * 3.6 <= limit_kmh);
-    let by_the_air = if air.climb_ms >= CLIMB_MS[2] && reach >= REACH_M[2] && calm(DRIFT_KMH[1]) {
-        Thermals::Big
-    } else if air.climb_ms >= CLIMB_MS[1] && reach >= REACH_M[1] && calm(DRIFT_KMH[0]) {
-        Thermals::CrossCountry
-    } else if air.climb_ms >= CLIMB_MS[0] && reach >= REACH_M[0] {
-        Thermals::Local
-    } else {
-        Thermals::Weak
-    };
-    match verdict {
-        Flyability::Flyable => Some(by_the_air),
-        // Something speaks against the hour: it is none to leave in.
-        Flyability::Marginal => Some(by_the_air.min(Thermals::Local)),
-        Flyability::NotFlyable => None,
+impl Judged<'_> {
+    /// The hour as the shared rating of a day takes it.
+    fn rated(&self) -> RatedHour {
+        RatedHour {
+            time: self.hour.time,
+            verdict: self.verdict.into(),
+            air: self.air,
+            kind: self.thermals.map(Kind::from),
+        }
     }
 }
 
-/// A height to the nearest fifty metres: the estimate is no finer.
-pub(crate) fn fifty(metres: f64) -> f64 {
-    (metres / 50.0).round() * 50.0
+/// The hours as the shared rating of a day takes them.
+fn rated(hours: &[Judged<'_>]) -> Vec<RatedHour> {
+    hours.iter().map(Judged::rated).collect()
 }
 
-/// A climb to a tenth of a metre per second.
-pub(crate) fn tenth(ms: f64) -> f64 {
-    (ms * 10.0).round() / 10.0
-}
+pub(crate) use venti_flight::day::{fifty, tenth};
 
 fn days(
     series: &ForecastSeries,
@@ -466,7 +466,8 @@ fn days(
         let launch = site.elevation_m.or(series.cell_elevation_m);
         let thermals = air
             .zip(launch)
-            .and_then(|(air, launch)| thermals(&air, launch, verdict));
+            .and_then(|(air, launch)| kind_of_hour(&air, launch, verdict.into()))
+            .map(Thermals::from);
         if let Some((_, hours, _)) = days.last_mut() {
             hours.push(Judged {
                 hour,
@@ -504,124 +505,65 @@ fn days(
         .collect()
 }
 
-/// What the forecast says about one hour: the worst thing against it.
+/// What the forecast says about one hour: the worst thing against it. By
+/// the air alone that is the shared rating's; the take-off adds the
+/// directions it works in.
 fn judge(hour: &ForecastHour, site: &Site<'_>) -> (Flyability, String) {
-    let kmh = |speed_ms: f64| speed_ms * 3.6;
-    let mut against: Vec<(Flyability, String)> = Vec::new();
-    let mut weigh = |value: f64, limits: (f64, f64), words: String| {
-        if value >= limits.1 {
-            against.push((Flyability::NotFlyable, words));
-        } else if value >= limits.0 {
-            against.push((Flyability::Marginal, words));
-        }
-    };
-
-    if hour.precipitation_mm.is_some_and(|rain| rain >= RAIN_MM) {
-        return (Flyability::NotFlyable, "Rain".to_owned());
-    }
-    if let Some(speed) = hour.wind_speed_ms.map(kmh) {
-        weigh(speed, WIND_KMH, format!("Wind {speed:.0} km/h"));
-        // A wind from where the take-off does not work, unless it is
-        // light: then thermals and the slope decide, not the model.
-        if let Some(from) = hour.wind_direction_deg
-            && wind_fits(site.wind.to_vec(), from) == Some(false)
-        {
-            weigh(
-                speed,
-                WRONG_WAY_KMH,
-                format!(
-                    "Wind from {}, take-off works in {}",
-                    compass(from),
-                    site.works_in
+    let found = against(hour, site.elevation_m);
+    let rain = matches!(found.first(), Some((_, Against::Rain)));
+    // Where the wind's direction is weighed: after the wind itself.
+    let after_wind = usize::from(matches!(found.first(), Some((_, Against::Wind { .. }))));
+    let mut said: Vec<(Verdict, String)> = found
+        .iter()
+        .map(|(verdict, what)| (*verdict, words_against(what)))
+        .collect();
+    // A wind from where the take-off does not work, unless it is light:
+    // then thermals and the slope decide, not the model.
+    if !rain
+        && let Some(speed) = hour.wind_speed_ms.map(|ms| ms * 3.6)
+        && let Some(from) = hour.wind_direction_deg
+        && wind_fits(site.wind.to_vec(), from) == Some(false)
+    {
+        let verdict = if speed >= WRONG_WAY_KMH.1 {
+            Some(Verdict::NotFlyable)
+        } else if speed >= WRONG_WAY_KMH.0 {
+            Some(Verdict::Marginal)
+        } else {
+            None
+        };
+        if let Some(verdict) = verdict {
+            said.insert(
+                after_wind,
+                (
+                    verdict,
+                    format!(
+                        "Wind from {}, take-off works in {}",
+                        compass(from),
+                        site.works_in
+                    ),
                 ),
             );
         }
     }
-    if let Some(gusts) = hour.wind_gust_ms.map(kmh) {
-        weigh(gusts, GUSTS_KMH, format!("Gusts to {gusts:.0} km/h"));
-    }
-    if let Some(takeoff) = site.elevation_m {
-        // The strongest wind at the model's levels over the take-off.
-        let aloft = hour
-            .winds_aloft
-            .iter()
-            .filter_map(|level| Some((level.altitude_m?, kmh(level.wind_speed_ms?))))
-            .filter(|(altitude, _)| (takeoff..=takeoff + ALOFT_REACH_M).contains(altitude))
-            .max_by(|a, b| a.1.total_cmp(&b.1));
-        if let Some((altitude, speed)) = aloft {
-            let at = (altitude / 100.0).round() * 100.0;
-            weigh(
-                speed,
-                ALOFT_KMH,
-                format!("Wind {speed:.0} km/h at {at:.0} m"),
-            );
-        }
-        if let Some(base) = hour.convective_cloud_base_m {
-            if base < takeoff {
-                against.push((
-                    Flyability::NotFlyable,
-                    "Cloud base below the take-off".to_owned(),
-                ));
-            } else if base < takeoff + CLOUD_BASE_CLEAR_M {
-                against.push((
-                    Flyability::Marginal,
-                    "Cloud base near the take-off".to_owned(),
-                ));
-            }
-        }
-    }
-    if hour.cape_j_kg.is_some_and(|cape| cape >= CAPE_J_KG) {
-        against.push((
-            Flyability::Marginal,
-            "Showers or thunderstorms can grow".to_owned(),
-        ));
-    }
     // The worst, and of two equally bad the one found first.
-    let worst = against
-        .iter()
-        .map(|(verdict, _)| *verdict)
-        .max()
-        .unwrap_or(Flyability::Flyable);
-    against
-        .into_iter()
-        .find(|(verdict, _)| *verdict == worst)
-        .unwrap_or((Flyability::Flyable, String::new()))
+    let (verdict, why) = worst(&said);
+    (verdict.into(), why.unwrap_or_default())
 }
 
-/// The longest stretch of hours in a row that `counts`, as the indices of
-/// its first and its last hour, if it is at least `needed` hours long. The
-/// earliest of equally long ones.
-fn longest_run(
-    hours: &[Judged<'_>],
-    needed: usize,
-    counts: impl Fn(&Judged<'_>) -> bool,
-) -> Option<(usize, usize)> {
-    let mut best: Option<(usize, usize)> = None;
-    let mut start = None;
-    for (index, judged) in hours.iter().enumerate() {
-        // Hours in a row are an hour apart: a gap in the model's hours
-        // ends a stretch.
-        let follows =
-            index > 0 && judged.hour.time - hours[index - 1].hour.time == Duration::hours(1);
-        if !counts(judged) {
-            start = None;
-            continue;
+/// One thing the forecast has against an hour, in words.
+fn words_against(what: &Against) -> String {
+    match *what {
+        Against::Rain => "Rain".to_owned(),
+        Against::Wind { kmh } => format!("Wind {kmh:.0} km/h"),
+        Against::Gusts { kmh } => format!("Gusts to {kmh:.0} km/h"),
+        Against::WindAloft { kmh, at_m } => {
+            let at = (at_m / 100.0).round() * 100.0;
+            format!("Wind {kmh:.0} km/h at {at:.0} m")
         }
-        let first = match start {
-            Some(first) if follows => first,
-            _ => index,
-        };
-        start = Some(first);
-        if best.is_none_or(|(from, to)| index - first > to - from) {
-            best = Some((first, index));
-        }
+        Against::CloudBaseBelow => "Cloud base below the take-off".to_owned(),
+        Against::CloudBaseNear => "Cloud base near the take-off".to_owned(),
+        Against::Storms => "Showers or thunderstorms can grow".to_owned(),
     }
-    best.filter(|(from, to)| to - from + 1 >= needed)
-}
-
-/// The longest stretch of hours in a row that are no worse than `limit`.
-fn stretch(hours: &[Judged<'_>], limit: Flyability) -> Option<(usize, usize)> {
-    longest_run(hours, WINDOW_HOURS, |judged| judged.verdict <= limit)
 }
 
 /// What the day's thermals come to.
@@ -636,55 +578,30 @@ struct ThermalDay {
 /// The kind of day the hours' thermals make, with its line. `None` when no
 /// hour that can be flown has an estimate.
 fn thermal_day(hours: &[Judged<'_>]) -> Option<ThermalDay> {
-    // The best kind there are enough hours in a row of.
-    let found = [Thermals::Big, Thermals::CrossCountry, Thermals::Local]
-        .into_iter()
-        .zip([THERMAL_HOURS[2], THERMAL_HOURS[1], THERMAL_HOURS[0]])
-        .find_map(|(kind, needed)| {
-            longest_run(hours, needed, |judged| judged.thermals >= Some(kind))
-                .map(|run| (kind, run))
-        });
-    if let Some((kind, (from, to))) = found {
-        let airs: Vec<Convection> = hours[from..=to]
-            .iter()
-            .filter_map(|judged| judged.air)
-            .collect();
-        let climb_ms = tenth(airs.iter().map(|air| air.climb_ms).sum::<f64>() / airs.len() as f64);
-        let highest = airs
-            .iter()
-            .max_by(|a, b| a.top_m.total_cmp(&b.top_m))
-            .copied()?;
-        let top_m = fifty(highest.top_m);
-        let to_where = if highest.cloud_base_m.is_some() {
-            format!("to a cloud base of {top_m:.0} m")
-        } else {
-            format!("to {top_m:.0} m in the blue")
-        };
-        return Some(ThermalDay {
-            kind,
-            line: format!(
+    let day = rating::thermal_day(&rated(hours))?;
+    let climb_ms = tenth(day.climb_ms);
+    let top_m = day.top_m.map(fifty);
+    let line = match (day.window, top_m) {
+        (Some((from, to)), Some(top_m)) => {
+            let to_where = if day.cloud {
+                format!("to a cloud base of {top_m:.0} m")
+            } else {
+                format!("to {top_m:.0} m in the blue")
+            };
+            format!(
                 "{climb_ms:.1} m/s {to_where}, from {} to {}",
                 clock(hours[from].local_hour),
                 clock(hours[to].local_hour + 1)
-            ),
-            climb_ms,
-            top_m: Some(top_m),
-        });
-    }
-    // Weak: the best there is, among the hours that can be flown.
-    let best = hours
-        .iter()
-        .filter(|judged| judged.thermals.is_some())
-        .filter_map(|judged| judged.air)
-        .max_by(|a, b| a.climb_ms.total_cmp(&b.climb_ms))?;
-    let climb_ms = tenth(best.climb_ms);
-    let top_m = (best.depth_m > 0.0).then(|| fifty(best.top_m));
+            )
+        }
+        (None, Some(top_m)) if climb_ms > 0.0 => {
+            format!("{climb_ms:.1} m/s to {top_m:.0} m at best")
+        }
+        _ => "None to climb in".to_owned(),
+    };
     Some(ThermalDay {
-        kind: Thermals::Weak,
-        line: match top_m {
-            Some(top_m) if climb_ms > 0.0 => format!("{climb_ms:.1} m/s to {top_m:.0} m at best"),
-            _ => "None to climb in".to_owned(),
-        },
+        kind: day.kind.into(),
+        line,
         climb_ms,
         top_m,
     })
@@ -725,8 +642,9 @@ fn winds(hour: &ForecastHour, ground_m: f64) -> Vec<OutlookWind> {
 }
 
 fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>], ground_m: Option<f64>) -> OutlookDay {
-    let good = stretch(hours, Flyability::Flyable);
-    let fair = stretch(hours, Flyability::Marginal);
+    let rated = rated(hours);
+    let good = rating::stretch(&rated, Verdict::Flyable);
+    let fair = rating::stretch(&rated, Verdict::Marginal);
     let verdict = match (good, fair) {
         (Some(_), _) => Flyability::Flyable,
         (None, Some(_)) => Flyability::Marginal,

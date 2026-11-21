@@ -20,15 +20,18 @@ use crate::igc::Fix;
 use crate::track;
 
 /// Fixes closer together than this, in metres, are one place for the turn
-/// of the track: GPS noise around a glider that barely moves would
-/// otherwise count as turning.
-const MIN_STEP_M: f64 = 5.0;
+/// of the track: a GPS track jitters by a few metres from fix to fix, and
+/// over short steps that jitter counts as turning both ways.
+const MIN_STEP_M: f64 = 15.0;
 /// A thermal is circled one way when the track's net turn in it is at
-/// least this, in degrees: two full circles.
-const ONE_WAY_TURN_DEG: f64 = 720.0;
+/// least this, in degrees: one full circle.
+const ONE_WAY_TURN_DEG: f64 = 360.0;
 /// ... and at least this share of all its turning went that way. Less, and
-/// it was circled both ways: the pilot changed direction in it.
-const ONE_WAY_SHARE: f64 = 0.8;
+/// it was flown back and forth, in eights or beats along a slope, or with
+/// a change of direction; with less than a full circle there is too
+/// little to say. Both limits were set against some 660 thermals of real
+/// flights, of which two thirds are then one way.
+const ONE_WAY_SHARE: f64 = 2.0 / 3.0;
 /// How a thermal ended is measured only on thermals at least this long, in
 /// seconds: in a shorter one the last minute is most of it.
 const MEASURED_THERMAL_S: i64 = 120;

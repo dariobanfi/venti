@@ -84,7 +84,7 @@ pub struct Tendencies {
 
 /// What [`Tendencies::note`] says.
 const NOTE: &str = "Counted from your own GPS tracks by fixed rules: a thermal is circled one \
-     way when it turned at least two full circles mostly that way, how a thermal ends is \
+     way when it turned at least one full circle with two thirds of its turning that way, how a thermal ends is \
      measured on those of two minutes or more, and glides from a kilometre. These are \
      observations of what was flown, not a judgement of you or of what is safe.";
 
@@ -161,39 +161,45 @@ fn observation(
     }
 }
 
-/// "Left in 31 of 40 thermals, right in 7, both ways in 2." The flight is
-/// the one with the most thermals circled the rarer way.
+/// "Of 409 thermals circled one way, 337 went right and 72 left. 252 more
+/// were flown back and forth or were too short to say." The flight is the
+/// one with the most thermals circled the rarer way.
 fn circling(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observation> {
-    let thermals = all.thermals();
-    if thermals < MIN_THERMALS {
-        return None;
-    }
-    let (left, right, both) = (
+    let (left, right, rest) = (
         all.thermals_left,
         all.thermals_right,
         all.thermals_both_ways,
     );
-    let ((more, more_count), (fewer, fewer_count)) = if right > left {
-        (("Right", right), ("left", left))
+    // Only thermals circled one way say which way.
+    let one_way = left + right;
+    if one_way < MIN_THERMALS {
+        return None;
+    }
+    let ((more, more_count), (fewer, fewer_count)) = if right >= left {
+        (("right", right), ("left", left))
     } else {
-        (("Left", left), ("right", right))
+        (("left", left), ("right", right))
     };
-    let words = if more_count == thermals {
-        format!("{more} in all {} thermals.", count(thermals))
-    } else if more_count == 0 {
-        format!("Both ways in all {} thermals.", count(thermals))
+    let mut words = if fewer_count == 0 {
+        format!(
+            "All {} thermals circled one way went {more}.",
+            count(one_way)
+        )
     } else {
-        let mut words = format!(
-            "{more} in {} of {} thermals, {fewer} in {}",
+        format!(
+            "Of {} thermals circled one way, {} went {more} and {} {fewer}.",
+            count(one_way),
             count(more_count),
-            count(thermals),
             count(fewer_count)
-        );
-        if both > 0 {
-            words += &format!(", both ways in {}", count(both));
-        }
-        words + "."
+        )
     };
+    if rest > 0 {
+        words += &format!(
+            " {} more {} flown back and forth or were too short to say.",
+            count(rest),
+            if rest == 1 { "was" } else { "were" }
+        );
+    }
     let flight = if left == right {
         None
     } else if left < right {
@@ -476,7 +482,10 @@ mod tests {
 
         let circling = find(&tendencies, ObservationKind::Circling).unwrap();
         assert_eq!(circling.title, "Which way you circle");
-        assert_eq!(circling.words, "Right in 6 of 11 thermals, left in 5.");
+        assert_eq!(
+            circling.words,
+            "Of 11 thermals circled one way, 6 went right and 5 left."
+        );
         assert!((circling.share.unwrap() - 5.0 / 11.0).abs() < 1e-9);
         // The rarer way is left, and the dying flight has three of those.
         assert_eq!(circling.flight_id.as_deref(), Some(dying.as_str()));
@@ -579,7 +588,10 @@ mod tests {
 
         // Twenty thermals, all to the right: no rarer way, no flight.
         let circling = find(&tendencies, ObservationKind::Circling).unwrap();
-        assert_eq!(circling.words, "Right in all 20 thermals.");
+        assert_eq!(
+            circling.words,
+            "All 20 thermals circled one way went right."
+        );
         assert_eq!(circling.share, Some(0.0));
         assert_eq!(circling.flight_id, None);
         // None ended weak: no flight shows it.

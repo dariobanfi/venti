@@ -13,49 +13,73 @@ the code around them.
 
 They were recorded on 2026-11-21 from
 https://dataset.api.hub.geosphere.at/v1/grid/forecast/nowcast-v1-15min-1km,
-without an account or a key, with curl. Each is the whole answer to one
-request, unchanged:
+without an account or a key, with curl and the user agent the server's
+fetcher sends ("venti-server/0.1.0"). Each is the whole answer to one
+request of the adapter, unchanged:
 
     metadata.json   GET .../nowcast-v1-15min-1km/metadata
-                    asked at 12:39:13 UTC, 1,588 bytes: the dataset's
-                    description and the six runs the service holds, by
-                    their reference times, 11:00 to 12:15 UTC
+                    asked at 13:17:11 UTC, answered some 15 seconds
+                    later, 1,588 bytes: the dataset's description and the
+                    six runs the service holds, by their reference times,
+                    11:45 to 13:00 UTC
 
-    rr-202611211200.nc   407,953 bytes
-                    GET ...?parameters=rr&bbox=46.3,9.4,48.5,17.2
+    rr-202611211245.nc   425,558 bytes
+                    GET ...?parameters=rr&bbox=46.25,9.35,48.55,17.25
                         &forecast_offset=1
-                        &start=2026-11-21T12:00&end=2026-11-21T12:00
+                        &start=2026-11-21T12:45&end=2026-11-21T12:45
                         &output_format=netcdf
-                    asked at 12:39:13 UTC, answered some 14 seconds later
+                    asked at 13:17:35 UTC, answered within a second
 
-    rr-202611211215.nc   407,258 bytes
-                    GET ...?parameters=rr&bbox=46.3,9.4,48.5,17.2
+    rr-202611211300.nc   426,204 bytes
+                    GET ...?parameters=rr&bbox=46.25,9.35,48.55,17.25
                         &forecast_offset=0
-                        &start=2026-11-21T12:15&end=2026-11-21T12:15
+                        &start=2026-11-21T13:00&end=2026-11-21T13:00
                         &output_format=netcdf
-                    asked at 12:39:28 UTC, answered some 7 seconds later
+                    asked at 13:17:36 UTC, answered some 44 seconds later
+
+The box is the first region's, 46.3,9.4,48.5,17.2, widened by a twentieth
+of a degree on every side, as the adapter asks for it. They were recorded
+in the same two minutes as DWD's radar frames in
+crates/sources-dwd-radar/tests/fixtures, so that one clock is honest for
+both: the server's development mode shows the two as layers of one moment,
+by a radar clock at 13:19 UTC. They replace a recording of 12:39 UTC on
+the same day (the runs of 12:00 and 12:15, 407,953 and 407,258 bytes),
+which was asked for with the plain box: its rectangle of 600 by 252 points
+left 107 cells in the middle of the last row of the region's map without a
+value.
 
 Each of the two is the first step of one run of INCA's nowcast, the step at
 the run's own reference time: the precipitation sum "rr" in kg m-2 of the
 quarter of an hour that ends then, for the part of the model's grid of one
-kilometre (EPSG:31287, MGI / Austria Lambert) that the box of the first
-region asks for: 600 by 252 points, 151,200 values (the answer's header
-datapoint-count). The files are netCDF-4, which is HDF5. The box is asked
+kilometre (EPSG:31287, MGI / Austria Lambert) that the widened box of the
+first region asks for: 608 by 263 points, 159,904 values (the answer's
+header datapoint-count). Every one of the 162,864 cells of the region's
+map lies within it and has a value. The files are netCDF-4, which is HDF5. The box is asked
 for and not the whole domain because the service lets a request name one;
 the whole domain is 701 by 431 points.
 
 Not kept here, asked on the same day to learn how the service behaves:
 the list of all datasets, the metadata of inca-v1-1h-1km and
 inca-v2-1h-1km, the Data Hub's catalogue entries, four requests for a
-handful of points as GeoJSON, the list of runs twice more, and one first
-try at the NetCDF answer. Fourteen requests to the dataset service in
-all, these three among them; its own counter showed 11 used of the 240 an
-hour it allows.
+handful of points as GeoJSON, the list of runs twice more, one first try
+at the NetCDF answer, and the three answers of the earlier recording.
+Seventeen requests to the dataset service in all on that day, the three
+kept here among them; after the last of these its own counter showed 10
+used of the 240 an hour it allows.
 
 sha256:
-    31a95b46147b20f0ea9303b1fba1bd75f6f1eec19d01ab038d3a8f81e9741b4c  metadata.json
-    26513633c7825945fb284f5dddb497db7d64a881d575b69335611f6ae97ccf65  rr-202611211200.nc
-    12a22ec5a0bee2d292154bb9874b5299a900573f80af1d12335da1489f3e5557  rr-202611211215.nc
+    43322af6f03635a36fda53fdb2a19f6f59b87e5ef96077879f2ac898dc14361a  metadata.json
+    cd90098693b584b7ea923ec5123e08cd92f02b21801c57788a090067af7df60f  rr-202611211245.nc
+    212f2f05b2b5f0e08487d4421d8038939c32bdd7dcaf0414205709780292cbcb  rr-202611211300.nc
+
+To record them again: ask for the list, then for the first step of the two
+runs it names first, each by its place in the list and with the widened
+box, and record the other radar source in the same minutes; replace the
+three files; set the moments in src/fixtures.rs and the names there; run
+the tests with VENTI_UPDATE_GOLDEN=1 and review what changed. The tests
+pin what is of that moment (the counts of cells in each step, the size of
+the rectangle, where `leadtime` and `x` stand in the older file), and
+those will differ.
 
 A frame is an analysis: rain as a model put it together from radars and
 gauges. It is no statement that a place is dry, or that it can be flown.

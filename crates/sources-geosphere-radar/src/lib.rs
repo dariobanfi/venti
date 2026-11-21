@@ -49,10 +49,12 @@
 //!   grid's rows are straight on INCA's map and bent on a map of degrees,
 //!   so the rectangle's edges are not the box's: with the first region's
 //!   own box, 107 cells in the middle of the map's last row lie south of
-//!   the rectangle (counted on the recorded frames). The adapter therefore
-//!   asks for the box widened by a twentieth of a degree on every side.
-//!   *The recording was made with the plain box*: the widened request is
-//!   built here and tested for its form, and no answer to it is recorded.
+//!   the rectangle (counted on a recording of 2026-11-21, 12:39 UTC, made
+//!   with the plain box). The adapter therefore asks for the box widened
+//!   by a twentieth of a degree on every side. The recorded answers are
+//!   answers to that widened request (13:17 UTC on the same day): a
+//!   rectangle of 608 by 263 points, in which every one of the 162,864
+//!   cells of the first region's map has a value.
 //! - **The limit**: 5 requests a second and 240 an hour for an address,
 //!   shared with the station adapter `geosphere-tawes`; see the manifest.
 //!
@@ -123,7 +125,7 @@ pub fn frame_url(run: Timestamp, place: usize, area: &BoundingBox) -> String {
     )
 }
 
-/// The tag of the request for the frame of a run: `frame/2611211200`.
+/// The tag of the request for the frame of a run: `frame/2611211245`.
 fn frame_tag(run: Timestamp) -> String {
     format!("frame/{}", run.format("%y%m%d%H%M"))
 }
@@ -512,20 +514,21 @@ mod tests {
             list_url(),
             "https://dataset.api.hub.geosphere.at/v1/grid/forecast/nowcast-v1-15min-1km/metadata"
         );
-        // The recording asked for bbox=46.3,9.4,48.5,17.2; the adapter
-        // asks for a twentieth of a degree more on every side.
+        // The first region's box is 46.3,9.4,48.5,17.2; the adapter asks
+        // for a twentieth of a degree more on every side, and the
+        // recording is of that request.
         assert_eq!(
-            frame_url(at(12, 0), 1, &fixtures::area()),
+            frame_url(at(12, 45), 1, &fixtures::area()),
             "https://dataset.api.hub.geosphere.at/v1/grid/forecast/nowcast-v1-15min-1km\
              ?parameters=rr&bbox=46.25,9.35,48.55,17.25&forecast_offset=1\
-             &start=2026-11-21T12:00&end=2026-11-21T12:00&output_format=netcdf"
+             &start=2026-11-21T12:45&end=2026-11-21T12:45&output_format=netcdf"
         );
-        assert_eq!(run_in_tag(&frame_tag(at(12, 15))), Some(at(12, 15)));
+        assert_eq!(run_in_tag(&frame_tag(at(13, 0))), Some(at(13, 0)));
         for not_a_frame in [
             "list",
             "frame/",
             "frame/26112112",
-            "frame/2613411200",
+            "frame/2613411245",
             "frame/../../x",
         ] {
             assert_eq!(run_in_tag(not_a_frame), None, "{not_a_frame}");
@@ -536,62 +539,62 @@ mod tests {
     fn the_recorded_list_asks_for_the_runs_that_are_wanted_each_by_its_place() {
         let now = ctx(fixtures::recorded_at());
 
-        // A server that holds the frames up to 11:45.
-        let parsed = GeosphereIncaRr::list(fixtures::LIST, &now, &wanted(at(11, 45))).unwrap();
+        // A server that holds the frames up to 12:30.
+        let parsed = GeosphereIncaRr::list(fixtures::LIST, &now, &wanted(at(12, 30))).unwrap();
         let asked: Vec<&str> = parsed.follow_up.iter().map(|r| r.tag.as_str()).collect();
-        assert_eq!(asked, ["frame/2611211200", "frame/2611211215"]);
+        assert_eq!(asked, ["frame/2611211245", "frame/2611211300"]);
         // The newest run is the list's first: place 0.
         let url = |at: usize| parsed.follow_up[at].url.as_str();
-        assert!(url(0).contains("&forecast_offset=1&start=2026-11-21T12:00&"));
-        assert!(url(1).contains("&forecast_offset=0&start=2026-11-21T12:15&"));
-        assert_eq!(parsed.newest_listed, Some(at(12, 15)));
+        assert!(url(0).contains("&forecast_offset=1&start=2026-11-21T12:45&"));
+        assert!(url(1).contains("&forecast_offset=0&start=2026-11-21T13:00&"));
+        assert_eq!(parsed.newest_listed, Some(at(13, 0)));
         assert!(parsed.skipped.is_empty());
 
         // A server that holds nothing gets the six runs the service has.
         let all = GeosphereIncaRr::list(fixtures::LIST, &now, &wanted(at(0, 0))).unwrap();
         assert_eq!(all.follow_up.len(), 6);
-        assert_eq!(all.follow_up[0].tag, "frame/2611211100");
+        assert_eq!(all.follow_up[0].tag, "frame/2611211145");
         assert!(all.follow_up[0].url.contains("&forecast_offset=5&"));
         // One that holds the newest asks for nothing.
-        let none = GeosphereIncaRr::list(fixtures::LIST, &now, &wanted(at(12, 15))).unwrap();
+        let none = GeosphereIncaRr::list(fixtures::LIST, &now, &wanted(at(13, 0))).unwrap();
         assert!(none.follow_up.is_empty());
-        assert_eq!(none.newest_listed, Some(at(12, 15)));
+        assert_eq!(none.newest_listed, Some(at(13, 0)));
         // A run of after the run's own time is not asked for.
-        let early = GeosphereIncaRr::list(fixtures::LIST, &ctx(at(12, 5)), &wanted(at(11, 45)));
+        let early = GeosphereIncaRr::list(fixtures::LIST, &ctx(at(12, 50)), &wanted(at(12, 30)));
         assert_eq!(early.unwrap().follow_up.len(), 1);
     }
 
     #[test]
     fn a_list_names_no_address_of_its_own() {
         let list = br#"{"available_forecast_reftimes": [
-            "2026-11-21T12:15+00:00",
-            "https://example.org/2026-11-21T12:00+00:00",
-            "2026-11-21T12:00+00:00&bbox=0,0,90,180",
-            "2026-11-21T13:45+02:00"],
+            "2026-11-21T13:00+00:00",
+            "https://example.org/2026-11-21T12:45+00:00",
+            "2026-11-21T12:45+00:00&bbox=0,0,90,180",
+            "2026-11-21T14:30+02:00"],
             "url": "https://example.org/frames"}"#;
 
-        let parsed = GeosphereIncaRr::list(list, &ctx(at(12, 40)), &wanted(at(11, 0))).unwrap();
+        let parsed = GeosphereIncaRr::list(list, &ctx(at(13, 19)), &wanted(at(11, 0))).unwrap();
 
         // The two that are times, at the addresses the adapter makes: the
-        // last is 11:45 UTC, written on another clock.
+        // last is 12:30 UTC, written on another clock.
         let urls: Vec<&str> = parsed.follow_up.iter().map(|r| r.url.as_str()).collect();
         assert_eq!(
             urls,
             [
-                frame_url(at(11, 45), 3, &fixtures::area()),
-                frame_url(at(12, 15), 0, &fixtures::area())
+                frame_url(at(12, 30), 3, &fixtures::area()),
+                frame_url(at(13, 0), 0, &fixtures::area())
             ]
         );
         assert_eq!(parsed.skipped.len(), 2);
 
         // What is no list is said to be none.
-        let said = GeosphereIncaRr::list(b"<html>", &ctx(at(12, 40)), &wanted(at(11, 0)));
+        let said = GeosphereIncaRr::list(b"<html>", &ctx(at(13, 19)), &wanted(at(11, 0)));
         assert!(said.unwrap_err().contains("no list of runs"));
         let many = format!(
             r#"{{"available_forecast_reftimes": [{}]}}"#,
-            vec![r#""2026-11-21T12:15+00:00""#; 65].join(",")
+            vec![r#""2026-11-21T13:00+00:00""#; 65].join(",")
         );
-        let said = GeosphereIncaRr::list(many.as_bytes(), &ctx(at(12, 40)), &wanted(at(11, 0)));
+        let said = GeosphereIncaRr::list(many.as_bytes(), &ctx(at(13, 19)), &wanted(at(11, 0)));
         assert!(said.unwrap_err().contains("names 65 runs"));
     }
 
@@ -603,7 +606,7 @@ mod tests {
 
         let frame = adapter.frame(time, body, &grid).unwrap();
 
-        assert_eq!(frame.time, at(12, 0));
+        assert_eq!(frame.time, at(12, 45));
         assert_eq!(frame.interval_s, 900);
         assert_eq!(frame.cells.len(), 624 * 261);
         // Vienna, which no German radar sees, has a value.
@@ -616,25 +619,23 @@ mod tests {
             frame.cells[(row * grid.columns + column) as usize],
             RADAR_UNSEEN
         );
-        // Rain over a ninth of the box that noon, none of it in the two
-        // highest steps; and 107 cells without a value.
+        // Rain over a ninth of the box that afternoon, none of it in the
+        // two highest steps; and no cell without a value.
         let mut steps = [0usize; 8];
         for cell in &frame.cells {
             steps[usize::from(*cell)] += 1;
         }
-        assert_eq!(steps, [141_792, 3584, 12_890, 4281, 210, 0, 0, 107]);
-        // Those are no gap in the product. The recording is of the plain
-        // box, and the service gave the rows of INCA's grid that reach
-        // into it. A row of that grid is a straight line on INCA's map and
-        // bends south on a map of degrees, least at the grid's meridian
-        // of 13.33 E: there the map's last row, which reaches a little
-        // beyond the box's south, lies south of the rectangle's last.
-        let unseen: Vec<(usize, usize)> = (0..frame.cells.len())
-            .filter(|at| frame.cells[*at] == RADAR_UNSEEN)
-            .map(|at| (at / 624, at % 624))
-            .collect();
-        assert!(unseen.iter().all(|(row, _)| *row == 260));
-        assert_eq!((unseen[0].1, unseen[106].1), (261, 367));
+        assert_eq!(steps, [143_965, 4470, 11_305, 3088, 36, 0, 0, 0]);
+        // That is the widened box at work. The service gives the rows of
+        // INCA's grid that reach into the box it is asked for. A row of
+        // that grid is a straight line on INCA's map and bends south on a
+        // map of degrees, least at the grid's meridian of 13.33 E: asked
+        // for the region's own box, the rectangle ended north of the
+        // map's last row there, and 107 cells of that row, from 12.66 E
+        // to 14 E, had no value (the recording of 12:39 UTC on the same
+        // day, which this one replaced). The map's last row is seen now.
+        let last_row = &frame.cells[260 * 624..];
+        assert!(last_row.iter().all(|cell| *cell != RADAR_UNSEEN));
         assert!((12.66..12.67).contains(&grid.centre(261, 260).0));
         assert!((13.99..14.0).contains(&grid.centre(367, 260).0));
     }
@@ -644,15 +645,15 @@ mod tests {
         let adapter = GeosphereIncaRr::new();
         let grid = RadarGrid::over(&fixtures::area()).unwrap();
         let (time, body) = fixtures::frames()[0];
-        assert_eq!(time, at(12, 0));
+        assert_eq!(time, at(12, 45));
 
         // A new run arrived between the list and the frame: the place
-        // that was the run of 12:15 now gives another. Here, the frame of
-        // 12:00 under the name of 12:15.
-        let said = adapter.frame(at(12, 15), body, &grid).unwrap_err();
+        // that was the run of 13:00 now gives another. Here, the frame of
+        // 12:45 under the name of 13:00.
+        let said = adapter.frame(at(13, 0), body, &grid).unwrap_err();
         assert!(
             said.contains(
-                "is of 2026-11-21 12:00 UTC, and was asked for as the run of 2026-11-21 12:15"
+                "is of 2026-11-21 12:45 UTC, and was asked for as the run of 2026-11-21 13:00"
             ),
             "{said}"
         );
@@ -707,14 +708,14 @@ mod tests {
         // A step of the forecast: a lead time of a quarter of an hour.
         // The value stands where the file's layout of `leadtime` says.
         let mut later = body.to_vec();
-        later[42_412..42_420].copy_from_slice(&0.25f64.to_le_bytes());
+        later[40_665..40_673].copy_from_slice(&0.25f64.to_le_bytes());
         let said = refused(&later);
         assert!(said.contains("a forecast 0.25 hours ahead"), "{said}");
         // The whole rectangle a kilometre further east than its degrees
         // say: every `x` a thousand metres more.
         let mut moved = body.to_vec();
-        for point in 0..600 {
-            let at = 50_194 + point * 4;
+        for point in 0..608 {
+            let at = 48_447 + point * 4;
             let value = i32::from_le_bytes(moved[at..at + 4].try_into().unwrap()) + 1000;
             moved[at..at + 4].copy_from_slice(&value.to_le_bytes());
         }

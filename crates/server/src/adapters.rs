@@ -172,33 +172,12 @@ pub fn recorded_radar_payloads() -> FixtureFetch {
         .with_all(venti_sources_geosphere_radar::fixtures::recorded())
 }
 
-/// The moment the development mode's radar clock stands at: 11:44 UTC on
-/// 2026-11-21, shortly after DWD's frames were recorded, three days after
-/// the observations.
+/// The moment the development mode's radar clock stands at: 13:19 UTC on
+/// 2026-11-21, three days after the observations. Both radar sources
+/// were recorded in the two minutes before it, so one clock is honest for
+/// both: DWD's newest frame, of 13:15, is four minutes old, and GeoSphere
+/// Austria's newest run, of 13:00, nineteen.
 pub fn radar_recorded_at() -> Timestamp {
-    venti_sources_dwd_radar::fixtures::recorded_at()
-}
-
-/// Whether the development mode has a radar source. It has DWD's alone.
-///
-/// The two sources were recorded an hour apart: DWD's frames, of 11:35
-/// and 11:40 UTC, at 11:44, and GeoSphere Austria's, of 12:00 and 12:15,
-/// at 12:39. One clock cannot stand shortly after both. At 11:44 the
-/// frames of GeoSphere Austria are of moments still to come. At 12:40
-/// DWD's newest frame is an hour old, and by the radar's own rule a
-/// source whose newest frame is older than three of its intervals has
-/// stopped publishing: its run is not healthy and the server's health is
-/// "degraded". Until both are recorded at one moment, the development
-/// mode keeps to the one whose recording its clock is of. A real server
-/// collects both, and the server's tests run both recordings through the
-/// service and the API, with the clock at [`radar_recorded_last_at`].
-pub fn radar_in_development_mode(source: &venti_domain::SourceId) -> bool {
-    source.as_str() == DwdRadarRy::new().manifest().id.as_str()
-}
-
-/// Shortly after the later of the two radar recordings: 12:40 UTC on
-/// 2026-11-21. No recorded frame is of a moment after it.
-pub fn radar_recorded_last_at() -> Timestamp {
     venti_sources_dwd_radar::fixtures::recorded_at()
         .max(venti_sources_geosphere_radar::fixtures::recorded_at())
 }

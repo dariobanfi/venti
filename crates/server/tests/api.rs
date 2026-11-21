@@ -65,6 +65,7 @@ async fn health_reports_every_source_fresh() {
             ("awc-metar", 3),
             ("dwd-10min", 3),
             ("dwd-radar-ry", 0),
+            ("geosphere-inca-rr", 0),
             ("geosphere-tawes", 3),
             ("open-meteo", 0),
             ("openaip", 0),
@@ -77,11 +78,14 @@ async fn health_reports_every_source_fresh() {
     let airspaces: Vec<Option<u32>> = health.sources.iter().map(|s| s.airspaces).collect();
     assert_eq!(
         airspaces,
-        [None, None, None, None, None, Some(192), None, None]
+        [None, None, None, None, None, None, Some(192), None, None]
     );
     // The same for the flying sites.
     let sites: Vec<Option<u32>> = health.sources.iter().map(|s| s.sites).collect();
-    assert_eq!(sites, [None, None, None, None, None, None, Some(502), None]);
+    assert_eq!(
+        sites,
+        [None, None, None, None, None, None, None, Some(502), None]
+    );
     // The forecast source says which run each of its models is at. The
     // development mode's forecasts were recorded three days after its
     // wind, so here the runs are dated after the look that found them.
@@ -89,7 +93,7 @@ async fn health_reports_every_source_fresh() {
         health.forecasts,
         Some(venti_api_types::v1::ForecastsHealth::Available)
     );
-    let models: Vec<(&str, String)> = health.sources[4]
+    let models: Vec<(&str, String)> = health.sources[5]
         .models
         .iter()
         .map(|model| (model.model.as_str(), model.run.to_rfc3339()))
@@ -102,12 +106,12 @@ async fn health_reports_every_source_fresh() {
         ]
     );
     assert!(
-        health.sources[4]
+        health.sources[5]
             .models
             .iter()
             .all(|m| m.checked_at == health.time)
     );
-    assert!(health.sources[5].models.is_empty());
+    assert!(health.sources[6].models.is_empty());
     assert!(health.sources.iter().all(|source| !source.stale));
     assert_golden(&golden("health.json"), &health);
 }
@@ -246,7 +250,6 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "thermals.json",
         "thermal_hours_wind.json",
         "radar.json",
-        "radar_two_layers.json",
         "error_missing_bbox.json",
         "sign_in.json",
         "sessions.json",

@@ -6,10 +6,10 @@
 use venti_hdf5::{File, Value};
 
 const DWD: &[u8] = include_bytes!(
-    "../../sources-dwd-radar/tests/fixtures/raa01-ry_10000-2611211140-dwd---bin.hdf5"
+    "../../sources-dwd-radar/tests/fixtures/raa01-ry_10000-2611211315-dwd---bin.hdf5"
 );
 const INCA: &[u8] =
-    include_bytes!("../../sources-geosphere-radar/tests/fixtures/rr-202611211200.nc");
+    include_bytes!("../../sources-geosphere-radar/tests/fixtures/rr-202611211245.nc");
 
 fn value<'a>(attributes: &'a [(String, Value)], name: &str) -> &'a Value {
     attributes
@@ -58,30 +58,30 @@ fn geospheres_frame_has_a_superblock_of_version_2_and_shuffled_pictures() {
     // packed, with fourteen attributes in a heap of two blocks, twelve
     // of them one value.
     let rain = file.object(&["rr"]).unwrap();
-    assert_eq!(file.shape(&rain).unwrap(), [1, 252, 600]);
+    assert_eq!(file.shape(&rain).unwrap(), [1, 263, 608]);
     let attributes = file.attributes(&rain).unwrap();
     assert_eq!(attributes.len(), 12);
     assert_eq!(value(&attributes, "scale_factor"), &Value::Float(0.01));
     assert_eq!(value(&attributes, "missing_value"), &Value::Int(-999));
     assert_eq!(value(&attributes, "_FillValue"), &Value::Int(-999));
     assert_eq!(value(&attributes, "units").text(), Some("kg m-2"));
-    let raw = file.shuffled_i16(&rain, &[1, 252, 600]).unwrap();
-    assert_eq!(raw.len(), 151_200);
-    // No rain at four points of five, 2.38 mm in the quarter of an hour
+    let raw = file.shuffled_i16(&rain, &[1, 263, 608]).unwrap();
+    assert_eq!(raw.len(), 159_904);
+    // No rain at five points of six, 1.35 mm in the quarter of an hour
     // at the wettest, and a value everywhere.
-    assert_eq!(raw.iter().filter(|v| **v == 0).count(), 123_775);
-    assert_eq!(raw.iter().filter(|v| **v == 1).count(), 5721);
-    assert_eq!((raw.iter().min(), raw.iter().max()), (Some(&0), Some(&238)));
+    assert_eq!(raw.iter().filter(|v| **v == 0).count(), 133_000);
+    assert_eq!(raw.iter().filter(|v| **v == 1).count(), 6376);
+    assert_eq!((raw.iter().min(), raw.iter().max()), (Some(&0), Some(&135)));
 
     // The degrees of every point: floats, shuffled and packed.
     let lat = file
-        .shuffled_f32(&file.object(&["lat"]).unwrap(), &[252, 600])
+        .shuffled_f32(&file.object(&["lat"]).unwrap(), &[263, 608])
         .unwrap();
     let lon = file
-        .shuffled_f32(&file.object(&["lon"]).unwrap(), &[252, 600])
+        .shuffled_f32(&file.object(&["lon"]).unwrap(), &[263, 608])
         .unwrap();
-    assert!((lat[0] - 46.234_165).abs() < 1e-6 && (lon[0] - 9.415_482_5).abs() < 1e-6);
-    assert!((lat[151_199] - 48.492_016).abs() < 1e-6 && (lon[151_199] - 17.353_31).abs() < 1e-5);
+    assert!((lat[0] - 46.187_41).abs() < 1e-6 && (lon[0] - 9.367).abs() < 1e-6);
+    assert!((lat[159_903] - 48.544_033).abs() < 1e-6 && (lon[159_903] - 17.411_62).abs() < 1e-5);
 
     // Rows of numbers, stored as they are: the grid's metres as integers
     // of four bytes, the time as one of eight, the lead time as a double.
@@ -89,15 +89,15 @@ fn geospheres_frame_has_a_superblock_of_version_2_and_shuffled_pictures() {
         file.numbers(&file.object(&[name]).unwrap(), length)
             .unwrap()
     };
-    let (x, y) = (numbers("x", 600), numbers("y", 252));
-    assert_eq!((x[0], x[1], x[599]), (98_000.0, 99_000.0, 697_000.0));
-    assert_eq!((y[0], y[251]), (267_000.0, 518_000.0));
+    let (x, y) = (numbers("x", 608), numbers("y", 263));
+    assert_eq!((x[0], x[1], x[607]), (94_000.0, 95_000.0, 701_000.0));
+    assert_eq!((y[0], y[262]), (262_000.0, 524_000.0));
     assert_eq!(numbers("time", 1), [0.0]);
     assert_eq!(numbers("leadtime", 1), [0.0]);
     let time = file.attributes(&file.object(&["time"]).unwrap()).unwrap();
     assert_eq!(
         value(&time, "units").text(),
-        Some("days since 2026-11-21 12:00:00")
+        Some("days since 2026-11-21 12:45:00")
     );
     // The file's own attributes, in a heap of two blocks as well.
     let root = file.attributes(&file.object(&[]).unwrap()).unwrap();
@@ -114,19 +114,19 @@ fn a_dataset_is_read_only_as_what_it_is() {
     );
 
     // Another size, another type, another way of packing or storing.
-    let said = file.shuffled_i16(&rain, &[252, 600]).unwrap_err();
-    assert!(said.contains("is [1, 252, 600], not [252, 600]"), "{said}");
-    let said = file.shuffled_f32(&rain, &[1, 252, 600]).unwrap_err();
+    let said = file.shuffled_i16(&rain, &[263, 608]).unwrap_err();
+    assert!(said.contains("is [1, 263, 608], not [263, 608]"), "{said}");
+    let said = file.shuffled_f32(&rain, &[1, 263, 608]).unwrap_err();
     assert!(said.contains("not 32-bit floats"), "{said}");
-    let said = file.shuffled_i16(&lat, &[252, 600]).unwrap_err();
+    let said = file.shuffled_i16(&lat, &[263, 608]).unwrap_err();
     assert!(said.contains("not signed 16-bit integers"), "{said}");
-    let said = file.grid_u16(&rain, 252, 600).unwrap_err();
-    assert!(said.contains("not 252 rows of 600"), "{said}");
-    let said = file.numbers(&x, 599).unwrap_err();
-    assert!(said.contains("is [600], not 599 numbers"), "{said}");
+    let said = file.grid_u16(&rain, 263, 608).unwrap_err();
+    assert!(said.contains("not 263 rows of 608"), "{said}");
+    let said = file.numbers(&x, 607).unwrap_err();
+    assert!(said.contains("is [608], not 607 numbers"), "{said}");
     let said = file.numbers(&x, 5000).unwrap_err();
     assert!(said.contains("more than this reader reads"), "{said}");
-    let said = file.shuffled_i16(&x, &[600]).unwrap_err();
+    let said = file.shuffled_i16(&x, &[608]).unwrap_err();
     assert!(said.contains("not signed 16-bit integers"), "{said}");
 
     // A picture whose packed bytes are cut off, and a file cut short.
@@ -134,7 +134,7 @@ fn a_dataset_is_read_only_as_what_it_is() {
     damaged[14_444 + 24] = 0x10;
     let said = File::open(&damaged)
         .unwrap()
-        .shuffled_i16(&rain_of(&damaged), &[1, 252, 600])
+        .shuffled_i16(&rain_of(&damaged), &[1, 263, 608])
         .unwrap_err();
     assert!(said.contains("unpack"), "{said}");
     assert!(File::open(&INCA[..4096]).unwrap_err().contains("cut short"));

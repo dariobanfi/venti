@@ -46,7 +46,7 @@ fn the_recorded_answers_match_the_golden_file() {
 
     let output = run(&fetch, &archive);
 
-    // The list, and the two frames after 11:30.
+    // The list, and the two frames after 13:05.
     assert_eq!(output.report.requests, 3);
     assert!(
         output.report.failures.is_empty(),
@@ -59,8 +59,8 @@ fn the_recorded_answers_match_the_golden_file() {
     assert_eq!(
         archive.stored(),
         [
-            ("frame/2611211135".to_owned(), 56_477),
-            ("frame/2611211140".to_owned(), 57_348),
+            ("frame/2611211310".to_owned(), 63_014),
+            ("frame/2611211315".to_owned(), 63_727),
             ("list".to_owned(), 85_577),
         ]
     );
@@ -75,7 +75,7 @@ fn the_recorded_answers_match_the_golden_file() {
         let unseen = frame.cells.iter().filter(|c| **c == RADAR_UNSEEN).count();
         assert_eq!(unseen, 92_979, "of {}", frame.cells.len());
     }
-    // It rained lightly that morning: some 6,800 cells of rain, a few of
+    // It rained lightly that afternoon: some 8,000 cells of rain, a few of
     // them heavy, none in the two highest steps.
     let rain = |step: u8| {
         output.frames[1]
@@ -86,7 +86,7 @@ fn the_recorded_answers_match_the_golden_file() {
     };
     assert_eq!(
         [rain(1), rain(2), rain(3), rain(4), rain(5), rain(6)],
-        [1688, 4278, 897, 18, 0, 0]
+        [1736, 4680, 1582, 32, 0, 0]
     );
 
     let frames: Vec<serde_json::Value> = output.frames.iter().map(radar_golden).collect();
@@ -109,7 +109,7 @@ fn a_frame_the_server_does_not_have_is_a_failed_request_and_the_other_arrives() 
     assert_eq!(output.frames.len(), 1);
     assert_eq!(output.frames[0].time, older);
     assert_eq!(output.report.failures.len(), 1);
-    assert_eq!(output.report.failures[0].tag, "frame/2611211140");
+    assert_eq!(output.report.failures[0].tag, "frame/2611211315");
     assert_eq!(output.report.failures[0].error, "HTTP status 404");
     // A frame that could not be fetched is asked for again by the next
     // run: this one is not healthy.

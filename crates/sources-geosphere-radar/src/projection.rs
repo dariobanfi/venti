@@ -17,7 +17,7 @@
 //! a conformal conic projection of Bessel's ellipsoid with two standard
 //! parallels, on the datum of the Militärgeographisches Institut. That
 //! datum is not the map's: a place has other degrees on it than on WGS84,
-//! 54 to 115 m apart in the first region. So a place of the map is first moved from
+//! 53 to 116 m apart in the first region. So a place of the map is first moved from
 //! WGS84 to MGI, by the seven numbers the file gives after `TOWGS84` (three
 //! shifts in metres, three turns in seconds of arc, a scale in millionths;
 //! the "position vector" reading, which is the one that fits), and then
@@ -32,9 +32,9 @@
 //! must lie where this projection puts them, or the frame is refused.
 //!
 //! How well it fits was measured on the recorded frames (2026-11-21), over
-//! all 151,200 points of each: with the datum's shift the file's own
+//! all 159,904 points of each: with the datum's shift the file's own
 //! degrees land within 0.95 m of the file's own metres, a thousandth of a
-//! cell; without it they are 54 to 115 m off, up to a ninth of a cell and
+//! cell; without it they are 53 to 116 m off, up to a ninth of a cell and
 //! all to one side. A test of this crate holds both numbers.
 
 use std::f64::consts::FRAC_PI_4;
@@ -189,18 +189,18 @@ mod tests {
         let projection = AustriaLambert::new();
         for (_, body) in fixtures::frames() {
             let file = File::open(body).unwrap();
-            let x = file.numbers(&file.object(&["x"]).unwrap(), 600).unwrap();
-            let y = file.numbers(&file.object(&["y"]).unwrap(), 252).unwrap();
+            let x = file.numbers(&file.object(&["x"]).unwrap(), 608).unwrap();
+            let y = file.numbers(&file.object(&["y"]).unwrap(), 263).unwrap();
             let lat = file
-                .shuffled_f32(&file.object(&["lat"]).unwrap(), &[252, 600])
+                .shuffled_f32(&file.object(&["lat"]).unwrap(), &[263, 608])
                 .unwrap();
             let lon = file
-                .shuffled_f32(&file.object(&["lon"]).unwrap(), &[252, 600])
+                .shuffled_f32(&file.object(&["lon"]).unwrap(), &[263, 608])
                 .unwrap();
 
             let (mut worst, mut worst_unshifted, mut least_unshifted) = (0.0f64, 0.0f64, f64::MAX);
             for (at, (lat, lon)) in lat.iter().zip(&lon).enumerate() {
-                let (east, north) = (x[at % 600], y[at / 600]);
+                let (east, north) = (x[at % 608], y[at / 608]);
                 let (lon, lat) = (f64::from(*lon), f64::from(*lat));
                 let (px, py) = projection.forward(lon, lat);
                 worst = worst.max((px - east).hypot(py - north));
@@ -215,7 +215,7 @@ mod tests {
             // Without the datum's shift every point is off, by up to a
             // ninth of a cell.
             assert!(
-                least_unshifted > 54.0 && worst_unshifted > 114.0 && worst_unshifted < 115.0,
+                least_unshifted > 53.0 && worst_unshifted > 115.0 && worst_unshifted < 116.0,
                 "{least_unshifted} to {worst_unshifted} m"
             );
         }

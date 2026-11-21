@@ -22,9 +22,16 @@
     {
       "source": "dwd-radar-ry",
       "frames": 2,
-      "newest_frame": "2026-11-21T11:40:00Z",
+      "newest_frame": "2026-11-21T13:15:00Z",
       "newest_frame_age_s": 240,
-      "bytes": 9000
+      "bytes": 9267
+    },
+    {
+      "source": "geosphere-inca-rr",
+      "frames": 2,
+      "newest_frame": "2026-11-21T13:00:00Z",
+      "newest_frame_age_s": 1140,
+      "bytes": 10408
     }
   ],
   "sources": [
@@ -50,6 +57,14 @@
       "source": "dwd-radar-ry",
       "provider": "Deutscher Wetterdienst",
       "cadence_seconds": 300,
+      "last_success": "2026-11-18T19:05:00Z",
+      "stale": false,
+      "stations": 0
+    },
+    {
+      "source": "geosphere-inca-rr",
+      "provider": "GeoSphere Austria",
+      "cadence_seconds": 900,
       "last_success": "2026-11-18T19:05:00Z",
       "stale": false,
       "stations": 0

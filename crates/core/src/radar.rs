@@ -11,9 +11,14 @@
 //! to [`radar_frame_image`] and gets back the same picture in those
 //! colours, which a map draws pinned to the layer's four corners.
 //!
+//! Two sources have frames of different moments: one every five minutes,
+//! seconds old, the other every quarter of an hour, 20 to 37 minutes old.
+//! Which frame of which layer belongs on the map at a moment is said
+//! here once ([`RadarView::moments`]), and a shell draws what it is told.
+//!
 //! What is said here is fixed rules and no judgement of the day: how old a
-//! frame is, when the newest is too old to be the rain of now, and what
-//! the steps stand for.
+//! frame is, when the newest is too old to be the rain of now, which
+//! frames belong to a moment, and what the steps stand for.
 
 use venti_api_types::v1::{self, RADAR_PATH};
 use venti_domain::{RADAR_UNSEEN, RAIN_STEPS_MM_H};
@@ -42,7 +47,8 @@ const MAX_PICTURE_BYTES: usize = 4 * 1024 * 1024;
 /// to be shown as the rain of now: three, a quarter of an hour for a
 /// source that publishes every five minutes and three for one that
 /// publishes every fifteen. It is the rule by which the
-/// server calls the source behind.
+/// server calls the source behind, and the rule by which a layer's frame
+/// is too old to be drawn at a moment of the time strip.
 const STALE_AFTER_INTERVALS: i64 = 3;
 
 /// What the steps of rain are drawn in, for want of colours of rain's
@@ -61,18 +67,30 @@ const STAND_IN: [(ThermalMapScale, u8); 6] = [
 ];
 
 /// What the core says of a source of the rain radar it knows: what its
-/// layer is, in words, and whether its pictures are an analysis (rain as
-/// a model puts it together from radars and gauges, a quarter of an hour
-/// and more old when it arrives) and not what radars measured minutes
-/// ago. A source it does not know is a radar's.
-const SOURCES: [(&str, &str, bool); 2] = [
-    ("dwd-radar-ry", "Germany's radars", false),
+/// layer is, in words; how a picture of it is spoken of where it lies
+/// under another's and is of another moment ("Austria's analysis is of
+/// 14:00"); and whether its pictures are an analysis (rain as a model
+/// puts it together from radars and gauges, a quarter of an hour and
+/// more old when it arrives) and not what radars measured minutes ago. A
+/// source it does not know is a radar's.
+const SOURCES: [(&str, &str, &str, bool); 2] = [
+    (
+        "dwd-radar-ry",
+        "Germany's radars",
+        "Germany's radar picture is of",
+        false,
+    ),
     (
         "geosphere-inca-rr",
         "Austria's analysis of radar and gauges",
+        "Austria's analysis is of",
         true,
     ),
 ];
+
+/// How a picture of a source the core does not know is spoken of where
+/// it lies under another's and is of another moment.
+const SOME_PICTURE_IS_OF: &str = "The radar picture under it is of";
 
 /// What a layer of a source is called when the core does not know the
 /// source.
@@ -175,6 +193,50 @@ pub struct RadarKey {
     pub scale_step: u8,
 }
 
+/// One layer's frame to draw at a moment.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct RadarMomentFrame {
+    /// Which layer: its place in [`RadarView::layers`], from 0.
+    pub layer: u32,
+    /// Which of that layer's frames: its place in the layer's `frames`,
+    /// from 0.
+    pub frame: u32,
+    /// Whether this picture is to show what its source did not see, as
+    /// the quiet veil: true for the lowest picture of the moment, false
+    /// for each above it, which gets a fully clear colour as `unseen`
+    /// from [`radar_frame_image`]. It is the layer's own `draws_unseen`
+    /// unless the layer that draws the veil has no frame for this moment;
+    /// then the lowest that has one draws it, so that a place nobody saw
+    /// is never shown as dry.
+    pub draws_unseen: bool,
+}
+
+/// One stop of the time strip: a moment, and what lies on the map at it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct RadarMoment {
+    /// The moment, seconds since 1970: the end of the interval of the
+    /// frame the stop is of.
+    pub time_unix_s: i64,
+    /// The same on the pilot's clock, for the stop: "14:15".
+    pub clock: String,
+    /// What to write on the map while the moment is shown: the label of
+    /// the topmost picture, and, where a picture under it is of another
+    /// moment, that in words: "Rain radar, 14:15, 4 minutes ago.
+    /// Austria's analysis is of 14:00."
+    pub label: String,
+    /// The pictures to draw, in the order to draw them, the first at the
+    /// bottom: for each layer its newest frame whose interval had ended
+    /// at this moment. A layer has none here if it has no such frame, or
+    /// if that frame was older at this moment than three of the layer's
+    /// own intervals: rain of then is not laid under the rain of a
+    /// moment.
+    pub frames: Vec<RadarMomentFrame>,
+}
+
 /// The rain radar as a shell shows it.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -184,7 +246,22 @@ pub struct RadarView {
     /// as a layer of its own with its own credit, in the order to draw
     /// them: the first at the bottom, the last on top. A measured radar
     /// picture lies above an analysis.
+    ///
+    /// Each layer says for itself whether its newest frame is too old
+    /// (`stale`, `stale_words`). A card that has one line for a caution
+    /// shows that of the topmost layer that has frames.
     pub layers: Vec<RadarLayerView>,
+    /// The stops of the time strip, the oldest first, and for each what
+    /// to draw: one line of time for all layers. The stops are the
+    /// moments of the frames of the layer that has frames most often
+    /// (the radar's five minutes where there is a radar's layer; the
+    /// analysis' quarters of an hour where it stands alone). With one
+    /// layer they are that layer's frames, one for one. Empty while no
+    /// layer has a frame.
+    pub moments: Vec<RadarMoment>,
+    /// The stop to show first, its place in `moments`: the newest. 0
+    /// while there are none.
+    pub first_moment: u32,
     /// The key, from the most rain down.
     pub key: Vec<RadarKey>,
     /// What to call the places a picture marks as not seen, for the key's
@@ -226,7 +303,7 @@ pub fn radar(
         });
     }
     let now = now_unix_s.max(response.time.timestamp());
-    let mut layers: Vec<(bool, RadarLayerView)> = response
+    let mut layers: Vec<(bool, Told, RadarLayerView)> = response
         .layers
         .iter()
         .take(MAX_LAYERS)
@@ -234,8 +311,8 @@ pub fn radar(
         .map(|layer| {
             let known = SOURCES
                 .iter()
-                .find(|(source, _, _)| *source == layer.source.as_str());
-            let analysis = known.is_some_and(|(_, _, analysis)| *analysis);
+                .find(|(source, ..)| *source == layer.source.as_str());
+            let analysis = known.is_some_and(|(.., analysis)| *analysis);
             // How a picture of the layer is spoken of.
             let (name, picture) = if analysis {
                 ("Rain analysis", "picture of the analysis")
@@ -277,7 +354,7 @@ pub fn radar(
                 source: layer.source.to_string(),
                 what: format!(
                     "{}, every {}",
-                    known.map_or(SOME_RADAR, |(_, what, _)| what),
+                    known.map_or(SOME_RADAR, |(_, what, ..)| what),
                     span(cadence)
                 ),
                 draws_unseen: false,
@@ -295,14 +372,21 @@ pub fn radar(
                     .find(|attribution| attribution.source == layer.source)
                     .map(credit),
             };
-            (analysis, view)
+            let told = Told {
+                cadence,
+                is_of: known.map_or(SOME_PICTURE_IS_OF, |(_, _, is_of, _)| is_of),
+            };
+            (analysis, told, view)
         })
         .collect();
     // The order to draw them in, the first at the bottom: analyses, then
     // what radars measured, each kind in the server's order.
-    layers.sort_by_key(|(analysis, _)| !*analysis);
-    let any_analysis = layers.iter().any(|(analysis, _)| *analysis);
-    let mut layers: Vec<RadarLayerView> = layers.into_iter().map(|(_, view)| view).collect();
+    layers.sort_by_key(|(analysis, ..)| !*analysis);
+    let any_analysis = layers.iter().any(|(analysis, ..)| *analysis);
+    let (told, mut layers): (Vec<Told>, Vec<RadarLayerView>) = layers
+        .into_iter()
+        .map(|(_, told, view)| (told, view))
+        .unzip();
     // The veil of "not seen" is drawn once, by the lowest layer that has a
     // picture to draw it in.
     let veiled = layers
@@ -336,12 +420,103 @@ pub fn radar(
              where no layer sees it.",
         );
     }
+    let moments = moments(&layers, &told);
+    // The newest, which is the last: the frames come the oldest first.
+    let first_moment = (0..moments.len())
+        .max_by_key(|at| moments[*at].time_unix_s)
+        .map_or(0, place);
     Ok(RadarView {
         layers,
+        moments,
+        first_moment,
         key: key(),
         unseen_words: "Not seen by the radar".to_owned(),
         note,
     })
+}
+
+/// What the line of time needs to know of a layer beyond its view.
+struct Told {
+    /// How often the source publishes, in seconds.
+    cadence: i64,
+    /// How a picture of it is spoken of under another's: "Austria's
+    /// analysis is of".
+    is_of: &'static str,
+}
+
+/// A place in a list as a shell is given it. A view has at most
+/// [`MAX_LAYERS`] layers of [`MAX_FRAMES`] frames each: the number fits.
+#[allow(clippy::cast_possible_truncation)]
+fn place(at: usize) -> u32 {
+    at as u32
+}
+
+/// The stops of the time strip and what lies on the map at each.
+///
+/// The stops are the frames of the layer with the shortest cadence among
+/// those that have frames; of two that publish as often, the upper. At a
+/// stop each layer shows its newest frame that is not of a later moment,
+/// unless that frame is then older than [`STALE_AFTER_INTERVALS`] of the
+/// layer's own intervals.
+fn moments(layers: &[RadarLayerView], told: &[Told]) -> Vec<RadarMoment> {
+    let Some(stops) = (0..layers.len())
+        .filter(|at| !layers[*at].frames.is_empty())
+        .min_by_key(|at| (told[*at].cadence, std::cmp::Reverse(*at)))
+    else {
+        return Vec::new();
+    };
+    layers[stops]
+        .frames
+        .iter()
+        .map(|stop| {
+            let time = stop.time_unix_s;
+            // For each layer, bottom first, the frame it shows.
+            let shown: Vec<(usize, usize)> = layers
+                .iter()
+                .enumerate()
+                .filter_map(|(layer, view)| {
+                    let (frame, newest) = view
+                        .frames
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, frame)| frame.time_unix_s <= time)
+                        .max_by_key(|(_, frame)| frame.time_unix_s)?;
+                    let patience = STALE_AFTER_INTERVALS * told[layer].cadence;
+                    (time - newest.time_unix_s <= patience).then_some((layer, frame))
+                })
+                .collect();
+            // The stop's own frame is among them: there is a topmost.
+            let top = shown
+                .last()
+                .map_or(stop, |(layer, frame)| &layers[*layer].frames[*frame]);
+            let mut label = top.label.clone();
+            let mut another_moment = false;
+            for (layer, frame) in shown.iter().rev().skip(1) {
+                let under = &layers[*layer].frames[*frame];
+                if under.time_unix_s != top.time_unix_s {
+                    label.push_str(&format!(". {} {}", told[*layer].is_of, under.clock));
+                    another_moment = true;
+                }
+            }
+            if another_moment {
+                label.push('.');
+            }
+            RadarMoment {
+                time_unix_s: time,
+                clock: stop.clock.clone(),
+                label,
+                frames: shown
+                    .iter()
+                    .enumerate()
+                    .map(|(at, (layer, frame))| RadarMomentFrame {
+                        layer: place(*layer),
+                        frame: place(*frame),
+                        draws_unseen: at == 0,
+                    })
+                    .collect(),
+            }
+        })
+        .collect()
 }
 
 /// The key of the steps, from the most rain down.
@@ -569,12 +744,12 @@ fn crc32(bytes: &[u8]) -> u32 {
 mod tests {
     use super::*;
 
-    /// 21 November 2026, 11:44 UTC: the moment the development mode's
-    /// radar clock stands at.
+    /// 21 November 2026, 11:44 UTC: four minutes after the newer frame of
+    /// [`ANSWER`].
     const NOW: i64 = 1_795_261_440;
 
-    /// The development mode's answer, as `crates/server/tests/golden/radar.json`
-    /// keeps it.
+    /// The answer of a server that has Germany's radars alone: two frames
+    /// recorded from DWD on 2026-11-21, by a clock at 11:44 UTC.
     const ANSWER: &str = r#"{
         "time": "2026-11-21T11:44:00Z",
         "steps_mm_h": [0.1, 0.2, 1.0, 4.0, 10.0, 30.0],
@@ -641,9 +816,10 @@ mod tests {
         assert_eq!(credit.licence, "CC BY 4.0");
     }
 
-    /// The answer of a server with the first region's two sources, as
-    /// `crates/server/tests/golden/radar_two_layers.json` keeps it: both
-    /// recordings, by a clock at 12:40 UTC.
+    /// The answer of a server with the first region's two sources whose
+    /// radar source stopped an hour ago: the frames of [`ANSWER`] and two
+    /// of the analysis of half an hour and more later, by a clock at
+    /// 12:40 UTC.
     fn two_layers() -> serde_json::Value {
         let mut answer: serde_json::Value = serde_json::from_str(ANSWER).unwrap();
         answer["time"] = serde_json::json!("2026-11-21T12:40:00Z");
@@ -772,6 +948,209 @@ mod tests {
         assert_eq!(view.layers[1].what, "Rain radar, every 15 minutes");
         assert_eq!(view.layers[0].source, "dwd-radar-ry");
         assert!(view.layers[0].draws_unseen && !view.layers[1].draws_unseen);
+    }
+
+    /// 21 November 2026, 13:19 UTC: the moment the development mode's
+    /// radar clock stands at.
+    const RECORDED_AT: i64 = NOW + 95 * 60;
+
+    /// The development mode's answer, as
+    /// `crates/server/tests/golden/radar.json` keeps it: both sources,
+    /// recorded within two minutes, by a clock at 13:19 UTC.
+    fn recorded() -> serde_json::Value {
+        let mut answer = two_layers();
+        answer["time"] = serde_json::json!("2026-11-21T13:19:00Z");
+        answer["layers"][0]["frames"] = serde_json::json!([
+            {"time": "2026-11-21T13:10:00Z", "interval_s": 300,
+             "path": "/v1/radar/dwd-radar-ry/20261121T1310Z.png", "bytes": 4572},
+            {"time": "2026-11-21T13:15:00Z", "interval_s": 300,
+             "path": "/v1/radar/dwd-radar-ry/20261121T1315Z.png", "bytes": 4695}
+        ]);
+        answer["layers"][1]["frames"] = serde_json::json!([
+            {"time": "2026-11-21T12:45:00Z", "interval_s": 900,
+             "path": "/v1/radar/geosphere-inca-rr/20261121T1245Z.png", "bytes": 5066},
+            {"time": "2026-11-21T13:00:00Z", "interval_s": 900,
+             "path": "/v1/radar/geosphere-inca-rr/20261121T1300Z.png", "bytes": 5342}
+        ]);
+        answer
+    }
+
+    fn view_of(answer: &serde_json::Value, now: i64) -> RadarView {
+        radar(200, answer.to_string().into_bytes(), 3600, now).unwrap()
+    }
+
+    /// A moment's pictures as layer, frame and whether it draws the veil.
+    fn drawn(moment: &RadarMoment) -> Vec<(u32, u32, bool)> {
+        moment
+            .frames
+            .iter()
+            .map(|frame| (frame.layer, frame.frame, frame.draws_unseen))
+            .collect()
+    }
+
+    #[test]
+    fn two_layers_have_one_line_of_time_with_the_radars_stops() {
+        let view = view_of(&recorded(), RECORDED_AT);
+
+        // The layers in draw order: the analysis, then the radars.
+        assert_eq!(view.layers[0].source, "geosphere-inca-rr");
+        assert_eq!(view.layers[1].source, "dwd-radar-ry");
+        assert_eq!(view.layers[0].line, "Rain analysis, 14:00, 19 minutes ago");
+        assert!(!view.layers[0].stale && !view.layers[1].stale);
+
+        // The stops are the radars' five minutes, the oldest first, and
+        // the card opens at the newest.
+        let stops: Vec<(i64, &str)> = view
+            .moments
+            .iter()
+            .map(|moment| (moment.time_unix_s, moment.clock.as_str()))
+            .collect();
+        assert_eq!(
+            stops,
+            [
+                (RECORDED_AT - 9 * 60, "14:10"),
+                (RECORDED_AT - 4 * 60, "14:15")
+            ]
+        );
+        assert_eq!(view.first_moment, 1);
+
+        // At each the analysis of 14:00 lies under the radars' picture
+        // of the moment and draws the veil: its interval had ended, and
+        // it was 10 and 15 minutes old then. The analysis of 13:45 is
+        // on no stop.
+        assert_eq!(drawn(&view.moments[0]), [(0, 1, true), (1, 0, false)]);
+        assert_eq!(drawn(&view.moments[1]), [(0, 1, true), (1, 1, false)]);
+        // The label is the top picture's, and says of the one under it
+        // that it is of another moment.
+        assert_eq!(
+            view.moments[1].label,
+            "Rain radar, 14:15, 4 minutes ago. Austria's analysis is of 14:00."
+        );
+        assert_eq!(
+            view.moments[0].label,
+            "Rain radar, 14:10, 9 minutes ago. Austria's analysis is of 14:00."
+        );
+
+        // A radar frame of the analysis' own moment says nothing more.
+        let mut same = recorded();
+        same["layers"][0]["frames"][0]["time"] = serde_json::json!("2026-11-21T13:00:00Z");
+        let view = view_of(&same, RECORDED_AT);
+        assert_eq!(view.moments[0].label, "Rain radar, 14:00, 19 minutes ago");
+        assert_eq!(drawn(&view.moments[0]), [(0, 1, true), (1, 0, false)]);
+
+        // A stop before the analysis' newer frame shows the older one.
+        let mut earlier = recorded();
+        earlier["layers"][0]["frames"][0]["time"] = serde_json::json!("2026-11-21T12:55:00Z");
+        let view = view_of(&earlier, RECORDED_AT);
+        assert_eq!(drawn(&view.moments[0]), [(0, 0, true), (1, 0, false)]);
+        assert_eq!(
+            view.moments[0].label,
+            "Rain radar, 13:55, 24 minutes ago. Austria's analysis is of 13:45."
+        );
+    }
+
+    #[test]
+    fn one_layer_has_its_own_frames_as_the_stops() {
+        // The radars alone: a moment for a frame, with the frame's own
+        // time, clock and label.
+        let view = read(NOW);
+        let layer = &view.layers[0];
+        assert_eq!(view.moments.len(), layer.frames.len());
+        for (at, (moment, frame)) in view.moments.iter().zip(&layer.frames).enumerate() {
+            assert_eq!(moment.time_unix_s, frame.time_unix_s);
+            assert_eq!(moment.clock, frame.clock);
+            assert_eq!(moment.label, frame.label);
+            assert_eq!(drawn(moment), [(0, place(at), true)]);
+        }
+        assert_eq!(view.first_moment, 1);
+
+        // The analysis alone: its quarters of an hour are the stops.
+        let mut alone = recorded();
+        alone["layers"].as_array_mut().unwrap().remove(0);
+        let view = view_of(&alone, RECORDED_AT);
+        assert_eq!(view.layers.len(), 1);
+        let clocks: Vec<&str> = view.moments.iter().map(|m| m.clock.as_str()).collect();
+        assert_eq!(clocks, ["13:45", "14:00"]);
+        assert_eq!(view.first_moment, 1);
+        assert_eq!(
+            view.moments[1].label,
+            "Rain analysis, 14:00, 19 minutes ago"
+        );
+        assert_eq!(drawn(&view.moments[0]), [(0, 0, true)]);
+        assert_eq!(drawn(&view.moments[1]), [(0, 1, true)]);
+    }
+
+    #[test]
+    fn a_layer_without_frames_is_on_no_stop_and_the_other_gives_the_stops() {
+        // No radar picture yet: the analysis' frames are the stops, and
+        // each names its layer by its place among both.
+        let mut no_radar = recorded();
+        no_radar["layers"][0]["frames"] = serde_json::json!([]);
+        let view = view_of(&no_radar, RECORDED_AT);
+        assert_eq!(view.layers[1].line, "No radar picture yet");
+        let clocks: Vec<&str> = view.moments.iter().map(|m| m.clock.as_str()).collect();
+        assert_eq!(clocks, ["13:45", "14:00"]);
+        assert_eq!(drawn(&view.moments[1]), [(0, 1, true)]);
+        assert_eq!(
+            view.moments[1].label,
+            "Rain analysis, 14:00, 19 minutes ago"
+        );
+
+        // No picture of the analysis yet: the radars' picture alone, and
+        // it draws the veil, as its layer says.
+        let mut no_analysis = recorded();
+        no_analysis["layers"][1]["frames"] = serde_json::json!([]);
+        let view = view_of(&no_analysis, RECORDED_AT);
+        assert!(view.layers[1].draws_unseen);
+        assert_eq!(drawn(&view.moments[1]), [(1, 1, true)]);
+        assert_eq!(view.moments[1].label, "Rain radar, 14:15, 4 minutes ago");
+
+        // No frame at all: no stop, and nothing to open at.
+        let mut none = recorded();
+        none["layers"][0]["frames"] = serde_json::json!([]);
+        none["layers"][1]["frames"] = serde_json::json!([]);
+        let view = view_of(&none, RECORDED_AT);
+        assert!(view.moments.is_empty());
+        assert_eq!(view.first_moment, 0);
+    }
+
+    #[test]
+    fn an_analysis_too_old_for_a_moment_is_not_laid_under_it() {
+        // The analysis stopped at 12:15 UTC. Three of its intervals
+        // later is 13:00: a radar frame of 13:00 still has it under it,
+        // one of 13:05 does not.
+        let mut stopped = recorded();
+        stopped["layers"][1]["frames"] = serde_json::json!([
+            {"time": "2026-11-21T12:15:00Z", "interval_s": 900,
+             "path": "/v1/radar/geosphere-inca-rr/20261121T1215Z.png", "bytes": 5200}
+        ]);
+        stopped["layers"][0]["frames"] = serde_json::json!([
+            {"time": "2026-11-21T13:00:00Z", "interval_s": 300,
+             "path": "/v1/radar/dwd-radar-ry/20261121T1300Z.png", "bytes": 4500},
+            {"time": "2026-11-21T13:05:00Z", "interval_s": 300,
+             "path": "/v1/radar/dwd-radar-ry/20261121T1305Z.png", "bytes": 4500}
+        ]);
+        let view = view_of(&stopped, RECORDED_AT);
+
+        assert_eq!(drawn(&view.moments[0]), [(0, 0, true), (1, 0, false)]);
+        assert_eq!(
+            view.moments[0].label,
+            "Rain radar, 14:00, 19 minutes ago. Austria's analysis is of 13:15."
+        );
+        // Without the analysis under it the radars' picture draws the
+        // veil itself, though its layer does not: what nobody saw at
+        // that moment is not shown as dry.
+        assert!(view.layers[0].draws_unseen && !view.layers[1].draws_unseen);
+        assert_eq!(drawn(&view.moments[1]), [(1, 1, true)]);
+        assert_eq!(view.moments[1].label, "Rain radar, 14:05, 14 minutes ago");
+        // The layer says for itself that it is behind.
+        assert!(view.layers[0].stale);
+
+        // A frame of a later moment than the stop is never under it: a
+        // radar that stopped before the analysis' frames has them on no
+        // stop of its own.
+        let view = view_of(&two_layers(), NOW + 56 * 60);
+        assert_eq!(drawn(&view.moments[1]), [(1, 1, true)]);
     }
 
     #[test]

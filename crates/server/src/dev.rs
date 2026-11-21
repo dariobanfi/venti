@@ -24,13 +24,13 @@
 //! group that the demo account is not in. Client work and UI tests run
 //! against this.
 //!
-//! The rain radar has the two frames recorded from DWD on 2026-11-21, of
-//! 11:35 and 11:40 UTC, collected by the service a real server has, whose
-//! clock stands at 11:44 UTC of that day: the newest frame is four minutes
-//! old. The region's second radar source, GeoSphere Austria's analysis, is
-//! left out of this mode: its frames were recorded an hour later, and one
-//! clock cannot stand shortly after both
-//! ([`adapters::radar_in_development_mode`]).
+//! The rain radar has both of the first region's sources, each with the
+//! two frames recorded on 2026-11-21 within two minutes of each other:
+//! DWD's of 13:10 and 13:15 UTC, GeoSphere Austria's analysis of 12:45 and
+//! 13:00. They are collected by the service a real server has, whose
+//! clock stands at 13:19 UTC of that day: the newest radar frame is four
+//! minutes old and the newest analysis nineteen
+//! ([`adapters::radar_recorded_at`]).
 //!
 //! Map imagery is answered from the tiles recorded from its providers, cut
 //! as a real server cuts them, and every other tile is "nothing here". With
@@ -941,16 +941,7 @@ pub async fn recorded_with_its_store(
     let pack = RegionPack::from_toml(FIRST_REGION).map_err(|e| e.to_string())?;
     pack.check_against(&registry).map_err(|e| e.to_string())?;
     let packs = [pack];
-    // Of the region's radar sources this mode has the one whose recording
-    // its radar clock is of.
-    let jobs: Vec<plan::Job> = plan::plan(&packs, &registry)
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .filter(|job| {
-            job.kind != venti_sources::Kind::Radar
-                || adapters::radar_in_development_mode(&job.source)
-        })
-        .collect();
+    let jobs: Vec<plan::Job> = plan::plan(&packs, &registry).map_err(|e| e.to_string())?;
 
     let store = Arc::new(MemoryStore::new());
     let now = adapters::recorded_at();
@@ -1006,8 +997,8 @@ pub async fn recorded_with_its_store(
     }
 
     // The rain radar is collected by the service a real server has, from
-    // the two frames recorded on 2026-11-21, with a clock of its own that
-    // stands shortly after them. It keeps the frames the recording holds
+    // the two frames of each source recorded on 2026-11-21, with a clock
+    // of its own that stands shortly after them. It keeps the frames the recording holds
     // and asks for no others.
     let radar_clock: Arc<dyn Clock> = Arc::new(FixedClock(adapters::radar_recorded_at()));
     let radar = radar::service_for(

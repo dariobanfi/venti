@@ -42,7 +42,7 @@ fn the_recorded_answers_match_the_golden_file() {
 
     let output = run(&fetch, &archive);
 
-    // The list, and the two runs after 11:45.
+    // The list, and the two runs after 12:30.
     assert_eq!(output.report.requests, 3);
     assert!(
         output.report.failures.is_empty(),
@@ -55,8 +55,8 @@ fn the_recorded_answers_match_the_golden_file() {
     assert_eq!(
         archive.stored(),
         [
-            ("frame/2611211200".to_owned(), 407_953),
-            ("frame/2611211215".to_owned(), 407_258),
+            ("frame/2611211245".to_owned(), 425_558),
+            ("frame/2611211300".to_owned(), 426_204),
             ("list".to_owned(), 1588),
         ]
     );
@@ -67,10 +67,11 @@ fn the_recorded_answers_match_the_golden_file() {
         assert_eq!(frame.interval_s, 900);
         assert_eq!((frame.grid.columns, frame.grid.rows), (624, 261));
         // The product has a value at every point of its grid, also over
-        // Bavaria, South Tyrol and Slovenia: all of the first region is
-        // seen but the 107 cells south of the recorded rectangle.
+        // Bavaria, South Tyrol and Slovenia, and the widened box that is
+        // asked for covers the map to its edges: all of the first region
+        // is seen.
         let unseen = frame.cells.iter().filter(|c| **c == RADAR_UNSEEN).count();
-        assert_eq!(unseen, 107, "of {}", frame.cells.len());
+        assert_eq!(unseen, 0, "of {}", frame.cells.len());
     }
     let rain = |frame: usize, step: u8| {
         output.frames[frame]
@@ -81,7 +82,7 @@ fn the_recorded_answers_match_the_golden_file() {
     };
     assert_eq!(
         [1, 2, 3, 4, 5, 6].map(|step| rain(0, step)),
-        [3584, 12_890, 4281, 210, 0, 0]
+        [4470, 11_305, 3088, 36, 0, 0]
     );
 
     let frames: Vec<serde_json::Value> = output.frames.iter().map(radar_golden).collect();
@@ -94,8 +95,8 @@ fn the_recorded_answers_match_the_golden_file() {
 #[test]
 fn a_run_that_arrived_in_between_is_refused_and_the_other_frame_arrives() {
     // Between the list and the frames a new run arrived, and every place
-    // in the list now gives the run before: the request for 12:15 gets
-    // the frame of 12:00, the request for 12:00 nothing recorded.
+    // in the list now gives the run before: the request for 13:00 gets
+    // the frame of 12:45, the request for 12:45 nothing recorded.
     let [(older, older_body), (newer, _)] = fixtures::frames();
     let area = fixtures::area();
     let fetch = FixtureFetch::new()
@@ -112,12 +113,12 @@ fn a_run_that_arrived_in_between_is_refused_and_the_other_frame_arrives() {
         .map(|failure| (failure.tag.as_str(), failure.error.as_str()))
         .collect();
     assert_eq!(errors.len(), 2, "{errors:?}");
-    assert_eq!(errors[0], ("frame/2611211200", "HTTP status 404"));
-    assert_eq!(errors[1].0, "frame/2611211215");
+    assert_eq!(errors[0], ("frame/2611211245", "HTTP status 404"));
+    assert_eq!(errors[1].0, "frame/2611211300");
     assert!(
         errors[1]
             .1
-            .contains("was asked for as the run of 2026-11-21 12:15"),
+            .contains("was asked for as the run of 2026-11-21 13:00"),
         "{errors:?}"
     );
     // The next run asks again: this one is not healthy.

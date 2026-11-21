@@ -28,8 +28,8 @@
 //!   calls the values "Niederschlagshöhen", amounts; that the unit is
 //!   mm/h and not mm in five minutes is marked *to verify* in
 //!   `docs/data-sources.md`.
-//! - **The time** (`/what`, `/dataset1/what`): a frame named `…2611211140…`
-//!   has the nominal time 11:40 UTC and covers 11:35 to 11:40. The adapter
+//! - **The time** (`/what`, `/dataset1/what`): a frame named `…2611211315…`
+//!   has the nominal time 13:15 UTC and covers 13:10 to 13:15. The adapter
 //!   dates a frame by the end of its interval.
 //! - **The grid** (`/where`): a polar stereographic projection; see
 //!   [`projection`]. The first row is the northernmost, as ODIM says.
@@ -403,22 +403,22 @@ mod tests {
     #[test]
     fn a_frames_address_is_made_of_its_time_and_read_back_from_a_name() {
         assert_eq!(
-            frame_url(at(21, 11, 40)),
-            "https://opendata.dwd.de/weather/radar/radolan/ry/raa01-ry_10000-2611211140-dwd---bin.hdf5"
+            frame_url(at(21, 13, 15)),
+            "https://opendata.dwd.de/weather/radar/radolan/ry/raa01-ry_10000-2611211315-dwd---bin.hdf5"
         );
         let name = |text: &str| time_in_name(text);
         assert_eq!(
-            name("raa01-ry_10000-2611211140-dwd---bin.hdf5"),
-            Some(at(21, 11, 40))
+            name("raa01-ry_10000-2611211315-dwd---bin.hdf5"),
+            Some(at(21, 13, 15))
         );
         for not_a_frame in [
             "raa01-ry_10000-latest-dwd---bin.hdf5",
             "raa01-ry_10000-261121114-dwd---bin.hdf5",
-            "raa01-ry_10000-26112111400-dwd---bin.hdf5",
-            "raa01-ry_10000-2611211140-dwd---bin.hdf5.tmp",
-            "raa01-ry_10000-2613411140-dwd---bin.hdf5",
+            "raa01-ry_10000-26112113150-dwd---bin.hdf5",
+            "raa01-ry_10000-2611211315-dwd---bin.hdf5.tmp",
+            "raa01-ry_10000-2613411315-dwd---bin.hdf5",
             "raa01-ry_10000-../../etc-dwd---bin.hdf5",
-            "raa01-rw_10000-2611211140-dwd---bin.hdf5",
+            "raa01-rw_10000-2611211315-dwd---bin.hdf5",
         ] {
             assert_eq!(name(not_a_frame), None, "{not_a_frame}");
         }
@@ -432,12 +432,12 @@ mod tests {
             area: first_region(),
         };
 
-        // A server that holds the frames up to 11:30.
-        let parsed = DwdRadarRy::list(list, &ctx, &wanted(at(21, 11, 30)));
+        // A server that holds the frames up to 13:05.
+        let parsed = DwdRadarRy::list(list, &ctx, &wanted(at(21, 13, 5)));
         let asked: Vec<&str> = parsed.follow_up.iter().map(|r| r.tag.as_str()).collect();
-        assert_eq!(asked, ["frame/2611211135", "frame/2611211140"]);
-        assert_eq!(parsed.follow_up[1].url, frame_url(at(21, 11, 40)));
-        assert_eq!(parsed.newest_listed, Some(at(21, 11, 40)));
+        assert_eq!(asked, ["frame/2611211310", "frame/2611211315"]);
+        assert_eq!(parsed.follow_up[1].url, frame_url(at(21, 13, 15)));
+        assert_eq!(parsed.newest_listed, Some(at(21, 13, 15)));
         // 576 frames and "latest", which is no frame of its own.
         assert!(parsed.skipped.is_empty(), "{:?}", parsed.skipped);
 
@@ -445,24 +445,24 @@ mod tests {
         // the two days the list has.
         let all = DwdRadarRy::list(list, &ctx, &wanted(at(18, 0, 0)));
         assert_eq!(all.follow_up.len(), MAX_FRAMES_PER_RUN);
-        assert_eq!(all.follow_up[0].tag, "frame/2611210940");
+        assert_eq!(all.follow_up[0].tag, "frame/2611211115");
         // One that holds the newest asks for nothing.
-        let none = DwdRadarRy::list(list, &ctx, &wanted(at(21, 11, 40)));
+        let none = DwdRadarRy::list(list, &ctx, &wanted(at(21, 13, 15)));
         assert!(none.follow_up.is_empty());
-        assert_eq!(none.newest_listed, Some(at(21, 11, 40)));
+        assert_eq!(none.newest_listed, Some(at(21, 13, 15)));
     }
 
     #[test]
     fn a_list_names_no_address_of_its_own() {
         // A list that somebody else wrote: links that lead elsewhere, a
         // name with a path in it, a frame of next year.
-        let list = br#"<a href="https://example.org/raa01-ry_10000-2611211140-dwd---bin.hdf5">x</a>
-            <a href="raa01-ry_10000-2611211135-dwd---bin.hdf5?x=https://example.org">x</a>
+        let list = br#"<a href="https://example.org/raa01-ry_10000-2611211315-dwd---bin.hdf5">x</a>
+            <a href="raa01-ry_10000-2611211310-dwd---bin.hdf5?x=https://example.org">x</a>
             <a href="raa01-ry_10000-../secret-dwd---bin.hdf5">x</a>
-            <a href="raa01-ry_10000-2711211140-dwd---bin.hdf5">x</a>
-            <a href="raa01-ry_10000-2611211130-dwd---bin.hdf5">x</a>"#;
+            <a href="raa01-ry_10000-2711211315-dwd---bin.hdf5">x</a>
+            <a href="raa01-ry_10000-2611211305-dwd---bin.hdf5">x</a>"#;
         let ctx = PlanCtx {
-            now: at(21, 11, 44),
+            now: at(21, 13, 19),
             area: first_region(),
         };
 
@@ -470,7 +470,7 @@ mod tests {
 
         // The one name that is a frame's, at the address the adapter makes.
         let urls: Vec<&str> = parsed.follow_up.iter().map(|r| r.url.as_str()).collect();
-        assert_eq!(urls, [frame_url(at(21, 11, 30))]);
+        assert_eq!(urls, [frame_url(at(21, 13, 5))]);
         assert_eq!(parsed.skipped.len(), 2, "{:?}", parsed.skipped);
     }
 
@@ -493,15 +493,15 @@ mod tests {
         let what = attributes(&["what"]);
         assert_eq!(text(&what, "object"), "COMP");
         assert_eq!(text(&what, "date"), "20261121");
-        assert_eq!(text(&what, "time"), "114000");
+        assert_eq!(text(&what, "time"), "131500");
         assert_eq!(
             text(&what, "source"),
             "ORG:78,CTY:616,CMT:Deutscher Wetterdienst radolan@dwd.de"
         );
         let product = attributes(&["dataset1", "what"]);
         assert_eq!(text(&product, "prodname"), "RY");
-        assert_eq!(text(&product, "starttime"), "113500");
-        assert_eq!(text(&product, "endtime"), "114000");
+        assert_eq!(text(&product, "starttime"), "131000");
+        assert_eq!(text(&product, "endtime"), "131500");
         let how = attributes(&["how"]);
         // The 17 radars of the composite.
         assert_eq!(text(&how, "nodes").split(',').count(), 17);
@@ -587,12 +587,12 @@ mod tests {
         let adapter = DwdRadarRy::new();
         let grid = RadarGrid::over(&first_region()).unwrap();
         let (time, body) = fixtures::frames()[0];
-        assert_eq!(time, at(21, 11, 35));
+        assert_eq!(time, at(21, 13, 10));
 
-        // The frame of 11:35 under the name of 11:40.
-        let said = adapter.frame(at(21, 11, 40), body, &grid).unwrap_err();
+        // The frame of 13:10 under the name of 13:15.
+        let said = adapter.frame(at(21, 13, 15), body, &grid).unwrap_err();
         assert!(
-            said.contains("was asked for as the frame of 2026-11-21 11:40"),
+            said.contains("was asked for as the frame of 2026-11-21 13:15"),
             "{said}"
         );
 
@@ -641,7 +641,7 @@ mod tests {
         let said = refused(&changed(body, b"projdef\0", b"+lon_0=10 ", b"+lon_0=11 "));
         assert!(said.contains("corner lies"), "{said}");
         // A frame that says it ends an hour and five minutes after it began.
-        let said = refused(&changed(body, b"starttime\0", b"113000\0", b"103000\0"));
+        let said = refused(&changed(body, b"starttime\0", b"130500\0", b"120500\0"));
         assert!(said.contains("covers 3900 seconds"), "{said}");
     }
 

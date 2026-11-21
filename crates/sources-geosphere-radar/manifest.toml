@@ -4,11 +4,11 @@ kinds = ["radar"]
 countries = ["AT"]
 # A run every quarter of an hour; the run of 12:15 UTC was listed between
 # 12:36:51 and 12:37:21 UTC on 2026-11-21: some 22 minutes after the
-# quarter of an hour it is of.
+# quarter of an hour it is of. The run of 13:00 was listed at 13:17:11.
 cadence_seconds = 900
 auth = "none"
-# The list is 1.6 kB and a frame of the first region's box 407 kB
-# (2026-11-21); the values are 302 kB before they are packed.
+# The list is 1.6 kB and a frame of the first region's widened box 426 kB
+# (2026-11-21); the values are 320 kB before they are packed.
 max_response_kb = 2048
 
 # "A users requests are limited to 5 requests per second and 240 requests

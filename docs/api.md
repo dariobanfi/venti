@@ -1110,7 +1110,7 @@ A level of `winds_aloft` is given in one of two ways:
 
 Every value but `time` may be missing, and a missing value is left out, never written as `null` or zero. Between 180 m above the ground and the pressure surfaces, which lie 1.5 km apart, the answer has nothing.
 
-**What it does not have.** No boundary-layer height, no thermal strength, no cloud base for ordinary cumulus. No model the server has computes a climb rate a glider sees, and nothing here is made up to stand in for one. [data-sources.md](data-sources.md#forecasts) says what the source lacks and where it could come from.
+**What it does not have.** No boundary-layer height, no thermal strength, no cloud base for ordinary cumulus. No model the server has computes a climb rate a glider sees, and the answer holds the models' figures only. What the apps and the assistant's `forecast_at` tool say of thermals is an estimate they work out from this answer, from `heat_to_air_w_m2` and the temperatures ([design.md](design.md#thermals)). [data-sources.md](data-sources.md#forecasts) says what the source lacks and where it could come from.
 
 **Credit.** Show the credit of the layer's source next to the forecast, with its link: Open-Meteo asks for that wherever its data is shown.
 

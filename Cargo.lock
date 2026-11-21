@@ -3007,6 +3007,7 @@ dependencies = [
  "venti-airspace",
  "venti-api-types",
  "venti-domain",
+ "venti-flight",
 ]
 
 [[package]]

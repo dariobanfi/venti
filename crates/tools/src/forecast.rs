@@ -18,6 +18,7 @@ use chrono::{DateTime, Duration, NaiveDate, Timelike, Utc};
 use serde_json::{Map, Value, json};
 use venti_api_types::v1::{ForecastRequest, ForecastResponse};
 use venti_domain::{ForecastHour, ForecastSeries, GeoPoint, WindAloft};
+use venti_flight::convection::convection;
 
 use crate::wind::{MAX_ID_CHARS, error_code, sources, tenth, unreadable};
 use crate::{Tool, ToolError, source_text};
@@ -37,7 +38,7 @@ const MAX_LEVELS: usize = 10;
 const MAX_DAYS: usize = 16;
 
 /// What every result says about itself.
-pub const CAVEATS: [&str; 5] = [
+pub const CAVEATS: [&str; 6] = [
     "These are a weather model's numbers for one cell of its grid, a few kilometres wide, not \
      measurements. Say which model and which run a number is from.",
     "model_ground_m is how high the model takes the ground to be in that cell. In the mountains \
@@ -47,8 +48,15 @@ pub const CAVEATS: [&str; 5] = [
      showers and thunderstorms form. Where two models disagree, say so; never average them.",
     "convective_cloud_base_m is the base of the model's convective cloud and is left out when \
      the model has none at that hour. cape_j_kg says how much showers and thunderstorms can \
-     grow, not how good thermals are. There is no thermal strength and no height of the \
-     boundary layer in this data.",
+     grow, not how good thermals are.",
+    "thermal_climb_ms and thermal_top_m are no values of the model: they are an estimate worked \
+     out from the heat its ground gives to the air and from its temperatures, for the model's \
+     cell. thermal_climb_ms is the climb a paraglider might expect in thermals, with 1 m/s \
+     taken off for its own sink; 0 means none to climb in. thermal_top_m is how high thermals \
+     reach above sea level: the cloud base where thermal_top_is_cloud_base is true, else where \
+     they end in clear air. The estimate was found over flat land and the model's levels are \
+     far apart: on sunlit slopes climbs are often stronger, in a lee weaker, and the height \
+     can be several hundred metres off. Say that it is an estimate.",
     "Nothing here says whether the day can be flown. That depends on the pilot, the wing and \
      the place, and is the pilot's decision.",
 ];
@@ -59,8 +67,9 @@ pub const FORECAST_TOOLS: [Tool; 1] = [Tool {
     description: "What weather models forecast for a place on one day, from a Venti server: \
         for each model the wind 10 m above ground with gusts, the wind at several heights above \
         ground and on pressure levels with about how high those lie, cloud cover, rain, \
-        temperature, the height of the 0 °C level, and the base of convective cloud where the \
-        model has one, from six in the morning to eight in the evening by the sun at the place. Give the place as coordinates; you may \
+        temperature, the height of the 0 °C level, the base of convective cloud where the \
+        model has one, and an estimate of the thermals (the climb to expect and how high they \
+        reach), from six in the morning to eight in the evening by the sun at the place. Give the place as coordinates; you may \
         use your own knowledge of where a mountain, town or flying site is. Give the date to \
         look at another day than today; forecasts reach about two days ahead. Times are UTC. \
         Each model is given by itself with its run and the height it takes the ground to be: \
@@ -249,7 +258,7 @@ pub fn forecast_at(answer: &ForecastResponse, call: &ForecastCall, now: DateTime
             let hours: Vec<Value> = of_the_day
                 .by_ref()
                 .take(MAX_HOURS)
-                .map(hour_fields)
+                .map(|hour| hour_fields(hour, series.cell_elevation_m))
                 .collect();
             let mut model = Map::new();
             // A model's name is the server's word for it: a short line.
@@ -330,8 +339,9 @@ pub fn forecast_at(answer: &ForecastResponse, call: &ForecastCall, now: DateTime
     Value::Object(result)
 }
 
-/// One hour of one model. Only what the model has is listed.
-fn hour_fields(hour: &ForecastHour) -> Value {
+/// One hour of one model over a cell whose ground lies at `ground_m`.
+/// Only what the model has is listed.
+fn hour_fields(hour: &ForecastHour, ground_m: Option<f64>) -> Value {
     let mut fields = Map::new();
     fields.insert("time_utc".to_owned(), json!(clock(hour.time)));
     let mut put = |name: &str, value: Option<f64>| {
@@ -351,6 +361,21 @@ fn hour_fields(hour: &ForecastHour) -> Value {
         hour.convective_cloud_base_m.map(hundred),
     );
     put("cape_j_kg", hour.cape_j_kg.map(f64::round));
+    // The thermals, worked out from the model's heat and temperatures
+    // where it gives them: the same estimate the apps show.
+    if let Some(air) = ground_m.and_then(|ground| convection(hour, ground)) {
+        fields.insert("thermal_climb_ms".to_owned(), json!(tenth(air.climb_ms)));
+        if air.depth_m > 0.0 {
+            fields.insert(
+                "thermal_top_m".to_owned(),
+                json!((air.top_m / 50.0).round() * 50.0),
+            );
+            fields.insert(
+                "thermal_top_is_cloud_base".to_owned(),
+                json!(air.cloud_base_m.is_some()),
+            );
+        }
+    }
     let aloft: Vec<Value> = hour
         .winds_aloft
         .iter()
@@ -537,6 +562,51 @@ mod tests {
         assert_eq!(coarse["hours"].as_array().unwrap().len(), 1);
         assert!(coarse.get("model_ground_m").is_none());
         assert!(coarse["cell_distance_km"].as_f64().unwrap() > 1.0);
+    }
+
+    #[test]
+    fn the_thermals_are_given_as_an_estimate_where_the_model_has_what_they_are_made_from() {
+        // The fine model's noon with the air that makes thermals: heat
+        // from the ground, a dew point, and temperatures higher up.
+        let mut answer: Value = serde_json::from_str(&two_days()).unwrap();
+        let noon = &mut answer["layers"][0]["series"][0]["hours"][7];
+        noon["temperature_c"] = json!(26.0);
+        noon["dew_point_c"] = json!(10.0);
+        noon["heat_to_air_w_m2"] = json!(400.0);
+        noon["convective_cloud_base_m"] = json!(3400.0);
+        noon["winds_aloft"] = json!([
+            {"above_ground_m": 80.0, "wind_speed_ms": 4.0, "temperature_c": 24.0},
+            {"pressure_hpa": 850.0, "altitude_m": 1500.0, "wind_speed_ms": 4.0, "temperature_c": 18.0},
+            {"pressure_hpa": 700.0, "altitude_m": 3100.0, "wind_speed_ms": 4.0, "temperature_c": 3.0}
+        ]);
+        let answer: ForecastResponse = serde_json::from_value(answer).unwrap();
+        let call =
+            ForecastCall::read(&json!({"latitude": 47.7, "longitude": 11.8, "every_hours": 1}))
+                .unwrap();
+
+        let result = forecast_at(&answer, &call, at("2026-07-04T05:00:00Z"));
+
+        let hours = result["models"][0]["hours"].as_array().unwrap();
+        let noon = hours
+            .iter()
+            .find(|hour| hour["time_utc"] == "2026-07-04T12:00Z")
+            .unwrap();
+        // The figures the apps show for the same hour.
+        assert_eq!(noon["thermal_climb_ms"], 2.2);
+        assert_eq!(noon["thermal_top_m"], 3400.0);
+        assert_eq!(noon["thermal_top_is_cloud_base"], true);
+        // An hour without the heat has no estimate, and no word of one.
+        let morning = &hours[0];
+        assert!(morning.get("thermal_climb_ms").is_none());
+        assert!(morning.get("thermal_top_m").is_none());
+        // The result says what the figures are.
+        let caveats = result["caveats"].as_array().unwrap();
+        assert!(caveats.iter().any(|caveat| {
+            caveat
+                .as_str()
+                .unwrap()
+                .contains("Say that it is an estimate")
+        }));
     }
 
     #[test]

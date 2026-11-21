@@ -49,6 +49,8 @@ function layer(count: number, more: Partial<RadarLayerView> = {}): RadarLayerVie
 		stale: false,
 		staleWords: '',
 		credit: undefined,
+		what: 'A made-up radar, every 5 minutes',
+		drawsUnseen: true,
 		...more
 	};
 }

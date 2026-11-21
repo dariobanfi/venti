@@ -131,7 +131,6 @@ pub struct AlertDraft {
     #[uniffi(default = "")]
     pub place_name: String,
     /// Day: which days, 0 for today to 3.
-    #[uniffi(default = [])]
     pub days_ahead: Vec<u8>,
     /// Day: the least the day is to be.
     pub at_least: AlertDayKind,

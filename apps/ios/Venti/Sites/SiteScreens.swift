@@ -341,10 +341,18 @@ struct SiteScreen: View {
 
     var body: some View {
         VentiList {
+            // The head is a section's header and not a row: a list cuts a
+            // row to its card's rounded corners, also one without a card,
+            // which took the name's first letter and the corners of the
+            // status and the buttons. A header is not cut. It gets back
+            // what a header takes from its words: their size, ink and case.
             Section {
+            } header: {
                 head
+                    .font(.venti(.body))
+                    .foregroundStyle(.venti(.text))
+                    .textCase(nil)
                     .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
             }
             if let said {
                 Section {

@@ -987,6 +987,8 @@
       "invalid_alert",
       "too_many_alerts",
       "alert_not_found",
+      "invalid_push_subscription",
+      "too_many_push_subscriptions",
       "flight_not_found",
       "pilot_not_found",
       "invalid_flight",
@@ -2651,6 +2653,70 @@
       "more",
       "reset",
       "terms"
+    ]
+  },
+  "PushKeyResponse": {
+    "type": "object",
+    "properties": {
+      "public_key": {
+        "type": "string",
+        "description": "The server's P-256 public key, uncompressed, base64url without padding: the `applicationServerKey` of `pushManager.subscribe`."
+      }
+    },
+    "required": [
+      "public_key"
+    ]
+  },
+  "PushKeys": {
+    "type": "object",
+    "properties": {
+      "p256dh": {
+        "type": "string",
+        "description": "The browser's P-256 public key, uncompressed, base64url."
+      },
+      "auth": {
+        "type": "string",
+        "description": "The browser's authentication secret, 16 bytes, base64url."
+      }
+    },
+    "required": [
+      "p256dh",
+      "auth"
+    ]
+  },
+  "PushRemoveRequest": {
+    "type": "object",
+    "properties": {
+      "endpoint": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "endpoint"
+    ]
+  },
+  "PushSubscriptionRequest": {
+    "description": "A browser's `PushSubscription`, as its `toJSON()` gives it.",
+    "type": "object",
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "description": "The address of the push service the browser was given: HTTPS, of a push service the server sends to, at most 1024 bytes."
+      },
+      "expirationTime": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Read and not kept."
+      },
+      "keys": {
+        "$ref": "#/components/schemas/PushKeys"
+      }
+    },
+    "required": [
+      "endpoint",
+      "keys"
     ]
   },
   "RadarFrameRef": {

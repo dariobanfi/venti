@@ -558,6 +558,19 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         "/v1/account/alerts/fired",
         Answer(200),
     ),
+    ("push_key.json", "get", "/v1/push/key", Answer(200)),
+    (
+        "push_subscribe_request.json",
+        "post",
+        "/v1/account/push",
+        Request,
+    ),
+    (
+        "push_remove_request.json",
+        "delete",
+        "/v1/account/push",
+        Request,
+    ),
     ("upload.json", "post", "/v1/flights", Answer(201)),
     ("flights.json", "get", "/v1/flights", Answer(200)),
     (

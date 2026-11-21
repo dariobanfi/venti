@@ -60,6 +60,7 @@ pub mod maps;
 pub mod moderation;
 pub mod pilot_sites;
 pub mod plan;
+pub mod push;
 pub mod radar;
 pub mod serve;
 pub mod thermals;

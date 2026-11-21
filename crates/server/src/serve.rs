@@ -98,10 +98,27 @@ pub async fn serve(config: Config) -> Result<(), String> {
         );
     }
 
+    // The server's key pair for Web Push, made and kept in the database
+    // when it first starts with it; and the sender, which tells pilots'
+    // browsers what their alarms fired. The push services may write to
+    // the address of the site about it, if it has HTTPS.
+    let push_key = crate::push::key_of(store.as_ref(), clock.as_ref()).await?;
+    let contact = config
+        .public_url
+        .as_ref()
+        .map(|url| url.as_str().to_owned())
+        .filter(|url| url.starts_with("https://"));
+    let pusher = crate::push::Pusher::start(
+        store.clone(),
+        push_key.clone(),
+        clock.clone(),
+        crate::push::PushSettings::new(&config.user_agent, contact),
+    )?;
+
     // The alarms pilots set, checked where the data arrives: after each
     // run of stations, and after each map made with a new run.
     let checks: Arc<dyn crate::alerts::Watch> =
-        Arc::new(crate::alerts::Checks::new(store.clone(), clock.clone()));
+        Arc::new(crate::alerts::Checks::new(store.clone(), clock.clone()).with_push(pusher));
 
     // The thermal map of the forecast source, made with each run of its
     // model that the collector's look sees, and kept in memory.
@@ -158,7 +175,8 @@ pub async fn serve(config: Config) -> Result<(), String> {
 
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let mut api = Api::new(store.clone(), clock.clone(), manifests, settings)
-        .with_station_priority(plan::station_priority(&packs));
+        .with_station_priority(plan::station_priority(&packs))
+        .with_push_key(&push_key);
     if let Some(radar) = &radar {
         api = api.with_radar(radar.clone());
     }

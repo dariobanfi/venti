@@ -15,12 +15,11 @@
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use chrono::{Duration, NaiveTime};
 use serde::{Deserialize, Serialize};
 use venti_api_types::v1::{
     ALERTS_PATH, Alert, AlertHours, AlertRequest, AlertResponse, AlertRule, AlertSector,
     AlertsResponse, DayAlert, DayAtLeast, FiredAlert, FiredAlertsRequest, FiredAlertsResponse,
-    FiredBecause, ThermalKind, ThermalVerdict, WindAlert, alert_path, weekday_name,
+    WindAlert, alert_path, fired_words,
 };
 use venti_domain::GeoPoint;
 
@@ -38,26 +37,6 @@ const FIRED_HELD: usize = 200;
 const POINTS: [&str; 16] = [
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW",
     "NNW",
-];
-
-/// The same in words, for a line.
-const POINT_WORDS: [&str; 16] = [
-    "the north",
-    "the north-north-east",
-    "the north-east",
-    "the east-north-east",
-    "the east",
-    "the east-south-east",
-    "the south-east",
-    "the south-south-east",
-    "the south",
-    "the south-south-west",
-    "the south-west",
-    "the west-south-west",
-    "the west",
-    "the west-north-west",
-    "the north-west",
-    "the north-north-west",
 ];
 
 /// What an alarm waits for.
@@ -815,79 +794,14 @@ pub fn alerts_fired_request(since: Option<String>) -> ServerRequest {
     }
 }
 
-fn clock(time: chrono::DateTime<chrono::Utc>, utc_offset_s: i32) -> NaiveTime {
-    (time + Duration::seconds(i64::from(utc_offset_s)))
-        .naive_utc()
-        .time()
-}
-
-fn kind_words(verdict: ThermalVerdict, thermals: Option<ThermalKind>) -> &'static str {
-    if verdict != ThermalVerdict::Flyable {
-        return "a day to look at";
-    }
-    match thermals {
-        Some(ThermalKind::Big) => "a big day",
-        Some(ThermalKind::CrossCountry) => "a cross-country day",
-        Some(ThermalKind::Local) => "a day with local thermals",
-        Some(ThermalKind::Weak) | None => "a flyable day",
-    }
-}
-
 /// One thing an alarm fired for, in words. `utc_offset_s` is how far the
-/// device's clock is ahead of UTC.
+/// device's clock is ahead of UTC. The words are the server's too, for
+/// Web Push: `venti_api_types::v1::fired_words`.
 fn fired_line(fired: &FiredAlert, utc_offset_s: i32) -> FiredLine {
-    let line = match (&fired.because, &fired.rule) {
-        (
-            FiredBecause::Wind {
-                time,
-                speed_kmh,
-                direction_deg,
-                gust_kmh,
-            },
-            AlertRule::Wind(rule),
-        ) => {
-            let from = direction_deg.map_or_else(String::new, |deg| {
-                format!(
-                    " from {}",
-                    POINT_WORDS[usize::from(point_of(f64::from(deg)))]
-                )
-            });
-            let gusts = match (rule.gusts_max_kmh, gust_kmh) {
-                (Some(_), Some(gust)) => format!(", gusts {gust},"),
-                _ => String::new(),
-            };
-            format!(
-                "{}: {speed_kmh} km/h{from}{gusts} at {}, as your alarm '{}' asks",
-                rule.station_name,
-                clock(*time, utc_offset_s).format("%H:%M"),
-                fired.alert_name
-            )
-        }
-        (
-            FiredBecause::Day {
-                date,
-                verdict,
-                thermals,
-                run,
-                ..
-            },
-            AlertRule::Day(rule),
-        ) => format!(
-            "{} is {} at {} by the {} run",
-            weekday_name(*date),
-            kind_words(*verdict, *thermals),
-            rule.place_name,
-            clock(*run, utc_offset_s).format("%H:%M")
-        ),
-        _ => format!(
-            "Your alarm '{}' fired for something this version of the app does not know",
-            fired.alert_name
-        ),
-    };
     FiredLine {
         alert_id: fired.alert_id.clone(),
         title: fired.alert_name.clone(),
-        line,
+        line: fired_words(fired, utc_offset_s),
         fired_at_unix_s: fired.fired_at.timestamp(),
     }
 }
@@ -1177,6 +1091,7 @@ impl AlertsSync {
 #[cfg(test)]
 mod tests {
     use chrono::DateTime;
+    use venti_api_types::v1::{FiredBecause, ThermalKind, ThermalVerdict};
 
     use super::*;
 

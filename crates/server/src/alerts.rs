@@ -19,6 +19,9 @@
 //!   of the day forgets that it said so, and a later one that says so
 //!   again fires again. A cell with no verdict for the day changes
 //!   nothing.
+//!
+//! What fired is written down, and on a server that sends Web Push handed
+//! to [`Pusher::fired`], which does not wait ([`crate::push`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -35,6 +38,7 @@ use venti_domain::{Observation, StationId, Timestamp};
 use venti_store::{Alert, AlertCheck, DAY_ALERT, Store};
 
 use crate::clock::Clock;
+use crate::push::Pusher;
 
 /// What the collector and the thermal map tell of what arrived.
 pub trait Watch: Send + Sync {
@@ -49,6 +53,8 @@ pub trait Watch: Send + Sync {
 pub struct Checks<S> {
     store: Arc<S>,
     clock: Arc<dyn Clock>,
+    /// Who tells the account's browsers, on a server that sends Web Push.
+    push: Option<Pusher>,
 }
 
 /// What the server notes of an alarm between two checks.
@@ -84,7 +90,18 @@ fn whole(value: f64) -> u16 {
 impl<S: Store> Checks<S> {
     /// The checks over `store`, by `clock`.
     pub fn new(store: Arc<S>, clock: Arc<dyn Clock>) -> Self {
-        Self { store, clock }
+        Self {
+            store,
+            clock,
+            push: None,
+        }
+    }
+
+    /// The checks, telling the account's browsers what fired by `push`.
+    #[must_use]
+    pub fn with_push(mut self, push: Pusher) -> Self {
+        self.push = Some(push);
+        self
     }
 
     /// Checks the wind alarms of the stations of a run against each
@@ -235,17 +252,14 @@ impl<S: Store> Checks<S> {
         because: Vec<FiredBecause>,
         now: Timestamp,
     ) -> bool {
-        let records: Vec<String> = because
+        let records: Vec<FiredAlert> = because
             .into_iter()
-            .map(|because| {
-                let fired = FiredAlert {
-                    alert_id: alert.id.clone(),
-                    alert_name: alert.name.clone(),
-                    fired_at: now,
-                    rule: rule.clone(),
-                    because,
-                };
-                serde_json::to_string(&fired).unwrap_or_default()
+            .map(|because| FiredAlert {
+                alert_id: alert.id.clone(),
+                alert_name: alert.name.clone(),
+                fired_at: now,
+                rule: rule.clone(),
+                because,
             })
             .collect();
         let mut check = AlertCheck {
@@ -259,9 +273,13 @@ impl<S: Store> Checks<S> {
             return self.write(&check).await;
         }
         let mut written = true;
-        for record in records {
-            check.fired = Some((now, record));
-            written &= self.write(&check).await;
+        for fired in records {
+            check.fired = Some((now, serde_json::to_string(&fired).unwrap_or_default()));
+            let this = self.write(&check).await;
+            if let (true, Some(push)) = (this, &self.push) {
+                push.fired(&alert.account_id, &fired);
+            }
+            written &= this;
         }
         written
     }

@@ -1271,6 +1271,55 @@ pub fn alerts_fired(
     to_js(&venti_core::alerts_fired(status, body, utc_offset_s).map_err(thrown)?)
 }
 
+// Web Push, so that this browser is told when an alarm fires while no
+// Venti page is open. The page asks for the permission, subscribes with
+// the server's key and sends the subscription; its service worker shows
+// what arrives (`docs/api.md`, "Web Push").
+
+/// The line beside the switch that asks for the browser's permission.
+#[wasm_bindgen(js_name = pushPermissionLine)]
+pub fn push_permission_line() -> String {
+    venti_core::push_permission_line()
+}
+
+/// The request for the server's public key for Web Push; it needs no
+/// token.
+#[wasm_bindgen(js_name = pushKeyRequest)]
+pub fn push_key_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::push_key_request())
+}
+
+/// Reads the answer to `pushKeyRequest`: the `applicationServerKey`,
+/// base64url.
+#[wasm_bindgen(js_name = pushKey)]
+pub fn push_key(status: u16, body: Vec<u8>) -> Result<String, JsValue> {
+    venti_core::push_key(status, body).map_err(thrown)
+}
+
+/// The request that subscribes this browser, from its subscription's
+/// `toJSON()`: the endpoint, `keys.p256dh` and `keys.auth`.
+#[wasm_bindgen(js_name = pushSubscribeRequest)]
+pub fn push_subscribe_request(
+    endpoint: String,
+    p256dh: String,
+    auth: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::push_subscribe_request(endpoint, p256dh, auth).map_err(thrown)?)
+}
+
+/// The request that removes this browser's subscription, by its endpoint.
+#[wasm_bindgen(js_name = pushUnsubscribeRequest)]
+pub fn push_unsubscribe_request(endpoint: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::push_unsubscribe_request(endpoint).map_err(thrown)?)
+}
+
+/// Reads the answer to `pushSubscribeRequest` or `pushUnsubscribeRequest`:
+/// throws the server's refusal in words.
+#[wasm_bindgen(js_name = pushSaved)]
+pub fn push_saved(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
+    venti_core::push_saved(status, body).map_err(thrown)
+}
+
 // The tokens a pilot gives to other programs, for a screen "Programs with
 // access" under the account. The core has the words, says what to send
 // and reads the answers; the page sends each request with the session

@@ -445,6 +445,37 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn add_push_subscription(
+        &self,
+        _: &crate::PushSubscription,
+        _: usize,
+    ) -> Result<crate::AddingPush, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_push_subscription(&self, _: &str, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn drop_push_subscription(&self, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn push_subscriptions(
+        &self,
+        _: &str,
+    ) -> Result<Vec<crate::PushSubscription>, StoreError> {
+        self.fail().await
+    }
+
+    async fn push_key(&self) -> Result<Option<String>, StoreError> {
+        self.fail().await
+    }
+
+    async fn keep_push_key(&self, _: &str, _: Timestamp) -> Result<String, StoreError> {
+        self.fail().await
+    }
+
     async fn save_flight(&self, _: &NewFlight, _: &Room) -> Result<Saved, StoreError> {
         self.fail().await
     }

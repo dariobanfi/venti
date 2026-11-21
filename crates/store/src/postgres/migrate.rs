@@ -122,6 +122,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "cables",
         sql: include_str!("../../migrations/0020_cables.sql"),
     },
+    Migration {
+        version: 21,
+        name: "the browsers an account subscribed to Web Push, and the server's key for it",
+        sql: include_str!("../../migrations/0021_push.sql"),
+    },
 ];
 
 /// Applies every migration the database has not seen yet.

@@ -37,9 +37,9 @@ use venti_api_types::v1::{
     FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
     LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
-    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
-    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH,
-    THERMALS_PATH,
+    PUBLIC_FLIGHTS_PATH, PUSH_KEY_PATH, PUSH_SUBSCRIPTION_PATH, RADAR_PATH, RANKING_PATH,
+    REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH,
+    SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 
 use super::cache;
@@ -511,6 +511,15 @@ fn operations() -> Vec<Op> {
             .with(AlertsRead)
             .query(SINCE)
             .json("FiredAlertsResponse"),
+        post(PUSH_SUBSCRIPTION_PATH, "Subscribe a browser to Web Push")
+            .with(AlertsWrite)
+            .takes("PushSubscriptionRequest")
+            .nothing(),
+        delete(PUSH_SUBSCRIPTION_PATH, "Remove a browser's subscription")
+            .with(AlertsWrite)
+            .takes("PushRemoveRequest")
+            .nothing(),
+        get(PUSH_KEY_PATH, "The server's public key for Web Push").json("PushKeyResponse"),
         // Flights.
         post(
             FLIGHTS_PATH,

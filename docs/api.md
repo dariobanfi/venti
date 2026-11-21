@@ -219,6 +219,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_live_track_id` | The identifier sent for a live track is not 26 characters of its alphabet |
 | 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
 | 400 | `invalid_alert` | What a request says about an [alarm](#alarms) cannot be kept. `message` names the field |
+| 400 | `invalid_push_subscription` | A [browser's subscription](#web-push) cannot be kept: an endpoint that is not of a push service the server sends to, or keys that are not keys. `message` names the field |
 | 400 | `invalid_kept_site` | What a request says about a [site to keep](#the-sites-a-pilot-keeps) cannot be kept: no site's record, another identifier than the path's, or a credit that is another source's or too long. `message` names the field |
 | 400 | `invalid_site`, `site_out_of_area` | What a request says about a [site](#sites-that-ventis-partners-and-pilots-add) cannot be kept; the place is in no region this server serves |
 | 400 | `invalid_report` | A [report](#reports) gives a reason the server does not know, has a text of more than 1,000 characters, or gives the reason `other` and no text |
@@ -257,6 +258,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
 | 409 | `too_many_kept_sites` | The account keeps as many [sites as its own](#the-sites-a-pilot-keeps) as it may |
 | 409 | `too_many_alerts` | The account has as many [alarms](#alarms) as it may |
+| 409 | `too_many_push_subscriptions` | The account has as many [browsers subscribed to Web Push](#web-push) as it may |
 | 409 | `too_many_tokens` | The account holds as many [tokens for programs](#tokens-for-other-programs) as it may |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
 | 410 | `site_gone` | The [site](#sites-that-ventis-partners-and-pilots-add) was removed, or taken down. Its identifier is not used again |
@@ -4817,6 +4819,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `POST /v1/account/alerts` | `alerts:write` |
 | `PUT /v1/account/alerts/{id}` | `alerts:write` |
 | `DELETE /v1/account/alerts/{id}` | `alerts:write` |
+| `POST /v1/account/push` | `alerts:write` |
+| `DELETE /v1/account/push` | `alerts:write` |
 | `GET /v1/sessions` | the session only |
 | `DELETE /v1/sessions` | the session only |
 | `DELETE /v1/sessions/{id}` | the session only |
@@ -5179,7 +5183,7 @@ Needs a token. Forgets a site. The answer is `204` with no body, also when the a
 
 ## Alarms
 
-A pilot sets alarms on the account: "tell me when the wind at the Patscherkofel station is from the north at 10 to 20 km/h", "tell me when a day of the next three is a cross-country day at the Nordkette". An alarm is a fixed rule over data the server has, and the server checks it where the data arrives: a wind alarm against every reading of its station, a day alarm against every run of the [thermal map](#get-v1thermals). What fired is kept on the account, and the pilot's apps fetch it ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)). The server sends nothing by itself yet: no push message, no mail.
+A pilot sets alarms on the account: "tell me when the wind at the Patscherkofel station is from the north at 10 to 20 km/h", "tell me when a day of the next three is a cross-country day at the Nordkette". An alarm is a fixed rule over data the server has, and the server checks it where the data arrives: a wind alarm against every reading of its station, a day alarm against every run of the [thermal map](#get-v1thermals). What fired is kept on the account, and the pilot's apps fetch it ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)). A browser the pilot subscribed is also told at once, by [Web Push](#web-push); the phone apps fetch. No mail.
 
 - **It is private.** Every request here acts for the account of its token. [Deleting the account](#delete-v1account) removes its alarms and what they fired.
 - **Two kinds**, told apart by `rule.kind`, and more to come: a client keeps a kind it does not know as it is.
@@ -5366,6 +5370,52 @@ Each entry has the alarm (`alert_id`, its `alert_name` and its `rule` as they we
   "reset": false
 }
 ```
+
+## Web Push
+
+A browser can be told when an alarm fires even while no Venti page is open, by the Web Push standard: the browser's vendor runs a push service that carries the message (RFC 8030), the server encrypts the message for that one browser (RFC 8291, `aes128gcm`) and signs its request with a key pair of its own (VAPID, RFC 8292). Nothing bills by usage.
+
+- **How a browser subscribes.** The page asks [`GET /v1/push/key`](#get-v1pushkey) for the server's public key, calls `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })` with it, and sends what it gets, `subscription.toJSON()`, to [`POST /v1/account/push`](#post-v1accountpush). On signing out it sends the endpoint to [`DELETE /v1/account/push`](#delete-v1accountpush) and calls `subscription.unsubscribe()`.
+- **What arrives.** When an alarm of the account fires, every browser subscribed on it gets one message for each thing it fired. The browser's service worker gets it in its `push` event, decrypted, as JSON: `title` (the alarm's name), `line` (what happened, in the words the apps show, with the times in Central European Time: "Zugspitze: 15 km/h from the north, gusts 22, at 11:20, as your alarm 'Zugspitze north' asks"), `alert_id` and `fired_at`. The worker shows it with `showNotification(title, { body: line, tag: alert_id })`.
+- **For how long.** A push service holds a message 6 hours for a browser that is off (`TTL: 21600`), sent with `Urgency: normal`. What fired stays on the account for 30 days in any case: a page that opens fetches it as before.
+- **Which push services.** The server sends only to HTTPS addresses of Google's (`fcm.googleapis.com`), Mozilla's (`updates.push.services.mozilla.com`), Apple's (`*.push.apple.com`) and Microsoft's (`*.notify.windows.com`) push services. A browser that uses another is refused with `invalid_push_subscription` *(to verify, as browsers appear)*.
+- **A browser is of one account.** One endpoint is of the account that subscribed it last: a pilot who signs in on a browser that another subscribed takes it over. A push service that answers `404` or `410` has ended the subscription, and the server removes it; a new subscription of the browser is a new `POST`.
+- **The server's key** is made when the server first starts with its database and kept there. A new database, or a key removed from it, ends every subscription: the browsers subscribe again with the new key.
+- **Bounds.** At most 10 browsers per account; an endpoint of at most 1024 bytes. A token for a program needs `alerts:write`.
+- **The phone apps** fetch what fired, as before ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)): Google's and Apple's push for the apps is not decided.
+
+### `GET /v1/push/key`
+
+No token. The server's P-256 public key, uncompressed, base64url without padding: the `applicationServerKey` a page passes to `pushManager.subscribe`. The same for everyone; `Cache-Control: public, max-age=3600`.
+
+```json
+{
+  "public_key": "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8"
+}
+```
+
+### `POST /v1/account/push`
+
+Needs a token. Subscribes a browser: the body is the browser's `PushSubscription` as `toJSON()` gives it, `endpoint` and `keys` with `p256dh` and `auth`; `expirationTime` is read and not kept. The answer is `204` with no body. The same browser again replaces its keys and is not counted twice.
+
+```json
+{
+  "endpoint": "https://fcm.googleapis.com/fcm/send/dXJxQ:APA91bE",
+  "keys": {
+    "p256dh": "BPhp5We4GQDXtBrO0GeKUqWoQAgneEEQ63hZe6daNPn1Bn-YKRTZNOHs2Fxs-cfnQeslwbGX7FEThxshVEjNTEY",
+    "auth": "BwcHBwcHBwcHBwcHBwcHBw"
+  }
+}
+```
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `invalid_push_subscription` | An endpoint that is not HTTPS, not of a push service the server sends to, or longer than 1024 bytes; a `p256dh` that is not a point on P-256; an `auth` that is not 16 bytes. `message` names the field |
+| 409 | `too_many_push_subscriptions` | The account has 10 browsers subscribed already |
+
+### `DELETE /v1/account/push`
+
+Needs a token. Removes a browser's subscription, by its endpoint: `{"endpoint": "https://fcm.googleapis.com/fcm/send/dXJxQ:APA91bE"}`. The answer is `204` with no body, also when the account did not have it.
 
 ## Flights
 

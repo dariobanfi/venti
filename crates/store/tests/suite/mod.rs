@@ -18,6 +18,7 @@ mod kept_sites;
 mod live;
 mod moderation;
 mod pilot_sites;
+mod push;
 mod sites;
 mod takeoffs;
 
@@ -31,6 +32,7 @@ pub(crate) use kept_sites::*;
 pub(crate) use live::*;
 pub(crate) use moderation::*;
 pub(crate) use pilot_sites::*;
+pub(crate) use push::*;
 pub(crate) use sites::*;
 pub(crate) use takeoffs::*;
 
@@ -116,6 +118,9 @@ macro_rules! store_suite {
             an_alarm_is_added_changed_and_removed,
             alarms_are_found_by_station_and_by_kind_when_on,
             what_fired_is_numbered_kept_and_pruned,
+            a_browser_is_subscribed_bounded_and_removed,
+            a_browser_is_of_the_account_that_subscribed_it_last,
+            the_first_push_key_kept_is_the_one,
             tokens_for_programs_are_withdrawn_one_by_one,
             an_account_holds_only_so_many_tokens_for_programs,
             an_account_keeps_only_its_most_recent_sessions,

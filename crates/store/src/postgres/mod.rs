@@ -12,6 +12,7 @@ mod live;
 mod migrate;
 mod partitions;
 mod pilot_sites;
+mod push;
 mod reports;
 mod sites;
 mod takeoffs;
@@ -891,6 +892,41 @@ impl Store for PgStore {
 
     async fn prune_fired_alerts(&self, before: Timestamp) -> Result<u64, StoreError> {
         alerts::prune(&self.client().await?, before).await
+    }
+
+    async fn add_push_subscription(
+        &self,
+        subscription: &crate::PushSubscription,
+        most: usize,
+    ) -> Result<crate::AddingPush, StoreError> {
+        push::add(&mut self.client().await?, subscription, most).await
+    }
+
+    async fn remove_push_subscription(
+        &self,
+        account_id: &str,
+        endpoint: &str,
+    ) -> Result<bool, StoreError> {
+        push::remove(&self.client().await?, account_id, endpoint).await
+    }
+
+    async fn drop_push_subscription(&self, endpoint: &str) -> Result<bool, StoreError> {
+        push::drop(&self.client().await?, endpoint).await
+    }
+
+    async fn push_subscriptions(
+        &self,
+        account_id: &str,
+    ) -> Result<Vec<crate::PushSubscription>, StoreError> {
+        push::of(&self.client().await?, account_id).await
+    }
+
+    async fn push_key(&self) -> Result<Option<String>, StoreError> {
+        push::key(&self.client().await?).await
+    }
+
+    async fn keep_push_key(&self, key: &str, now: Timestamp) -> Result<String, StoreError> {
+        push::keep_key(&self.client().await?, key, now).await
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

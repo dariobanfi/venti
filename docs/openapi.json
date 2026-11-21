@@ -1021,6 +1021,8 @@
           "invalid_alert",
           "too_many_alerts",
           "alert_not_found",
+          "invalid_push_subscription",
+          "too_many_push_subscriptions",
           "flight_not_found",
           "pilot_not_found",
           "invalid_flight",
@@ -2684,6 +2686,70 @@
           "more",
           "reset",
           "terms"
+        ],
+        "type": "object"
+      },
+      "PushKeyResponse": {
+        "properties": {
+          "public_key": {
+            "description": "The server's P-256 public key, uncompressed, base64url without padding: the `applicationServerKey` of `pushManager.subscribe`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "public_key"
+        ],
+        "type": "object"
+      },
+      "PushKeys": {
+        "properties": {
+          "auth": {
+            "description": "The browser's authentication secret, 16 bytes, base64url.",
+            "type": "string"
+          },
+          "p256dh": {
+            "description": "The browser's P-256 public key, uncompressed, base64url.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "type": "object"
+      },
+      "PushRemoveRequest": {
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint"
+        ],
+        "type": "object"
+      },
+      "PushSubscriptionRequest": {
+        "description": "A browser's `PushSubscription`, as its `toJSON()` gives it.",
+        "properties": {
+          "endpoint": {
+            "description": "The address of the push service the browser was given: HTTPS, of a push service the server sends to, at most 1024 bytes.",
+            "type": "string"
+          },
+          "expirationTime": {
+            "description": "Read and not kept.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushKeys"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
         ],
         "type": "object"
       },
@@ -5547,6 +5613,88 @@
         "x-venti-docs": "PUT /v1/account/password"
       }
     },
+    "/v1/account/push": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `alerts:write`.",
+        "operationId": "delete_account_push",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushRemoveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "alerts:write"
+            ]
+          }
+        ],
+        "summary": "Remove a browser's subscription",
+        "x-venti-docs": "DELETE /v1/account/push"
+      },
+      "post": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `alerts:write`.",
+        "operationId": "post_account_push",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "alerts:write"
+            ]
+          }
+        ],
+        "summary": "Subscribe a browser to Web Push",
+        "x-venti-docs": "POST /v1/account/push"
+      }
+    },
     "/v1/account/tokens": {
       "get": {
         "description": "The pilot's own sign-in only: a session's token. No token for a program.",
@@ -7907,6 +8055,30 @@
         "security": [],
         "summary": "A pilot's page: their public flights, newest first",
         "x-venti-docs": "GET /v1/pilots/{handle}?after=&limit="
+      }
+    },
+    "/v1/push/key": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_push_key",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushKeyResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The server's public key for Web Push",
+        "x-venti-docs": "GET /v1/push/key"
       }
     },
     "/v1/radar": {

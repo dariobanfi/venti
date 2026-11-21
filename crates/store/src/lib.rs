@@ -45,6 +45,7 @@ mod memory;
 mod month;
 mod pilot_site;
 mod postgres;
+mod push;
 mod report;
 mod site;
 mod takeoff;
@@ -91,6 +92,7 @@ pub use pilot_site::{
     SiteRevising, SiteRevision, SiteVia, SiteWrite,
 };
 pub use postgres::PgStore;
+pub use push::{AddingPush, PushSubscription};
 pub use report::{
     NewReport, Report, ReportAbout, ReportClosing, ReportClosure, ReportKey, ReportListing,
     ReportSaved, ReportSubject,
@@ -900,6 +902,50 @@ pub trait Store: Send + Sync + 'static {
         &self,
         before: Timestamp,
     ) -> impl Future<Output = Result<u64, StoreError>> + Send;
+
+    // --- Web Push ----------------------------------------------------------
+
+    /// Adds a browser's subscription to an account, subscribed at `now`,
+    /// unless the account has `most` already. An endpoint that is there
+    /// is taken over, by this account and with these keys, and is not
+    /// counted against it.
+    fn add_push_subscription(
+        &self,
+        subscription: &PushSubscription,
+        most: usize,
+    ) -> impl Future<Output = Result<AddingPush, StoreError>> + Send;
+
+    /// Removes a subscription of an account. Returns whether it had it.
+    fn remove_push_subscription(
+        &self,
+        account_id: &str,
+        endpoint: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Removes a subscription, whoever's it is: its push service said it
+    /// is gone. Returns whether it was there.
+    fn drop_push_subscription(
+        &self,
+        endpoint: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The subscriptions of an account, the oldest first.
+    fn push_subscriptions(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Vec<PushSubscription>, StoreError>> + Send;
+
+    /// The server's private key for Web Push, as text, if it has one.
+    fn push_key(&self) -> impl Future<Output = Result<Option<String>, StoreError>> + Send;
+
+    /// Keeps `key` as the server's key for Web Push unless it has one, and
+    /// returns the one it keeps: of two servers that start at once, both
+    /// end with the same key.
+    fn keep_push_key(
+        &self,
+        key: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<String, StoreError>> + Send;
 
     // --- Flights ----------------------------------------------------------
 

@@ -134,6 +134,13 @@ pub enum ErrorCode {
     TooManyAlerts,
     /// The account has no alarm with this identifier.
     AlertNotFound,
+    /// A browser's push subscription cannot be kept: an endpoint that is
+    /// not of a push service the server sends to, or keys that are not
+    /// keys. The message names the field.
+    InvalidPushSubscription,
+    /// The account has as many browsers subscribed as it may. Remove one
+    /// first.
+    TooManyPushSubscriptions,
     /// No flight has this address, or it is not the caller's to see.
     FlightNotFound,
     /// No pilot has this handle.

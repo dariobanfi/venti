@@ -5,6 +5,7 @@ mod groups;
 mod kept_sites;
 mod live;
 mod pilot_sites;
+mod push;
 mod reports;
 
 use std::collections::BTreeMap;
@@ -67,6 +68,7 @@ struct Inner {
     pilot_sites: pilot_sites::PilotSites,
     kept_sites: kept_sites::KeptSites,
     alerts: alerts::Alerts,
+    push: push::Push,
 }
 
 #[derive(Debug)]
@@ -656,6 +658,7 @@ impl Store for MemoryStore {
         inner.reports.delete_account(account_id);
         inner.kept_sites.delete_account(account_id);
         inner.alerts.delete_account(account_id);
+        inner.push.delete_account(account_id);
         Ok(())
     }
 
@@ -871,6 +874,49 @@ impl Store for MemoryStore {
 
     async fn prune_fired_alerts(&self, before: Timestamp) -> Result<u64, StoreError> {
         Ok(self.lock().alerts.prune(before))
+    }
+
+    async fn add_push_subscription(
+        &self,
+        subscription: &crate::PushSubscription,
+        most: usize,
+    ) -> Result<crate::AddingPush, StoreError> {
+        let inner = &mut *self.lock();
+        if inner
+            .accounts
+            .flight_change(&subscription.account_id)
+            .is_none()
+        {
+            return Ok(crate::AddingPush::NoAccount);
+        }
+        Ok(inner.push.add(subscription, most))
+    }
+
+    async fn remove_push_subscription(
+        &self,
+        account_id: &str,
+        endpoint: &str,
+    ) -> Result<bool, StoreError> {
+        Ok(self.lock().push.remove(account_id, endpoint))
+    }
+
+    async fn drop_push_subscription(&self, endpoint: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().push.drop(endpoint))
+    }
+
+    async fn push_subscriptions(
+        &self,
+        account_id: &str,
+    ) -> Result<Vec<crate::PushSubscription>, StoreError> {
+        Ok(self.lock().push.of(account_id))
+    }
+
+    async fn push_key(&self) -> Result<Option<String>, StoreError> {
+        Ok(self.lock().push.key())
+    }
+
+    async fn keep_push_key(&self, key: &str, now: Timestamp) -> Result<String, StoreError> {
+        Ok(self.lock().push.keep_key(key, now))
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

@@ -80,7 +80,7 @@ All commands run on the server.
 
 | Data | Place | Lose it and |
 |---|---|---|
-| Database | Docker volume `venti_db-data` | Every account and every pilot's flights are gone for good, unless there is a dump. The last hours of observations and the airspace the server fetches again |
+| Database | Docker volume `venti_db-data` | Every account and every pilot's flights are gone for good, unless there is a dump. The server's key for Web Push goes with it, and with it every browser's subscription: browsers subscribe again. The last hours of observations and the airspace the server fetches again |
 | Raw provider payloads, about 240 MB a day, kept 14 days | Docker volume `venti_archive` | Nothing breaks; old parsing bugs can no longer be replayed |
 | Tiles of map imagery, up to 20 GB (`VENTI_IMAGERY_CACHE_MB`) | Docker volume `venti_imagery` | Nothing breaks; the server asks the provider for each tile again |
 | TLS certificates | Docker volume `venti_caddy-data` | Caddy asks for new ones, which the issuers rate-limit |
@@ -90,7 +90,7 @@ All commands run on the server.
 | Settings | `deploy/.env` | Write them again; the database password must be the one the database was created with |
 | Database dumps | `deploy/backups` (or `VENTI_BACKUP_DIR`) | There is nothing to restore from |
 
-Flight files are in the database: one dump holds everything. Until map tiles are put in their folder the apps draw their maps from the public tile services, as they do in development. Files in `data/tiles` are served under `/tiles/` with range requests, as PMTiles archives need.
+Flight files are in the database: one dump holds everything. So is the key pair the server signs Web Push messages with, made when the server first starts with the database: a dump holds this secret too, so keep dumps as private as `.env`. Until map tiles are put in their folder the apps draw their maps from the public tile services, as they do in development. Files in `data/tiles` are served under `/tiles/` with range requests, as PMTiles archives need.
 
 ## Update
 

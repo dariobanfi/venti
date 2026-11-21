@@ -24,6 +24,10 @@
 //! request that makes it fetch at all is the one for a forecast, and what
 //! it fetches then is the forecast service the configuration names, for
 //! two numbers.
+//!
+//! The one address a client gives that the server sends to is a browser's
+//! Web Push endpoint, and that goes by a client of its own with bounds of
+//! its own: [`crate::push`].
 
 use std::time::Duration;
 

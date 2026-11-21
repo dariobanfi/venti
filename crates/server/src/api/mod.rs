@@ -87,6 +87,7 @@ mod mcp;
 mod observations;
 mod openapi;
 mod pilots;
+mod push;
 mod radar;
 mod ranking;
 mod reports;
@@ -314,6 +315,9 @@ pub struct Api<S> {
     /// The sources of observations in the order they are preferred where
     /// two of them have a station at the same place.
     station_priority: Vec<SourceId>,
+    /// The public half of the server's key for Web Push, base64url, for
+    /// `GET /v1/push/key`.
+    push_key: Option<String>,
 }
 
 impl<S: Store> Api<S> {
@@ -410,7 +414,20 @@ impl<S: Store> Api<S> {
             imagery: None,
             networks: Vec::new(),
             station_priority: Vec::new(),
+            // A key of this process's own, until the server names the
+            // one it keeps: a browser can subscribe in the development
+            // mode and in tests, where nothing is sent.
+            push_key: crate::push::ServerKey::generate()
+                .ok()
+                .map(|key| key.public_text()),
         }
+    }
+
+    /// The same API, handing out the public half of `key` for Web Push.
+    #[must_use]
+    pub fn with_push_key(mut self, key: &crate::push::ServerKey) -> Self {
+        self.push_key = Some(key.public_text());
+        self
     }
 
     /// The same API, answering forecasts from `forecasts`.
@@ -616,6 +633,11 @@ impl<S: Store> Api<S> {
                 "/v1/account/alerts/{id}",
                 put(alerts::change::<S>).delete(alerts::remove::<S>),
             )
+            .route(
+                venti_api_types::v1::PUSH_SUBSCRIPTION_PATH,
+                post(push::subscribe::<S>).delete(push::unsubscribe::<S>),
+            )
+            .route(venti_api_types::v1::PUSH_KEY_PATH, get(push::key::<S>))
             .route(
                 SESSIONS_PATH,
                 post(account::sign_in::<S>)

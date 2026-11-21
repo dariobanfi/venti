@@ -9,10 +9,11 @@ import type { Locator, Page } from '@playwright/test';
 import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, showTheValley, test } from './helpers';
 
 /**
- * The evening the forecasts were recorded, so that "today" and the names
- * of the days are the same whenever the tests run.
+ * The night the forecasts were recorded, half an hour after they were,
+ * so that "today" and the names of the days are the same whenever the
+ * tests run.
  */
-const THAT_EVENING = new Date('2026-11-19T20:00:00Z');
+const THAT_NIGHT = new Date('2026-11-21T01:00:00Z');
 
 const forecastOf = (page: Page) => page.getByRole('dialog', { name: 'Forecast' });
 const table = (forecast: Locator) =>
@@ -46,19 +47,19 @@ test('a site’s page leads to the forecast for its place, a day and a model at 
 	wide,
 	problems
 }) => {
-	await page.clock.setFixedTime(THAT_EVENING);
+	await page.clock.setFixedTime(THAT_NIGHT);
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
 	const site = await openTheTakeOff(page, mapDrawn, wide);
 	await site.getByRole('button', { name: 'Forecast for this place' }).click();
 
-	// The finest model first, and the first day with the sun up: the
-	// evening it was recorded has no daylight left.
+	// The finest model first, and the first day with the sun up: the day
+	// that began an hour ago.
 	const forecast = forecastOf(page);
 	await expect(forecast).toContainText('Fluggelände Jägerkamp/Nagelspitz');
 	const days = forecast.getByRole('radiogroup', { name: 'Day' });
-	await expect(days.getByRole('radio', { name: 'Fri 20' })).toBeChecked();
-	await expect(days.getByRole('radio', { name: 'Sat 21' })).not.toBeChecked();
+	await expect(days.getByRole('radio', { name: 'Today' })).toBeChecked();
+	await expect(days.getByRole('radio', { name: 'Sun 22' })).not.toBeChecked();
 
 	// A column for every hour with the sun up, a row for the wind at each
 	// height, the highest at the top, then the wind at the ground and the sky.
@@ -83,7 +84,7 @@ test('a site’s page leads to the forecast for its place, a day and a model at 
 	);
 	await expect(forecast).toContainText('Nothing here says whether the day can be flown.');
 	// The run, the model's ground, and whose data it is.
-	await expect(forecast).toContainText('Thu, 19 Nov 2026, 19:00');
+	await expect(forecast).toContainText('Fri, 20 Nov 2026, 22:00');
 	await expect(forecast).toContainText('The model’s ground here');
 	await expect(
 		forecast.getByRole('link', { name: /^Weather data by Open-Meteo\.com/ })
@@ -91,15 +92,16 @@ test('a site’s page leads to the forecast for its place, a day and a model at 
 	await keep('49-forecast');
 
 	// Another day of the same model.
-	await days.getByText('Sat 21').click();
-	await expect(days.getByRole('radio', { name: 'Sat 21' })).toBeChecked();
+	await days.getByText('Sun 22').click();
+	await expect(days.getByRole('radio', { name: 'Sun 22' })).toBeChecked();
 	await expect(hours.nth(1)).toHaveText('8');
 
 	// Another model: its own run, its own ground, its own reach. ICON-EU's
-	// run of that afternoon ends the next evening, so there is one day.
+	// run of the evening before ends in the night after this day, so
+	// there is one day.
 	await forecast.getByRole('combobox', { name: 'Weather model' }).selectOption('ICON-EU');
 	await expect(forecast).toContainText(/What the weather model ICON-EU computes .* \(7 km cells\)/);
-	await expect(forecast).toContainText('Thu, 19 Nov 2026, 16:00');
+	await expect(forecast).toContainText('Fri, 20 Nov 2026, 22:00');
 	await expect(days).toBeHidden();
 	await table(forecast).scrollIntoViewIfNeeded();
 	await keep('50-forecast-other-model');
@@ -116,7 +118,7 @@ test('a wind station’s page leads to the forecast for its place too', async ({
 	mapDrawn,
 	wide
 }) => {
-	await page.clock.setFixedTime(THAT_EVENING);
+	await page.clock.setFixedTime(THAT_NIGHT);
 	await page.goto('/');
 	await mapTabDrawn(page, mapDrawn);
 	await page.getByRole('button', { name: 'Wind stations' }).click();
@@ -141,7 +143,7 @@ test('a forecast the server cannot give is said in its words, and asked for agai
 	keep,
 	wide
 }) => {
-	await page.clock.setFixedTime(THAT_EVENING);
+	await page.clock.setFixedTime(THAT_NIGHT);
 	await context.route('**/v1/forecast**', (route) =>
 		route.fulfill({
 			status: 503,

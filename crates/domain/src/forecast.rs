@@ -120,6 +120,13 @@ pub struct ForecastHour {
     /// when the model has no convective cloud over the cell at this hour.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub convective_cloud_top_m: Option<f64>,
+    /// The heat the ground gives to the air above it, W/m², as the mean of
+    /// the hour before `time`: positive when the ground warms the air,
+    /// which a sunlit slope does and which is what thermals are made of;
+    /// negative when the air warms the ground, as on a clear night. It is
+    /// the model's own balance for its cell, not a measurement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heat_to_air_w_m2: Option<f64>,
     /// The wind higher up, lowest level first: first the levels at a fixed
     /// height above the ground, then the pressure surfaces from the highest
     /// pressure to the lowest.
@@ -180,6 +187,7 @@ impl ForecastHour {
             updraft_ms: None,
             convective_cloud_base_m: None,
             convective_cloud_top_m: None,
+            heat_to_air_w_m2: None,
             winds_aloft: Vec::new(),
         }
     }
@@ -191,7 +199,7 @@ impl ForecastHour {
 
     /// The values at the ground with their field names, for code that
     /// treats them uniformly.
-    pub fn fields(&self) -> [(&'static str, Option<f64>); 15] {
+    pub fn fields(&self) -> [(&'static str, Option<f64>); 16] {
         [
             ("wind_speed_ms", self.wind_speed_ms),
             ("wind_direction_deg", self.wind_direction_deg),
@@ -208,11 +216,12 @@ impl ForecastHour {
             ("updraft_ms", self.updraft_ms),
             ("convective_cloud_base_m", self.convective_cloud_base_m),
             ("convective_cloud_top_m", self.convective_cloud_top_m),
+            ("heat_to_air_w_m2", self.heat_to_air_w_m2),
         ]
     }
 
     /// Mutable access to the values at the ground with their field names.
-    pub fn fields_mut(&mut self) -> [(&'static str, &mut Option<f64>); 15] {
+    pub fn fields_mut(&mut self) -> [(&'static str, &mut Option<f64>); 16] {
         [
             ("wind_speed_ms", &mut self.wind_speed_ms),
             ("wind_direction_deg", &mut self.wind_direction_deg),
@@ -229,6 +238,7 @@ impl ForecastHour {
             ("updraft_ms", &mut self.updraft_ms),
             ("convective_cloud_base_m", &mut self.convective_cloud_base_m),
             ("convective_cloud_top_m", &mut self.convective_cloud_top_m),
+            ("heat_to_air_w_m2", &mut self.heat_to_air_w_m2),
         ]
     }
 }

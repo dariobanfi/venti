@@ -7,7 +7,7 @@ https://open-meteo.com/en/licence. Credit: Weather data by Open-Meteo.com.
 Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo. The files
 are not covered by the licence of the code around them.
 
-They were recorded on 2026-11-19 between 19:23 and 19:30 UTC from an
+They were recorded on 2026-11-21 between 00:25 and 00:28 UTC from an
 Open-Meteo instance started for the purpose: the container image
 ghcr.io/open-meteo/open-meteo:latest as built on 2026-11-03 (digest
 sha256:bf94e8b39761b59a91bd04bb926b3834cad00eaf71f1aa64b2fd17fbe987846a),
@@ -25,12 +25,17 @@ Each file is the whole answer to one request of the adapter, unchanged:
                            &models=dwd_icon_d2_native&hourly=...
     icon_eu_LAT_LON.json   the same with models=dwd_icon_eu_native
 
-with the query the adapter builds (src/lib.rs, series_url): 44 hourly
-variables for ICON-D2 and 43 for ICON-EU, forecast_days=3,
+with the query the adapter builds (src/lib.rs, series_url): 45 hourly
+variables for ICON-D2 and 44 for ICON-EU, forecast_days=3,
 wind_speed_unit=ms, timeformat=unixtime, elevation=nan and
-cell_selection=nearest. The instance held ICON-D2's run of 2026-11-19
-18:00 UTC and ICON-EU's of 15:00 UTC, and the two answers about the runs
-were the same before and after the forecasts were asked for.
+cell_selection=nearest. The instance held the runs of 2026-11-20 21:00
+UTC of both models, ICON-D2's ready at 22:10 UTC and ICON-EU's at 23:53,
+and the two answers about the runs were the same before and after the
+forecasts were asked for.
+
+They replace a first set, recorded the same way on 2026-11-19 with 44 and
+43 variables. The 45th is sensible_heat_flux, the heat the ground gives
+to the air, which the adapter began to ask for on 2026-11-21.
 
 The five places: 47.70 N 11.80 E (east shore of the Tegernsee), 47.66 N
 11.80 E (take-off on the Wallberg), 47.70 N 11.88 E and 47.68 N 11.90 E

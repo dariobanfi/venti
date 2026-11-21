@@ -217,11 +217,46 @@ Each daylight hour, from an hour after sunrise to an hour before sunset, is judg
 | Base of convective cloud | less than 200 m above the take-off | below the take-off |
 | CAPE | 800 J/kg ("Showers or thunderstorms can grow") | |
 
-A day is flyable when two hours in a row are, and its line says when: "Good all day", "Good from noon", "Good until 15:00", "Good from 11:00 to 15:00", with what ends or delays the stretch beside it. It is marginal when two hours in a row are at least marginal, with the reason met most often. A take-off whose source names no directions is not judged by the direction, one without a height not by the cloud or the wind higher up. There is no thermal forecast in it: the models the server reads give none, and none is made up.
+A day is flyable when two hours in a row are, and its line says when: "Good all day", "Good from noon", "Good until 15:00", "Good from 11:00 to 15:00", with what ends or delays the stretch beside it. It is marginal when two hours in a row are at least marginal, with the reason met most often. A take-off whose source names no directions is not judged by the direction, one without a height not by the cloud or the wind higher up. What the day's thermals are worth is a reading of its own, beside this one: [Thermals](#thermals).
 
 The limits are our own, round numbers a cautious pilot would nod to, the same for every pilot and every wing. To verify with pilots, all of them; the owner decides them.
 
 **The Today screen** (iPhone and Android). The head is the design pack's valley strip with the day ("Saturday, near you") and, in the `hero` style, the day's line for the take-off that looks best. Under it a switch between the days the forecast has, three at most, each called what the core calls it by the place's calendar: "Today", "Tomorrow", then the day of the week. It stands on the first day that has flying hours left, which in the evening is tomorrow. A day that is over is not offered, and neither is one the model has no daylight hours for; today stays when its hours are gone, and says so. A take-off whose forecast does not reach the chosen day says "No forecast for this day", not that it is still being read. The best take-off is a card: its name, its status, what limits the day, three readings (the wind 10 m above the model's ground and where it comes from, the gusts, the cloud base) and the day's hours side by side, each with the pack's wind arrow, the speed, and a bar that is the hour's status by its height as well as its colour: tall for flyable, low for not. The other take-offs are rows with their status and what limits them. Take-offs with a name of their own come first, then the nearest; six at most. A tap opens the site's page. At the foot stand the model, its run, when Venti last looked for a newer one, the credit, and that the three words are what the forecast says by fixed limits and not advice to fly. Until the app may know where the pilot is, the take-offs are those around the middle of the first region, and a button asks for the position; nothing asks at launch. The hours that are gone are gone by Venti's clock, not the iPhone's. Without Venti's address the screen says so and leads to the settings.
+
+### Thermals
+
+Asked for by the owner on 2026-11-21: "The most useful thing about the burnair app is the thermal forecast. And they do it using the ICON D model, and they can tell if it's going to be a super day with color blue, or if it's going to be a day where you can do cross-country but not record flying, or it's a day where you can just fly safely and not die, or if it's a day where you should not fly at all."
+
+Burnair's method is not open ([data-sources.md](data-sources.md#forecasts)). Venti's is its own, made in the core from what ICON-D2 publishes for the grid cell of a take-off, hour by hour (`venti_flight::convection`), and it is an estimate of the air over that cell, never a promise of a climb:
+
+- **How high thermals reach.** Air that leaves the ground at the ground's temperature cools by 9.8 °C for every kilometre it rises, and rises for as long as it is warmer than the air around it, which the model gives at its levels. Where it no longer is, thermals end: the parcel method of a sounding diagram.
+- **Whether cloud caps them.** Where the model itself has convective cloud, its base is the ceiling. Where it has none, rising air is taken to condense 125 m above the ground for every degree between temperature and dew point there; if that lies below where the thermals end, there is cumulus at that height, and if not the day is blue.
+- **How strong they are.** The convective velocity scale, `w* = (g / T · H / (ρ · cp) · depth)^(1/3)`: the more heat `H` the ground gives to the air and the deeper the layer the thermals stir, the faster the air in them rises. It is what RASP's forecasts call the thermal updraft velocity. A paraglider is taken to climb by that less 1.0 m/s of its own sink.
+
+The heat is the model's own balance of sun, cloud, snow and wet ground, so a closed sky, a snow cover and a morning are in the figure without a rule for each.
+
+**The kind of day** is read from those figures by fixed limits, for the take-off's height (the model's ground where the take-off has none):
+
+| Kind of day | An hour counts when the climb is at least | the thermals reach above the take-off by at least | the strongest wind in their layer is at most | and the hour is | Hours in a row |
+|---|---|---|---|---|---|
+| **Big day** | 2.0 m/s | 1,500 m | 20 km/h | flyable | 6 |
+| **Cross-country day** | 1.0 m/s | 800 m | 25 km/h | flyable | 4 |
+| **Local thermals** | 0.5 m/s | 300 m | | flyable or marginal | 2 |
+| **Weak thermals** | anything less | | | | |
+
+A day that is not flyable says nothing about thermals: rain and wind have decided it. So the owner's four are there, the third in two: a big day, a cross-country day, a day to fly on in local or weak thermals, and a day that is not flyable. The day's line names the figures and the hours: "2.2 m/s to a cloud base of 3400 m, from 11:00 to 18:00", "1.8 m/s to 3250 m in the blue, from 13:00 to 17:00", "0.3 m/s to 1500 m at best", "None to climb in". Each hour carries its own climb and height, for the day's bars.
+
+**How it looks.** The design language has three status colours, for flyable, marginal and not flyable, and no blue. Until the owner adds colours for the kinds of day to the pack, the kind is a word beside a mark in the pack's `thermal` scale, which is its scale for a forecast climb: the mark's colour is the climb's, and the number stands beside it, as the pack asks of every scale. *Open, for the owner:* a colour of its own for each kind of day, the blue of a big day among them.
+
+**What is weak in it, all to verify against climbs that were flown:**
+
+- The model's levels are far apart: 80, 120 and 180 m above its ground, then the pressure surfaces at about 1,500 m, 3,000 m and 4,200 m above the sea. An inversion between two of them is seen only as a weaker average, so the height can be several hundred metres off.
+- The velocity scale was found over flat land. In the mountains sunlit slopes gather the heat, and climbs are often stronger than it says and weaker in a lee.
+- The model's ground is smoothed. A take-off above it is judged by how far the thermals reach above the take-off, which is right for the height and says nothing of the slope the take-off stands on.
+- The glider's sink of 1.0 m/s and every limit in the table are our own round numbers; the owner decides them.
+- Nothing is known yet of how the estimate compares with flights. The server holds flown tracks with their thermals and could set each against the forecast of its hour and place: a way to check the limits, not built.
+
+**On the screens:** to do. The core gives the figures and words (`site_outlook`); the Today screens of the iPhone and Android show them next.
 
 ## Icon
 

@@ -101,13 +101,13 @@ async fn the_forecast_of_a_place_is_one_series_per_model_with_its_run_and_its_cr
     assert_eq!(answer.header(header::CONTENT_TYPE), "application/json");
     assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=60");
     assert!(answer.header(header::ETAG).starts_with("W/\""));
-    // A whole answer: two models, 78 hours, 85 kB before compression.
+    // A whole answer: two models, 74 hours, under 100 kB before compression.
     assert!(answer.body.len() < 100_000, "{} bytes", answer.body.len());
     let forecast: ForecastResponse = answer.json();
 
     assert_eq!(forecast.point, GeoPoint::new(47.7, 11.8).unwrap());
-    // The forecasts were recorded a day after the wind; their clock stands
-    // at that moment.
+    // The forecasts were recorded some days after the wind; their clock
+    // stands at that moment.
     assert_eq!(forecast.fetched_at, adapters::forecasts_recorded_at());
     assert_eq!(forecast.layers.len(), 1);
     let layer = &forecast.layers[0];
@@ -126,8 +126,8 @@ async fn the_forecast_of_a_place_is_one_series_per_model_with_its_run_and_its_cr
     assert_eq!(
         series,
         [
-            ("icon-d2", "2026-11-19T18:00:00+00:00".to_owned(), 48),
-            ("icon-eu", "2026-11-19T15:00:00+00:00".to_owned(), 30),
+            ("icon-d2", "2026-11-20T21:00:00+00:00".to_owned(), 46),
+            ("icon-eu", "2026-11-20T21:00:00+00:00".to_owned(), 28),
         ]
     );
     for series in &layer.series {
@@ -197,12 +197,12 @@ async fn the_development_mode_answers_any_place_of_the_region_with_the_nearest_r
     assert_eq!(vienna.point, GeoPoint::new(47.4, 13.3).unwrap());
 
     // The hours a client finds: none of 18 November, the day the wind of
-    // this mode is of. The evening of the 19th, all of the 20th, and of
-    // the 21st what ICON-D2's run reaches.
+    // this mode is of. All of the 21st, and of the 22nd what ICON-D2's
+    // run of the evening of the 20th reaches.
     let at = |day, hour| Utc.with_ymd_and_hms(2026, 11, day, hour, 0, 0).unwrap();
-    assert_eq!(icon_d2.hours.first().unwrap().time, at(19, 19));
-    assert_eq!(icon_d2.hours.last().unwrap().time, at(21, 18));
-    let noon = icon_d2.hours.iter().find(|hour| hour.time == at(20, 11));
+    assert_eq!(icon_d2.hours.first().unwrap().time, at(21, 0));
+    assert_eq!(icon_d2.hours.last().unwrap().time, at(22, 21));
+    let noon = icon_d2.hours.iter().find(|hour| hour.time == at(21, 11));
     assert!(noon.is_some_and(|hour| hour.temperature_c.is_some()));
 }
 

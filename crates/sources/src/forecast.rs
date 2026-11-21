@@ -15,7 +15,7 @@ use crate::{
 
 /// Plausible limits for each value at the ground. A value outside its
 /// limits is a fault of the source or of the adapter, not weather.
-const LIMITS: [(&str, f64, f64); 15] = [
+const LIMITS: [(&str, f64, f64); 16] = [
     ("wind_speed_ms", 0.0, 120.0),
     ("wind_direction_deg", 0.0, 360.0),
     ("wind_gust_ms", 0.0, 120.0),
@@ -31,6 +31,9 @@ const LIMITS: [(&str, f64, f64); 15] = [
     ("updraft_ms", 0.0, 100.0),
     ("convective_cloud_base_m", -500.0, 20_000.0),
     ("convective_cloud_top_m", -500.0, 20_000.0),
+    // The sun delivers 1361 W/m² at most, and the ground cannot hand on
+    // more than it receives; at night a few hundred flow the other way.
+    ("heat_to_air_w_m2", -1000.0, 1400.0),
 ];
 
 /// The same for the values at a level above the ground. The wind in a jet

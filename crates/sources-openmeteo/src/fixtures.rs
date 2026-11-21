@@ -1,9 +1,12 @@
-//! Answers recorded from an Open-Meteo instance on 2026-11-19.
+//! Answers recorded from an Open-Meteo instance on 2026-11-21, shortly
+//! after midnight UTC.
 //!
 //! The instance was one run for the purpose, from Open-Meteo's own
 //! container image, reading Open-Meteo's open data on AWS: the arrangement
-//! a server's operator runs. It held ICON-D2's run of 18 UTC and ICON-EU's
-//! of 15 UTC. Each file is the answer to one of the adapter's own requests,
+//! a server's operator runs. It held the runs of 21 UTC of the evening
+//! before, of ICON-D2 and of ICON-EU. (A first set, of 2026-11-19, was
+//! replaced when the adapter began to ask for the heat the ground gives to
+//! the air.) Each file is the answer to one of the adapter's own requests,
 //! unchanged: which run of a model the instance holds (two files), and what
 //! each model forecasts for five places. `tests/fixtures/NOTICE.txt` says
 //! how they were recorded and how to record them again.
@@ -34,7 +37,7 @@ pub const BASE: &str = "http://open-meteo:8080";
 ///
 /// Never: the date is a constant.
 pub fn recorded_at() -> Timestamp {
-    Utc.with_ymd_and_hms(2026, 11, 19, 19, 30, 0)
+    Utc.with_ymd_and_hms(2026, 11, 21, 0, 30, 0)
         .single()
         .expect("a valid date")
 }

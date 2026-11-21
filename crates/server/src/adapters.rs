@@ -177,7 +177,7 @@ pub fn recorded_forecast_places() -> Vec<GeoPoint> {
 }
 
 /// The moment the development mode's clock stands at for forecasts: when
-/// they were recorded, a day after the observations.
+/// they were recorded, some days after the observations.
 ///
 /// A forecast cannot be served as fetched before its model ran, so the
 /// forecasts do not share the clock of [`recorded_at`].

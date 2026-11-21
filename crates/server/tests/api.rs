@@ -91,8 +91,8 @@ async fn health_reports_every_source_fresh() {
     assert_eq!(
         models,
         [
-            ("icon-d2", "2026-11-19T18:00:00+00:00".to_owned()),
-            ("icon-eu", "2026-11-19T15:00:00+00:00".to_owned())
+            ("icon-d2", "2026-11-20T21:00:00+00:00".to_owned()),
+            ("icon-eu", "2026-11-20T21:00:00+00:00".to_owned())
         ]
     );
     assert!(

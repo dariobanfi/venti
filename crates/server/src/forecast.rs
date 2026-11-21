@@ -900,7 +900,7 @@ mod tests {
         assert_eq!(looked.report.requests, 4);
         assert_eq!(
             looked.report.newest_run,
-            Some(Utc.with_ymd_and_hms(2026, 11, 19, 18, 0, 0).unwrap())
+            Some(Utc.with_ymd_and_hms(2026, 11, 20, 21, 0, 0).unwrap())
         );
         assert_eq!(looked.series[0].point, GeoPoint::new(47.4, 13.3).unwrap());
         // Whoever asks for that place gets what the look fetched.

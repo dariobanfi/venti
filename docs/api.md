@@ -250,14 +250,14 @@ How the server and each of its data sources are doing.
       "models": [
         {
           "model": "icon-d2",
-          "run": "2026-11-19T18:00:00Z",
-          "available_at": "2026-11-19T19:10:09Z",
+          "run": "2026-11-20T21:00:00Z",
+          "available_at": "2026-11-20T22:10:17Z",
           "checked_at": "2026-11-18T19:05:00Z"
         },
         {
           "model": "icon-eu",
-          "run": "2026-11-19T15:00:00Z",
-          "available_at": "2026-11-19T17:49:54Z",
+          "run": "2026-11-20T21:00:00Z",
+          "available_at": "2026-11-20T23:53:10Z",
           "checked_at": "2026-11-18T19:05:00Z"
         }
       ]
@@ -871,7 +871,7 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
     "lat": 47.7,
     "lon": 11.8
   },
-  "fetched_at": "2026-11-19T19:30:00Z",
+  "fetched_at": "2026-11-21T00:30:00Z",
   "layers": [
     {
       "source": "open-meteo",
@@ -879,8 +879,8 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
         {
           "source": "open-meteo",
           "model": "icon-d2",
-          "run": "2026-11-19T18:00:00Z",
-          "available_at": "2026-11-19T19:10:09Z",
+          "run": "2026-11-20T21:00:00Z",
+          "available_at": "2026-11-20T22:10:17Z",
           "point": {
             "lat": 47.7,
             "lon": 11.8
@@ -892,66 +892,67 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
           "cell_elevation_m": 1069.0,
           "hours": [
             {
-              "time": "2026-11-19T19:00:00Z",
-              "wind_speed_ms": 2.4,
-              "wind_direction_deg": 225.0,
-              "wind_gust_ms": 13.1,
-              "temperature_c": 3.2,
-              "dew_point_c": -0.1,
-              "cloud_cover_pct": 99.0,
-              "cloud_cover_low_pct": 83.0,
-              "cloud_cover_mid_pct": 98.0,
-              "cloud_cover_high_pct": 0.0,
+              "time": "2026-11-21T00:00:00Z",
+              "wind_speed_ms": 6.58,
+              "wind_direction_deg": 250.0,
+              "wind_gust_ms": 22.3,
+              "temperature_c": 3.9,
+              "dew_point_c": 0.7,
+              "cloud_cover_pct": 100.0,
+              "cloud_cover_low_pct": 64.0,
+              "cloud_cover_mid_pct": 100.0,
+              "cloud_cover_high_pct": 100.0,
               "precipitation_mm": 0.0,
               "cape_j_kg": 0.0,
-              "freezing_level_m": 1800.0,
-              "updraft_ms": 1.45,
+              "freezing_level_m": 1670.0,
+              "updraft_ms": 1.41,
+              "heat_to_air_w_m2": -62.5,
               "winds_aloft": [
                 {
                   "above_ground_m": 80.0,
-                  "wind_speed_ms": 5.49,
-                  "wind_direction_deg": 237.0,
-                  "temperature_c": 4.7
+                  "wind_speed_ms": 11.8,
+                  "wind_direction_deg": 253.0,
+                  "temperature_c": 3.8
                 },
                 {
                   "above_ground_m": 120.0,
-                  "wind_speed_ms": 6.62,
-                  "wind_direction_deg": 241.0,
-                  "temperature_c": 4.5
+                  "wind_speed_ms": 13.46,
+                  "wind_direction_deg": 255.0,
+                  "temperature_c": 3.7
                 },
                 {
                   "above_ground_m": 180.0,
-                  "wind_speed_ms": 7.88,
-                  "wind_direction_deg": 246.0,
-                  "temperature_c": 4.2
+                  "wind_speed_ms": 14.92,
+                  "wind_direction_deg": 256.0,
+                  "temperature_c": 3.4
                 },
                 {
                   "pressure_hpa": 850.0,
-                  "altitude_m": 1340.0,
-                  "wind_speed_ms": 11.51,
-                  "wind_direction_deg": 255.0,
-                  "temperature_c": 3.6
+                  "altitude_m": 1429.0,
+                  "wind_speed_ms": 19.87,
+                  "wind_direction_deg": 261.0,
+                  "temperature_c": 1.9
                 },
                 {
                   "pressure_hpa": 700.0,
-                  "altitude_m": 2883.0,
-                  "wind_speed_ms": 24.66,
+                  "altitude_m": 2963.0,
+                  "wind_speed_ms": 27.44,
                   "wind_direction_deg": 277.0,
-                  "temperature_c": -7.6
+                  "temperature_c": -9.0
                 },
                 {
                   "pressure_hpa": 600.0,
-                  "altitude_m": 4066.0,
-                  "wind_speed_ms": 21.99,
-                  "wind_direction_deg": 288.0,
-                  "temperature_c": -15.3
+                  "altitude_m": 4139.0,
+                  "wind_speed_ms": 24.44,
+                  "wind_direction_deg": 280.0,
+                  "temperature_c": -16.9
                 },
                 {
                   "pressure_hpa": 500.0,
-                  "altitude_m": 5417.0,
-                  "wind_speed_ms": 19.92,
-                  "wind_direction_deg": 288.0,
-                  "temperature_c": -24.7
+                  "altitude_m": 5481.0,
+                  "wind_speed_ms": 23.63,
+                  "wind_direction_deg": 286.0,
+                  "temperature_c": -26.6
                 }
               ]
             }
@@ -960,8 +961,8 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
         {
           "source": "open-meteo",
           "model": "icon-eu",
-          "run": "2026-11-19T15:00:00Z",
-          "available_at": "2026-11-19T17:49:54Z",
+          "run": "2026-11-20T21:00:00Z",
+          "available_at": "2026-11-20T23:53:10Z",
           "point": {
             "lat": 47.7,
             "lon": 11.8
@@ -973,65 +974,68 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
           "cell_elevation_m": 1100.0,
           "hours": [
             {
-              "time": "2026-11-19T16:00:00Z",
-              "wind_speed_ms": 4.98,
-              "wind_direction_deg": 260.0,
-              "wind_gust_ms": 25.2,
-              "temperature_c": 3.9,
-              "dew_point_c": 0.9,
-              "cloud_cover_pct": 60.0,
-              "cloud_cover_low_pct": 53.0,
-              "cloud_cover_mid_pct": 13.0,
-              "cloud_cover_high_pct": 4.0,
+              "time": "2026-11-21T00:00:00Z",
+              "wind_speed_ms": 5.25,
+              "wind_direction_deg": 252.0,
+              "wind_gust_ms": 24.1,
+              "temperature_c": 4.6,
+              "dew_point_c": -0.2,
+              "cloud_cover_pct": 81.0,
+              "cloud_cover_low_pct": 72.0,
+              "cloud_cover_mid_pct": 47.0,
+              "cloud_cover_high_pct": 0.0,
               "precipitation_mm": 0.0,
               "cape_j_kg": 0.0,
-              "freezing_level_m": 1710.0,
+              "freezing_level_m": 1720.0,
+              "convective_cloud_base_m": 2300.0,
+              "convective_cloud_top_m": 2460.0,
+              "heat_to_air_w_m2": -90.3,
               "winds_aloft": [
                 {
                   "above_ground_m": 80.0,
-                  "wind_speed_ms": 9.72,
-                  "wind_direction_deg": 261.0,
-                  "temperature_c": 3.9
+                  "wind_speed_ms": 10.92,
+                  "wind_direction_deg": 254.0,
+                  "temperature_c": 4.4
                 },
                 {
                   "above_ground_m": 120.0,
-                  "wind_speed_ms": 11.4,
-                  "wind_direction_deg": 262.0,
-                  "temperature_c": 3.5
+                  "wind_speed_ms": 12.95,
+                  "wind_direction_deg": 255.0,
+                  "temperature_c": 3.9
                 },
                 {
                   "above_ground_m": 180.0,
-                  "wind_speed_ms": 13.19,
-                  "wind_direction_deg": 263.0,
-                  "temperature_c": 2.9
+                  "wind_speed_ms": 14.84,
+                  "wind_direction_deg": 256.0,
+                  "temperature_c": 3.3
                 },
                 {
                   "pressure_hpa": 850.0,
-                  "altitude_m": 1324.0,
-                  "wind_speed_ms": 13.9,
-                  "wind_direction_deg": 263.0,
-                  "temperature_c": 2.8
+                  "altitude_m": 1425.0,
+                  "wind_speed_ms": 17.9,
+                  "wind_direction_deg": 257.0,
+                  "temperature_c": 2.4
                 },
                 {
                   "pressure_hpa": 700.0,
-                  "altitude_m": 2864.0,
-                  "wind_speed_ms": 23.17,
-                  "wind_direction_deg": 285.0,
-                  "temperature_c": -8.1
+                  "altitude_m": 2961.0,
+                  "wind_speed_ms": 28.51,
+                  "wind_direction_deg": 274.0,
+                  "temperature_c": -8.4
                 },
                 {
                   "pressure_hpa": 600.0,
-                  "altitude_m": 4047.0,
-                  "wind_speed_ms": 19.85,
-                  "wind_direction_deg": 294.0,
-                  "temperature_c": -14.7
+                  "altitude_m": 4140.0,
+                  "wind_speed_ms": 25.5,
+                  "wind_direction_deg": 281.0,
+                  "temperature_c": -16.4
                 },
                 {
                   "pressure_hpa": 500.0,
-                  "altitude_m": 5401.0,
-                  "wind_speed_ms": 18.41,
-                  "wind_direction_deg": 305.0,
-                  "temperature_c": -24.5
+                  "altitude_m": 5484.0,
+                  "wind_speed_ms": 21.82,
+                  "wind_direction_deg": 289.0,
+                  "temperature_c": -26.4
                 }
               ]
             }
@@ -1052,7 +1056,7 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
 }
 ```
 
-The place is the east shore of the Tegernsee. Each series is cut to its first hour here; in the whole answer ICON-D2 has 48 hours and ICON-EU 30.
+The place is the east shore of the Tegernsee. Each series is cut to its first hour here; in the whole answer ICON-D2 has 46 hours and ICON-EU 28.
 
 **The answer holds magnitudes and no judgement.** Nothing in it says whether a day can be flown, and a client that shows it adds none.
 
@@ -1093,6 +1097,7 @@ An hour:
 | `freezing_level_m` | Height of the 0 °C level above sea level. A value at or near `cell_elevation_m` means the air is below freezing down to the ground |
 | `updraft_ms` | The strongest rising air the model has anywhere above the cell up to 10 km. ICON-D2 only. **It is not thermal strength**: it is what a model with 2 km cells resolves, which is showers, storms and flow over mountains |
 | `convective_cloud_base_m`, `convective_cloud_top_m` | Above sea level. Left out when the model has no convective cloud over the cell at that hour, which is most hours. The two models do not mean the same convection by it; [data-sources.md](data-sources.md#the-values) says what each means |
+| `heat_to_air_w_m2` | The heat the ground gives to the air above it, as the mean of the hour before `time`: the model's sensible heat flux, counted upward. Positive when the ground warms the air, which is what thermals are made of; negative when the air warms the ground, as on a clear night. The apps work out the height and strength of thermals from it ([design.md](design.md#thermals)); the server hands on the figure and no estimate |
 | `winds_aloft` | The wind higher up, lowest first: see below |
 
 A level of `winds_aloft` is given in one of two ways:
@@ -1111,7 +1116,7 @@ Every value but `time` may be missing, and a missing value is left out, never wr
 
 **Caching.** `Cache-Control: public, max-age=60` and an `ETag`, like the stations. The server itself keeps an answer for up to half an hour, so asking more often than that brings the same answer and a `304`.
 
-**Size.** A whole answer for Tegernsee, two models and 78 hours, is 85 kB plain and 9 kB with gzip (measured 2026-11-19).
+**Size.** A whole answer for Tegernsee, two models and 74 hours, is 83 kB plain and 9 kB with gzip (measured 2026-11-21).
 
 **When there is no forecast.**
 
@@ -1127,7 +1132,7 @@ Every value but `time` may be missing, and a missing value is left out, never wr
 
 An answer in which one of the models is missing is still an answer: the server hands on what it has and asks again within two minutes.
 
-**In the development mode** there are recorded forecasts for five places: the east shore of the Tegernsee (47.70, 11.80), the take-off on the Wallberg (47.66, 11.80), the take-off and the landing below the Jägerkamp (47.68, 11.90 and 47.70, 11.88), and the middle of the first region (47.40, 13.30). A place anywhere in the first region is answered with the forecast of the nearest of them, **and `point` says which one that is**; a real server answers for the place asked. The forecasts were recorded on 2026-11-19 at 19:30 UTC, a day after that mode's wind, and that is the `fetched_at` of every answer: ICON-D2's hours run from 19:00 UTC on 19 November to 18:00 UTC on the 21st, ICON-EU's from 16:00 UTC on the 19th to 21:00 UTC on the 20th. The first day with daylight hours is 20 November.
+**In the development mode** there are recorded forecasts for five places: the east shore of the Tegernsee (47.70, 11.80), the take-off on the Wallberg (47.66, 11.80), the take-off and the landing below the Jägerkamp (47.68, 11.90 and 47.70, 11.88), and the middle of the first region (47.40, 13.30). A place anywhere in the first region is answered with the forecast of the nearest of them, **and `point` says which one that is**; a real server answers for the place asked. The forecasts were recorded on 2026-11-21 at 00:30 UTC, three days after that mode's wind, and that is the `fetched_at` of every answer: ICON-D2's hours run from 00:00 UTC on 21 November to 21:00 UTC on the 22nd, ICON-EU's from 00:00 UTC on the 21st to 03:00 UTC on the 22nd. The first day with daylight hours is 21 November.
 
 ## Maps
 

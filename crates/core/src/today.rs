@@ -5,7 +5,10 @@
 //! source says about it: the wind directions it works in and its height.
 //! Out comes a reading of the finest model: each daylight hour as flyable,
 //! marginal or not flyable with the reason in words, and each day in a
-//! line, "Good from noon".
+//! line, "Good from noon". Beside it stands what the model's heat and
+//! temperatures make of the thermals ([`venti_flight::convection`]): the
+//! climb to expect and how high it goes for each hour, and what kind of
+//! day that makes, from weak thermals to a big day.
 //!
 //! It is a reading of a weather model, not a judgement of the take-off. The
 //! model speaks for a grid cell kilometres wide, whose ground can lie
@@ -18,6 +21,7 @@
 use chrono::{DateTime, Duration, Timelike, Utc};
 use venti_api_types::v1::ForecastResponse;
 use venti_domain::{ForecastHour, ForecastSeries};
+use venti_flight::convection::{Convection, convection};
 use venti_flight::sun;
 
 use crate::airspace::compass;
@@ -53,6 +57,19 @@ const CLOUD_BASE_CLEAR_M: f64 = 200.0;
 const CAPE_J_KG: f64 = 800.0;
 /// A stretch of flyable hours counts from this many in a row.
 const WINDOW_HOURS: usize = 2;
+/// The climb a paraglider needs in thermals, m/s: to stay up around the
+/// take-off, to fly cross-country, and on a big day.
+const CLIMB_MS: [f64; 3] = [0.5, 1.0, 2.0];
+/// How far above the take-off the thermals have to reach for the same
+/// three, metres.
+const REACH_M: [f64; 3] = [300.0, 800.0, 1500.0];
+/// The strongest wind in the thermals' layer with which an hour still
+/// counts for cross-country, and for a big day, km/h. More wind than this
+/// tears thermals apart and carries a circling glider away.
+const DRIFT_KMH: [f64; 2] = [25.0, 20.0];
+/// How many hours in a row make a day of local thermals, a cross-country
+/// day and a big day.
+const THERMAL_HOURS: [usize; 3] = [2, 4, 6];
 
 /// How a take-off looks for flying, by a forecast.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, uniffi::Enum)]
@@ -79,6 +96,37 @@ impl Flyability {
     }
 }
 
+/// What thermals a forecast has for a take-off: the kind of day it makes.
+///
+/// Read from the model's heat and temperatures by the limits above, which
+/// are our own. An estimate of the air over a grid cell, never a promise
+/// of a climb.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub enum Thermals {
+    /// None a paraglider climbs in, or none that reach above the take-off.
+    Weak,
+    /// Enough to stay up around the take-off.
+    Local,
+    /// Strong and high enough to leave with.
+    CrossCountry,
+    /// Strong, high and for most of the day.
+    Big,
+}
+
+impl Thermals {
+    /// The kind of day in words, calm ones.
+    fn words(self) -> &'static str {
+        match self {
+            Self::Weak => "Weak thermals",
+            Self::Local => "Local thermals",
+            Self::CrossCountry => "Cross-country day",
+            Self::Big => "Big day",
+        }
+    }
+}
+
 /// One daylight hour at a take-off.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -98,6 +146,18 @@ pub struct OutlookHour {
     pub wind_from_deg: Option<f64>,
     /// Its speed in whole km/h: "12". Empty when the model gives none.
     pub wind_kmh: String,
+    /// What the hour's thermals count as. A marginal hour counts as local
+    /// thermals at most. `None` for an hour that is not flyable, and when
+    /// the model does not give what the estimate is made from.
+    pub thermals: Option<Thermals>,
+    /// The climb to expect of a paraglider in the hour's thermals, m/s to
+    /// a tenth; zero without thermals. `None` when the model does not give
+    /// what the estimate is made from.
+    pub climb_ms: Option<f64>,
+    /// How high the thermals go, metres above sea level to the nearest
+    /// fifty: the cloud base, or where they end in the blue. `None`
+    /// without thermals.
+    pub thermal_top_m: Option<f64>,
 }
 
 /// One day at a take-off.
@@ -135,6 +195,24 @@ pub struct OutlookDay {
     /// The base of convective cloud then, metres above sea level, where
     /// the model has such cloud.
     pub cloud_base_m: Option<f64>,
+    /// The kind of day the thermals make: a big day when they are strong
+    /// and high for six hours in a row, a cross-country day for four,
+    /// local thermals for two. `None` on a day that is not flyable, and
+    /// when the model does not give what the estimate is made from.
+    pub thermals: Option<Thermals>,
+    /// The same in words: "Cross-country day". Empty without it.
+    pub thermal_words: String,
+    /// The thermals in a line: "1.8 m/s to a cloud base of 2900 m, from
+    /// noon to 17:00", "1.2 m/s to 2400 m in the blue, from 13:00 to
+    /// 16:00", "0.3 m/s to 1500 m at best", "None to climb in". Empty
+    /// without an estimate.
+    pub thermal_line: String,
+    /// The climb to expect over the day's thermal hours, m/s to a tenth:
+    /// their mean. On a day of weak thermals, the best hour's.
+    pub climb_ms: Option<f64>,
+    /// How high the thermals go in those hours, metres above sea level to
+    /// the nearest fifty: the highest of them.
+    pub thermal_top_m: Option<f64>,
 }
 
 /// What a forecast says about flying from a take-off.
@@ -203,11 +281,19 @@ pub fn site_outlook(
         .cell_elevation_m
         .map(|ground| format!(", whose ground lies at {ground:.0} m"))
         .unwrap_or_default();
+    let days = days(series, &site, utc_offset_s, now_unix_s);
+    // What the thermal figures are, where there are any.
+    let estimated = if days.iter().any(|day| day.thermals.is_some()) {
+        " Thermals are an estimate from the model's heat and temperatures over that cell: \
+         expect more on a sunlit slope and less in its lee."
+    } else {
+        ""
+    };
     Ok(SiteOutlook {
-        days: days(series, &site, utc_offset_s, now_unix_s),
+        days,
         note: format!(
             "Read from {name} for its grid cell{ground}. It knows nothing of the take-off itself; \
-             the take-off decides."
+             the take-off decides.{estimated}"
         ),
         model: name,
         run_unix_s: series.run.timestamp(),
@@ -230,6 +316,42 @@ struct Judged<'a> {
     local_hour: u32,
     verdict: Flyability,
     why: String,
+    /// What the model makes of the hour's thermals over its cell.
+    air: Option<Convection>,
+    /// What they count as for the day.
+    thermals: Option<Thermals>,
+}
+
+/// What an hour's thermals count as for a take-off at `launch_m`, in an
+/// hour with this verdict.
+fn thermals(air: &Convection, launch_m: f64, verdict: Flyability) -> Option<Thermals> {
+    let reach = air.top_m - launch_m;
+    let calm = |limit_kmh: f64| air.wind_ms.is_none_or(|wind| wind * 3.6 <= limit_kmh);
+    let by_the_air = if air.climb_ms >= CLIMB_MS[2] && reach >= REACH_M[2] && calm(DRIFT_KMH[1]) {
+        Thermals::Big
+    } else if air.climb_ms >= CLIMB_MS[1] && reach >= REACH_M[1] && calm(DRIFT_KMH[0]) {
+        Thermals::CrossCountry
+    } else if air.climb_ms >= CLIMB_MS[0] && reach >= REACH_M[0] {
+        Thermals::Local
+    } else {
+        Thermals::Weak
+    };
+    match verdict {
+        Flyability::Flyable => Some(by_the_air),
+        // Something speaks against the hour: it is none to leave in.
+        Flyability::Marginal => Some(by_the_air.min(Thermals::Local)),
+        Flyability::NotFlyable => None,
+    }
+}
+
+/// A height to the nearest fifty metres: the estimate is no finer.
+fn fifty(metres: f64) -> f64 {
+    (metres / 50.0).round() * 50.0
+}
+
+/// A climb to a tenth of a metre per second.
+fn tenth(ms: f64) -> f64 {
+    (ms * 10.0).round() / 10.0
 }
 
 fn days(
@@ -272,12 +394,24 @@ fn days(
             continue;
         }
         let (verdict, why) = judge(hour, site);
+        // The thermals over the model's cell, and what they are worth at
+        // the take-off's height; at the model's ground where the take-off
+        // has none.
+        let air = series
+            .cell_elevation_m
+            .and_then(|ground| convection(hour, ground));
+        let launch = site.elevation_m.or(series.cell_elevation_m);
+        let thermals = air
+            .zip(launch)
+            .and_then(|(air, launch)| thermals(&air, launch, verdict));
         if let Some((_, hours, _)) = days.last_mut() {
             hours.push(Judged {
                 hour,
                 local_hour: local.hour(),
                 verdict,
                 why,
+                air,
+                thermals,
             });
         }
     }
@@ -384,10 +518,14 @@ fn judge(hour: &ForecastHour, site: &Site<'_>) -> (Flyability, String) {
         .unwrap_or((Flyability::Flyable, String::new()))
 }
 
-/// The longest stretch of hours in a row that are no worse than `limit`,
-/// as the indices of its first and its last hour. The earliest of equally
-/// long ones.
-fn stretch(hours: &[Judged<'_>], limit: Flyability) -> Option<(usize, usize)> {
+/// The longest stretch of hours in a row that `counts`, as the indices of
+/// its first and its last hour, if it is at least `needed` hours long. The
+/// earliest of equally long ones.
+fn longest_run(
+    hours: &[Judged<'_>],
+    needed: usize,
+    counts: impl Fn(&Judged<'_>) -> bool,
+) -> Option<(usize, usize)> {
     let mut best: Option<(usize, usize)> = None;
     let mut start = None;
     for (index, judged) in hours.iter().enumerate() {
@@ -395,7 +533,7 @@ fn stretch(hours: &[Judged<'_>], limit: Flyability) -> Option<(usize, usize)> {
         // ends a stretch.
         let follows =
             index > 0 && judged.hour.time - hours[index - 1].hour.time == Duration::hours(1);
-        if judged.verdict > limit {
+        if !counts(judged) {
             start = None;
             continue;
         }
@@ -408,7 +546,78 @@ fn stretch(hours: &[Judged<'_>], limit: Flyability) -> Option<(usize, usize)> {
             best = Some((first, index));
         }
     }
-    best.filter(|(from, to)| to - from + 1 >= WINDOW_HOURS)
+    best.filter(|(from, to)| to - from + 1 >= needed)
+}
+
+/// The longest stretch of hours in a row that are no worse than `limit`.
+fn stretch(hours: &[Judged<'_>], limit: Flyability) -> Option<(usize, usize)> {
+    longest_run(hours, WINDOW_HOURS, |judged| judged.verdict <= limit)
+}
+
+/// What the day's thermals come to.
+struct ThermalDay {
+    kind: Thermals,
+    line: String,
+    climb_ms: f64,
+    /// How high they go; none without thermals.
+    top_m: Option<f64>,
+}
+
+/// The kind of day the hours' thermals make, with its line. `None` when no
+/// hour that can be flown has an estimate.
+fn thermal_day(hours: &[Judged<'_>]) -> Option<ThermalDay> {
+    // The best kind there are enough hours in a row of.
+    let found = [Thermals::Big, Thermals::CrossCountry, Thermals::Local]
+        .into_iter()
+        .zip([THERMAL_HOURS[2], THERMAL_HOURS[1], THERMAL_HOURS[0]])
+        .find_map(|(kind, needed)| {
+            longest_run(hours, needed, |judged| judged.thermals >= Some(kind))
+                .map(|run| (kind, run))
+        });
+    if let Some((kind, (from, to))) = found {
+        let airs: Vec<Convection> = hours[from..=to]
+            .iter()
+            .filter_map(|judged| judged.air)
+            .collect();
+        let climb_ms = tenth(airs.iter().map(|air| air.climb_ms).sum::<f64>() / airs.len() as f64);
+        let highest = airs
+            .iter()
+            .max_by(|a, b| a.top_m.total_cmp(&b.top_m))
+            .copied()?;
+        let top_m = fifty(highest.top_m);
+        let to_where = if highest.cloud_base_m.is_some() {
+            format!("to a cloud base of {top_m:.0} m")
+        } else {
+            format!("to {top_m:.0} m in the blue")
+        };
+        return Some(ThermalDay {
+            kind,
+            line: format!(
+                "{climb_ms:.1} m/s {to_where}, from {} to {}",
+                clock(hours[from].local_hour),
+                clock(hours[to].local_hour + 1)
+            ),
+            climb_ms,
+            top_m: Some(top_m),
+        });
+    }
+    // Weak: the best there is, among the hours that can be flown.
+    let best = hours
+        .iter()
+        .filter(|judged| judged.thermals.is_some())
+        .filter_map(|judged| judged.air)
+        .max_by(|a, b| a.climb_ms.total_cmp(&b.climb_ms))?;
+    let climb_ms = tenth(best.climb_ms);
+    let top_m = (best.depth_m > 0.0).then(|| fifty(best.top_m));
+    Some(ThermalDay {
+        kind: Thermals::Weak,
+        line: match top_m {
+            Some(top_m) if climb_ms > 0.0 => format!("{climb_ms:.1} m/s to {top_m:.0} m at best"),
+            _ => "None to climb in".to_owned(),
+        },
+        climb_ms,
+        top_m,
+    })
 }
 
 /// An hour of the clock as a pilot says it: "noon", "15:00".
@@ -472,6 +681,11 @@ fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>]) -> OutlookDay {
         _ => ("Not flyable".to_owned(), most_said(Flyability::NotFlyable)),
     };
 
+    // The thermals of a day that can be flown.
+    let thermal = (verdict != Flyability::NotFlyable)
+        .then(|| thermal_day(hours))
+        .flatten();
+
     // The wind and the cloud base of the middle of the best stretch there
     // is, else of the middle of the day's hours.
     let middle = good
@@ -499,6 +713,12 @@ fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>]) -> OutlookDay {
                     .wind_speed_ms
                     .map(|speed| format!("{:.0}", speed * 3.6))
                     .unwrap_or_default(),
+                thermals: judged.thermals,
+                climb_ms: judged.air.map(|air| tenth(air.climb_ms)),
+                thermal_top_m: judged
+                    .air
+                    .filter(|air| air.depth_m > 0.0)
+                    .map(|air| fifty(air.top_m)),
             })
             .collect(),
         wind_kmh: middle
@@ -514,6 +734,17 @@ fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>]) -> OutlookDay {
             .map(|from| compass(from).to_owned())
             .unwrap_or_default(),
         cloud_base_m: middle.and_then(|hour| hour.convective_cloud_base_m),
+        thermals: thermal.as_ref().map(|thermal| thermal.kind),
+        thermal_words: thermal
+            .as_ref()
+            .map(|thermal| thermal.kind.words().to_owned())
+            .unwrap_or_default(),
+        thermal_line: thermal
+            .as_ref()
+            .map(|thermal| thermal.line.clone())
+            .unwrap_or_default(),
+        climb_ms: thermal.as_ref().map(|thermal| thermal.climb_ms),
+        thermal_top_m: thermal.as_ref().and_then(|thermal| thermal.top_m),
     }
 }
 
@@ -608,6 +839,233 @@ mod tests {
         assert_eq!(day.gust_kmh, "18");
         assert_eq!(day.wind_from, "N");
         assert_eq!(day.cloud_base_m, Some(2900.0));
+    }
+
+    /// An hour of FINE's wind with the air that makes thermals: the heat
+    /// the ground gives, the model's own cloud base (zero for none), the
+    /// dew point at the ground and the wind at the levels above. 26 °C at
+    /// the model's ground at 812 m, well mixed to 1500 m, and air that
+    /// stops a parcel from the ground at 3250 m.
+    fn air(heat: f64, base_m: f64, dew_c: f64, aloft_ms: f64) -> String {
+        let base = if base_m > 0.0 {
+            format!(r#""convective_cloud_base_m": {base_m:.1}, "#)
+        } else {
+            String::new()
+        };
+        format!(
+            r#""wind_speed_ms": 3.0, "wind_gust_ms": 5.0, "wind_direction_deg": 0.0,
+            "precipitation_mm": 0.0, "cape_j_kg": 150.0, {base}"temperature_c": 26.0,
+            "dew_point_c": {dew_c:.1}, "heat_to_air_w_m2": {heat:.1}, "winds_aloft": [
+            {{"above_ground_m": 80.0, "wind_speed_ms": {aloft_ms:.1}, "temperature_c": 24.0}},
+            {{"above_ground_m": 180.0, "wind_speed_ms": {aloft_ms:.1}, "temperature_c": 23.0}},
+            {{"pressure_hpa": 850.0, "altitude_m": 1500.0, "wind_speed_ms": {aloft_ms:.1}, "temperature_c": 18.0}},
+            {{"pressure_hpa": 700.0, "altitude_m": 3100.0, "wind_speed_ms": {aloft_ms:.1}, "temperature_c": 3.0}},
+            {{"pressure_hpa": 600.0, "altitude_m": 4300.0, "wind_speed_ms": {aloft_ms:.1}, "temperature_c": -4.0}}]"#
+        )
+    }
+
+    /// The outlook of a day whose hours from 8 to 19 are each what `hour`
+    /// makes of them.
+    fn outlook_of(hour: impl Fn(u32) -> String) -> SiteOutlook {
+        let hours: Vec<(u32, String)> = (8..=19).map(|at| (at, hour(at))).collect();
+        let hours: Vec<(u32, &str)> = hours
+            .iter()
+            .map(|(at, values)| (*at, values.as_str()))
+            .collect();
+        outlook(&hours)
+    }
+
+    #[test]
+    fn strong_high_thermals_for_most_of_the_day_make_a_big_day() {
+        // The sun's heat through the day, and cumulus at 3400 m.
+        let outlook = outlook_of(|hour| {
+            let heat = match hour {
+                8 | 19 => 90.0,
+                9 | 18 => 200.0,
+                10 => 300.0,
+                _ => 400.0,
+            };
+            air(heat, 3400.0, 10.0, 4.0)
+        });
+        let day = &outlook.days[0];
+        assert_eq!(day.verdict, Flyability::Flyable);
+        assert_eq!(day.headline, "Good all day");
+
+        // Seven hours in a row of 2.2 m/s to 1850 m above the take-off.
+        assert_eq!(day.thermals, Some(Thermals::Big));
+        assert_eq!(day.thermal_words, "Big day");
+        assert_eq!(
+            day.thermal_line,
+            "2.2 m/s to a cloud base of 3400 m, from 11:00 to 18:00"
+        );
+        assert_eq!(day.climb_ms, Some(2.2));
+        assert_eq!(day.thermal_top_m, Some(3400.0));
+
+        // Hour by hour: weaker in the morning and the evening.
+        let kinds: Vec<Option<Thermals>> = day.hours.iter().map(|hour| hour.thermals).collect();
+        let (local, away, big) = (
+            Some(Thermals::Local),
+            Some(Thermals::CrossCountry),
+            Some(Thermals::Big),
+        );
+        assert_eq!(
+            kinds,
+            [
+                local, away, away, big, big, big, big, big, big, big, away, local
+            ]
+        );
+        assert_eq!(day.hours[0].climb_ms, Some(0.9));
+        assert_eq!(day.hours[3].climb_ms, Some(2.2));
+        assert_eq!(day.hours[3].thermal_top_m, Some(3400.0));
+
+        // The foot of the screen says what the figures are.
+        assert!(outlook.note.ends_with(
+            "Thermals are an estimate from the model's heat and temperatures over that cell: \
+             expect more on a sunlit slope and less in its lee."
+        ));
+    }
+
+    #[test]
+    fn four_good_hours_make_a_cross_country_day_and_two_a_day_of_local_thermals() {
+        // Noon to five with 300 W/m² under cumulus at 2900 m: 1.7 m/s to
+        // 1350 m above the take-off. Strong, and not high enough for more.
+        let day = outlook_of(|hour| {
+            air(
+                if (12..=16).contains(&hour) {
+                    300.0
+                } else {
+                    60.0
+                },
+                2900.0,
+                10.0,
+                4.0,
+            )
+        })
+        .days
+        .remove(0);
+        assert_eq!(day.thermals, Some(Thermals::CrossCountry));
+        assert_eq!(day.thermal_words, "Cross-country day");
+        assert_eq!(
+            day.thermal_line,
+            "1.7 m/s to a cloud base of 2900 m, from noon to 17:00"
+        );
+
+        // Only three such hours: the day is one of local thermals, and its
+        // line is about all the hours there is something to climb in.
+        let day = outlook_of(|hour| {
+            air(
+                if (12..=14).contains(&hour) {
+                    300.0
+                } else {
+                    60.0
+                },
+                2900.0,
+                10.0,
+                4.0,
+            )
+        })
+        .days
+        .remove(0);
+        assert_eq!(day.thermals, Some(Thermals::Local));
+        assert_eq!(day.thermal_words, "Local thermals");
+        assert_eq!(
+            day.thermal_line,
+            "0.8 m/s to a cloud base of 2900 m, from 08:00 to 20:00"
+        );
+    }
+
+    #[test]
+    fn dry_air_gives_blue_thermals_to_where_they_end() {
+        // No convective cloud in the model, and 22 degrees between
+        // temperature and dew point: the condensation level lies above
+        // where the thermals stop.
+        let day = outlook_of(|_| air(300.0, 0.0, 4.0, 4.0)).days.remove(0);
+        assert_eq!(day.thermals, Some(Thermals::CrossCountry));
+        assert_eq!(
+            day.thermal_line,
+            "1.8 m/s to 3250 m in the blue, from 08:00 to 20:00"
+        );
+        assert_eq!(day.thermal_top_m, Some(3250.0));
+        // The model's own cloud base is a different figure and stays empty.
+        assert_eq!(day.cloud_base_m, None);
+    }
+
+    #[test]
+    fn wind_in_the_thermals_and_a_marginal_hour_keep_a_day_local() {
+        // 29 km/h at the levels the thermals pass through: strong climbs,
+        // and no day to leave with. The wind itself is within the limits.
+        let day = outlook_of(|_| air(400.0, 3400.0, 10.0, 8.0)).days.remove(0);
+        assert_eq!(day.verdict, Flyability::Flyable);
+        assert_eq!(day.thermals, Some(Thermals::Local));
+        assert_eq!(day.hours[4].climb_ms, Some(2.2));
+
+        // Gusts that make every hour marginal: the same.
+        let day = outlook_of(|_| {
+            air(400.0, 3400.0, 10.0, 4.0)
+                .replace(r#""wind_gust_ms": 5.0"#, r#""wind_gust_ms": 8.7"#)
+        })
+        .days
+        .remove(0);
+        assert_eq!(day.verdict, Flyability::Marginal);
+        assert_eq!(day.thermals, Some(Thermals::Local));
+        assert!(
+            day.hours
+                .iter()
+                .all(|hour| hour.thermals == Some(Thermals::Local))
+        );
+    }
+
+    #[test]
+    fn weak_thermals_and_thermals_under_the_take_off_are_said_as_they_are() {
+        // A hazy day: 20 W/m² lift the air at 1.1 m/s, a glider at 0.1.
+        let day = outlook_of(|_| air(20.0, 0.0, 4.0, 4.0)).days.remove(0);
+        assert_eq!(day.thermals, Some(Thermals::Weak));
+        assert_eq!(day.thermal_words, "Weak thermals");
+        assert_eq!(day.thermal_line, "0.1 m/s to 3250 m at best");
+
+        // The ground gives no heat: nothing rises.
+        let day = outlook_of(|_| air(-10.0, 0.0, 4.0, 4.0)).days.remove(0);
+        assert_eq!(day.thermals, Some(Thermals::Weak));
+        assert_eq!(day.thermal_line, "None to climb in");
+        assert_eq!(day.climb_ms, Some(0.0));
+        assert_eq!(day.thermal_top_m, None);
+        assert_eq!(day.hours[0].climb_ms, Some(0.0));
+        assert_eq!(day.hours[0].thermal_top_m, None);
+
+        // Cumulus at 1700 m, 150 m over the take-off at 1550 m: thermals,
+        // and none to get away from the hill in.
+        let day = outlook_of(|_| air(300.0, 1700.0, 10.0, 4.0)).days.remove(0);
+        assert_eq!(day.thermals, Some(Thermals::Weak));
+        assert_eq!(day.thermal_line, "1.0 m/s to 1700 m at best");
+    }
+
+    #[test]
+    fn a_day_that_is_not_flyable_and_a_model_without_the_figures_have_no_thermals() {
+        // Rain all day, whatever the air would do.
+        let day = outlook_of(|_| {
+            air(400.0, 3400.0, 10.0, 4.0)
+                .replace(r#""precipitation_mm": 0.0"#, r#""precipitation_mm": 0.6"#)
+        })
+        .days
+        .remove(0);
+        assert_eq!(day.verdict, Flyability::NotFlyable);
+        assert_eq!(day.thermals, None);
+        assert_eq!(day.thermal_words, "");
+        assert_eq!(day.thermal_line, "");
+        assert_eq!(day.climb_ms, None);
+        // The hours still say what the air does; they count as nothing.
+        assert_eq!(day.hours[4].thermals, None);
+        assert_eq!(day.hours[4].climb_ms, Some(2.2));
+
+        // A model that gives no heat from the ground: no estimate, and no
+        // word about one at the foot.
+        let hours: Vec<(u32, &str)> = (8..=19).map(|hour| (hour, FINE)).collect();
+        let outlook = outlook(&hours);
+        let day = &outlook.days[0];
+        assert_eq!(day.thermals, None);
+        assert_eq!(day.thermal_line, "");
+        assert_eq!(day.hours[4].climb_ms, None);
+        assert!(!outlook.note.contains("Thermals"));
     }
 
     #[test]

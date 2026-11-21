@@ -51,8 +51,10 @@
 //!
 //! At the ground: wind and gusts at 10 m, temperature and dew point at 2 m,
 //! cloud cover in total and by layer, precipitation, CAPE, the height of
-//! the 0 °C level, and the base and top of convective cloud. From ICON-D2
-//! also the strongest updraft in the column. Higher up: wind and
+//! the 0 °C level, the base and top of convective cloud, and the heat the
+//! ground gives to the air (the model's sensible heat flux, turned so that
+//! upward is positive). From ICON-D2 also the strongest updraft in the
+//! column. Higher up: wind and
 //! temperature at the three lowest levels Open-Meteo keeps (nominally 80,
 //! 120 and 180 m above the model's ground) and on the pressure surfaces of
 //! 950, 850, 700, 600 and 500 hPa, each with the model's own height for it
@@ -129,7 +131,7 @@ const MODELS: [Model; 2] = [
 
 /// The values at the ground: the canonical field, Open-Meteo's variable and
 /// the unit it must come in.
-const SURFACE: [(&str, &str, &str); 15] = [
+const SURFACE: [(&str, &str, &str); 16] = [
     ("wind_speed_ms", "wind_speed_10m", "m/s"),
     ("wind_direction_deg", "wind_direction_10m", "°"),
     ("wind_gust_ms", "wind_gusts_10m", "m/s"),
@@ -145,6 +147,7 @@ const SURFACE: [(&str, &str, &str); 15] = [
     ("updraft_ms", "updraft", "m/s"),
     ("convective_cloud_base_m", "convective_cloud_base", "m"),
     ("convective_cloud_top_m", "convective_cloud_top", "m"),
+    ("heat_to_air_w_m2", "sensible_heat_flux", "W/m²"),
 ];
 
 /// The values at a level: the canonical field, the start of Open-Meteo's
@@ -161,6 +164,13 @@ const ALOFT: [(&str, &str, &str); 4] = [
 /// recorded on 2026-11-19 an instance handed that on unchanged for ICON-EU
 /// and had turned it into 0 for ICON-D2. Neither is a height.
 const NO_CLOUD: [&str; 2] = ["convective_cloud_base_m", "convective_cloud_top_m"];
+
+/// The fields the model counts the other way round. ICON's sensible heat
+/// flux at the ground is positive downward, towards the ground, and
+/// Open-Meteo hands it on so: in the answers looked at on 2026-11-21 it was
+/// negative under the midday sun and positive in a clear night. The
+/// canonical field counts what the ground gives to the air.
+const DOWNWARD: [&str; 1] = ["heat_to_air_w_m2"];
 
 /// Point forecasts of ICON-D2 and ICON-EU from an Open-Meteo instance.
 #[derive(Debug, Clone)]
@@ -546,6 +556,9 @@ impl OpenMeteo {
                 if NO_CLOUD.contains(&variable.field) && value.is_some_and(|height| height <= 0.0) {
                     value = None;
                 }
+                if DOWNWARD.contains(&variable.field) {
+                    value = value.map(|downward| 0.0 - downward);
+                }
                 let slot = match variable.place {
                     Place::Ground => hour
                         .fields_mut()
@@ -696,8 +709,8 @@ mod tests {
         let url = source().series_url(&MODELS[1], point);
         assert!(url.contains("models=dwd_icon_eu_native"));
         assert!(!url.contains("updraft"));
-        assert_eq!(variables(&MODELS[0]).len(), 44);
-        assert_eq!(variables(&MODELS[1]).len(), 43);
+        assert_eq!(variables(&MODELS[0]).len(), 45);
+        assert_eq!(variables(&MODELS[1]).len(), 44);
     }
 
     #[test]

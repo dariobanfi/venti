@@ -725,8 +725,8 @@ pub async fn recorded_with_its_store(
 
     // Forecasts are answered from the recorded answers too, by the service
     // a real server has. Its clock stands at the moment those were
-    // recorded, a day after the observations: a forecast cannot have been
-    // fetched before its model ran.
+    // recorded, some days after the observations: a forecast cannot have
+    // been fetched before its model ran.
     let forecast_clock: Arc<dyn Clock> = Arc::new(FixedClock(adapters::forecasts_recorded_at()));
     let forecasts = forecast::service_for(
         &jobs,

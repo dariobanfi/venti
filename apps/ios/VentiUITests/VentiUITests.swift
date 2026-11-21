@@ -251,9 +251,21 @@ final class VentiUITests: XCTestCase {
 
         // The totals lead to the statistics.
         element("logbook-totals", in: app).tap()
-        XCTAssertTrue(app.staticTexts["Your bests"].waitForExistence(timeout: 15) || element("Longest flight", in: app).exists)
+        XCTAssertTrue(app.staticTexts["Last twelve months"].waitForExistence(timeout: 15))
+        XCTAssertTrue(element("statistics-year-2026", in: app).waitForExistence(timeout: 10))
         sleep(1)
         keepScreenshot("light-6b-statistics")
+        // Further down: the months of the year, the typical flight, the
+        // kinds of flight, the gliders and the bests. The list makes its
+        // rows as they come into view.
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["A typical flight"].waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("light-6c-statistics-typical")
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["Your bests"].waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("light-6d-statistics-bests")
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(row.waitForExistence(timeout: 15))
 

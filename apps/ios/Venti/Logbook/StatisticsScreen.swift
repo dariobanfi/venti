@@ -2,8 +2,10 @@ import Charts
 import SwiftUI
 import VentiCore
 
-/// The logbook as a whole: the last twelve months, the gliders flown, and
-/// the pilot's best flights.
+/// The logbook as a whole: the last twelve months, one year beside
+/// another, when in the year the pilot flies, what a flight is usually
+/// like, the kinds of flight, the gliders flown and the pilot's bests.
+/// Every figure is the core's.
 struct StatisticsScreen: View {
     @Environment(LogbookModel.self) private var logbook
 
@@ -58,6 +60,79 @@ struct StatisticsScreen: View {
                 Text("In \(measure.unit).")
             }
 
+            if !statistics.years.isEmpty {
+                Section("Years") {
+                    ForEach(statistics.years, id: \.year) { year in
+                        row(
+                            String(year.year),
+                            value: "\(Format.hoursMinutes(seconds: year.airtimeS)) h",
+                            words: Self.words(of: year)
+                        )
+                        .accessibilityIdentifier("statistics-year-\(year.year)")
+                    }
+                }
+            }
+
+            if !statistics.seasons.isEmpty {
+                Section {
+                    Chart(statistics.seasons, id: \.month) { season in
+                        BarMark(
+                            x: .value("Month", Self.letter(ofMonth: season.month)),
+                            y: .value(measure.rawValue, value(of: season))
+                        )
+                        .foregroundStyle(Palette.accent)
+                        .clipShape(.rect(cornerRadius: 3))
+                    }
+                    .chartXScale(domain: (1...12).map { Self.letter(ofMonth: UInt32($0)) })
+                    // The months' letters and no line up from each, as
+                    // in the chart above.
+                    .chartXAxis {
+                        AxisMarks { _ in
+                            AxisValueLabel()
+                        }
+                    }
+                    .frame(height: 140)
+                    .padding(.vertical, 4)
+                    .accessibilityLabel("\(measure.rawValue) by month of the year, in \(measure.unit)")
+                    .accessibilityIdentifier("statistics-seasons")
+                } header: {
+                    Text("Through the year")
+                } footer: {
+                    Text("January to December, all years together, in \(measure.unit).")
+                }
+            }
+
+            if let typical = statistics.typical {
+                Section {
+                    LabeledContent("Airtime", value: "\(Format.hoursMinutes(seconds: typical.airtimeS)) h")
+                    if let distance = typical.distanceM {
+                        LabeledContent("Distance", value: "\(Format.kilometres(metres: distance)) km")
+                    }
+                    LabeledContent("Highest", value: "\(Format.metres(Double(typical.highestM))) m")
+                    LabeledContent("Best climb", value: "\(Format.climb(metresPerSecond: typical.bestClimbMs)) m/s")
+                } header: {
+                    Text("A typical flight")
+                } footer: {
+                    Text("The middle one of all your flights for each figure, so that one long day does not speak for the rest.")
+                }
+            }
+
+            if !statistics.routes.isEmpty {
+                Section("Kinds of flight") {
+                    ForEach(statistics.routes, id: \.kind) { route in
+                        if let farthest = route.farthest {
+                            NavigationLink(value: FlightRoute(id: farthest.flightId)) {
+                                row(
+                                    Self.name(of: route.kind),
+                                    value: "\(Format.kilometres(metres: route.distanceM)) km",
+                                    words: Self.words(of: route, farthest: farthest)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if !statistics.gliders.isEmpty {
                 Section("Gliders") {
                     ForEach(statistics.gliders, id: \.glider) { glider in
@@ -96,6 +171,74 @@ struct StatisticsScreen: View {
                 }
             }
         }
+    }
+
+    /// A row whose second line is too long to stand beside a figure: the
+    /// name and the figure on one line, the words under them on as many
+    /// lines as they need.
+    private func row(_ title: String, value: String, words: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                Spacer(minLength: VentiSpace.s2)
+                Text(value)
+                    .foregroundStyle(.venti(.textSecondary))
+            }
+            Text(words)
+                .font(.venti(.subheadline))
+                .foregroundStyle(.venti(.textSecondary))
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func value(of season: SeasonStatistics) -> Double {
+        switch measure {
+        case .airtime: Double(season.airtimeS) / 3600
+        case .distance: season.distanceM / 1000
+        case .flights: Double(season.flights)
+        }
+    }
+
+    /// "12 flights · 320 km · longest 3:34 h · highest 2626 m"
+    private static func words(of year: YearStatistics) -> String {
+        var parts = [Format.flights(year.flights)]
+        if year.distanceM > 0 {
+            parts.append("\(Format.kilometres(metres: year.distanceM)) km")
+        }
+        parts.append("longest \(Format.hoursMinutes(seconds: year.longestS)) h")
+        parts.append("highest \(Format.metres(Double(year.highestM))) m")
+        return parts.joined(separator: " · ")
+    }
+
+    /// "12 flights · 3 closed · farthest 44.3 km on Sun, Aug 31, 2025":
+    /// how many, how many of them came back to where they began if any
+    /// did, and the farthest, which the row leads to.
+    private static func words(of route: RouteStatistics, farthest: BestFlight) -> String {
+        var parts = [Format.flights(route.flights)]
+        if route.closed > 0 {
+            parts.append("\(route.closed) closed")
+        }
+        parts.append("farthest \(Format.kilometres(metres: farthest.value)) km on \(Format.day(unixSeconds: farthest.startUnixS))")
+        return parts.joined(separator: " · ")
+    }
+
+    private static func name(of kind: RouteKind) -> String {
+        switch kind {
+        case .freeFlight: "Free flight"
+        case .freeTriangle: "Triangle"
+        case .faiTriangle: "FAI triangle"
+        }
+    }
+
+    /// A month of the year as the chart's axis writes it: its place and
+    /// its first letter, so that the two Js and the two Ms stay apart.
+    private static func letter(ofMonth month: UInt32) -> String {
+        let letters = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+        let index = Int(month) - 1
+        guard letters.indices.contains(index) else { return "" }
+        // A zero-width mark that differs per month keeps equal letters
+        // from being one bar.
+        return letters[index] + String(repeating: "\u{200B}", count: index)
     }
 
     private func value(of month: MonthStatistics) -> Double {

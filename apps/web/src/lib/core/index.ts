@@ -77,6 +77,7 @@ export type {
 	LiveMap,
 	LogbookEntry,
 	LogbookStatistics,
+	SiteStatistics,
 	LogbookView,
 	LogbookYear,
 	ModelForecast,

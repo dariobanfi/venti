@@ -41,6 +41,7 @@ import type {
 	KeptAirspace,
 	LeagueHandover,
 	LogbookStatistics,
+	SiteStatistics,
 	LogbookView,
 	PilotPage,
 	PlanBoard,
@@ -81,6 +82,8 @@ export interface Calls {
 	start: { given: undefined; answer: Started };
 	logbook: { given: undefined; answer: LogbookView };
 	statistics: { given: undefined; answer: LogbookStatistics };
+	/** The places flights began at, the one flown from most often first. */
+	siteStatistics: { given: undefined; answer: SiteStatistics[] };
 	/** A flight file's bytes, as the pilot picked or dropped it. */
 	importFlight: { given: ArrayBuffer; answer: ImportedFlight };
 	/** The following are given a flight's identifier. */
@@ -294,6 +297,7 @@ export async function answer<Name extends CallName>(
 		start: () => ({ durable: session.durable, version: session.version() }),
 		logbook: () => session.logbook(),
 		statistics: () => session.statistics(),
+		siteStatistics: () => session.siteStatistics(),
 		importFlight: (file) => session.importFlight(flightFileText(file)),
 		flight: (id) => session.flight(id),
 		flightAnalysis: (id) => session.flightAnalysis(id),

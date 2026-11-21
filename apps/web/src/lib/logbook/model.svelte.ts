@@ -15,6 +15,7 @@ import {
 	type FlightView,
 	isCoreError,
 	type LogbookStatistics,
+	type SiteStatistics,
 	type LogbookView
 } from '#lib/core/index.ts';
 import sampleUrl from '../../../../ios/Venti/Resources/sample.igc?url';
@@ -63,6 +64,11 @@ export class LogbookModel {
 	 */
 	statistics(): Promise<LogbookStatistics> {
 		return this.#core.statistics();
+	}
+
+	/** The places flights began at, the one flown from most often first. */
+	siteStatistics(): Promise<SiteStatistics[]> {
+		return this.#core.siteStatistics();
 	}
 
 	/** Imports flight files, one after another, and reports on each. */

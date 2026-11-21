@@ -227,14 +227,24 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await expect(longest).toContainText('Sat, 4 Jul 2026');
 	await expect(longest).toContainText('0:29 h');
 	await expect(page.getByRole('link', { name: /Highest/ })).toContainText('2117 m');
-	// Year beside year, the months of all years, a typical flight and the kinds of flight.
-	for (const name of ['Through the year', 'Years', 'A typical flight', 'Kinds of flight']) {
+	// Year beside year, the months of all years, a typical flight, the kinds
+	// of flight and the places flown from.
+	for (const name of [
+		'Through the year',
+		'Years',
+		'A typical flight',
+		'Kinds of flight',
+		'By take-off'
+	]) {
 		await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
 	}
 	await expect(
 		page.getByRole('table', { name: 'Airtime by month of the year, in hours' })
 	).toContainText('July');
 	await expect(page.getByRole('link', { name: /Free flight/ })).toContainText('12.0 km');
+	await expect(page.getByRole('region', { name: 'By take-off' })).toContainText(
+		wide ? '12.0 km' : '1 flight'
+	);
 	await keep('09-statistics');
 	await page.getByRole('radiogroup', { name: 'Shown' }).getByText('Distance').click();
 	await expect(page.getByRole('radio', { name: 'Distance' })).toBeChecked();

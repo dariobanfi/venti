@@ -16,6 +16,7 @@
 		LogbookStatistics,
 		RouteKind,
 		RouteStatistics,
+		SiteStatistics,
 		YearStatistics
 	} from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
@@ -56,6 +57,12 @@
 	const measure = $derived(measures.find((measure) => measure.name === shown) ?? measures[0]);
 
 	let statistics = $state.raw<LogbookStatistics>();
+	/** The places flights began at, the one flown from most often first. */
+	let places = $state.raw<SiteStatistics[]>([]);
+	/** How many places are listed before "All N take-offs". */
+	const PLACES_FIRST = 8;
+	let allPlaces = $state(false);
+	const placesShown = $derived(allPlaces ? places : places.slice(0, PLACES_FIRST));
 
 	// Worked out by the core, and again whenever the logbook changes, also
 	// in another tab.
@@ -63,8 +70,10 @@
 		const logbook = app.logbook;
 		if (!logbook?.view) return;
 		let current = true;
-		void logbook.statistics().then((worked) => {
-			if (current) statistics = worked;
+		void Promise.all([logbook.statistics(), logbook.siteStatistics()]).then(([worked, sites]) => {
+			if (!current) return;
+			statistics = worked;
+			places = sites;
 		});
 		return () => {
 			current = false;
@@ -93,6 +102,22 @@
 		parts.push(
 			`farthest ${text.kilometres(farthest.value)} km on ${text.day(farthest.startUnixS)}`
 		);
+		return parts.join(' · ');
+	}
+
+	/** What a place is called: its name, or where it is. */
+	function placeName(place: SiteStatistics): string {
+		return place.name ?? text.place(place.lat, place.lon);
+	}
+
+	/** A place in a line, for a phone: "5:48 h · farthest 44.3 km on Sun, 31 Aug 2025". */
+	function placeWords(place: SiteStatistics): string {
+		const parts = [`${text.hoursMinutes(place.airtimeS)} h`];
+		if (place.farthest) {
+			parts.push(
+				`farthest ${text.kilometres(place.farthest.value)} km on ${text.day(place.farthest.startUnixS)}`
+			);
+		}
 		return parts.join(' · ');
 	}
 
@@ -267,6 +292,82 @@
 				</section>
 			{/if}
 
+			{#if places.length > 0}
+				<section class="places" aria-labelledby="places">
+					<h2 id="places">By take-off</h2>
+					{#if wide.current}
+						<div class="card">
+							<table class="numeric" aria-labelledby="places">
+								<thead>
+									<tr>
+										<th scope="col">Take-off</th>
+										<th scope="col">Flights</th>
+										<th scope="col">Airtime</th>
+										<th scope="col">Distance</th>
+										<th scope="col">Longest</th>
+										<th scope="col">Farthest</th>
+										<th scope="col">First flown</th>
+										<th scope="col">Last flown</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each placesShown as place (`${place.lat},${place.lon}`)}
+										<tr>
+											<th scope="row">
+												{#if place.farthest}
+													<a href={flightHref(place.farthest.flightId)}>{placeName(place)}</a>
+												{:else}
+													{placeName(place)}
+												{/if}
+											</th>
+											<td>{text.count(place.flights)}</td>
+											<td>{text.hoursMinutes(place.airtimeS)} h</td>
+											<td>{text.kilometres(place.distanceM)} km</td>
+											<td>{text.hoursMinutes(place.longestS)} h</td>
+											<td>
+												{place.farthest ? `${text.kilometres(place.farthest.value)} km` : '–'}
+											</td>
+											<td>{text.day(place.firstUnixS)}</td>
+											<td>{text.day(place.lastUnixS)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{:else}
+						<ul class="card numeric" aria-labelledby="places">
+							{#each placesShown as place (`${place.lat},${place.lon}`)}
+								<li>
+									{#if place.farthest}
+										<a class="row" href={flightHref(place.farthest.flightId)}>
+											<span class="pair">
+												<span>{placeName(place)}</span>
+												<span class="lesser">{placeWords(place)}</span>
+											</span>
+											<span class="value">{text.flights(place.flights)}</span>
+											<span class="chevron"><Icon name="forward" /></span>
+										</a>
+									{:else}
+										<span class="row">
+											<span class="pair">
+												<span>{placeName(place)}</span>
+												<span class="lesser">{placeWords(place)}</span>
+											</span>
+											<span class="value">{text.flights(place.flights)}</span>
+										</span>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					{/if}
+					{#if places.length > PLACES_FIRST && !allPlaces}
+						<button class="all" type="button" onclick={() => (allPlaces = true)}>
+							All {places.length} take-offs
+						</button>
+					{/if}
+				</section>
+			{/if}
+
 			{#if statistics.gliders.length > 0}
 				<section class="gliders" aria-labelledby="gliders">
 					<h2 id="gliders">Gliders</h2>
@@ -365,8 +466,19 @@
 		align-items: start;
 	}
 
-	.wide .years {
+	.wide .years,
+	.wide .places {
 		grid-column: 1 / -1;
+	}
+
+	th a {
+		color: var(--link);
+	}
+
+	.all {
+		min-height: var(--target);
+		padding: 0 1rem;
+		color: var(--link);
 	}
 
 	.wide section {

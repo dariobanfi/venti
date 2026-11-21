@@ -24,6 +24,7 @@ import type {
 	FlightView,
 	ImportedFlight,
 	LogbookStatistics,
+	SiteStatistics,
 	LogbookView,
 	SyncStep
 } from './pkg/venti_core_wasm.js';
@@ -108,6 +109,11 @@ export class CoreSession {
 	/** The logbook looked at as a whole. */
 	statistics(): LogbookStatistics {
 		return this.#core.statistics();
+	}
+
+	/** The places flights began at, the one flown from most often first. */
+	siteStatistics(): SiteStatistics[] {
+		return this.#core.siteStatistics();
 	}
 
 	importFlight(igcText: string): Promise<ImportedFlight> {

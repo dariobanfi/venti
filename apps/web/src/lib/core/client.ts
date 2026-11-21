@@ -79,6 +79,11 @@ export class CoreClient {
 		return this.#call('statistics', undefined);
 	}
 
+	/** The places flights began at, the one flown from most often first. */
+	siteStatistics() {
+		return this.#call('siteStatistics', undefined);
+	}
+
 	/** Imports a flight file. Its bytes are handed over, not copied: `file` is empty afterwards. */
 	importFlight(file: ArrayBuffer) {
 		return this.#call('importFlight', file, [file]);

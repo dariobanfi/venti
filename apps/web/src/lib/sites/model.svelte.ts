@@ -68,8 +68,9 @@ export class SitesModel {
 	constructor(core: CoreClient) {
 		this.#core = core;
 		this.#watch = new SitesWatch(
-			// With the places from pilots only while their switch is on.
-			(box) => core.sites(box, this.choice.fromPilots),
+			// The core chooses what to ask for by the filter: with the places
+			// from pilots only while their switch is on.
+			(box) => core.sites(box, this.filter),
 			(state) => (this.state = state)
 		);
 		void core.sitesFilterChoices().then(
@@ -111,7 +112,8 @@ export class SitesModel {
 		const before = this.choice;
 		this.choice = { ...before, ...changed };
 		keepChoice(globalThis.localStorage, this.choice);
-		// The places from pilots are another question to the server.
+		// With the places from pilots the core asks the server another
+		// question: the answer held is let go of.
 		if (this.choice.fromPilots !== before.fromPilots && this.#watch.again()) {
 			clearTimeout(this.#settling);
 			void this.#watch.load();

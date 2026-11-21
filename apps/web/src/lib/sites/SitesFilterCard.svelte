@@ -12,10 +12,14 @@
 	and neither is offered: the core says so with the choice.
 
 	At its foot stands the switch of the crowdsourced layer, "Places from
-	pilots", with the core's sentence under it (`siteWords`): off until the
-	pilot switches it on, and kept as the pilot left it. It is no part of
-	what the core filters by: with it on, the server is asked for that
-	layer too.
+	pilots", with the core's sentence under it (`withPilotsWords`,
+	`withPilotsAbout` of the choices): off until the pilot switches it on,
+	and kept as the pilot left it. It is the filter's `withPilots`, by which
+	the core chooses what the server is asked for and says that a filter is
+	on.
+
+	Under it, where the page offers it (`onremoved`), a quiet entry in the
+	core's words, "Removed lately", opens the removed sites of Venti's tiers.
 
 	"Forecast now" is not offered: the page has no forecast for the map's
 	middle at hand. On a narrow screen the chips scroll sideways (`compact`);
@@ -31,13 +35,15 @@
 		sites: SitesModel;
 		/** Whether the chips scroll sideways in one row, on a narrow screen. */
 		compact?: boolean;
+		/** Opens "Removed lately", where the page offers it. */
+		onremoved?: () => void;
 	}
 
-	let { sites, compact = false }: Props = $props();
+	let { sites, compact = false, onremoved }: Props = $props();
 
 	const id = $props.id();
 	const choices = $derived(sites.choices);
-	/** The words of the layer's switch, the core's. */
+	/** The words of a site's page, the core's: "Removed lately". */
 	const words = $derived(getApp().siteEdits?.words);
 	const choice = $derived(sites.choice);
 	/** Whether the wind and the height are asked under what is shown. */
@@ -138,11 +144,9 @@
 			</div>
 		{/if}
 		<p class="caption">{choices.note}</p>
-	{/if}
-	{#if words}
 		<div class="group-card layer">
 			<label class="group-row toggle">
-				<span>{words.pilotsLayer}</span>
+				<span>{choices.withPilotsWords}</span>
 				<input
 					type="checkbox"
 					role="switch"
@@ -152,7 +156,12 @@
 				/>
 			</label>
 		</div>
-		<p class="caption" id="{id}-pilots">{words.pilotsLayerAbout}</p>
+		<p class="caption" id="{id}-pilots">{choices.withPilotsAbout}</p>
+	{/if}
+	{#if onremoved && words?.removedTitle}
+		<div class="group-card layer">
+			<button class="group-row" type="button" onclick={onremoved}>{words.removedTitle}</button>
+		</div>
 	{/if}
 </div>
 

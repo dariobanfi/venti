@@ -63,13 +63,16 @@ import type {
 	SiteConfirmations,
 	SiteConfirmFlight,
 	SiteConfirmForm,
+	SiteCorrecting,
 	SiteDraftRebased,
 	SiteDraftView,
 	SiteForm,
 	SiteHistory,
+	SiteHistoryOffers,
 	SiteOffers,
 	SiteOutlook,
 	SitePage,
+	SiteRemovedLine,
 	SiteWords,
 	SiteWritten,
 	ThermalMap,
@@ -157,7 +160,7 @@ export interface Calls {
 		answer: StationDay;
 	};
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
-	sites: { given: { box: Bounds; withPilots: boolean }; answer: SitesMap | undefined };
+	sites: { given: { box: Bounds; filter: SitesFilter }; answer: SitesMap | undefined };
 	/** The form for a site a pilot adds or corrects, in the core's words. */
 	siteForm: { given: undefined; answer: SiteForm };
 	/** An empty draft of a site at a place. */
@@ -205,8 +208,20 @@ export interface Calls {
 	};
 	/** Given a site's identifier: takes the pilot's confirmation back. The answer is a line. */
 	withdrawSiteConfirmation: { given: string; answer: string };
-	/** Given a site's identifier: who says they took off there. */
-	siteConfirmations: { given: string; answer: SiteConfirmations };
+	/** Given a site: who says they took off there, read for its page. */
+	siteConfirmations: { given: SiteView; answer: SiteConfirmations };
+	/** What the form says when it corrects a site: the words of the site's tier. */
+	siteCorrecting: { given: SiteView; answer: SiteCorrecting };
+	/**
+	 * What may be offered in a site's history to whoever is signed in
+	 * here, for the history as it was read.
+	 */
+	siteHistoryOffers: { given: SiteHistory; answer: SiteHistoryOffers };
+	/**
+	 * The removed sites of a tier, the crowdsourced one when `true`: the
+	 * one removed last first, each in the core's line.
+	 */
+	sitesRemoved: { given: boolean; answer: SiteRemovedLine[] };
 	/** A draft carried onto the site as it stands now, after someone else changed it. */
 	siteDraftRebased: {
 		given: { base: SiteView; edited: SiteDraftView; now: SiteView };
@@ -517,7 +532,7 @@ export async function answer<Name extends CallName>(
 		stationAir: ({ station, stations }) => wind.air(station, stations),
 		stationDays: (utcOffsetS) => wind.days(utcOffsetS),
 		stationDay: ({ stationId, date, utcOffsetS }) => wind.day(stationId, date, utcOffsetS),
-		sites: ({ box, withPilots }) => sites.sites(box, withPilots),
+		sites: ({ box, filter }) => sites.sites(box, filter),
 		siteForm: () => siteEdits.form(),
 		siteDraftNew: (place) => siteEdits.draftNew(place),
 		siteDraftOf: (site) => siteEdits.draftOf(site),
@@ -537,7 +552,12 @@ export async function answer<Name extends CallName>(
 		confirmSite: ({ id, day, today, note, flight }) =>
 			siteEdits.confirm(id, day, today, note, flight),
 		withdrawSiteConfirmation: (id) => siteEdits.withdraw(id),
-		siteConfirmations: (id) => siteEdits.confirmations(id),
+		siteConfirmations: (site) => siteEdits.confirmations(site),
+		siteCorrecting: (site) => siteEdits.correcting(site),
+		siteHistoryOffers: async (history) =>
+			siteEdits.historyOffers(history, await wind.takesSitesFromPilots()),
+		sitesRemoved: async (fromPilots) =>
+			siteEdits.removed(fromPilots, await wind.takesSitesFromPilots()),
 		siteDraftRebased: ({ base, edited, now }) => siteEdits.rebased(base, edited, now),
 		sitePage: (id) => siteEdits.page(id),
 		siteHistory: (id) => siteEdits.history(id),

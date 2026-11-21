@@ -3,7 +3,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { AccountSource, type Send, type ServerAnswer } from './account-source';
 import { IdbStore } from './idb-store';
-import type { ServerRequest } from './pkg/venti_core_wasm.js';
+import type { ServerRequest, SitesFilter } from './pkg/venti_core_wasm.js';
 import { CoreSession } from './session';
 import { SiteEditSource } from './site-edit-source';
 import { SitesSource } from './sites-source';
@@ -95,7 +95,7 @@ async function signedIn() {
 	await account.signIn('demo', 'demo-pilot-password');
 	const written = { times: 0 };
 	const edits = new SiteEditSource(session, () => (written.times += 1), server.send, server.get);
-	return { server, edits, written, account };
+	return { server, edits, written, account, session };
 }
 
 /** A take-off a pilot could add: a name, a use, a height and two points of the compass. */
@@ -177,13 +177,15 @@ describe('a site a pilot adds or corrects', () => {
 
 		const sent = await edits.add(filled(edits), '');
 
-		expect(sent).toEqual({
+		// The core's sentence goes by the tier of the site in the way: a partner's here.
+		expect(sent).toMatchObject({
 			kind: 'refused',
-			words:
-				'A site that pilots added stands at this place already: Musterkogel West. If it is the same place, correct that one.',
 			inTheWay: { id: KOGEL, name: 'Musterkogel West', words: 'Open Musterkogel West' },
 			changedMeanwhile: false
 		});
+		expect(sent.kind === 'refused' && sent.words).toContain(
+			'stands at this place already: Musterkogel West.'
+		);
 		expect(written.times).toBe(0);
 	});
 
@@ -262,8 +264,72 @@ describe('a site a pilot adds or corrects', () => {
 		expect(history.revisions[2].isCurrent).toBe(true);
 		expect(history.undoRevision).toBe(2);
 		expect(history.undoWords).toBe('Undo the last change');
+
+		// What may be done in it is the core's answer for the history alone:
+		// the demo pilot, a partner, may undo, put back and report.
+		const offers = await edits.historyOffers(history, true);
+		expect(offers.undo).toEqual({ isOffered: true, words: 'Undo the last change' });
+		expect(offers.putBack.isOffered).toBe(true);
+		expect(offers.bringBack.isOffered).toBe(false);
+		expect(offers.reportRevision).toEqual({ isOffered: true, words: 'Report this revision' });
+		expect(offers.note).toBe('');
+	});
+
+	it('is corrected in the words of its own tier, as the core says them', async () => {
+		const { edits } = await signedIn();
+		const { site } = await edits.page(KOGEL);
+
+		const says = edits.correcting(site);
+
+		expect(says).toMatchObject({
+			asPartner: true,
+			title: 'Correct this site',
+			sendWords: 'Save for everyone',
+			note: site.byPilots?.note
+		});
+		expect(says.giving).toBe(edits.form().givingAsPartner);
+	});
+
+	it('is listed under "Removed lately" in the core’s line, a tier at a time, the last removed first', async () => {
+		const { server, session } = await signedIn();
+		const changes: Get = async (path) => {
+			server.read.push(path);
+			const pilots = path.includes('layer=venti-pilots');
+			return {
+				status: 200,
+				body: recorded(pilots ? 'site_changes_pilots.json' : 'site_changes.json')
+			};
+		};
+		const removed = new SiteEditSource(session, () => {}, server.send, changes);
+
+		expect(await removed.removed(false, true)).toEqual([]);
+		const lines = await removed.removed(true, true);
+
+		// One request for a tier, from the beginning, and none per site.
+		expect(server.read).toEqual([
+			'/v1/sites/changes?layer=venti',
+			'/v1/sites/changes?layer=venti-pilots'
+		]);
+		expect(lines).toHaveLength(1);
+		expect(lines[0]).toMatchObject({
+			id: 'venti-pilots:0000000000000000000000s004',
+			name: 'Musterkogel',
+			fromPilots: true,
+			// The demo pilot is a partner, who may bring a site of either tier back.
+			mayBringBack: true,
+			bringBackWords: 'Bring this site back'
+		});
+		expect(lines[0].words).toMatch(/^Musterkogel: removed by Jonas Beispiel \(@jonas\) on /);
 	});
 });
+
+/** Nothing chosen: every site, without the places from pilots. */
+const NO_FILTER: SitesFilter = {
+	shown: 'all',
+	windIs: 'chosen',
+	windFromDeg: undefined,
+	takeoffsFromM: undefined
+};
 
 /** The server's word about an account that is no partner of Venti for flying sites. */
 function ordinary(): ServerAnswer {
@@ -315,13 +381,16 @@ describe('what may be offered for a site, and to whom', () => {
 			title: 'A place pilots take off from',
 			sendWords: 'Add as a place from pilots'
 		});
-		expect(adding.giving).toContain('pilots who switch on the sites from pilots');
+		expect(adding.giving).toContain('pilots who switch on the places from pilots');
 		// Where the server takes none, nothing is added, and the core says why.
 		expect(await edits.adding(false)).toMatchObject({
 			mayAdd: false,
 			entryWords: '',
-			whyNot: 'This server takes no places from pilots yet.'
+			leadsToSignIn: false
 		});
+		expect((await edits.adding(false)).whyNot).toMatch(
+			/^This server takes no places from pilots yet\./
+		);
 		// A partner's site is not theirs to change: reported, confirmed, and told why.
 		const offers = await edits.offers(site, true, undefined);
 		expect(offers.correct).toEqual({ isOffered: false, words: '' });
@@ -418,7 +487,7 @@ describe('“I took off here and it was good”', () => {
 		const { server, edits } = await signedIn();
 		const { site } = await edits.page(KOGEL);
 
-		const list = await edits.confirmations(KOGEL);
+		const list = await edits.confirmations(site);
 
 		expect(server.read.at(-1)).toBe(`/v1/sites/${KOGEL}/confirmations`);
 		expect(list.pilots).toBe(2);
@@ -505,9 +574,9 @@ describe('the list of sites after the pilot wrote one', () => {
 		const sites = new SitesSource(async () => true, get('cache'), get('fresh'));
 		const box = { south: 47.6, west: 11.7, north: 47.75, east: 11.95 };
 
-		await sites.sites(box);
+		await sites.sites(box, NO_FILTER);
 		sites.wrote();
-		await sites.sites(box);
+		await sites.sites(box, NO_FILTER);
 
 		expect(asked).toEqual(['cache', 'fresh']);
 	});
@@ -524,8 +593,9 @@ describe('the list of sites after the pilot wrote one', () => {
 		const sites = new SitesSource(async () => true, get, get);
 		const box = { south: 47.2, west: 10.8, north: 47.4, east: 11 };
 
-		const without = await sites.sites(box);
-		const withPilots = await sites.sites(box, true);
+		// The core chooses the path by the filter's switch.
+		const without = await sites.sites(box, NO_FILTER);
+		const withPilots = await sites.sites(box, { ...NO_FILTER, withPilots: true });
 
 		expect(asked[0]).not.toContain('venti-pilots');
 		expect(asked[1]).toContain('venti-pilots');

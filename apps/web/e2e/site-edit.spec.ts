@@ -35,8 +35,11 @@ const DEMO = { handle: 'demo', password: 'demo-pilot-password' };
 /** The development server's clock stands still here; a day confirmed is not after its today. */
 const SERVER_NOW = new Date('2026-11-18T19:05:00Z');
 
+/** A part of the core's sentence about giving a place to the crowdsourced tier. */
 const GIVING_AS_A_PILOT =
-	'You give this site to everyone under CC0 1.0, the public domain: anyone may use it and change it, on Venti and anywhere else. It is shown with your handle to pilots who switch on the sites from pilots, any pilot can correct it, and it stays on Venti when your account goes.';
+	'It is shown with your handle to pilots who switch on the places from pilots, any pilot can correct it';
+/** The entry of someone who has to sign in first, the core's sentence. */
+const SIGN_IN_TO_ADD = 'Sign in to add a place pilots take off from.';
 const FROM_PILOTS_NOTE =
 	'Added by pilots on Venti: not official and not checked by anyone. A site on the map is not permission to fly there.';
 const PILOTS_LAYER_ABOUT =
@@ -357,7 +360,7 @@ test('a place put on top of another is refused, with the offer to open that one'
 
 	// The core's refusal names the site that stands there, and offers it.
 	const refusal = form.getByRole('alert');
-	await expect(refusal).toContainText(/stands at this place already: Beispieljoch\./);
+	await expect(refusal).toContainText(/^A place from pilots stands here already: Beispieljoch\./);
 	const open = refusal.getByRole('button', { name: 'Open Beispieljoch' });
 	await open.scrollIntoViewIfNeeded();
 	await keep('167-site-too-close');
@@ -445,9 +448,13 @@ test('places from pilots are on the map and in the list only once their switch i
 	await expect(by).toContainText(
 		'Sign in to correct this site, to say that you took off here and to report it.'
 	);
-	// Signed out, nothing is added either: the map has no entry for it.
+	// Signed out, the entry is the core's sentence about signing in, and leads to the account.
 	await expect(page.getByRole('button', { name: AS_A_PILOT.entry })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: AS_A_PARTNER.entry, exact: true })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: SIGN_IN_TO_ADD })).toHaveAttribute(
+		'href',
+		/\/settings\/account\/?$/
+	);
 
 	// The switch is kept as the pilot left it.
 	await page.reload();
@@ -655,4 +662,211 @@ test('a partner of Venti reads “Add a site”, adds one that every map shows, 
 	await expect(fromPilots).toContainText('Last changed by Demo Pilot (@demo)');
 
 	expect(problems).toEqual([]);
+});
+
+test('signed out, the entry on the map says to sign in and leads to the account', async ({
+	page,
+	mapDrawn,
+	keep,
+	problems
+}) => {
+	await mapAt(page, mapDrawn, somewhere());
+
+	// The core's sentence in the entry's place, and no entry that opens a form.
+	const entry = page.getByRole('link', { name: SIGN_IN_TO_ADD });
+	await expect(entry).toBeVisible();
+	await expect(page.getByRole('button', { name: AS_A_PILOT.entry })).toHaveCount(0);
+	await keep('167m-site-add-signed-out');
+	await entry.click();
+	await expect(page).toHaveURL(/\/settings\/account\/?$/);
+	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+
+	expect(problems).toEqual([]);
+});
+
+test('a pilot finds a removed place under “Removed lately”, in the core’s line, and brings it back', async ({
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	problems
+}) => {
+	// The development server's own removed place is brought back by no test: the
+	// same test runs at other widths on this server and would not find it removed.
+	// This run removes a place of its own, and brings that one back.
+	const name = `Fortkogel ${Math.random().toString(36).slice(2, 7)}`;
+	const handle = await signUp(page);
+	await mapAt(page, mapDrawn, somewhere());
+	const form = await addHere(page, wide);
+	await form.getByRole('textbox', { name: 'Name' }).fill(name);
+	await form.getByRole('button', { name: 'Take-off' }).click();
+	await form.getByRole('button', { name: AS_A_PILOT.send }).click();
+	const site = panel(page, wide, name);
+	await expect(site.getByRole('status').first()).toHaveText(/^Added\./);
+	await site
+		.getByRole('region', { name: 'From pilots' })
+		.getByRole('button', { name: 'Remove this site' })
+		.click();
+	const removing = page.getByRole('alertdialog', { name: 'Remove this site from the map?' });
+	await removing.getByRole('button', { name: 'Remove this site' }).click();
+	const history = page.getByRole('dialog', { name: 'History' });
+	await expect(history.getByRole('status').first()).toHaveText(/^Removed from the map\./);
+	await history.getByRole('button', { name: 'Done' }).click();
+
+	// The quiet entry at the foot of the filter. With the switch off, no place from pilots is listed.
+	const filter = await openFilter(page, wide);
+	const entry = filter.getByRole('button', { name: 'Removed lately' });
+	await entry.click();
+	const removed = page.getByRole('dialog', { name: 'Removed lately' });
+	await expect(
+		removed.getByRole('list').or(removed.getByText('No site was removed.')).first()
+	).toBeVisible();
+	await expect(removed.getByRole('listitem').filter({ hasText: name })).toHaveCount(0);
+	await expect(removed.getByRole('heading', { name: 'Places from pilots' })).toHaveCount(0);
+	await removed.getByRole('button', { name: 'Done' }).click();
+
+	// With the switch on they stand under their layer's name, each in the core's line.
+	await filter.getByRole('switch', { name: 'Places from pilots' }).check();
+	await entry.click();
+	const pilots = removed.getByRole('list', { name: 'Places from pilots' });
+	const line = pilots.getByRole('listitem').filter({ hasText: name });
+	await expect(line).toContainText(
+		new RegExp(`^${name}: removed by Test Pilot \\(@${handle}\\) on \\d+ Nov 2026`)
+	);
+	// The development server's made-up removed place, which a pilot may bring back too.
+	const made = pilots
+		.getByRole('listitem')
+		.filter({ hasText: /^Musterkogel: removed by Jonas Beispiel \(@jonas\) on \d+ Nov 2026/ });
+	await expect(made.getByRole('button', { name: 'Bring this site back' })).toBeVisible();
+	await keep('167l-sites-removed-lately');
+
+	// Brought back, after the core's question: its page, and on the map with the switch on.
+	await line.getByRole('button', { name: 'Bring this site back' }).click();
+	const bringing = page.getByRole('alertdialog', { name: 'Bring this site back?' });
+	await expect(bringing).toContainText(
+		'It is on the map again as it stood before it was removed, as a new revision.'
+	);
+	await bringing.getByRole('button', { name: 'Bring this site back' }).click();
+	await expect(removed).toBeHidden();
+	await expect(site).toBeVisible();
+	await expect(site.getByRole('status').first()).toBeVisible();
+	await expect
+		.poll(async () => (await signs(page)).filter((id) => id.startsWith('venti-pilots:')).length)
+		.toBeGreaterThan(0);
+	await keep('167n-site-brought-back');
+	await site.getByRole('button', { name: wide ? 'Close' : 'Done' }).click();
+	await page.getByRole('button', { name: 'Flying sites' }).click();
+	const row = page
+		.getByRole('dialog', { name: 'Flying sites' })
+		.getByRole('listitem')
+		.filter({ hasText: name });
+	await expect(row).toContainText('From pilots');
+	await row.getByRole('button').click();
+	await expect(site).toBeVisible();
+
+	// And removed for good, so that the list of the next run is no longer by this one.
+	await site
+		.getByRole('region', { name: 'From pilots' })
+		.getByRole('button', { name: 'Remove this site' })
+		.click();
+	await removing.getByRole('button', { name: 'Remove this site' }).click();
+	await expect(history.getByRole('status').first()).toHaveText(/^Removed from the map\./);
+
+	expect(problems).toEqual([]);
+});
+
+/** The requests for who confirmed a site. */
+const CONFIRMATIONS = /\/v1\/sites\/[^/]+\/confirmations/;
+
+/**
+ * What an open sheet or the page draws wider than the screen, outside a
+ * row that scrolls sideways by design: nothing, where the screen fits.
+ */
+const tooWide = (page: Page) =>
+	page.evaluate(() => {
+		const scrolls = (element: Element | null): boolean =>
+			element !== null &&
+			(['auto', 'scroll'].includes(getComputedStyle(element).overflowX) ||
+				scrolls(element.parentElement));
+		return [...document.querySelectorAll('dialog[open] *, .site *, form *')]
+			.filter((element) => {
+				const box = element.getBoundingClientRect();
+				return box.width > 0 && box.right > innerWidth + 1 && !scrolls(element.parentElement);
+			})
+			.map((element) => `${element.tagName.toLowerCase()}.${element.className}`);
+	});
+
+test('the two tiers fit a narrow phone with large text', async ({
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	problems
+}) => {
+	test.skip(wide, 'A narrow phone: 360 px wide, text at 130 %.');
+	await page.setViewportSize({ width: 360, height: 780 });
+	await signUp(page);
+	await mapAt(page, mapDrawn, JOCH);
+	await page.evaluate(() => (document.documentElement.style.fontSize = '130%'));
+
+	// The filter's sheet, with the switch and "Removed lately" at its foot.
+	const filter = await openFilter(page, false);
+	const layer = filter.getByRole('switch', { name: 'Places from pilots' });
+	await layer.check();
+	await expect.poll(() => signs(page)).toContain(JOCH_ID);
+	await filter.getByRole('button', { name: 'Removed lately' }).scrollIntoViewIfNeeded();
+	await keep('168a-narrow-filter-switch');
+	expect(await tooWide(page)).toEqual([]);
+	await closeFilter(page, false, filter);
+
+	// A place from pilots, while the list of who took off there does not arrive.
+	let release = () => {};
+	const held = new Promise<void>((resolve) => (release = resolve));
+	await page.context().route(CONFIRMATIONS, async (route) => {
+		await held;
+		await route.abort();
+	});
+	const site = await openFromList(page, false, 'Beispieljoch');
+	const confirmed = site.getByRole('region', { name: 'Pilots who took off here' });
+	await expect(
+		confirmed.getByRole('button', { name: 'I took off here and it was good' })
+	).toBeVisible();
+	await confirmed.scrollIntoViewIfNeeded();
+	await keep('168b-narrow-site-from-pilots');
+	expect(await tooWide(page)).toEqual([]);
+
+	// The list: read, not to be had, and there after "Try again".
+	await confirmed.getByRole('button', { name: /took off here, last on/ }).click();
+	const who = page.getByRole('dialog', { name: 'Pilots who took off here' });
+	await expect(who.getByRole('status')).toHaveText('Loading…');
+	await keep('168c-narrow-confirmations-loading');
+	release();
+	await expect(who.getByRole('alert')).toHaveText('Venti could not be reached for the site.');
+	await keep('168d-narrow-confirmations-unreachable');
+	await page.context().unroute(CONFIRMATIONS);
+	await who.getByRole('button', { name: 'Try again' }).click();
+	await expect(who.getByRole('listitem').first()).toBeVisible();
+	await keep('168e-narrow-confirmations');
+	expect(await tooWide(page)).toEqual([]);
+	await who.getByRole('button', { name: 'Done' }).click();
+
+	// The small form of "I took off here and it was good".
+	await confirmed.getByRole('button', { name: 'I took off here and it was good' }).click();
+	const confirming = page.getByRole('dialog', { name: 'I took off here and it was good' });
+	await expect(confirming.getByRole('combobox', { name: 'On which day' })).toBeVisible();
+	await keep('168f-narrow-confirm-sheet');
+	expect(await tooWide(page)).toEqual([]);
+	await confirming.getByRole('button', { name: 'Done' }).click();
+	await site.getByRole('button', { name: 'Done' }).click();
+
+	// The form for a place from pilots: its head, and its foot with the giving and the button.
+	const form = await addHere(page, false);
+	await keep('168g-narrow-site-form');
+	expect(await tooWide(page)).toEqual([]);
+	await form.getByRole('button', { name: AS_A_PILOT.send }).scrollIntoViewIfNeeded();
+	await keep('168h-narrow-site-form-giving');
+	expect(await tooWide(page)).toEqual([]);
+
+	// The request that was let fail is the only thing the console complains of.
+	expect(problems.filter((problem) => !CONFIRMATIONS.test(problem))).toEqual([]);
 });

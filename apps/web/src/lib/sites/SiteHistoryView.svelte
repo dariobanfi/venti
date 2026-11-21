@@ -3,18 +3,20 @@
 	each in the core's line ("Changed by Mara Beispiel (@mara) on 21 Nov
 	2026: “fixed the height”") with what it changed under it, field by field.
 
-	Whoever the core says may correct the site (`Core.siteOffers`, asked
-	for the site as the page held it, since a revision's record does not
-	say its tier) can undo the last change,
-	where the core names the revision that does it, put the site back to any
-	revision the core says can be put back, and bring a removed site back
-	("Bring this site back": the revision before the removal). Every one of
-	these words is the core's. Each asks for the line that is kept with the
-	new revision first ("Why", which may stay empty) and is sent as the
-	core's request; a refusal stands in the core's words.
+	What may be done in it is the core's one answer for the history as it
+	was read (`Core.siteHistoryOffers`), so a history opened by the site's
+	identifier alone is answered too: to undo the last change, where the
+	history names the revision that does it, to put the site back to any
+	revision the core says can be put back, to bring a removed site back
+	("Bring this site back": the revision before the removal), and to
+	report a revision. Its note, where something is held back, stands over
+	the revisions. Every one of these words is the core's. Each asks for
+	the line that is kept with the new revision first ("Why", which may
+	stay empty) and is sent as the core's request; a refusal stands in the
+	core's words.
 -->
 <script lang="ts">
-	import type { SiteHistory, SiteView, SiteWritten } from '#lib/core/index.ts';
+	import type { SiteHistory, SiteHistoryOffers, SiteWritten } from '#lib/core/index.ts';
 	import PromptDialog from '#lib/design/PromptDialog.svelte';
 	import { said, type SiteEditsModel } from './edit.svelte';
 
@@ -22,18 +24,13 @@
 		edits: SiteEditsModel;
 		/** The site, by its identifier. */
 		id: string;
-		/**
-		 * The site as the page holds it, or held it before it was removed:
-		 * what the core is asked with for what this pilot may do.
-		 */
-		site: SiteView | undefined;
 		/** Called with the site as it stands after a revision was put back. */
 		onwritten: (written: SiteWritten) => void;
 		/** Reports one revision to whoever runs the server. */
 		onreport?: (revision: number) => void;
 	}
 
-	let { edits, id, site, onwritten, onreport }: Props = $props();
+	let { edits, id, onwritten, onreport }: Props = $props();
 
 	const words = $derived(edits.words);
 
@@ -60,21 +57,21 @@
 	$effect(() => load(id));
 
 	/**
-	 * Whether the core offers this pilot to correct the site, and with that
-	 * to put a revision of it back; asked again when the account changes.
+	 * What the core offers this pilot in the history as it was read; asked
+	 * again when the account changes. Nothing is offered until it has said.
 	 */
-	let canWrite = $state(false);
+	let offers = $state.raw<SiteHistoryOffers>();
 	$effect(() => {
 		void edits.asked;
-		const held = site ? ($state.snapshot(site) as SiteView) : undefined;
-		if (!held) {
-			canWrite = false;
+		const read = phase.is === 'ready' ? phase.history : undefined;
+		if (!read) {
+			offers = undefined;
 			return;
 		}
 		let current = true;
-		edits.offers(held).then(
-			(offers) => {
-				if (current) canWrite = offers.correct.isOffered;
+		edits.historyOffers(read).then(
+			(answer) => {
+				if (current) offers = answer;
 			},
 			() => {}
 		);
@@ -131,9 +128,12 @@
 		{#if outcome}
 			<p class="group-card words" role="status">{outcome}</p>
 		{/if}
-		{#if canWrite && history.bringBackRevision !== undefined}
+		{#if offers?.note}
+			<p class="group-note held">{offers.note}</p>
+		{/if}
+		{#if offers?.bringBack.isOffered && history.bringBackRevision !== undefined}
 			{@const back = history.bringBackRevision}
-			{@const title = history.bringBackWords || (words?.bringBack ?? '')}
+			{@const title = offers.bringBack.words}
 			<div class="group-card">
 				<button
 					class="group-row"
@@ -150,29 +150,32 @@
 				</button>
 			</div>
 		{/if}
-		{#if canWrite && history.undoRevision !== undefined}
+		{#if offers?.undo.isOffered && history.undoRevision !== undefined}
 			{@const undo = history.undoRevision}
+			{@const title = offers.undo.words}
 			<div class="group-card">
 				<button
 					class="group-row"
 					type="button"
-					onclick={() => (putting = { revision: undo, title: history.undoWords })}
+					onclick={() => (putting = { revision: undo, title })}
 				>
-					{history.undoWords}
+					{title}
 				</button>
 			</div>
 		{/if}
 		<ol class="group-card" aria-label="Revisions, the newest first">
 			{#each history.revisions.toReversed() as revision (revision.number)}
+				{@const putBack = Boolean(offers?.putBack.isOffered) && revision.canBePutBack}
+				{@const report = onreport && offers?.reportRevision.isOffered ? onreport : undefined}
 				<li>
 					<p>{revision.words}</p>
 					{#each revision.changes as change (change)}
 						<p class="lesser">{change}</p>
 					{/each}
-					{#if (canWrite && revision.canBePutBack) || onreport}
+					{#if putBack || report}
 						<div class="acts">
-							{#if canWrite && revision.canBePutBack}
-								{@const title = revision.putBackWords || (words?.putBack ?? '')}
+							{#if putBack}
+								{@const title = revision.putBackWords || (offers?.putBack.words ?? '')}
 								<button
 									class="button-plain"
 									type="button"
@@ -189,13 +192,9 @@
 									{title}
 								</button>
 							{/if}
-							{#if onreport && words}
-								<button
-									class="button-plain"
-									type="button"
-									onclick={() => onreport(revision.number)}
-								>
-									{words.reportRevision}
+							{#if report}
+								<button class="button-plain" type="button" onclick={() => report(revision.number)}>
+									{offers?.reportRevision.words}
 								</button>
 							{/if}
 						</div>
@@ -247,6 +246,11 @@
 
 	.words {
 		padding: 0.75rem 1rem;
+	}
+
+	/* The core's note on what is held back: over the revisions, close to them. */
+	.held {
+		padding-top: 0;
 	}
 
 	.words .button-plain {

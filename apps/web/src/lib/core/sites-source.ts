@@ -23,8 +23,7 @@ import {
 	type SitesFiltered,
 	sitesMap,
 	type SitesMap,
-	sitesPath,
-	sitesPathWithPilots,
+	sitesPathFor,
 	type SiteView
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
@@ -88,14 +87,14 @@ export class SitesSource {
 	 * server. Throws, with words for the pilot, when the server gives no
 	 * usable answer.
 	 *
-	 * `withPilots` asks for the crowdsourced layer too, which no map shows
-	 * until its pilot switched it on; each of its sites then says its tier.
+	 * `filter` is the pilot's filter, by which the core chooses what to ask
+	 * for (`sitesPathFor`): with the places from pilots where their switch
+	 * is on, which no map shows until then; each of them says its tier.
 	 */
-	async sites(box: Bounds, withPilots = false): Promise<SitesMap | undefined> {
+	async sites(box: Bounds, filter: SitesFilter): Promise<SitesMap | undefined> {
 		if (!(await this.#present())) return undefined;
 		const get = this.#wrote ? this.#fresh : this.#get;
-		const path = withPilots ? sitesPathWithPilots : sitesPath;
-		const answer = await get(path(box.south, box.west, box.north, box.east));
+		const answer = await get(sitesPathFor(filter, box.south, box.west, box.north, box.east));
 		// The core is told the box again: it says whether the server's set
 		// is whole for all of it.
 		return sitesMap(box.south, box.west, box.north, box.east, answer.status, answer.body);

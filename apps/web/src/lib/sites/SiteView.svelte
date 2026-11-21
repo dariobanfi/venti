@@ -3,9 +3,10 @@
 	The words are those of the iPhone app's `SiteScreens.swift`. The iPhone
 	can also keep a site as a waypoint for its cockpit; a browser has neither.
 
-	Under what the page says of the site itself stands what its source says
-	beyond that, where it says anything: a description in its mapper's
-	words, a sentence each about a fee, rules for guests and a time without
+	Under what the page says of the site itself stands what is said beyond
+	that, where anything is, under the core's heading for it
+	(`descriptionTitle`: "What its source says", "What the partner wrote",
+	"What pilots wrote"): a description in its writer's words, a sentence each about a fee, rules for guests and a time without
 	flying (the core's sentences), and the site's web page. All of it is
 	set as text, and the web page is a link that opens outside the app.
 
@@ -23,8 +24,11 @@
 	off here and it was good". Only what is offered is shown, in the core's
 	words, and its one note says why something is missing. Under the facts
 	stands how many pilots confirmed it, as the core's line, which opens
-	their list; and once this pilot has, the core's sentence in the button's
-	place, with changing the day and taking it back. What the server
+	their list (while it is read "Loading…", and where it cannot be read
+	the reason with "Try again"; under a list that is not whole the core's
+	words say so), or the core's sentence that nobody has yet, where it has
+	one for this kind of site; and once this pilot has, the core's sentence
+	in the button's place, with changing the day and taking it back. What the server
 	answered to the pilot's last change stands at the top, in the core's line.
 -->
 <script lang="ts">
@@ -102,20 +106,30 @@
 
 	/** Who says they took off here: asked for a site of Venti's own tiers. */
 	let confirmations = $state.raw<SiteConfirmations>();
-	/** Counts the changes of the pilot's own confirmation, after which the list is read again. */
+	/** Why the list could not be read, in the words it came with. */
+	let confirmationsProblem = $state.raw<string>();
+	/**
+	 * Counts the changes of the pilot's own confirmation and the pilot's
+	 * "Try again", after which the list is read again.
+	 */
 	let confirmed = $state(0);
 	$effect(() => {
 		const id = site.id;
 		void confirmed;
 		// Another site's list is let go of at once.
 		if (untrack(() => confirmations)?.siteId !== id) confirmations = undefined;
+		confirmationsProblem = undefined;
 		if (!edits || !site.byPilots) return;
+		// Read for the site as it is used: the core says by it what stands while nobody has.
+		const here = untrack(() => $state.snapshot(site) as SiteView);
 		let current = true;
-		edits.confirmations(id).then(
+		edits.confirmations(here).then(
 			(list) => {
 				if (current) confirmations = list;
 			},
-			() => {}
+			(error) => {
+				if (current) confirmationsProblem = whyNot(error);
+			}
 		);
 		return () => {
 			current = false;
@@ -173,14 +187,17 @@
 		}
 	}
 
-	/** How many pilots took off here, as the core's line; nothing where nobody has said so. */
+	/**
+	 * How many pilots took off here, as the core's line; empty while nobody
+	 * has said so. Until the list is read, the site's own count.
+	 */
 	const confirmedLine = $derived(
 		confirmations?.siteId === site.id
-			? confirmations.pilots > 0
-				? confirmations.words
-				: ''
+			? confirmations.words
 			: (site.byPilots?.confirmedInWords ?? '')
 	);
+	/** The core's sentence while nobody has; empty where it has none for this kind of site. */
+	const nobodyLine = $derived(confirmations?.siteId === site.id ? confirmations.nobodyWords : '');
 
 	/** The first day that still has flying hours: the one the forecast's line is about. */
 	const day = $derived(outlook?.days.find((one) => one.hours.length > 0) ?? outlook?.days[0]);
@@ -288,12 +305,14 @@
 		</div>
 	</dl>
 
-	{#if site.byPilots && words && (confirmedLine || offers?.confirm.isOffered || offers?.hasConfirmed)}
+	{#if site.byPilots && words && (confirmedLine || nobodyLine || offers?.confirm.isOffered || offers?.hasConfirmed)}
 		<section class="card" aria-label={words.confirmationsTitle}>
 			{#if confirmedLine}
 				<button class="row link" type="button" onclick={() => (listing = true)}>
 					{confirmedLine}
 				</button>
+			{:else if nobodyLine}
+				<p class="row said nobody">{nobodyLine}</p>
 			{/if}
 			{#if offers?.hasConfirmed}
 				<p class="row said" role="status">{offers.confirmedWords}</p>
@@ -354,7 +373,7 @@
 	{/if}
 
 	{#if site.description || sentences.length > 0 || web}
-		<section class="card" aria-label="What its source says about it">
+		<section class="card" aria-label={site.descriptionTitle || 'What its source says'}>
 			{#if site.description}
 				<p class="row said description">{site.description}</p>
 			{/if}
@@ -455,9 +474,9 @@
 	<!-- Who says they took off here, the newest first, each in the core's line. -->
 	<Sheet open={listing} title={words.confirmationsTitle} onclose={() => (listing = false)}>
 		{#if confirmations}
-			<p class="footnote count">
-				{confirmations.pilots > 0 ? confirmations.words : confirmations.nobodyWords}
-			</p>
+			{#if confirmations.words || confirmations.nobodyWords}
+				<p class="footnote count">{confirmations.words || confirmations.nobodyWords}</p>
+			{/if}
 			{#if confirmations.lines.length > 0}
 				<ul class="card lines" aria-label={words.confirmationsTitle}>
 					{#each confirmations.lines as line (line.by.handle + line.day)}
@@ -465,6 +484,17 @@
 					{/each}
 				</ul>
 			{/if}
+			{#if confirmations.notWholeWords}
+				<p class="footnote">{confirmations.notWholeWords}</p>
+			{/if}
+		{:else if confirmationsProblem}
+			<!-- The list could not be read: why, and the way to ask again. -->
+			<div class="card">
+				<p class="row said" role="alert">{confirmationsProblem}</p>
+				<button class="row link" type="button" onclick={() => (confirmed += 1)}>Try again</button>
+			</div>
+		{:else}
+			<p class="waiting" role="status">Loading…</p>
 		{/if}
 	</Sheet>
 
@@ -514,7 +544,7 @@
 	.site {
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
+		gap: var(--space-5);
 	}
 
 	.card {
@@ -527,9 +557,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: var(--space-4);
 		min-height: var(--target);
-		padding: 0.5rem 1rem;
+		padding: var(--space-2) var(--space-4);
 	}
 
 	/* A hairline between rows. */
@@ -551,7 +581,7 @@
 
 	.mark {
 		justify-content: flex-start;
-		gap: 0.75rem;
+		gap: var(--space-3);
 	}
 
 	.mark :global(svg) {
@@ -567,7 +597,7 @@
 	/* The notice of a place from pilots: a row of its own, read before the rest. */
 	.notice {
 		align-items: flex-start;
-		padding-block: 0.75rem;
+		padding-block: var(--space-3);
 		font-size: var(--footnote);
 		color: var(--text-secondary);
 	}
@@ -577,8 +607,20 @@
 	}
 
 	.count {
-		padding-top: 0.25rem;
-		padding-bottom: 0.75rem;
+		padding-top: var(--space-1);
+		padding-bottom: var(--space-3);
+	}
+
+	/* While the list of who took off here is read. */
+	.waiting {
+		padding: var(--space-4);
+		color: var(--text-secondary);
+		text-align: center;
+	}
+
+	/* Nobody has yet: said, and nothing to open. */
+	.nobody {
+		color: var(--text-secondary);
 	}
 
 	.lines {
@@ -632,7 +674,7 @@
 	}
 
 	.footnote {
-		padding: 0.5rem 1rem 0;
+		padding: var(--space-2) var(--space-4) 0;
 		font-size: var(--footnote);
 		color: var(--text-secondary);
 		overflow-wrap: anywhere;

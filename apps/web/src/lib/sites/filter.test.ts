@@ -101,8 +101,11 @@ describe('what the core is asked', () => {
 			shown: 'takeoffs',
 			windIs: 'chosen',
 			windFromDeg: 315,
-			takeoffsFromM: 1500
+			takeoffsFromM: 1500,
+			withPilots: false
 		});
+		// The switch of the places from pilots is the filter's.
+		expect(asked({ ...NORTH_WEST, fromPilots: true }, { measuredDeg: 200 }).withPilots).toBe(true);
 		const now: SitesChoice = { ...NO_CHOICE, windIs: 'measuredNow' };
 		expect(asked(now, { measuredDeg: 200 })).toMatchObject({
 			windIs: 'measuredNow',
@@ -120,6 +123,7 @@ describe('what the core is asked', () => {
 		expect(sameAsked(filter, { ...filter })).toBe(true);
 		expect(sameAsked(filter, { ...filter, windFromDeg: 292.5 })).toBe(false);
 		expect(sameAsked(filter, { ...filter, takeoffsFromM: undefined })).toBe(false);
+		expect(sameAsked(filter, { ...filter, withPilots: true })).toBe(false);
 	});
 });
 

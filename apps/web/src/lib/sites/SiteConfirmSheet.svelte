@@ -172,7 +172,7 @@
 
 <style>
 	.about {
-		margin-top: 0.25rem;
+		margin-top: var(--space-1);
 	}
 
 	label.group-title {

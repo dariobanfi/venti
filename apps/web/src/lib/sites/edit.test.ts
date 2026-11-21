@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { CoreClient, SiteDraftView, SiteSent, SiteView } from '#lib/core/index.ts';
 import {
+	siteCorrecting,
 	siteDraftCheck,
 	siteDraftOf,
 	siteDraftRebased,
@@ -70,9 +71,9 @@ describe('a correction that someone else was quicker than', () => {
 			standsNow,
 			sent: [] as SiteDraftView[]
 		};
-		const editing = new SiteDraft(core(server), siteDraftOf(base), base);
-		// The tier of the site, for the words of its form.
-		expect(editing.tier?.fromPilots).toBe(false);
+		const editing = new SiteDraft(core(server), siteDraftOf(base), base, siteCorrecting(base));
+		// The words of the form are those of the site's tier, as the core says them.
+		expect(editing.correcting?.asPartner).toBe(true);
 		editing.set({ elevationM: 1871, fee: 'None' });
 
 		expect(await editing.send()).toBeUndefined();
@@ -89,8 +90,12 @@ describe('a correction that someone else was quicker than', () => {
 			/^Someone else changed this site while you were editing it\./
 		);
 		expect(editing.changedMeanwhile).toContain('Name: “Musterkogel West” → “Musterkogel Nord”');
-		expect(editing.clashes).toEqual(['height']);
-		expect(editing.clashed('height')).toBe(true);
+		// The core's sentence for it stands at the field.
+		expect(editing.clashes.map((clash) => clash.field)).toEqual(['height']);
+		expect(editing.clashed('height')).toMatch(
+			/^Height: you entered 1871 m, it now stands at 1850 m\./
+		);
+		expect(editing.clashed('name')).toBeUndefined();
 		expect(editing.standsNow).toBe(standsNow);
 
 		// Sent again, it stands on the newest revision and is taken.

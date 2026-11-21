@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
+import type { SitesFilter } from './pkg/venti_core_wasm.js';
 import { SitesSource } from './sites-source';
 import { startCore } from './testing';
 import type { Answer, Get } from './wind-source';
@@ -16,6 +17,14 @@ const recorded = (): Uint8Array =>
 /** The valley of the sample flight, with the Spitzingsee east of it. */
 const VALLEY = { south: 47.6, west: 11.7, north: 47.75, east: 11.95 };
 
+/** Nothing chosen: every site, without the places from pilots. */
+const NO_FILTER: SitesFilter = {
+	shown: 'all',
+	windIs: 'chosen',
+	windFromDeg: undefined,
+	takeoffsFromM: undefined
+};
+
 /** A server that gives one answer and notes what it was asked. */
 function server(answer: () => Answer = () => ({ status: 200, body: recorded() })) {
 	const asked: string[] = [];
@@ -31,7 +40,7 @@ describe('flying sites from the server', () => {
 		const { asked, get } = server();
 		const sites = new SitesSource(async () => true, get);
 
-		const map = (await sites.sites(VALLEY))!;
+		const map = (await sites.sites(VALLEY, NO_FILTER))!;
 
 		expect(asked).toEqual(['/v1/sites?bbox=11.7,47.6,11.95,47.75']);
 		expect(map.sites).toHaveLength(5);
@@ -64,7 +73,7 @@ describe('flying sites from the server', () => {
 		const { get } = server();
 		const sites = new SitesSource(async () => true, get);
 
-		const map = (await sites.sites(VALLEY))!;
+		const map = (await sites.sites(VALLEY, NO_FILTER))!;
 
 		expect(map.credits).toEqual([
 			{
@@ -84,16 +93,16 @@ describe('flying sites from the server', () => {
 		const { get } = server();
 		const sites = new SitesSource(async () => true, get);
 
-		expect((await sites.sites(VALLEY))!.isWhole).toBe(true);
+		expect((await sites.sites(VALLEY, NO_FILTER))!.isWhole).toBe(true);
 		// More than the server's set is whole for: an empty map there says nothing.
 		const europe = { south: 40, west: 0, north: 55, east: 20 };
-		expect((await sites.sites(europe))!.isWhole).toBe(false);
+		expect((await sites.sites(europe, NO_FILTER))!.isWhole).toBe(false);
 	});
 
 	it('are filtered by the core, which says in words what a filter leaves', async () => {
 		const { asked, get } = server();
 		const sites = new SitesSource(async () => true, get);
-		const held = (await sites.sites(VALLEY))!.sites;
+		const held = (await sites.sites(VALLEY, NO_FILTER))!.sites;
 		asked.length = 0;
 
 		const choices = sites.filterChoices();
@@ -174,7 +183,7 @@ describe('flying sites from the server', () => {
 		const { asked, get } = server();
 		const sites = new SitesSource(async () => false, get);
 
-		expect(await sites.sites(VALLEY)).toBeUndefined();
+		expect(await sites.sites(VALLEY, NO_FILTER)).toBeUndefined();
 		expect(asked).toEqual([]);
 	});
 
@@ -182,7 +191,7 @@ describe('flying sites from the server', () => {
 		const { get } = server(() => ({ status: 502, body: new TextEncoder().encode('Bad Gateway') }));
 		const sites = new SitesSource(async () => true, get);
 
-		await expect(sites.sites(VALLEY)).rejects.toMatchObject({
+		await expect(sites.sites(VALLEY, NO_FILTER)).rejects.toMatchObject({
 			name: 'Server',
 			message: 'The server could not answer (status 502).'
 		});
@@ -192,7 +201,7 @@ describe('flying sites from the server', () => {
 		const { asked, get } = server();
 		const sites = new SitesSource(async () => true, get);
 
-		await sites.sites({ south: 80, west: 170, north: 95, east: 190 });
+		await sites.sites({ south: 80, west: 170, north: 95, east: 190 }, NO_FILTER);
 
 		expect(asked).toEqual(['/v1/sites?bbox=170,80,180,90']);
 	});

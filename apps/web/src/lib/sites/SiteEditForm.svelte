@@ -15,9 +15,11 @@
 
 	When someone else changed the site meanwhile, the draft stands on the
 	site as it is now by the core's merge: its words stand over the button
-	with what the others changed, the fields both changed are marked as
-	fields with a fault are, and "Show how it stands now" opens the site
-	beside the form (`onshow`), which keeps everything the pilot entered.
+	with what the others changed, each field both changed has the core's
+	sentence about it where a fault's stands ("Height: you entered 1840 m,
+	it now stands at 1850 m. Yours is kept."), and "Show how it stands now"
+	opens the site beside the form (`onshow`), which keeps everything the
+	pilot entered.
 
 	The fields are the pack's inputs, as the plans' form has them.
 -->
@@ -124,10 +126,14 @@
 	{#if editing.fault(field.field)}
 		<p class="group-note refusal" role="alert">{editing.fault(field.field)}</p>
 	{/if}
+	{#if editing.clashed(field.field)}
+		<!-- Both changed this field: the core's sentence, where a fault's stands. -->
+		<p class="group-note refusal" role="alert">{editing.clashed(field.field)}</p>
+	{/if}
 {/snippet}
 
 {#snippet line(field: SiteFormField, value: string, set: (typed: string) => void, kind?: 'url')}
-	<section class="group" class:clash={editing.clashed(field.field)}>
+	<section class="group" class:clash={Boolean(editing.clashed(field.field))}>
 		<label class="group-title" for="{id}-{field.field}">{field.title}</label>
 		<div class="group-card">
 			<div class="field">
@@ -137,7 +143,7 @@
 					autocomplete="off"
 					aria-describedby="{id}-{field.field}-help"
 					aria-required={field.isNeeded}
-					aria-invalid={Boolean(editing.fault(field.field)) || editing.clashed(field.field)}
+					aria-invalid={Boolean(editing.fault(field.field) || editing.clashed(field.field))}
 					{value}
 					oninput={(event) => set(typed(event))}
 				/>
@@ -154,7 +160,11 @@
 		{#if field.field === 'name'}
 			{@render line(field, draft.name, (name) => editing.set({ name }))}
 		{:else if field.field === 'place'}
-			<section class="group" class:clash={editing.clashed('place')} aria-labelledby="{id}-place">
+			<section
+				class="group"
+				class:clash={Boolean(editing.clashed('place'))}
+				aria-labelledby="{id}-place"
+			>
 				<h3 class="group-title" id="{id}-place">{field.title}</h3>
 				<div class="group-card">
 					<div class="group-row">
@@ -167,7 +177,11 @@
 				{@render about(field)}
 			</section>
 		{:else if field.field === 'uses'}
-			<section class="group" class:clash={editing.clashed('uses')} aria-labelledby="{id}-uses">
+			<section
+				class="group"
+				class:clash={Boolean(editing.clashed('uses'))}
+				aria-labelledby="{id}-uses"
+			>
 				<h3 class="group-title" id="{id}-uses">{field.title}</h3>
 				<div class="chips" role="group" aria-labelledby="{id}-uses">
 					{#each form.uses as use (use.kind)}
@@ -184,7 +198,7 @@
 				{@render about(field)}
 			</section>
 		{:else if field.field === 'height'}
-			<section class="group" class:clash={editing.clashed('height')}>
+			<section class="group" class:clash={Boolean(editing.clashed('height'))}>
 				<label class="group-title" for="{id}-height">{field.title}</label>
 				<div class="group-card">
 					<div class="field">
@@ -208,7 +222,11 @@
 				{@render about(field)}
 			</section>
 		{:else if field.field === 'wind'}
-			<section class="group" class:clash={editing.clashed('wind')} aria-labelledby="{id}-wind">
+			<section
+				class="group"
+				class:clash={Boolean(editing.clashed('wind'))}
+				aria-labelledby="{id}-wind"
+			>
 				<h3 class="group-title" id="{id}-wind">{field.title}</h3>
 				<div class="chips" class:compact role="group" aria-labelledby="{id}-wind">
 					{#each form.winds as wind (wind.fromDeg)}
@@ -228,7 +246,7 @@
 				{@render about(field)}
 			</section>
 		{:else if field.field === 'description'}
-			<section class="group" class:clash={editing.clashed('description')}>
+			<section class="group" class:clash={Boolean(editing.clashed('description'))}>
 				<label class="group-title" for="{id}-description">{field.title}</label>
 				<div class="group-card">
 					<textarea
@@ -244,7 +262,7 @@
 		{:else if field.field === 'fee'}
 			{@render line(field, draft.fee, (fee) => editing.set({ fee }))}
 		{:else if field.field === 'guests'}
-			<section class="group" class:clash={editing.clashed('guests')}>
+			<section class="group" class:clash={Boolean(editing.clashed('guests'))}>
 				<label class="group-title" for="{id}-guests">{field.title}</label>
 				<div class="group-card">
 					<div class="field">
@@ -318,7 +336,7 @@
 
 <style>
 	form > .tier + .group {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 	}
 
 	label.group-title {

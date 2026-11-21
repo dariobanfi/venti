@@ -32,8 +32,8 @@ export interface SitesChoice {
 	/**
 	 * Whether the places from pilots are on the map and in the list: the
 	 * crowdsourced layer, which nothing shows until its pilot switched it
-	 * on. It is no part of the filter the core is asked with: it decides
-	 * what the server is asked for.
+	 * on. The device keeps it; the core is asked with it as the filter's
+	 * `withPilots`, and chooses by it what the server is asked for.
 	 */
 	fromPilots: boolean;
 }
@@ -116,7 +116,8 @@ export function asked(choice: SitesChoice, now: WindNow): SitesFilter {
 		shown: choice.shown,
 		windIs: choice.windIs,
 		windFromDeg,
-		takeoffsFromM: choice.takeoffsFromM
+		takeoffsFromM: choice.takeoffsFromM,
+		withPilots: choice.fromPilots
 	};
 }
 
@@ -126,7 +127,8 @@ export function sameAsked(first: SitesFilter, second: SitesFilter): boolean {
 		first.shown === second.shown &&
 		first.windIs === second.windIs &&
 		first.windFromDeg === second.windFromDeg &&
-		first.takeoffsFromM === second.takeoffsFromM
+		first.takeoffsFromM === second.takeoffsFromM &&
+		(first.withPilots ?? false) === (second.withPilots ?? false)
 	);
 }
 

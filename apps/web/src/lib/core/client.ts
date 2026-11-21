@@ -21,6 +21,7 @@ import type {
 	SitesFilter,
 	SiteConfirmations,
 	SiteDraftView,
+	SiteHistory,
 	SiteView,
 	TodayStanding,
 	WindStation
@@ -168,8 +169,8 @@ export class CoreClient {
 	}
 
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
-	sites(box: Bounds, withPilots = false) {
-		return this.#call('sites', { box, withPilots });
+	sites(box: Bounds, filter: SitesFilter) {
+		return this.#call('sites', { box, filter });
 	}
 
 	/** The form for a site a pilot adds or corrects, in the core's words. */
@@ -252,9 +253,24 @@ export class CoreClient {
 		return this.#call('withdrawSiteConfirmation', id);
 	}
 
-	/** Who says they took off at a site, in the core's lines. */
-	siteConfirmations(id: string) {
-		return this.#call('siteConfirmations', id);
+	/** Who says they took off at a site, in the core's lines, read for the site's page. */
+	siteConfirmations(site: SiteView) {
+		return this.#call('siteConfirmations', site);
+	}
+
+	/** What the form says when it corrects a site: the words of the site's tier. */
+	siteCorrecting(site: SiteView) {
+		return this.#call('siteCorrecting', site);
+	}
+
+	/** What may be offered in a site's history to whoever is signed in here. */
+	siteHistoryOffers(history: SiteHistory) {
+		return this.#call('siteHistoryOffers', history);
+	}
+
+	/** The removed sites of a tier, the one removed last first, in the core's lines. */
+	sitesRemoved(fromPilots: boolean) {
+		return this.#call('sitesRemoved', fromPilots);
 	}
 
 	/** A draft carried onto the site as it stands now: the core's merge. */

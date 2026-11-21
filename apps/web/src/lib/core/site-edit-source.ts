@@ -2,8 +2,8 @@
  * Sites of Venti's own two tiers, the partners' and the crowdsourced one,
  * as the worker talks to the Venti server about them: adding a site,
  * correcting one, removing it, putting a revision back, saying "I took off
- * here and it was good", and reading one site, its history and who
- * confirmed it.
+ * here and it was good", and reading one site, its history, who confirmed
+ * it, and which sites of a tier were removed lately.
  *
  * Everything about it is the core's (`crates/core/src/site_edit.rs`,
  * `site_offers.rs`): what may be offered to whom, the form and its words,
@@ -22,13 +22,15 @@ import {
 	type SiteAdding,
 	siteAddRequest,
 	siteChangeRequest,
-	siteConfirmations,
 	type SiteConfirmations,
+	siteConfirmationsOf,
 	siteConfirmationsPath,
 	siteConfirmed,
 	type SiteConfirmFlight,
 	siteConfirmForm,
 	type SiteConfirmForm,
+	siteCorrecting,
+	type SiteCorrecting,
 	siteDraftCheck,
 	type SiteDraftFault,
 	siteDraftMoved,
@@ -41,18 +43,21 @@ import {
 	siteForm,
 	type SiteForm,
 	type SiteHistory,
+	type SiteHistoryOffers,
 	siteHistoryPage,
 	siteHistoryPath,
 	siteInTheWay,
 	type SiteInTheWay,
 	type SiteOffers,
 	sitePage,
+	type SiteRemovedLine,
 	type SitePage,
 	sitePath,
 	siteRemoved,
 	siteRemoveRequest,
 	siteRestoreRequest,
 	type SiteRevisionView,
+	sitesRemovedPath,
 	type SiteView,
 	siteWasChanged,
 	siteWithdrawn,
@@ -149,6 +154,46 @@ export class SiteEditSource {
 		return this.#session.ask((core) => core.siteAdding(takes));
 	}
 
+	/** What the form says when it corrects a site: the words of the site's tier. Asks no server. */
+	correcting(site: SiteView): SiteCorrecting {
+		return siteCorrecting(site);
+	}
+
+	/**
+	 * What may be offered in a site's history to whoever is signed in
+	 * here: the core's one answer for the history as it was read.
+	 */
+	historyOffers(history: SiteHistory, takes: boolean): Promise<SiteHistoryOffers> {
+		return this.#session.ask((core) => core.siteHistoryOffers(history, takes));
+	}
+
+	/**
+	 * The sites of a tier that are removed, the one removed last first,
+	 * each in the core's line with whether whoever is signed in here may
+	 * bring it back. The server is asked from the beginning, where it names
+	 * every site of the tier once, as it stands, a page at a time; no
+	 * request per site.
+	 */
+	async removed(fromPilots: boolean, takes: boolean): Promise<SiteRemovedLine[]> {
+		let lines: SiteRemovedLine[] = [];
+		let since: string | undefined;
+		// A page holds many changes; a hundred pages are more than a tier has.
+		for (let page = 0; page < 100; page += 1) {
+			const answer = await this.#get(sitesRemovedPath(fromPilots, since));
+			const next = await this.#session.ask((core) =>
+				core.sitesRemoved(answer.status, answer.body, takes)
+			);
+			// The server began again from the beginning: what the pages before said is forgotten.
+			const before = next.reset ? [] : lines;
+			// A site removed again while the pages were read is named by its last removal.
+			const again = new Set((next.lines ?? []).map((line) => line.id));
+			lines = [...before.filter((line) => !again.has(line.id)), ...(next.lines ?? [])];
+			if (!next.more || next.cursor === since) break;
+			since = next.cursor;
+		}
+		return lines.toSorted((first, second) => second.atUnixS - first.atUnixS);
+	}
+
 	/** The form of "I took off here and it was good", for the pilot's today (`YYYY-MM-DD`). */
 	confirmForm(today: string): SiteConfirmForm {
 		return siteConfirmForm(today);
@@ -187,10 +232,14 @@ export class SiteEditSource {
 		return words;
 	}
 
-	/** Who says they took off at a site, the newest first, in the core's lines. */
-	async confirmations(id: string): Promise<SiteConfirmations> {
-		const answer = await this.#get(siteConfirmationsPath(id));
-		return siteConfirmations(answer.status, answer.body);
+	/**
+	 * Who says they took off at a site, the newest first, in the core's
+	 * lines, read for the site's page: what is said while nobody has
+	 * follows what the site is used for.
+	 */
+	async confirmations(site: SiteView): Promise<SiteConfirmations> {
+		const answer = await this.#get(siteConfirmationsPath(site.id));
+		return siteConfirmationsOf(site, answer.status, answer.body);
 	}
 
 	/**

@@ -18,14 +18,17 @@ import type {
 	SiteConfirmations,
 	SiteConfirmFlight,
 	SiteConfirmForm,
+	SiteCorrecting,
 	SiteDraftFault,
 	SiteDraftView,
 	SiteField,
 	SiteForm,
 	SiteHistory,
+	SiteHistoryOffers,
 	SiteInTheWay,
 	SiteOffers,
 	SitePage,
+	SiteRemovedLine,
 	SiteView,
 	SiteWords,
 	SiteWritten
@@ -91,9 +94,23 @@ export class SiteEditsModel {
 		return this.#core.siteOffers(site, confirmations);
 	}
 
-	/** Who says they took off at a site, in the core's lines. */
-	confirmations(id: string): Promise<SiteConfirmations> {
-		return this.#core.siteConfirmations(id);
+	/** Who says they took off at a site, in the core's lines, read for the site's page. */
+	confirmations(site: SiteView): Promise<SiteConfirmations> {
+		return this.#core.siteConfirmations(site);
+	}
+
+	/** What may be offered in a site's history to whoever is signed in here: the core's one answer. */
+	historyOffers(history: SiteHistory): Promise<SiteHistoryOffers> {
+		return this.#core.siteHistoryOffers(history);
+	}
+
+	/**
+	 * The removed sites of a tier, the crowdsourced one when `true`: the
+	 * one removed last first, each in the core's line, which says whether
+	 * whoever is signed in here may bring it back.
+	 */
+	removed(fromPilots: boolean): Promise<SiteRemovedLine[]> {
+		return this.#core.sitesRemoved(fromPilots);
 	}
 
 	/** The form of "I took off here and it was good", for the pilot's today (`YYYY-MM-DD`). */
@@ -124,12 +141,14 @@ export class SiteEditsModel {
 
 	/** A draft of a new site at a place, for its form. */
 	async draftAt(place: Coordinate): Promise<SiteDraft> {
-		return new SiteDraft(this.#core, await this.#core.siteDraftNew(place), undefined);
+		return new SiteDraft(this.#core, await this.#core.siteDraftNew(place), undefined, undefined);
 	}
 
 	/** The draft that corrects a site. Throws, in the core's words, for a site of another source. */
 	async draftOf(site: SiteView): Promise<SiteDraft> {
-		return new SiteDraft(this.#core, await this.#core.siteDraftOf(site), site);
+		const draft = await this.#core.siteDraftOf(site);
+		// What the form says follows the site's tier: the core's answer.
+		return new SiteDraft(this.#core, draft, site, await this.#core.siteCorrecting(site));
 	}
 
 	/** Removes a site from the map. Answers in the core's line what became of it. */
@@ -185,9 +204,16 @@ export class SiteDraft {
 	changedMeanwhile = $state.raw<string[]>([]);
 	/**
 	 * The fields both the pilot and the others changed, where the pilot's
-	 * entry was kept: marked in the form until the pilot changes something.
+	 * entry was kept, each with the core's sentence about it: shown at the
+	 * field, as a fault is, until the pilot changes something.
 	 */
-	clashes = $state.raw<SiteField[]>([]);
+	clashes = $state.raw<SiteDraftFault[]>([]);
+	/**
+	 * What the form says when it corrects a site, in the words of the
+	 * site's tier: the core's answer (`siteCorrecting`) for the site the
+	 * draft was made from. Nothing for a new site.
+	 */
+	readonly correcting: SiteCorrecting | undefined;
 	/** The site as it stands now, after someone else changed it: to look at beside the draft. */
 	standsNow = $state.raw<SiteView>();
 
@@ -197,21 +223,17 @@ export class SiteDraft {
 	/** Counts the checks, so that an answer overtaken by a later one is dropped. */
 	#checking = 0;
 
-	constructor(core: CoreClient, draft: SiteDraftView, base: SiteView | undefined) {
+	constructor(
+		core: CoreClient,
+		draft: SiteDraftView,
+		base: SiteView | undefined,
+		correcting: SiteCorrecting | undefined
+	) {
 		this.#core = core;
 		this.#base = base;
+		this.correcting = correcting;
 		this.draft = $state.raw(draft);
 		void this.check();
-	}
-
-	/**
-	 * The tier of the site being corrected, as the core said it of the site
-	 * the draft was made from: its notice, and whether it is a place from
-	 * pilots. Nothing for a new site.
-	 */
-	get tier(): { note: string; fromPilots: boolean } | undefined {
-		const by = this.#base?.byPilots;
-		return by ? { note: by.note, fromPilots: by.fromPilots ?? false } : undefined;
 	}
 
 	/** Whether the draft corrects a site that is there. */
@@ -233,9 +255,13 @@ export class SiteDraft {
 		void this.check();
 	}
 
-	/** Whether a field is one both the pilot and the others changed. */
-	clashed(field: SiteField): boolean {
-		return this.clashes.includes(field);
+	/**
+	 * The core's sentence for a field both the pilot and the others
+	 * changed: "Height: you entered 1840 m, it now stands at 1850 m. Yours
+	 * is kept." Nothing for every other field.
+	 */
+	clashed(field: SiteField): string | undefined {
+		return this.clashes.find((clash) => clash.field === field)?.words;
 	}
 
 	/** The pilot changed the line about the change. */
@@ -308,7 +334,7 @@ export class SiteDraft {
 			this.#base = now;
 			this.standsNow = now;
 			this.changedMeanwhile = rebased.theirs;
-			this.clashes = rebased.clashes;
+			this.clashes = rebased.clashesInWords ?? [];
 			this.refusal = { words: rebased.words };
 			await this.check();
 		} catch {

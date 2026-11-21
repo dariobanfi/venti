@@ -53,7 +53,7 @@ use crate::forecast::{Forecasts, Refusal};
 
 /// The models the map is made of, the finest first. ICON-D2: some 2 km a
 /// cell, a new run every three hours that reaches 48 hours. ICON-EU: some
-/// 5 km a cell, a run every three hours that reaches 78 hours from 00, 06,
+/// 7 km a cell, a run every three hours that reaches 78 hours from 00, 06,
 /// 12 and 18 UTC and 30 from the runs between; the adapter asks for three
 /// days, so it adds the day after tomorrow.
 pub const MAP_MODELS: [&str; 2] = ["icon-d2", "icon-eu"];
@@ -112,8 +112,9 @@ struct Kept {
     /// The judged daylight hours by their time, each with the run it is
     /// from.
     hours: BTreeMap<Timestamp, (Timestamp, RatedHour)>,
-    /// The height of the model's ground, from the newest series that had
-    /// it.
+    /// The height of the model's ground, as the series taken last says
+    /// it: the height its hours were judged at. None where that series has
+    /// none, as for a cell of water, whose hours are judged without one.
     ground_m: Option<f64>,
 }
 
@@ -121,9 +122,7 @@ impl Kept {
     /// Takes in a series of the cell: its daylight hours, judged, each
     /// replacing the same hour of an older run.
     fn take(&mut self, series: &ForecastSeries) {
-        if series.cell_elevation_m.is_some() {
-            self.ground_m = series.cell_elevation_m;
-        }
+        self.ground_m = series.cell_elevation_m;
         for hour in day::cell_hours(series) {
             let newer = self
                 .hours
@@ -292,6 +291,21 @@ impl ThermalMap {
     /// source's.
     pub fn current(&self) -> Option<Arc<ThermalMapResponse>> {
         self.lock().map.clone()
+    }
+
+    /// Where the map stands, for the server's health answer: when the map
+    /// it serves was worked out, if there is one, and of each model, the
+    /// finest first, the run its part was last made from whole.
+    pub fn standing(&self) -> (Option<Timestamp>, Vec<(ModelId, Option<Timestamp>)>) {
+        let state = self.lock();
+        (
+            state.map.as_ref().map(|map| map.computed_at),
+            state
+                .models
+                .iter()
+                .map(|of| (of.model.clone(), of.made_from))
+                .collect(),
+        )
     }
 
     /// How many cells the map has.
@@ -939,6 +953,9 @@ mod tests {
         /// How many more requests it answers before it refuses; `None`
         /// for no end.
         room: Mutex<Option<usize>>,
+        /// The places whose cell the model counts as water: their series
+        /// say nothing of the height of the ground.
+        water: Mutex<Vec<GeoPoint>>,
     }
 
     impl Made {
@@ -949,6 +966,7 @@ mod tests {
                 asked: AtomicUsize::new(0),
                 refused: AtomicUsize::new(0),
                 room: Mutex::new(None),
+                water: Mutex::new(Vec::new()),
             })
         }
 
@@ -973,7 +991,7 @@ mod tests {
                 available_at: None,
                 point,
                 cell: point,
-                cell_elevation_m: Some(800.0),
+                cell_elevation_m: (!self.water.lock().unwrap().contains(&point)).then_some(800.0),
                 hours,
             }
         }
@@ -1104,6 +1122,37 @@ mod tests {
         assert_eq!(runs.get(&at(13, 10)).map(|(run, _)| *run), Some(at(12, 9)));
         // Each a daylight hour.
         assert!(runs.keys().all(|time| (4..=19).contains(&time.hour())));
+    }
+
+    #[tokio::test]
+    async fn a_cell_of_water_has_no_ground_and_keeps_its_verdict() {
+        // A first run that gives every cell a ground, as the source did
+        // while it read a lake's cell as lying at the level of the sea.
+        let made = Made::at(at(12, 0));
+        let map = map_of(&made, at(12, 4));
+        map.update(&d2(at(12, 0))).await;
+        assert_eq!(map.current().unwrap().ground_m, [Some(800); 6]);
+
+        // The next run says of the first cell that it is water. The map
+        // does not go on naming the height it had: the cell's new hours
+        // are judged without one.
+        let lake = GeoPoint::new(47.0, 11.0).unwrap();
+        *made.water.lock().unwrap() = vec![lake];
+        *made.run.lock().unwrap() = at(12, 9);
+        map.update(&d2(at(12, 9))).await;
+        let current = map.current().unwrap();
+        assert_eq!(current.ground_m[0], None);
+        assert_eq!(current.ground_m[1..], [Some(800); 5]);
+        // By the wind and the rain it still has a verdict on every day.
+        assert!(current.days.iter().all(|day| day.verdict[0].is_some()));
+
+        // Written down and read back, it still has none.
+        let state = map.lock();
+        let read = stored::decode(
+            &stored::encode(&map.grid, &state.models[0].cells),
+            &map.grid,
+        );
+        assert_eq!(read.unwrap()[0].ground_m, None);
     }
 
     #[tokio::test]

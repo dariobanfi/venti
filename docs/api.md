@@ -1,6 +1,6 @@
 # The server's HTTP API
 
-Last revised: 2026-11-20
+Last revised: 2026-11-21
 
 The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, for live tracks, and for the groups in which pilots plan a flying day. Beside the JSON it hands out the map regions that an app downloads to draw its map without a network, and passes on tiles of map imagery, cut where they may not be shown. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
@@ -221,6 +221,20 @@ How the server and each of its data sources are doing.
   "time": "2026-11-18T19:05:00Z",
   "forecasts": "available",
   "registration": "open",
+  "thermal_map": {
+    "source": "open-meteo",
+    "computed_at": "2026-11-21T03:25:00Z",
+    "models": [
+      {
+        "model": "icon-d2",
+        "run": "2026-11-21T00:00:00Z"
+      },
+      {
+        "model": "icon-eu",
+        "run": "2026-11-20T21:00:00Z"
+      }
+    ]
+  },
   "sources": [
     {
       "source": "dwd-10min",
@@ -294,6 +308,10 @@ How the server and each of its data sources are doing.
 | `client_addresses` | For whoever runs the server; an app ignores it. `seen` when requests arrive from addresses of their own. `hidden` when, in the last hour, twenty or more requests and at least a tenth of all came from one private address and from no other private one: a proxy or a container network is hiding the visitors, and the server counts them as one ([deploy/README.md](../deploy/README.md#the-visitors-address)). Left out while fewer than twenty requests have arrived |
 | `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server that was not told where its forecast service is. Such a server answers `/v1/forecast` with `501` and asks nobody else. Left out by a server older than forecasts, which has none |
 | `registration` | Who may create an account here: `open` (anyone), `invite` (whoever has an invite code, which `POST /v1/accounts` then needs) or `closed` (nobody; existing accounts sign in as before). An app shows the field for the invite code, or says that the server takes no new accounts, by this. Left out by a server older than this field, which may ask for a code: an app that reads nothing here offers the field. The development mode says `open` |
+| `thermal_map` | For whoever runs the server; an app asks for the map itself ([`GET /v1/thermals`](#get-v1thermals)). Where the server's thermal map stands. Left out by a server that makes none, which is one without forecasts, and by an older server |
+| `thermal_map.source` | The forecast source the map is made from |
+| `thermal_map.computed_at` | When the server worked out the map it serves. Left out while it has none: after a first start, until the finest model's part was fetched whole, which is some minutes on a warm forecast service and a look or two longer on one that has just started. `/v1/thermals` answers `503` until then |
+| `thermal_map.models[]` | The models the map is made of, the finest first, each with the `run` its part of the map was last made from, every cell of it. `run` is left out until that was done once; the map then has no day of that model. The run the forecast service holds is the model's `run` under `sources[].models[]`: the map follows it some minutes after the server's look sees it. A map that stays behind for more than a few looks waits for something, and the server's log says for what. It does not make the server `degraded` |
 | `sources[].cadence_seconds` | How often the server asks the provider for new data |
 | `sources[].last_success` | When a run last delivered its data without trouble. Left out if none ever did |
 | `sources[].last_failure` | When a run last failed. For a source of observations: it delivered nothing, or more than a tenth of its requests failed. For a source of airspace or of flying sites: any request failed, because a set with a part missing must not replace a whole one. Left out if none ever did |
@@ -1078,7 +1096,7 @@ A series is the canonical forecast of the project, `venti_domain::ForecastSeries
 | `available_at` | When the source had that run ready. Left out if the source does not say |
 | `point` | The same as the answer's |
 | `cell` | The centre of the model's grid cell the values are for. It can lie some kilometres from `point` |
-| `cell_elevation_m` | The height of the model's ground in that cell. **Show it beside the values.** A model's ground is smoothed: east of the Tegernsee, whose shore lies at 725 m, ICON-D2's ground is at 1069 m, and "10 m above ground" is 10 m above that |
+| `cell_elevation_m` | The height of the model's ground in that cell. **Show it beside the values.** A model's ground is smoothed: east of the Tegernsee, whose shore lies at 725 m, ICON-D2's ground is at 1069 m, and "10 m above ground" is 10 m above that. Left out where the cell is one the model counts as water, a cell of the sea or of a lake as large as the model's cells: the source has no height for it. The values are then the model's for the air over the water, and nothing can be placed above or under the ground |
 | `hours` | One record per hour, oldest first |
 
 **Only the hours the run computed.** A series holds the hours after its run began, as far as the run reaches: 48 hours for ICON-D2; for ICON-EU 78 hours after a run of 00, 06, 12 or 18 UTC and 30 hours after one in between. The source has older runs' values for other hours and does not say which run they are from, so they are left out. A series therefore never holds the hours of today that are over, and it can end before the day after tomorrow does: ICON-EU covers that day for about three hours out of every six. A client shows the hours it has and does not fill the rest.
@@ -1269,7 +1287,7 @@ The answer of the development mode, whole:
 | `run` | When the newest run of that model began that the map holds hours of. Earlier hours of a day can be an earlier run's: a run says nothing of the hours before it began |
 | `computed_at` | When the server worked the map out |
 | `grid` | Where the cells are: see below |
-| `ground_m` | The height of the model's ground at each cell, whole metres above mean sea level, which is the height the cell is judged at. `null` where the model's answer for the cell is missing |
+| `ground_m` | The height of the model's ground at each cell, whole metres above mean sea level, which is the height the cell is judged at. `null` where the model's answer for the cell is missing, and where the model's cell is water: such a cell is judged by the wind at the ground, the gusts and the rain alone, and has no thermals |
 | `days` | The days the map has, oldest first: from yesterday, while the server has run for a day, to the day after tomorrow, which is ICON-EU's |
 
 **The grid.** Cell number `row * columns + column` is the square of `step_deg` degrees (0.1°: some 11 km north to south and 7.5 km east to west in the Alps) around the point at latitude `south + row * step_deg` and longitude `west + column * step_deg`. The first cell is the south-west one; cells run west to east, rows south to north. The points lie on multiples of the step, inside the area of the server's regions; the model's values for a cell are those of its own cell (about 2 km wide) nearest the point, one sample out of the twenty or so in the square. For the first region the grid has 23 rows of 79 cells, 1,817 in all, from 46.3 N 9.4 E to 48.5 N 17.2 E.

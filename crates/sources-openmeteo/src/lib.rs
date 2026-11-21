@@ -68,6 +68,22 @@
 //! as "no convective cloud" (ICON writes -500 m where there is none, and
 //! Open-Meteo hands on that or 0), and a value whose unit is not the one
 //! asked for is not read.
+//!
+//! # A cell of water
+//!
+//! The nearest cell to a place can be one the model counts as water: a
+//! cell of the sea, or of a lake as large as the model's cells. Its values
+//! are the model's for the air over the water, and they are handed on. Its
+//! height is not: Open-Meteo marks such a cell in its file of heights
+//! instead of keeping one, and answers `"elevation": 0.0` for it, wherever
+//! the water lies (its `Sources/App/Domains/Gridable.swift`, read on
+//! 2026-11-21; an instance answered 0 that day for cells over Lake
+//! Constance, the Chiemsee and the Ammersee, which lie at 395, 518 and
+//! 533 m). So an elevation of exactly 0 m is read as "the height of the
+//! ground is not known", and the series goes on without one: nothing is
+//! then placed above or under the ground, and no thermals are estimated
+//! from it. A cell of land at exactly 0 m is read the same way, which loses
+//! little.
 
 pub mod fixtures;
 
@@ -725,11 +741,23 @@ impl OpenMeteo {
             available_at: run.available,
             point,
             cell,
-            cell_elevation_m: answer.elevation.filter(|height| height.is_finite()),
+            cell_elevation_m: ground(answer.elevation),
             hours,
         };
         Ok((series, skipped))
     }
+}
+
+/// The height of the model's ground in a cell, from the answer's
+/// `elevation`: None where the answer has none, and for a cell of water.
+///
+/// Open-Meteo keeps no height for a cell the model counts as water, sea or
+/// lake alike, and answers 0 for it. The module's documentation says where
+/// that was seen and read. A height of exactly 0 m is therefore not known:
+/// it would put Lake Constance, at 395 m, at the level of the sea, and
+/// every height above the ground with it.
+fn ground(elevation: Option<f64>) -> Option<f64> {
+    elevation.filter(|height| height.is_finite() && *height != 0.0)
 }
 
 /// The values of one variable, one per time of the answer, or why they
@@ -841,6 +869,19 @@ mod tests {
         assert!(!url.contains("updraft"));
         assert_eq!(variables(&MODELS[0]).len(), 45);
         assert_eq!(variables(&MODELS[1]).len(), 44);
+    }
+
+    #[test]
+    fn a_height_of_nought_is_a_cell_of_water_and_no_height() {
+        assert_eq!(ground(Some(759.0)), Some(759.0));
+        // Land below the sea is land, with a height.
+        assert_eq!(ground(Some(-3.0)), Some(-3.0));
+        // Open-Meteo's answer for a cell of sea or lake.
+        assert_eq!(ground(Some(0.0)), None);
+        assert_eq!(ground(Some(-0.0)), None);
+        // And for a cell it has no height of.
+        assert_eq!(ground(Some(f64::NAN)), None);
+        assert_eq!(ground(None), None);
     }
 
     #[test]

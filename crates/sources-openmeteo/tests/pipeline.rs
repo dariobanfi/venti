@@ -662,3 +662,42 @@ fn an_answer_for_a_cell_far_from_the_place_is_refused_by_the_pipeline() {
     assert_eq!(icon_d2.cell_elevation_m, None);
     assert_eq!(hour(icon_d2, at(21, 20)).winds_aloft.len(), 8);
 }
+
+#[test]
+fn a_cell_of_water_has_no_height_of_the_ground() {
+    let [_, _, series_d2, _] = urls();
+    // What an instance answers where the nearest cell is one the model
+    // counts as water: a height of 0, wherever the water lies. Seen on
+    // 2026-11-21 for the cell of ICON-D2 at 47.61 N 9.50 E, over Lake
+    // Constance, which lies at 395 m. Here the recorded cell beside the
+    // Tegernsee is given that height, and nothing else is changed.
+    let water = changed(&series_d2, |answer| {
+        answer["elevation"] = json!(0.0);
+    });
+    let output = run_with(vec![(series_d2.clone(), water)]);
+    let icon_d2 = series(&output, "icon-d2");
+    assert_eq!(icon_d2.cell_elevation_m, None);
+    // Its values are handed on as the model computed them, hour for hour,
+    // and with no ground to lie under, the surface of 950 hPa stays.
+    let recorded = recorded_run(tegernsee());
+    assert_eq!(
+        icon_d2.hours.len(),
+        series(&recorded, "icon-d2").hours.len()
+    );
+    assert_eq!(
+        hour(icon_d2, at(21, 12)).temperature_c,
+        hour(series(&recorded, "icon-d2"), at(21, 12)).temperature_c
+    );
+    assert_eq!(hour(icon_d2, at(21, 20)).winds_aloft.len(), 8);
+    // Nothing was refused for it: the height is not a value out of range,
+    // it is one the instance does not have.
+    assert!(
+        output
+            .report
+            .rejected
+            .iter()
+            .all(|rejection| rejection.field != "cell_elevation_m")
+    );
+    // The other model's cell keeps its ground.
+    assert_eq!(series(&output, "icon-eu").cell_elevation_m, Some(1100.0));
+}

@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Response};
 use chrono::Duration;
 use venti_api_types::v1::{
     ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, RegistrationMode, SourceHealth,
+    ThermalMapHealth, ThermalMapModelHealth,
 };
 use venti_domain::{SourceId, Timestamp};
 use venti_sources::Kind;
@@ -106,6 +107,19 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
             Registration::Closed => RegistrationMode::Closed,
         }),
         client_addresses: api.clients.verdict(now),
+        // The map is made in memory, so its state is read from the map and
+        // not from the store, where the sources' is.
+        thermal_map: api.thermal_map.as_ref().map(|map| {
+            let (computed_at, models) = map.standing();
+            ThermalMapHealth {
+                source: map.source().clone(),
+                computed_at,
+                models: models
+                    .into_iter()
+                    .map(|(model, run)| ThermalMapModelHealth { model, run })
+                    .collect(),
+            }
+        }),
         sources,
     };
 

@@ -27,6 +27,13 @@ pub struct HealthResponse {
     /// too few requests have arrived to tell, and by an older server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub client_addresses: Option<ClientAddressesHealth>,
+    /// Where the server's thermal map stands: which run of each model it
+    /// is made from, and when the map it serves was worked out. For
+    /// whoever runs the server; an app asks for the map itself. Left out
+    /// by a server that makes none, which is one without forecasts, and by
+    /// an older server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thermal_map: Option<ThermalMapHealth>,
     /// One entry per data source the server collects, sorted by identifier:
     /// the sources of observations, of airspace, of flying sites and of
     /// forecasts alike.
@@ -97,6 +104,39 @@ pub enum ClientAddressesHealth {
     /// A state this version of the client does not know.
     #[serde(other)]
     Unknown,
+}
+
+/// Where a server's thermal map stands.
+///
+/// The server makes the map anew from every run of its models, some
+/// minutes after its look at the forecast source sees the run. The runs
+/// here are the ones the map is made from; the runs the source holds are
+/// in the source's entry ([`SourceHealth::models`]). A map that stays
+/// behind them for more than a few looks is one that waits, and the
+/// server's log says for what.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThermalMapHealth {
+    /// The forecast source the map is made from.
+    pub source: SourceId,
+    /// When the server worked out the map it serves. Left out while it
+    /// has none: after a first start, until the finest model's part was
+    /// fetched whole. `GET /v1/thermals` answers `503` until then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computed_at: Option<Timestamp>,
+    /// The models the map is made of, the finest first.
+    pub models: Vec<ThermalMapModelHealth>,
+}
+
+/// One model's part of a server's thermal map.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThermalMapModelHealth {
+    /// The model, for example `icon-d2`.
+    pub model: ModelId,
+    /// The run the model's part of the map was last made from, every cell
+    /// of it. Left out until it was made once: the map then has no day of
+    /// this model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run: Option<Timestamp>,
 }
 
 /// How one data source is doing.
@@ -187,12 +227,32 @@ mod tests {
         assert_eq!(health.forecasts, None);
         assert_eq!(health.client_addresses, None);
         assert_eq!(health.registration, None);
+        assert_eq!(health.thermal_map, None);
         assert_eq!(health.sources[0].sites, None);
         assert!(health.sources[0].models.is_empty());
         let written = serde_json::to_value(&health).unwrap();
         assert!(written.get("forecasts").is_none());
         assert!(written.get("client_addresses").is_none());
+        assert!(written.get("thermal_map").is_none());
         assert!(written["sources"][0].get("models").is_none());
+    }
+
+    #[test]
+    fn a_thermal_map_not_made_yet_names_its_models_and_no_run() {
+        let text = r#"{
+            "source": "open-meteo",
+            "models": [{"model": "icon-d2"}, {"model": "icon-eu"}]
+        }"#;
+
+        let map: ThermalMapHealth = serde_json::from_str(text).unwrap();
+
+        assert_eq!(map.computed_at, None);
+        assert_eq!(map.models.len(), 2);
+        assert!(map.models.iter().all(|model| model.run.is_none()));
+        // What is not known is left out, not written as null.
+        let written = serde_json::to_value(&map).unwrap();
+        assert!(written.get("computed_at").is_none());
+        assert!(written["models"][0].get("run").is_none());
     }
 
     #[test]

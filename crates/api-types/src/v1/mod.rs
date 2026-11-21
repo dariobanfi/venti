@@ -104,7 +104,7 @@ pub use groups::{
 };
 pub use health::{
     ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth,
-    RegistrationMode, SourceHealth,
+    RegistrationMode, SourceHealth, ThermalMapHealth, ThermalMapModelHealth,
 };
 pub use live::{
     LIVE_LISTED_MINUTES, LiveFix, LivePositionsRequest, LivePositionsResponse, LiveTrack,

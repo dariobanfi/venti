@@ -39,7 +39,9 @@ mod validate;
 
 pub use archive::{Archive, ArchiveEntry, ArchiveError};
 pub use fetch::{Fetch, FetchError, Fetched};
-pub use forecast::{ForecastRejection, ForecastRunOutput, ForecastRunReport, run_forecast};
+pub use forecast::{
+    ForecastRejection, ForecastRunOutput, ForecastRunReport, run_forecast, run_forecast_places,
+};
 pub use imagery::{Coverage, Cut, CutCounts, CutTile, ImagerySource, MAX_TILE_ZOOM, TileAddress};
 pub use manifest::{
     Asset, Auth, DEFAULT_MAX_RESPONSE_KB, Kind, Licence, LicenceFamily, Manifest, ManifestError,

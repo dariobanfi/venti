@@ -91,6 +91,8 @@ pub trait ForecastSource: Send + Sync {
 
 Everything else is the framework as it is: the adapter is pure, and `run_forecast` fetches through the same fetcher, archives every payload, keeps to the request budget and validates. A run delivers one `ForecastSeries` per weather model. Each series names its model, the run of the model, the grid cell its values are for and the height of the model's ground there, and holds one record per hour with the values at the ground and the wind at levels above it. A series whose run the source does not tell is not delivered: nobody could say how old it is. Validation removes single values that cannot be weather, levels that do not say where they are, and pressure surfaces that the model puts under its own ground. How often a forecast may be asked for, and for how long an answer is reused, is the server's business: see [architecture.md](architecture.md#forecasts).
 
+A source that can answer for many places in one request says so: `places_per_request` names how many (zero, the default, for one place at a time), `plan_places` takes one model and a list of places, and `parse_places` turns the answer into one series for each place. `run_forecast_places` runs that through the same pipeline and validation, for each place, and refuses a series of another model than was asked for. The server's thermal map is made this way ([architecture.md](architecture.md#the-thermal-map)); Open-Meteo's adapter takes 80 places in a request.
+
 `ImagerySource` is not collected either, and holds no records. A client's map asks the server for one tile, and the adapter says whether the provider has it, where it lies against what may be shown (inside, outside, or on the edge), the address to fetch it at, and, for a tile on the edge, what of it may go out: it cuts the tile. The server fetches, keeps the answer on its disk and answers ([architecture.md](architecture.md#the-aerial-view-through-the-server)). The adapter does no I/O, like every other. Imagery sources are not in the registry: nothing schedules them and no region pack names them.
 
 On-device instrument drivers follow the same idea in the `sensors` crate: one parser per protocol, fed bytes, tested from recorded streams.
@@ -333,6 +335,19 @@ An instance was started from the image as built on 2026-11-03, in remote-data mo
 - **An answer is 19 kB**, for 72 hours of 44 values. The two answers about the runs are 494 bytes each.
 - Open-Meteo's public API answered the same machine "Daily API request limit exceeded. Please try again tomorrow." for every forecast request that day: the address is shared with others. That is the limit working as its terms say, and one more reason not to build on it.
 
+#### Several places in one request, tried 2026-11-21
+
+Open-Meteo's `/v1/forecast` takes comma-separated lists in `latitude=` and `longitude=`: its [documentation](https://open-meteo.com/en/docs), read on 2026-11-21, says "Multiple coordinates can be comma separated" and "For multiple locations, elevation can also be comma separated". The rest below is what an instance did. An instance from the same image (digest `sha256:bf94e8b3…`, built 2026-11-03), in remote-data mode, was asked on 2026-11-21 between 03:18 and 03:45 UTC, while it held ICON-D2's run of 00 UTC. What it showed:
+
+- **The answer is a JSON list**, one object per place in the order asked, each the same as the answer for that place alone: for four places of ICON-D2, the cell, the height of the ground and every hourly value were equal to four single requests made just before. Every object but the first carries `location_id`, its position in the list. A request for one place answers the object alone, as before.
+- **`elevation=nan` takes one value per place.** One `nan` for four places is refused with `400` and `{"reason":"Parameter 'elevation' must have the same number of elements as coordinates","error":true}`; `elevation=nan,nan,nan,nan` is accepted, and a list that mixes `nan` and a height applies each to its place. The adapter sends one `nan` per place.
+- **`cell_selection` is one value for all places.** A list (`nearest,nearest,…`) is refused (`400`, "Cannot initialize GridSelectionMode from invalid String value"). With `elevation=nan` the cells and values were the same for `nearest`, `land` and none given, for these four places; the adapter keeps `nearest`.
+- **Size.** 77.4 kB for four places of ICON-D2 and 78.1 kB of ICON-EU; 485 kB for 25 places, 1.94 MB for 100. The whole grid of the first region, 1,817 points a tenth of a degree apart, was asked in 23 requests of 80 places: each answer 1.10 to 1.55 MB, 19.2 kB a place. The manifest's limit for one answer went from 512 kB, room for 25 places, to 2 MB; the adapter asks for 80.
+- **Time.** In remote-data mode, through this machine's slow connection, a first request for 80 places took 72 seconds, later ones for other places of the region 1.4 to 21 seconds, and a repeated request a quarter of a second. The fetcher gives a request two minutes. An instance in sync mode answers from its disk; *to verify* how long it takes there for 80 places.
+- **How many places one request may name** was not tried beyond 100. *To verify* if the adapter is to ask for more.
+
+The recorded answers for four places, of both models, are in `crates/sources-openmeteo/tests/fixtures/places/`.
+
 #### What a series holds
 
 Two models, each asked for by itself and delivered as a series of its own. Open-Meteo's "seamless" blends are not used.
@@ -383,7 +398,7 @@ Not asked for: the surfaces of 925, 900 and 800 hPa, which ICON-D2 does not comp
 **What a soaring forecast needs, and what is made of it:**
 
 - **Boundary-layer height.** DWD publishes the mixing layer height (`MH`) for ICON-D2 and ICON-EU, since September 2026 on the native grid. Open-Meteo does not take it. Venti works out how high thermals reach itself, from the temperature at the ground and at the levels above it ([design.md](design.md#thermals)).
-- **Thermal strength.** No field of either model is a climb rate a glider sees. Since 2026-11-21 Venti derives one in the apps' core, from that height and the heat the ground gives to the air: the convective velocity scale, less a glider's sink. It is an estimate with known weaknesses, written down where it is described ([design.md](design.md#thermals)), and the server hands on the model's figures only.
+- **Thermal strength.** No field of either model is a climb rate a glider sees. Since 2026-11-21 Venti derives one in the flight engine, from that height and the heat the ground gives to the air: the convective velocity scale, less a glider's sink. It is an estimate with known weaknesses, written down where it is described ([design.md](design.md#thermals)). The forecast for a place hands on the model's figures only, and the apps make the estimate from them; the server makes the same estimate for the cells of its thermal map ([architecture.md](architecture.md#the-thermal-map)).
 - **Wind on model levels above 180 m.** Between 180 m above the ground and the pressure surfaces, which are 1.5 km apart, there is nothing. In the mountains that is where pilots fly.
 - **A cloud base for ordinary cumulus.** ICON-D2's value is for the shallow convection it estimates and is often absent on a day with cumulus the model resolves or misses.
 

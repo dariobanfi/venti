@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use venti_domain::{
-    Airspace, BoundingBox, ForecastSeries, GeoPoint, Observation, Site, Station, Timestamp,
+    Airspace, BoundingBox, ForecastSeries, GeoPoint, ModelId, Observation, Site, Station, Timestamp,
 };
 
 use crate::Manifest;
@@ -208,4 +208,32 @@ pub trait ForecastSource: Send + Sync {
         point: GeoPoint,
         ctx: &PlanCtx,
     ) -> Result<ParsedForecast, SourceError>;
+
+    /// How many places one forecast of [`plan_places`](Self::plan_places)
+    /// may be asked for. Zero, the default, for a source that answers for
+    /// one place at a time only.
+    fn places_per_request(&self) -> usize {
+        0
+    }
+
+    /// The requests that start the forecast of one model for several
+    /// places at once, at most [`places_per_request`](Self::places_per_request)
+    /// of them. None, the default, for a source that cannot, for a model it
+    /// does not know, and for too many places.
+    fn plan_places(&self, _model: &ModelId, _points: &[GeoPoint], _ctx: &PlanCtx) -> Vec<Request> {
+        Vec::new()
+    }
+
+    /// Converts the response to one request of a forecast for several
+    /// places into one series for each place it has, and further requests.
+    /// `points` are the places asked for, in the order they were asked.
+    fn parse_places(
+        &self,
+        request: &Request,
+        _body: &[u8],
+        _points: &[GeoPoint],
+        _ctx: &PlanCtx,
+    ) -> Result<ParsedForecast, SourceError> {
+        Err(SourceError::UnknownRequest(request.tag.clone()))
+    }
 }

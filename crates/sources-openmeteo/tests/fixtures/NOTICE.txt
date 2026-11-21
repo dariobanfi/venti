@@ -53,3 +53,39 @@ answer make one from these files and say what they change.
 
 A value in these files is what a model computed for a grid cell. It is not
 a measurement and no statement that a place can be flown.
+
+The folder places/ holds answers to the adapter's requests for several
+places at once, recorded the same way on 2026-11-21 between 03:20 and
+03:21 UTC, from the same container image (the same digest), reading
+Open-Meteo's open data on AWS through a forwarder:
+
+    places/meta_icon_d2.json   GET /data/dwd_icon_d2_native/static/meta.json
+    places/meta_icon_eu.json   GET /data/dwd_icon_eu_native/static/meta.json
+    places/icon_d2.json        GET /v1/forecast?latitude=47.6000,47.6000,
+                               47.7000,47.7000&longitude=11.8000,11.9000,
+                               11.8000,11.9000&models=dwd_icon_d2_native
+                               &hourly=...&elevation=nan,nan,nan,nan
+                               &cell_selection=nearest
+    places/icon_eu.json        the same with models=dwd_icon_eu_native
+
+with the query the adapter builds (src/lib.rs, series_url) for the four
+points of a grid of a tenth of a degree around the Tegernsee and the
+Spitzingsee. These are of a newer run of ICON-D2 than the files above:
+the instance then held ICON-D2's run of 2026-11-21 00:00 UTC, ready at
+01:10 UTC, and ICON-EU's of 2026-11-20 21:00 UTC, as above. The answers
+about the runs were the same before and after the forecasts were asked
+for. The two sets are not to be mixed: the answers about the runs have the
+same address and differ.
+
+What was seen of the instance on that day, and is written down in
+docs/data-sources.md: it answers several places with a JSON list, one
+answer per place in the order asked, each the same as the answer for that
+place alone (compared value for value for these four, ICON-D2), and every
+answer but the first carries its position as location_id. One
+elevation=nan for four places is refused (400, "Parameter 'elevation' must
+have the same number of elements as coordinates"); cell_selection takes
+one value for all places and refuses a list.
+
+These files are not to be recorded again with the others: the tests pin
+their run, cells and heights, and the server's development mode makes its
+thermal map from them.

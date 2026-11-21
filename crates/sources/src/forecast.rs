@@ -8,9 +8,10 @@ use venti_domain::{
     ForecastHour, ForecastSeries, GeoPoint, ModelId, SourceId, Timestamp, WindAloft,
 };
 
-use crate::run::fetch_all;
+use crate::run::{Fetching, fetch_all};
 use crate::{
-    Archive, Failure, Fetch, Fetched, ForecastSource, PlanCtx, Request, RunOptions, Skipped,
+    Archive, Failure, Fetch, Fetched, ForecastSource, Manifest, PlanCtx, Request, RunOptions,
+    Skipped,
 };
 
 /// Plausible limits for each value at the ground. A value outside its
@@ -124,7 +125,9 @@ impl ForecastRunReport {
 /// The canonical records a forecast run produced, and its report.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ForecastRunOutput {
-    /// One series per model, sorted by model.
+    /// One series per model, sorted by model. For several places
+    /// ([`run_forecast_places`]): one per place, in the order they were
+    /// asked for.
     pub series: Vec<ForecastSeries>,
     /// What happened.
     pub report: ForecastRunReport,
@@ -185,26 +188,104 @@ pub async fn run_forecast(
     )
     .await;
 
+    let (series, rejected) = validated(found, &manifest.id, &[point], ctx.now, None);
+    let report = report(manifest, fetched, skipped, rejected, &series);
+    ForecastRunOutput { series, report }
+}
+
+/// Fetches the forecast of one model of a source for several places at
+/// once: fetch, archive, parse, validate, as [`run_forecast`] does for one
+/// place.
+///
+/// The output holds one series for each place the source answered for, in
+/// the order of `points`; a place without one is missing from it. A source
+/// that cannot answer for several places at once
+/// ([`ForecastSource::places_per_request`]), and more places than it takes
+/// in one request, make no request and deliver nothing. Validation is that
+/// of [`run_forecast`], for each place, and a series of another model than
+/// was asked for is removed whole and reported.
+pub async fn run_forecast_places(
+    source: &dyn ForecastSource,
+    model: &ModelId,
+    points: &[GeoPoint],
+    fetch: &impl Fetch,
+    archive: &impl Archive,
+    ctx: &PlanCtx,
+    options: &RunOptions,
+) -> ForecastRunOutput {
+    let manifest = source.manifest();
+    let mut skipped = Vec::new();
+    let mut found: Vec<ForecastSeries> = Vec::new();
+
+    let first = if points.is_empty() || points.len() > source.places_per_request() {
+        Vec::new()
+    } else {
+        source.plan_places(model, points, ctx)
+    };
+    let take = |request: &Request, response: &Fetched| {
+        let parsed = source.parse_places(request, &response.body, points, ctx)?;
+        found.extend(parsed.series);
+        skipped.extend(parsed.skipped);
+        Ok(parsed.follow_up)
+    };
+    let fetched = fetch_all(manifest, first, fetch, archive, ctx, options, take).await;
+
+    let (series, rejected) = validated(found, &manifest.id, points, ctx.now, Some(model));
+    let report = report(manifest, fetched, skipped, rejected, &series);
+    ForecastRunOutput { series, report }
+}
+
+/// The series that pass validation, by the place they are for in the order
+/// of `asked` and then by model, and what was removed. `model` is the one
+/// model asked for, if only one was.
+fn validated(
+    found: Vec<ForecastSeries>,
+    source: &SourceId,
+    asked: &[GeoPoint],
+    now: Timestamp,
+    model: Option<&ModelId>,
+) -> (Vec<ForecastSeries>, Vec<ForecastRejection>) {
     let mut rejected = Vec::new();
-    let mut kept: BTreeMap<ModelId, ForecastSeries> = BTreeMap::new();
+    let mut kept: BTreeMap<(usize, ModelId), ForecastSeries> = BTreeMap::new();
     for mut series in found {
-        if let Some(reason) = unusable(&series, &manifest.id, point, ctx.now) {
+        let place = asked.iter().position(|point| *point == series.point);
+        let Some(place) = place else {
+            let reason = "the series is for another place than was asked for".to_owned();
+            rejected.push(whole(&series, "series", reason));
+            continue;
+        };
+        if let Some(reason) = unusable(&series, source, asked[place], now) {
             rejected.push(whole(&series, "series", reason));
             continue;
         }
-        if kept.contains_key(&series.model) {
+        if model.is_some_and(|model| *model != series.model) {
+            let reason = "a series of another model than was asked for".to_owned();
+            rejected.push(whole(&series, "series", reason));
+            continue;
+        }
+        let key = (place, series.model.clone());
+        if kept.contains_key(&key) {
             let reason = "a second series of a model already delivered".to_owned();
             rejected.push(whole(&series, "series", reason));
             continue;
         }
-        rejected.extend(check_series(&mut series, ctx.now));
+        rejected.extend(check_series(&mut series, now));
         if !series.hours.is_empty() {
-            kept.insert(series.model.clone(), series);
+            kept.insert(key, series);
         }
     }
+    (kept.into_values().collect(), rejected)
+}
 
-    let series: Vec<ForecastSeries> = kept.into_values().collect();
-    let report = ForecastRunReport {
+/// The report of a forecast run.
+fn report(
+    manifest: &Manifest,
+    fetched: Fetching,
+    skipped: Vec<Skipped>,
+    rejected: Vec<ForecastRejection>,
+    series: &[ForecastSeries],
+) -> ForecastRunReport {
+    ForecastRunReport {
         source: manifest.id.clone(),
         requests: fetched.requests,
         failures: fetched.failures,
@@ -214,8 +295,7 @@ pub async fn run_forecast(
         series: series.len(),
         hours: series.iter().map(|series| series.hours.len()).sum(),
         newest_run: series.iter().map(|series| series.run).max(),
-    };
-    ForecastRunOutput { series, report }
+    }
 }
 
 /// A rejection of something larger than one value.
@@ -579,6 +659,37 @@ mod tests {
         unknown_ground.hours[0].winds_aloft = vec![level(950.0, 540.0, 2.0)];
         check_series(&mut unknown_ground, now());
         assert_eq!(unknown_ground.hours[0].winds_aloft.len(), 1);
+    }
+
+    #[test]
+    fn series_for_several_places_are_kept_by_place_and_of_the_model_asked_for() {
+        let source = SourceId::new("example").unwrap();
+        let first = series().point;
+        let second = GeoPoint::new(47.8, 11.8).unwrap();
+        let there = ForecastSeries {
+            point: second,
+            cell: GeoPoint::new(47.79, 11.81).unwrap(),
+            ..series()
+        };
+        let other_model = ForecastSeries {
+            model: ModelId::new("icon-eu").unwrap(),
+            ..series()
+        };
+        let found = vec![there.clone(), other_model, series(), series()];
+        let icon_d2 = ModelId::new("icon-d2").unwrap();
+
+        let (kept, rejected) = validated(found, &source, &[first, second], now(), Some(&icon_d2));
+
+        // In the order of the places, whatever the order of the answers.
+        assert_eq!(kept, [series(), there]);
+        let reasons: Vec<&str> = rejected.iter().map(|r| r.reason.as_str()).collect();
+        assert_eq!(
+            reasons,
+            [
+                "a series of another model than was asked for",
+                "a second series of a model already delivered"
+            ]
+        );
     }
 
     #[test]

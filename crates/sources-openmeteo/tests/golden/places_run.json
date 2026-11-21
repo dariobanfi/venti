@@ -1,0 +1,312 @@
+{
+  "icon-d2": {
+    "report": {
+      "budget_exhausted": false,
+      "failures": [],
+      "hours": 192,
+      "newest_run": "2026-11-21T00:00:00Z",
+      "rejected": [],
+      "requests": 2,
+      "series": 4,
+      "skipped": [],
+      "source": "open-meteo"
+    },
+    "series": [
+      {
+        "available_at": "2026-11-21T01:10:10Z",
+        "cell": {
+          "lat": 47.606743,
+          "lon": 11.796278
+        },
+        "cell_elevation_m": 1118.0,
+        "first_hours": {
+          "2026-11-21T01:00:00+00:00": {
+            "heat_to_air_w_m2": -83.3,
+            "levels": 7,
+            "temperature_c": 4.0,
+            "wind_speed_ms": 6.81
+          },
+          "2026-11-21T02:00:00+00:00": {
+            "heat_to_air_w_m2": -83.3,
+            "levels": 7,
+            "temperature_c": 2.6,
+            "wind_speed_ms": 8.21
+          },
+          "2026-11-21T03:00:00+00:00": {
+            "heat_to_air_w_m2": -55.6,
+            "levels": 7,
+            "temperature_c": 2.1,
+            "wind_speed_ms": 6.89
+          }
+        },
+        "hours": 48,
+        "model": "icon-d2",
+        "point": {
+          "lat": 47.6,
+          "lon": 11.8
+        },
+        "run": "2026-11-21T00:00:00Z"
+      },
+      {
+        "available_at": "2026-11-21T01:10:10Z",
+        "cell": {
+          "lat": 47.58968,
+          "lon": 11.896613
+        },
+        "cell_elevation_m": 1046.0,
+        "first_hours": {
+          "2026-11-21T01:00:00+00:00": {
+            "heat_to_air_w_m2": -152.8,
+            "levels": 7,
+            "temperature_c": 3.9,
+            "wind_speed_ms": 3.92
+          },
+          "2026-11-21T02:00:00+00:00": {
+            "heat_to_air_w_m2": -173.6,
+            "levels": 7,
+            "temperature_c": 2.9,
+            "wind_speed_ms": 6.11
+          },
+          "2026-11-21T03:00:00+00:00": {
+            "heat_to_air_w_m2": -131.9,
+            "levels": 7,
+            "temperature_c": 2.6,
+            "wind_speed_ms": 5.51
+          }
+        },
+        "hours": 48,
+        "model": "icon-d2",
+        "point": {
+          "lat": 47.6,
+          "lon": 11.9
+        },
+        "run": "2026-11-21T00:00:00Z"
+      },
+      {
+        "available_at": "2026-11-21T01:10:10Z",
+        "cell": {
+          "lat": 47.70034,
+          "lon": 11.799969
+        },
+        "cell_elevation_m": 1069.0,
+        "first_hours": {
+          "2026-11-21T01:00:00+00:00": {
+            "heat_to_air_w_m2": -83.3,
+            "levels": 7,
+            "temperature_c": 4.2,
+            "wind_speed_ms": 9.07
+          },
+          "2026-11-21T02:00:00+00:00": {
+            "heat_to_air_w_m2": -48.6,
+            "levels": 7,
+            "temperature_c": 3.0,
+            "wind_speed_ms": 8.47
+          },
+          "2026-11-21T03:00:00+00:00": {
+            "heat_to_air_w_m2": -20.8,
+            "levels": 7,
+            "temperature_c": 2.7,
+            "wind_speed_ms": 6.92
+          }
+        },
+        "hours": 48,
+        "model": "icon-d2",
+        "point": {
+          "lat": 47.7,
+          "lon": 11.8
+        },
+        "run": "2026-11-21T00:00:00Z"
+      },
+      {
+        "available_at": "2026-11-21T01:10:10Z",
+        "cell": {
+          "lat": 47.698456,
+          "lon": 11.907724
+        },
+        "cell_elevation_m": 947.0,
+        "first_hours": {
+          "2026-11-21T01:00:00+00:00": {
+            "heat_to_air_w_m2": -118.1,
+            "levels": 7,
+            "temperature_c": 5.6,
+            "wind_speed_ms": 8.69
+          },
+          "2026-11-21T02:00:00+00:00": {
+            "heat_to_air_w_m2": -111.1,
+            "levels": 7,
+            "temperature_c": 4.2,
+            "wind_speed_ms": 9.36
+          },
+          "2026-11-21T03:00:00+00:00": {
+            "heat_to_air_w_m2": -90.3,
+            "levels": 7,
+            "temperature_c": 3.5,
+            "wind_speed_ms": 7.51
+          }
+        },
+        "hours": 48,
+        "model": "icon-d2",
+        "point": {
+          "lat": 47.7,
+          "lon": 11.9
+        },
+        "run": "2026-11-21T00:00:00Z"
+      }
+    ]
+  },
+  "icon-eu": {
+    "report": {
+      "budget_exhausted": false,
+      "failures": [],
+      "hours": 112,
+      "newest_run": "2026-11-20T21:00:00Z",
+      "rejected": [],
+      "requests": 2,
+      "series": 4,
+      "skipped": [],
+      "source": "open-meteo"
+    },
+    "series": [
+      {
+        "available_at": "2026-11-20T23:53:10Z",
+        "cell": {
+          "lat": 47.580082,
+          "lon": 11.786162
+        },
+        "cell_elevation_m": 1309.0,
+        "first_hours": {
+          "2026-11-21T00:00:00+00:00": {
+            "heat_to_air_w_m2": -90.3,
+            "levels": 7,
+            "temperature_c": 2.8,
+            "wind_speed_ms": 4.1
+          },
+          "2026-11-21T01:00:00+00:00": {
+            "heat_to_air_w_m2": -104.2,
+            "levels": 7,
+            "temperature_c": 2.5,
+            "wind_speed_ms": 5.5
+          },
+          "2026-11-21T02:00:00+00:00": {
+            "heat_to_air_w_m2": -90.3,
+            "levels": 7,
+            "temperature_c": 1.8,
+            "wind_speed_ms": 6.77
+          }
+        },
+        "hours": 28,
+        "model": "icon-eu",
+        "point": {
+          "lat": 47.6,
+          "lon": 11.8
+        },
+        "run": "2026-11-20T21:00:00Z"
+      },
+      {
+        "available_at": "2026-11-20T23:53:10Z",
+        "cell": {
+          "lat": 47.59844,
+          "lon": 11.863281
+        },
+        "cell_elevation_m": 1194.0,
+        "first_hours": {
+          "2026-11-21T00:00:00+00:00": {
+            "heat_to_air_w_m2": -111.1,
+            "levels": 7,
+            "temperature_c": 3.6,
+            "wind_speed_ms": 4.24
+          },
+          "2026-11-21T01:00:00+00:00": {
+            "heat_to_air_w_m2": -118.1,
+            "levels": 7,
+            "temperature_c": 3.5,
+            "wind_speed_ms": 5.71
+          },
+          "2026-11-21T02:00:00+00:00": {
+            "heat_to_air_w_m2": -76.4,
+            "levels": 7,
+            "temperature_c": 2.7,
+            "wind_speed_ms": 7.18
+          }
+        },
+        "hours": 28,
+        "model": "icon-eu",
+        "point": {
+          "lat": 47.6,
+          "lon": 11.9
+        },
+        "run": "2026-11-20T21:00:00Z"
+      },
+      {
+        "available_at": "2026-11-20T23:53:10Z",
+        "cell": {
+          "lat": 47.68324,
+          "lon": 11.818885
+        },
+        "cell_elevation_m": 1100.0,
+        "first_hours": {
+          "2026-11-21T00:00:00+00:00": {
+            "heat_to_air_w_m2": -90.3,
+            "levels": 7,
+            "temperature_c": 4.6,
+            "wind_speed_ms": 5.25
+          },
+          "2026-11-21T01:00:00+00:00": {
+            "heat_to_air_w_m2": -76.4,
+            "levels": 7,
+            "temperature_c": 4.3,
+            "wind_speed_ms": 6.58
+          },
+          "2026-11-21T02:00:00+00:00": {
+            "heat_to_air_w_m2": -55.6,
+            "levels": 7,
+            "temperature_c": 3.6,
+            "wind_speed_ms": 7.6
+          }
+        },
+        "hours": 28,
+        "model": "icon-eu",
+        "point": {
+          "lat": 47.7,
+          "lon": 11.8
+        },
+        "run": "2026-11-20T21:00:00Z"
+      },
+      {
+        "available_at": "2026-11-20T23:53:10Z",
+        "cell": {
+          "lat": 47.671265,
+          "lon": 11.951435
+        },
+        "cell_elevation_m": 1192.0,
+        "first_hours": {
+          "2026-11-21T00:00:00+00:00": {
+            "heat_to_air_w_m2": -104.2,
+            "levels": 7,
+            "temperature_c": 4.0,
+            "wind_speed_ms": 5.5
+          },
+          "2026-11-21T01:00:00+00:00": {
+            "heat_to_air_w_m2": -90.3,
+            "levels": 7,
+            "temperature_c": 3.8,
+            "wind_speed_ms": 7.28
+          },
+          "2026-11-21T02:00:00+00:00": {
+            "heat_to_air_w_m2": -62.5,
+            "levels": 7,
+            "temperature_c": 3.1,
+            "wind_speed_ms": 8.83
+          }
+        },
+        "hours": 28,
+        "model": "icon-eu",
+        "point": {
+          "lat": 47.7,
+          "lon": 11.9
+        },
+        "run": "2026-11-20T21:00:00Z"
+      }
+    ]
+  }
+}

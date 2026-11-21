@@ -92,6 +92,12 @@ pub const PRESSURES_HPA: [u32; 5] = [950, 850, 700, 600, 500];
 /// The days a forecast is asked for: today and the two after, in UTC.
 const FORECAST_DAYS: u32 = 3;
 
+/// How many places one request asks for at most. The answer of one model
+/// for one place is about 19 kB (19.2 kB on average for 80 places of the
+/// first region on 2026-11-21), so 80 places are about 1.5 MB, under the
+/// manifest's limit of 2 MB for one answer with room for longer numbers.
+pub const PLACES_PER_REQUEST: usize = 80;
+
 /// A weather model the adapter asks for.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Model {
@@ -218,19 +224,30 @@ impl OpenMeteo {
         format!("{}/data/{}/static/meta.json", self.base, model.name)
     }
 
-    /// The address that asks for what a model forecasts for a place.
-    fn series_url(&self, model: &Model, point: GeoPoint) -> String {
+    /// The address that asks for what a model forecasts for some places:
+    /// the forecast of one place, or of several in one request. Open-Meteo
+    /// takes a list for each coordinate and for the height, one entry per
+    /// place, and one choice of cell for them all.
+    fn series_url(&self, model: &Model, points: &[GeoPoint]) -> String {
         let variables: Vec<String> = variables(model)
             .into_iter()
             .map(|variable| variable.name)
             .collect();
+        let list = |of: fn(&GeoPoint) -> f64| {
+            let values: Vec<String> = points
+                .iter()
+                .map(|point| format!("{:.4}", of(point)))
+                .collect();
+            values.join(",")
+        };
+        let heights = vec!["nan"; points.len()].join(",");
         format!(
-            "{}/v1/forecast?latitude={:.4}&longitude={:.4}&models={}&hourly={}\
+            "{}/v1/forecast?latitude={}&longitude={}&models={}&hourly={}\
              &forecast_days={FORECAST_DAYS}&wind_speed_unit=ms&timeformat=unixtime\
-             &elevation=nan&cell_selection=nearest",
+             &elevation={heights}&cell_selection=nearest",
             self.base,
-            point.lat(),
-            point.lon(),
+            list(GeoPoint::lat),
+            list(GeoPoint::lon),
             model.name,
             variables.join(",")
         )
@@ -333,6 +350,9 @@ struct Answer {
     longitude: Option<f64>,
     /// The height of the model's ground in that cell.
     elevation: Option<f64>,
+    /// In an answer for several places, the position of the place in the
+    /// list asked for. Not written for the first.
+    location_id: Option<usize>,
     #[serde(default)]
     hourly_units: BTreeMap<String, String>,
     #[serde(default)]
@@ -423,7 +443,7 @@ impl ForecastSource for OpenMeteo {
     ) -> Result<ParsedForecast, SourceError> {
         if let Some(model) = request.tag.strip_prefix("run:").and_then(model) {
             let run = read_run(model, body)?;
-            let follow_up = Request::new(run.tag(), self.series_url(model, point));
+            let follow_up = Request::new(run.tag(), self.series_url(model, &[point]));
             return Ok(ParsedForecast {
                 follow_up: vec![follow_up],
                 ..ParsedForecast::default()
@@ -432,13 +452,125 @@ impl ForecastSource for OpenMeteo {
         let Some(run) = Run::from_tag(&request.tag) else {
             return Err(SourceError::UnknownRequest(request.tag.clone()));
         };
-        let (series, skipped) = self.read_series(&run, body, point)?;
+        let answer: Answer = serde_json::from_slice(body).map_err(|e| {
+            SourceError::Malformed(format!(
+                "{}: the answer is not a forecast: {e}",
+                run.model.name
+            ))
+        })?;
+        let (series, skipped) = self.read_series(&run, answer, point)?;
         Ok(ParsedForecast {
             series: vec![series],
             follow_up: Vec::new(),
             skipped,
         })
     }
+
+    fn places_per_request(&self) -> usize {
+        PLACES_PER_REQUEST
+    }
+
+    /// One request for the run the instance holds of the model, then one
+    /// for the forecast of all the places.
+    fn plan_places(&self, model: &ModelId, points: &[GeoPoint], _ctx: &PlanCtx) -> Vec<Request> {
+        match self::model(model.as_str()) {
+            Some(model) if !points.is_empty() && points.len() <= PLACES_PER_REQUEST => {
+                vec![Request::new(
+                    format!("run:{}", model.id),
+                    self.run_url(model),
+                )]
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn parse_places(
+        &self,
+        request: &Request,
+        body: &[u8],
+        points: &[GeoPoint],
+        _ctx: &PlanCtx,
+    ) -> Result<ParsedForecast, SourceError> {
+        if let Some(model) = request.tag.strip_prefix("run:").and_then(model) {
+            let run = read_run(model, body)?;
+            let follow_up = Request::new(run.tag(), self.series_url(model, points));
+            return Ok(ParsedForecast {
+                follow_up: vec![follow_up],
+                ..ParsedForecast::default()
+            });
+        }
+        let Some(run) = Run::from_tag(&request.tag) else {
+            return Err(SourceError::UnknownRequest(request.tag.clone()));
+        };
+        let mut parsed = ParsedForecast::default();
+        for (answer, point) in read_places(run.model, body, points)?
+            .into_iter()
+            .zip(points)
+        {
+            match self.read_series(&run, answer, *point) {
+                Ok((series, skipped)) => {
+                    parsed.series.push(series);
+                    parsed.skipped.extend(skipped);
+                }
+                // One place the instance could not answer for costs that
+                // place, not the others.
+                Err(error) => parsed.skipped.push(Skipped::new(
+                    &format!("{:.4} N {:.4} E", point.lat(), point.lon()),
+                    error.to_string(),
+                )),
+            }
+        }
+        Ok(parsed)
+    }
+}
+
+/// The answers for several places, one for each in the order they were
+/// asked for.
+///
+/// An instance answers a request for several places with a list of
+/// answers, each like the answer for one place, in the order of the
+/// places; every answer but the first names its position in the list
+/// (`location_id`). It answers a request for one place with that answer
+/// alone, and a request it refuses with one refusal for all.
+fn read_places(
+    model: &Model,
+    body: &[u8],
+    points: &[GeoPoint],
+) -> Result<Vec<Answer>, SourceError> {
+    let malformed = |what: String| SourceError::Malformed(format!("{}: {what}", model.name));
+    let answers = match serde_json::from_slice::<serde_json::Value>(body)
+        .map_err(|e| malformed(format!("the answer is not a forecast: {e}")))?
+    {
+        serde_json::Value::Array(answers) => answers,
+        one => vec![one],
+    };
+    let answers: Vec<Answer> = answers
+        .into_iter()
+        .map(Answer::deserialize)
+        .collect::<Result<_, _>>()
+        .map_err(|e| malformed(format!("the answer is not a forecast: {e}")))?;
+    if let [refusal] = answers.as_slice()
+        && refusal.error
+    {
+        let reason = refusal.reason.clone().unwrap_or_default();
+        return Err(malformed(format!("the instance refused: {reason}")));
+    }
+    if answers.len() != points.len() {
+        return Err(malformed(format!(
+            "{} answers for {} places",
+            answers.len(),
+            points.len()
+        )));
+    }
+    for (position, answer) in answers.iter().enumerate() {
+        if answer.location_id.is_some_and(|id| id != position) {
+            return Err(malformed(format!(
+                "the answer in position {position} says it is for place {}",
+                answer.location_id.unwrap_or_default()
+            )));
+        }
+    }
+    Ok(answers)
 }
 
 /// Reads which run of a model the instance holds.
@@ -475,13 +607,11 @@ impl OpenMeteo {
     fn read_series(
         &self,
         run: &Run,
-        body: &[u8],
+        answer: Answer,
         point: GeoPoint,
     ) -> Result<(ForecastSeries, Vec<Skipped>), SourceError> {
         let name = run.model.name;
         let malformed = |what: String| SourceError::Malformed(format!("{name}: {what}"));
-        let answer: Answer = serde_json::from_slice(body)
-            .map_err(|e| malformed(format!("the answer is not a forecast: {e}")))?;
         if answer.error {
             let reason = answer.reason.unwrap_or_default();
             return Err(malformed(format!("the instance refused: {reason}")));
@@ -687,7 +817,7 @@ mod tests {
     #[test]
     fn the_request_asks_for_the_models_own_values_in_units_that_need_no_conversion() {
         let point = GeoPoint::new(47.7, 11.8).unwrap();
-        let url = source().series_url(&MODELS[0], point);
+        let url = source().series_url(&MODELS[0], &[point]);
         assert!(
             url.starts_with("http://open-meteo:8080/v1/forecast?latitude=47.7000&longitude=11.8000&models=dwd_icon_d2_native&hourly=wind_speed_10m,"),
             "{url}"
@@ -706,7 +836,7 @@ mod tests {
             assert!(!url.contains(filled), "{filled}");
         }
         // ICON-EU has no updraft.
-        let url = source().series_url(&MODELS[1], point);
+        let url = source().series_url(&MODELS[1], &[point]);
         assert!(url.contains("models=dwd_icon_eu_native"));
         assert!(!url.contains("updraft"));
         assert_eq!(variables(&MODELS[0]).len(), 45);

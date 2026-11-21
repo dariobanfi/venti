@@ -185,6 +185,55 @@ describe('the ranking of a season', () => {
 		expect(east).toBeGreaterThan(11.7967);
 	});
 
+	it('offers the months of its year that have a ranking, as the core names them', async () => {
+		const { get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		const newest = (await community.ranking(undefined, undefined, NOW))!;
+
+		expect(newest.months.map((month) => [month.name, month.month])).toEqual([
+			['September', '2026-09'],
+			['August', '2026-08'],
+			['July', '2026-07'],
+			['June', '2026-06'],
+			['May', '2026-05'],
+			['April', '2026-04']
+		]);
+		expect(newest.month).toBeUndefined();
+		expect(newest.words).toBe('2026: 10 flights');
+		// All years have no months to choose from.
+		const all = (await community.ranking('All years', undefined, NOW))!;
+		expect(all.months).toEqual([]);
+		expect(all.words).toBe('');
+	});
+
+	it('of a month is asked for by the month, and says its year and its words', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		const july = (await community.ranking(undefined, undefined, NOW, '2025-07'))!;
+
+		expect(asked).toEqual(['/v1/ranking?month=2025-07']);
+		expect(july.season.name).toBe('2025');
+		expect(july.month).toMatchObject({ name: 'July', title: 'July 2025', month: '2025-07' });
+		expect(july.months.map((month) => month.month)).toEqual(['2025-07']);
+		expect(july.words).toBe('July 2025: 1 flight');
+
+		// Near a place, of the flights from there.
+		await community.ranking(undefined, { lat: 47.6642, lon: 11.7967 }, NOW, '2026-05');
+		const query = new URL(asked[1], 'http://venti').searchParams;
+		expect(query.get('month')).toBe('2026-05');
+		expect(query.get('bbox')).not.toBeNull();
+	});
+
+	it('of something that is no month is refused in the core’s words, and nothing is asked', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		await expect(community.ranking(undefined, undefined, NOW, 'August')).rejects.toThrow();
+		expect(asked).toEqual([]);
+	});
+
 	it('is not asked for on a site without a server', async () => {
 		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
 		const community = new CommunitySource(async () => false, get);
@@ -293,6 +342,102 @@ describe('another pilot’s flight', () => {
 			name: 'Server',
 			message: 'This is not the address of a flight.'
 		});
+		expect(asked).toEqual([]);
+	});
+});
+
+describe('pilots, found by name', () => {
+	it('are asked for by the text and read as the core’s lines', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('pilots.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		const found = (await community.pilots(' le '))!;
+
+		expect(asked).toEqual(['/v1/pilots?q=le']);
+		expect(found.words).toBe('1 pilot');
+		expect(found.pilots).toEqual([
+			{
+				handle: 'lena',
+				name: 'Lena Probe',
+				flights: 3,
+				words: 'Lena Probe (@lena), 3 public flights'
+			}
+		]);
+	});
+
+	it('say in the core’s line that nobody was found', async () => {
+		const { get } = server(() => ({ status: 200, body: bytes('{"pilots":[]}') }));
+		const community = new CommunitySource(async () => true, get);
+
+		const found = (await community.pilots('xyz'))!;
+
+		expect(found.pilots).toEqual([]);
+		expect(found.words).toBe('No pilot by this name has shared a flight with everyone.');
+	});
+
+	it('are not asked for by fewer than two letters: the core says why', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('pilots.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		await expect(community.pilots('l')).rejects.toThrow(/at least two letters/);
+		expect(asked).toEqual([]);
+	});
+
+	it('are not asked for on a site without a server', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('pilots.json') }));
+		const community = new CommunitySource(async () => false, get);
+
+		expect(await community.pilots('le')).toBeUndefined();
+		expect(asked).toEqual([]);
+	});
+});
+
+describe('what a pilot’s public flights add up to', () => {
+	it('is asked for by the handle and read as the core’s rows', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('pilot_statistics.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		const statistics = (await community.statistics('lena'))!;
+
+		expect(asked).toEqual(['/v1/pilots/lena/statistics']);
+		expect(statistics.name).toBe('Lena Probe');
+		expect(statistics.overall.name).toBe('All years');
+		expect(statistics.overall.rows.map((row) => [row.label, row.value])).toEqual([
+			['Flights', '3'],
+			['Distance scored', '28.2 km'],
+			['Points, best 3 flights', '28.19'],
+			['Airtime', '1 h 04 min'],
+			['Longest flight', '12.0 km'],
+			['Highest point', '2117 m']
+		]);
+		// A row about one flight names it, for a link; a sum names none.
+		const raw = json('pilot_statistics.json');
+		expect(statistics.overall.rows[4].flightId).toBe(raw.overall.longest.id);
+		expect(statistics.overall.rows[0].flightId).toBe('');
+		expect(statistics.overall.sites.map((site) => site.words)).toEqual([
+			'Musterkogel West, 2 flights'
+		]);
+		expect(statistics.overall.months).toHaveLength(12);
+		expect(statistics.overall.months[4]).toMatchObject({ name: 'May', flights: 1, share: 1 });
+		expect(statistics.seasons.map((season) => [season.name, season.year])).toEqual([
+			['2026', 2026]
+		]);
+		expect(statistics.note).toMatch(/shared with everyone/);
+		expect(statistics.terms.text).toMatch(/their pilots/);
+	});
+
+	it('of a pilot the server does not know is refused in the core’s words', async () => {
+		const { get } = server(() => refusal('not_found'));
+		const community = new CommunitySource(async () => true, get);
+
+		await expect(community.statistics('nobody')).rejects.toThrow();
+	});
+
+	it('is not asked for on a site without a server', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('pilot_statistics.json') }));
+		const community = new CommunitySource(async () => false, get);
+
+		expect(await community.statistics('lena')).toBeUndefined();
 		expect(asked).toEqual([]);
 	});
 });

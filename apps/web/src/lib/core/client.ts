@@ -375,10 +375,25 @@ export class CoreClient {
 	/**
 	 * The server's pilots ranked by their best public flights, in the
 	 * season of that name or in the newest, and with a place only of the
-	 * flights from there. Nothing if this site has no server.
+	 * flights from there; with a month, as the ranking's periods write
+	 * one, of that month. Nothing if this site has no server.
 	 */
-	ranking(season?: string, near?: Coordinate) {
-		return this.#call('ranking', { season, near });
+	ranking(season?: string, near?: Coordinate, month?: string) {
+		return this.#call('ranking', { season, near, month });
+	}
+
+	/**
+	 * The pilots whose handle or name holds a text, as the core's lines.
+	 * Throws the core's words for fewer than two letters. Nothing if this
+	 * site has no server.
+	 */
+	pilotsFound(text: string) {
+		return this.#call('pilotsFound', text);
+	}
+
+	/** What a pilot's public flights add up to. Nothing if this site has no server. */
+	pilotStatistics(handle: string) {
+		return this.#call('pilotStatistics', handle);
 	}
 
 	/**

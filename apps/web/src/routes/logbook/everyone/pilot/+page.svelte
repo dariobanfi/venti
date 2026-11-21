@@ -2,17 +2,18 @@
 	One pilot's public flights, the newest first. Which pilot is in the
 	address: `?handle=`.
 
-	On a wide screen the head is a row: the name and handle, the pilot's
-	place and points in the newest season's ranking, and what the flights
-	listed so far add up to; the table under it has the whole width.
+	Above the flights stands what they add up to, as the core gives it
+	(`PilotTotals.svelte`): on a wide screen in a column beside the table.
+	The head has the name and handle, and the pilot's place and points in
+	the newest season's ranking.
 -->
 <script lang="ts">
 	import { browser } from '$app/env';
 	import { page } from '$app/state';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { everyoneHref, publicFlightHref } from '#lib/app/routes.ts';
+	import { everyoneHref } from '#lib/app/routes.ts';
 	import { NOT_RANKED } from '#lib/community/model.svelte.ts';
-	import { totalsOf } from '#lib/community/totals.ts';
+	import PilotTotals from '#lib/community/PilotTotals.svelte';
 	import { format } from '#lib/design/format.ts';
 	import { NOT_LISTED, queryOf } from '#lib/community/pages.ts';
 	import PublicFlightList from '#lib/community/PublicFlightList.svelte';
@@ -42,7 +43,6 @@
 	$effect(() => everyone?.showRanking(''));
 	const ranking = $derived(everyone?.ranking ?? NOT_RANKED);
 	const ranked = $derived(ranking.pilots.find((one) => one.handle === handle));
-	const totals = $derived(totalsOf(list.flights));
 	const text = format();
 
 	/** Back to everyone's flights as they were asked for. */
@@ -65,36 +65,16 @@
 				<p>@{handle}</p>
 			{/if}
 		</div>
-		{#if list.flights.length > 0}
+		{#if ranked}
 			<dl class="totals numeric">
-				{#if ranked}
-					<div>
-						<dt>Place in {ranking.season}</dt>
-						<dd>{ranked.place}</dd>
-					</div>
-					<div>
-						<dt>Points in {ranking.season}</dt>
-						<dd>{text.points(ranked.points)}</dd>
-					</div>
-				{/if}
 				<div>
-					<dt>{list.more ? 'Flights listed' : 'Flights'}</dt>
-					<dd>{text.count(totals.flights)}</dd>
+					<dt>Place in {ranking.season}</dt>
+					<dd>{ranked.place}</dd>
 				</div>
 				<div>
-					<dt>Distance</dt>
-					<dd>{text.kilometres(totals.distanceM)}<small>km</small></dd>
+					<dt>Points in {ranking.season}</dt>
+					<dd>{text.points(ranked.points)}</dd>
 				</div>
-				{#if totals.best?.score}
-					<div>
-						<dt>Best</dt>
-						<dd>
-							<a href={publicFlightHref(totals.best.id)}>
-								{text.points(totals.best.score.points)}<small>points</small>
-							</a>
-						</dd>
-					</div>
-				{/if}
 			</dl>
 		{/if}
 	</header>
@@ -112,15 +92,35 @@
 			<p>{app.failure}</p>
 		</div>
 	{:else}
-		<PublicFlightList
-			label="Flights of {name}"
-			{list}
-			named={false}
-			nothing={nothingListed(list, { from: '', to: '' })}
-			reckoning={PILOTS_RECKONING}
-			onmore={() => everyone?.morePilot()}
-			onagain={() => everyone?.againPilot()}
-		/>
+		<div class="columns">
+			{#if pilot?.statistics}
+				<aside class="span-3 side" aria-label="What the flights add up to">
+					<PilotTotals statistics={pilot.statistics} flights={list.flights} />
+				</aside>
+			{:else if pilot?.statisticsProblem && list.flights.length > 0}
+				<aside class="span-3 side" aria-label="What the flights add up to">
+					<p class="said" role="alert">{pilot.statisticsProblem}</p>
+					<button class="button-plain" type="button" onclick={() => everyone?.addUpAgain()}>
+						Try again
+					</button>
+				</aside>
+			{/if}
+			<div
+				class={pilot?.statistics || (pilot?.statisticsProblem && list.flights.length > 0)
+					? 'span-9'
+					: 'span-12'}
+			>
+				<PublicFlightList
+					label="Flights of {name}"
+					{list}
+					named={false}
+					nothing={nothingListed(list, { from: '', to: '' })}
+					reckoning={PILOTS_RECKONING}
+					onmore={() => everyone?.morePilot()}
+					onagain={() => everyone?.againPilot()}
+				/>
+			</div>
+		</div>
 		<!-- A page the server has can be reported to whoever runs the server. -->
 		{#if pilot?.name && handle}
 			<div class="report">
@@ -171,7 +171,7 @@
 		color: var(--text-secondary);
 	}
 
-	/* What the pilot's flights add up to: in a row under the name on a
+	/* The pilot's place in the newest season: in a row under the name on a
 	   phone, at the right of the head on a wide screen. */
 	.totals {
 		display: flex;
@@ -190,15 +190,9 @@
 		font-weight: 600;
 	}
 
-	.totals small {
-		margin-left: 0.2em;
-		font-size: var(--caption);
-		font-weight: 400;
+	.said {
+		padding: var(--space-2) var(--space-4);
 		color: var(--text-secondary);
-	}
-
-	.totals a {
-		color: var(--link);
 	}
 
 	.report {
@@ -246,6 +240,11 @@
 		.totals {
 			margin-top: 0;
 			gap: var(--space-6);
+		}
+
+		/* The totals stand at the right of the table. */
+		.side {
+			order: 1;
 		}
 	}
 </style>

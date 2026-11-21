@@ -85,10 +85,13 @@ export function everyoneHref(query = ''): string {
 
 /**
  * The ranking of the server's pilots. `season` is the name of a season as
- * the core offers it; without one the page shows the newest.
+ * the core offers it; without one the page shows the newest. `month` is a
+ * month as the ranking's periods write one ("2026-05"): the ranking is
+ * then of that month, which says its year itself.
  */
-export function rankingHref(season = ''): string {
+export function rankingHref(season = '', month = ''): string {
 	const path = resolve('/logbook/ranking');
+	if (month) return `${path}?month=${encodeURIComponent(month)}`;
 	return season ? `${path}?season=${encodeURIComponent(season)}` : path;
 }
 

@@ -20,6 +20,7 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { publicFlightHref } from '#lib/app/routes.ts';
 	import type { SiteFlights } from '#lib/core/index.ts';
+	import MonthBars from '#lib/design/MonthBars.svelte';
 	import { said } from './edit.svelte';
 
 	interface Props {
@@ -70,17 +71,7 @@
 				{#if shown.flights > 0}
 					<div class="row months" role="group" aria-label={words.monthsTitle}>
 						<p class="small">{words.monthsTitle}</p>
-						<ul class="bars">
-							{#each shown.months as month (month.name)}
-								<li>
-									<span class="track" aria-hidden="true">
-										<span class="bar" style:height="{month.share * 100}%"></span>
-									</span>
-									<span class="name" aria-hidden="true">{month.name}</span>
-									<span class="visually-hidden">{month.words}</span>
-								</li>
-							{/each}
-						</ul>
+						<MonthBars months={shown.months} />
 						{#if shown.seasonWords}
 							<p class="season">{shown.seasonWords}</p>
 						{/if}
@@ -159,43 +150,6 @@
 	.small,
 	.season {
 		font-size: var(--footnote);
-		color: var(--text-secondary);
-	}
-
-	.bars {
-		display: flex;
-		gap: var(--space-1);
-		list-style: none;
-	}
-
-	.bars li {
-		display: flex;
-		flex: 1;
-		flex-direction: column;
-		align-items: center;
-		gap: var(--space-1);
-		min-width: 0;
-	}
-
-	/* A bar as tall as the core's share of the busiest month, standing on the
-	   pack's faint fill: a count, never good or bad. */
-	.track {
-		display: flex;
-		align-items: flex-end;
-		width: 100%;
-		height: var(--target);
-		border-radius: var(--radius-s);
-		background: var(--fill);
-		overflow: hidden;
-	}
-
-	.bar {
-		width: 100%;
-		background: var(--accent);
-	}
-
-	.name {
-		font-size: var(--caption);
 		color: var(--text-secondary);
 	}
 

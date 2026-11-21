@@ -5,16 +5,19 @@
 	back to and handed on: `?order=best&from=2026-08-15&to=2026-08-16`.
 
 	A wide screen has the whole width: what is asked in one row, the table,
-	and beside it the best of today and the top ten of the season. The box
-	for a pilot's name narrows what is listed so far; the server is not
-	asked by name.
+	and beside it the best of today and the top ten of the season.
+
+	The box for a pilot's name asks the server once the typing rests, and
+	lists under itself the core's line for each pilot found, which opens
+	that pilot's page; the core's line where nobody is found, and its
+	words for a text too short to ask for.
 -->
 <script lang="ts">
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { everyoneHref } from '#lib/app/routes.ts';
+	import { everyoneHref, pilotHref } from '#lib/app/routes.ts';
 	import {
 		type Asked,
 		askedIn,
@@ -27,6 +30,7 @@
 	import PublicFlightList from '#lib/community/PublicFlightList.svelte';
 	import { dayOf } from '#lib/groups/days.ts';
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
+	import { NOT_SEARCHED } from '#lib/community/search.ts';
 	import { nothingListed, RECKONING } from '#lib/community/words.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
@@ -58,19 +62,14 @@
 	/** A wide screen has the head of the list in a column beside it. */
 	const wide = new MediaQuery('min-width: 56rem', false);
 
-	/** The name, or part of it, of the pilot looked for among the flights listed. */
+	/** The name, or part of it, of the pilot looked for on the server. */
 	let who = $state('');
-	const looked = $derived(who.trim().toLocaleLowerCase());
-	const shown = $derived(
-		looked
-			? {
-					...list,
-					flights: list.flights.filter((flight) =>
-						`${flight.pilot} @${flight.handle}`.toLocaleLowerCase().includes(looked)
-					)
-				}
-			: list
-	);
+	$effect(() => everyone?.findPilots(who));
+	const search = $derived(everyone?.search ?? NOT_SEARCHED);
+	/** What the field says under itself: nothing while it is empty or the list is put away. */
+	let open = $state(true);
+	const answered = $derived(open && search.text !== '' && !search.waiting);
+
 	/** Whether the side column stands beside the table. */
 	const beside = $derived(wide.current && plain && Boolean(everyone?.front));
 
@@ -142,39 +141,51 @@
 					</button>
 				{/if}
 			</div>
-			{#if wide.current}
-				<span class="day who">
+			<div class="who">
+				<span class="day">
 					<label for="{id}-who">Pilot</label>
 					<input
 						id="{id}-who"
 						type="search"
 						placeholder="Name or handle"
 						autocomplete="off"
+						aria-controls="{id}-found"
 						bind:value={who}
+						oninput={() => (open = true)}
+						onfocus={() => (open = true)}
+						onkeydown={(event) => {
+							if (event.key === 'Escape') open = false;
+						}}
 					/>
 				</span>
-			{/if}
+				<div id="{id}-found" class="found" class:shown={answered}>
+					<p class="result" role="status">
+						{#if answered}{search.problem ?? search.found?.words ?? ''}{/if}
+					</p>
+					{#if answered && search.found && search.found.pilots.length > 0}
+						<ul aria-label="Pilots found">
+							{#each search.found.pilots as pilot (pilot.handle)}
+								<li><a href={pilotHref(pilot.handle)}>{pilot.words}</a></li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+			</div>
 		</div>
 	{/if}
 
 	{#if !app.failure}
 		<div class="columns">
 			<div class={beside ? 'span-9' : 'span-12'}>
-				{#if looked && list.flights.length > 0 && shown.flights.length === 0}
-					<p class="none" role="status">
-						No pilot of the {list.flights.length} flights listed so far is called “{who.trim()}”.
-					</p>
-				{:else}
-					<PublicFlightList
-						label="Everyone’s flights"
-						list={shown}
-						named
-						nothing={nothingListed(list, asked)}
-						reckoning={RECKONING}
-						onmore={() => everyone?.more()}
-						onagain={() => everyone?.again()}
-					/>
-				{/if}
+				<PublicFlightList
+					label="Everyone’s flights"
+					{list}
+					named
+					nothing={nothingListed(list, asked)}
+					reckoning={RECKONING}
+					onmore={() => everyone?.more()}
+					onagain={() => everyone?.again()}
+				/>
 			</div>
 			{#if beside && everyone?.front}
 				<aside class="span-3" aria-label="Best of today and the top of the season">
@@ -290,10 +301,64 @@
 		color: var(--text-secondary);
 	}
 
-	.none {
-		padding: var(--space-6) var(--space-4);
-		text-align: center;
+	/* The search for a pilot: the field, and under it what was found, over
+	   the list. */
+	.who {
+		position: relative;
+	}
+
+	.who input {
+		width: 12rem;
+	}
+
+	.found {
+		display: none;
+		position: absolute;
+		top: calc(100% + var(--space-1));
+		left: 0;
+		z-index: 2;
+		width: max-content;
+		min-width: 100%;
+		max-width: min(22rem, calc(100vw - 2 * var(--space-4)));
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-m);
+		background: var(--surface);
+		box-shadow: var(--shadow-float);
+		overflow: hidden;
+	}
+
+	.found.shown {
+		display: block;
+	}
+
+	.result {
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--footnote);
 		color: var(--text-secondary);
+	}
+
+	.found ul {
+		list-style: none;
+	}
+
+	.found a {
+		display: flex;
+		align-items: center;
+		min-height: var(--target);
+		padding: var(--space-2) var(--space-3);
+		box-shadow: inset 0 0.5px 0 var(--separator);
+		color: var(--link);
+		overflow-wrap: anywhere;
+	}
+
+	@media (hover: hover) {
+		.found a:hover {
+			background: var(--fill);
+		}
+	}
+
+	.found a:focus-visible {
+		outline-offset: -0.1875rem;
 	}
 
 	/* Wide: what is asked in one row, at the controls' height of a pointer. */
@@ -331,6 +396,12 @@
 
 		.who input {
 			width: 14rem;
+		}
+
+		/* At the row's right end the list opens leftwards. */
+		.found {
+			left: auto;
+			right: 0;
 		}
 	}
 </style>

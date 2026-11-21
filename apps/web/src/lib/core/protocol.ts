@@ -68,6 +68,8 @@ import type {
 	Tendencies,
 	LogbookView,
 	PilotPage,
+	PilotsFound,
+	PilotStatistics,
 	PlanBoard,
 	PlanDraft,
 	PlanView,
@@ -315,9 +317,16 @@ export interface Calls {
 	 * public flights. Nothing if this site has no server.
 	 */
 	ranking: {
-		given: { season?: string; near?: Coordinate };
+		given: { season?: string; near?: Coordinate; month?: string };
 		answer: SeasonRanking | undefined;
 	};
+	/**
+	 * The pilots whose handle or name holds a text. Refused in the core's
+	 * words for fewer than two letters. Nothing if this site has no server.
+	 */
+	pilotsFound: { given: string; answer: PilotsFound | undefined };
+	/** What a pilot's public flights add up to, by handle. Nothing if this site has no server. */
+	pilotStatistics: { given: string; answer: PilotStatistics | undefined };
 	/**
 	 * The flying site at a place: the one of that identifier, or the
 	 * nearest take-off. Nothing if this site has no server.
@@ -695,7 +704,9 @@ export async function answer<Name extends CallName>(
 		liveAges: (asked) => live.ages(asked),
 		publicFlights: (asked) => community.flights(asked),
 		pilotPage: ({ handle, after }) => community.pilot(handle, after),
-		ranking: ({ season, near }) => community.ranking(season, near),
+		ranking: ({ season, near, month }) => community.ranking(season, near, undefined, month),
+		pilotsFound: (text) => community.pilots(text),
+		pilotStatistics: (handle) => community.statistics(handle),
 		siteAt: ({ place, id }) => sites.siteAt(place, id),
 		openPublicFlight: (id) => community.open(id),
 		todayTakeoffs: (place) => today.takeoffs(place),

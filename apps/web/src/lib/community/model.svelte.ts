@@ -17,9 +17,11 @@ import type {
 	FlightRef,
 	CoreClient,
 	OpenedFlight,
+	PilotStatistics,
 	PublicFlight,
 	PublicFlightsOrder,
 	RankedPilot,
+	RankingMonthChoice,
 	SeasonRanking,
 	SiteAtPlace
 } from '#lib/core/index.ts';
@@ -33,6 +35,7 @@ import {
 	span,
 	words
 } from './pages';
+import { NOT_SEARCHED, PilotSearch, type SearchState } from './search';
 
 /** One pilot and the flights that pilot shares with everyone. */
 export interface PilotState {
@@ -40,6 +43,10 @@ export interface PilotState {
 	/** The name the pilot is shown by, once the server has said it. */
 	name: string | undefined;
 	list: ListState;
+	/** What the pilot's public flights add up to, once the server has said. */
+	statistics: PilotStatistics | undefined;
+	/** Why the totals are missing, in words. The flights are listed all the same. */
+	statisticsProblem: string | undefined;
 }
 
 /** What a screen is shown of the ranking of a season. */
@@ -50,8 +57,18 @@ export interface RankingState {
 	known: boolean;
 	/** The seasons there are to choose from, by name. None before the first answer. */
 	seasons: string[];
-	/** The season the ranking is of. */
+	/** The season the ranking is of, or the one its month lies in. */
 	season: string;
+	/** The month asked for, as the ranking's periods write one ("2026-05"). Empty for the whole season. */
+	askedMonth: string;
+	/** The months of the season that have a ranking, as the core names them. */
+	months: RankingMonthChoice[];
+	/** The month the ranking is of, when it is of one. */
+	month: RankingMonthChoice | undefined;
+	/** What the ranking is of, as the core calls it: "2026", "May 2026". */
+	title: string;
+	/** The period in the core's words: "May 2026: 1 flight". Empty where the server does not say. */
+	words: string;
 	/** The pilots, the one with the most points first. */
 	pilots: RankedPilot[];
 	/** The rule in a sentence, for under the list. */
@@ -69,6 +86,11 @@ export const NOT_RANKED: RankingState = {
 	known: false,
 	seasons: [],
 	season: '',
+	askedMonth: '',
+	months: [],
+	month: undefined,
+	title: '',
+	words: '',
 	pilots: [],
 	rule: '',
 	loading: false,
@@ -159,10 +181,14 @@ export class CommunityModel {
 	/** What a visitor is shown first, once asked for. */
 	front = $state.raw<FrontState>();
 
+	/** The pilots found for what is typed into the search field. */
+	search = $state.raw<SearchState>(NOT_SEARCHED);
+
 	#core: CoreClient;
 	#everyone: PagedFlights | undefined;
 	#ofPilot: PagedFlights | undefined;
-	/** The season whose ranking was last asked for. Nothing before the first. */
+	#search: PilotSearch;
+	/** The season and month whose ranking was last asked for. Nothing before the first. */
 	#ranked: string | undefined;
 	#ofPlace: PagedFlights | undefined;
 	/** Where the place's flights are counted around, once the server has said which site is there. */
@@ -172,6 +198,18 @@ export class CommunityModel {
 
 	constructor(core: CoreClient) {
 		this.#core = core;
+		this.#search = new PilotSearch(
+			(text) => core.pilotsFound(text),
+			(state) => (this.search = state)
+		);
+	}
+
+	/**
+	 * Looks for the pilots whose name or handle holds what is typed, once
+	 * the typing has rested. An empty text clears what was found.
+	 */
+	findPilots(typed: string): void {
+		this.#search.look(typed);
 	}
 
 	/**
@@ -211,7 +249,14 @@ export class CommunityModel {
 	showPilot(handle: string): void {
 		untrack(() => {
 			if (this.#ofPilot && this.pilot?.handle === handle) return;
-			this.pilot = { handle, name: undefined, list: NOT_LISTED };
+			this.pilot = {
+				handle,
+				name: undefined,
+				list: NOT_LISTED,
+				statistics: undefined,
+				statisticsProblem: undefined
+			};
+			void this.#addUp(handle);
 			const list = new PagedFlights(
 				async (after) => {
 					const answer = await this.#core.pilotPage(handle, after);
@@ -229,6 +274,22 @@ export class CommunityModel {
 		});
 	}
 
+	/** Asks again for what the pilot's flights add up to. */
+	addUpAgain(): void {
+		if (this.pilot) void this.#addUp(this.pilot.handle);
+	}
+
+	async #addUp(handle: string): Promise<void> {
+		const mine = () => this.pilot?.handle === handle;
+		if (mine() && this.pilot) this.pilot = { ...this.pilot, statisticsProblem: undefined };
+		try {
+			const statistics = await this.#core.pilotStatistics(handle);
+			if (mine() && this.pilot) this.pilot = { ...this.pilot, statistics };
+		} catch (error) {
+			if (mine() && this.pilot) this.pilot = { ...this.pilot, statisticsProblem: words(error) };
+		}
+	}
+
 	/** The next page of the pilot's flights. */
 	morePilot(): void {
 		void this.#ofPilot?.more();
@@ -241,30 +302,46 @@ export class CommunityModel {
 
 	/**
 	 * Shows the ranking of a season, named as the core names it; an empty
-	 * name is the newest. A ranking that is there for the same season, or on
-	 * its way, is left as it is.
+	 * name is the newest. With a month, as the ranking's periods write one
+	 * ("2026-05"), the ranking of that month. A ranking that is there for
+	 * the same question, or on its way, is left as it is.
 	 */
-	showRanking(season: string): void {
+	showRanking(season: string, month = ''): void {
 		untrack(() => {
 			const there = this.ranking.known || this.ranking.loading;
-			if (this.#ranked === season && there) return;
-			void this.#rank(season);
+			if (this.#ranked === `${season}|${month}` && there) return;
+			void this.#rank(season, month);
 		});
 	}
 
 	/** Asks again: for a ranking that could not be fetched. */
 	rankAgain(): void {
-		void this.#rank(this.ranking.asked);
+		void this.#rank(this.ranking.asked, this.ranking.askedMonth);
 	}
 
-	async #rank(season: string): Promise<void> {
-		this.#ranked = season;
-		// The seasons stay to choose from while another one is fetched.
-		const seasons = this.ranking.seasons;
-		this.ranking = { ...NOT_RANKED, asked: season, seasons, season, loading: true };
-		const ranking = await rankingOf(() => this.#core.ranking(season || undefined), season, seasons);
-		// Another season has been asked for since.
-		if (this.#ranked === season) this.ranking = ranking;
+	async #rank(season: string, month: string): Promise<void> {
+		const question = `${season}|${month}`;
+		this.#ranked = question;
+		// The seasons and the months stay to choose from while another one is fetched.
+		const { seasons, months } = this.ranking;
+		const before = month ? this.ranking.season : season;
+		this.ranking = {
+			...NOT_RANKED,
+			asked: season,
+			askedMonth: month,
+			seasons,
+			season: before,
+			months: month ? months : [],
+			loading: true
+		};
+		const ranking = await rankingOf(
+			() => this.#core.ranking(season || undefined, undefined, month || undefined),
+			season,
+			seasons,
+			month
+		);
+		// Something else has been asked for since.
+		if (this.#ranked === question) this.ranking = ranking;
 	}
 
 	/**
@@ -462,24 +539,37 @@ export class CommunityModel {
 async function rankingOf(
 	ask: () => Promise<SeasonRanking | undefined>,
 	season: string,
-	seasons: string[]
+	seasons: string[],
+	month = ''
 ): Promise<RankingState> {
 	try {
 		const answer = await ask();
 		return answer
 			? {
 					asked: season,
+					askedMonth: month,
 					known: true,
 					seasons: answer.seasons.map((offered) => offered.name),
 					season: answer.season.name,
+					months: answer.months,
+					month: answer.month,
+					title: answer.month?.title ?? answer.season.name,
+					words: answer.words,
 					pilots: answer.ranking.pilots,
 					rule: answer.ranking.rule,
 					loading: false,
 					problem: undefined,
 					absent: false
 				}
-			: { ...NOT_RANKED, asked: season, absent: true };
+			: { ...NOT_RANKED, asked: season, askedMonth: month, absent: true };
 	} catch (error) {
-		return { ...NOT_RANKED, asked: season, seasons, season, problem: words(error) };
+		return {
+			...NOT_RANKED,
+			asked: season,
+			askedMonth: month,
+			seasons,
+			season,
+			problem: words(error)
+		};
 	}
 }

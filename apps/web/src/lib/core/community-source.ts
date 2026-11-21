@@ -28,6 +28,12 @@ import {
 	pilotPage,
 	type PilotPage,
 	pilotPagePath,
+	pilotsFound,
+	type PilotsFound,
+	pilotsSearchPath,
+	pilotStatistics,
+	type PilotStatistics,
+	pilotStatisticsPath,
 	publicFlight,
 	type PublicFlight,
 	publicFlightPath,
@@ -37,6 +43,8 @@ import {
 	publicFlightsPath,
 	ranking,
 	type Ranking,
+	type RankingMonthChoice,
+	rankingMonthPath,
 	rankingPath,
 	type RankingSeason,
 	rankingSeasons
@@ -88,8 +96,14 @@ export type Compared = ComparedFlight & { pilot?: string };
 export interface SeasonRanking {
 	/** The seasons a page offers, the newest first, and all years together last. */
 	seasons: RankingSeason[];
-	/** The season this is the ranking of. */
+	/** The season this is the ranking of, or the one its month lies in. */
 	season: RankingSeason;
+	/** The months of that season that have a ranking, as the core names them. None for all years. */
+	months: RankingMonthChoice[];
+	/** The month this is the ranking of, when it is of one. */
+	month: RankingMonthChoice | undefined;
+	/** The period in the core's words: "2026: 10 flights", "May 2026: 4 flights". Empty where the server does not say. */
+	words: string;
 	ranking: Ranking;
 }
 
@@ -139,23 +153,70 @@ export class CommunitySource {
 	}
 
 	/**
+	 * The pilots whose handle or name holds a text, as lines for a list.
+	 * The core refuses a text of fewer than two letters in words, before
+	 * anything is asked of the server. Nothing if this site has no server.
+	 */
+	async pilots(text: string): Promise<PilotsFound | undefined> {
+		if (!(await this.#present())) return undefined;
+		const answer = await this.#get(pilotsSearchPath(text));
+		return pilotsFound(answer.status, answer.body);
+	}
+
+	/**
+	 * What a pilot's public flights add up to: all of them and each year,
+	 * as the core's rows. Nothing if this site has no server.
+	 */
+	async statistics(handle: string): Promise<PilotStatistics | undefined> {
+		if (!(await this.#present())) return undefined;
+		const answer = await this.#get(pilotStatisticsPath(handle));
+		return pilotStatistics(answer.status, answer.body);
+	}
+
+	/**
 	 * The pilots of a season, ranked by the sum of the points of their best
 	 * public flights. `season` is the name of one of the seasons the core
 	 * offers at `nowUnixS`; any other text, or none, means the newest.
-	 * With `near`, only flights that took off near that place count.
+	 * With `near`, only flights that took off near that place count. With
+	 * `month`, as the ranking's periods write one ("2026-05"), the ranking
+	 * is of that month, and the season the year it lies in.
 	 * Nothing if this site has no server.
 	 */
 	async ranking(
 		season?: string,
 		near?: Coordinate,
-		nowUnixS = Date.now() / 1000
+		nowUnixS = Date.now() / 1000,
+		month?: string
 	): Promise<SeasonRanking | undefined> {
 		if (!(await this.#present())) return undefined;
 		const { seasons } = rankingSeasons(nowUnixS);
-		const chosen = seasons.find((offered) => offered.name === season) ?? seasons[0];
+		const asked = seasons.find((offered) => offered.name === season) ?? seasons[0];
 		const area = near ? flownFromHere(near.lat, near.lon) : undefined;
-		const answer = await this.#get(rankingPath(area, chosen.fromUnixS, chosen.toUnixS));
-		return { seasons, season: chosen, ranking: ranking(answer.status, answer.body) };
+		const answer = await this.#get(
+			month ? rankingMonthPath(area, month) : rankingPath(area, asked.fromUnixS, asked.toUnixS)
+		);
+		const ranked = ranking(answer.status, answer.body);
+		// The year a month lies in is the one whose months hold it.
+		const year = month
+			? ranked.periods.find((period) => period.months.some((one) => one.month === month))
+			: ranked.periods.find((period) => period.fromUnixS === asked.fromUnixS);
+		const of = year?.months.find((one) => one.month === month);
+		const chosen =
+			month && year
+				? (seasons.find((offered) => offered.name === year.name) ?? {
+						name: year.name,
+						fromUnixS: year.fromUnixS,
+						toUnixS: year.toUnixS
+					})
+				: asked;
+		return {
+			seasons,
+			season: chosen,
+			months: year?.months ?? [],
+			month: of,
+			words: of?.words ?? year?.words ?? '',
+			ranking: ranked
+		};
 	}
 
 	/**

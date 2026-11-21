@@ -1,8 +1,13 @@
 <!--
 	The ranking: the pilots of this site's Venti server by the sum of the
 	points of their best flights that they share with everyone, in a year or
-	in all years. Which is in the address, so the page can be come back to
-	and handed on: `?season=2026`.
+	in all years, or in one month of a year. Which is in the address, so the
+	page can be come back to and handed on: `?season=2026`, `?month=2026-05`.
+
+	Under the years stand the months of the chosen year that have a ranking,
+	as the core names them (`Ranking.periods`): a month is pressed to see
+	its ranking and pressed again for the whole year. The line over the list
+	says the period in the core's words.
 -->
 <script lang="ts">
 	import { browser } from '$app/env';
@@ -25,10 +30,12 @@
 
 	/** The season the address asks for. It is not known while the pages are written out at build time. */
 	const asked = $derived(browser ? (page.url.searchParams.get('season') ?? '') : '');
+	/** The month the address asks for, as the ranking's periods write one. */
+	const askedMonth = $derived(browser ? (page.url.searchParams.get('month') ?? '') : '');
 	const ranking = $derived(everyone?.ranking ?? NOT_RANKED);
 	const nothing = $derived(nothingRanked(ranking));
 
-	$effect(() => everyone?.showRanking(asked));
+	$effect(() => everyone?.showRanking(asked, askedMonth));
 
 	/**
 	 * Asks for another season: the address changes in place, with the
@@ -41,12 +48,22 @@
 		void goto(rankingHref(named), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
+	/** Asks for a month of the season, or, for the month that is shown, for the whole season again. */
+	function askMonth(month: string) {
+		const whole = ranking.season === ranking.seasons[0] ? '' : ranking.season;
+		const href = month === ranking.askedMonth ? rankingHref(whole) : rankingHref('', month);
+		void goto(href, { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
+	/** What the ranking is of, as the core calls it. */
+	const title = $derived(ranking.title || ranking.season);
+
 	/** A wide screen has a table; a phone, the list of cards. */
 	const wide = new MediaQuery('min-width: 56rem', false);
 </script>
 
 <svelte:head>
-	<title>Ranking · Venti</title>
+	<title>{ranking.month ? `Ranking of ${ranking.month.title}` : 'Ranking'} · Venti</title>
 </svelte:head>
 
 <div class="desk page">
@@ -84,13 +101,32 @@
 			</div>
 		{/if}
 
+		{#if ranking.months.length > 0}
+			<div class="months" role="group" aria-label="Months of {ranking.season}">
+				{#each ranking.months as month (month.month)}
+					<button
+						class="month"
+						type="button"
+						aria-pressed={month.month === ranking.askedMonth}
+						aria-label={month.words}
+						onclick={() => askMonth(month.month)}
+					>
+						{month.name}
+					</button>
+				{/each}
+			</div>
+		{/if}
+
 		{#if ranking.pilots.length > 0}
+			{#if ranking.words}
+				<p class="period">{ranking.words}</p>
+			{/if}
 			{#if wide.current}
 				<div class="table">
-					<RankingTable label="Ranking of {ranking.season}" pilots={ranking.pilots} />
+					<RankingTable label="Ranking of {title}" pilots={ranking.pilots} />
 				</div>
 			{:else}
-				<RankingList label="Ranking of {ranking.season}" pilots={ranking.pilots} />
+				<RankingList label="Ranking of {title}" pilots={ranking.pilots} />
 			{/if}
 			<p class="footnote">{ranking.rule}</p>
 		{:else if ranking.loading || (!ranking.known && !ranking.problem && !ranking.absent)}
@@ -140,6 +176,37 @@
 	.season {
 		max-width: 28rem;
 		margin-bottom: 1rem;
+	}
+
+	/* The months of the season that have a ranking: the pack's chips. */
+	.months {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin-bottom: var(--space-3);
+	}
+
+	.month {
+		min-height: calc(var(--target) - 0.625rem);
+		padding: 0 var(--space-3);
+		border-radius: var(--radius-pill);
+		background: var(--fill);
+		color: var(--text-secondary);
+		font-size: var(--subheadline);
+		font-weight: 500;
+	}
+
+	.month[aria-pressed='true'] {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+
+	/* The period in the core's words, over the list. */
+	.period {
+		margin-bottom: var(--space-2);
+		padding: 0 var(--space-4);
+		font-size: var(--subheadline);
+		color: var(--text-secondary);
 	}
 
 	.footnote {

@@ -12,6 +12,7 @@ import fly.venti.app.forecast.ThermalHoursLayers
 import fly.venti.app.forecast.ThermalMapLayer
 import fly.venti.app.live.GliderFeature
 import fly.venti.app.live.LiveSymbols
+import fly.venti.app.live.OtherFeature
 import fly.venti.app.radar.RadarLayer
 import fly.venti.app.radar.RadarShown
 import fly.venti.app.sites.SiteAreas
@@ -24,6 +25,7 @@ import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.GlideReach
 import fly.venti.core.LiveGlider
+import fly.venti.core.OtherAircraftView
 import fly.venti.core.SiteCandidateView
 import fly.venti.core.SiteView
 import fly.venti.core.ThermalMapCell
@@ -76,6 +78,9 @@ class OverviewMap : MapContent {
 
     /** Told a live track's identifier when the pilot taps its glider. */
     var onGlider: (String) -> Unit = {}
+
+    /** Told an aircraft's identifier when the pilot taps one that another network hears. */
+    var onOther: (String) -> Unit = {}
 
     /** Told a place where pilots take off and no site stands, when the pilot taps its ring. */
     var onCandidate: (SiteCandidateView) -> Unit = {}
@@ -133,6 +138,10 @@ class OverviewMap : MapContent {
     private var drawnUnsaidSites: List<SiteView>? = null
     private var gliders: List<LiveGlider> = emptyList()
     private var drawnGliders: List<LiveGlider>? = null
+
+    /** The aircraft another network hears, drawn under Venti's own pilots. */
+    private var others: List<OtherAircraftView> = emptyList()
+    private var drawnOthers: List<OtherAircraftView>? = null
     private var followed: List<TrailPointView> = emptyList()
     private var drawnFollowed: List<TrailPointView>? = null
     private var covered = Covered()
@@ -230,6 +239,7 @@ class OverviewMap : MapContent {
         ThermalHoursLayers.addArrows(style)
         addWind(style, view)
         addGliders(style, view)
+        addOthers(style)
         draw()
         drawStations()
         drawSites()
@@ -237,6 +247,8 @@ class OverviewMap : MapContent {
         drawCandidates()
         drawPins()
         drawGliders()
+        drawnOthers = null
+        drawOthers()
         drawFollowed()
         drawAirspace()
         drawnReach = null
@@ -782,6 +794,49 @@ class OverviewMap : MapContent {
         )
     }
 
+    /** The aircraft another network hears; none while the "Pilots" layer is off. */
+    fun showOthers(others: List<OtherAircraftView>) {
+        this.others = others
+        drawOthers()
+    }
+
+    /**
+     * The layers that draw the aircraft another network hears, under
+     * Venti's own pilots: the wing of a live pilot in a muted colour,
+     * turned the way it moves, with the core's label where there is room.
+     * Paragliders and hang gliders at every zoom; the rest, smaller, from
+     * zoom [OTHERS_REST_FROM_ZOOM] in.
+     */
+    private fun addOthers(style: Style) {
+        style.addSource(GeoJsonSource(OTHERS))
+        fun layer(id: String, free: Boolean, size: Float) = SymbolLayer(id, OTHERS).withProperties(
+            PropertyFactory.iconImage(LiveSymbols.OTHER),
+            PropertyFactory.iconRotate(Expression.get(OtherFeature.HEADING)),
+            PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+            PropertyFactory.iconAllowOverlap(true),
+            PropertyFactory.iconSize(size),
+            PropertyFactory.textField(Expression.get(OtherFeature.LABEL)),
+            PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+            PropertyFactory.textSize(12f * size),
+            PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+            PropertyFactory.textOffset(arrayOf(0f, 1.15f * size)),
+            PropertyFactory.textColor(MapSetup.ink),
+            PropertyFactory.textHaloColor(MapSetup.halo),
+            PropertyFactory.textHaloWidth(1.6f),
+            PropertyFactory.textOptional(true),
+        ).withFilter(Expression.eq(Expression.get(OtherFeature.FREE_FLIGHT), Expression.literal(free)))
+        style.addLayerBelow(layer(OTHERS_REST, free = false, size = OTHERS_REST_SIZE).apply { minZoom = OTHERS_REST_FROM_ZOOM }, GLIDERS)
+        style.addLayerBelow(layer(OTHERS_FREE, free = true, size = 1f), GLIDERS)
+    }
+
+    /** Draws the other networks' aircraft, once the style is there and only when they have changed. */
+    private fun drawOthers() {
+        val source = style?.getSourceAs<GeoJsonSource>(OTHERS) ?: return
+        if (others == drawnOthers) return
+        drawnOthers = others
+        source.setGeoJson(FeatureCollection.fromFeatures(others.map(OtherFeature::of)))
+    }
+
     /** Draws the gliders, once the style is there and only when they have changed. */
     private fun drawGliders() {
         val source = style?.getSourceAs<GeoJsonSource>(GLIDERS) ?: return
@@ -811,6 +866,10 @@ class OverviewMap : MapContent {
         }
         nearest(GLIDERS, GliderFeature.ID)?.let { id ->
             onGlider(id)
+            return true
+        }
+        (nearest(OTHERS_FREE, OtherFeature.ID) ?: nearest(OTHERS_REST, OtherFeature.ID))?.let { id ->
+            onOther(id)
             return true
         }
         nearest(PLANS, PLAN_ID)?.let { id ->
@@ -867,6 +926,15 @@ class OverviewMap : MapContent {
         private const val WIND = "wind-stations"
         private const val SITES = "flying-sites"
         private const val GLIDERS = "live-gliders"
+        private const val OTHERS = "live-others"
+
+        /** The other networks' paragliders and hang gliders, and the rest of their aircraft. */
+        const val OTHERS_FREE = "live-others"
+        const val OTHERS_REST = "live-others-rest"
+
+        /** The zoom from which aircraft other than free-flight ones are drawn, and how much smaller. */
+        const val OTHERS_REST_FROM_ZOOM = 10f
+        private const val OTHERS_REST_SIZE = 0.75f
         private const val PLANS = "plan-pins"
         private const val PLAN_ID = "id"
         private const val PLAN_LABEL = "label"

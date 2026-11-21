@@ -10,6 +10,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import androidx.core.graphics.createBitmap
 import fly.venti.core.LiveGlider
+import fly.venti.core.OtherAircraftView
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.Point
 import kotlin.math.roundToInt
@@ -23,6 +24,9 @@ object LiveSymbols {
     const val QUIET = "live-quiet"
     const val LANDED = "live-landed"
 
+    /** An aircraft another network hears: the same wing, in its own muted colour. */
+    const val OTHER = "live-other"
+
     /**
      * Green for a glider that is flying: the pack's "good", none of the
      * colours of wind, airspace or the pilot's own tracks. `0xRRGGBB`.
@@ -31,6 +35,13 @@ object LiveSymbols {
 
     /** Grey for one that is on the ground, or that nothing was heard of for a while. */
     val GREY: Int = VentiLight.borderStrong.toArgb() and 0xFFFFFF
+
+    /**
+     * Muted for an aircraft of another network (the Open Glider Network),
+     * so that it is told apart at a glance from Venti's own pilots, green,
+     * and from one of them nothing was heard of for a while, lighter.
+     */
+    val MUTED: Int = VentiLight.textMuted.toArgb() and 0xFFFFFF
 
     /** The side of a picture, in the screen's own units. */
     private const val SIDE = 30f
@@ -47,6 +58,7 @@ object LiveSymbols {
         FLYING to drawn(context) { canvas, scale -> wing(canvas, GREEN, scale) },
         QUIET to drawn(context) { canvas, scale -> wing(canvas, GREY, scale) },
         LANDED to drawn(context) { canvas, scale -> disc(canvas, GREY, scale) },
+        OTHER to drawn(context) { canvas, scale -> wing(canvas, MUTED, scale) },
     )
 
     /** A picture of [SIDE] by [SIDE] units, drawn in those units. */
@@ -135,5 +147,26 @@ object GliderFeature {
             addStringProperty(PICTURE, LiveSymbols.name(glider))
             addNumberProperty(HEADING, if (glider.landed) 0.0 else glider.courseDeg ?: 0.0)
             addStringProperty(LABEL, glider.label)
+        }
+}
+
+/**
+ * An aircraft of another network as the map's symbol layer reads it: the
+ * muted wing turned the way it moves, with the core's label.
+ */
+object OtherFeature {
+    const val ID = "id"
+    const val HEADING = "heading"
+    const val LABEL = "label"
+
+    /** Whether it is a paraglider or a hang glider: drawn at every zoom; the rest only closer in. */
+    const val FREE_FLIGHT = "free"
+
+    fun of(aircraft: OtherAircraftView): Feature =
+        Feature.fromGeometry(Point.fromLngLat(aircraft.position.lon, aircraft.position.lat)).apply {
+            addStringProperty(ID, aircraft.id)
+            addNumberProperty(HEADING, aircraft.courseDeg ?: 0.0)
+            addStringProperty(LABEL, aircraft.label)
+            addBooleanProperty(FREE_FLIGHT, aircraft.isFreeFlight)
         }
 }

@@ -1728,6 +1728,45 @@ class VentiUiTest {
     @Test
     fun whoIsInTheAirInDarkAppearance() = lookAtWhoIsInTheAir("dark", dark = true)
 
+    /**
+     * Others in the air from the Open Glider Network: the development
+     * server's made-up aircraft over the Tegernsee are drawn beside Venti's
+     * own pilots with the "Pilots" layer on, the network's credit is with
+     * the map's, and a tap on the paraglider over the Wallberg opens its
+     * sheet with the core's line. Light, then the same in the dark
+     * appearance. Skipped without a server.
+     */
+    @Test
+    fun othersInTheAirFromTheOpenGliderNetwork() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        for (dark in listOf(false, true)) {
+            val prefix = if (dark) "dark" else "light"
+            launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+            val scenario = checkNotNull(app)
+            waitFor(described("Show my position"))
+            waitFor(hasTestTag("layer-pilots") and isOn())
+            assertTrue(TestDevice.lookAt(scenario, lat = 47.6642, lon = 11.7967, zoom = 11.0))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                (TestDevice.drawnOnTheMap(scenario, "live-others") ?: 0) > 0
+            }
+            waitFor(hasText("Positions: Open Glider Network", substring = true))
+            letTheMapDraw(2)
+            keepScreenshot("$prefix-others-1-map")
+
+            TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.664083, lon = 11.7967)))
+            waitFor(hasTestTag("other-line") and hasText("Paraglider at 2,140 m", substring = true))
+            assertTrue(exists(hasTestTag("other-kind") and hasText("Paraglider")))
+            assertTrue(exists(hasTestTag("other-age")))
+            assertTrue(exists(hasTestTag("other-credit")))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-others-2-sheet")
+            tap(hasText("Done"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("other-line")) }
+            app?.close()
+        }
+    }
+
     @Test
     fun aFlightIsSharedWhileItIsUnderWay() = shareAFlightLive("light", dark = false)
 

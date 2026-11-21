@@ -63,6 +63,7 @@ import fly.venti.app.design.ValueRow
 import fly.venti.app.design.numbers
 import fly.venti.app.pilotMessage
 import fly.venti.app.wind.WindModel
+import fly.venti.app.wind.WindServer
 import fly.venti.app.wind.ink
 import fly.venti.app.wind.windDart
 import fly.venti.core.Coordinate
@@ -118,6 +119,9 @@ private sealed interface Phase {
     data class Loaded(val forecast: ForecastView) : Phase
 
     data class Failed(val message: String) : Phase
+
+    /** No Venti server to ask: nothing to try again until one is set. */
+    data object NoServer : Phase
 }
 
 /**
@@ -155,7 +159,12 @@ fun ForecastPage(
     // Whether the day of the map it was opened from has been chosen yet.
     var hasOpened by remember(place) { mutableStateOf(opensOn == null) }
 
-    LaunchedEffect(place, attempt) {
+    val hasServer = wind.server is WindServer.Usable
+    LaunchedEffect(place, attempt, hasServer) {
+        if (!hasServer) {
+            phase = Phase.NoServer
+            return@LaunchedEffect
+        }
         phase = Phase.Loading
         phase = try {
             val forecast = wind.forecast(place.position)
@@ -205,6 +214,7 @@ fun ForecastPage(
                 CircularProgressIndicator()
             }
             is Phase.Failed -> NoForecast("No forecast", current.message, onRetry = { attempt += 1 })
+            Phase.NoServer -> NoForecast("No forecast", NO_SERVER, onRetry = null)
             is Phase.Loaded -> {
                 val models = current.forecast.models
                 val shown = models.firstOrNull { it.model == model } ?: models.firstOrNull()
@@ -217,6 +227,9 @@ fun ForecastPage(
         }
     }
 }
+
+/** Said in place of the forecast without a Venti server, which is where forecasts come from. */
+private const val NO_SERVER = "Venti is not connected, so there is no forecast for this place."
 
 /** Said in place of the forecast when there is none. */
 @Composable

@@ -28,6 +28,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,7 +58,9 @@ import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.ValueRow
 import fly.venti.app.design.numbers
 import fly.venti.core.LiveFollowView
+import fly.venti.core.Credit
 import fly.venti.core.LiveGlider
+import fly.venti.core.OtherAircraftView
 import kotlinx.coroutines.CoroutineScope
 
 /** What the list and a glider's page say apart from their numbers. */
@@ -108,6 +111,15 @@ fun GliderListSheet(live: LiveModel, onChoose: (String) -> Unit, onDismiss: () -
         ) {
             Text("In the air", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextButton(onClick = onDismiss) { Text("Done") }
+        }
+        // How many are on the map, Venti's pilots and the other networks' aircraft, in the core's words.
+        if (live.countWords.isNotEmpty()) {
+            Text(
+                live.countWords,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp).testTag("live-count"),
+            )
         }
         val gliders = live.gliders
         if (gliders.isEmpty()) {
@@ -314,6 +326,81 @@ private fun GliderPage(glider: LiveGlider, age: String, flight: LiveFollowView?,
     Group(Modifier.padding(top = 16.dp)) {
         row {
             LinkRow("Report this track", R.drawable.ic_flag, Modifier.testTag("report-track"), onClick = onReport)
+        }
+    }
+}
+
+/**
+ * An aircraft another network hears (the Open Glider Network), tapped on
+ * the map: what kind it is, its name where its owner lets it be shown, the
+ * core's line and how old the position is, and whose data it is. The
+ * network gives positions only: there is no flight to follow.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OtherAircraftSheet(
+    /** The aircraft's identifier. The sheet shows it as the newest answer has it. */
+    id: String,
+    live: LiveModel,
+    onDismiss: () -> Unit,
+) {
+    // Kept once seen: it may leave the answer while the sheet is open.
+    var last by remember(id) { mutableStateOf<Pair<OtherAircraftView, Credit?>?>(null) }
+    val shown = live.other(id)?.let { now -> now to live.creditOf(id) } ?: last
+    SideEffect { last = shown }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                shown?.first?.kindWords.orEmpty(),
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).testTag("other-kind"),
+            )
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
+        if (shown != null) {
+            OtherAircraftPage(shown.first, shown.second)
+        }
+    }
+}
+
+@Composable
+private fun OtherAircraftPage(aircraft: OtherAircraftView, credit: Credit?) {
+    val links = LocalUriHandler.current
+    Column(
+        Modifier
+            .testTag("other-aircraft")
+            .verticalScroll(rememberScrollState())
+            .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        aircraft.name?.let { name ->
+            Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("other-name"))
+        }
+        Text(aircraft.line, style = MaterialTheme.typography.bodyLarge.numbers, modifier = Modifier.testTag("other-line"))
+        Text(
+            aircraft.ageWords,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("other-age"),
+        )
+        if (credit != null) {
+            Group(Modifier.padding(top = 16.dp)) {
+                row {
+                    LinkRow(credit.text, R.drawable.ic_open_in_new, Modifier.testTag("other-credit")) {
+                        links.openUri(credit.url)
+                    }
+                }
+            }
+            credit.notice?.let { notice -> SectionFooter(notice) }
         }
     }
 }

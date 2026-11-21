@@ -82,6 +82,8 @@ import fly.venti.app.groups.PlansSheet
 import fly.venti.app.live.GliderListSheet
 import fly.venti.app.live.GliderSheet
 import fly.venti.app.live.LiveModel
+import fly.venti.app.live.OtherAircraftSheet
+import fly.venti.core.othersTooWideWords
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.radar.RadarCard
 import fly.venti.app.radar.RadarModel
@@ -199,6 +201,8 @@ fun MapScreen(
     // The glider whose page is open, by its track's identifier: the page
     // shows it as the newest answer has it.
     var chosenGlider by remember { mutableStateOf<String?>(null) }
+    // An aircraft another network hears, tapped on the map, by its identifier.
+    var chosenOther by remember { mutableStateOf<String?>(null) }
     // A place the pilot pressed on, to show its forecast.
     var pressed by remember { mutableStateOf<Coordinate?>(null) }
     // Whether no flying site lay under the finger there: then a site can be added at the place.
@@ -264,6 +268,7 @@ fun MapScreen(
         chosenCandidate = place
     }
     map.onGlider = { id -> chosenGlider = id }
+    map.onOther = { id -> chosenOther = id }
     map.onSquare = { cell -> square = cell }
     map.onHourSquare = { place, cell ->
         // Only where the map's grid reaches: the core finds the square.
@@ -279,13 +284,11 @@ fun MapScreen(
     LaunchedEffect(account.isSignedIn) {
         if (account.isSignedIn) groups.load()
     }
-    // A long press: the forecast for the place under the finger, where
-    // there is a server to ask.
+    // A long press: the place's sheet, with what a glide reaches from it,
+    // which needs no server, over its forecast, which says so without one.
     map.onPlace = { place, isFree ->
-        if (wind.server is WindServer.Usable) {
-            pressed = place
-            pressedIsFree = isFree
-        }
+        pressed = place
+        pressedIsFree = isFree
     }
 
     val askForPosition = rememberLauncherForActivityResult(
@@ -336,6 +339,12 @@ fun MapScreen(
     LaunchedEffect(wind.address, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { live.keepCurrent() }
     }
+    // The aircraft other networks hear are asked for while the "Pilots"
+    // layer is on, and at once when it is switched on.
+    SideEffect { live.wantsOthers = { !hidesPilots } }
+    LaunchedEffect(hidesPilots) {
+        if (!hidesPilots) live.again()
+    }
 
     val statusBar = WindowInsets.statusBars.getTop(LocalDensity.current)
     val outlines = logbook.view.years.flatMap { year -> year.flights.map { it.outline } }
@@ -367,6 +376,7 @@ fun MapScreen(
     val flyingSites = if (hidesSites) emptyList() else filtered.fitting
     val unsaidSites = if (hidesSites) emptyList() else filtered.unsaid
     val gliders = if (hidesPilots) emptyList() else live.gliders
+    val others = if (hidesPilots) emptyList() else live.others
     // Where the pilot's groups plan to fly today and tomorrow.
     val pins = groups.pins()
     // The flight of the glider whose page is open, as far as the server
@@ -385,7 +395,9 @@ fun MapScreen(
         thermalMap?.creditLine?.takeIf { showsForecast },
     ) +
         // Each of the radar's sources asks for its credit directly at the data.
-        radar?.creditLines?.takeIf { showsRadar }.orEmpty()
+        radar?.creditLines?.takeIf { showsRadar }.orEmpty() +
+        // The other networks' positions, while any of their aircraft is drawn.
+        live.othersCredits.map { it.text }.takeIf { others.isNotEmpty() }.orEmpty()
     // The forecast map by the hour: the layer and the level as the pilot
     // left them, the hour not.
     val hours = thermalMap?.hours
@@ -420,6 +432,7 @@ fun MapScreen(
                 map.showHours(hourShapes, hourLegend, byTheHour)
                 map.showRadar(if (showsRadar) radar.shown else null)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins, unsaidSites)
+                map.showOthers(others)
                 map.showCandidates(if (hidesSites || !hasServer) emptyList() else candidates?.candidates.orEmpty())
                 map.showReach(glideReach.answer?.takeIf { glideReach.place != null }, glideReach.place)
                 map.follow(isFollowing)
@@ -498,6 +511,13 @@ fun MapScreen(
                         preferences?.mapHidesPilots = !on
                     }, Modifier.testTag("layer-pilots"))
                 }
+            }
+            // Zoomed out too far for the other networks' aircraft, in the core's words.
+            if (live.othersTooWide && !hidesPilots && hasServer) {
+                Notice(
+                    othersTooWideWords(),
+                    Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4).testTag("others-too-wide"),
+                )
             }
             wind.notice?.takeIf { !hidesWind }?.let { text ->
                 Notice(text, Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4))
@@ -784,6 +804,10 @@ fun MapScreen(
             requests = requests,
             onDismiss = { chosenGlider = null },
         )
+    }
+
+    chosenOther?.let { id ->
+        OtherAircraftSheet(id, live, onDismiss = { chosenOther = null })
     }
 
     airspaceOver?.let { over ->

@@ -5,6 +5,7 @@ import fly.venti.app.TestSupport
 import fly.venti.app.wind.grown
 import fly.venti.core.Bounds
 import fly.venti.core.liveMapPath
+import fly.venti.core.liveOthersPath
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -62,6 +63,7 @@ class LiveModelTest {
             if (!isReachable) throw IOException("no route to host")
             return when {
                 "/v1/live?" in url -> HttpAnswer(200, recorded("live.json"))
+                "/v1/live/others?" in url -> HttpAnswer(200, recorded("live_others.json"))
                 "/v1/live/$FLYING" in url ->
                     if (hasLostTheTrack) {
                         HttpAnswer(404, """{"error": {"code": "live_track_not_found", "message": "x"}}""".toByteArray())
@@ -74,7 +76,9 @@ class LiveModelTest {
 
         fun maps(): List<String> = asked.toList().filter { "/v1/live?" in it }
 
-        fun tracks(): List<String> = asked.toList().filter { "/v1/live/" in it }
+        fun tracks(): List<String> = asked.toList().filter { "/v1/live/" in it && "/v1/live/others" !in it }
+
+        fun others(): List<String> = asked.toList().filter { "/v1/live/others?" in it }
 
         companion object {
             fun recorded(name: String): ByteArray = TestSupport.recordedAnswers.resolve(name).readBytes()
@@ -116,7 +120,13 @@ class LiveModelTest {
         val live = model(server, clock)
         live.load(valley, BASE)
 
-        assertEquals(listOf(BASE + liveMapPath(valley.south, valley.west, valley.north, valley.east)), server.asked.toList())
+        assertEquals(
+            listOf(
+                BASE + liveMapPath(valley.south, valley.west, valley.north, valley.east),
+                BASE + checkNotNull(liveOthersPath(valley.south, valley.west, valley.north, valley.east)),
+            ),
+            server.asked.toList(),
+        )
         assertEquals(2, live.gliders.size)
         assertFalse(live.isTruncated)
         val flying = live.gliders[0]
@@ -163,7 +173,8 @@ class LiveModelTest {
         val wide = model(server, scope = this)
         wide.show(Bounds(south = 45.0, west = 6.0, north = 48.5, east = 13.5))
         delay(2 * LiveModel.REST_MILLISECONDS)
-        assertTrue(server.asked.isEmpty())
+        // Venti's own pilots are not asked for; the other networks answer for up to ten degrees.
+        assertTrue(server.maps().isEmpty())
 
         var address: String? = BASE
         val live = model(server, scope = this, address = { address })
@@ -293,6 +304,75 @@ class LiveModelTest {
         // still a wing, held back in grey.
         assertEquals(LiveSymbols.QUIET, LiveSymbols.name(flying.copy(quiet = true)))
         assertEquals(LiveSymbols.LANDED, LiveSymbols.name(landed.copy(quiet = true)))
+    }
+
+    @Test
+    fun theOtherNetworksAircraftAreKeptApartWithTheirCreditAndDrawnMuted() = runBlocking {
+        val server = Server()
+        val live = model(server)
+        live.load(valley, BASE)
+
+        // Beside Venti's two pilots, never one record of both: paragliders
+        // and hang gliders first, each with the core's words.
+        assertEquals(2, live.gliders.size)
+        assertTrue(live.others.isNotEmpty())
+        val first = live.others.first()
+        assertTrue(first.isFreeFlight)
+        assertEquals("Paraglider", first.kindWords)
+        assertTrue(first.line, first.line.startsWith("Paraglider at 2,140 m"))
+        assertEquals(first, live.other(first.id))
+        assertNull(live.other("nobody"))
+        val freeFirst = live.others.map { it.isFreeFlight }
+        assertEquals(freeFirst.sortedDescending(), freeFirst)
+        assertTrue(live.others.any { !it.isFreeFlight })
+        // The network's credit, with the map's while its aircraft are drawn, and on each one's sheet.
+        assertEquals(listOf("Positions: Open Glider Network, glidernet.org (ODbL)"), live.othersCredits.map { it.text })
+        assertEquals(live.othersCredits.first(), live.creditOf(first.id))
+        assertNotNull(live.creditOf(first.id)?.notice)
+        assertEquals("2 pilots of Venti, ${live.others.size} others in the air", live.countWords)
+
+        // On the map: the live pilots' wing, muted, turned the way it moves.
+        val wing = OtherFeature.of(first)
+        assertEquals(first.id, wing.getStringProperty(OtherFeature.ID))
+        assertEquals(210.0, wing.getNumberProperty(OtherFeature.HEADING).toDouble(), 0.0)
+        assertEquals(first.label, wing.getStringProperty(OtherFeature.LABEL))
+        assertTrue(wing.getBooleanProperty(OtherFeature.FREE_FLIGHT))
+        assertFalse(OtherFeature.of(live.others.first { !it.isFreeFlight }).getBooleanProperty(OtherFeature.FREE_FLIGHT))
+        assertTrue(LiveSymbols.MUTED != LiveSymbols.GREEN && LiveSymbols.MUTED != LiveSymbols.GREY)
+
+        // An answer that does not come leaves them where they were.
+        server.isReachable = false
+        live.load(valley, BASE)
+        assertEquals(first, live.others.first())
+
+        // With the "Pilots" layer off they are not asked for, and go.
+        server.isReachable = true
+        val asked = server.others().size
+        live.wantsOthers = { false }
+        live.load(valley, BASE)
+        assertEquals(asked, server.others().size)
+        assertTrue(live.others.isEmpty())
+        assertTrue(live.othersCredits.isEmpty())
+        assertEquals("2 pilots of Venti", live.countWords)
+    }
+
+    @Test
+    fun aMapTooWideForTheOtherNetworksAsksForNoneOfThem() = runBlocking {
+        val server = Server()
+        val live = model(server, scope = this)
+        // Eight degrees: too wide for Venti's own pilots, not for the network.
+        live.show(Bounds(south = 45.0, west = 7.0, north = 49.0, east = 15.0))
+        assertFalse(live.othersTooWide)
+        waitUntil { server.others().isNotEmpty() }
+        assertTrue(server.maps().isEmpty())
+        assertTrue(live.gliders.isEmpty())
+        // Twelve: the core asks for none, and says so.
+        live.show(Bounds(south = 42.0, west = 4.0, north = 50.0, east = 16.0))
+        assertTrue(live.othersTooWide)
+        assertTrue(live.others.isEmpty())
+        val asked = server.asked.size
+        delay(2 * LiveModel.REST_MILLISECONDS)
+        assertEquals(asked, server.asked.size)
     }
 
     private companion object {

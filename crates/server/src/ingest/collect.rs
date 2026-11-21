@@ -15,6 +15,7 @@ use super::{airspace_summary, forecast_summary, sites_summary, summary};
 use crate::clock::Clock;
 use crate::forecast::Forecasts;
 use crate::plan::Job;
+use crate::thermals::ThermalMap;
 
 /// How many of a run's problems are written to the log one by one. The run
 /// history has the counts.
@@ -34,6 +35,8 @@ pub struct Collector<S, F, A> {
     lookback: Option<Duration>,
     /// The forecast service, which does the looking at forecast sources.
     forecasts: Option<Arc<dyn Forecasts>>,
+    /// The thermal map, which a look tells of the runs it sees.
+    thermal_map: Option<Arc<ThermalMap>>,
 }
 
 impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
@@ -62,6 +65,7 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             clock,
             lookback,
             forecasts: None,
+            thermal_map: None,
         }
     }
 
@@ -76,6 +80,15 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
     #[must_use]
     pub fn with_forecasts(mut self, forecasts: Arc<dyn Forecasts>) -> Self {
         self.forecasts = Some(forecasts);
+        self
+    }
+
+    /// The same collector, telling the thermal map of each run of its
+    /// model that a look at its source sees. The map is then made in a
+    /// task of its own, so that a look is not held up by it.
+    #[must_use]
+    pub fn with_thermal_map(mut self, map: Arc<ThermalMap>) -> Self {
+        self.thermal_map = Some(map);
         self
     }
 
@@ -167,6 +180,19 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
                 checked_at: started_at,
             })
             .collect();
+        if let Some(map) = self
+            .thermal_map
+            .as_ref()
+            .filter(|map| map.source() == &job.source)
+            && let Some(run) = models
+                .iter()
+                .filter(|model| &model.model == map.model())
+                .map(|model| model.run)
+                .max()
+        {
+            let map = map.clone();
+            tokio::spawn(async move { map.update(run).await });
+        }
         let record = self.record(&job.source, started_at, &Outcome::of_forecasts(report));
         self.save_forecast_check(&record, &models).await && healthy
     }

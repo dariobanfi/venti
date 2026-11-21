@@ -74,6 +74,7 @@ mod shape;
 mod share;
 mod sites;
 mod stations;
+mod thermals;
 mod wire;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -93,6 +94,7 @@ use venti_api_types::v1::{
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
     PUBLIC_FLIGHTS_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
+    THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -108,6 +110,7 @@ use crate::flights::share::PublicUrl;
 use crate::forecast::Forecasts;
 use crate::imagery::Imagery;
 use crate::maps::Maps;
+use crate::thermals::ThermalMap;
 
 pub use mcp::MCP_PATH;
 
@@ -236,6 +239,8 @@ pub struct Api<S> {
     /// Where forecasts come from, on a server that was told where its
     /// forecast service is.
     forecasts: Option<Arc<dyn Forecasts>>,
+    /// The thermal map, on a server that makes one.
+    thermal_map: Option<Arc<ThermalMap>>,
     /// Live tracking: its limits, and what each account has used of them.
     live: live::Live,
     /// Groups and plans: their limits, and what each account has used of
@@ -321,6 +326,7 @@ impl<S: Store> Api<S> {
             clients: clients::ClientWatch::default(),
             limits,
             forecasts: None,
+            thermal_map: None,
             live: live::Live::new(settings.live, limits.watched_keys),
             groups: groups::Groups::new(settings.groups, limits.watched_keys),
             maps: Maps::default(),
@@ -335,6 +341,16 @@ impl<S: Store> Api<S> {
     #[must_use]
     pub fn with_forecasts(mut self, forecasts: Arc<dyn Forecasts>) -> Self {
         self.forecasts = Some(forecasts);
+        self
+    }
+
+    /// The same API, answering `/v1/thermals` from `map`.
+    ///
+    /// Without this, a server with forecasts says that its thermal map is
+    /// not there yet, and one without says that it has no forecasts.
+    #[must_use]
+    pub fn with_thermal_map(mut self, map: Arc<ThermalMap>) -> Self {
+        self.thermal_map = Some(map);
         self
     }
 
@@ -424,6 +440,7 @@ impl<S: Store> Api<S> {
             .route(AIRSPACE_PATH, get(airspace::airspace::<S>))
             .route(SITES_PATH, get(sites::sites::<S>))
             .route(FORECAST_PATH, get(forecast::forecast::<S>))
+            .route(THERMALS_PATH, get(thermals::thermals::<S>))
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(
                 ACCOUNT_PATH,

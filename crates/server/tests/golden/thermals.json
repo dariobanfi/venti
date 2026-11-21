@@ -1,0 +1,98 @@
+{
+  "source": "open-meteo",
+  "model": "icon-d2",
+  "run": "2026-11-21T00:00:00Z",
+  "computed_at": "2026-11-21T03:25:00Z",
+  "grid": {
+    "south": 47.6,
+    "west": 11.8,
+    "step_deg": 0.1,
+    "rows": 2,
+    "columns": 2
+  },
+  "ground_m": [
+    1118,
+    1046,
+    1069,
+    947
+  ],
+  "days": [
+    {
+      "date": "2026-11-21",
+      "whole": true,
+      "verdict": [
+        "not_flyable",
+        "not_flyable",
+        "not_flyable",
+        "not_flyable"
+      ],
+      "thermals": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "climb_ms": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "date": "2026-11-22",
+      "whole": true,
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        950
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        true
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    }
+  ]
+}

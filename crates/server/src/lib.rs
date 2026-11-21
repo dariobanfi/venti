@@ -6,6 +6,9 @@
 //!    pipeline of `venti-sources` at the cadence its manifest states
 //!    ([`ingest`]). Raw payloads go to the archive, validated records and
 //!    the outcome of each run go to the store.
+//!    Forecasts are fetched when a pilot asks ([`forecast`]), and with
+//!    each run of the finest model a thermal map of the regions is made
+//!    from them and kept in memory ([`thermals`]).
 //! 2. **Keeps pilots' accounts and flights.** An account is signed in to
 //!    with a handle and a password ([`accounts`]). A pilot's flight files
 //!    are kept as they were uploaded, and what the apps show about a flight
@@ -56,3 +59,4 @@ pub mod maps;
 pub mod moderation;
 pub mod plan;
 pub mod serve;
+pub mod thermals;

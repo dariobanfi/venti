@@ -4,6 +4,10 @@
 //! recorded in their crates (wind stations, a sample of the first region's
 //! airspace, and the flying sites OpenStreetMap has for the first region),
 //! the result goes into an in-memory store, and the real router serves it.
+//! The thermal map is made from answers recorded for four places around
+//! the Tegernsee, a grid of two by two cells, by the code a real server
+//! runs.
+//!
 //! Forecasts are answered from recorded answers as well: there are five
 //! places with one, and a place anywhere in the region gets the forecast of
 //! the nearest of them, which the answer names. One account is already there, with three
@@ -68,6 +72,7 @@ use crate::forecast::{self, Asking};
 use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch};
 use crate::maps::Maps;
+use crate::thermals::ThermalMap;
 use crate::{plan, serve};
 
 /// The region the payloads were recorded for, compiled in so that the
@@ -738,9 +743,41 @@ pub async fn recorded_with_its_store(
     )
     .ok_or("the first region lists no forecast source")?;
 
+    // The thermal map is made by the code a real server runs, from answers
+    // recorded for four places in one request, by a forecast service of
+    // its own over them: they are of a later run than those for single
+    // places, and of a later moment, which is the map's clock.
+    let map_clock: Arc<dyn Clock> = Arc::new(FixedClock(adapters::thermal_map_recorded_at()));
+    let map_forecasts = forecast::service_for(
+        &jobs,
+        adapters::forecast_sources(&Providers::recorded())?,
+        adapters::recorded_thermal_payloads(),
+        None::<DirArchive>,
+        map_clock.clone(),
+        Asking::Recorded(Vec::new()),
+    )
+    .ok_or("the first region lists no forecast source")?;
+    let source = jobs
+        .iter()
+        .find(|job| job.kind == venti_sources::Kind::Forecasts)
+        .map(|job| job.source.clone())
+        .ok_or("the first region lists no forecast source")?;
+    let map = ThermalMap::on_grid(
+        map_forecasts,
+        source,
+        adapters::recorded_thermal_grid(),
+        map_clock,
+    )
+    .ok_or("the forecast source cannot be asked for several places")?;
+    map.update(adapters::thermal_map_recorded_run()).await;
+    if map.current().is_none() {
+        return Err("the recorded answers for several places no longer make a thermal map".into());
+    }
+
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let api = Api::new(store.clone(), clock.clone(), manifests, settings)
-        .with_forecasts(forecasts.clone());
+        .with_forecasts(forecasts.clone())
+        .with_thermal_map(Arc::new(map));
 
     // Everything in the payloads is taken: a day of history per station.
     let collector = Collector::new(

@@ -6,7 +6,7 @@ The server answers a small JSON API that the phone and web apps use: for the liv
 
 Everything here is version 1. It has four parts:
 
-- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
+- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
@@ -1058,7 +1058,7 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
 
 The place is the east shore of the Tegernsee. Each series is cut to its first hour here; in the whole answer ICON-D2 has 46 hours and ICON-EU 28.
 
-**The answer holds magnitudes and no judgement.** Nothing in it says whether a day can be flown, and a client that shows it adds none.
+**The answer holds magnitudes and no judgement.** Nothing in it says whether a day can be flown, and a client that shows it adds none. The server's own reading of the days, cell by cell, is the thermal map ([`GET /v1/thermals`](#get-v1thermals)).
 
 **Layers and series.** One layer for each source that has something for the place, and in a layer one series for each weather model, sorted by model. Nothing is blended: two models are two series, and a client that draws one line for the day chooses a series and says which. A model that does not reach the place, or whose run the source could not tell, is not listed.
 
@@ -1128,11 +1128,166 @@ Every value but `time` may be missing, and a missing value is left out, never wr
 | `501` | `no_forecasts` | The server was not told where its forecast service is. `/v1/health` says the same with `"forecasts": "not_configured"`. Asking again does not help, and the server asks nobody else |
 | `503` | `unavailable` | No forecast for the place is at hand and none could be fetched: the forecast service did not answer, the forecast is still being fetched (the first one for a place can take longer than a request waits), or the server has asked its service as often as it may in an hour. `Retry-After` says when to ask again |
 
-**Why a client is counted.** The server may ask its forecast service 400 times an hour, which is some ninety places, for everyone together. A forecast that is at hand costs nothing; one that has to be fetched comes out of that. An app that shows forecasts asks for the place the pilot opens, not for every place on the map. A request that is refused because the server has asked its service often enough (`503`) is not counted against the client.
+**Why a client is counted.** The server may ask its forecast service 400 times an hour, which is some ninety places, for everyone together. The thermal map ([below](#get-v1thermals)) takes 46 of them with each run of ICON-D2, one every three hours, and never more than half of an hour's. A forecast that is at hand costs nothing; one that has to be fetched comes out of that. An app that shows forecasts asks for the place the pilot opens, not for every place on the map. A request that is refused because the server has asked its service often enough (`503`) is not counted against the client.
 
 An answer in which one of the models is missing is still an answer: the server hands on what it has and asks again within two minutes.
 
 **In the development mode** there are recorded forecasts for five places: the east shore of the Tegernsee (47.70, 11.80), the take-off on the Wallberg (47.66, 11.80), the take-off and the landing below the Jägerkamp (47.68, 11.90 and 47.70, 11.88), and the middle of the first region (47.40, 13.30). A place anywhere in the first region is answered with the forecast of the nearest of them, **and `point` says which one that is**; a real server answers for the place asked. The forecasts were recorded on 2026-11-21 at 00:30 UTC, three days after that mode's wind, and that is the `fetched_at` of every answer: ICON-D2's hours run from 00:00 UTC on 21 November to 21:00 UTC on the 22nd, ICON-EU's from 00:00 UTC on the 21st to 03:00 UTC on the 22nd. The first day with daylight hours is 21 November.
+
+## `GET /v1/thermals`
+
+The server's thermal map: for every cell of a grid over the area it has forecasts for, whether each day can be flown by the air alone, what kind of day its thermals make, the climb to expect and how high they go. It takes no parameters; the answer is the whole map.
+
+The server works the map out itself, with each run of ICON-D2, from the model's heat, temperatures and wind, by the same fixed rules an app applies to a take-off's forecast (`venti_flight::day`, [design.md](design.md#thermals)): one answer for a region instead of some 1,800 forecasts for one place on every phone. A cell is judged at the height of the model's ground there, a take-off at its own, so the two can differ where a take-off lies far above the valley. **It is a reading of a model for a square some ten kilometres wide, and no statement that any place in it can be flown: show the model and its run with it.** [architecture.md](architecture.md#the-thermal-map) says how the map is made and kept.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/thermals'
+```
+
+The answer of the development mode, whole:
+
+```json
+{
+  "source": "open-meteo",
+  "model": "icon-d2",
+  "run": "2026-11-21T00:00:00Z",
+  "computed_at": "2026-11-21T03:25:00Z",
+  "grid": {
+    "south": 47.6,
+    "west": 11.8,
+    "step_deg": 0.1,
+    "rows": 2,
+    "columns": 2
+  },
+  "ground_m": [
+    1118,
+    1046,
+    1069,
+    947
+  ],
+  "days": [
+    {
+      "date": "2026-11-21",
+      "whole": true,
+      "verdict": [
+        "not_flyable",
+        "not_flyable",
+        "not_flyable",
+        "not_flyable"
+      ],
+      "thermals": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "climb_ms": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "date": "2026-11-22",
+      "whole": true,
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        950
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        true
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `source`, `model` | Where the values are from: `open-meteo` and `icon-d2`. The credit is the entry of `attributions` with the same `source` |
+| `run` | When the newest run began that the map holds hours of. Earlier hours of a day can be an earlier run's: a run says nothing of the hours before it began. **Show the pilot the run** |
+| `computed_at` | When the server worked the map out |
+| `grid` | Where the cells are: see below |
+| `ground_m` | The height of the model's ground at each cell, whole metres above mean sea level, which is the height the cell is judged at. `null` where the model's answer for the cell is missing |
+| `days` | The days the map has, oldest first: yesterday, today and tomorrow while the server has run for a day, today and tomorrow after a start |
+
+**The grid.** Cell number `row * columns + column` is the square of `step_deg` degrees (0.1°: some 11 km north to south and 7.5 km east to west in the Alps) around the point at latitude `south + row * step_deg` and longitude `west + column * step_deg`. The first cell is the south-west one; cells run west to east, rows south to north. The points lie on multiples of the step, inside the area of the server's regions; the model's values for a cell are those of its own cell (about 2 km wide) nearest the point, one sample out of the twenty or so in the square. For the first region the grid has 23 rows of 79 cells, 1,817 in all, from 46.3 N 9.4 E to 48.5 N 17.2 E.
+
+A day holds its values in lists as long as the grid has cells, in the grid's order:
+
+| Field | Meaning |
+|---|---|
+| `date` | The day, by the sun at the cells: from one midnight by the sun to the next |
+| `whole` | Whether every cell that has a verdict was judged with all of the day's daylight hours. `false` on a day the runs at hand do not reach the whole of (the day ICON-D2's newest run ends in), and on today after a start of the server, when the hours before the run began are missing. Such a day is judged by the hours there are, which can make it look worse than it is |
+| `verdict` | Per cell `flyable`, `marginal` or `not_flyable`, by the air alone; `null` where the day has no hours for the cell |
+| `thermals` | Per cell the kind of day: `weak`, `local`, `cross_country` or `big`. `null` on a day that is not flyable, and where there is no estimate |
+| `climb_ms` | Per cell the climb to expect, m/s to a tenth: the mean over the hours that make the kind of day, or the best hour's on a day of weak thermals. `null` where `thermals` is |
+| `top_m` | Per cell how high the thermals go, metres above mean sea level to the nearest fifty. `null` without thermals |
+| `cloud` | Per cell whether that height is a base of cumulus; `false` in the blue and without thermals |
+
+A client expects values of `verdict` and `thermals` it does not know, and fields it does not know.
+
+**Kept in memory.** The server keeps the map in memory and does not write it down. After a start it makes the map again from the run its forecast service holds, which takes a minute or two, and today then lacks the hours before that run began: its `whole` is `false` until the next day. Until the first map is made the endpoint answers `503`.
+
+**Credit.** Show the credit of the source next to the map, with its link.
+
+**Caching.** `Cache-Control: public, max-age=60` and an `ETag`, like a forecast. The map changes with each run of the model, every three hours, so a client that asks again with `If-None-Match` mostly gets a `304`.
+
+**Size.** The map of the first region made from the run of ICON-D2 of 2026-11-21 00:00 UTC, 1,817 cells and two days, was 126 kB plain and 10 kB with gzip (measured 2026-11-21 from answers of an instance for the whole grid). A day more adds about a third. The server compresses it for a client that sends `Accept-Encoding: gzip`, as every answer of the API.
+
+**When there is no map.**
+
+| Status | `error.code` | When |
+|---|---|---|
+| `501` | `no_forecasts` | The server was not told where its forecast service is, so it has no map. Asking again does not help |
+| `503` | `unavailable` | The server has a forecast service and no map yet: after a start, or while the service does not answer. `Retry-After` says when to ask again (60 seconds) |
+
+**In the development mode** the map is made, by the code a real server runs, from answers recorded on 2026-11-21 at 03:20 UTC for four points around the Tegernsee and the Spitzingsee, a grid of two rows of two cells from 47.6 N 11.8 E; the map's `computed_at` is 03:25 UTC. The run is ICON-D2's of 00:00 UTC, newer than that of the mode's forecasts for a place. It is a November day: not flyable on the 21st, weak thermals on the 22nd. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint with a made-up map of all four kinds.
 
 ## Maps
 
@@ -3498,4 +3653,4 @@ One tile of the Web Mercator scheme every web map uses: zoom `z`, column `x` fro
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here; since 2026-11-20 the iPhone and the Android app send them, and those two and the web app draw the public ones on their maps. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app send them. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app show them. Not built for them: reporting a group or a plan, a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps (of the thermal map the server's side is here since 2026-11-21, and no app draws it yet), pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here; since 2026-11-20 the iPhone and the Android app send them, and those two and the web app draw the public ones on their maps. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app send them. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app show them. Not built for them: reporting a group or a plan, a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

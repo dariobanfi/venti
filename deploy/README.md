@@ -312,6 +312,8 @@ The server has forecasts only from an [Open-Meteo](https://open-meteo.com/) inst
 
 The instance reads Open-Meteo's open data on AWS when a place is asked for, so the machine needs outbound HTTPS to `https://openmeteo.s3.amazonaws.com/data/`, and the first forecast for a place takes longer than the next. Open-Meteo's documentation asks for 8 to 16 GB of memory and fast disk; its cache is 8 GB unless `OPEN_METEO_CACHE_SIZE` says otherwise *(to verify on the first installation)*. An instance elsewhere works too: give its address as `VENTI_OPEN_METEO_URL` and leave the profile off. What is still to verify is in [AGENTS.md](AGENTS.md#forecasts).
 
+With forecasts the server also makes its thermal map (`/v1/thermals`) by itself, from each run of ICON-D2: 46 requests to the instance every three hours for the first region, never more than half of what the server may ask in an hour. There is nothing to set. The map is kept in memory, so after every start `/v1/thermals` answers `503` for a minute or two, until the first map is made, and today's morning is missing from it until the next day. On 2026-11-21 an instance in remote-data mode read about 200 MB from the bucket for the first whole map, and much less for one place's forecast; a run later reads the new run's files again *(to verify on the first installation how much)*.
+
 ## Map regions
 
 The server hands out the map regions it finds in one folder, for the apps to download and draw without a network ([docs/api.md](../docs/api.md#maps)). While the folder is empty it hands out none. Background, estimates and what is still to verify are in [AGENTS.md](AGENTS.md#map-regions).

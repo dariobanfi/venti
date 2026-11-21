@@ -16,6 +16,20 @@ How much heat depends on the place asked for, so that a list of take-offs
 shows more than one kind of day: 550, 300 or 70 W/m² at noon, which the
 apps' core reads as a big day, a cross-country day and local thermals.
 
+It also answers `GET /v1/thermals` with a made-up thermal map in the
+server's wire format, so that a map of the kind of day shows every kind:
+a big day in the north-west, a cross-country day beside it, local
+thermals in the south-west, weak ones beside those, a marginal band in the
+east and a corner there that is not flyable, as patches of whole cells.
+Two days, today and tomorrow by the development server's clock (its map's
+`computed_at`, 2026-11-21), the second a step weaker everywhere, with
+climbs and tops that fit each kind. The grid is a small one of its own,
+five rows by nine columns of a tenth of a degree from 47.5 N 11.5 E,
+unless the development server's map has a grid of 30 cells or more (the
+one recorded has four, too few for six patches); the source, model and
+credit are the development server's where it has a map. Every value of
+the map is made up, deterministically: the same on every start.
+
 None of it is a forecast. The answer says so in the name of its model's
 run only by being impossible for the season; whoever shows a screenshot
 made with it says that the day is made up.
@@ -110,6 +124,84 @@ def made_up(answer, lat, lon, now):
     return answer
 
 
+# The kinds of day of the made-up map, with the climb (m/s) and the height
+# the thermals reach (m above mean sea level) of each, and whether that
+# height is a base of cumulus.
+KINDS = {
+    "big": (2.4, 3500, True),
+    "cross_country": (1.6, 2900, True),
+    "local": (0.8, 2100, False),
+    "weak": (0.3, 1500, False),
+}
+WEAKER = {"big": "cross_country", "cross_country": "local", "local": "weak", "weak": "weak"}
+# The grid the made-up map has of its own, and the least number of cells
+# a development server's grid needs to be used in its place.
+OWN_GRID = {"south": 47.5, "west": 11.5, "step_deg": 0.1, "rows": 5, "columns": 9}
+LEAST_CELLS = 30
+
+
+def patch(row, column, rows, columns):
+    """The verdict and the kind of day of a cell, by where it lies."""
+    north = row >= rows * 0.6
+    across = column / max(columns - 1, 1)
+    if across >= 0.85:
+        return ("not_flyable", None) if row < rows * 0.4 else ("marginal", "local")
+    if across >= 0.7:
+        return ("marginal", "local")
+    if across >= 0.35:
+        return ("flyable", "cross_country" if north else "weak")
+    return ("flyable", "big" if north else "local")
+
+
+def made_up_map(real):
+    """A made-up thermal map, on the grid of `real` if it has a big enough
+    one, with its source, model and credit; `real` may be None."""
+    real = real or {}
+    grid = real.get("grid")
+    if not grid or grid["rows"] * grid["columns"] < LEAST_CELLS:
+        grid = dict(OWN_GRID)
+        ground = [700 + 150 * ((row * 2 + column * 3) % 5)
+                  for row in range(grid["rows"]) for column in range(grid["columns"])]
+    else:
+        ground = [height if height is not None else 800 for height in real.get("ground_m", [])]
+    rows, columns = grid["rows"], grid["columns"]
+    computed = real.get("computed_at") or "2026-11-21T03:25:00Z"
+    today = datetime.date.fromisoformat(computed[:10])
+    days = []
+    for ahead in range(2):
+        verdicts, kinds, climbs, tops, clouds = [], [], [], [], []
+        for row in range(rows):
+            for column in range(columns):
+                verdict, kind = patch(row, column, rows, columns)
+                if kind is not None and ahead:
+                    kind = WEAKER[kind]
+                climb, top, cloud = KINDS[kind] if kind else (None, None, False)
+                verdicts.append(verdict)
+                kinds.append(kind)
+                climbs.append(climb)
+                tops.append(top)
+                clouds.append(cloud)
+        days.append({
+            "date": (today + datetime.timedelta(days=ahead)).isoformat(),
+            "whole": True,
+            "verdict": verdicts,
+            "thermals": kinds,
+            "climb_ms": climbs,
+            "top_m": tops,
+            "cloud": clouds,
+        })
+    return {
+        "source": real.get("source", "open-meteo"),
+        "model": real.get("model", "icon-d2"),
+        "run": real.get("run") or f"{today.isoformat()}T00:00:00Z",
+        "computed_at": computed,
+        "grid": grid,
+        "ground_m": ground,
+        "days": days,
+        "attributions": real.get("attributions", []),
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     behind = ""
@@ -141,6 +233,14 @@ class Handler(BaseHTTPRequestHandler):
                 handed_back = {"Content-Type": "application/json", "Cache-Control": "no-store"}
             except (KeyError, ValueError):
                 pass
+        if self.command in ("GET", "HEAD") and url.path == "/v1/thermals":
+            try:
+                real = json.loads(answer) if status == 200 else None
+            except ValueError:
+                real = None
+            status = 200
+            answer = json.dumps(made_up_map(real)).encode()
+            handed_back = {"Content-Type": "application/json", "Cache-Control": "no-store"}
         self.send_response(status)
         for name, value in handed_back.items():
             self.send_header(name, value)

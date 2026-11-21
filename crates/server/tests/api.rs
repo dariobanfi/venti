@@ -229,6 +229,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "airspace_none.json",
         "sites.json",
         "forecast.json",
+        "thermals.json",
         "error_missing_bbox.json",
         "sign_in.json",
         "sessions.json",

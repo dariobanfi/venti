@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use venti_api_types::v1::{THERMAL_GRID_DEG, ThermalGrid};
 use venti_domain::{GeoPoint, Timestamp};
 use venti_sources::testing::FixtureFetch;
 use venti_sources::{ForecastSource, ImagerySource, Registry};
@@ -168,6 +169,57 @@ pub fn recorded_imagery() -> FixtureFetch {
         .fold(FixtureFetch::new(), |fetch, recorded| {
             fetch.with(basemap_at.url(recorded.tile), recorded.jpeg)
         })
+}
+
+/// The answers recorded for the thermal map, as a fetcher of their own:
+/// one model's forecast for the four points of [`recorded_thermal_grid`]
+/// in one request, recorded hours after the answers for single places.
+/// The answers about the models' runs have the same addresses as those of
+/// [`recorded_payloads`] and differ, so the two are never one fetcher.
+pub fn recorded_thermal_payloads() -> FixtureFetch {
+    FixtureFetch::new().with_all(venti_sources_openmeteo::fixtures::recorded_places())
+}
+
+/// The grid of the development mode's thermal map: the four points the
+/// answers for several places were recorded for, around the Tegernsee and
+/// the Spitzingsee.
+///
+/// # Panics
+///
+/// Never: the recorded places are a grid of two rows of two.
+pub fn recorded_thermal_grid() -> ThermalGrid {
+    let points = venti_sources_openmeteo::fixtures::grid_places();
+    let grid = ThermalGrid {
+        south: points[0].lat(),
+        west: points[0].lon(),
+        step_deg: THERMAL_GRID_DEG,
+        rows: 2,
+        columns: 2,
+    };
+    assert_eq!(
+        grid.cell_at(points[3]),
+        Some(3),
+        "the recorded places are a grid"
+    );
+    grid
+}
+
+/// The moment the development mode's thermal map is made at: shortly after
+/// its answers were recorded, which is after the model's run began.
+pub fn thermal_map_recorded_at() -> Timestamp {
+    venti_sources_openmeteo::fixtures::places_recorded_at()
+}
+
+/// The run of ICON-D2 the answers of the thermal map are of: 2026-11-21
+/// 00:00 UTC. The development mode's map is made as if a look had seen it.
+///
+/// # Panics
+///
+/// Never: the date is a constant.
+pub fn thermal_map_recorded_run() -> Timestamp {
+    chrono::TimeZone::with_ymd_and_hms(&chrono::Utc, 2026, 11, 21, 0, 0, 0)
+        .single()
+        .expect("a valid date")
 }
 
 /// The places the recorded forecasts are for. The development mode has a

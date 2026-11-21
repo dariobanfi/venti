@@ -41,10 +41,10 @@ use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
 use tokio::sync::Semaphore;
 use venti_api_types::v1::FORECAST_GRID_DEG;
-use venti_domain::{BoundingBox, ForecastSeries, GeoPoint, SourceId, Timestamp};
+use venti_domain::{BoundingBox, ForecastSeries, GeoPoint, ModelId, SourceId, Timestamp};
 use venti_sources::{
     Archive, ArchiveEntry, ArchiveError, Fetch, FetchError, Fetched, ForecastRunOutput,
-    ForecastSource, Kind, PlanCtx, Request, RunOptions, run_forecast,
+    ForecastSource, Kind, PlanCtx, Request, RunOptions, run_forecast, run_forecast_places,
 };
 
 use crate::clock::Clock;
@@ -72,6 +72,11 @@ const AT_ONCE: usize = 2;
 /// The part of a source's hourly requests that only the server's own look
 /// at it may use: one in this many.
 const HELD_BACK: usize = 10;
+
+/// The part of a source's hourly requests the thermal map may use, all
+/// requests of the hour counted: one in this many. The map asks when it
+/// has room and waits when it has none; a pilot asks when they need to.
+const MAP_SHARE: usize = 2;
 
 /// How many requests to a source one hour's memory holds at most, where
 /// the manifest names no limit.
@@ -127,6 +132,32 @@ pub trait Forecasts: Send + Sync {
     /// the area the source is listed for, fetched now whatever is at hand,
     /// and archived. `None` if the service has no such source.
     fn look(&self, source: &SourceId) -> BoxFuture<'_, Option<ForecastRunOutput>>;
+
+    /// The area a source is listed for. `None` if the service has no such
+    /// source.
+    fn area(&self, source: &SourceId) -> Option<BoundingBox>;
+
+    /// How many places one request of [`places`](Self::places) may name:
+    /// zero for a source that cannot be asked for many at once, or that
+    /// the service does not have.
+    fn places_per_request(&self, source: &SourceId) -> usize;
+
+    /// The forecast of one model of a source for several places at once,
+    /// for the server's thermal map: at most as many places as the
+    /// source takes in one request, fetched now and not kept, and not
+    /// archived (a map's grid would be a copy of the instance's data on
+    /// disk within days).
+    ///
+    /// The requests count against the source's hour like every other, and
+    /// the map may use no more than half of it: when half is used up the
+    /// service refuses with [`Refusal::AskedEnough`] until there is room,
+    /// so that the map never takes what pilots' requests for a place need.
+    fn places<'a>(
+        &'a self,
+        source: &'a SourceId,
+        model: &'a ModelId,
+        points: &'a [GeoPoint],
+    ) -> BoxFuture<'a, Result<ForecastRunOutput, Refusal>>;
 }
 
 /// The forecast service for what a server collects: `sources` are the
@@ -231,6 +262,12 @@ impl Budget {
     fn for_requests(&self) -> Option<usize> {
         self.per_hour
             .map(|limit| limit - (limit / HELD_BACK).max(1).min(limit))
+    }
+
+    /// The limit for what the thermal map causes: half the hour's
+    /// requests, counting every request of the hour.
+    fn for_the_map(&self) -> Option<usize> {
+        self.per_hour.map(|limit| limit / MAP_SHARE)
     }
 
     /// The requests of the last hour, oldest first, without older ones.
@@ -652,6 +689,72 @@ where
         }
         .boxed()
     }
+
+    fn area(&self, source: &SourceId) -> Option<BoundingBox> {
+        self.0
+            .sources
+            .iter()
+            .find(|covered| &covered.source.manifest().id == source)
+            .map(|covered| covered.area)
+    }
+
+    fn places_per_request(&self, source: &SourceId) -> usize {
+        self.0
+            .sources
+            .iter()
+            .find(|covered| &covered.source.manifest().id == source)
+            .map_or(0, |covered| covered.source.places_per_request())
+    }
+
+    fn places<'a>(
+        &'a self,
+        source: &'a SourceId,
+        model: &'a ModelId,
+        points: &'a [GeoPoint],
+    ) -> BoxFuture<'a, Result<ForecastRunOutput, Refusal>> {
+        let inner = &self.0;
+        async move {
+            let covered = inner
+                .sources
+                .iter()
+                .find(|covered| &covered.source.manifest().id == source)
+                .ok_or(Refusal::SourceFailed)?;
+            if points.iter().any(|point| !covered.area.contains(*point)) {
+                return Err(Refusal::OutsideRegion);
+            }
+            let limit = covered.budget.for_the_map();
+            let full_for_s = covered.budget.full_for_s(limit);
+            if full_for_s > 0 {
+                return Err(Refusal::AskedEnough {
+                    retry_after_s: full_for_s,
+                });
+            }
+            // Never closed, so this cannot fail. The map takes one turn of
+            // the few there are, and so never all of them.
+            let _turn = inner.fetching.acquire().await;
+            let ctx = PlanCtx {
+                now: inner.clock.now(),
+                area: covered.area,
+            };
+            let fetch = Counted {
+                fetch: &inner.fetch,
+                budget: &covered.budget,
+                limit,
+            };
+            let source = covered.source.as_ref();
+            Ok(run_forecast_places(
+                source,
+                model,
+                points,
+                &fetch,
+                &NotArchived,
+                &ctx,
+                &RunOptions::default(),
+            )
+            .await)
+        }
+        .boxed()
+    }
 }
 
 #[cfg(test)]
@@ -953,5 +1056,70 @@ mod tests {
             assert!(service.forecast(place).await.is_ok());
         }
         assert!(asked.load(Ordering::SeqCst) <= 20);
+    }
+
+    #[tokio::test]
+    async fn the_thermal_map_takes_half_the_hour_at_most_and_pilots_keep_theirs() {
+        let clock = MovedClock::at(fixtures::places_recorded_at());
+        let asked = Arc::new(AtomicUsize::new(0));
+        let fetch = Recorded {
+            answers: FixtureFetch::new().with_all(fixtures::recorded_places()),
+            asked: asked.clone(),
+        };
+        let source: Box<dyn ForecastSource> = Box::new(OpenMeteo::new(fixtures::BASE).unwrap());
+        let service = ForecastService::new(
+            vec![(source, first_region())],
+            fetch,
+            NotArchived,
+            clock.clone(),
+            Asking::Live,
+        );
+        let id = SourceId::new("open-meteo").unwrap();
+        let icon_d2 = ModelId::new("icon-d2").unwrap();
+        let points = fixtures::grid_places();
+        assert_eq!(service.places_per_request(&id), 80);
+        assert_eq!(service.area(&id), Some(first_region()));
+
+        // Four places, two requests: which run, then the forecast.
+        let output = service.places(&id, &icon_d2, &points).await.unwrap();
+        assert_eq!(output.series.len(), 4);
+        assert_eq!(asked.load(Ordering::SeqCst), 2);
+
+        // With 199 of the hour's 400 requests made, the map has room for
+        // one: its next forecast is not whole. With 200 it is refused, and
+        // is told when there is room again.
+        let budget = &service.0.sources[0].budget;
+        for _ in 0..197 {
+            assert!(budget.take(None));
+        }
+        let output = service.places(&id, &icon_d2, &points).await.unwrap();
+        assert!(output.series.is_empty());
+        assert!(!output.report.is_healthy());
+        assert_eq!(asked.load(Ordering::SeqCst), 3);
+        let refused = service.places(&id, &icon_d2, &points).await;
+        assert_eq!(
+            refused,
+            Err(Refusal::AskedEnough {
+                retry_after_s: 3600
+            })
+        );
+        assert_eq!(asked.load(Ordering::SeqCst), 3);
+
+        // A pilot's request still has the rest of the hour but the tenth
+        // held back for the look.
+        assert_eq!(budget.full_for_s(budget.for_requests()), 0);
+        for _ in 0..160 {
+            assert!(budget.take(budget.for_requests()));
+        }
+        assert!(!budget.take(budget.for_requests()));
+
+        // An hour later there is room again.
+        clock.advance(Duration::minutes(61));
+        assert!(service.places(&id, &icon_d2, &points).await.is_ok());
+
+        // Places outside the source's area are not asked for.
+        let hamburg = [GeoPoint::new(53.55, 10.0).unwrap()];
+        let outside = service.places(&id, &icon_d2, &hamburg).await;
+        assert_eq!(outside, Err(Refusal::OutsideRegion));
     }
 }

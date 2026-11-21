@@ -21,6 +21,7 @@ use crate::forecast::{self, Asking};
 use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
 use crate::maps::Maps;
+use crate::thermals::ThermalMap;
 use crate::{adapters, groups, live, maintenance, plan};
 
 /// How far back from the time of a run observations are taken. See
@@ -87,10 +88,31 @@ pub async fn serve(config: Config) -> Result<(), String> {
         );
     }
 
+    // The thermal map of the forecast source, made with each run of its
+    // model that the collector's look sees, and kept in memory.
+    let thermal_map = forecasts.as_ref().and_then(|forecasts| {
+        let source = jobs
+            .iter()
+            .find(|job| job.kind == venti_sources::Kind::Forecasts)?
+            .source
+            .clone();
+        let map = ThermalMap::for_source(forecasts.clone(), source, clock.clone())?;
+        tracing::info!(
+            "thermal map: {} cells of {}, {} requests a run",
+            map.cells(),
+            map.model(),
+            map.requests_per_map()
+        );
+        Some(Arc::new(map))
+    });
+
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let mut api = Api::new(store.clone(), clock.clone(), manifests, settings);
     if let Some(forecasts) = &forecasts {
         api = api.with_forecasts(forecasts.clone());
+    }
+    if let Some(map) = &thermal_map {
+        api = api.with_thermal_map(map.clone());
     }
     if let Some(imagery) = imagery(&config)? {
         api = api.with_imagery(imagery);
@@ -147,6 +169,9 @@ pub async fn serve(config: Config) -> Result<(), String> {
     );
     if let Some(forecasts) = forecasts {
         collector = collector.with_forecasts(forecasts);
+    }
+    if let Some(map) = thermal_map {
+        collector = collector.with_thermal_map(map);
     }
     let collector = Arc::new(collector);
     let schedule = tokio::spawn(scheduler::run(

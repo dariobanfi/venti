@@ -8,6 +8,7 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.view.HapticFeedbackConstants
 import fly.venti.app.airspace.AirspaceLayers
+import fly.venti.app.forecast.ThermalMapLayer
 import fly.venti.app.live.GliderFeature
 import fly.venti.app.live.LiveSymbols
 import fly.venti.app.sites.SiteFeature
@@ -19,6 +20,7 @@ import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.LiveGlider
 import fly.venti.core.SiteView
+import fly.venti.core.ThermalMapCell
 import fly.venti.core.TrailPointView
 import fly.venti.core.WindStation
 import org.maplibre.android.camera.CameraPosition
@@ -67,6 +69,12 @@ class OverviewMap : MapContent {
 
     /** Called with the identifier of a plan whose mark was tapped. */
     var onPlan: (String) -> Unit = {}
+
+    /** Told the square of the forecast map that was tapped where nothing else lies under the finger. */
+    var onSquare: (ThermalMapCell) -> Unit = {}
+
+    private var squares: List<ThermalMapCell> = emptyList()
+    private var drawnSquares: List<ThermalMapCell>? = null
 
     private var pins: List<PlanPin> = emptyList()
     private var drawnPins: List<PlanPin>? = null
@@ -133,6 +141,9 @@ class OverviewMap : MapContent {
         this.style = style
         this.view = view
         MapSetup.showAerial(aerial, style, view)
+        // The forecast's squares lie under the base map's names, and under
+        // everything this map draws.
+        ThermalMapLayer.add(style)
         // What this map draws on top of the base map: airspace lowest,
         // the flights over it, then the flying sites, the wind above them,
         // and other pilots above everything.
@@ -150,6 +161,7 @@ class OverviewMap : MapContent {
         drawGliders()
         drawFollowed()
         drawAirspace()
+        drawSquares()
         if (isFollowing) {
             startFollowing()
         }
@@ -189,6 +201,26 @@ class OverviewMap : MapContent {
         drawGliders()
         drawFollowed()
         drawAirspace()
+    }
+
+    /**
+     * The squares of the forecast map for the day the pilot looks at; none
+     * while the layer is off. A day's squares are one list from the core,
+     * swapped whole when the day changes: nothing is drawn square by square.
+     */
+    fun showForecast(cells: List<ThermalMapCell>) {
+        squares = cells
+        drawSquares()
+    }
+
+    /** Draws the squares, once the style is there and only when they are another day's or another map's. */
+    private fun drawSquares() {
+        val style = style ?: return
+        // The same list as before is the same day of the same map: a
+        // comparison of each square would cost more than it saves.
+        if (squares === drawnSquares) return
+        drawnSquares = squares
+        ThermalMapLayer.show(squares, style)
     }
 
     /**
@@ -493,7 +525,8 @@ class OverviewMap : MapContent {
 
     /**
      * A tap on a glider opens its page, one on a station's arrow the
-     * station, one on a site's sign the site. A finger is wider than any of
+     * station, one on a site's sign the site, and one on none of them the
+     * forecast's square, while the forecast map shows. A finger is wider than any of
      * them, so the nearest within its width counts. Gliders lie over the
      * wind and the wind over the sites: what is on top wins where several
      * are under the finger.
@@ -524,6 +557,17 @@ class OverviewMap : MapContent {
         nearest(SITES, SiteFeature.ID)?.let { id ->
             onSite(id)
             return true
+        }
+        // Nothing else of Venti's under the finger: the square under its middle.
+        if (style.getLayer(ThermalMapLayer.LAYER) != null) {
+            val drawn = drawnSquares.orEmpty()
+            map.queryRenderedFeatures(point, ThermalMapLayer.LAYER).firstOrNull()
+                ?.getNumberProperty(ThermalMapLayer.CELL)?.toInt()
+                ?.let(drawn::getOrNull)
+                ?.let { square ->
+                    onSquare(square)
+                    return true
+                }
         }
         return false
     }

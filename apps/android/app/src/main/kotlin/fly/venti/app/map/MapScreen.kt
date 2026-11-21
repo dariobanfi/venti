@@ -65,6 +65,14 @@ import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.forecast.ForecastSheet
+import fly.venti.app.forecast.ThermalMapCard
+import fly.venti.app.forecast.ThermalMapModel
+import fly.venti.app.forecast.ThermalSquareSheet
+import fly.venti.core.ThermalMapCell
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.height
+import app.venti.design.VentiSize
+import kotlinx.coroutines.launch
 import fly.venti.app.groups.GroupsModel
 import fly.venti.app.groups.PlansSheet
 import fly.venti.app.live.GliderListSheet
@@ -112,6 +120,8 @@ fun MapScreen(
     preferences: Preferences? = null,
     /** The pages of a site that lead elsewhere: planning a route from it, and starting a flight there. */
     siteActions: SiteActions? = null,
+    /** The kind of day, square by square, for the "Forecast" layer. */
+    thermalMap: ThermalMapModel? = null,
 ) {
     val context = LocalContext.current
     // The layers the chips switch, as the pilot left them.
@@ -124,6 +134,11 @@ fun MapScreen(
     // The thermal map, where the style has it: only with the app's domain set.
     var thermals by remember { mutableStateOf(preferences?.mapShowsThermals == true) }
     val offersThermals = remember { MapSetup.offersThermals(context) }
+    // The forecast map, the kind of day square by square. Off until the pilot switches it on.
+    var forecast by remember { mutableStateOf(preferences?.mapShowsForecast == true) }
+    // A square of it the pilot tapped: its sheet shows over the map.
+    var square by remember { mutableStateOf<ThermalMapCell?>(null) }
+    val asking = rememberCoroutineScope()
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var showsStations by remember { mutableStateOf(false) }
@@ -158,6 +173,7 @@ fun MapScreen(
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
     map.onGlider = { id -> chosenGlider = id }
+    map.onSquare = { cell -> square = cell }
     map.onPlan = { id ->
         planOnMap = id
         showsPlans = true
@@ -191,6 +207,15 @@ fun MapScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(wind.address, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { wind.keepCurrent() }
+    }
+    // The forecast map is asked for when its layer is switched on, and
+    // again once it is half an hour old, while the map is on screen.
+    val hasServer = wind.server is WindServer.Usable
+    val showsForecast = forecast && hasServer && thermalMap != null
+    LaunchedEffect(showsForecast, wind.address, lifecycle) {
+        if (showsForecast && thermalMap != null) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { thermalMap.keepCurrent() }
+        }
     }
     // Other pilots are asked for again every quarter of a minute while the
     // map is on screen, and not when it is not.
@@ -226,8 +251,11 @@ fun MapScreen(
         // Who made the photographs, by name, while they show.
         MapSetup.PHOTOS_CREDIT.takeIf { aerial },
         MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
+        thermalMap?.creditLine?.takeIf { showsForecast },
     )
-    val hasServer = wind.server is WindServer.Usable
+    // The squares of the day the pilot looks at; a day's squares are one
+    // list from the core, handed over whole.
+    val squares = if (showsForecast) thermalMap?.day?.cells.orEmpty() else emptyList()
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
@@ -236,6 +264,7 @@ fun MapScreen(
             onUpdate = {
                 map.showAerial(aerial)
                 map.showThermals(thermals && offersThermals)
+                map.showForecast(squares)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins)
                 map.follow(isFollowing)
             },
@@ -254,6 +283,12 @@ fun MapScreen(
                         thermals = on
                         preferences?.mapShowsThermals = on
                     }, Modifier.testTag("layer-thermals"))
+                }
+                if (hasServer && thermalMap != null) {
+                    LayerChip("Forecast", R.drawable.venti_forecast, forecast, onChange = { on ->
+                        forecast = on
+                        preferences?.mapShowsForecast = on
+                    }, Modifier.testTag("layer-forecast"))
                 }
                 if (hasServer) {
                     LayerChip("Wind", R.drawable.venti_wind, !hidesWind, onChange = { on ->
@@ -280,10 +315,29 @@ fun MapScreen(
                 Notice(text, Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4))
             }
         }
-        if (credits.isNotEmpty()) {
-            // Clear of the map's own credits button on the left and of
-            // the round buttons on the right.
-            Credits(credits, Modifier.align(Alignment.BottomStart).padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart),
+            verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+        ) {
+            if (showsForecast && thermalMap != null) {
+                // The days and the key of the forecast map, beside the
+                // round buttons and over the credits.
+                ThermalMapCard(
+                    state = thermalMap.state,
+                    region = region,
+                    onChoose = thermalMap::choose,
+                    onTryAgain = { asking.launch { thermalMap.load() } },
+                    modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
+                )
+            }
+            if (credits.isNotEmpty()) {
+                // Clear of the map's own credits button on the left and of
+                // the round buttons on the right.
+                Credits(credits, Modifier.padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
+            } else if (showsForecast) {
+                // The card stands clear of the map's own credits button.
+                Spacer(Modifier.height(VentiSpace.s6))
+            }
         }
 
         Column(
@@ -408,6 +462,13 @@ fun MapScreen(
 
     pressed?.let { place ->
         ForecastSheet(place, wind, onDismiss = { pressed = null })
+    }
+
+    val shownSquare = square
+    val forecastMap = thermalMap?.map
+    val forecastDay = thermalMap?.day
+    if (shownSquare != null && forecastMap != null && forecastDay != null && showsForecast) {
+        ThermalSquareSheet(forecastMap, forecastDay, shownSquare, onDismiss = { square = null })
     }
 
     if (showsPlans) {

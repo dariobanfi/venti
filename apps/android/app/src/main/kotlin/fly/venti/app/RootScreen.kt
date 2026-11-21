@@ -373,6 +373,7 @@ private fun Sections(
                     onOpenFlight = { flight -> navigation.showPublic(flight.id) },
                     preferences = session.preferences,
                     siteActions = siteActions,
+                    thermalMap = session.thermalMap,
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {

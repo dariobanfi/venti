@@ -37,6 +37,7 @@ import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
 import fly.venti.app.sites.SitesModel
+import fly.venti.app.forecast.ThermalMapModel
 import fly.venti.app.today.TodayModel
 import fly.venti.app.logbook.WatchedFolder
 import fly.venti.app.task.TaskModel
@@ -82,6 +83,8 @@ sealed interface Session {
         val maps: OfflineMapsModel,
         /** The take-offs around, and what the forecast says of each. */
         val today: TodayModel,
+        /** The kind of day, square by square, for the map's "Forecast" layer. */
+        val thermalMap: ThermalMapModel,
         /** The folder new flight files are brought in from whenever the app opens: XCTrack's, as a rule. */
         val watched: WatchedFolder,
         val preferences: Preferences,
@@ -206,6 +209,11 @@ sealed interface Session {
             val today = TodayModel()
             today.server = { (wind.server as? WindServer.Usable)?.url }
             today.clock = { wind.serverNow() }
+            // The kind of day square by square, for the map, from the same
+            // server and by the same clock.
+            val thermalMap = ThermalMapModel()
+            thermalMap.server = { (wind.server as? WindServer.Usable)?.url }
+            thermalMap.clock = { wind.serverNow() }
             // So do the other pilots in the air.
             val live = LiveModel(scope)
             live.server = { (wind.server as? WindServer.Usable)?.url }
@@ -287,7 +295,7 @@ sealed interface Session {
             )
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, tasks,
-                leagues, maps, today, WatchedFolder(app, preferences, logbook), preferences, files, scope,
+                leagues, maps, today, thermalMap, WatchedFolder(app, preferences, logbook), preferences, files, scope,
             )
         }
     }

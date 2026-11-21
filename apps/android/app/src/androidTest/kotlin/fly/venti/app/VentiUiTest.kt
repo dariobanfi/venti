@@ -11,6 +11,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -141,8 +143,9 @@ class VentiUiTest {
         screen.onAllNodes(what).onFirst().performClick()
     }
 
-    /** One of the sections in the tab bar; not a day of the Today tab's switch, which says "Today" too. */
-    private fun tab(name: String) = hasText(name) and isSelectable() and !hasAnyAncestor(hasTestTag("today-days"))
+    /** One of the sections in the tab bar; not a day of Today's switch or of the forecast map's, which say "Today" too. */
+    private fun tab(name: String) =
+        hasText(name) and isSelectable() and !hasAnyAncestor(hasTestTag("today-days")) and !hasAnyAncestor(hasTestTag("forecast-days"))
 
     /**
      * The settings or the assistant: pages of the Today tab, opened from
@@ -1650,9 +1653,6 @@ class VentiUiTest {
         // One site: what its source says, and what that is worth. Kept as
         // a waypoint, the cockpit can navigate to it.
         tap(described(takeoff))
-        // Under the head and the picture of the day's air.
-        waitFor(hasTestTag("site-page"))
-        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasText("Add to my waypoints"))
         waitFor(hasText("Add to my waypoints"))
         assertTrue(exists(hasText("Marked as an official site")))
         tap(hasText("Add to my waypoints"))
@@ -1829,16 +1829,120 @@ class VentiUiTest {
         waitFor(hasTestTag("thermal-line"))
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("today-7-site-on-a-big-day")
-        // The air over the take-off through the day, as a picture: the
-        // sheet pulled up to its full height first.
-        screen.onNode(hasTestTag("site-page")).performTouchInput { swipeUp() }
-        TestDevice.letTheAppRun(screen, 1)
+        // The air over the take-off through the day, as a picture.
         screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("air-chart"))
         waitFor(hasTestTag("air-chart") and saying("m/s to a cloud base of"))
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("today-8-air-through-the-day")
         tap(hasText("Done"))
         waitFor(hasTestTag("today-card"))
+    }
+
+    /**
+     * The forecast map on the map tab: the kind of day square by square,
+     * against the stand-in with a made-up day (`madeUpDayServer`, as for
+     * Today's kinds of day); without it the test is skipped. Its map has
+     * every kind of day in clear patches around 47.5 to 47.9 N and 11.5 to
+     * 12.3 E, and two days. What its screenshots show is made up.
+     */
+    @Test
+    fun theMapShowsTheKindOfDaySquareBySquare() {
+        val server = InstrumentationRegistry.getArguments().getString("madeUpDayServer")
+        assumeTrue("No stand-in with a made-up day was named in the madeUpDayServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        val chip = hasTestTag("layer-forecast")
+        waitFor(chip)
+        // Off until the pilot switches it on.
+        screen.onNode(chip).assertIsOff()
+        // Nothing else of Venti's under the finger where a square is tapped.
+        for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
+            tap(hasTestTag(layer))
+            screen.onNode(hasTestTag(layer)).assertIsOff()
+        }
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
+        tap(chip)
+        screen.onNode(chip).assertIsOn()
+
+        // The card: the days, the key from the best kind of day down to
+        // "Not flyable", and the model with its run.
+        waitFor(hasTestTag("forecast-key"))
+        waitForAll(hasTestTag("forecast-days"), hasText("Big day"), hasText("Not flyable"), hasTestTag("forecast-map-run"))
+        assertTrue(exists(hasText("Today") and hasAnyAncestor(hasTestTag("forecast-days")) and isSelected()))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
+        }
+        // Whose forecast it is, with the map's other credits.
+        waitFor(hasText("Forecast: ", substring = true))
+        letTheMapDraw()
+        keepScreenshot("map-forecast-1-today")
+
+        // Another day swaps the squares.
+        val tomorrow = hasText("Tomorrow") and hasAnyAncestor(hasTestTag("forecast-days"))
+        tap(tomorrow)
+        waitFor(tomorrow and isSelected())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
+        }
+        letTheMapDraw()
+        keepScreenshot("map-forecast-2-tomorrow")
+
+        // A square tapped opens the pack's sheet with the core's words.
+        val square = checkNotNull(TestDevice.drawnInTheMiddle(scenario, "forecast-squares")) { "no square in the middle of the map" }
+        TestDevice.tap(square)
+        val sheet = hasTestTag("forecast-square")
+        waitFor(sheet)
+        waitForAll(
+            hasText("Tomorrow") and hasAnyAncestor(sheet),
+            hasTestTag("square-status"),
+            hasText("Judged at the model's ground, ", substring = true),
+            hasTestTag("square-note"),
+        )
+        assertTrue(
+            exists(hasTestTag("square-status") and (described("Flyable") or described("Marginal") or described("Not flyable"))),
+        )
+        // A square with a kind of day has the mark and its line; one that is not flyable has none.
+        if (!exists(hasTestTag("square-status") and described("Not flyable"))) {
+            assertTrue(exists(hasTestTag("thermal-line") and hasAnyAncestor(sheet)))
+        }
+        letTheMapDraw(2)
+        keepScreenshot("map-forecast-3-square")
+        tap(hasText("Done") and hasAnyAncestor(sheet))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(sheet) }
+
+        // Switched off, the card goes and the squares with it.
+        tap(chip)
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("forecast-map-card")) }
+    }
+
+    /**
+     * The forecast map in the dark appearance, over the drawn map and over
+     * the photographs from above, with tiles from the network as a phone
+     * draws them. Only the screenshots matter here.
+     */
+    @Test
+    fun theKindOfDayOnTheMapInDarkAppearance() {
+        val server = InstrumentationRegistry.getArguments().getString("madeUpDayServer")
+        assumeTrue("No stand-in with a made-up day was named in the madeUpDayServer argument.", !server.isNullOrEmpty())
+        launch(bundledMap = false, dark = true) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(hasTestTag("layer-forecast"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
+        tap(hasTestTag("layer-forecast"))
+        waitFor(hasTestTag("forecast-key"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
+        }
+        letTheMapDraw(12)
+        keepScreenshot("map-forecast-4-dark")
+
+        val aerial = hasTestTag("map-aerial")
+        tap(aerial)
+        waitFor(aerial and isSelected())
+        letTheMapDraw(12)
+        keepScreenshot("map-forecast-5-dark-aerial")
+        tap(aerial)
+        waitFor(aerial and isSelected().not())
     }
 
     @Test

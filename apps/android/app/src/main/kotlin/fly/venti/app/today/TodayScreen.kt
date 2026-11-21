@@ -24,8 +24,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,7 +52,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -71,7 +68,7 @@ import app.venti.design.VentiType
 import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.Metric
-import fly.venti.app.design.PillShape
+import fly.venti.app.design.SegmentedPills
 import fly.venti.app.design.StatusChip
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
@@ -205,7 +202,7 @@ fun TodayScreen(
                         )
                     } else {
                         if (days.size > 1) {
-                            DaySwitch(days, day, onChoose = {
+                            SegmentedPills(days.map { it.name }, day, Modifier.testTag("today-days"), onChoose = {
                                 hasChosenDay = true
                                 day = it
                             })
@@ -363,38 +360,6 @@ private fun Explained(title: String, words: String, action: String?, act: () -> 
         if (action != null) {
             Button(onClick = act, modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch)) {
                 Text(action)
-            }
-        }
-    }
-}
-
-/** Today, tomorrow and the day after, as the pack's switch: the chosen day on the primary colour. */
-@Composable
-private fun DaySwitch(days: List<OutlookDay>, chosen: Int, onChoose: (Int) -> Unit) {
-    val colours = Venti.colours
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("today-days")
-            .background(colours.surfaceRaised, PillShape)
-            .padding(VentiSpace.s1)
-            .selectableGroup(),
-    ) {
-        days.forEachIndexed { index, shown ->
-            val isChosen = index == chosen
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = VentiSize.touch - VentiSpace.s2)
-                    .background(if (isChosen) colours.primary else colours.surfaceRaised, PillShape)
-                    .selectable(selected = isChosen, role = Role.Tab, onClick = { onChoose(index) }),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    shown.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (isChosen) colours.onPrimary else colours.textSecondary,
-                )
             }
         }
     }

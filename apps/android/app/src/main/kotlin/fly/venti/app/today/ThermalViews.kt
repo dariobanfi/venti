@@ -57,10 +57,16 @@ fun thermalColour(climbMs: Double): Color = Venti.colours.thermal[ThermalScale.s
  */
 @Composable
 fun ThermalMark(climbMs: Double?, modifier: Modifier = Modifier) {
+    ThermalMark(if (climbMs != null) thermalColour(climbMs) else Venti.colours.surface, modifier)
+}
+
+/** The same mark in a colour given: a step of the scale as the core names it, as the forecast map draws it. */
+@Composable
+fun ThermalMark(fill: Color, modifier: Modifier = Modifier) {
     Box(
         modifier
             .size(VentiSpace.s3)
-            .background(if (climbMs != null) thermalColour(climbMs) else Venti.colours.surface, CircleShape)
+            .background(fill, CircleShape)
             .border(1.dp, Venti.colours.borderStrong, CircleShape),
     )
 }
@@ -69,22 +75,36 @@ fun ThermalMark(climbMs: Double?, modifier: Modifier = Modifier) {
 @Composable
 fun ThermalLine(day: OutlookDay, modifier: Modifier = Modifier) {
     if (day.thermals == null) return
+    ThermalLine(day.thermalWords, day.thermalLine, thermalColourOrSurface(day.climbMs), modifier)
+}
+
+/**
+ * The mark with the kind of day beside it and the thermals' line under it,
+ * read by TalkBack as the kind of day and its line: on Today, on a site's
+ * page, and on a square of the forecast map.
+ */
+@Composable
+fun ThermalLine(words: String, line: String, mark: Color, modifier: Modifier = Modifier) {
     Row(
         modifier
             .testTag("thermal-line")
             .clearAndSetSemantics {
-                contentDescription = day.thermalWords
-                stateDescription = day.thermalLine
+                contentDescription = words
+                stateDescription = line
             },
         horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
         verticalAlignment = Alignment.Top,
     ) {
-        ThermalMark(day.climbMs, Modifier.padding(top = VentiSpace.s1))
+        ThermalMark(mark, Modifier.padding(top = VentiSpace.s1))
         Column {
-            Text(day.thermalWords, style = MaterialTheme.typography.labelLarge, color = Venti.colours.text)
-            if (day.thermalLine.isNotEmpty()) {
-                Text(day.thermalLine, style = MaterialTheme.typography.labelLarge, color = Venti.colours.textSecondary)
+            Text(words, style = MaterialTheme.typography.labelLarge, color = Venti.colours.text)
+            if (line.isNotEmpty()) {
+                Text(line, style = MaterialTheme.typography.labelLarge, color = Venti.colours.textSecondary)
             }
         }
     }
 }
+
+@Composable
+private fun thermalColourOrSurface(climbMs: Double?): Color =
+    if (climbMs != null) thermalColour(climbMs) else Venti.colours.surface

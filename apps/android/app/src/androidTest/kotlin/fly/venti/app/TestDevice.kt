@@ -2,6 +2,7 @@ package fly.venti.app
 
 import android.app.Activity
 import android.graphics.Bitmap
+import android.graphics.PointF
 import android.graphics.RectF
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
@@ -220,6 +221,44 @@ object TestDevice {
         }
         asked.await(10, TimeUnit.SECONDS)
         return moved
+    }
+
+    /**
+     * A place on the screen, in pixels, where the map on screen has drawn a
+     * feature of one of its layers, looked for in the middle of the map
+     * (between a fifth and seven tenths of its width, a quarter and a half of
+     * its height), clear of the chips above and of what stands at its foot.
+     * `null` if there is none there, or no map.
+     */
+    fun <A : Activity> drawnInTheMiddle(app: ActivityScenario<A>, layer: String): Pair<Int, Int>? {
+        var place: Pair<Int, Int>? = null
+        val asked = CountDownLatch(1)
+        app.onActivity { activity ->
+            val view = mapIn(activity.window.decorView)
+            if (view == null) {
+                asked.countDown()
+            } else {
+                view.getMapAsync { map ->
+                    val corner = IntArray(2).also(view::getLocationOnScreen)
+                    val step = 24 * view.resources.displayMetrics.density
+                    var y = view.height * 0.25f
+                    search@ while (y <= view.height * 0.5f) {
+                        var x = view.width * 0.2f
+                        while (x <= view.width * 0.7f) {
+                            if (map.queryRenderedFeatures(PointF(x, y), layer).isNotEmpty()) {
+                                place = Pair(corner[0] + x.toInt(), corner[1] + y.toInt())
+                                break@search
+                            }
+                            x += step
+                        }
+                        y += step
+                    }
+                    asked.countDown()
+                }
+            }
+        }
+        asked.await(10, TimeUnit.SECONDS)
+        return place
     }
 
     /** A tap with a finger, as the phone itself takes one. */

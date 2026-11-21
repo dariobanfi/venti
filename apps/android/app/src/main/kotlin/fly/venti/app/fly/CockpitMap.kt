@@ -17,6 +17,14 @@ import fly.venti.app.design.Palette
 import android.graphics.PointF
 import android.os.SystemClock
 import fly.venti.app.airspace.AirspaceLayers
+import fly.venti.app.cables.CableLayers
+import fly.venti.app.live.OtherFeature
+import fly.venti.app.sites.SiteFeature
+import fly.venti.app.sites.SiteSymbols
+import fly.venti.core.CableLine
+import fly.venti.core.OtherNearView
+import fly.venti.core.SiteView
+import android.graphics.RectF
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.map.Covered
 import fly.venti.app.map.MapContent
@@ -135,6 +143,25 @@ class CockpitMap : MapContent {
     var gliders: List<LiveGlider> = emptyList()
     private var drawnGliders: List<LiveGlider>? = null
 
+    /** The cables of the flight's area, and those last drawn; compared by identity. */
+    var cables: List<CableLine> = emptyList()
+    private var drawnCables: List<CableLine>? = null
+
+    /** Told a cable's identifier when the pilot taps its line. */
+    var onCable: (String) -> Unit = {}
+
+    /** The closing circle of the open triangle, closed, and the one last drawn. */
+    var closing: List<Coordinate> = emptyList()
+    private var drawnClosing: List<Coordinate>? = null
+
+    /** The take-offs around the glider, and those last drawn. */
+    var takeoffs: List<SiteView> = emptyList()
+    private var drawnTakeoffs: List<SiteView>? = null
+
+    /** The aircraft other networks hear around the glider, with their tracks, and those last drawn. */
+    var others: List<OtherNearView> = emptyList()
+    private var drawnOthers: List<OtherNearView>? = null
+
     /** The thermals last drawn. */
     private var drawnThermals: List<ThermalMarkView>? = null
 
@@ -178,6 +205,15 @@ class CockpitMap : MapContent {
             map.uiSettings.focalPoint = PointF(view.width / 2f, view.height / 2f)
         }
         zoomAboutTheMiddle()
+        // A tap on a cable says what it is.
+        map.addOnMapClickListener { place ->
+            val style = style ?: return@addOnMapClickListener false
+            val point = map.projection.toScreenLocation(place)
+            val reach = TAP_REACH_DP * view.resources.displayMetrics.density
+            val id = CableLayers.tapped(map, style, RectF(point.x - reach, point.y - reach, point.x + reach, point.y + reach))
+            if (id != null) onCable(id)
+            id != null
+        }
         view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> zoomAboutTheMiddle() }
         wanted?.position?.let { position ->
             map.cameraPosition = CameraPosition.Builder().target(position.latLng).zoom(CRUISE_ZOOM).build()
@@ -190,8 +226,10 @@ class CockpitMap : MapContent {
         this.style = style
         this.mapView = view
 
-        // Airspace lowest of all.
+        // Airspace lowest of all, cables over it.
         AirspaceLayers.add(style)
+        CableLayers.add(style)
+        drawnCables = null
 
         // How far the glider glides: a green line around what a straight
         // glide still reaches with height to spare, over the ground as it
@@ -211,6 +249,46 @@ class CockpitMap : MapContent {
         areas.setProperties(PropertyFactory.lineDasharray(arrayOf(3f, 2f)), PropertyFactory.lineOpacity(0.85f))
         style.addLayer(areas)
         drawnFaiSide = null
+
+        // The closing circle of an open triangle: a thin dashed ring in the
+        // map's ink, with the FAI areas, a light casing under it on the
+        // photographs.
+        style.addSource(GeoJsonSource(CLOSING))
+        style.addLayer(MapSetup.aerialCasing("cockpit-closing-line", CLOSING, 1.5f))
+        style.addLayer(
+            MapSetup.line("cockpit-closing-line", CLOSING, MapSetup.ink, 1.5f)
+                .withProperties(PropertyFactory.lineDasharray(arrayOf(3f, 2f)), PropertyFactory.lineCap(Property.LINE_CAP_BUTT)),
+        )
+        drawnClosing = null
+
+        // The take-offs around: the map tab's signs, small, their names
+        // only from close in.
+        for ((name, picture) in SiteSymbols.all(view.context)) {
+            style.addImage(name, picture)
+        }
+        style.addSource(GeoJsonSource(TAKEOFFS))
+        style.addLayer(
+            SymbolLayer(TAKEOFFS, TAKEOFFS).withProperties(
+                PropertyFactory.iconImage(Expression.get(SiteFeature.PICTURE)),
+                PropertyFactory.iconSize(TAKEOFF_SIGN_SIZE),
+                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                PropertyFactory.iconAllowOverlap(true),
+            ),
+        )
+        style.addLayer(
+            SymbolLayer("$TAKEOFFS-names", TAKEOFFS).withProperties(
+                PropertyFactory.textField(Expression.get(SiteFeature.LABEL)),
+                PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+                PropertyFactory.textSize(12f),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                PropertyFactory.textOffset(arrayOf(0f, 0.2f)),
+                PropertyFactory.textColor(MapSetup.ink),
+                PropertyFactory.textHaloColor(MapSetup.halo),
+                PropertyFactory.textHaloWidth(1.4f),
+                PropertyFactory.textOptional(true),
+            ).apply { minZoom = TAKEOFF_NAMES_FROM_ZOOM },
+        )
+        drawnTakeoffs = null
 
         // The task: its cylinders and goal in the map's ink, the one to fly
         // to next with a heavier line, and the shortest way still to fly
@@ -328,6 +406,31 @@ class CockpitMap : MapContent {
         for ((name, picture) in LiveSymbols.all(view.context)) {
             style.addImage(name, picture)
         }
+        // The other networks' aircraft: each track a thin line in the map's
+        // ink, the muted wing over it, under Venti's own pilots.
+        style.addSource(GeoJsonSource(OTHER_TRACKS))
+        style.addLayer(
+            MapSetup.line(OTHER_TRACKS, OTHER_TRACKS, MapSetup.ink, 1f).withProperties(PropertyFactory.lineOpacity(0.5f)),
+        )
+        style.addSource(GeoJsonSource(OTHERS))
+        style.addLayer(
+            SymbolLayer(OTHERS, OTHERS).withProperties(
+                PropertyFactory.iconImage(LiveSymbols.OTHER),
+                PropertyFactory.iconRotate(Expression.get(OtherFeature.HEADING)),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.textField(Expression.get(OtherFeature.LABEL)),
+                PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+                PropertyFactory.textSize(12f),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                PropertyFactory.textOffset(arrayOf(0f, 1.15f)),
+                PropertyFactory.textColor(MapSetup.ink),
+                PropertyFactory.textHaloColor(MapSetup.halo),
+                PropertyFactory.textHaloWidth(1.6f),
+                PropertyFactory.textOptional(true),
+            ),
+        )
+        drawnOthers = null
         style.addSource(GeoJsonSource(GLIDERS))
         style.addLayer(
             SymbolLayer(GLIDERS, GLIDERS).withProperties(
@@ -455,6 +558,7 @@ class CockpitMap : MapContent {
         // engine throws when a style that is gone is asked for a source.
         if (mapView.isDestroyed || !style.isFullyLoaded) return
         drawGliders(style)
+        drawAround(style)
         val view = wanted ?: return
         val position = view.position ?: return
         if (view === shown) return
@@ -515,6 +619,29 @@ class CockpitMap : MapContent {
         if (gliders == drawnGliders) return
         drawnGliders = gliders
         style.getSourceAs<GeoJsonSource>(GLIDERS)?.setGeoJson(FeatureCollection.fromFeatures(gliders.map(GliderFeature::of)))
+    }
+
+    /** Draws the cables, the closing circle, the take-offs and the others, each when it has changed. */
+    private fun drawAround(style: Style) {
+        if (cables !== drawnCables) {
+            drawnCables = cables
+            CableLayers.show(cables, style)
+        }
+        if (closing != drawnClosing) {
+            drawnClosing = closing
+            val ring = if (closing.size >= 2) listOf(Feature.fromGeometry(closing.lineString())) else emptyList()
+            style.getSourceAs<GeoJsonSource>(CLOSING)?.setGeoJson(FeatureCollection.fromFeatures(ring))
+        }
+        if (takeoffs != drawnTakeoffs) {
+            drawnTakeoffs = takeoffs
+            style.getSourceAs<GeoJsonSource>(TAKEOFFS)?.setGeoJson(FeatureCollection.fromFeatures(takeoffs.map { SiteFeature.of(it) }))
+        }
+        if (others != drawnOthers) {
+            drawnOthers = others
+            style.getSourceAs<GeoJsonSource>(OTHERS)
+                ?.setGeoJson(FeatureCollection.fromFeatures(others.map { OtherFeature.of(it.aircraft) }))
+            style.getSourceAs<GeoJsonSource>(OTHER_TRACKS)?.setGeoJson(FeatureCollection.fromFeatures(trackFeatures(others)))
+        }
     }
 
     /** Draws the task's cylinders and the way still to fly, when either has changed. */
@@ -660,6 +787,23 @@ class CockpitMap : MapContent {
         }
 
         private const val TAKEOFF = "cockpit-takeoff"
+        private const val TAKEOFFS = "cockpit-takeoffs"
+        private const val CLOSING = "cockpit-closing"
+        private const val OTHERS = "cockpit-others"
+        private const val OTHER_TRACKS = "cockpit-other-tracks"
+
+        /** The take-offs' signs, smaller than the map tab's: landmarks, under what the pilot steers by. */
+        private const val TAKEOFF_SIGN_SIZE = 0.7f
+
+        /** The zoom from which the take-offs have their names. */
+        private const val TAKEOFF_NAMES_FROM_ZOOM = 12f
+
+        /** Half the width of a finger, in the screen's own units. */
+        private const val TAP_REACH_DP = 22f
+
+        /** The tracks of the other networks' aircraft, a line each that has two places. */
+        fun trackFeatures(others: List<OtherNearView>): List<Feature> =
+            others.filter { it.track.size >= 2 }.map { Feature.fromGeometry(it.track.lineString()) }
         private const val GLIDERS = "cockpit-gliders"
         private const val COURSE = "cockpit-course"
         private const val ROUTE = "cockpit-route"

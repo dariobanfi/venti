@@ -19,6 +19,8 @@ import fly.venti.core.SitesFiltered
 import fly.venti.core.SitesWindIs
 import fly.venti.core.filterSites
 import fly.venti.core.sitesMap
+import fly.venti.core.Coordinate
+import fly.venti.core.SitesMap
 import fly.venti.core.sitesPathFor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -107,6 +109,17 @@ class SitesModel(
     /** The date of the data, in seconds since 1970, if the server gives one. */
     var asOf: Long? by mutableStateOf(null)
         private set
+
+    /**
+     * The sites held from the last answer, as one answer for the cockpit's
+     * take-offs, when its area holds a place. `null` otherwise.
+     */
+    fun heldAround(place: Coordinate): SitesMap? {
+        val answered = answered ?: return null
+        val area = answered.area
+        if (place.lat !in area.south..area.north || place.lon !in area.west..area.east) return null
+        return SitesMap(sites = sites, credits = credits, asOfUnixS = asOf, isWhole = isWhole)
+    }
 
     /** Why the sites are missing, in words for the pilot. */
     var problem: String? by mutableStateOf(null)

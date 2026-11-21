@@ -21,6 +21,12 @@ import fly.venti.core.AirspaceAhead
 import fly.venti.core.AirspaceCheck
 import fly.venti.core.AirspaceSet
 import fly.venti.core.AirspaceWarning
+import fly.venti.core.CableSet
+import fly.venti.core.CableWarning
+import fly.venti.core.CockpitTakeoffs
+import fly.venti.core.OthersNear
+import fly.venti.core.cockpitOthersPath
+import fly.venti.core.liveOthers
 import fly.venti.core.CockpitView
 import fly.venti.core.Coordinate
 import fly.venti.core.FlightSession
@@ -189,6 +195,54 @@ class FlySession(
 
     /** The airspace last handed to the core's session. */
     private var handedAirspace: AirspaceSet? = null
+
+    /**
+     * The cables to warn about, asked for while a session runs. The app
+     * sets this to the set fetched for the flight's area.
+     */
+    var cables: () -> CableSet? = { null }
+
+    /** The cables last handed to the core's session. */
+    private var handedCables: CableSet? = null
+
+    /** The cable ahead, by the core's rule; absent with none ahead, which is no promise. */
+    var cableWarning: CableWarning? by mutableStateOf(null)
+        private set
+
+    /**
+     * Fetches a path of Venti's server and returns its answer, or `null`
+     * without a server or an answer. The app sets this.
+     */
+    var fetch: suspend (String) -> HttpAnswer? = { null }
+
+    /** The aircraft other networks hear around the glider, as the core keeps them, with their tracks. */
+    var othersNear: OthersNear? by mutableStateOf(null)
+        private set
+
+    /** When the other networks were last asked, by the phone's clock, and whether an answer is awaited. */
+    private var askedForNetworks = Double.NEGATIVE_INFINITY
+    private var isAskingForNetworks = false
+
+    /**
+     * The take-offs around the glider for the cockpit's map, as the core
+     * gives them from what the app holds. The app sets this.
+     */
+    var takeoffsAround: suspend (Coordinate) -> CockpitTakeoffs? = { null }
+
+    /** The take-offs around the glider, nearest first. */
+    var takeoffs: CockpitTakeoffs? by mutableStateOf(null)
+        private set
+
+    /** When the take-offs were last asked for, by the phone's clock, and whether an answer is awaited. */
+    private var askedForTakeoffs = Double.NEGATIVE_INFINITY
+    private var isAskingForTakeoffs = false
+
+    /** "I have seen this cable": quiet for ten minutes, as an airspace warning's "Seen". */
+    @Synchronized
+    fun acknowledgeCable(id: String) {
+        session?.acknowledgeCable(id, minutes = 10u)
+        cableWarning = session?.cableWarning()
+    }
 
     /**
      * The task to fly, asked for when a session starts. The app sets this
@@ -612,6 +666,12 @@ class FlySession(
         airspaceWarnings = emptyList()
         airspaceCheck = AirspaceCheck.NO_AIRSPACE
         handedAirspace = null
+        handedCables = null
+        cableWarning = null
+        othersNear = null
+        isAskingForNetworks = false
+        takeoffs = null
+        isAskingForTakeoffs = false
         task = null
         chosenPlace = null
         gliders = emptyList()
@@ -631,6 +691,8 @@ class FlySession(
         session.setGlider(trimSpeedMs = preferences.trimSpeed / 3.6, glideRatio = preferences.glideRatio)
         handedAirspace = airspace()
         session.useAirspace(handedAirspace)
+        handedCables = cables()
+        session.useCables(handedCables)
         // The task of the day, on the day of the flight: a replay's day is
         // the day it was flown.
         try {
@@ -648,6 +710,10 @@ class FlySession(
         isAskingForWindBelow = false
         askedForOthers = Double.NEGATIVE_INFINITY
         isAskingForOthers = false
+        askedForNetworks = Double.NEGATIVE_INFINITY
+        isAskingForNetworks = false
+        askedForTakeoffs = Double.NEGATIVE_INFINITY
+        isAskingForTakeoffs = false
         askedForLiveRequest = 0.0
         sending = null
         sound.isMuted = isMuted
@@ -799,6 +865,37 @@ class FlySession(
                 if (around != gliders) gliders = around
             }
         }
+        // The aircraft other networks hear, in flight only, every quarter
+        // of a minute: the core keeps their tracks from the answers.
+        if (position != null && view.phase == FlightPhase.FLYING && !isAskingForNetworks &&
+            wallClock - askedForNetworks >= OTHERS_SECONDS
+        ) {
+            val path = cockpitOthersPath(position.lat, position.lon)
+            if (path != null) {
+                askedForNetworks = wallClock
+                isAskingForNetworks = true
+                scope.launch {
+                    val answer = fetch(path)
+                    isAskingForNetworks = false
+                    if (answer == null || this@FlySession.session !== session) return@launch
+                    val status = answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()
+                    val read = runCatching { liveOthers(status, answer.body) }.getOrNull() ?: return@launch
+                    takeOthers(session, read)
+                }
+            }
+        }
+        // The take-offs around the glider, every half minute: the core
+        // takes them from the pilot's own and from what the app holds.
+        if (position != null && !isAskingForTakeoffs && wallClock - askedForTakeoffs >= TAKEOFFS_SECONDS) {
+            askedForTakeoffs = wallClock
+            isAskingForTakeoffs = true
+            scope.launch {
+                val found = takeoffsAround(position)
+                isAskingForTakeoffs = false
+                if (found == null || this@FlySession.session !== session) return@launch
+                if (found != takeoffs) takeoffs = found
+            }
+        }
         // Files brought in or removed in the middle of a session reach the
         // core at once; what the pilot silenced stays silenced.
         val latest = airspace()
@@ -815,10 +912,38 @@ class FlySession(
             airspaceWarnings = warnings
         }
         // A warning that is new, or more urgent than it was, is said aloud once.
-        if (session.takeAirspaceAlert() != null) {
+        val saidAirspace = session.takeAirspaceAlert() != null
+        if (saidAirspace) {
             warnings.firstOrNull { !it.silenced }?.let { loudest -> voice.say("Airspace. ${loudest.headline}.") }
         }
+        // The cables of the flight's area, as fetched; a new set reaches
+        // the core at once. Their warning is said once, as an airspace
+        // warning of the level "Entering" is, after one said now.
+        val latestCables = cables()
+        if (latestCables !== handedCables) {
+            handedCables = latestCables
+            session.useCables(latestCables)
+        }
+        val cable = session.cableWarning()
+        if (cable != cableWarning) cableWarning = cable
+        if (session.takeCableAlert() && cable != null) {
+            if (saidAirspace) voice.sayAfter(cable.words) else voice.say(cable.words)
+        }
+        if (refreshesSinceScore == 0) {
+            val near = session.othersNear(now)
+            if (near != othersNear) othersNear = near
+        }
         sound.play(view.tone)
+    }
+
+    /** Hands the core an answer of the other networks, and takes what it keeps of them. */
+    @Synchronized
+    private fun takeOthers(session: FlightSession, others: fly.venti.core.LiveOthers) {
+        if (this.session !== session) return
+        val now = replay?.now() ?: clock()
+        session.onOthers(others, now)
+        val near = session.othersNear(now)
+        if (near != othersNear) othersNear = near
     }
 
     /**
@@ -868,6 +993,9 @@ class FlySession(
 
         /** How often the other gliders around are asked for in flight, seconds. */
         const val OTHERS_SECONDS = 15.0
+
+        /** How often the take-offs around the glider are asked for, seconds. */
+        const val TAKEOFFS_SECONDS = 30.0
 
         /** How often the screen and the vario tone are refreshed. */
         const val REFRESH_MILLISECONDS = 200L

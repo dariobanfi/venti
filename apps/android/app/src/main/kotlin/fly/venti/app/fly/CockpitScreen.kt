@@ -107,6 +107,12 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceBanner
+import fly.venti.app.cables.CableSheet
+import fly.venti.app.cables.CablesModel
+import fly.venti.core.AirspaceLevel
+import fly.venti.core.CableWarning
+import fly.venti.core.TaskLegReading
+import fly.venti.core.TaskReadings
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.airspace.AirspaceWarningsSheet
 import fly.venti.app.design.ClimbBand
@@ -143,11 +149,17 @@ enum class CockpitPage(
     /** The map as large as it gets, with the way to the place flown to. */
     Map("Map"),
 
+    /** A task's readings, large, over the map: only while a task is flown. */
+    Task("Task"),
+
     /** How the flight stands, and what can be switched. */
     Flight("Flight"),
     ;
 
     val next: CockpitPage get() = entries[(ordinal + 1) % entries.size]
+
+    /** The page after this one: the task's only while a task is flown. */
+    fun next(hasTask: Boolean): CockpitPage = next.let { if (it == Task && !hasTask) it.next else it }
 }
 
 /**
@@ -180,12 +192,19 @@ fun CockpitScreen(
     showsFaiAreas: Boolean,
     /** The region kept on the phone that covers the glider, which the map is drawn from. */
     keptMap: KeptMap? = null,
+    /** The cables of the flight's area: fetched around the first position, and drawn on the map. */
+    cables: CablesModel? = null,
     /** Called when the pilot has held the button that ends the session. */
     onFinish: () -> Unit,
 ) {
     val view = fly.view ?: return
     val isReplay = fly.mode is FlySession.Mode.Replay
-    var page by rememberSaveable { mutableStateOf(CockpitPage.Instruments) }
+    var chosenPage by rememberSaveable { mutableStateOf(CockpitPage.Instruments) }
+    // The task's page is there only while a task is flown.
+    val hasTask = fly.task != null
+    val page = if (chosenPage == CockpitPage.Task && !hasTask) CockpitPage.Instruments else chosenPage
+    // A cable tapped on the map, by its identifier.
+    var chosenCable by remember { mutableStateOf<String?>(null) }
     var isChoosingTarget by remember { mutableStateOf(false) }
     var isShowingAirspace by remember { mutableStateOf(false) }
     var isShowingWinds by remember { mutableStateOf(false) }
@@ -238,6 +257,7 @@ fun CockpitScreen(
     val hasPosition = view.position != null
     LaunchedEffect(hasPosition) {
         view.position?.let(airspace::refreshSoon)
+        view.position?.let { cables?.refreshSoon(it) }
     }
     // The cockpit covers the whole app and ends only by "Hold to end": the
     // system's back does nothing here, so that a thumb on the edge of the
@@ -259,6 +279,7 @@ fun CockpitScreen(
                 when (page) {
                     CockpitPage.Instruments -> InstrumentsPage(view, way, onWinds = openWinds)
                     CockpitPage.Map -> Unit
+                    CockpitPage.Task -> TaskPage(view.taskReadings)
                     CockpitPage.Flight -> FlightPage(
                         view,
                         fly.score,
@@ -297,6 +318,11 @@ fun CockpitScreen(
                                 map.airspace = fly.airspace()
                                 map.range = fly.range
                                 map.gliders = fly.gliders
+                                map.cables = cables?.lines.orEmpty()
+                                map.onCable = { id -> chosenCable = id }
+                                map.closing = fly.score?.closing?.outline.orEmpty()
+                                map.takeoffs = fly.takeoffs?.takeoffs.orEmpty().map { it.site }
+                                map.others = fly.othersNear?.aircraft.orEmpty()
                                 // Beside the thermal view the map keeps to the glide:
                                 // the circle is looked at in the close-up.
                                 map.closeUp = page == CockpitPage.Instruments
@@ -339,6 +365,10 @@ fun CockpitScreen(
                             if (page != CockpitPage.Instruments) {
                                 view.lift?.centre?.let { centre -> LiftBadge(centre) }
                             }
+                            // How many others the networks hear around, in the core's words.
+                            if (page == CockpitPage.Map) {
+                                fly.othersNear?.countWords?.takeIf { it.isNotEmpty() }?.let { words -> CountBadge(words) }
+                            }
                         }
                         Column(
                             // Clear of the map's own credits in the corner.
@@ -351,6 +381,22 @@ fun CockpitScreen(
                             // Who made the photographs, by name, while they show.
                             if (aerial && page != CockpitPage.Instruments) {
                                 PhotosCredit(photos)
+                            }
+                            // Whose cables, take-offs and other aircraft are drawn.
+                            if (page == CockpitPage.Map) {
+                                val credits = (
+                                    cables?.creditLine?.let(::listOf).orEmpty() +
+                                        fly.takeoffs?.credits.orEmpty().map { it.text } +
+                                        fly.othersNear?.credits.orEmpty().map { it.text }
+                                    ).distinct()
+                                if (credits.isNotEmpty()) {
+                                    Text(
+                                        credits.joinToString(" · "),
+                                        style = fixed(VentiType.label).copy(fontWeight = FontWeight.Normal),
+                                        color = Venti.colours.textMuted,
+                                        modifier = Modifier.testTag("cockpit-map-credits"),
+                                    )
+                                }
                             }
                             if (page == CockpitPage.Map) Row(
                                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
@@ -393,8 +439,15 @@ fun CockpitScreen(
                         ) {
                             when (page) {
                                 CockpitPage.Instruments -> view.airspaceProximity?.let { AirspaceProximityBadge(it) }
-                                CockpitPage.Map -> fly.score?.let { ScoreBadge(it) }
-                                CockpitPage.Flight -> Unit
+                                CockpitPage.Map -> Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                                ) {
+                                    // The closing circle of an open triangle, in the core's words, over the distance so far.
+                                    fly.score?.closing?.let { closing -> ClosingBadge(closing.words) }
+                                    fly.score?.let { ScoreBadge(it) }
+                                }
+                                CockpitPage.Task, CockpitPage.Flight -> Unit
                             }
                         }
                     }
@@ -421,7 +474,7 @@ fun CockpitScreen(
                 // the lock stands in their place.
                 Foot(
                     page,
-                    onNext = { page = page.next },
+                    onNext = { chosenPage = page.next(hasTask) },
                     onEnd = onFinish,
                     modifier = Modifier.alpha(if (isLocked) 0f else 1f),
                 )
@@ -441,6 +494,15 @@ fun CockpitScreen(
             onUnsilence = fly::unsilenceAirspace,
             onDismiss = { isShowingAirspace = false },
         )
+    }
+
+    chosenCable?.let { id ->
+        val line = cables?.line(id)
+        if (line == null) {
+            chosenCable = null
+        } else {
+            CableSheet(line, cables.layer, onDismiss = { chosenCable = null })
+        }
     }
 
     if (isShowingAhead) {
@@ -510,12 +572,17 @@ private fun Alerts(
     val notice = PhaseWords.notice(view, isReplay)
     val warning = fly.windWarning
     val hasAirspace = AirspaceWords.shown(fly.airspaceWarnings) != null || AirspaceWords.notChecking(fly.airspaceCheck) != null
-    if (notice == null && warning == null && !hasAirspace) return
+    val cable = fly.cableWarning
+    if (notice == null && warning == null && !hasAirspace && cable == null) return
+    // An airspace warning of the level "Inside" stays above the cable's.
+    val isInside = fly.airspaceWarnings.any { !it.silenced && it.level == AirspaceLevel.INSIDE }
     Column(
         Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s2),
         verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
     ) {
+        if (cable != null && !isInside) CableBanner(cable, onSeen = { fly.acknowledgeCable(cable.id) })
         AirspaceBanner(fly.airspaceWarnings, fly.airspaceCheck, onOpen = onAirspace)
+        if (cable != null && isInside) CableBanner(cable, onSeen = { fly.acknowledgeCable(cable.id) })
         warning?.let { GroundWindBanner(it, onOpen = onGroundWinds, onPutAway = fly::putWindWarningAway) }
         notice?.let { (title, detail) -> PhaseNotice(view, title, detail) }
     }
@@ -985,6 +1052,8 @@ private fun Reading(
     /** The name as it is read out, where the one shown says more than a name. */
     spoken: String? = null,
     onClick: (() -> Unit)? = null,
+    /** The value's colour, where it says something by its colour; the text's otherwise. */
+    ink: Color = Color.Unspecified,
 ) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
     val pressable = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier
@@ -1015,6 +1084,7 @@ private fun Reading(
             Text(
                 value ?: "– –",
                 modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
+                color = ink,
                 style = fixed(size.number).numbers,
                 maxLines = 1,
                 softWrap = false,
@@ -1492,3 +1562,157 @@ private fun LockCover(onUnlock: () -> Unit) {
 
 /** The share of the width the thermal view takes beside the first page's map. */
 private const val THERMAL_VIEW_SHARE = 0.48f
+
+/**
+ * The cable ahead, in the airspace warning's band on the alert red, with
+ * the core's words; quieted, plain. "Seen" quiets it for ten minutes, as
+ * an airspace warning's "Seen" does.
+ */
+@Composable
+private fun CableBanner(warning: CableWarning, onSeen: () -> Unit) {
+    val ground = if (warning.silenced) MaterialTheme.colorScheme.surfaceContainerHigh else Venti.colours.dangerFill
+    val ink = if (warning.silenced) MaterialTheme.colorScheme.onSurfaceVariant else Venti.colours.onDangerFill
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("cable-banner")
+            .semantics {
+                contentDescription = if (warning.silenced) "Cable warning, quieted" else "Cable warning"
+                stateDescription = warning.words
+            },
+        shape = MaterialTheme.shapes.medium,
+        color = ground,
+        contentColor = ink,
+    ) {
+        Row(
+            Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s2, top = VentiSpace.s2, bottom = VentiSpace.s2),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painterResource(if (warning.silenced) R.drawable.ic_notifications_off else R.drawable.venti_danger),
+                contentDescription = null,
+            )
+            Spacer(Modifier.width(VentiSpace.s3))
+            Text(warning.words, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            if (!warning.silenced) {
+                TextButton(onClick = onSeen, modifier = Modifier.heightIn(min = VentiSize.touch).testTag("cable-seen")) {
+                    Text("Seen", color = ink, style = fixed(VentiType.heading))
+                }
+            }
+        }
+    }
+}
+
+/** A count over the map, in the core's words: the other networks' aircraft around. */
+@Composable
+private fun CountBadge(words: String) {
+    Badge(
+        Modifier.testTag("others-count").clearAndSetSemantics { contentDescription = words },
+    ) {
+        Icon(painterResource(R.drawable.venti_live), contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(words, style = fixed(VentiType.label).copy(fontWeight = FontWeight.SemiBold).numbers, color = Color.Unspecified)
+    }
+}
+
+/** The closing circle of an open triangle, in the core's words, over the distance so far. */
+@Composable
+private fun ClosingBadge(words: String) {
+    Badge(
+        Modifier
+            .widthIn(max = VentiSpace.s8 * 2 + VentiSpace.s6)
+            .testTag("closing-badge")
+            .clearAndSetSemantics {
+                contentDescription = "Closing circle"
+                stateDescription = words
+            },
+    ) {
+        Text(
+            words,
+            style = fixed(VentiType.label).copy(fontWeight = FontWeight.SemiBold).numbers,
+            color = Color.Unspecified,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The task's page, as an instrument's competition page: the next
+ * turnpoint large, its name, distance, height over what it needs (green
+ * over, red under), the glide it needs and the arrival; goal the same in a
+ * smaller row; before the start, the start's words large; the speed
+ * section's average. Numbers and words are the core's.
+ */
+@Composable
+private fun TaskPage(readings: TaskReadings?) {
+    Column(
+        Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s2).testTag("task-page"),
+        verticalArrangement = Arrangement.spacedBy(VentiSpace.s1),
+    ) {
+        readings?.start?.let { start ->
+            Text(
+                start.words,
+                style = fixed(VentiType.heading),
+                modifier = Modifier.testTag("task-start-words"),
+            )
+        }
+        val next = readings?.next
+        Text(
+            next?.name ?: "– –",
+            style = fixed(VentiType.heading),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag("task-next-name"),
+        )
+        LegReadings(next, ReadingSize.Large, Modifier.testTag("task-next"))
+        LegReadings(next, ReadingSize.Large, arrival = true)
+        // On the last leg the next turnpoint is the goal: it is not said twice.
+        val goal = readings?.goal?.takeIf { next?.isGoal != true }
+        goal?.let {
+            Text(it.name, style = fixed(VentiType.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            LegReadings(it, ReadingSize.Medium, Modifier.testTag("task-goal"))
+        }
+        readings?.speedSectionAverageWords?.let { words ->
+            Text(
+                words,
+                style = fixed(VentiType.label).numbers,
+                color = Venti.colours.textMuted,
+                modifier = Modifier.testTag("task-speed"),
+            )
+        }
+    }
+}
+
+/** One place ahead of the task: distance and height over what it needs, or the glide it needs and the arrival. */
+@Composable
+private fun LegReadings(leg: TaskLegReading?, size: ReadingSize, modifier: Modifier = Modifier, arrival: Boolean = false) {
+    val over = leg?.overNeededM
+    val overInk = when {
+        over == null -> Color.Unspecified
+        over >= 0 -> Venti.colours.good
+        else -> Venti.colours.danger
+    }
+    Row(modifier) {
+        if (!arrival) {
+            Reading("Distance", leg?.let { Format.kilometres(it.distanceM) }, "km", size = size, modifier = Modifier.weight(1f))
+            Reading(
+                "Over needed",
+                leg?.overNeededWords,
+                "",
+                size = size,
+                ink = overInk,
+                modifier = Modifier.weight(1f).testTag("task-over-needed"),
+            )
+        } else {
+            Reading("Glide needed", leg?.glideNeeded?.let(Format::neededGlide), "", size = size, modifier = Modifier.weight(1f))
+            Reading(
+                "Arrival",
+                leg?.arrivesUnixS?.let(Format::time),
+                "",
+                size = size,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}

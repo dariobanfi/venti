@@ -66,6 +66,8 @@ import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.airspace.AirspaceOverSheet
+import fly.venti.app.cables.CableSheet
+import fly.venti.app.cables.CablesModel
 import fly.venti.app.forecast.ForecastSheet
 import fly.venti.app.forecast.ThermalMapCard
 import fly.venti.app.forecast.ThermalMapModel
@@ -163,6 +165,8 @@ fun MapScreen(
     onSignIn: () -> Unit = {},
     /** The ground, for what a glide reaches from a place pressed; `null` for none. */
     terrain: TerrainModel? = null,
+    /** The cables of OpenStreetMap around what is in view; `null` where the map draws none. */
+    cables: CablesModel? = null,
 ) {
     val context = LocalContext.current
     // The layers the chips switch, as the pilot left them.
@@ -170,6 +174,9 @@ fun MapScreen(
     var hidesAirspace by remember { mutableStateOf(preferences?.mapHidesAirspace == true) }
     var hidesSites by remember { mutableStateOf(preferences?.mapHidesSites == true) }
     var hidesPilots by remember { mutableStateOf(preferences?.mapHidesPilots == true) }
+    var hidesCables by remember { mutableStateOf(preferences?.mapHidesCables == true) }
+    // A cable the pilot tapped, by its identifier.
+    var chosenCable by remember { mutableStateOf<String?>(null) }
     // The ground: the drawn map, or photographs from above. One choice for every map.
     var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
     // Who made the photographs in view, as the map last said.
@@ -260,7 +267,12 @@ fun MapScreen(
                 Coordinate(lat = (shown.south + shown.north) / 2, lon = (shown.west + shown.east) / 2),
             )
         }
+        // The cables around what is in view, once it is close enough for them to be drawn.
+        if (shown.north - shown.south < CABLES_WITHIN_DEGREES && !hidesCables) {
+            cables?.refreshSoon(Coordinate(lat = (shown.south + shown.north) / 2, lon = (shown.west + shown.east) / 2))
+        }
     }
+    map.onCable = { id -> chosenCable = id }
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
     map.onCandidate = { place ->
@@ -388,6 +400,7 @@ fun MapScreen(
     val credits = listOfNotNull(
         wind.creditLine.takeIf { !hidesWind },
         airspace.mapCredit.takeIf { showsAirspace && !hidesAirspace },
+        cables?.creditLine?.takeIf { !hidesCables && region?.let { it.north - it.south < CABLES_WITHIN_DEGREES } == true },
         sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true && !hidesSites },
         // Who made the photographs, by name, while they show.
         photos.takeIf { aerial },
@@ -433,6 +446,7 @@ fun MapScreen(
                 map.showRadar(if (showsRadar) radar.shown else null)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins, unsaidSites)
                 map.showOthers(others)
+                map.showCables(if (hidesCables) emptyList() else cables?.lines.orEmpty())
                 map.showCandidates(if (hidesSites || !hasServer) emptyList() else candidates?.candidates.orEmpty())
                 map.showReach(glideReach.answer?.takeIf { glideReach.place != null }, glideReach.place)
                 map.follow(isFollowing)
@@ -501,6 +515,12 @@ fun MapScreen(
                     hidesAirspace = !on
                     preferences?.mapHidesAirspace = !on
                 }, Modifier.testTag("layer-airspace"))
+                if (hasServer && cables != null) {
+                    LayerChip("Cables", R.drawable.venti_caution, !hidesCables, onChange = { on ->
+                        hidesCables = !on
+                        preferences?.mapHidesCables = !on
+                    }, Modifier.testTag("layer-cables"))
+                }
                 if (hasServer) {
                     LayerChip("Sites", R.drawable.venti_site, !hidesSites, onChange = { on ->
                         hidesSites = !on
@@ -810,6 +830,15 @@ fun MapScreen(
         OtherAircraftSheet(id, live, onDismiss = { chosenOther = null })
     }
 
+    chosenCable?.let { id ->
+        val line = cables?.line(id)
+        if (line == null) {
+            chosenCable = null
+        } else {
+            CableSheet(line, cables.layer, onDismiss = { chosenCable = null })
+        }
+    }
+
     airspaceOver?.let { over ->
         AirspaceOverSheet(
             over,
@@ -976,6 +1005,9 @@ private fun Credits(lines: List<String>, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** How few degrees of latitude the map shows at most for the cables around it to be fetched and credited: about zoom 9. */
+private const val CABLES_WITHIN_DEGREES = 1.0
 
 private val POSITION_PERMISSIONS =
     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)

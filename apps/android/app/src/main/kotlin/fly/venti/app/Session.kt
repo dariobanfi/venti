@@ -51,6 +51,8 @@ import fly.venti.app.terrain.TerrainModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
+import fly.venti.app.cables.CablesModel
+import fly.venti.core.todayArea
 import fly.venti.core.WaypointKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
@@ -101,6 +103,8 @@ sealed interface Session {
         val thermalMap: ThermalMapModel,
         /** The rain radar, for the map's "Radar" layer. */
         val radar: RadarModel,
+        /** The cables of OpenStreetMap, for the maps and the cockpit's warning. */
+        val cables: CablesModel,
         /** The folder new flight files are brought in from whenever the app opens: XCTrack's, as a rule. */
         val watched: WatchedFolder,
         val preferences: Preferences,
@@ -216,6 +220,23 @@ sealed interface Session {
             // The cockpit warns of the pilot's files and of what is kept
             // from the server, also when either changes during a flight.
             fly.airspace = { airspace.set }
+            // Cables come from the same server, around where the map looks
+            // and the flight is; the cockpit warns of them.
+            val cables = CablesModel(scope = scope)
+            cables.server = { (wind.server as? WindServer.Usable)?.url }
+            fly.cables = { cables.set }
+            // The other networks' aircraft around the glider, asked of the same server.
+            fly.fetch = { path ->
+                (wind.server as? WindServer.Usable)?.url?.let { address ->
+                    try {
+                        Http.get(address + path)
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            }
             // What the map style asks of Venti itself, the photographs of
             // Austria, is asked of the same server.
             MapSetup.server = { (wind.server as? WindServer.Usable)?.url }
@@ -227,6 +248,16 @@ sealed interface Session {
             // And the forecasts for the take-offs of the Today tab, whose
             // hours are gone by the server's clock.
             val keptSites = logbook.makeKeptSites()
+            // The take-offs on the cockpit's map: the pilot's own and the
+            // sites the app holds around the glider, asked for again once
+            // the glider has left the area of the answer held.
+            fly.takeoffsAround = { place ->
+                val address = (wind.server as? WindServer.Usable)?.url
+                if (sites.heldAround(place) == null && address != null) {
+                    runCatching { todayArea(place.lat, place.lon) }.getOrNull()?.let { area -> sites.load(area, address) }
+                }
+                keptSites.cockpitTakeoffs(place, sites.heldAround(place))
+            }
             val today = TodayModel(keptSites)
             today.server = { (wind.server as? WindServer.Usable)?.url }
             today.clock = { wind.serverNow() }
@@ -339,7 +370,7 @@ sealed interface Session {
             )
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, alerts, siteEdit, tasks,
-                leagues, maps, ground, today, keptSites, thermalMap, radar, WatchedFolder(app, preferences, logbook), preferences, files, scope,
+                leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(app, preferences, logbook), preferences, files, scope,
             )
         }
     }

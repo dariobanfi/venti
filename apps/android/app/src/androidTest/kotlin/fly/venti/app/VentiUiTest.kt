@@ -5278,4 +5278,62 @@ class VentiUiTest {
         fillInTheFormForMyLogger()
         keepScreenshot("dark-tokens-1-form")
     }
+
+    /**
+     * Cables near the Tegernsee, which the development server serves from
+     * its recorded answer: drawn on the map from close in, dashed where
+     * their height is not mapped, and a tap on one says what it is, with
+     * the core's sentence on what the layer does not promise.
+     */
+    private fun lookAtTheCables(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        waitFor(hasTestTag("layer-cables"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.7229, lon = 11.7112, zoom = 15.0))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "cables-dashed") ?: 0) > 0
+        }
+        letTheMapDraw()
+        keepScreenshot("$prefix-cables-1-map")
+
+        val point = checkNotNull(TestDevice.onScreen(scenario, lat = 47.7229503, lon = 11.7111713))
+        TestDevice.tap(point)
+        waitFor(hasTestTag("cable-sheet"))
+        assertTrue(exists(hasTestTag("cable-words") and hasText("height not mapped", substring = true)))
+        assertTrue(exists(hasTestTag("cable-limits")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-cables-2-cable")
+    }
+
+    @Test
+    fun theMapDrawsTheCables() = lookAtTheCables("light", dark = false)
+
+    /**
+     * The task's page: the sample flight replayed with the made-up task,
+     * and the page says the next turnpoint with its readings once the start
+     * is taken.
+     */
+    private fun lookAtTheTaskPage(prefix: String, dark: Boolean) {
+        launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_TASK, true) }
+        waitFor(described("Show my position"))
+        tap(tab("Fly"))
+        waitFor(hasText("Replay the sample flight"))
+        tap(hasText("Replay the sample flight"))
+        waitFor(hasText("20 times faster"))
+        tap(hasText("20 times faster"))
+        waitFor(described("Altitude"))
+        turnTo("Task")
+        waitFor(hasTestTag("task-page"))
+        waitFor(hasTestTag("task-next-name") and hasText("Sample turnpoint west"), seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
+        waitFor(hasTestTag("task-over-needed") and !saying("not available"))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-task-page-1")
+        holdToEnd()
+    }
+
+    @Test
+    fun theCockpitsTaskPageInDarkAppearance() = lookAtTheTaskPage("dark", dark = true)
 }

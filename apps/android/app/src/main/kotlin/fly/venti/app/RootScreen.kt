@@ -213,6 +213,7 @@ fun RootScreen(
             varioName = session.vario.connectedName,
             showsFaiAreas = !session.preferences.hidesFaiAreas,
             keptMap = session.maps.flyingMap,
+            cables = session.cables,
             onFinish = {
                 // Ends the session, and for a real flight saves it and shows it.
                 val recording = fly.finish() ?: return@CockpitScreen
@@ -500,6 +501,7 @@ private fun Sections(
                     siteEdit = session.siteEdit,
                     onSignIn = { navigation.showAccount() },
                     terrain = session.terrain,
+                    cables = session.cables,
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {

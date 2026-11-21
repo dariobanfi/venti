@@ -205,6 +205,15 @@ fun RouteMapPlanner(
                         color = if (problem == null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
                         modifier = Modifier.testTag("route-words"),
                     )
+                    // A triangle: where it closes, and what it scores closed, in the core's words.
+                    plan.closingCircle?.takeIf { problem == null }?.let { closing ->
+                        Text(
+                            closing.words,
+                            style = MaterialTheme.typography.bodySmall.numbers,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("route-closing"),
+                        )
+                    }
                     if (plan.legs.isNotEmpty()) {
                         Text(
                             RouteDrawing.legs(plan),
@@ -310,6 +319,16 @@ private class RouteDrawingMap(private val start: Coordinate?, private val onTap:
                 PropertyFactory.lineOpacity(0.85f),
             ),
         )
+        // The closing circle of a triangle drawn: a thin dashed ring in the
+        // map's ink, with the FAI areas, as the cockpit draws it.
+        style.addSource(GeoJsonSource(CLOSING))
+        style.addLayer(MapSetup.aerialCasing("route-closing-line", CLOSING, 1.5f))
+        style.addLayer(
+            MapSetup.line("route-closing-line", CLOSING, MapSetup.ink, 1.5f).withProperties(
+                PropertyFactory.lineDasharray(arrayOf(3f, 2f)),
+                PropertyFactory.lineCap(Property.LINE_CAP_BUTT),
+            ),
+        )
         style.addSource(GeoJsonSource(DRAWN))
         style.addLayer(MapSetup.line("route-drawn-edge", DRAWN, MapSetup.halo, 6f))
         style.addLayer(MapSetup.line("route-drawn-line", DRAWN, MapSetup.ink, 3f))
@@ -354,6 +373,8 @@ private class RouteDrawingMap(private val start: Coordinate?, private val onTap:
             if (points.size >= 2) listOf(Feature.fromGeometry(points.lineString())) else emptyList()
         style.getSourceAs<GeoJsonSource>(FAI)
             ?.setGeoJson(FeatureCollection.fromFeatures(plan?.faiAreas.orEmpty().flatMap(::line)))
+        style.getSourceAs<GeoJsonSource>(CLOSING)
+            ?.setGeoJson(FeatureCollection.fromFeatures(line(plan?.closingCircle?.outline.orEmpty())))
         style.getSourceAs<GeoJsonSource>(DRAWN)?.setGeoJson(FeatureCollection.fromFeatures(line(places)))
         style.getSourceAs<GeoJsonSource>(SCORED)?.setGeoJson(FeatureCollection.fromFeatures(line(plan?.score?.route.orEmpty())))
         // A place the route comes back to keeps its first number.
@@ -372,6 +393,7 @@ private class RouteDrawingMap(private val start: Coordinate?, private val onTap:
 
     companion object {
         const val FAI = "route-fai"
+        const val CLOSING = "route-closing"
         const val DRAWN = "route-drawn"
         const val SCORED = "route-scored"
         const val PLACES = "route-places"

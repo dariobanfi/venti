@@ -8,6 +8,8 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.view.HapticFeedbackConstants
 import fly.venti.app.airspace.AirspaceLayers
+import fly.venti.app.cables.CableLayers
+import fly.venti.core.CableLine
 import fly.venti.app.forecast.ThermalHoursLayers
 import fly.venti.app.forecast.ThermalMapLayer
 import fly.venti.app.live.GliderFeature
@@ -113,6 +115,26 @@ class OverviewMap : MapContent {
 
     /** A tap where airspace is drawn and nothing else of Venti's lies: the place tapped. */
     var onAirspace: (Coordinate) -> Unit = {}
+
+    /** Told a cable's identifier when the pilot taps its line. */
+    var onCable: (String) -> Unit = {}
+
+    /** The cables to draw, and those drawn. */
+    private var cables: List<CableLine> = emptyList()
+    private var drawnCables: List<CableLine>? = null
+
+    /** The cables of OpenStreetMap around what is in view; none while their layer is off. */
+    fun showCables(lines: List<CableLine>) {
+        cables = lines
+        drawCables()
+    }
+
+    private fun drawCables() {
+        val style = style ?: return
+        if (cables === drawnCables) return
+        drawnCables = cables
+        CableLayers.show(cables, style)
+    }
 
     private var squares: List<ThermalMapCell> = emptyList()
     private var drawnSquares: List<ThermalMapCell>? = null
@@ -232,6 +254,8 @@ class OverviewMap : MapContent {
         addReach(style)
         addTracks(style)
         addFollowed(style)
+        // Cables over the flights, under the sites and the wind.
+        CableLayers.add(style)
         addSites(style, view)
         addCandidates(style)
         addPlans(style)
@@ -251,6 +275,8 @@ class OverviewMap : MapContent {
         drawOthers()
         drawFollowed()
         drawAirspace()
+        drawnCables = null
+        drawCables()
         drawnReach = null
         drawReach()
         drawSquares()
@@ -886,6 +912,10 @@ class OverviewMap : MapContent {
         }
         nearest(CANDIDATES, CANDIDATE_INDEX)?.toIntOrNull()?.let(drawnCandidates.orEmpty()::getOrNull)?.let { place ->
             onCandidate(place)
+            return true
+        }
+        CableLayers.tapped(map, style, finger)?.let { id ->
+            onCable(id)
             return true
         }
         // While a layer of hours is on: its square under the finger, or the

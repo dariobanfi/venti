@@ -74,6 +74,7 @@ interface Preferences {
     var mapHidesAirspace: Boolean
     var mapHidesSites: Boolean
     var mapHidesPilots: Boolean
+    var mapHidesCables: Boolean
 
     /** Whether the maps show the aerial view, photographs from above. One choice for every map of the app. */
     var mapShowsAerial: Boolean
@@ -208,6 +209,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapHidesPilots", false)
         set(value) = store.edit { putBoolean("VentiMapHidesPilots", value) }
 
+    override var mapHidesCables: Boolean
+        get() = store.getBoolean("VentiMapHidesCables", false)
+        set(value) = store.edit { putBoolean("VentiMapHidesCables", value) }
+
     override var mapShowsAerial: Boolean
         get() = store.getBoolean("VentiMapShowsAerial", false)
         set(value) = store.edit { putBoolean("VentiMapShowsAerial", value) }
@@ -301,6 +306,7 @@ class MemoryPreferences : Preferences {
     override var mapHidesAirspace = false
     override var mapHidesSites = false
     override var mapHidesPilots = false
+    override var mapHidesCables = false
     override var mapShowsAerial = false
     override var mapAirspaceCeilingM: Double? = null
     override var mapForecastLayer: String? = null

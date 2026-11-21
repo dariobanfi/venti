@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.pilotMessage
+import fly.venti.core.CockpitTakeoffs
 import fly.venti.core.Coordinate
 import fly.venti.core.Core
 import fly.venti.core.Credit
@@ -58,6 +59,16 @@ class KeptSitesModel(
      * neither, without a network, keeps them.
      */
     private val forgotten = mutableMapOf<String, Pair<List<Credit>, Long?>>()
+
+    /**
+     * The take-offs for the cockpit's map around the glider, as the core
+     * picks them: the pilot's own and those of `near`, an answer for the
+     * area around the glider that the app holds. `null` when the core
+     * could not read its files.
+     */
+    suspend fun cockpitTakeoffs(glider: Coordinate, near: SitesMap?): CockpitTakeoffs? = withContext(background) {
+        runCatching { core.cockpitTakeoffs(glider, near) }.getOrNull()
+    }
 
     /** Whether a site is one of the pilot's own. */
     suspend fun isKept(id: String): Boolean = withContext(background) {

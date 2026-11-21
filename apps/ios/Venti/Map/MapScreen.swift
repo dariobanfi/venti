@@ -2,9 +2,10 @@ import SwiftUI
 import VentiCore
 
 /// The map tab: terrain, live wind from the stations Venti knows, its
-/// flying sites, airspace, the pilots in the air and the pilot's own
-/// flights. The chips along the top switch its layers on and off. A long
-/// press shows the forecast for the place pressed.
+/// flying sites, airspace, the pilots in the air, the pilot's own flights
+/// and the forecast map, the kind of day square by square. The chips
+/// along the top switch its layers on and off. A long press shows the
+/// forecast for the place pressed.
 struct MapScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(WindModel.self) private var wind
@@ -15,12 +16,14 @@ struct MapScreen: View {
     @Environment(GroupsModel.self) private var groups
     @Environment(OfflineMapsModel.self) private var maps
     @Environment(AppNavigation.self) private var navigation
+    @Environment(ThermalMapModel.self) private var thermals
 
     @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
     @AppStorage(Preferences.mapHidesAirspace) private var hidesAirspace = false
     @AppStorage(Preferences.mapHidesSites) private var hidesSites = false
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+    @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
 
     @State private var isFollowing = false
     @State private var showsPlans = false
@@ -39,6 +42,11 @@ struct MapScreen: View {
     @State private var pressed: ChosenPlace?
     /// The part of the map in view, as the map last reported it.
     @State private var region: Bounds?
+    /// The date of the forecast map's day the pilot chose; the first day
+    /// the map has until then.
+    @State private var forecastDate = ""
+    /// A square of the forecast map the pilot tapped.
+    @State private var chosenSquare: ChosenSquare?
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -92,7 +100,17 @@ struct MapScreen: View {
                     }
                 },
                 source: maps.browsingSource(at: nil),
-                aerial: showsAerial
+                aerial: showsAerial,
+                forecast: forecastDay,
+                onSquare: { index in
+                    guard let day = forecastDay, let map = thermals.map, day.cells.indices.contains(index) else {
+                        return
+                    }
+                    chosenSquare = ChosenSquare(
+                        dayName: day.name, cell: day.cells[index], note: map.note, credits: map.credits,
+                        id: "\(day.date)-\(index)"
+                    )
+                }
             )
             // Without a network the map is drawn from a region kept on
             // the iPhone, and from the network again when it is back: the
@@ -155,11 +173,29 @@ struct MapScreen: View {
                 notice
             }
         }
-        .overlay(alignment: .bottomLeading) { credits }
+        .overlay(alignment: .bottomLeading) {
+            VStack(alignment: .leading, spacing: VentiSpace.s2) {
+                if isForecastOn {
+                    forecastCard
+                }
+                credits
+            }
+        }
         // Asks again every minute while the map is on screen, and at once
         // when the pilot changes the server.
         .task(id: wind.address) {
             await wind.keepCurrent()
+        }
+        // The forecast map: asked for when the layer is switched on, and
+        // again when the answer is half an hour old, while it is on.
+        .task(id: isForecastOn ? wind.address : "") {
+            guard isForecastOn else { return }
+            await thermals.keepCurrent()
+        }
+        .sheet(item: $chosenSquare) { square in
+            ForecastSquareSheet(square: square)
+                // At half height first: the square stays in view above it.
+                .presentationDetents([.medium, .large])
         }
         .sheet(item: $chosen) { chosen in
             NavigationStack {
@@ -256,6 +292,7 @@ struct MapScreen: View {
                 chosenPlan = nil
                 chosenGlider = nil
                 pressed = nil
+                chosenSquare = nil
                 showsStations = false
                 showsSites = false
                 showsGliders = false
@@ -299,6 +336,10 @@ struct MapScreen: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 if wind.server != nil {
+                    // The kind of day, square by square: off until the
+                    // pilot switches it on.
+                    VentiChip(title: "Forecast", icon: "icon-forecast", isOn: $showsForecast)
+                        .accessibilityIdentifier("forecast-chip")
                     VentiChip(title: "Wind", icon: "icon-wind", isOn: shown($hidesWind))
                         .accessibilityIdentifier("layer-wind")
                 }
@@ -371,6 +412,9 @@ struct MapScreen: View {
         if !sites.credits.isEmpty, !sites.sites.isEmpty, !hidesSites, let region, region.east - region.west <= SitesModel.widestMap {
             parts.append("Sites: \(sites.credits.map(\.provider).formatted(.list(type: .and)))")
         }
+        if forecastDay != nil, let map = thermals.map, !map.credits.isEmpty {
+            parts.append("Forecast: \(map.credits.map(\.provider).formatted(.list(type: .and)))")
+        }
         let line = parts.joined(separator: " · ")
         // Who made the photographs, on a line of its own while they show.
         guard showsAerial else { return line }
@@ -393,6 +437,56 @@ struct MapScreen: View {
                 .padding(.bottom, 8)
                 .accessibilityIdentifier("wind-credits")
         }
+    }
+
+    /// Whether the forecast map is on: switched on, with a Venti to ask.
+    private var isForecastOn: Bool {
+        showsForecast && wind.server != nil
+    }
+
+    /// The day of the forecast map that is drawn, while the layer is on.
+    private var forecastDay: ThermalMapDay? {
+        guard isForecastOn, let map = thermals.map else { return nil }
+        return ThermalSquares.day(forecastDate, in: map)
+    }
+
+    /// Whether a square of that day lies in the part of the map in view.
+    private var isForecastInView: Bool {
+        guard let day = forecastDay else { return false }
+        guard let region else { return true }
+        return ThermalSquares.anyDrawn(of: day, in: region)
+    }
+
+    /// The day shown, as the card's control chooses it.
+    private var chosenForecastDate: Binding<String> {
+        Binding {
+            forecastDay?.date ?? ""
+        } set: { date in
+            forecastDate = date
+        }
+    }
+
+    /// The forecast map's card, clear of the round buttons on the right
+    /// and over the line of credits, which stands clear of the map's own
+    /// credits button.
+    private var forecastCard: some View {
+        ForecastCard(
+            state: thermals.state,
+            map: thermals.map,
+            day: forecastDay,
+            isInView: isForecastInView,
+            date: chosenForecastDate,
+            tryAgain: {
+                Task {
+                    await thermals.load()
+                }
+            }
+        )
+        .padding(.leading, VentiSpace.s4)
+        .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
+        // Room under it for the map's credits button where there is no
+        // line of credits beside that button.
+        .padding(.bottom, creditLine.isEmpty ? VentiSize.touch : 0)
     }
 
     /// "2 flying plans marked", or nothing where the map marks none.

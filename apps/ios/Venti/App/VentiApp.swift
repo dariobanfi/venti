@@ -16,7 +16,7 @@ struct VentiApp: App {
             switch session {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
-                let live, let community, let ground, let groups, let maps, let today
+                let live, let community, let ground, let groups, let maps, let today, let thermals
             ):
                 RootScreen()
                     .environment(logbook)
@@ -34,6 +34,7 @@ struct VentiApp: App {
                     .environment(groups)
                     .environment(maps)
                     .environment(today)
+                    .environment(thermals)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -52,7 +53,8 @@ struct VentiApp: App {
 enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
-        TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel
+        TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
+        ThermalMapModel
     )
     case failed(String)
 
@@ -89,6 +91,10 @@ enum Session {
             let today = TodayModel()
             today.server = { wind.server }
             today.clock = { await wind.serverNow() }
+            // And the forecast map of the map tab.
+            let thermals = ThermalMapModel()
+            thermals.server = { wind.server }
+            thermals.clock = { await wind.serverNow() }
             // So do the other pilots in the air.
             let live = LiveModel()
             live.server = { wind.server }
@@ -162,7 +168,7 @@ enum Session {
             let groups = GroupsModel(core: core, account: account)
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps, today
+                groups, maps, today, thermals
             )
         } catch {
             return .failed(error.words)

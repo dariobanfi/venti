@@ -778,8 +778,95 @@ final class VentiUITests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(chart.waitForExistence(timeout: 15))
+        // Its head is on screen already: the page is drawn up gently, not
+        // flung, until the whole picture stands clear of the tab bar.
+        let bottom = app.windows.firstMatch.frame.maxY
+        for _ in 0..<4 where chart.frame.maxY > bottom - 120 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+                .press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+            sleep(1)
+        }
         sleep(1)
         keepScreenshot("today-8-the-air")
+    }
+
+    /// The forecast map on the map tab: the kind of day square by square,
+    /// against the stand-in server with a made-up map (`tools/made-up-day`).
+    /// The map is made up; what is tested is that the layer, its days and
+    /// its key come up, and what a square says when one is tapped.
+    func testTheMapShowsTheKindOfDaySquareBySquare() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+
+        // The choice is kept between launches: an earlier run that stopped
+        // half-way may have left the layer on.
+        let chip = element("forecast-chip", in: app)
+        XCTAssertTrue(chip.waitForExistence(timeout: 30))
+        if chip.isSelected {
+            chip.tap()
+            usleep(700_000)
+        }
+        XCTAssertFalse(chip.isSelected)
+        chip.tap()
+        XCTAssertTrue(chip.waitForExistence(timeout: 10))
+
+        // The card at the map's lower edge: the days and the key, once the
+        // map is there.
+        XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 90))
+        XCTAssertTrue(element("forecast-days", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Not flyable", in: app).exists)
+        XCTAssertTrue(element("forecast-model", in: app).exists)
+        // Time for the squares to be drawn.
+        sleep(4)
+        keepScreenshot("map-forecast-1-today")
+
+        // Tomorrow: the stand-in's map has two days.
+        let tomorrow = app.buttons["Tomorrow"]
+        XCTAssertTrue(tomorrow.waitForExistence(timeout: 15))
+        tomorrow.tap()
+        usleep(700_000)
+        XCTAssertTrue(tomorrow.isSelected)
+        XCTAssertTrue(element("forecast-key", in: app).exists)
+        sleep(3)
+        keepScreenshot("map-forecast-2-tomorrow")
+
+        // A tap a little above the map's middle, where the stand-in has
+        // squares. Something else may lie there, or nothing: only a
+        // square's sheet is checked, and only when it opens.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
+        let square = element("forecast-square", in: app)
+        if square.waitForExistence(timeout: 15) {
+            // The square's status, as a word the core gives.
+            let status = element("forecast-square-status", in: app)
+            XCTAssertTrue(status.waitForExistence(timeout: 10))
+            XCTAssertTrue(["Flyable", "Marginal", "Not flyable"].contains(status.label), status.label)
+            sleep(1)
+            keepScreenshot("map-forecast-3-square")
+            app.buttons["Done"].tap()
+            XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 15))
+        } else if !chip.isHittable {
+            // Another thing's page opened instead: closed again, by its
+            // button or by pulling the sheet down.
+            if app.buttons["Done"].exists {
+                app.buttons["Done"].tap()
+            } else {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.53))
+                    .press(
+                        forDuration: 0.3, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98))
+                    )
+            }
+            sleep(1)
+        }
+
+        // Off again, as the next test expects the map.
+        XCTAssertTrue(chip.waitForExistence(timeout: 15))
+        tapWhenStill(chip)
+        usleep(700_000)
+        XCTAssertFalse(chip.isSelected)
+        XCTAssertFalse(element("forecast-card", in: app).exists)
     }
 
     /// The app's icon on the home screen: the design language's, which

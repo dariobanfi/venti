@@ -31,6 +31,9 @@ enum Preferences {
     /// Whether the maps show the aerial view, photographs from above, in
     /// place of the drawn ground. One choice for every map of the app.
     static let mapShowsAerial = "VentiMapShowsAerial"
+    /// Whether the map tab shows the forecast map, the kind of day square
+    /// by square. Off until the pilot switches it on.
+    static let mapShowsForecast = "VentiMapShowsForecast"
     /// Whether the pilot has switched off airspace from the server.
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 

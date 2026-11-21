@@ -43,6 +43,12 @@ struct OverviewMap: UIViewRepresentable {
     var source: MapStyle.Source = .standard
     /// Whether the ground is photographs from above instead of the drawn map.
     var aerial = false
+    /// The day of the forecast map to draw, square by square; nothing
+    /// while the layer is off.
+    var forecast: ThermalMapDay?
+    /// Called with a square's place among the day's cells when the pilot
+    /// taps it where nothing else the app draws is under the finger.
+    var onSquare: (Int) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -85,6 +91,8 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onGlider = onGlider
         coordinator.onPlan = onPlan
         coordinator.onPlace = onPlace
+        coordinator.onSquare = onSquare
+        coordinator.showForecast(forecast, on: map)
         coordinator.show(plans, on: map)
         coordinator.show(sites, on: map)
         coordinator.show(gliders, on: map)
@@ -109,7 +117,11 @@ struct OverviewMap: UIViewRepresentable {
         private var plans: [GroupsModel.Pin] = []
         private var drawnPlans: [GroupsModel.Pin]?
         var onPlace: (Coordinate) -> Void = { _ in }
+        var onSquare: (Int) -> Void = { _ in }
 
+        private var forecast: ThermalMapDay?
+        private var drawnForecast: ThermalMapDay?
+        private var isForecastDrawn = false
         private var gliders: [LiveGlider] = []
         private var drawnGliders: [LiveGlider]?
         private var followed: [TrailPointView] = []
@@ -158,6 +170,20 @@ struct OverviewMap: UIViewRepresentable {
                     return feature
                 }
             )
+        }
+
+        func showForecast(_ day: ThermalMapDay?, on map: MLNMapView) {
+            forecast = day
+            drawForecast(on: map)
+        }
+
+        /// Draws the forecast map's squares, once the style is there and
+        /// only when the day has changed.
+        private func drawForecast(on map: MLNMapView) {
+            guard isStyleLoaded, !isForecastDrawn || forecast != drawnForecast, let style = map.style else { return }
+            isForecastDrawn = true
+            drawnForecast = forecast
+            ThermalMapLayers.show(forecast, in: style)
         }
 
         func showFollowed(_ track: [TrailPointView], on map: MLNMapView) {
@@ -218,6 +244,7 @@ struct OverviewMap: UIViewRepresentable {
             drawGliders(on: mapView)
             drawFollowed(on: mapView)
             drawAirspace(on: mapView)
+            drawForecast(on: mapView)
             tellRegion(of: mapView)
         }
 
@@ -271,6 +298,13 @@ struct OverviewMap: UIViewRepresentable {
                     return
                 }
             }
+            // Nothing of those: the forecast map's square under the finger
+            // itself, if one is drawn there.
+            let under = CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2)
+            let squares = map.visibleFeatures(in: under, styleLayerIdentifiers: [ThermalMapLayers.layer])
+            if let id = squares.first?.attribute(forKey: "id") as? String, let index = Int(id) {
+                onSquare(index)
+            }
         }
 
         private static func distance(from point: CGPoint, to feature: any MLNFeature, on map: MLNMapView) -> CGFloat {
@@ -298,8 +332,10 @@ struct OverviewMap: UIViewRepresentable {
         }
 
         /// Adds what this map draws on top of the base map, empty at first:
-        /// airspace lowest, the flights over it, the wind above them.
+        /// the forecast map under the map's names, then airspace, the
+        /// flights over it, the wind above them.
         private func prepare(_ style: MLNStyle) {
+            ThermalMapLayers.add(to: style)
             AirspaceLayers.add(to: style)
             let empty = MLNShapeCollectionFeature(shapes: [])
 

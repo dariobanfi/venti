@@ -35,6 +35,10 @@ enum Palette {
     /// within reach.
     static var goodOnMap: UIColor { UIColor(VentiTheme.light.good) }
 
+    /// What is not flyable on the map: the forecast map's squares of
+    /// such a day, and their line in its key.
+    static var dangerOnMap: UIColor { UIColor(VentiTheme.light.danger) }
+
     /// What has gone quiet on the map: an old reading, a glider nothing
     /// was heard of for a while.
     static var quietOnMap: UIColor { UIColor(VentiTheme.light.borderStrong) }
@@ -72,10 +76,22 @@ struct ThermalBand: Equatable, Sendable {
         step = breaks.firstIndex { climb < $0 } ?? breaks.count
     }
 
+    /// The step the core names for a kind of day on the thermal map,
+    /// counted as the pack counts them, 1 to 6 (`thermal-1…6`).
+    init(scaleStep: UInt8) {
+        step = min(max(Int(scaleStep) - 1, 0), VentiScaleBreaks.thermal.count)
+    }
+
     /// The step's colour, by the appearance of where it is drawn.
     var color: Color {
         Color(uiColor: UIColor { traits in UIColor(VentiTheme.of(traits).thermal[step]) })
     }
+
+    /// The step's colour on a map, and in the key beside one: the light
+    /// theme's, as the map is light in both appearances.
+    var colorOnMap: Color { VentiTheme.light.thermal[step] }
+
+    var uiColorOnMap: UIColor { UIColor(colorOnMap) }
 }
 
 /// How fast the glider was climbing or sinking, in the seven steps of the

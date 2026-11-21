@@ -301,7 +301,7 @@ pub fn route_along(
         .map(|(index, (point, name))| {
             let name = name
                 .filter(|name| !name.trim().is_empty())
-                .unwrap_or_else(|| format!("point {}", index + 1));
+                .unwrap_or_else(|| format!("Point {}", index + 1));
             (point, name)
         })
         .collect();
@@ -678,10 +678,13 @@ fn route_words(
         return "Tap the map where the route goes.".to_owned();
     }
     let minutes = (finish - start) / 60;
+    let took = if minutes < 60 {
+        format!("{minutes} min")
+    } else {
+        format!("{} h {:02}", minutes / 60, minutes % 60)
+    };
     let mut words = format!(
-        "The route takes {} h {:02} at {speed_kmh:.0} km/h, from {} to {}.",
-        minutes / 60,
-        minutes % 60,
+        "The route takes {took} at {speed_kmh:.0} km/h, from {} to {}.",
         clock(start),
         clock(finish)
     );
@@ -952,7 +955,7 @@ mod tests {
         let along = route_along(unnamed, None, None, 0);
         assert_eq!(along.points[1].name, "Point 2");
         assert!(
-            along.legs[0].words.contains("to point 2"),
+            along.legs[0].words.contains("to Point 2"),
             "{}",
             along.legs[0].words
         );

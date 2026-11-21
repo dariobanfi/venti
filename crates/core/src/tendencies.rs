@@ -211,7 +211,9 @@ fn circling(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Tendency
         TendencyKind::Circling,
         "Which way you circle",
         words,
-        (left + right > 0).then(|| f64::from(left) / f64::from(left + right)),
+        // The share of the way that leads the sentence, so that the bar
+        // and the first figure say the same.
+        Some(f64::from(more_count) / f64::from(one_way)),
         flight,
     ))
 }
@@ -486,7 +488,7 @@ mod tests {
             circling.words,
             "Of 11 thermals circled one way, 6 went right and 5 left."
         );
-        assert!((circling.share.unwrap() - 5.0 / 11.0).abs() < 1e-9);
+        assert!((circling.share.unwrap() - 6.0 / 11.0).abs() < 1e-9);
         // The rarer way is left, and the dying flight has three of those.
         assert_eq!(circling.flight_id.as_deref(), Some(dying.as_str()));
         assert!(circling.flight_unix_s.is_some());
@@ -592,7 +594,7 @@ mod tests {
             circling.words,
             "All 20 thermals circled one way went right."
         );
-        assert_eq!(circling.share, Some(0.0));
+        assert_eq!(circling.share, Some(1.0));
         assert_eq!(circling.flight_id, None);
         // None ended weak: no flight shows it.
         let ends = find(&tendencies, TendencyKind::ThermalEnds).unwrap();

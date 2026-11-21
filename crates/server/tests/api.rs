@@ -251,6 +251,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "thermal_hours_wind.json",
         "route_weather.json",
         "radar.json",
+        "live_others.json",
         "error_missing_bbox.json",
         "sign_in.json",
         "sessions.json",

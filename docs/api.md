@@ -6511,6 +6511,162 @@ curl 'http://127.0.0.1:8080/v1/live?bbox=11.6,47.55,12.0,47.85'
 
 An app that draws the list asks again every ten to fifteen seconds for the part of the map in view, with `If-None-Match`. The answer's `ETag` covers the tracks and not `time`: while no track in the box has changed, the answer is `304`.
 
+### `GET /v1/live/others?bbox=west,south,east,north`
+
+Who else is in the air: the aircraft that other networks heard inside a box in the last ten minutes, one layer per network. Today the one network is the Open Glider Network (FLARM, FANET, OGN trackers and others; [data-sources.md](data-sources.md#open-glider-network)). Anyone may ask, and the answer is the same for everyone.
+
+These are not Venti's pilots, and an aircraft of a network is never one record with a live track of [`GET /v1/live`](#get-v1livebboxwestsoutheastnorth): the network's data is under the ODbL, a licence of its own. A map that shows both asks both and draws two lists, each with its credit.
+
+`bbox` is required, as for [stations](#get-v1stationsbboxwestsoutheastnorth), and may be at most 10 degrees from west to east and from south to north (`invalid_bbox` otherwise). The answer may be kept for five seconds.
+
+What the network's rules ask is done before anything is listed: a device whose owner chose in the network's device database not to be tracked is never listed, nor one whose line carries the no-tracking flag; one whose owner chose not to be identified, or that the database does not know, is listed without `registration`, `competition_id` and `model`. A server that holds no device database younger than three days lists nobody. Nothing older than 24 hours is kept, and nothing older than ten minutes is listed. No device's address is in an answer: `id` is a name the server makes for the aircraft, the same while it runs.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/live/others?bbox=11.6,47.55,12.0,47.85'
+```
+
+The development mode answers from lines in the network's form made up over the Tegernsee (not the network's data: it forbids passing on its data older than 24 hours); its clock for them stands just after the newest:
+
+```json
+{
+  "time": "2026-11-21T19:09:10Z",
+  "listed_minutes": 10,
+  "layers": [
+    {
+      "source": "ogn",
+      "connected": false,
+      "aircraft": [
+        {
+          "id": "4791c887c4a52d11",
+          "aircraft": "paraglider",
+          "time": "2026-11-21T19:08:50Z",
+          "age_s": 20,
+          "position": {
+            "lat": 47.664083,
+            "lon": 11.7967
+          },
+          "altitude_m": 2140.0,
+          "ground_speed_ms": 7.2,
+          "climb_ms": 1.8,
+          "course_deg": 210.0,
+          "competition_id": "WB",
+          "model": "Paraglider"
+        },
+        {
+          "id": "e0eb481b81c2c9cd",
+          "aircraft": "paraglider",
+          "time": "2026-11-21T19:08:48Z",
+          "age_s": 22,
+          "position": {
+            "lat": 47.7009,
+            "lon": 11.761733
+          },
+          "altitude_m": 1400.0,
+          "ground_speed_ms": 8.23,
+          "climb_ms": -1.6,
+          "course_deg": 300.0
+        },
+        {
+          "id": "87fdab63df5ba895",
+          "aircraft": "paraglider",
+          "time": "2026-11-21T19:08:45Z",
+          "age_s": 25,
+          "position": {
+            "lat": 47.671667,
+            "lon": 11.808333
+          },
+          "altitude_m": 1800.0,
+          "ground_speed_ms": 9.26,
+          "climb_ms": -0.5,
+          "course_deg": 45.0
+        },
+        {
+          "id": "97cc402b0ebd23a3",
+          "aircraft": "hang_glider",
+          "time": "2026-11-21T19:08:30Z",
+          "age_s": 40,
+          "position": {
+            "lat": 47.685017,
+            "lon": 11.781683
+          },
+          "altitude_m": 2000.0,
+          "ground_speed_ms": 10.29,
+          "climb_ms": 0.51,
+          "course_deg": 180.0
+        },
+        {
+          "id": "06c45574ebec0149",
+          "aircraft": "tow_plane",
+          "time": "2026-11-21T19:09:05Z",
+          "age_s": 5,
+          "position": {
+            "lat": 47.72,
+            "lon": 11.743333
+          },
+          "altitude_m": 1300.0,
+          "ground_speed_ms": 41.16,
+          "climb_ms": 2.54,
+          "course_deg": 10.0
+        },
+        {
+          "id": "1f6311db029664cb",
+          "aircraft": "glider",
+          "time": "2026-11-21T19:09:00Z",
+          "age_s": 10,
+          "position": {
+            "lat": 47.640033,
+            "lon": 11.735083
+          },
+          "altitude_m": 2500.0,
+          "ground_speed_ms": 28.29,
+          "climb_ms": 0.1,
+          "course_deg": 70.0,
+          "registration": "D-0000",
+          "competition_id": "TG",
+          "model": "ASK 21"
+        },
+        {
+          "id": "d5f160ea31beb19d",
+          "aircraft": "obstacle",
+          "time": "2026-11-21T19:09:00Z",
+          "age_s": 10,
+          "position": {
+            "lat": 47.688117,
+            "lon": 11.7608
+          }
+        }
+      ],
+      "truncated": false
+    }
+  ],
+  "attributions": [
+    {
+      "source": "ogn",
+      "provider": "Open Glider Network",
+      "licence": "ODbL 1.0",
+      "text": "Positions: Open Glider Network, glidernet.org (ODbL)",
+      "url": "https://www.glidernet.org/ogn-data-usage/",
+      "notice": "Positions of the Open Glider Network, available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Not every aircraft sends its position, and a position may be late or wrong: never use it to avoid a collision."
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `time` | The server's clock when it wrote the answer; `age_s` is counted against it |
+| `listed_minutes` | For how long after it was heard an aircraft is listed: 10 |
+| `layers` | One per network the server listens to, sorted by `source`; empty on a server that listens to none |
+| `layers[].connected` | Whether the server is connected to the network now. When it is not, the list is what was heard before, and ages |
+| `layers[].aircraft` | Paragliders and hang gliders first, then the others, each part the most recently heard first; at most 1,000 |
+| `aircraft` | `paraglider`, `hang_glider`, `glider`, `tow_plane`, `helicopter`, `parachute`, `drop_plane`, `powered_aircraft`, `jet_aircraft`, `balloon`, `airship`, `drone`, `obstacle` or `unknown`. A word a client does not know is `unknown` |
+| `altitude_m`, `ground_speed_ms`, `climb_ms`, `course_deg` | As the network sent them, from feet, knots and feet a minute; left out where a line has none |
+| `registration`, `competition_id`, `model` | Only where the owner let the aircraft be identified and gave them |
+| `layers[].truncated` | `true` when the box holds more than 1,000; aircraft other than paragliders and hang gliders are left out first |
+| `attributions` | The credit of every network in `layers`, with the notice the map shows beside it |
+
+A map asks again every ten to fifteen seconds for the part in view.
+
 ### `GET /v1/live/{id}?since=&after=&limit=`
 
 One track and its fixes, for whoever knows its identifier: no token is needed, and the answer is the same with one. It makes no difference whether the track is `public` or `link`.

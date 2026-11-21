@@ -293,6 +293,25 @@ impl LiveTracksRequest {
     }
 }
 
+/// The path of the aircraft that other networks see; see
+/// [`LiveOthersResponse`](super::LiveOthersResponse).
+pub const LIVE_OTHERS_PATH: &str = "/v1/live/others";
+
+/// A request for the aircraft that other networks saw in a box lately.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LiveOthersRequest {
+    /// The box to list, at most [`MAX_LIVE_OTHERS_BOX_DEG`](super::MAX_LIVE_OTHERS_BOX_DEG)
+    /// degrees from west to east and from south to north.
+    pub bbox: BoundingBox,
+}
+
+impl LiveOthersRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        format!("{LIVE_OTHERS_PATH}?bbox={}", format_bbox(&self.bbox))
+    }
+}
+
 /// A request for one live track and its fixes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiveTrackRequest {
@@ -1148,6 +1167,11 @@ mod tests {
             bbox: BoundingBox::new(47.55, 11.6, 47.85, 12.0).unwrap(),
         };
         assert_eq!(list.path_and_query(), "/v1/live?bbox=11.6,47.55,12,47.85");
+        let others = LiveOthersRequest { bbox: list.bbox };
+        assert_eq!(
+            others.path_and_query(),
+            "/v1/live/others?bbox=11.6,47.55,12,47.85"
+        );
 
         let mut one = LiveTrackRequest {
             id: track,

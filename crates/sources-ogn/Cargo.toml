@@ -1,0 +1,18 @@
+[package]
+name = "venti-sources-ogn"
+description = "Adapter for the live positions of the Open Glider Network: its APRS feed and its device database."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+venti-sources.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

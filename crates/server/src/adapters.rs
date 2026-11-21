@@ -8,13 +8,14 @@ use std::sync::Arc;
 use venti_api_types::v1::{THERMAL_GRID_DEG, ThermalGrid};
 use venti_domain::{GeoPoint, ModelId, Timestamp};
 use venti_sources::testing::FixtureFetch;
-use venti_sources::{ForecastSource, ImagerySource, RadarSource, Registry};
+use venti_sources::{ForecastSource, ImagerySource, LiveSource, RadarSource, Registry};
 use venti_sources_awc::AwcMetar;
 use venti_sources_basemapat::BasemapAt;
 use venti_sources_dwd::Dwd10Min;
 use venti_sources_dwd_radar::DwdRadarRy;
 use venti_sources_geosphere::Tawes10Min;
 use venti_sources_geosphere_radar::GeosphereIncaRr;
+use venti_sources_ogn::Ogn;
 use venti_sources_openaip::OpenAip;
 use venti_sources_openmeteo::OpenMeteo;
 use venti_sources_osm::OsmFreeFlying;
@@ -136,6 +137,9 @@ pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
     registry
         .register_airspace(Box::new(OpenAip::new()))
         .expect("openaip registers once");
+    registry
+        .register_live(Box::new(Ogn::new()))
+        .expect("ogn registers once");
     let sites = OsmFreeFlying::new(&providers.overpass_url)
         .map_err(|problem| format!("the address of the Overpass instance: {problem}"))?;
     registry
@@ -166,6 +170,33 @@ pub fn radar_sources() -> Vec<Box<dyn RadarSource>> {
 
 /// The radar frames recorded from the providers, as a fetcher of their
 /// own: the radar is collected by a service with a clock of its own.
+/// The adapters of live positions over a connection that stays open: the
+/// server listens to those its regions name.
+pub fn live_sources() -> Vec<Arc<dyn LiveSource>> {
+    vec![Arc::new(Ogn::new())]
+}
+
+/// Lines in the Open Glider Network's form, made up (not network data:
+/// the network forbids passing on its data older than 24 hours), of
+/// paragliders and others over the Tegernsee, for the development mode and
+/// the tests. The adapter's `tests/fixtures/NOTICE.txt` lists them.
+pub fn made_up_live_lines() -> &'static str {
+    venti_sources_ogn::fixtures::feed()
+}
+
+/// A directory of devices in the network's form, made up for the devices
+/// of [`made_up_live_lines`].
+pub fn made_up_live_directory() -> &'static [u8] {
+    venti_sources_ogn::fixtures::directory()
+}
+
+/// The moment the made-up live lines are for: the clock of the live
+/// positions in the development mode.
+pub fn live_feed_at() -> Timestamp {
+    venti_sources_ogn::fixtures::feed_at()
+}
+
+/// The recorded rain radar payloads.
 pub fn recorded_radar_payloads() -> FixtureFetch {
     FixtureFetch::new()
         .with_all(venti_sources_dwd_radar::fixtures::recorded())
@@ -362,6 +393,7 @@ mod tests {
                     Kind::Forecasts => registry.forecasts(&manifest.id).is_some(),
                     Kind::Sites => registry.sites(&manifest.id).is_some(),
                     Kind::Radar => registry.radar(&manifest.id).is_some(),
+                    Kind::Live => registry.live(&manifest.id).is_some(),
                     // Imagery sources are not in the registry.
                     Kind::Imagery => false,
                 };
@@ -369,7 +401,7 @@ mod tests {
             }
         }
         // A server that was told nothing has no forecast source.
-        assert_eq!(registry.manifests().count(), 8);
+        assert_eq!(registry.manifests().count(), 9);
         assert!(forecast_sources(&Providers::default()).unwrap().is_empty());
     }
 
@@ -385,7 +417,7 @@ mod tests {
     #[test]
     fn forecasts_are_there_only_when_the_server_is_told_where_from() {
         let told = registry_for(&Providers::recorded()).unwrap();
-        assert_eq!(told.manifests().count(), 9);
+        assert_eq!(told.manifests().count(), 10);
         let open_meteo = venti_domain::SourceId::new("open-meteo").unwrap();
         let manifest = told.manifest(&open_meteo, Kind::Forecasts).unwrap();
         assert_eq!(manifest.kinds, [Kind::Forecasts]);

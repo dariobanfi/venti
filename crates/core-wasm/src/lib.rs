@@ -47,14 +47,14 @@ use venti_core::{
     AirspaceOverPlace, AirspaceShape, Bounds, Coordinate, CoreError, Credit, FlightAirspace,
     FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView, FlightVisibility,
     ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
-    KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
-    LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
-    PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
-    RouteAlong, RoutePlace, RouteSetting, ServerRequest, ServerStatus, SignedIn, SiteAtPlace,
-    SiteDraftFault, SiteDraftView, SiteForm, SiteHistory, SiteInTheWay, SiteOutlook, SitePage,
-    SiteStatistics, SiteView, SiteWritten, SitesFilter, SitesFilterChoices, SitesFiltered,
-    SitesMap, StagedStorage, StationAir, StationDay, StationDays, StationHistory, Storage,
-    SyncStep, SyncSummary, Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap,
+    KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveLayer, LiveMap, LiveOthers,
+    LogbookStatistics, LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight,
+    PublicFlights, PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm, ReportReason,
+    ReportSubject, RouteAlong, RoutePlace, RouteSetting, ServerRequest, ServerStatus, SignedIn,
+    SiteAtPlace, SiteDraftFault, SiteDraftView, SiteForm, SiteHistory, SiteInTheWay, SiteOutlook,
+    SitePage, SiteStatistics, SiteView, SiteWritten, SitesFilter, SitesFilterChoices,
+    SitesFiltered, SitesMap, StagedStorage, StationAir, StationDay, StationDays, StationHistory,
+    Storage, SyncStep, SyncSummary, Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap,
     ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
     TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
@@ -1983,6 +1983,44 @@ pub fn live_map(status: u16, body: Vec<u8>) -> Result<Ts<LiveMap>, JsValue> {
 #[wasm_bindgen(js_name = liveAgeInWords)]
 pub fn live_age_in_words(age_s: f64, landed: bool) -> String {
     venti_core::live_age_in_words(age_s, landed)
+}
+
+// Others in the air: the aircraft another network hears (the Open Glider
+// Network), never one record with Venti's own pilots.
+
+/// The path and query to `GET` for the aircraft other networks hear in a
+/// box, or nothing for a box wider than the server answers for.
+#[wasm_bindgen(js_name = liveOthersPath)]
+pub fn live_others_path(south: f64, west: f64, north: f64, east: f64) -> Option<String> {
+    venti_core::live_others_path(south, west, north, east)
+}
+
+/// What a map says where it shows too much to ask for others.
+#[wasm_bindgen(js_name = othersTooWideWords)]
+pub fn others_too_wide_words() -> String {
+    venti_core::others_too_wide_words()
+}
+
+/// Reads the server's answer to `liveOthersPath`: each network's aircraft
+/// with words, and its credit.
+#[wasm_bindgen(js_name = liveOthers)]
+pub fn live_others(status: u16, body: Vec<u8>) -> Result<Ts<LiveOthers>, JsValue> {
+    to_js(&venti_core::live_others(status, body).map_err(thrown)?)
+}
+
+/// The map's layer of who is in the air from the two answers, of
+/// `liveMapPath` and of `liveOthersPath`: two lists side by side, each with
+/// its credit.
+#[wasm_bindgen(js_name = liveLayer)]
+pub fn live_layer(
+    venti_status: u16,
+    venti_body: Vec<u8>,
+    others_status: u16,
+    others_body: Vec<u8>,
+) -> Result<Ts<LiveLayer>, JsValue> {
+    let venti = venti_core::live_map(venti_status, venti_body).map_err(thrown)?;
+    let others = venti_core::live_others(others_status, others_body).map_err(thrown)?;
+    to_js(&venti_core::live_layer(venti, others))
 }
 
 /// Follows one live track: says what to ask the server for, and puts the

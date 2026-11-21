@@ -35,10 +35,10 @@ use venti_api_types::v1::{
     ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ARCHIVE_MEDIA_TYPE, CSV_MEDIA_TYPE,
     DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GEOJSON_MEDIA_TYPE,
     GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH,
-    LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
-    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
-    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH,
-    THERMALS_PATH,
+    LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH,
+    PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH,
+    ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH,
+    STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 
 use super::cache;
@@ -572,6 +572,13 @@ fn operations() -> Vec<Op> {
         .docs("GET /v1/live?bbox=west,south,east,north")
         .query(&["bbox!"])
         .json("LiveTracksResponse"),
+        get(
+            LIVE_OTHERS_PATH,
+            "Who else is in the air: the aircraft other networks heard in a box",
+        )
+        .docs("GET /v1/live/others?bbox=west,south,east,north")
+        .query(&["bbox!"])
+        .json("LiveOthersResponse"),
         get("/v1/live/{id}", "One live track and its fixes")
             .docs("GET /v1/live/{id}?since=&after=&limit=")
             .query(&["since:cursor", "after:time", "limit:fixes"])

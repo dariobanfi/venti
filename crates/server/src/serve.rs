@@ -166,6 +166,35 @@ pub async fn serve(config: Config) -> Result<(), String> {
         api = api.with_imagery(imagery);
     }
     let shutdown = CancellationToken::new();
+    // The networks of live positions the regions name: a connection each,
+    // held by a task of its own, and what it heard kept in memory.
+    let mut listening = Vec::new();
+    let mut networks = Vec::new();
+    for (id, area) in plan::live(&packs) {
+        let Some(source) = adapters::live_sources()
+            .into_iter()
+            .find(|source| source.manifest().id == id)
+        else {
+            return Err(format!("no adapter is registered for the live source {id}"));
+        };
+        let network = Arc::new(live::network::Network::new(
+            source.manifest(),
+            clock.clone(),
+        ));
+        tracing::info!(
+            "live network {id}: listening for the regions' box, positions kept at most {} hours",
+            source.manifest().pass_on_hours.unwrap_or(24).min(24)
+        );
+        listening.push(tokio::spawn(live::network::run(
+            source,
+            network.clone(),
+            area,
+            fetcher()?,
+            shutdown.clone(),
+        )));
+        networks.push(network);
+    }
+    api = api.with_networks(networks);
     // The map regions are listed as their files are read, which the
     // server begins further down, beside everything else. Reading them
     // and handing them out both end when the server is told to stop.
@@ -250,6 +279,9 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let _ = schedule.await;
     let _ = housekeeping.await;
     let _ = refreshing.await;
+    for network in listening {
+        let _ = network.await;
+    }
     if let Some(reading) = reading_maps {
         let _ = reading.await;
     }

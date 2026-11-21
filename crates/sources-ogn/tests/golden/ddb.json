@@ -1,0 +1,58 @@
+{
+  "E00001": {
+    "tracked": true,
+    "identified": true,
+    "registration": null,
+    "competition_id": "WB",
+    "model": "Paraglider"
+  },
+  "E00004": {
+    "tracked": false,
+    "identified": false,
+    "registration": null,
+    "competition_id": null,
+    "model": null
+  },
+  "E00006": {
+    "tracked": true,
+    "identified": false,
+    "registration": null,
+    "competition_id": null,
+    "model": null
+  },
+  "E00007": {
+    "tracked": true,
+    "identified": true,
+    "registration": "D-0000",
+    "competition_id": "TG",
+    "model": "ASK 21"
+  },
+  "E0000A": {
+    "tracked": true,
+    "identified": true,
+    "registration": "X-STEALTH",
+    "competition_id": null,
+    "model": null
+  },
+  "E00010": {
+    "tracked": false,
+    "identified": false,
+    "registration": null,
+    "competition_id": null,
+    "model": null
+  },
+  "E00011": {
+    "tracked": false,
+    "identified": false,
+    "registration": null,
+    "competition_id": null,
+    "model": null
+  },
+  "E00012": {
+    "tracked": false,
+    "identified": false,
+    "registration": null,
+    "competition_id": null,
+    "model": null
+  }
+}

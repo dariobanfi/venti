@@ -1,0 +1,122 @@
+{
+  "time": "2026-11-21T19:09:10Z",
+  "listed_minutes": 10,
+  "layers": [
+    {
+      "source": "ogn",
+      "connected": false,
+      "aircraft": [
+        {
+          "id": "4791c887c4a52d11",
+          "aircraft": "paraglider",
+          "time": "2026-11-21T19:08:50Z",
+          "age_s": 20,
+          "position": {
+            "lat": 47.664083,
+            "lon": 11.7967
+          },
+          "altitude_m": 2140.0,
+          "ground_speed_ms": 7.2,
+          "climb_ms": 1.8,
+          "course_deg": 210.0,
+          "competition_id": "WB",
+          "model": "Paraglider"
+        },
+        {
+          "id": "e0eb481b81c2c9cd",
+          "aircraft": "paraglider",
+          "time": "2026-11-21T19:08:48Z",
+          "age_s": 22,
+          "position": {
+            "lat": 47.7009,
+            "lon": 11.761733
+          },
+          "altitude_m": 1400.0,
+          "ground_speed_ms": 8.23,
+          "climb_ms": -1.6,
+          "course_deg": 300.0
+        },
+        {
+          "id": "87fdab63df5ba895",
+          "aircraft": "paraglider",
+          "time": "2026-11-21T19:08:45Z",
+          "age_s": 25,
+          "position": {
+            "lat": 47.671667,
+            "lon": 11.808333
+          },
+          "altitude_m": 1800.0,
+          "ground_speed_ms": 9.26,
+          "climb_ms": -0.5,
+          "course_deg": 45.0
+        },
+        {
+          "id": "97cc402b0ebd23a3",
+          "aircraft": "hang_glider",
+          "time": "2026-11-21T19:08:30Z",
+          "age_s": 40,
+          "position": {
+            "lat": 47.685017,
+            "lon": 11.781683
+          },
+          "altitude_m": 2000.0,
+          "ground_speed_ms": 10.29,
+          "climb_ms": 0.51,
+          "course_deg": 180.0
+        },
+        {
+          "id": "06c45574ebec0149",
+          "aircraft": "tow_plane",
+          "time": "2026-11-21T19:09:05Z",
+          "age_s": 5,
+          "position": {
+            "lat": 47.72,
+            "lon": 11.743333
+          },
+          "altitude_m": 1300.0,
+          "ground_speed_ms": 41.16,
+          "climb_ms": 2.54,
+          "course_deg": 10.0
+        },
+        {
+          "id": "1f6311db029664cb",
+          "aircraft": "glider",
+          "time": "2026-11-21T19:09:00Z",
+          "age_s": 10,
+          "position": {
+            "lat": 47.640033,
+            "lon": 11.735083
+          },
+          "altitude_m": 2500.0,
+          "ground_speed_ms": 28.29,
+          "climb_ms": 0.1,
+          "course_deg": 70.0,
+          "registration": "D-0000",
+          "competition_id": "TG",
+          "model": "ASK 21"
+        },
+        {
+          "id": "d5f160ea31beb19d",
+          "aircraft": "obstacle",
+          "time": "2026-11-21T19:09:00Z",
+          "age_s": 10,
+          "position": {
+            "lat": 47.688117,
+            "lon": 11.7608
+          }
+        }
+      ],
+      "truncated": false
+    }
+  ],
+  "attributions": [
+    {
+      "source": "ogn",
+      "provider": "Open Glider Network",
+      "licence": "ODbL 1.0",
+      "text": "Positions: Open Glider Network, glidernet.org (ODbL)",
+      "url": "https://www.glidernet.org/ogn-data-usage/",
+      "notice": "Positions of the Open Glider Network, available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Not every aircraft sends its position, and a position may be late or wrong: never use it to avoid a collision."
+    }
+  ]
+}

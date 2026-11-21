@@ -2909,6 +2909,7 @@ dependencies = [
  "venti-sources-dwd-radar",
  "venti-sources-geosphere",
  "venti-sources-geosphere-radar",
+ "venti-sources-ogn",
  "venti-sources-openaip",
  "venti-sources-openmeteo",
  "venti-sources-osm",
@@ -2995,6 +2996,17 @@ dependencies = [
  "serde_json",
  "venti-domain",
  "venti-hdf5",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-ogn"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
  "venti-sources",
 ]
 

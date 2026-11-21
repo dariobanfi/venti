@@ -114,9 +114,9 @@ use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH,
     AIRSPACE_PATH, Attribution, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
-    GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH,
-    MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH,
-    RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
+    GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
+    MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
+    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
     SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH,
     THERMALS_PATH,
 };
@@ -133,6 +133,7 @@ use crate::flights::analyser::Analyser;
 use crate::flights::share::PublicUrl;
 use crate::forecast::Forecasts;
 use crate::imagery::Imagery;
+use crate::live::network::Network;
 use crate::maps::Maps;
 use crate::radar::Radar;
 use crate::thermals::ThermalMap;
@@ -302,6 +303,9 @@ pub struct Api<S> {
     maps: Maps,
     /// The map imagery the server passes on, if it passes any on.
     imagery: Option<Arc<Imagery>>,
+    /// The networks of live positions the server listens to, sorted by
+    /// source.
+    networks: Vec<Arc<Network>>,
     /// The sources of observations in the order they are preferred where
     /// two of them have a station at the same place.
     station_priority: Vec<SourceId>,
@@ -394,6 +398,7 @@ impl<S: Store> Api<S> {
             dumps: dumps::Dumps::new(limits.dump_remake_after),
             maps: Maps::default(),
             imagery: None,
+            networks: Vec::new(),
             station_priority: Vec::new(),
         }
     }
@@ -444,6 +449,17 @@ impl<S: Store> Api<S> {
     #[must_use]
     pub fn with_imagery(mut self, imagery: Arc<Imagery>) -> Self {
         self.imagery = Some(imagery);
+        self
+    }
+
+    /// The same API, listing the aircraft that `networks` hear at
+    /// `/v1/live/others`.
+    ///
+    /// Without this the answer there has no layer.
+    #[must_use]
+    pub fn with_networks(mut self, mut networks: Vec<Arc<Network>>) -> Self {
+        networks.sort_by(|a, b| a.source().cmp(b.source()));
+        self.networks = networks;
         self
     }
 
@@ -599,6 +615,7 @@ impl<S: Store> Api<S> {
             .route("/v1/flights/{id}/track", get(flights::track::<S>))
             .route("/v1/pilots/{handle}", get(pilots::show::<S>))
             .route(LIVE_PATH, get(live::list::<S>))
+            .route(LIVE_OTHERS_PATH, get(live::others::<S>))
             .route(REPORTS_PATH, post(reports::create::<S>))
             .route(
                 "/v1/live/{id}",

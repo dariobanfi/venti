@@ -1,0 +1,36 @@
+MADE UP, NOT NETWORK DATA.
+
+Every file in this folder was written by hand in the form of the Open
+Glider Network's data, https://www.glidernet.org/. None of it was received
+from the network or copied from it: the network's rules, read on 2026-11-21
+at https://www.glidernet.org/ogn-data-usage/, forbid passing on its data
+older than 24 hours, and a file in a public repository is passed on for as
+long as the repository exists; and the device database's registrations are
+treated as personal data. The addresses (E00001 to E00012), registrations
+(X-..., D-0000), receivers (MADEUP1 to MADEUP3; Wallberg, Neureuth and
+Kreuth as names of places only), times and positions are all invented.
+
+feed_made_up.txt   lines in the form of the APRS feed, as the network's wiki
+                   describes it (http://wiki.glidernet.org/, "APRS
+                   interaction examples" and "OGN flavoured APRS"), for
+                   2026-11-21 shortly before 19:09:10 UTC, over the
+                   Tegernsee: server comment lines; a paraglider heard
+                   twice and by two receivers; a FANET paraglider; a hang
+                   glider; a glider; a tow plane; a paraglider heard eleven
+                   minutes before the clock; one device whose owner chose
+                   not to be tracked (E00004), one whose line carries the
+                   no-tracking flag (E00005), one with the stealth flag
+                   (E0000A), one not to be identified (E00006); an ADS-B
+                   airliner over Munich; a FANET device on the ground; a
+                   Naviter line with an id field of ten digits; a line with
+                   a time that is not hhmmss; a device's status line; a
+                   FANET weather report; a receiver's position and status.
+ddb_made_up.json   a device database in the form of
+                   https://ddb.glidernet.org/download/?j=1&t=1: tracked and
+                   identified, not tracked, tracked and not identified
+                   (with a registration the adapter must drop), not tracked
+                   and identified, one address twice with two choices, an
+                   entry without the flags, and an address of the wrong
+                   form. E00002, E00003, E00008 and E00009 are not in it.
+
+The tests and the server's development mode read these files.

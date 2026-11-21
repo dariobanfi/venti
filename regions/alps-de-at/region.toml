@@ -53,3 +53,10 @@ sources = ["open-meteo"]
 # gauges, with a value everywhere in the region.
 [radar]
 sources = ["dwd-radar-ry", "geosphere-inca-rr"]
+
+# Aircraft that the Open Glider Network hears: FLARM, FANET, OGN trackers
+# and others, over a connection that stays open, under the ODbL and the
+# network's two rules (docs/data-sources.md). A layer of its own, never one
+# record with Venti's own live tracks.
+[live]
+sources = ["ogn"]

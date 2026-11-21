@@ -150,6 +150,12 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
                 tracing::error!(source = %job.source, "imagery is not collected");
                 false
             }
+            // Nor has any a job of live positions: the server listens to
+            // such a source over a connection of its own.
+            Kind::Live => {
+                tracing::error!(source = %job.source, "live positions are not collected");
+                false
+            }
         }
     }
 

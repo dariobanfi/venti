@@ -20,8 +20,9 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use venti_api_types::v1::{
-    ErrorCode, LivePositionsRequest, LivePositionsResponse, LiveTrackId, LiveTrackResponse,
-    LiveTracksResponse, MAX_LIVE_FIXES, MAX_LIVE_TRACKS, live_page_path, parse_bbox, parse_time,
+    ErrorCode, LIVE_OTHERS_LISTED_MINUTES, LiveOthersResponse, LivePositionsRequest,
+    LivePositionsResponse, LiveTrackId, LiveTrackResponse, LiveTracksResponse, MAX_LIVE_FIXES,
+    MAX_LIVE_OTHERS_BOX_DEG, MAX_LIVE_TRACKS, live_page_path, parse_bbox, parse_time,
 };
 use venti_domain::Timestamp;
 use venti_store::{LiveBatch, LiveRemoval, LiveRoom, LiveSaved, LiveTrack, LiveVisibility, Store};
@@ -291,6 +292,63 @@ pub(crate) async fn list<S: Store>(
         truncated,
     };
     Ok(cache::tagged_json(&tag, Keeper::Anyone, &answer))
+}
+
+/// `GET /v1/live/others?bbox=west,south,east,north`: the aircraft that
+/// other networks heard in a box in the last minutes, one layer per
+/// network, with each network's credit.
+///
+/// Never one list with Venti's own live tracks: the networks' data is
+/// under licences of their own. The owners' choices and the networks'
+/// rules about age are applied in [`crate::live::network`]. The answer is
+/// read from memory and may be kept for a few seconds by anyone.
+pub(crate) async fn others<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    headers: HeaderMap,
+    Query(params): Query<ListParams>,
+) -> Result<Response, ApiError> {
+    let bbox = params.bbox.ok_or_else(|| {
+        ApiError::bad_request(
+            ErrorCode::InvalidBbox,
+            format!("the bbox parameter is missing; {BBOX_HELP}"),
+        )
+    })?;
+    let area = parse_bbox(&bbox).map_err(|error| {
+        ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
+    })?;
+    if area.east() - area.west() > MAX_LIVE_OTHERS_BOX_DEG
+        || area.north() - area.south() > MAX_LIVE_OTHERS_BOX_DEG
+    {
+        return Err(ApiError::bad_request(
+            ErrorCode::InvalidBbox,
+            format!(
+                "the box is larger than {MAX_LIVE_OTHERS_BOX_DEG} degrees from west to east or \
+                 from south to north; ask for a smaller one"
+            ),
+        ));
+    }
+    // Each network has the clock its positions are aged by: the server's,
+    // or in the development mode the moment of the recording.
+    let time = api
+        .networks
+        .first()
+        .map_or_else(|| api.clock.now(), |network| network.now());
+    let layers: Vec<_> = api
+        .networks
+        .iter()
+        .map(|network| network.layer(&area, time))
+        .collect();
+    let answer = LiveOthersResponse {
+        time,
+        listed_minutes: LIVE_OTHERS_LISTED_MINUTES,
+        attributions: api
+            .networks
+            .iter()
+            .map(|network| network.attribution().clone())
+            .collect(),
+        layers,
+    };
+    Ok(cache::brief_json(&headers, &answer))
 }
 
 #[derive(Debug, Deserialize)]

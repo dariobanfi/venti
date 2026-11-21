@@ -175,6 +175,22 @@ pub fn plan(packs: &[RegionPack], registry: &Registry) -> Result<Vec<Job>, PlanE
     Ok(jobs.into_values().collect())
 }
 
+/// The networks of live positions that region packs name, each with one
+/// box around every region that names it, sorted by source. The server
+/// listens to each over a connection of its own; they are not collected.
+pub fn live(packs: &[RegionPack]) -> Vec<(SourceId, BoundingBox)> {
+    let mut networks: BTreeMap<SourceId, BoundingBox> = BTreeMap::new();
+    for pack in packs {
+        for source in &pack.live.sources {
+            networks
+                .entry(source.clone())
+                .and_modify(|area| *area = area.cover(&pack.bounds))
+                .or_insert(pack.bounds);
+        }
+    }
+    networks.into_iter().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use venti_sources::{ObservationSource, Parsed, PlanCtx, Request, SourceError};

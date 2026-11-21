@@ -6,8 +6,8 @@
 //! pack; nothing else changes.
 //!
 //! A pack has one section per kind of data: `[observations]`, which every
-//! region has, and `[airspace]`, `[sites]`, `[forecasts]` and `[radar]`,
-//! which a region may leave out.
+//! region has, and `[airspace]`, `[sites]`, `[forecasts]`, `[radar]` and
+//! `[live]`, which a region may leave out.
 //!
 //! The area is a bounding box for now. A boundary polygon replaces it when a
 //! region needs a shape a box cannot express.
@@ -60,6 +60,13 @@ pub struct RegionPack {
     /// frames.
     #[serde(default, skip_serializing_if = "SourceList::is_empty")]
     pub radar: SourceList,
+    /// The networks whose live positions of aircraft the server listens
+    /// to for the region. A region may have none.
+    ///
+    /// Each stays a layer of its own and is never one record with Venti's
+    /// own live tracks.
+    #[serde(default, skip_serializing_if = "SourceList::is_empty")]
+    pub live: SourceList,
 }
 
 /// The sources of one kind of data in a region.
@@ -123,6 +130,7 @@ impl RegionPack {
             &pack.sites,
             &pack.forecasts,
             &pack.radar,
+            &pack.live,
         ];
         for list in lists {
             let mut seen = BTreeSet::new();
@@ -176,6 +184,11 @@ impl RegionPack {
         }
         for source in &self.radar.sources {
             if registry.radar(source).is_none() {
+                return Err(unknown(source));
+            }
+        }
+        for source in &self.live.sources {
+            if registry.live(source).is_none() {
                 return Err(unknown(source));
             }
         }

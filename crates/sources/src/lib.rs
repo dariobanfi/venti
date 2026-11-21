@@ -24,7 +24,9 @@
 //! adapter says what of it may be shown. Rain radar ([`RadarSource`],
 //! [`run_radar`]) arrives every few minutes as a picture of an area; a run
 //! delivers the frames the server does not hold yet, each on the grid the
-//! server asks for.
+//! server asks for. Live positions of another network ([`LiveSource`])
+//! come over a connection that stays open, which the server holds; the
+//! adapter only reads its lines.
 //!
 //! See `docs/data-sources.md` for the design and the source catalogue.
 
@@ -32,6 +34,7 @@ mod archive;
 mod fetch;
 mod forecast;
 mod imagery;
+mod live;
 mod manifest;
 mod radar;
 mod registry;
@@ -47,6 +50,9 @@ pub use forecast::{
     ForecastRejection, ForecastRunOutput, ForecastRunReport, run_forecast, run_forecast_places,
 };
 pub use imagery::{Coverage, Cut, CutCounts, CutTile, ImagerySource, MAX_TILE_ZOOM, TileAddress};
+pub use live::{
+    Aircraft, DeviceChoice, DeviceDirectory, LiveLine, LivePosition, LiveSource, Shown,
+};
 pub use manifest::{
     Asset, Auth, DEFAULT_MAX_RESPONSE_KB, Kind, Licence, LicenceFamily, Manifest, ManifestError,
     RateLimit,

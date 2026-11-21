@@ -31,6 +31,11 @@ pub struct Manifest {
     /// [`DEFAULT_MAX_RESPONSE_KB`] applies when a manifest says nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_response_kb: Option<u32>,
+    /// For how many hours after its time the source's data may be passed
+    /// on, if the provider limits that: the server forgets it, or stops
+    /// handing it out, by then. `None` when the provider sets no limit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pass_on_hours: Option<u32>,
     /// What credential the provider requires.
     pub auth: Auth,
     /// Licence terms, as verified on the provider's own pages.
@@ -84,6 +89,9 @@ pub enum Kind {
     /// passes on, when a client asks for them. Not records, and not
     /// collected by the pipeline; see `ImagerySource`.
     Imagery,
+    /// Live positions of aircraft, over a connection that stays open. Not
+    /// collected by the pipeline; see `LiveSource`.
+    Live,
 }
 
 /// What credential a provider requires.
@@ -233,6 +241,9 @@ impl Manifest {
         }
         if self.cadence_seconds == 0 {
             return Err(invalid("cadence_seconds is zero"));
+        }
+        if self.pass_on_hours == Some(0) {
+            return Err(invalid("pass_on_hours is zero; leave it out instead"));
         }
         if self.max_response_kb == Some(0) {
             return Err(invalid("max_response_kb is zero; leave it out instead"));

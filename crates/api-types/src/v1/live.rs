@@ -262,12 +262,156 @@ pub struct LiveTrackResponse {
     pub reset: bool,
 }
 
+// --- Aircraft that other networks see -----------------------------------------
+
+/// For how many minutes after it was heard an aircraft of another network
+/// is listed.
+pub const LIVE_OTHERS_LISTED_MINUTES: i64 = 10;
+
+/// The most aircraft one layer of [`LiveOthersResponse`] carries.
+/// Paragliders and hang gliders come first, so a box with more loses
+/// aircraft of other kinds first.
+pub const MAX_LIVE_OTHERS: usize = 1000;
+
+/// The widest box `GET /v1/live/others` answers for, in degrees, from west
+/// to east and from south to north alike.
+pub const MAX_LIVE_OTHERS_BOX_DEG: f64 = 10.0;
+
+/// What kind of aircraft another network says a position is of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AircraftKind {
+    /// A paraglider.
+    Paraglider,
+    /// A hang glider.
+    HangGlider,
+    /// A glider or motor glider.
+    Glider,
+    /// A tow plane.
+    TowPlane,
+    /// A helicopter or gyrocopter.
+    Helicopter,
+    /// A skydiver or a parachute.
+    Parachute,
+    /// A plane that drops skydivers.
+    DropPlane,
+    /// An aeroplane with a piston engine.
+    PoweredAircraft,
+    /// An aeroplane with a jet or turboprop engine.
+    JetAircraft,
+    /// A balloon.
+    Balloon,
+    /// An airship.
+    Airship,
+    /// A drone.
+    Drone,
+    /// An obstacle that sends its position.
+    Obstacle,
+    /// The network does not say, or this version of the client does not
+    /// know the word.
+    #[serde(other)]
+    Unknown,
+}
+
+impl AircraftKind {
+    /// Whether this is a paraglider or a hang glider.
+    pub fn is_free_flight(self) -> bool {
+        matches!(self, Self::Paraglider | Self::HangGlider)
+    }
+}
+
+/// An aircraft another network saw: where it was when it was last heard.
+///
+/// It is not a pilot of Venti's and never one record with one: the two
+/// come from sources of different licences.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OtherAircraft {
+    /// A name for the aircraft that stays the same while the server runs,
+    /// so that a map can move its mark. It is not the device's address and
+    /// says nothing about the aircraft.
+    pub id: String,
+    /// What kind of aircraft.
+    pub aircraft: AircraftKind,
+    /// When it was last heard.
+    pub time: Timestamp,
+    /// How long before the answer's `time` that was, in seconds.
+    pub age_s: u32,
+    /// Where.
+    pub position: GeoPoint,
+    /// Altitude in metres above mean sea level.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub altitude_m: Option<f64>,
+    /// Speed over the ground, m/s.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ground_speed_ms: Option<f64>,
+    /// Climb, m/s; negative when sinking.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub climb_ms: Option<f64>,
+    /// Direction over the ground, degrees clockwise from true north.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub course_deg: Option<f64>,
+    /// The registration, where the owner let the aircraft be identified
+    /// and gave one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registration: Option<String>,
+    /// The competition number, on the same terms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub competition_id: Option<String>,
+    /// The aircraft's model, on the same terms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+/// The aircraft of one network in a box.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LiveOthersLayer {
+    /// The network, by its source's identifier: its credit is the
+    /// attribution of the same source.
+    pub source: venti_domain::SourceId,
+    /// Whether the server is connected to the network now. When it is not,
+    /// the list holds what was heard before, and ages.
+    pub connected: bool,
+    /// The aircraft heard in the last [`LIVE_OTHERS_LISTED_MINUTES`]:
+    /// paragliders and hang gliders first, then the others, each part the
+    /// most recently heard first.
+    pub aircraft: Vec<OtherAircraft>,
+    /// Whether the box holds more than [`MAX_LIVE_OTHERS`].
+    pub truncated: bool,
+}
+
+/// The answer of `GET /v1/live/others`: the aircraft that other networks
+/// saw in a box, one layer per network, and the credit of each.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LiveOthersResponse {
+    /// The server's clock when it wrote this answer.
+    pub time: Timestamp,
+    /// For how many minutes after it was heard an aircraft is listed.
+    pub listed_minutes: i64,
+    /// One layer per network the server listens to, sorted by source.
+    /// Empty on a server that listens to none.
+    pub layers: Vec<LiveOthersLayer>,
+    /// The credit of every network in `layers`.
+    pub attributions: Vec<super::Attribution>,
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
 
     use super::super::Handle;
     use super::*;
+
+    #[test]
+    fn a_kind_of_aircraft_this_version_does_not_know_is_unknown() {
+        let kind: AircraftKind = serde_json::from_str(r#""hot_air_sofa""#).unwrap();
+        assert_eq!(kind, AircraftKind::Unknown);
+        assert_eq!(
+            serde_json::to_string(&AircraftKind::HangGlider).unwrap(),
+            r#""hang_glider""#
+        );
+        assert!(AircraftKind::Paraglider.is_free_flight());
+        assert!(!AircraftKind::Glider.is_free_flight());
+    }
 
     #[test]
     fn a_live_track_identifier_is_26_characters_of_its_alphabet() {

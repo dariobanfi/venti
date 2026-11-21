@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use venti_domain::SourceId;
 
 use crate::{
-    AirspaceSource, ForecastSource, Kind, Manifest, ObservationSource, RadarSource, SiteSource,
+    AirspaceSource, ForecastSource, Kind, LiveSource, Manifest, ObservationSource, RadarSource,
+    SiteSource,
 };
 
 /// Why an adapter could not be registered.
@@ -29,6 +30,7 @@ pub struct Registry {
     forecasts: BTreeMap<SourceId, Box<dyn ForecastSource>>,
     sites: BTreeMap<SourceId, Box<dyn SiteSource>>,
     radar: BTreeMap<SourceId, Box<dyn RadarSource>>,
+    live: BTreeMap<SourceId, Box<dyn LiveSource>>,
 }
 
 impl Registry {
@@ -96,6 +98,16 @@ impl Registry {
         Ok(())
     }
 
+    /// Adds a source of live positions.
+    pub fn register_live(&mut self, source: Box<dyn LiveSource>) -> Result<(), RegistryError> {
+        let id = declared(source.manifest(), Kind::Live)?;
+        if self.live.contains_key(&id) {
+            return Err(RegistryError::Duplicate(id));
+        }
+        self.live.insert(id, source);
+        Ok(())
+    }
+
     /// The observation source with this identifier, if the build contains it.
     pub fn observations(&self, id: &SourceId) -> Option<&dyn ObservationSource> {
         self.observations.get(id).map(Box::as_ref)
@@ -126,6 +138,12 @@ impl Registry {
         self.radar.get(id).map(Box::as_ref)
     }
 
+    /// The source of live positions with this identifier, if the build
+    /// contains it.
+    pub fn live(&self, id: &SourceId) -> Option<&dyn LiveSource> {
+        self.live.get(id).map(Box::as_ref)
+    }
+
     /// The declared facts about the source with this identifier, if the
     /// build contains an adapter of it for this kind of data.
     pub fn manifest(&self, id: &SourceId, kind: Kind) -> Option<&Manifest> {
@@ -135,6 +153,7 @@ impl Registry {
             Kind::Forecasts => self.forecasts(id).map(ForecastSource::manifest),
             Kind::Sites => self.sites(id).map(SiteSource::manifest),
             Kind::Radar => self.radar(id).map(RadarSource::manifest),
+            Kind::Live => self.live(id).map(LiveSource::manifest),
             // Imagery is not collected, and its sources are not in the
             // registry: the server asks for a tile when a client does.
             Kind::Imagery => None,
@@ -152,7 +171,8 @@ impl Registry {
             .chain(self.airspace.values().map(|source| source.manifest()))
             .chain(self.forecasts.values().map(|source| source.manifest()))
             .chain(self.sites.values().map(|source| source.manifest()))
-            .chain(self.radar.values().map(|source| source.manifest()));
+            .chain(self.radar.values().map(|source| source.manifest()))
+            .chain(self.live.values().map(|source| source.manifest()));
         for manifest in all {
             manifests.entry(&manifest.id).or_insert(manifest);
         }

@@ -46,6 +46,10 @@ const MAX_AGE: &str = "public, max-age=60";
 /// as the newest; every answer says when its data was fetched.
 const SLOW_MAX_AGE: &str = "public, max-age=3600";
 
+/// The same for an answer about where aircraft are now: a few seconds,
+/// so that the many who look at one part of the map share an answer.
+const BRIEF_MAX_AGE: &str = "public, max-age=5";
+
 /// Who may keep an answer that must be checked before every reuse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Keeper {
@@ -105,6 +109,15 @@ fn validated(
 pub(crate) fn json(request: &HeaderMap, value: &impl Serialize) -> Response {
     match to_json(value) {
         Ok(body) => validated(request, "application/json", body, MAX_AGE),
+        Err(error) => error.into_response(),
+    }
+}
+
+/// Serialises `value` as the JSON body of an answer that is the same for
+/// everyone and changes by the second: it may be reused for five seconds.
+pub(crate) fn brief_json(request: &HeaderMap, value: &impl Serialize) -> Response {
+    match to_json(value) {
+        Ok(body) => validated(request, "application/json", body, BRIEF_MAX_AGE),
         Err(error) => error.into_response(),
     }
 }

@@ -85,7 +85,7 @@ use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch};
 use crate::maps::Maps;
 use crate::thermals::ThermalMap;
-use crate::{plan, radar, serve};
+use crate::{live, plan, radar, serve};
 
 /// The region the payloads were recorded for, compiled in so that the
 /// development mode needs no files.
@@ -1236,12 +1236,40 @@ pub async fn recorded_with_its_store(
     )
     .ok_or("the first region lists no radar source")?;
 
+    // The live network is fed lines in the Open Glider Network's form,
+    // made up over the Tegernsee (not network data: the network forbids
+    // passing on its data older than 24 hours), by the code a real server
+    // runs; its clock stands just after the newest. It connects nowhere.
+    let at = adapters::live_feed_at();
+    let live_clock: Arc<dyn Clock> = Arc::new(FixedClock(at));
+    let mut networks = Vec::new();
+    for (id, _) in plan::live(&packs) {
+        let source = adapters::live_sources()
+            .into_iter()
+            .find(|source| source.manifest().id == id)
+            .ok_or_else(|| format!("no adapter of the live source {id}"))?;
+        let network =
+            live::network::Network::new(source.manifest(), live_clock.clone()).with_salt(0);
+        live::network::feed(
+            &network,
+            source.as_ref(),
+            adapters::made_up_live_lines(),
+            at,
+        );
+        let directory = source
+            .parse_directory(adapters::made_up_live_directory())
+            .map_err(|error| format!("the made-up directory of devices: {error}"))?;
+        network.take_directory(directory, at);
+        networks.push(Arc::new(network));
+    }
+
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let api = Api::new(store.clone(), clock.clone(), manifests, settings)
         .with_station_priority(plan::station_priority(&packs))
         .with_forecasts(forecasts.clone())
         .with_thermal_map(Arc::new(map))
-        .with_radar(radar.clone());
+        .with_radar(radar.clone())
+        .with_networks(networks);
 
     // Everything in the payloads is taken: a day of history per station.
     let collector = Collector::new(

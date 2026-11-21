@@ -1,0 +1,44 @@
+id = "ogn"
+provider = "Open Glider Network"
+kinds = ["live"]
+# The network's feed has the whole world; the server asks it for the
+# regions' box. These are the countries of the first region's box.
+countries = ["AT", "CH", "DE", "HU", "IT", "SI"]
+# A device that moves is reported about every five seconds, one that stands
+# about every twenty (the network's wiki, "APRS interaction examples").
+cadence_seconds = 5
+# "You do not re-distribute OGN data older than 24 hours."
+pass_on_hours = 24
+auth = "none"
+# The device database, the one file fetched: 5.6 MB on 2026-11-21, 36,887
+# devices. The feed is a connection, read a line at a time.
+max_response_kb = 16384
+
+# The device database is asked for once a day.
+[rate_limit]
+per_hour = 1
+
+[licence]
+name = "ODbL 1.0"
+commercial = true
+redistribution = true
+# A database made from the data may be passed on only under the same
+# licence: the network's positions stay apart from every other source's,
+# Venti's own live tracks included.
+share_alike = true
+attribution = "Positions: Open Glider Network, glidernet.org (ODbL)"
+link = "https://www.glidernet.org/ogn-data-usage/"
+notice = "Positions of the Open Glider Network, available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Not every aircraft sends its position, and a position may be late or wrong: never use it to avoid a collision."
+constraints = [
+    "Data provided by the network is under the ODbL: credit the network where its positions are shown, and pass on a database made from them only under the same licence.",
+    "Whoever passes the data on follows the privacy choices of the device database (DDB): a device whose owner chose not to be tracked is never shown, and one whose owner chose not to be identified is shown without registration, competition number or model.",
+    "No data older than 24 hours is passed on (pass_on_hours): the server keeps the last position of a device for at most that long and lists only the last minutes.",
+    "A position whose line carries the no-tracking flag (bit 6 of the id field) must be ignored; the network's wiki says such lines should never appear. A line with the stealth flag (bit 7) is not shown either.",
+    "The feed is read with a read-only login (passcode -1), with a filter for the regions' box so that no more than needed is pulled, and the connection is dropped and made again when nothing came for a minute.",
+]
+verified_on = "2026-11-21"
+verified_from = [
+    "https://www.glidernet.org/ogn-data-usage/",
+    "https://opendatacommons.org/licenses/odbl/summary/",
+    "https://ddb.glidernet.org/download/?j=1&t=1",
+]

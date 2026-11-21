@@ -175,6 +175,26 @@
         ],
         "type": "object"
       },
+      "AircraftKind": {
+        "description": "What kind of aircraft another network says a position is of. A word this version does not know is to be read as `unknown`.",
+        "type": "string",
+        "x-venti-values": [
+          "paraglider",
+          "hang_glider",
+          "glider",
+          "tow_plane",
+          "helicopter",
+          "parachute",
+          "drop_plane",
+          "powered_aircraft",
+          "jet_aircraft",
+          "balloon",
+          "airship",
+          "drone",
+          "obstacle",
+          "unknown"
+        ]
+      },
       "Airspace": {
         "properties": {
           "activity": {
@@ -1556,6 +1576,62 @@
         ],
         "type": "object"
       },
+      "LiveOthersLayer": {
+        "properties": {
+          "aircraft": {
+            "items": {
+              "$ref": "#/components/schemas/OtherAircraft"
+            },
+            "type": "array"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source",
+          "connected",
+          "aircraft",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "LiveOthersResponse": {
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/LiveOthersLayer"
+            },
+            "type": "array"
+          },
+          "listed_minutes": {
+            "type": "integer"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "listed_minutes",
+          "layers",
+          "attributions"
+        ],
+        "type": "object"
+      },
       "LivePositionsRequest": {
         "properties": {
           "fixes": {
@@ -1948,6 +2024,56 @@
           "end",
           "by_notam",
           "except_public_holidays"
+        ],
+        "type": "object"
+      },
+      "OtherAircraft": {
+        "description": "An aircraft another network heard, where it was last heard. `id` stays the same while the server runs and is not the device's address. `registration`, `competition_id` and `model` are there only where the owner let the aircraft be identified.",
+        "properties": {
+          "age_s": {
+            "type": "integer"
+          },
+          "aircraft": {
+            "$ref": "#/components/schemas/AircraftKind"
+          },
+          "altitude_m": {
+            "type": "number"
+          },
+          "climb_ms": {
+            "type": "number"
+          },
+          "competition_id": {
+            "type": "string"
+          },
+          "course_deg": {
+            "type": "number"
+          },
+          "ground_speed_ms": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "registration": {
+            "type": "string"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "aircraft",
+          "time",
+          "age_s",
+          "position"
         ],
         "type": "object"
       },
@@ -6684,6 +6810,41 @@
         "security": [],
         "summary": "Who is in the air: the public live tracks of a box",
         "x-venti-docs": "GET /v1/live?bbox=west,south,east,north"
+      }
+    },
+    "/v1/live/others": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_live_others",
+        "parameters": [
+          {
+            "description": "A box as west,south,east,north in WGS84 degrees, for example 10.5,47.2,11.9,47.8.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveOthersResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Who else is in the air: the aircraft other networks heard in a box",
+        "x-venti-docs": "GET /v1/live/others?bbox=west,south,east,north"
       }
     },
     "/v1/live/positions": {

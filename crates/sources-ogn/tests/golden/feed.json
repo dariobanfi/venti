@@ -1,0 +1,151 @@
+{
+  "lines": 23,
+  "server": 3,
+  "hidden": 2,
+  "other": 4,
+  "unreadable": {
+    "id field of another form: id0440E0000D": 1,
+    "the time is not hhmmss in UTC": 1
+  },
+  "positions": 12,
+  "by_aircraft": {
+    "glider": 1,
+    "hang_glider": 1,
+    "jet_aircraft": 1,
+    "obstacle": 1,
+    "paraglider": 7,
+    "tow_plane": 1
+  },
+  "newest": {
+    "E00001": {
+      "device": "E00001",
+      "aircraft": "paraglider",
+      "time": "2026-11-21T19:08:50Z",
+      "position": {
+        "lat": 47.664083,
+        "lon": 11.7967
+      },
+      "altitude_m": 2140.0,
+      "course_deg": 210.0,
+      "ground_speed_ms": 7.2,
+      "climb_ms": 1.8
+    },
+    "E00002": {
+      "device": "E00002",
+      "aircraft": "paraglider",
+      "time": "2026-11-21T19:08:45Z",
+      "position": {
+        "lat": 47.671667,
+        "lon": 11.808333
+      },
+      "altitude_m": 1800.0,
+      "course_deg": 45.0,
+      "ground_speed_ms": 9.26,
+      "climb_ms": -0.5
+    },
+    "E00003": {
+      "device": "E00003",
+      "aircraft": "hang_glider",
+      "time": "2026-11-21T19:08:30Z",
+      "position": {
+        "lat": 47.685017,
+        "lon": 11.781683
+      },
+      "altitude_m": 2000.0,
+      "course_deg": 180.0,
+      "ground_speed_ms": 10.29,
+      "climb_ms": 0.51
+    },
+    "E00004": {
+      "device": "E00004",
+      "aircraft": "paraglider",
+      "time": "2026-11-21T19:08:55Z",
+      "position": {
+        "lat": 47.658383,
+        "lon": 11.786717
+      },
+      "altitude_m": 2100.0,
+      "course_deg": 90.0,
+      "ground_speed_ms": 6.17,
+      "climb_ms": 1.02
+    },
+    "E00006": {
+      "device": "E00006",
+      "aircraft": "paraglider",
+      "time": "2026-11-21T19:08:48Z",
+      "position": {
+        "lat": 47.7009,
+        "lon": 11.761733
+      },
+      "altitude_m": 1400.0,
+      "course_deg": 300.0,
+      "ground_speed_ms": 8.23,
+      "climb_ms": -1.6
+    },
+    "E00007": {
+      "device": "E00007",
+      "aircraft": "glider",
+      "time": "2026-11-21T19:09:00Z",
+      "position": {
+        "lat": 47.640033,
+        "lon": 11.735083
+      },
+      "altitude_m": 2500.0,
+      "course_deg": 70.0,
+      "ground_speed_ms": 28.29,
+      "climb_ms": 0.1
+    },
+    "E00008": {
+      "device": "E00008",
+      "aircraft": "tow_plane",
+      "time": "2026-11-21T19:09:05Z",
+      "position": {
+        "lat": 47.72,
+        "lon": 11.743333
+      },
+      "altitude_m": 1300.0,
+      "course_deg": 10.0,
+      "ground_speed_ms": 41.16,
+      "climb_ms": 2.54
+    },
+    "E00009": {
+      "device": "E00009",
+      "aircraft": "paraglider",
+      "time": "2026-11-21T18:58:00Z",
+      "position": {
+        "lat": 47.733333,
+        "lon": 11.716667
+      },
+      "altitude_m": 1000.0,
+      "course_deg": 10.0,
+      "ground_speed_ms": 10.29,
+      "climb_ms": 0.0
+    },
+    "E0000B": {
+      "device": "E0000B",
+      "aircraft": "jet_aircraft",
+      "time": "2026-11-21T19:09:02Z",
+      "position": {
+        "lat": 48.200083,
+        "lon": 11.600083
+      },
+      "altitude_m": 10668.0,
+      "course_deg": 250.0,
+      "ground_speed_ms": 221.21,
+      "climb_ms": 0.0
+    },
+    "E0000C": {
+      "device": "E0000C",
+      "aircraft": "obstacle",
+      "time": "2026-11-21T19:09:00Z",
+      "position": {
+        "lat": 47.688117,
+        "lon": 11.7608
+      },
+      "altitude_m": null,
+      "course_deg": null,
+      "ground_speed_ms": null,
+      "climb_ms": null
+    }
+  }
+}

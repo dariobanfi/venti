@@ -19,7 +19,7 @@ No image is published: the server builds its own from a checkout. Nothing here h
 
 - A machine with Debian 12 or 13, or Ubuntu 24.04 or 26.04 LTS, and root access. For wind stations alone, 2 cores, 4 GB of memory and 20 GB of disk are plenty; the recommended size is in [architecture.md](../docs/architecture.md#sizing).
 - Ports 80 and 443 open to the internet.
-- For HTTPS, a domain name whose DNS `A` record points at the machine (no `AAAA` record: see [The visitor's address](#the-visitors-address)). Without one the stack serves plain HTTP on port 80, which is fine for a first look and for nothing else.
+- For HTTPS, a domain name whose DNS `A` record points at the machine (no `AAAA` record: see [The visitor's address](#the-visitors-address)). Without one the stack serves plain HTTP on port 80, which is fine for a first look and for nothing else. A stack on one's own computer, only for oneself, is kept to that computer with `VENTI_HTTP_BIND=127.0.0.1:8088` and `VENTI_HTTPS_BIND=127.0.0.1:8443` in `.env`: the site is then at `http://127.0.0.1:8088` and nothing of it is reachable from the network.
 
 ## First install
 

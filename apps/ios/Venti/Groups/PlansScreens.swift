@@ -167,6 +167,7 @@ struct PlanScreen: View {
     @State private var problem: String?
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
+    @State private var reporting: Reported?
 
     var body: some View {
         VentiList {
@@ -229,6 +230,17 @@ struct PlanScreen: View {
                     }
                     .disabled(isWorking)
                 }
+                // Another member's plan that should not be there: to
+                // whoever runs the server, and to nobody else. One's own
+                // is changed or deleted instead.
+                if !plan.isMine {
+                    Section {
+                        Button("Report this plan", systemImage: "exclamationmark.bubble") {
+                            reporting = .plan(groupId: plan.groupId, id: plan.id)
+                        }
+                        .accessibilityIdentifier("plan-report")
+                    }
+                }
                 if let problem {
                     Section {
                         Text(problem)
@@ -246,6 +258,9 @@ struct PlanScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isEditing) {
             PlanForm(editing: groups.plan(id))
+        }
+        .sheet(item: $reporting) { reported in
+            ReportSheet(reported: reported)
         }
         .confirmationDialog("Delete this plan?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("Delete the plan", role: .destructive) {

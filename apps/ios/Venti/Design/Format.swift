@@ -68,6 +68,11 @@ enum Format {
         )
     }
 
+    /// A number with a sign and a fixed count of decimals: "+0.6", "−1.2".
+    static func signedDecimal(_ value: Double, places: Int) -> String {
+        signed(value, places: places)
+    }
+
     /// The design language's minus, U+2212, in place of the hyphen the
     /// system writes before a negative number.
     private static func minus(_ text: String) -> String {

@@ -2,8 +2,8 @@ import Charts
 import SwiftUI
 import VentiCore
 
-/// One wind station: what it measures now, how the last 24 hours went, and
-/// whose data it is.
+/// One wind station: what it measures now, what that says about the air,
+/// how the last 24 hours or a past day went, and whose data it is.
 struct StationScreen: View {
     let station: WindStation
 
@@ -12,12 +12,18 @@ struct StationScreen: View {
     private enum Phase {
         case loading
         case ready(StationHistory)
+        /// A past day the pilot chose.
+        case day(StationDay)
         case failed(String)
     }
 
     @State private var phase = Phase.loading
     /// The moment under the finger on the chart.
     @State private var touched: Date?
+    /// The moment the date picker was set to, for showing it again.
+    @State private var chosenMoment: Date?
+    /// The past day chosen, by its date; none for the last 24 hours.
+    @State private var date: String?
 
     var body: some View {
         VentiList {
@@ -27,13 +33,28 @@ struct StationScreen: View {
                 Text(ageText)
             }
 
-            Section("Last 24 hours") {
+            air
+
+            Section {
+                dayPicker
                 switch phase {
                 case .loading:
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 120)
                 case .ready(let history):
-                    charts(Self.samples(from: history))
+                    charts(Self.samples(from: history.readings), over: nil)
+                case .day(let day):
+                    if let empty = day.emptyWords {
+                        Text(empty)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
+                            .accessibilityIdentifier("station-day-empty")
+                    } else {
+                        charts(
+                            Self.samples(from: day.readings),
+                            over: Self.time(day.startUnixS)...Self.time(day.endUnixS)
+                        )
+                    }
                 case .failed(let message):
                     VStack(alignment: .leading, spacing: 8) {
                         Text(message)
@@ -72,8 +93,100 @@ struct StationScreen: View {
         }
         .navigationTitle(station.name)
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: date) {
             await load()
+        }
+    }
+
+    // MARK: The air
+
+    /// What the station's readings say about the air: the cloud base air
+    /// rising from it would have, and the step in temperature to a station
+    /// higher or lower nearby. The words, the limits and the notes are the
+    /// core's; nothing is shown that the core leaves out.
+    @ViewBuilder private var air: some View {
+        let air = stationAir(station: station, stations: wind.stations)
+        if let base = air.cloudBase {
+            Section {
+                HStack(alignment: .top) {
+                    Metric(caption: base.words, value: Format.metres(base.baseM), unit: "m")
+                    Metric(caption: "Above the station", value: Format.metres(base.aboveStationM), unit: "m")
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("station-cloud-base")
+            } footer: {
+                Text(base.note)
+            }
+        }
+        if let step = air.temperatureStep {
+            Section {
+                VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                    Text(step.words)
+                        .font(.venti(.headline))
+                    Text(Self.stepLine(step))
+                        .monospacedDigit()
+                    Text(step.rule)
+                        .font(.venti(.footnote))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, VentiSpace.s1)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("station-temperature-step")
+            } header: {
+                Text("Temperature up the slope")
+            } footer: {
+                Text(step.note)
+            }
+        }
+    }
+
+    /// The other station and the figures of the step: "Wallberg, 4.2 km
+    /// away, 920 m higher, 3 °C: −0.6 °C per 100 m".
+    static func stepLine(_ step: TemperatureStep) -> String {
+        let height = step.higherByM >= 0
+            ? "\(Format.metres(step.higherByM)) m higher"
+            : "\(Format.metres(-step.higherByM)) m lower"
+        return "\(step.otherName), \(Format.kilometres(metres: step.distanceM)) km away, \(height), "
+            + "\(Format.temperature(celsius: step.otherTemperatureC)) °C: "
+            + "\(Format.signedDecimal(step.per100mC, places: 1)) °C per 100 m"
+    }
+
+    // MARK: Past days
+
+    /// The days the station's readings can be asked for, by this
+    /// iPhone's clock.
+    private var days: StationDays {
+        stationDays(nowUnixS: wind.now, utcOffsetS: WindModel.utcOffsetS)
+    }
+
+    /// The day the chart shows, chosen with the system's compact date
+    /// picker: today, which is the last 24 hours, or a day back to the
+    /// first the server keeps.
+    private var dayPicker: some View {
+        let days = days
+        let range = Self.time(days.firstUnixS)...Self.time(max(days.lastUnixS, days.firstUnixS))
+        return VStack(alignment: .leading, spacing: VentiSpace.s1) {
+            DatePicker(
+                date == nil ? "Last 24 hours" : "Day",
+                selection: Binding(
+                    get: {
+                        min(max(chosenMoment ?? range.upperBound, range.lowerBound), range.upperBound)
+                    },
+                    set: { moment in
+                        let picked = stationDate(atUnixS: Int64(moment.timeIntervalSince1970), utcOffsetS: WindModel.utcOffsetS)
+                        chosenMoment = moment
+                        date = picked == days.lastDate ? nil : picked
+                    }
+                ),
+                in: range,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.compact)
+            .font(.venti(.headline))
+            .accessibilityIdentifier("station-day")
+            Text(days.note)
+                .font(.venti(.footnote))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -131,6 +244,9 @@ struct StationScreen: View {
         if case .ready(let history) = phase, let credit = history.credits.first {
             return credit
         }
+        if case .day(let day) = phase, let credit = day.credits.first {
+            return credit
+        }
         return wind.credits.first { $0.source == station.source }
     }
 
@@ -147,8 +263,12 @@ struct StationScreen: View {
         let from: Double?
     }
 
-    nonisolated static func samples(from history: StationHistory) -> [Sample] {
-        history.readings.map { reading in
+    nonisolated static func time(_ unixSeconds: Int64) -> Date {
+        Date(timeIntervalSince1970: TimeInterval(unixSeconds))
+    }
+
+    nonisolated static func samples(from readings: [WindReading]) -> [Sample] {
+        readings.map { reading in
             Sample(
                 time: Date(timeIntervalSince1970: TimeInterval(reading.timeUnixS)),
                 wind: reading.speedMs.map { $0 * 3.6 },
@@ -165,8 +285,10 @@ struct StationScreen: View {
         }
     }
 
+    /// The charts of a day's readings, over the whole day when `over` is
+    /// given, else over the readings themselves.
     @ViewBuilder
-    private func charts(_ samples: [Sample]) -> some View {
+    private func charts(_ samples: [Sample], over day: ClosedRange<Date>?) -> some View {
         if samples.count < 2 {
             Text("The server has no history for this station yet.")
                 .foregroundStyle(.secondary)
@@ -222,10 +344,11 @@ struct StationScreen: View {
                         }
                     }
                 }
+                .chartXScale(domain: day ?? Self.span(of: samples))
                 .chartXSelection(value: $touched)
                 .frame(height: 170)
                 .accessibilityIdentifier("wind-chart")
-                .accessibilityLabel("Wind and gusts over the last 24 hours, in kilometres per hour")
+                .accessibilityLabel("Wind and gusts, in kilometres per hour")
 
                 // Its own small chart, not a second scale on the first:
                 // degrees and km/h have nothing to do with each other.
@@ -247,6 +370,7 @@ struct StationScreen: View {
                     }
                 }
                 .chartYScale(domain: 0...360)
+                .chartXScale(domain: day ?? Self.span(of: samples))
                 .chartXAxis {
                     // Over a whole day a time needs its half of the day, and
                     // the labels at both ends stay inside the chart.
@@ -267,10 +391,19 @@ struct StationScreen: View {
                 }
                 .chartXSelection(value: $touched)
                 .frame(height: 96)
-                .accessibilityLabel("Wind direction over the last 24 hours")
+                .accessibilityLabel("Wind direction")
             }
             .padding(.vertical, 4)
         }
+    }
+
+    /// From the first sample to the last.
+    nonisolated static func span(of samples: [Sample]) -> ClosedRange<Date> {
+        let times = samples.map(\.time)
+        guard let first = times.min(), let last = times.max(), first < last else {
+            return Date(timeIntervalSince1970: 0)...Date(timeIntervalSince1970: 1)
+        }
+        return first...last
     }
 
     /// The reading under the finger in words, or what the charts show.
@@ -293,8 +426,13 @@ struct StationScreen: View {
 
     private func load() async {
         phase = .loading
+        touched = nil
         do {
-            phase = .ready(try await wind.history(of: station))
+            if let date {
+                phase = .day(try await wind.day(of: station, date: date))
+            } else {
+                phase = .ready(try await wind.history(of: station))
+            }
         } catch {
             phase = .failed(
                 error is CoreError

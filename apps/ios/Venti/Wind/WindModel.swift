@@ -203,6 +203,22 @@ final class WindModel {
         return try stationHistory(status: status, body: body, nowUnixS: now)
     }
 
+    /// The offset of this iPhone's clock from UTC, by which a station's
+    /// days are cut.
+    static var utcOffsetS: Int32 {
+        Int32(TimeZone.current.secondsFromGMT())
+    }
+
+    /// One past day of a station's readings, by its date ("2026-11-18").
+    func day(of station: WindStation, date: String) async throws -> StationDay {
+        guard let server else {
+            throw URLError(.badURL)
+        }
+        let path = try stationDayPath(stationId: station.id, date: date, utcOffsetS: Self.utcOffsetS)
+        let (status, body) = try await get(path, from: server)
+        return try stationDay(status: status, body: body, date: date, utcOffsetS: Self.utcOffsetS)
+    }
+
     /// How long to wait before asking again for a forecast the server is
     /// still fetching, and how often to ask at most.
     @ObservationIgnored var forecastPause = Duration.seconds(5)

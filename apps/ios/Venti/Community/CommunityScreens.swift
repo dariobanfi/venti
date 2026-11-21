@@ -139,6 +139,8 @@ struct PublicFlightScreen: View {
 
     @Environment(CommunityModel.self) private var community
     @Environment(AirspaceModel.self) private var airspace
+    /// The height up to which the maps draw airspace, as chosen on the map.
+    @AppStorage(Preferences.mapAirspaceCeilingM) private var airspaceCeilingM = 0.0
     @Environment(WindModel.self) private var wind
 
     private enum Phase {
@@ -165,7 +167,7 @@ struct PublicFlightScreen: View {
             case .loaded(let view, let analysis):
                 FlightDetail(
                     flight: view, analysis: analysis, airspaceCheck: nil,
-                    airspace: airspace.shapes(in: view.bounds.grown(by: 0.2))
+                    airspace: airspace.shapes(in: view.bounds.grown(by: 0.2), below: airspaceCeilingM)
                 )
             }
         }

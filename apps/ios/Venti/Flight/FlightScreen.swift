@@ -8,6 +8,8 @@ struct FlightScreen: View {
 
     @Environment(LogbookModel.self) private var logbook
     @Environment(AirspaceModel.self) private var airspace
+    /// The height up to which the maps draw airspace, as chosen on the map.
+    @AppStorage(Preferences.mapAirspaceCeilingM) private var airspaceCeilingM = 0.0
     @Environment(AccountModel.self) private var account
     @Environment(FlySession.self) private var fly
     @Environment(AppNavigation.self) private var navigation
@@ -47,7 +49,7 @@ struct FlightScreen: View {
                 FlightDetail(
                     flight: flight, analysis: analysis, airspaceCheck: airspaceCheck,
                     // The airspace around the flight, for its map.
-                    airspace: airspace.shapes(in: flight.bounds.grown(by: 0.2)),
+                    airspace: airspace.shapes(in: flight.bounds.grown(by: 0.2), below: airspaceCeilingM),
                     onSendToLeague: { isHandingOver = true }
                 )
             }

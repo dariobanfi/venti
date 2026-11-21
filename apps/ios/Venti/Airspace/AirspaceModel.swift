@@ -78,9 +78,17 @@ final class AirspaceModel {
         return parts.isEmpty ? "None" : parts.joined(separator: " · ")
     }
 
-    /// The airspaces that touch a part of the map.
-    func shapes(in area: Bounds) -> [AirspaceShape] {
-        set?.inArea(area: area) ?? []
+    /// The airspaces that touch a part of the map, leaving off those that
+    /// certainly begin above `ceilingM` when one is chosen (0 or less is
+    /// every height, as the preference keeps it).
+    func shapes(in area: Bounds, below ceilingM: Double = 0) -> [AirspaceShape] {
+        set?.inAreaBelow(area: area, ceilingM: ceilingM > 0 ? ceilingM : nil) ?? []
+    }
+
+    /// What lies over a place, from the lowest floor up, in the core's
+    /// words. `nil` before the app has its airspace.
+    func over(_ place: Coordinate) -> AirspaceOverPlace? {
+        set?.overPlace(place: place)
     }
 
     /// Takes in the chosen files and says what happened, in words.

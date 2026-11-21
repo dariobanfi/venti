@@ -192,11 +192,20 @@ struct AirspaceWarningsSheet: View {
 
     /// Where the airspace comes from and how old that is.
     static func origin(of warning: AirspaceWarning) -> String {
-        switch (warning.origin, warning.dataUnixS) {
-        case (.file, nil): "From your file “\(warning.source)”."
-        case (.file, let date?): "From your file “\(warning.source)”, brought in \(Format.day(unixSeconds: date))."
-        case (.server, nil): "From \(warning.source), by way of Venti."
-        case (.server, let date?): "From \(warning.source), by way of Venti, as of \(Format.day(unixSeconds: date))."
+        origin(warning.origin, source: warning.source, dataUnixS: warning.dataUnixS)
+    }
+
+    /// The same for an airspace over a place on the map.
+    static func origin(of airspace: AirspaceOverhead) -> String {
+        origin(airspace.origin, source: airspace.source, dataUnixS: airspace.dataUnixS)
+    }
+
+    private static func origin(_ origin: AirspaceOrigin, source: String, dataUnixS: Int64?) -> String {
+        switch (origin, dataUnixS) {
+        case (.file, nil): "From your file “\(source)”."
+        case (.file, let date?): "From your file “\(source)”, brought in \(Format.day(unixSeconds: date))."
+        case (.server, nil): "From \(source), by way of Venti."
+        case (.server, let date?): "From \(source), by way of Venti, as of \(Format.day(unixSeconds: date))."
         }
     }
 }

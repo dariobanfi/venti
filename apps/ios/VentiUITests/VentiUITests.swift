@@ -786,6 +786,41 @@ final class VentiUITests: XCTestCase {
         openTab("Map", in: app)
         sleep(5)
         keepScreenshot("map-airspace")
+
+        // A tap where the zone is drawn and nothing else lies: what is
+        // over the place, as a sheet, with the filter by height at its
+        // foot. The zone lies beside the flight; the map is tapped across
+        // until the sheet comes.
+        let over = element("airspace-over-words", in: app)
+        search: for row in stride(from: 0.25, through: 0.7, by: 0.075) {
+            for column in stride(from: 0.15, through: 0.85, by: 0.1) {
+                app.coordinate(withNormalizedOffset: CGVector(dx: column, dy: row)).tap()
+                if over.waitForExistence(timeout: 1.5) {
+                    break search
+                }
+            }
+        }
+        XCTAssertTrue(over.exists, "No tap on the map opened what lies over a place.")
+        XCTAssertTrue(labelled(containing: "SAMPLE ZONE (NOT REAL)", in: app).exists)
+        XCTAssertTrue(element("airspace-over-caveat", in: app).exists)
+        sleep(1)
+        keepScreenshot("airspace-over-1-place")
+        // The foot of the sheet: the filter, in the core's words. Its
+        // choice is kept between launches, so the test leaves it at all
+        // heights.
+        let filter = element("airspace-height-filter", in: app)
+        for _ in 0..<4 where !isOnScreen(filter, in: app) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(filter.waitForExistence(timeout: 10))
+        let lowest = filter.buttons.element(boundBy: filter.buttons.count - 1)
+        lowest.tap()
+        XCTAssertTrue(lowest.isSelected)
+        sleep(1)
+        keepScreenshot("airspace-over-2-filter")
+        filter.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(filter.buttons.element(boundBy: 0).isSelected)
+        app.buttons["Done"].tap()
     }
 
     /// Today, against a Venti server in development mode: the take-offs
@@ -860,6 +895,31 @@ final class VentiUITests: XCTestCase {
     /// stand-in server that hands on a development server's answers and
     /// makes up the forecast (`tools/made-up-day`). The day is made up;
     /// what is tested is that the screens say what the core reads from it.
+    /// Today's days as the forecast reaches them, four at most and three
+    /// where four do not fit whole, side by side at a larger text size (the step above the largest of the
+    /// standard sizes, about 135 %), against the stand-in with a made-up
+    /// day, whose forecast has four days.
+    func testTodaysDaysFitWithLargerText() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing", "--bundled-map", "--server", server,
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL",
+        ]
+        app.launch()
+        let days = app.buttons.matching(identifier: "today-days")
+        XCTAssertTrue(days.firstMatch.waitForExistence(timeout: 90))
+        // Every forecast read: the days are those of the longest.
+        XCTAssertTrue(element("today-card", in: app).waitForExistence(timeout: 60))
+        sleep(4)
+        // Four where their names fit whole, else three.
+        XCTAssertTrue([3, 4].contains(days.count), "\(days.count) days")
+        keepScreenshot("today-8-days-larger-text")
+    }
+
     func testTodaySaysWhatKindOfDayTheThermalsMake() throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
             throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
@@ -1196,6 +1256,45 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "Deutscher Wetterdienst", in: app).exists)
         sleep(2)
         keepScreenshot("wind-3-station")
+
+        // What the readings say of the air, where the core says something:
+        // a cloud base only while the sun is up at the station, a step in
+        // temperature only with a station higher or lower nearby. Kept as
+        // a screenshot when there; not a condition.
+        if element("station-cloud-base", in: app).exists || element("station-temperature-step", in: app).exists {
+            keepScreenshot("station-1-air")
+        }
+
+        // A past day, chosen with the date picker: the day before.
+        // The compact picker is one element, "Date Picker", whose value is
+        // the date; the simulator's region writes it "18. Nov 2026".
+        let picker = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Date Picker'")).firstMatch
+        for _ in 0..<3 where !isOnScreen(picker, in: app) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        picker.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let dayBefore = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS '17' AND label CONTAINS 'November'"))
+            .firstMatch
+        XCTAssertTrue(dayBefore.waitForExistence(timeout: 10))
+        dayBefore.tap()
+        // The calendar stays open after the choice and closes with a tap
+        // beside it: on the line that says how old the reading is.
+        if dayBefore.exists {
+            labelled(containing: "Measured", in: app).firstMatch.tap()
+        }
+        for _ in 0..<3 where dayBefore.exists {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.38)).tap()
+            usleep(500_000)
+        }
+        let pastDay = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier IN %@", ["wind-chart", "station-day-empty"]))
+            .firstMatch
+        XCTAssertTrue(pastDay.waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "Day", in: app).exists)
+        sleep(2)
+        keepScreenshot("station-2-past-day")
 
         // The assistant looks up the same wind on the same server.
         app.navigationBars.buttons.firstMatch.tap()
@@ -1632,6 +1731,66 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "I am out", in: app).exists)
         sleep(1)
         keepScreenshot("plans-2-plan")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // Another member's plan that should not be there is reported as a
+        // flight is: the development mode's "Beispielwiese" is mara's.
+        // One's own plan has no such entry.
+        // The board lists plans from today by this iPhone's clock, and the
+        // development mode's are for 18 to 20 November: whether one of
+        // another member's is there depends on the day the test runs.
+        // Checked when there.
+        let theirPlan = labelled(containing: "Beispielwiese", in: app)
+        if theirPlan.waitForExistence(timeout: 5) {
+            theirPlan.tap()
+            let reportPlan = element("plan-report", in: app)
+            XCTAssertTrue(reportPlan.waitForExistence(timeout: 10))
+            reportPlan.tap()
+            XCTAssertTrue(element("report-reason", in: app).waitForExistence(timeout: 10))
+            XCTAssertTrue(app.navigationBars["Report this plan"].exists)
+            sleep(1)
+            keepScreenshot("groups-plan-report")
+            app.buttons["Cancel"].tap()
+            XCTAssertTrue(reportPlan.waitForExistence(timeout: 10))
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+        // One's own plan has no report entry.
+        posted.tap()
+        XCTAssertTrue(element("plan-in", in: app).waitForExistence(timeout: 10))
+        XCTAssertFalse(element("plan-report", in: app).exists)
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // And a group the pilot is in and does not keep: the development
+        // mode's other group, joined with its code. The keeper of a group
+        // deletes it instead.
+        let groupsLink = element("plans-groups", in: app)
+        XCTAssertTrue(groupsLink.waitForExistence(timeout: 10))
+        groupsLink.tap()
+        let join = app.buttons["Join with a code"]
+        XCTAssertTrue(join.waitForExistence(timeout: 10))
+        join.tap()
+        let code = app.alerts.textFields.firstMatch
+        XCTAssertTrue(code.waitForExistence(timeout: 10))
+        code.typeText("5555-5555-5555-5555")
+        app.alerts.buttons["Join"].tap()
+        let otherGroup = labelled(containing: "Beispielgruppe", in: app)
+        XCTAssertTrue(otherGroup.waitForExistence(timeout: 20))
+        otherGroup.tap()
+        let reportGroup = element("group-report", in: app)
+        for _ in 0..<3 where !reportGroup.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(reportGroup.waitForExistence(timeout: 15))
+        reportGroup.tap()
+        XCTAssertTrue(element("report-reason", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Report this group"].exists)
+        sleep(1)
+        keepScreenshot("groups-group-report")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(reportGroup.waitForExistence(timeout: 10))
+        // Back to the board.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(join.waitForExistence(timeout: 10))
         app.navigationBars.buttons.firstMatch.tap()
 
         // The map marks the plan where it is, and says so.

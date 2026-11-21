@@ -24,6 +24,7 @@ struct MapScreen: View {
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
+    @AppStorage(Preferences.mapAirspaceCeilingM) private var airspaceCeilingM = 0.0
 
     @State private var isFollowing = false
     @State private var showsPlans = false
@@ -47,6 +48,8 @@ struct MapScreen: View {
     @State private var forecastDate = ""
     /// A square of the forecast map the pilot tapped.
     @State private var chosenSquare: ChosenSquare?
+    /// A place where airspace is drawn, tapped.
+    @State private var chosenAirspace: ChosenAirspacePlace?
     /// Who made the photographs in view on the map.
     @State private var photos = PhotoCredits()
 
@@ -114,6 +117,14 @@ struct MapScreen: View {
                         opening: ForecastOpening(date: day.date, model: day.model),
                         id: "\(day.date)-\(index)"
                     )
+                },
+                // A tap where airspace is drawn and nothing else of the
+                // app's lies: what is over the place.
+                onAirspace: { place in
+                    guard !hidesAirspace, let over = airspace.over(place),
+                          Self.isDrawn(over, among: airspaceInView)
+                    else { return }
+                    chosenAirspace = ChosenAirspacePlace(over: over)
                 }
             )
             // Without a network the map is drawn from a region kept on
@@ -195,6 +206,10 @@ struct MapScreen: View {
         .task(id: isForecastOn ? wind.address : "") {
             guard isForecastOn else { return }
             await thermals.keepCurrent()
+        }
+        .sheet(item: $chosenAirspace) { chosen in
+            AirspaceOverPlaceSheet(over: chosen.over)
+                .presentationDetents([.medium, .large])
         }
         .sheet(item: $chosenSquare) { square in
             ForecastSquareSheet(square: square)
@@ -297,6 +312,7 @@ struct MapScreen: View {
                 chosenGlider = nil
                 pressed = nil
                 chosenSquare = nil
+                chosenAirspace = nil
                 showsStations = false
                 showsSites = false
                 showsGliders = false
@@ -509,7 +525,14 @@ struct MapScreen: View {
     /// asked for either.
     private var airspaceInView: [AirspaceShape] {
         guard let region, region.east - region.west < 6 else { return [] }
-        return airspace.shapes(in: region)
+        return airspace.shapes(in: region, below: airspaceCeilingM)
+    }
+
+    /// Whether an airspace over the place is one the map draws: one the
+    /// filter by height took off the map is not tapped on.
+    static func isDrawn(_ over: AirspaceOverPlace, among drawn: [AirspaceShape]) -> Bool {
+        let ids = Set(drawn.map(\.id))
+        return over.airspaces.contains { ids.contains($0.id) }
     }
 
     private var outlines: [[Coordinate]] {

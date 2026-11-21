@@ -169,6 +169,7 @@ struct GroupScreen: View {
     @State private var typed = ""
     @State private var code: MadeGroup?
     @State private var asking: Asking?
+    @State private var reporting: Reported?
 
     /// Something that is asked about before it is done.
     /// What the pilot is asked about before it is done.
@@ -232,6 +233,14 @@ struct GroupScreen: View {
                         Button("Delete the group", systemImage: "trash", role: .destructive) {
                             asking = .delete
                         }
+                    } else {
+                        // For a group that should not be there: to whoever
+                        // runs the server, and to nobody else. Not for the
+                        // keeper, who can delete it.
+                        Button("Report this group", systemImage: "exclamationmark.bubble") {
+                            reporting = .group(id)
+                        }
+                        .accessibilityIdentifier("group-report")
                     }
                 } footer: {
                     Text(
@@ -295,6 +304,9 @@ struct GroupScreen: View {
             }
         } message: { asking in
             Text(Self.consequence(asking))
+        }
+        .sheet(item: $reporting) { reported in
+            ReportSheet(reported: reported)
         }
         .sheet(item: $code) { made in
             InviteCodeSheet(group: made.name, code: made.code)

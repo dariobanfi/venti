@@ -9,6 +9,7 @@
 #   apps/ios/scripts/ui-tests.sh                      all UI tests, on 3 simulators
 #   apps/ios/scripts/ui-tests.sh testA testB          only these
 #   apps/ios/scripts/ui-tests.sh -n 4 --unit          on 4, and the unit tests first
+#   apps/ios/scripts/ui-tests.sh --first "iPhone 17e" testA   that simulator first
 #
 # Run it from anywhere, with the core, the design pack and the project made
 # (build-core.sh, build-design.sh, `xcodegen generate`) and the server built
@@ -23,9 +24,7 @@ cd "$root"
 
 # The simulators to use, by name, in this order: each of these on the newest
 # iOS, then the same on an older one. Not "iPhone 18 Pro": the owner looks at
-# that one. "iPhone 18 Pro Max" comes last: on 2026-11-21 the tap that opens
-# the Fly tab's replay menu did nothing there (testTheCockpitWarnsOfAirspace
-# fails on it, alone too).
+# that one. "iPhone 18 Pro Max" comes last, as the largest.
 names=("iPhone 17" "iPhone 17e" "iPhone Air" "iPhone 18 Pro Max")
 # And never this device, whatever it is called.
 spared="9417DD04-2618-4C78-9C3E-9BA8CA21DB88"
@@ -41,7 +40,11 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -n|--simulators) count="$2"; shift 2 ;;
     --unit) unit=true; shift ;;
-    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+    --first)
+      # Never the owner's simulator, by any route.
+      [ "$2" = "iPhone 18 Pro" ] && { echo "not the iPhone 18 Pro: the owner looks at it" >&2; exit 2; }
+      names=("$2" "${names[@]}"); shift 2 ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     test*) tests+=("$1"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac

@@ -136,9 +136,43 @@ struct TodayScreen: View {
         place.isAsked ? "No forecast for this day" : "Reading the forecast"
     }
 
-    /// The days the forecasts reach over, three at most.
+    /// As wide as the segmented control has to be for every name to show
+    /// whole: the widest name in each segment, with the control's padding.
+    /// Not drawn and not read out.
+    private func widestRow(_ days: [OutlookDay]) -> some View {
+        let widest = days.map(\.name).max { $0.count < $1.count } ?? ""
+        return HStack(spacing: 0) {
+            ForEach(days.indices, id: \.self) { _ in
+                Text(widest)
+                    .font(.ventiType(.label))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, VentiSpace.s1)
+            }
+        }
+        .padding(3)
+        .hidden()
+        .accessibilityHidden(true)
+    }
+
+    /// The pack's segmented control over these days.
+    private func daySwitch(_ days: [OutlookDay]) -> some View {
+        VentiSegmented(
+            options: days.enumerated().map { (value: $0.offset, name: $0.element.name) },
+            selection: Binding(
+                get: { day },
+                set: { chosen in
+                    hasChosenDay = true
+                    day = chosen
+                }
+            )
+        )
+    }
+
+    /// The days the forecasts reach over, four at most: as many as the
+    /// pack's segmented control gives each its share of the width.
     private var days: [OutlookDay] {
-        Array((today.places.compactMap(\.outlook).map(\.days).max { $0.count < $1.count } ?? []).prefix(3))
+        Array((today.places.compactMap(\.outlook).map(\.days).max { $0.count < $1.count } ?? []).prefix(4))
     }
 
     // MARK: The head
@@ -248,16 +282,19 @@ struct TodayScreen: View {
             } else {
                 VStack(alignment: .leading, spacing: VentiSpace.s4) {
                     if days.count > 1 {
-                        VentiSegmented(
-                            options: days.enumerated().map { (value: $0.offset, name: $0.element.name) },
-                            selection: Binding(
-                                get: { day },
-                                set: { chosen in
-                                    hasChosenDay = true
-                                    day = chosen
-                                }
-                            )
-                        )
+                        // Four days where their names fit whole, as at
+                        // the usual text sizes; three where a larger text
+                        // would cut "Tomorrow" short.
+                        ViewThatFits(in: .horizontal) {
+                            // The segments share the width equally, so what
+                            // has to fit is the widest name as often as
+                            // there are days: a row of it, unseen, beside.
+                            ZStack {
+                                widestRow(days)
+                                daySwitch(days)
+                            }
+                            daySwitch(Array(days.prefix(3)))
+                        }
                         .accessibilityIdentifier("today-days")
                     }
                     let shown = ordered

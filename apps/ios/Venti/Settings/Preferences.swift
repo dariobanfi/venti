@@ -34,6 +34,10 @@ enum Preferences {
     /// Whether the map tab shows the forecast map, the kind of day square
     /// by square. Off until the pilot switches it on.
     static let mapShowsForecast = "VentiMapShowsForecast"
+    /// The height up to which the maps draw airspace, in metres; 0 for all
+    /// heights. One choice for every map that draws airspace but the
+    /// cockpit's, which draws all of it.
+    static let mapAirspaceCeilingM = "VentiMapAirspaceCeilingM"
     /// Whether the pilot has switched off airspace from the server.
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 

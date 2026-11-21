@@ -105,7 +105,7 @@ final class WindModelTests: XCTestCase {
 
         let history = try await wind.history(of: wind.stations[0])
         XCTAssertEqual(history.readings.count, 2)
-        XCTAssertEqual(StationScreen.samples(from: history).last?.gusts ?? 0, 25.7 * 3.6, accuracy: 0.01)
+        XCTAssertEqual(StationScreen.samples(from: history.readings).last?.gusts ?? 0, 25.7 * 3.6, accuracy: 0.01)
         let last = await asked.urls.last
         XCTAssertEqual(last?.path, "/v1/stations/dwd-10min:05792/observations")
     }
@@ -248,5 +248,39 @@ final class WindModelTests: XCTestCase {
         XCTAssertEqual(Format.place(lat: 47.66421, lon: 11.79668), "47.6642° N, 11.7967° E")
         XCTAssertEqual(Format.place(lat: -33.5, lon: -70.25), "33.5000° S, 70.2500° W")
         XCTAssertEqual(Format.dayAndTime(unixSeconds: 0).isEmpty, false)
+    }
+
+    /// A past day of a station is asked for by its date, and comes back as
+    /// that day, from its first moment to its last.
+    func testAPastDayOfAStationIsAskedForByItsDate() async throws {
+        let asked = Asked()
+        let wind = WindModel(address: "http://127.0.0.1:8080", transport: server(noting: asked))
+        wind.show(alps)
+        await wind.load()
+        let station = try XCTUnwrap(wind.stations.first)
+        let day = try await wind.day(of: station, date: "2026-11-17")
+        XCTAssertEqual(day.date, "2026-11-17")
+        XCTAssertLessThan(day.startUnixS, day.endUnixS)
+        let urls = await asked.urls
+        let url = try XCTUnwrap(urls.last)
+        XCTAssertTrue(url.absoluteString.contains("2026-11-17"), url.absoluteString)
+        XCTAssertTrue(url.absoluteString.contains(station.id), url.absoluteString)
+    }
+
+    /// The step in temperature to another station, in one line: the other
+    /// station, how far and how much higher, and the figure per 100 m.
+    func testTheTemperatureStepIsWrittenInOneLine() {
+        let step = TemperatureStep(
+            otherId: "x", otherName: "Wallberg", distanceM: 4200, higherByM: 920, otherTemperatureC: 2.6,
+            per100mC: -0.62, kind: .coolerAbove, words: "Cooler above, as in air at rest", rule: "", note: ""
+        )
+        XCTAssertEqual(
+            StationScreen.stepLine(step), "Wallberg, 4.2 km away, 920 m higher, 3 °C: \u{2212}0.6 °C per 100 m"
+        )
+        var lower = step
+        lower.higherByM = -650
+        lower.per100mC = 0.3
+        XCTAssertTrue(StationScreen.stepLine(lower).contains("650 m lower"))
+        XCTAssertTrue(StationScreen.stepLine(lower).hasSuffix("+0.3 °C per 100 m"))
     }
 }

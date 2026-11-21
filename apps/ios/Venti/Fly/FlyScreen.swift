@@ -99,13 +99,20 @@ struct FlyScreen: View {
                 }
 
                 Section {
-                    Menu("Replay the sample flight") {
+                    Menu {
                         Button("In real time") {
                             startReplay(speed: 1)
                         }
                         Button("20 times faster") {
                             startReplay(speed: 20)
                         }
+                    } label: {
+                        // The whole row opens the menu, not its words
+                        // alone: on a wide iPhone a tap in the row's middle
+                        // fell beside the words and opened nothing.
+                        Text("Replay the sample flight")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
                     }
                 } footer: {
                     Text("Plays a recorded flight through the cockpit, to try it on the ground. Nothing is saved.")

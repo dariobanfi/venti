@@ -28,10 +28,19 @@ struct Reported: Identifiable {
     static func liveTrack(_ id: String) -> Reported {
         Reported(subject: .liveTrack(id: id), title: "Report this track")
     }
+
+    static func group(_ id: String) -> Reported {
+        Reported(subject: .group(id: id), title: "Report this group")
+    }
+
+    static func plan(groupId: String, id: String) -> Reported {
+        Reported(subject: .plan(groupId: groupId, id: id), title: "Report this plan")
+    }
 }
 
 /// The form for telling whoever runs the server that a flight, a pilot's
-/// page or a live track should not be there.
+/// page, a live track, a group or a plan should not be there. The reasons,
+/// their lines and the notice are the core's for what is reported.
 ///
 /// A report goes to the operator and nobody else, with the name of the
 /// account it comes from: the form says so before anything is sent.
@@ -49,7 +58,9 @@ struct ReportSheet: View {
     /// What became of the report, once it is sent.
     @State private var outcome: String?
 
-    private let form = reportForm()
+    private var form: ReportForm {
+        reportFormFor(subject: reported.subject)
+    }
 
     var body: some View {
         NavigationStack {

@@ -51,6 +51,10 @@ struct OverviewMap: UIViewRepresentable {
     /// Called with a square's place among the day's cells when the pilot
     /// taps it where nothing else the app draws is under the finger.
     var onSquare: (Int) -> Void = { _ in }
+    /// Called with the place under the finger after a tap where nothing
+    /// else the app draws lies, while the map is close enough for airspace
+    /// to be drawn. The screen decides whether airspace lies there.
+    var onAirspace: (Coordinate) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -94,6 +98,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onPlan = onPlan
         coordinator.onPlace = onPlace
         coordinator.onSquare = onSquare
+        coordinator.onAirspace = onAirspace
         coordinator.showForecast(forecast, on: map)
         coordinator.show(plans, on: map)
         coordinator.show(sites, on: map)
@@ -122,6 +127,7 @@ struct OverviewMap: UIViewRepresentable {
         private var drawnPlans: [GroupsModel.Pin]?
         var onPlace: (Coordinate) -> Void = { _ in }
         var onSquare: (Int) -> Void = { _ in }
+        var onAirspace: (Coordinate) -> Void = { _ in }
 
         private var forecast: ThermalMapDay?
         private var drawnForecast: ThermalMapDay?
@@ -310,6 +316,13 @@ struct OverviewMap: UIViewRepresentable {
             let squares = map.visibleFeatures(in: under, styleLayerIdentifiers: [ThermalMapLayers.layer])
             if let id = squares.first?.attribute(forKey: "id") as? String, let index = Int(id) {
                 onSquare(index)
+                return
+            }
+            // Nothing else: what airspace lies over the place, where the
+            // map is close enough to draw it.
+            if map.zoomLevel >= Double(AirspaceLayers.minimumZoom) {
+                let place = map.convert(point, toCoordinateFrom: map)
+                onAirspace(Coordinate(lat: place.latitude, lon: place.longitude))
             }
         }
 

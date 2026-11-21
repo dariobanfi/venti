@@ -85,6 +85,45 @@ final class AirspaceTests: XCTestCase {
         XCTAssertNil(airspace.set)
     }
 
+    /// What lies over a tapped place comes from the core, and the filter
+    /// by height takes airspace that begins above the chosen height off
+    /// the maps, and nothing else.
+    func testWhatLiesOverAPlaceAndTheFilterByHeight() async throws {
+        let folder = try makeFolder()
+        let airspace = AirspaceModel(core: try Core(dataFolder: folder.appendingPathComponent("data").path))
+        XCTAssertNil(airspace.over(Coordinate(lat: 47.7, lon: 11.733)))
+        let high = "\n\nAC C\nAY TMA\nAN HIGH ZONE (NOT REAL)\nAL FL 100\nAH FL 195\nV X=47:42:00 N 011:44:00 E\nDC 2\n"
+        let file = folder.appendingPathComponent("zones.txt")
+        try (LaunchOptions.sampleAirspace + high).write(to: file, atomically: true, encoding: .utf8)
+        _ = await airspace.importFiles(at: [file])
+
+        let middle = Coordinate(lat: 47.7, lon: 11.7333)
+        let over = try XCTUnwrap(airspace.over(middle))
+        // From the lowest floor up.
+        XCTAssertEqual(over.airspaces.map(\.name), ["SAMPLE ZONE (NOT REAL)", "HIGH ZONE (NOT REAL)"])
+        XCTAssertTrue(over.covered)
+        XCTAssertFalse(over.caveat.isEmpty)
+
+        let tegernsee = Bounds(south: 47.6, west: 11.6, north: 47.8, east: 11.9)
+        let all = airspace.shapes(in: tegernsee)
+        XCTAssertEqual(Set(all.map(\.name)), ["SAMPLE ZONE (NOT REAL)", "HIGH ZONE (NOT REAL)"])
+        // 0 is every height, as the preference keeps it.
+        XCTAssertEqual(airspace.shapes(in: tegernsee, below: 0).count, 2)
+        let below = airspace.shapes(in: tegernsee, below: 2500)
+        XCTAssertEqual(below.map(\.name), ["SAMPLE ZONE (NOT REAL)"])
+        XCTAssertTrue(MapScreen.isDrawn(over, among: below))
+
+        // Outside both: nothing over the place, and nothing to open.
+        let away = try XCTUnwrap(airspace.over(Coordinate(lat: 47.9, lon: 11.2)))
+        XCTAssertTrue(away.airspaces.isEmpty)
+        XCTAssertFalse(MapScreen.isDrawn(away, among: all))
+
+        // The filter's steps, in the core's words, every height first.
+        let filter = airspaceHeightFilter()
+        XCTAssertNil(filter.steps.first?.ceilingM)
+        XCTAssertEqual(filter.steps.compactMap(\.ceilingM), [4500, 3500, 2500])
+    }
+
     func testTheCockpitWarnsNearTheZoneAndTheWarningCanBeQuieted() async throws {
         let folder = try makeFolder()
         let core = try Core(dataFolder: folder.path)

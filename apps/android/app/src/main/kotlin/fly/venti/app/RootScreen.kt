@@ -49,6 +49,7 @@ import fly.venti.app.logbook.ImportNotice
 import fly.venti.app.logbook.ImportNoticeDialog
 import fly.venti.app.logbook.LogbookScreen
 import fly.venti.app.logbook.StatisticsScreen
+import fly.venti.app.logbook.TendenciesScreen
 import fly.venti.app.map.MapScreen
 import fly.venti.app.settings.CreditsScreen
 import fly.venti.app.settings.SettingsScreen
@@ -433,6 +434,14 @@ private fun Sections(
                 }
                 LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
                     StatisticsScreen(
+                        logbook,
+                        onOpen = { navigation.open(LogbookRoute.Flight(it)) },
+                        onBack = { navigation.back() },
+                        onTendencies = { navigation.open(LogbookRoute.Tendencies) },
+                    )
+                }
+                LogbookRoute.Tendencies -> kept.SaveableStateProvider("tendencies") {
+                    TendenciesScreen(
                         logbook,
                         onOpen = { navigation.open(LogbookRoute.Flight(it)) },
                         onBack = { navigation.back() },

@@ -26,6 +26,7 @@ import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightView
 import fly.venti.core.LogbookStatistics
 import fly.venti.core.SiteStatistics
+import fly.venti.core.Tendencies
 import fly.venti.core.LogbookView
 import fly.venti.core.PendingRecording
 import fly.venti.core.clearRecording
@@ -278,6 +279,12 @@ class LogbookModel(
 
     /** The logbook looked at as a whole: months, gliders, bests. */
     fun statistics(): LogbookStatistics = core.statistics()
+
+    /**
+     * What the pilot's own tracks say about how they fly. Off the main
+     * thread: an older logbook is counted flight by flight the first time.
+     */
+    suspend fun tendencies(): Tendencies = withContext(background) { core.tendencies() }
 
     /** The places the pilot's flights began at, the one flown from most often first. */
     fun siteStatistics(): List<SiteStatistics> = core.siteStatistics()

@@ -53,6 +53,7 @@ import fly.venti.app.design.Axis
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.GroupRows
+import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
@@ -130,11 +131,18 @@ object StatisticsWords {
 /**
  * The logbook as a whole: the last twelve months, the years side by side,
  * the months of the year, a typical flight, the kinds of flight, the
- * places flown from, the gliders flown, and the pilot's best flights.
+ * places flown from, the gliders flown, the pilot's best flights, and the
+ * way to "How you fly".
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatisticsScreen(logbook: LogbookModel, onOpen: (String) -> Unit, onBack: () -> Unit) {
+fun StatisticsScreen(
+    logbook: LogbookModel,
+    onOpen: (String) -> Unit,
+    onBack: () -> Unit,
+    /** Opens "How you fly", the pilot's tendencies. */
+    onTendencies: () -> Unit = {},
+) {
     // Worked out by the core from the logbook as it is now.
     val statistics = remember(logbook.view) { logbook.statistics() }
     val sites = remember(logbook.view) { logbook.siteStatistics() }
@@ -304,6 +312,21 @@ fun StatisticsScreen(logbook: LogbookModel, onOpen: (String) -> Unit, onBack: ()
                     best("Most points", statistics.mostPoints, onOpen) { Format.points(it) }
                     best("Highest", statistics.highest, onOpen) { "${Format.metres(it)} m" }
                     best("Best climb", statistics.bestClimb, onOpen) { "${Format.climb(it)} m/s" }
+                }
+            }
+
+            // What the tracks say about how the pilot flies, on a screen of its own.
+            item {
+                Spacer(Modifier.height(VentiSpace.s5))
+                Group {
+                    row {
+                        LinkRow(
+                            TendenciesWords.TITLE,
+                            R.drawable.ic_chevron_right,
+                            Modifier.testTag("statistics-how-you-fly"),
+                            onClick = onTendencies,
+                        )
+                    }
                 }
             }
         }

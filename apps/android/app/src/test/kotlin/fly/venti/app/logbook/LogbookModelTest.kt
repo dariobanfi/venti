@@ -81,6 +81,43 @@ class LogbookModelTest {
     }
 
     @Test
+    fun howYouFlyHasNothingToSayOfAnEmptyLogbook() = runBlocking {
+        val logbook = makeLogbook()
+        val model = TendenciesModel(logbook::tendencies)
+        assertEquals(TendenciesState.Counting, model.state)
+        model.load()
+        val there = model.state as TendenciesState.There
+        assertEquals(0u, there.tendencies.flights)
+        assertTrue(there.tendencies.observations.isEmpty())
+        assertTrue(there.tendencies.note.isNotEmpty())
+    }
+
+    @Test
+    fun howYouFlySaysWhatTheTracksShowAndOpensTheFlightThatShowsItMost() = runBlocking {
+        val logbook = makeLogbook()
+        // The sample flight on several days: enough thermals to say something.
+        val days = listOf("010726", "020726", "030726", "040726", "050726", "060726", "070726", "080726")
+        logbook.importFiles(days.map { day -> FlightFileSource("$day.igc") { flown(day) } })
+        assertEquals(days.size.toUInt(), logbook.view.totals.flights)
+
+        val model = TendenciesModel(logbook::tendencies)
+        model.load()
+        val tendencies = (model.state as TendenciesState.There).tendencies
+        assertEquals(days.size.toUInt(), tendencies.flights)
+        assertTrue(tendencies.observations.isNotEmpty())
+        for (observation in tendencies.observations) {
+            assertTrue(observation.title.isNotEmpty() && observation.words.isNotEmpty())
+            assertEquals("${observation.title}. ${observation.words}", TendenciesWords.spoken(observation))
+            observation.share?.let { assertTrue(it in 0.0..1.0) }
+        }
+        // A flight the core names is one of the logbook's, and opens.
+        val named = tendencies.observations.mapNotNull { it.flightId }
+        for (id in named) {
+            assertEquals(id, logbook.flight(id).id)
+        }
+    }
+
+    @Test
     fun importingTheSameFlightAgainSaysSoAndAddsNothing() = runBlocking {
         val logbook = makeLogbook()
         logbook.addSample()

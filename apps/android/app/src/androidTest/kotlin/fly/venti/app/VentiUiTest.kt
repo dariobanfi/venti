@@ -285,6 +285,16 @@ class VentiUiTest {
         assertTrue(exists(hasText("Your bests")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-6e-statistics-bests")
+        // At the end, "How you fly": what the tracks say, or that they do
+        // not say enough yet. The sample flight alone has few thermals.
+        list.performScrollToNode(hasTestTag("statistics-how-you-fly"))
+        tap(hasTestTag("statistics-how-you-fly"))
+        waitFor(hasTestTag("tendency") or hasTestTag("tendencies-nothing"))
+        assertTrue(exists(hasTestTag("tendencies-note")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-6f-how-you-fly")
+        tap(described("Back"))
+        waitFor(hasTestTag("statistics"))
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
 

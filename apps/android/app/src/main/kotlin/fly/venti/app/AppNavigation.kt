@@ -36,6 +36,9 @@ sealed interface LogbookRoute {
 
     /** The statistics. */
     data object Statistics : LogbookRoute
+
+    /** "How you fly": the pilot's tendencies, from the statistics. */
+    data object Tendencies : LogbookRoute
 }
 
 /** A screen reached from the League tab's lists, or from a flight flown from a site. */
@@ -212,6 +215,7 @@ class AppNavigation {
 
     companion object {
         private const val STATISTICS = "statistics"
+        private const val TENDENCIES = "tendencies"
         private const val FLIGHT = "flight:"
         private const val PUBLIC_FLIGHT = "public-flight:"
         private const val PILOT = "pilot:"
@@ -229,6 +233,7 @@ class AppNavigation {
                         when (route) {
                             is LogbookRoute.Flight -> FLIGHT + route.id
                             LogbookRoute.Statistics -> STATISTICS
+                            LogbookRoute.Tendencies -> TENDENCIES
                         }
                     } +
                     navigation.leaguePath.map { route ->
@@ -248,6 +253,7 @@ class AppNavigation {
                     saved.drop(4).forEach { route ->
                         when {
                             route == STATISTICS -> logbookPath += LogbookRoute.Statistics
+                            route == TENDENCIES -> logbookPath += LogbookRoute.Tendencies
                             route.startsWith(PUBLIC_FLIGHT) -> leaguePath += LeagueRoute.PublicFlight(route.removePrefix(PUBLIC_FLIGHT))
                             route.startsWith(PILOT) -> route.removePrefix(PILOT).let { pilot ->
                                 leaguePath += LeagueRoute.Pilot(pilot.substringBefore(' '), pilot.substringAfter(' ', ""))

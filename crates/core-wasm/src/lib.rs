@@ -1127,6 +1127,23 @@ pub fn radar_frame_image(
     venti_core::radar_frame_image(picture, rain, unseen).map_err(thrown)
 }
 
+/// A frame's picture in the page's own colours, for a picture that lies
+/// under others at a moment: as `radarFrameImage` colours it, but clear
+/// at every pixel that one of the pictures `above` sees, rain or dry.
+/// `above` are the pictures of the frames after this one in the moment's
+/// `frames`, each as the server sent it; with none, the answer is
+/// `radarFrameImage`'s.
+#[wasm_bindgen(js_name = radarFrameImageUnder)]
+pub fn radar_frame_image_under(
+    picture: Vec<u8>,
+    above: Vec<js_sys::Uint8Array>,
+    rain: Vec<u32>,
+    unseen: u32,
+) -> Result<Vec<u8>, JsValue> {
+    let above = above.iter().map(js_sys::Uint8Array::to_vec).collect();
+    venti_core::radar_frame_image_under(picture, above, rain, unseen).map_err(thrown)
+}
+
 /// The path to `GET` for the thermal map.
 #[wasm_bindgen(js_name = thermalMapPath)]
 pub fn thermal_map_path() -> String {

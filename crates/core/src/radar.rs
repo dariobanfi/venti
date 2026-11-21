@@ -9,7 +9,11 @@
 //! picture the shell fetches by the frame's `path`. Its pixels are steps
 //! of rain, not colours: the shell hands the picture and its own colours
 //! to [`radar_frame_image`] and gets back the same picture in those
-//! colours, which a map draws pinned to the layer's four corners.
+//! colours, which a map draws pinned to the layer's four corners. A
+//! picture that lies under another goes to [`radar_frame_image_under`]
+//! with the pictures above it, and comes back clear wherever one of them
+//! sees: one word is shown at a place, that of the topmost picture that
+//! sees it.
 //!
 //! Two sources have frames of different moments: one every five minutes,
 //! seconds old, the other every quarter of an hour, 20 to 37 minutes old.
@@ -19,6 +23,8 @@
 //! What is said here is fixed rules and no judgement of the day: how old a
 //! frame is, when the newest is too old to be the rain of now, which
 //! frames belong to a moment, and what the steps stand for.
+
+use std::io::{Read, Write};
 
 use venti_api_types::v1::{self, RADAR_PATH};
 use venti_domain::{RADAR_UNSEEN, RAIN_STEPS_MM_H};
@@ -206,10 +212,12 @@ pub struct RadarMomentFrame {
     /// Whether this picture is to show what its source did not see, as
     /// the quiet veil: true for the lowest picture of the moment, false
     /// for each above it, which gets a fully clear colour as `unseen`
-    /// from [`radar_frame_image`]. It is the layer's own `draws_unseen`
-    /// unless the layer that draws the veil has no frame for this moment;
-    /// then the lowest that has one draws it, so that a place nobody saw
-    /// is never shown as dry.
+    /// from [`radar_frame_image_under`]. It is the layer's own
+    /// `draws_unseen` unless the layer that draws the veil has no frame
+    /// for this moment; then the lowest that has one draws it, so that a
+    /// place nobody saw is never shown as dry. The veil stays where no
+    /// picture of the moment sees: where one above does,
+    /// [`radar_frame_image_under`] makes this picture clear.
     pub draws_unseen: bool,
 }
 
@@ -234,6 +242,13 @@ pub struct RadarMoment {
     /// if that frame was older at this moment than three of the layer's
     /// own intervals: rain of then is not laid under the rain of a
     /// moment.
+    ///
+    /// To draw the moment, colour the picture of the frame at place i
+    /// with [`radar_frame_image_under`], handing it as `above` the
+    /// pictures of the frames after it (i + 1 to the last) as the server
+    /// sent them; the topmost has none above. A picture comes back clear
+    /// wherever one above it sees, rain or dry, so the pictures never add
+    /// up and a place shows the word of the topmost picture that sees it.
     pub frames: Vec<RadarMomentFrame>,
 }
 
@@ -628,16 +643,47 @@ fn frame_view(
 /// a PNG any platform reads.
 ///
 /// Nothing of the picture is unpacked: its palette is written anew and
-/// its pixels stay as they are.
+/// its pixels stay as they are. It is [`radar_frame_image_under`] with no
+/// picture above, which is how the topmost picture of a moment is
+/// coloured.
 #[uniffi::export]
 pub fn radar_frame_image(
     picture: Vec<u8>,
     rain: Vec<u32>,
     unseen: u32,
 ) -> Result<Vec<u8>, CoreError> {
-    let unreadable = || CoreError::Server {
-        message: "The radar picture could not be read.".to_owned(),
-    };
+    radar_frame_image_under(picture, Vec::new(), rain, unseen)
+}
+
+/// A frame's picture in a shell's own colours, for a picture that lies
+/// under others at a moment: the picture as [`radar_frame_image`] colours
+/// it, but clear at every pixel that a picture above it sees.
+///
+/// `above` are the pictures drawn over this one at the moment, as the
+/// server sent them: for the frame at place i of [`RadarMoment::frames`],
+/// the pictures of the frames after it. Where any of them has a value
+/// other than "not seen", rain or dry, this picture's pixel is made
+/// clear, whatever it was, the veil of "not seen" too. So one word is
+/// shown at every place: that of the topmost picture that sees it, dry
+/// included, and a picture under it shows only where none above sees. Two
+/// see-through pictures never add up to a colour the key does not have,
+/// and rain of an older picture never shows where a newer one has just
+/// measured none.
+///
+/// With `above` empty nothing is unpacked and the answer is
+/// [`radar_frame_image`]'s. Otherwise the pictures are unpacked, which
+/// asks more of them: each is eight bits a pixel with a palette, not
+/// interlaced, at most 4096 pixels a side, with no pixel beyond "not
+/// seen", and every picture above is as wide and as high as this one. The
+/// pictures of one server's layers are, all being of its one grid.
+/// Anything else is refused as a picture that could not be read.
+#[uniffi::export]
+pub fn radar_frame_image_under(
+    picture: Vec<u8>,
+    above: Vec<Vec<u8>>,
+    rain: Vec<u32>,
+    unseen: u32,
+) -> Result<Vec<u8>, CoreError> {
     if rain.len() != RAIN_STEPS_MM_H.len() {
         return Err(CoreError::Server {
             message: format!(
@@ -647,10 +693,16 @@ pub fn radar_frame_image(
             ),
         });
     }
-    const SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
     if picture.len() > MAX_PICTURE_BYTES || !picture.starts_with(SIGNATURE) {
         return Err(unreadable());
     }
+    // The pixels anew, where a picture lies above; none, and the
+    // picture's own stay as they are.
+    let pixels = if above.is_empty() {
+        None
+    } else {
+        Some(pixels_under(&picture, &above).ok_or_else(unreadable)?)
+    };
 
     // Clear, the steps, the veil: the order of a pixel's values.
     let colours: Vec<[u8; 4]> = std::iter::once(0)
@@ -666,17 +718,7 @@ pub fn radar_frame_image(
     let mut rest = &picture[SIGNATURE.len()..];
     let (mut head_seen, mut palette_seen, mut ended) = (false, false, false);
     while !ended {
-        // A chunk: its length, its name, its bytes, a checksum.
-        let (length, name) = match rest {
-            [a, b, c, d, n0, n1, n2, n3, ..] => (
-                u32::from_be_bytes([*a, *b, *c, *d]) as usize,
-                [*n0, *n1, *n2, *n3],
-            ),
-            _ => return Err(unreadable()),
-        };
-        let whole = length.checked_add(12).ok_or_else(unreadable)?;
-        let chunk = rest.get(..whole).ok_or_else(unreadable)?;
-        rest = &rest[whole..];
+        let (name, chunk) = next_chunk(&mut rest).ok_or_else(unreadable)?;
         match &name {
             b"IHDR" if !head_seen => {
                 // Width and height, then the depth and the kind of
@@ -693,14 +735,19 @@ pub fn radar_frame_image(
             b"PLTE" => {
                 // The picture's own palette has a colour for each value
                 // a pixel can have, as many as ours.
-                if length != palette.len() {
+                if chunk.len() != palette.len() + 12 {
                     return Err(unreadable());
                 }
                 palette_seen = true;
             }
             b"tRNS" => {}
             b"IDAT" if !palette_seen => return Err(unreadable()),
+            // The pixels are written anew, in one piece before the end.
+            b"IDAT" if pixels.is_some() => {}
             b"IEND" => {
+                if let Some(pixels) = &pixels {
+                    write_chunk(&mut out, *b"IDAT", pixels);
+                }
                 out.extend_from_slice(chunk);
                 ended = true;
             }
@@ -710,10 +757,224 @@ pub fn radar_frame_image(
     Ok(out)
 }
 
+/// What a PNG begins with.
+const SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+
+/// What is said of a picture that is not a frame of a server of ours.
+fn unreadable() -> CoreError {
+    CoreError::Server {
+        message: "The radar picture could not be read.".to_owned(),
+    }
+}
+
+/// Takes the next chunk of a PNG off `rest`: its name, and the whole of
+/// it, which is its length, its name, its bytes and a checksum. None if
+/// what is left is not a whole chunk.
+fn next_chunk<'a>(rest: &mut &'a [u8]) -> Option<([u8; 4], &'a [u8])> {
+    let (length, name) = match **rest {
+        [a, b, c, d, n0, n1, n2, n3, ..] => (
+            usize::try_from(u32::from_be_bytes([a, b, c, d])).ok()?,
+            [n0, n1, n2, n3],
+        ),
+        _ => return None,
+    };
+    let whole = length.checked_add(12)?;
+    let chunk = rest.get(..whole)?;
+    *rest = rest.get(whole..)?;
+    Some((name, chunk))
+}
+
+/// The pixels of `picture` with every one made clear that a picture of
+/// `above` sees, packed as a PNG's `IDAT` holds them. None if a picture
+/// cannot be unpacked or one above is of another size.
+fn pixels_under(picture: &[u8], above: &[Vec<u8>]) -> Option<Vec<u8>> {
+    // A moment has a picture of each layer at most.
+    if above.len() >= MAX_LAYERS {
+        return None;
+    }
+    let mut under = unpacked(picture)?;
+    for over in above {
+        // One picture above at a time: no more than two are ever
+        // unpacked at once.
+        let over = unpacked(over)?;
+        if (over.width, over.height) != (under.width, under.height) {
+            return None;
+        }
+        for (pixel, seen) in under.pixels.iter_mut().zip(&over.pixels) {
+            if *seen != RADAR_UNSEEN {
+                *pixel = 0;
+            }
+        }
+    }
+    packed(&under)
+}
+
+/// A picture unpacked: its pixels row by row from the top, a byte each.
+struct Unpacked {
+    width: usize,
+    height: usize,
+    pixels: Vec<u8>,
+}
+
+/// Unpacks a frame's picture: eight bits a pixel with a palette, not
+/// interlaced, at most [`MAX_SIDE`] a side, every pixel a value a frame
+/// has. None for anything else. What is unpacked is never more than the
+/// head says the picture has, and that is known before a byte is.
+fn unpacked(picture: &[u8]) -> Option<Unpacked> {
+    if picture.len() > MAX_PICTURE_BYTES {
+        return None;
+    }
+    let mut rest = picture.strip_prefix(SIGNATURE)?;
+    let (name, head) = next_chunk(&mut rest)?;
+    // The head: width and height, then the depth, the kind of colour,
+    // how it is packed, how its rows are filtered, and whether it is
+    // interlaced.
+    let [w0, w1, w2, w3, h0, h1, h2, h3, 8, 3, 0, 0, 0] = *head.get(8..head.len() - 4)? else {
+        return None;
+    };
+    if &name != b"IHDR" {
+        return None;
+    }
+    let side = |bytes: [u8; 4]| {
+        let side = u32::from_be_bytes(bytes);
+        if (1..=MAX_SIDE).contains(&side) {
+            usize::try_from(side).ok()
+        } else {
+            None
+        }
+    };
+    let (width, height) = (side([w0, w1, w2, w3])?, side([h0, h1, h2, h3])?);
+
+    // The packed pixels may come in pieces.
+    let mut deflated = Vec::new();
+    loop {
+        let (name, chunk) = next_chunk(&mut rest)?;
+        match &name {
+            b"IDAT" => deflated.extend_from_slice(chunk.get(8..chunk.len() - 4)?),
+            b"IEND" => break,
+            _ => {}
+        }
+    }
+
+    // Each row is a byte that says how it is filtered, then its pixels.
+    let stride = width + 1;
+    let expected = stride * height;
+    let mut rows = Vec::with_capacity(expected);
+    flate2::read::ZlibDecoder::new(deflated.as_slice())
+        .take(u64::try_from(expected).ok()? + 1)
+        .read_to_end(&mut rows)
+        .ok()?;
+    if rows.len() != expected {
+        return None;
+    }
+
+    let mut pixels = vec![0_u8; width * height];
+    let nothing = vec![0_u8; width];
+    let mut up = nothing.as_slice();
+    for (row, now) in rows
+        .chunks_exact(stride)
+        .zip(pixels.chunks_exact_mut(width))
+    {
+        let (filter, row) = row.split_first()?;
+        unfilter(*filter, row, up, now)?;
+        up = now;
+    }
+    pixels
+        .iter()
+        .all(|pixel| *pixel <= RADAR_UNSEEN)
+        .then_some(Unpacked {
+            width,
+            height,
+            pixels,
+        })
+}
+
+/// Undoes the filter of one row of a PNG of one byte a pixel: `row` as it
+/// is stored, `up` the pixels of the row above (zeros above the first),
+/// `now` where the row's pixels go. None for a filter a PNG does not
+/// have.
+fn unfilter(filter: u8, row: &[u8], up: &[u8], now: &mut [u8]) -> Option<()> {
+    // The pixel to the left, and the one above that: zero before the
+    // row's first.
+    let (mut left, mut corner) = (0_u8, 0_u8);
+    let pixels = now.iter_mut().zip(row).zip(up);
+    match filter {
+        // None: the pixels as they are.
+        0 => now.copy_from_slice(row),
+        // Sub: the difference to the pixel on the left.
+        1 => {
+            for ((pixel, stored), _) in pixels {
+                left = stored.wrapping_add(left);
+                *pixel = left;
+            }
+        }
+        // Up: the difference to the pixel above.
+        2 => {
+            for ((pixel, stored), above) in pixels {
+                *pixel = stored.wrapping_add(*above);
+            }
+        }
+        // Average: the difference to the mean of the two, rounded down.
+        3 => {
+            for ((pixel, stored), above) in pixels {
+                let mean = u8::midpoint(left, *above);
+                left = stored.wrapping_add(mean);
+                *pixel = left;
+            }
+        }
+        // Paeth: the difference to whichever of the three neighbours is
+        // nearest to left + above - corner.
+        4 => {
+            for ((pixel, stored), above) in pixels {
+                left = stored.wrapping_add(paeth(left, *above, corner));
+                corner = *above;
+                *pixel = left;
+            }
+        }
+        _ => return None,
+    }
+    Some(())
+}
+
+/// The Paeth predictor of the PNG specification: of the pixel on the
+/// left, the one above and the one above on the left, the nearest to
+/// left + above - corner; at a tie the left before the one above before
+/// the corner.
+fn paeth(left: u8, above: u8, corner: u8) -> u8 {
+    let (a, b, c) = (i16::from(left), i16::from(above), i16::from(corner));
+    let estimate = a + b - c;
+    let (to_a, to_b, to_c) = (
+        (estimate - a).abs(),
+        (estimate - b).abs(),
+        (estimate - c).abs(),
+    );
+    if to_a <= to_b && to_a <= to_c {
+        left
+    } else if to_b <= to_c {
+        above
+    } else {
+        corner
+    }
+}
+
+/// Packs a picture's pixels as a PNG's `IDAT` holds them: every row
+/// unfiltered, as a server of ours writes it, and the whole deflated.
+fn packed(picture: &Unpacked) -> Option<Vec<u8>> {
+    let mut rows = Vec::with_capacity((picture.width + 1) * picture.height);
+    for row in picture.pixels.chunks_exact(picture.width) {
+        rows.push(0);
+        rows.extend_from_slice(row);
+    }
+    let mut deflate = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    deflate.write_all(&rows).ok()?;
+    deflate.finish().ok()
+}
+
 /// Appends a chunk of a PNG: its length, its name, its bytes and their
 /// checksum.
 fn write_chunk(out: &mut Vec<u8>, name: [u8; 4], data: &[u8]) {
-    // A palette of eight colours: the length fits many times over.
+    // A palette of eight colours, or the packed pixels of a picture of
+    // at most `MAX_SIDE` a side: the length fits.
     #[allow(clippy::cast_possible_truncation)]
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
     let start = out.len();
@@ -724,7 +985,9 @@ fn write_chunk(out: &mut Vec<u8>, name: [u8; 4], data: &[u8]) {
 }
 
 /// The checksum of a PNG's chunk: CRC-32 as ISO 3309 and the PNG
-/// specification define it, bit by bit. It runs over a few dozen bytes.
+/// specification define it, bit by bit. It runs over a few dozen bytes
+/// of palette, and over the few thousand of a picture's packed pixels
+/// where they are written anew.
 fn crc32(bytes: &[u8]) -> u32 {
     let mut crc = u32::MAX;
     for byte in bytes {
@@ -1417,5 +1680,513 @@ mod tests {
             refused(picture(), &RAIN[..3]),
             "The rain radar has 6 steps of rain, and 3 colours were given."
         );
+    }
+
+    /// A picture as a server writes one, of any size: `pixels` row by
+    /// row, a palette of eight greys, each row stored with the filter
+    /// its place in `filters` names (the last for the rows beyond), the
+    /// whole deflated.
+    fn picture_of(width: u32, pixels: &[u8], filters: &[u8]) -> Vec<u8> {
+        let wide = width as usize;
+        let height = u32::try_from(pixels.len() / wide).unwrap();
+        let mut head = [width.to_be_bytes(), height.to_be_bytes()].concat();
+        head.extend([8, 3, 0, 0, 0]);
+        let mut rows = Vec::new();
+        let mut up = vec![0_u8; wide];
+        for (at, row) in pixels.chunks(wide).enumerate() {
+            let filter = filters[at.min(filters.len() - 1)];
+            rows.push(filter);
+            rows.extend(filtered(filter, row, &up));
+            up = row.to_vec();
+        }
+        let mut deflate = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+        deflate.write_all(&rows).unwrap();
+
+        let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+        write_chunk(&mut png, *b"IHDR", &head);
+        write_chunk(&mut png, *b"PLTE", &[128; 24]);
+        write_chunk(&mut png, *b"tRNS", &[0, 255, 255, 255, 255, 255, 255, 48]);
+        write_chunk(&mut png, *b"IDAT", &deflate.finish().unwrap());
+        write_chunk(&mut png, *b"IEND", &[]);
+        png
+    }
+
+    /// A row as a PNG stores it under a filter, by the specification's
+    /// words: each pixel less what the filter guesses from the pixel on
+    /// its left, the one above and the one above on the left.
+    fn filtered(filter: u8, row: &[u8], up: &[u8]) -> Vec<u8> {
+        (0..row.len())
+            .map(|at| {
+                let (a, c) = if at == 0 {
+                    (0, 0)
+                } else {
+                    (i32::from(row[at - 1]), i32::from(up[at - 1]))
+                };
+                let b = i32::from(up[at]);
+                let guess = match filter {
+                    0 => 0,
+                    1 => a,
+                    2 => b,
+                    3 => (a + b) / 2,
+                    4 => {
+                        let p = a + b - c;
+                        let nearest = [a, b, c]
+                            .into_iter()
+                            .min_by_key(|neighbour| (p - neighbour).abs());
+                        nearest.unwrap()
+                    }
+                    other => panic!("{other}"),
+                };
+                u8::try_from((i32::from(row[at]) - guess).rem_euclid(256)).unwrap()
+            })
+            .collect()
+    }
+
+    /// What a picture the core wrote holds: its width, its height and
+    /// its pixels row by row. It is eight bits a pixel with a palette,
+    /// every checksum is right, and every row is stored unfiltered.
+    fn pixels_of(png: &[u8]) -> (u32, u32, Vec<u8>) {
+        assert_eq!(png[..8], *b"\x89PNG\r\n\x1a\n");
+        let found = chunks(png);
+        let head = &found[0].1;
+        assert_eq!(found[0].0, "IHDR");
+        assert_eq!(head[8..], [8, 3, 0, 0, 0]);
+        assert_eq!(found.last().unwrap().0, "IEND");
+        let width = u32::from_be_bytes(head[..4].try_into().unwrap());
+        let height = u32::from_be_bytes(head[4..8].try_into().unwrap());
+        let packed: Vec<u8> = found
+            .iter()
+            .filter(|(name, _)| name == "IDAT")
+            .flat_map(|(_, data)| data.clone())
+            .collect();
+        let mut rows = Vec::new();
+        // Read to its end, the stream's own checksum is checked too.
+        flate2::read::ZlibDecoder::new(packed.as_slice())
+            .read_to_end(&mut rows)
+            .unwrap();
+        let stride = width as usize + 1;
+        assert_eq!(rows.len(), stride * height as usize);
+        let pixels = rows
+            .chunks(stride)
+            .flat_map(|row| {
+                assert_eq!(row[0], 0, "a row is stored unfiltered");
+                row[1..].to_vec()
+            })
+            .collect();
+        (width, height, pixels)
+    }
+
+    const VEIL: u32 = 0x6B72_8040;
+
+    /// The lower picture of two, four pixels wide and three high: rain
+    /// of every step, dry, and a corner it does not see.
+    const LOWER: [u8; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 0, 7];
+
+    /// The upper picture: it sees the left half and nothing of the right,
+    /// and has rain at two places of what it sees.
+    const UPPER: [u8; 12] = [0, 0, 7, 7, 5, 0, 7, 7, 0, 2, 7, 7];
+
+    fn under(picture: Vec<u8>, above: &[Vec<u8>]) -> Result<Vec<u8>, String> {
+        match radar_frame_image_under(picture, above.to_vec(), RAIN.to_vec(), VEIL) {
+            Ok(png) => Ok(png),
+            Err(CoreError::Server { message }) => Err(message),
+            Err(other) => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_picture_under_another_is_clear_wherever_the_other_sees() {
+        let lower = picture_of(4, &LOWER, &[0]);
+        let upper = picture_of(4, &UPPER, &[0]);
+        let drawn = under(lower.clone(), &[upper]).unwrap();
+        let (width, height, pixels) = pixels_of(&drawn);
+        assert_eq!((width, height), (4, 3));
+
+        // The upper sees the place as dry: the lower's rain is not shown
+        // there (a trace, heavy rain).
+        assert_eq!((UPPER[1], LOWER[1], pixels[1]), (0, 1, 0));
+        assert_eq!((UPPER[5], LOWER[5], pixels[5]), (0, 5, 0));
+        // The upper sees rain: the lower is clear, and the two do not
+        // add up.
+        assert_eq!((UPPER[4], LOWER[4], pixels[4]), (5, 4, 0));
+        assert_eq!((UPPER[9], LOWER[9], pixels[9]), (2, 3, 0));
+        // The upper does not see the place: the lower keeps its word,
+        // rain, dry, or its own veil.
+        assert_eq!((UPPER[2], pixels[2]), (7, 2));
+        assert_eq!((UPPER[6], pixels[6]), (7, 6));
+        assert_eq!((UPPER[10], pixels[10]), (7, 0));
+        assert_eq!((UPPER[11], pixels[11]), (7, 7));
+        // And so for every pixel.
+        assert_eq!(pixels, [0, 0, 2, 3, 0, 0, 6, 7, 0, 0, 0, 7]);
+        let seen = UPPER.iter().filter(|value| **value != 7).count();
+        let kept = (0..12).filter(|at| pixels[*at] == LOWER[*at]).count();
+        // One of the six the upper sees was dry in the lower already.
+        assert_eq!((seen, kept), (6, 7));
+
+        // The head, the palette and how solid each colour is are those
+        // of the picture coloured alone.
+        let alone = radar_frame_image(lower, RAIN.to_vec(), VEIL).unwrap();
+        let (alone, drawn) = (chunks(&alone), chunks(&drawn));
+        let names: Vec<&str> = drawn.iter().map(|(name, _)| name.as_str()).collect();
+        assert_eq!(names, ["IHDR", "PLTE", "tRNS", "IDAT", "IEND"]);
+        assert_eq!(drawn[..3], alone[..3]);
+        assert_eq!(drawn[1].1[3..6], [0xAA, 0xB4, 0xB8]);
+        assert_eq!(drawn[2].1, [0, 255, 255, 255, 255, 255, 255, 0x40]);
+    }
+
+    #[test]
+    fn with_nothing_above_it_is_the_picture_coloured_alone() {
+        for picture in [picture(), picture_of(4, &LOWER, &[0, 1, 4])] {
+            let alone = radar_frame_image(picture.clone(), RAIN.to_vec(), VEIL).unwrap();
+            assert_eq!(under(picture, &[]).unwrap(), alone);
+        }
+        // And under a picture that sees nothing, its pixels are what
+        // they were.
+        let blind = picture_of(4, &[7; 12], &[0]);
+        let drawn = under(picture_of(4, &LOWER, &[0]), &[blind]).unwrap();
+        assert_eq!(pixels_of(&drawn).2, LOWER);
+    }
+
+    #[test]
+    fn under_two_pictures_it_is_clear_where_either_sees() {
+        let middle: [u8; 12] = [7, 7, 7, 0, 7, 7, 7, 7, 7, 7, 3, 7];
+        let drawn = under(
+            picture_of(4, &LOWER, &[0]),
+            &[picture_of(4, &middle, &[0]), picture_of(4, &UPPER, &[0])],
+        )
+        .unwrap();
+        assert_eq!(pixels_of(&drawn).2, [0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 0, 7]);
+        // The middle one, coloured for its own place: under the upper
+        // alone.
+        let drawn = under(picture_of(4, &middle, &[0]), &[picture_of(4, &UPPER, &[0])]).unwrap();
+        assert_eq!(pixels_of(&drawn).2, [0, 0, 7, 0, 0, 0, 7, 7, 0, 0, 3, 7]);
+    }
+
+    #[test]
+    fn every_filter_of_a_png_is_undone() {
+        // A row and the row above it with bytes of every kind, stored
+        // under each filter by another hand than this crate's.
+        let up = [2, 0, 255, 129, 255, 0, 200, 1, 1, 0, 127, 31];
+        let row = [0, 0, 128, 2, 60, 255, 1, 129, 255, 32, 30, 254];
+        let stored: [[u8; 12]; 5] = [
+            [0, 0, 128, 2, 60, 255, 1, 129, 255, 32, 30, 254],
+            [0, 0, 128, 130, 58, 195, 2, 128, 126, 33, 254, 224],
+            [254, 0, 129, 129, 61, 255, 57, 128, 254, 32, 159, 223],
+            [255, 0, 1, 130, 188, 225, 30, 128, 190, 161, 207, 224],
+            [254, 0, 129, 130, 187, 255, 2, 128, 126, 33, 159, 224],
+        ];
+        for (filter, stored) in (0..).zip(stored) {
+            assert_eq!(
+                filtered(filter, &row, &up),
+                stored,
+                "the test's own {filter}"
+            );
+            let mut now = [0; 12];
+            unfilter(filter, &stored, &up, &mut now).unwrap();
+            assert_eq!(now, row, "filter {filter}");
+        }
+        assert!(unfilter(5, &row, &up, &mut [0; 12]).is_none());
+
+        // Whole pictures: whichever filter the rows are stored with, one
+        // for all or another for each, the answer is the same picture.
+        let plain = under(picture_of(4, &LOWER, &[0]), &[picture_of(4, &UPPER, &[0])]).unwrap();
+        for filters in [
+            &[1][..],
+            &[2],
+            &[3],
+            &[4],
+            &[4, 3, 2],
+            &[1, 0, 4],
+            &[2, 4, 1],
+        ] {
+            let lower = picture_of(4, &LOWER, filters);
+            let upper = picture_of(4, &UPPER, filters);
+            assert_eq!(unpacked(&lower).unwrap().pixels, LOWER, "{filters:?}");
+            assert_eq!(under(lower, &[upper]).unwrap(), plain, "{filters:?}");
+        }
+        // A filter that no PNG has.
+        assert!(under(picture_of(4, &LOWER, &[0]), &[picture_of(4, &UPPER, &[0])]).is_ok());
+        let mut rows = vec![5, 0, 0, 0, 0];
+        rows.extend([0; 10]);
+        assert!(unpacked(&with_rows(4, 3, &rows)).is_none());
+    }
+
+    /// A picture whose head says `width` by `height` and whose packed
+    /// pixels unpack to `rows`, whatever they are.
+    fn with_rows(width: u32, height: u32, rows: &[u8]) -> Vec<u8> {
+        let mut head = [width.to_be_bytes(), height.to_be_bytes()].concat();
+        head.extend([8, 3, 0, 0, 0]);
+        let mut deflate = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+        deflate.write_all(rows).unwrap();
+        let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+        write_chunk(&mut png, *b"IHDR", &head);
+        write_chunk(&mut png, *b"PLTE", &[128; 24]);
+        write_chunk(&mut png, *b"IDAT", &deflate.finish().unwrap());
+        write_chunk(&mut png, *b"IEND", &[]);
+        png
+    }
+
+    #[test]
+    fn what_cannot_be_unpacked_is_refused_in_words() {
+        let unreadable = Err("The radar picture could not be read.".to_owned());
+        let lower = || picture_of(4, &LOWER, &[0]);
+        let upper = || picture_of(4, &UPPER, &[0]);
+        assert!(under(lower(), &[upper()]).is_ok());
+
+        // What lies above is no picture, or is cut off.
+        assert_eq!(under(lower(), &[Vec::new()]), unreadable);
+        assert_eq!(under(lower(), &[b"<html>".to_vec()]), unreadable);
+        let cut = upper();
+        assert_eq!(
+            under(lower(), &[cut[..cut.len() - 20].to_vec()]),
+            unreadable
+        );
+        assert_eq!(
+            under(cut[..cut.len() - 20].to_vec(), &[upper()]),
+            unreadable
+        );
+        // A photograph above: eight bits of red, green and blue.
+        let mut photograph = upper();
+        photograph[8 + 8 + 9] = 2;
+        assert_eq!(under(lower(), &[photograph]), unreadable);
+        // Sixteen bits, or interlaced, which is another order of pixels.
+        for (at, value) in [(8, 16), (12, 1)] {
+            let mut other = upper();
+            other[8 + 8 + at] = value;
+            assert_eq!(under(lower(), &[other.clone()]), unreadable);
+            assert_eq!(under(other, &[upper()]), unreadable);
+        }
+        // A picture above of another size: as many pixels, three wide.
+        assert_eq!(under(lower(), &[picture_of(3, &UPPER, &[0])]), unreadable);
+        assert_eq!(
+            under(lower(), &[picture_of(4, &UPPER[..8], &[0])]),
+            unreadable
+        );
+        // One of the pictures above is enough.
+        assert_eq!(
+            under(lower(), &[upper(), picture_of(3, &UPPER, &[0])]),
+            unreadable
+        );
+        // More pictures above than a moment can have.
+        assert!(under(lower(), &vec![upper(); MAX_LAYERS - 1]).is_ok());
+        assert_eq!(under(lower(), &vec![upper(); MAX_LAYERS]), unreadable);
+
+        // A head that promises more than a picture may have: nothing is
+        // unpacked for it. And one within the bound whose pixels are not
+        // there.
+        assert_eq!(
+            under(with_rows(MAX_SIDE + 1, 1, &[0; 16]), &[upper()]),
+            unreadable
+        );
+        assert_eq!(
+            under(with_rows(u32::MAX, u32::MAX, &[0; 16]), &[upper()]),
+            unreadable
+        );
+        assert_eq!(under(with_rows(0, 3, &[0; 3]), &[upper()]), unreadable);
+        assert_eq!(
+            under(with_rows(MAX_SIDE, MAX_SIDE, &[0; 16]), &[upper()]),
+            unreadable
+        );
+        // More pixels than the head says, and fewer.
+        assert!(under(with_rows(4, 3, &[0; 15]), &[upper()]).is_ok());
+        assert_eq!(under(with_rows(4, 3, &[0; 16]), &[upper()]), unreadable);
+        assert_eq!(under(with_rows(4, 3, &[0; 14]), &[upper()]), unreadable);
+        assert_eq!(under(lower(), &[with_rows(4, 3, &[0; 4096])]), unreadable);
+        // A pixel that is none of the values a frame has, below or above.
+        let mut odd = LOWER;
+        odd[3] = 8;
+        assert_eq!(under(picture_of(4, &odd, &[0]), &[upper()]), unreadable);
+        assert_eq!(under(lower(), &[picture_of(4, &odd, &[0])]), unreadable);
+        // Pixels that are not deflated at all.
+        let mut stored = b"\x89PNG\r\n\x1a\n".to_vec();
+        write_chunk(
+            &mut stored,
+            *b"IHDR",
+            &[0, 0, 0, 4, 0, 0, 0, 3, 8, 3, 0, 0, 0],
+        );
+        write_chunk(&mut stored, *b"PLTE", &[128; 24]);
+        write_chunk(&mut stored, *b"IDAT", &[0; 15]);
+        write_chunk(&mut stored, *b"IEND", &[]);
+        assert_eq!(under(lower(), &[stored.clone()]), unreadable);
+        assert_eq!(under(stored, &[upper()]), unreadable);
+        // Too few colours for the steps.
+        assert!(matches!(
+            radar_frame_image_under(lower(), vec![upper()], RAIN[..3].to_vec(), 0),
+            Err(CoreError::Server { message })
+                if message == "The rain radar has 6 steps of rain, and 3 colours were given."
+        ));
+    }
+
+    /// Numbers that look like chance and are the same on every run.
+    struct Dice(u64);
+
+    impl Dice {
+        fn roll(&mut self, below: usize) -> usize {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            usize::try_from(self.0 % below as u64).unwrap()
+        }
+    }
+
+    #[test]
+    fn a_damaged_picture_is_refused_or_read_and_never_a_panic() {
+        // Whatever comes out of a damaged picture is a picture of the
+        // size its head says, with a frame's values and nothing else.
+        // (A chunk that is copied keeps its checksum, right or wrong, so
+        // this reads as the core does and not as `pixels_of`.)
+        let sound = |answer: Result<Vec<u8>, String>| {
+            if let Ok(png) = answer {
+                let again = unpacked(&png).expect("what the core wrote, it reads");
+                assert_eq!(again.pixels.len(), again.width * again.height);
+            }
+        };
+        let lower = picture_of(4, &LOWER, &[0, 4, 3]);
+        let upper = picture_of(4, &UPPER, &[1, 2, 0]);
+        let try_both = |damaged: Vec<u8>| {
+            sound(under(damaged.clone(), std::slice::from_ref(&upper)));
+            sound(under(lower.clone(), std::slice::from_ref(&damaged)));
+            sound(under(damaged.clone(), &[damaged]));
+        };
+
+        for whole in [&lower, &upper] {
+            // Cut off after every byte.
+            for length in 0..whole.len() {
+                try_both(whole[..length].to_vec());
+            }
+            // Every byte with every bit turned, and set to the values
+            // that lengths and sizes go wrong at.
+            for at in 0..whole.len() {
+                for value in (0..8)
+                    .map(|bit| whole[at] ^ (1 << bit))
+                    .chain([0, 0x7F, 0x80, 0xFF])
+                {
+                    let mut damaged = whole.clone();
+                    damaged[at] = value;
+                    try_both(damaged);
+                }
+            }
+        }
+
+        // And by chance: runs of bytes overwritten, taken out, put in
+        // and doubled, several at a time.
+        let mut dice = Dice(0x9E37_79B9_7F4A_7C15);
+        for _ in 0..20_000 {
+            let mut damaged = if dice.roll(2) == 0 {
+                lower.clone()
+            } else {
+                upper.clone()
+            };
+            for _ in 0..=dice.roll(3) {
+                let at = dice.roll(damaged.len().max(1));
+                let run = dice.roll(9).min(damaged.len() - at);
+                match dice.roll(4) {
+                    0 => {
+                        for byte in &mut damaged[at..at + run] {
+                            *byte = u8::try_from(dice.roll(256)).unwrap();
+                        }
+                    }
+                    1 => drop(damaged.drain(at..at + run)),
+                    2 => {
+                        let put: Vec<u8> = (0..run)
+                            .map(|_| u8::try_from(dice.roll(256)).unwrap())
+                            .collect();
+                        damaged.splice(at..at, put);
+                    }
+                    _ => {
+                        let again = damaged[at..at + run].to_vec();
+                        damaged.splice(at..at, again);
+                    }
+                }
+            }
+            try_both(damaged);
+        }
+
+        // Packed pixels of chance, behind a sound head.
+        for _ in 0..2_000 {
+            let rows: Vec<u8> = (0..dice.roll(40))
+                .map(|_| u8::try_from(dice.roll(9)).unwrap())
+                .collect();
+            try_both(with_rows(4, 3, &rows));
+            let mut raw = b"\x89PNG\r\n\x1a\n".to_vec();
+            write_chunk(&mut raw, *b"IHDR", &[0, 0, 0, 4, 0, 0, 0, 3, 8, 3, 0, 0, 0]);
+            write_chunk(&mut raw, *b"PLTE", &[128; 24]);
+            write_chunk(&mut raw, *b"IDAT", &rows);
+            write_chunk(&mut raw, *b"IEND", &[]);
+            try_both(raw);
+        }
+    }
+
+    /// Two pictures of the first region's size, 624 by 261, as the two
+    /// sources' are: an analysis that sees every place, with bands of
+    /// rain, and above it a radar that sees a disc and has showers in
+    /// it.
+    fn a_regions_two_pictures() -> (Vec<u8>, Vec<u8>) {
+        let (width, height) = (624_i64, 261_i64);
+        let (mut lower, mut upper) = (Vec::new(), Vec::new());
+        for y in 0..height {
+            for x in 0..width {
+                // Bands with ragged edges.
+                let band = (x + 2 * y + (x / 3 * 31 + y / 3 * 17) % 23) % 200;
+                lower.push(u8::try_from(if band < 60 { band / 10 } else { 0 }).unwrap());
+                let (dx, dy) = (x - 250, y - 130);
+                // Showers of uneven strength, cell by cell.
+                let shower = (x / 4 * 7919 + y / 4 * 104_729) % 97 % 7;
+                upper.push(if dx * dx + dy * dy > 220 * 220 {
+                    7
+                } else if (x / 16 + y / 8) % 5 == 0 {
+                    u8::try_from(shower).unwrap()
+                } else {
+                    0
+                });
+            }
+        }
+        (lower, upper)
+    }
+
+    #[test]
+    fn a_regions_picture_under_another_adds_up_and_takes_milliseconds() {
+        let (lower, upper) = a_regions_two_pictures();
+        let (below, above) = (picture_of(624, &lower, &[0]), picture_of(624, &upper, &[0]));
+
+        let began = std::time::Instant::now();
+        let runs = 20;
+        let mut drawn = Vec::new();
+        for _ in 0..runs {
+            drawn = under(below.clone(), std::slice::from_ref(&above)).unwrap();
+        }
+        let each = began.elapsed() / runs;
+        println!(
+            "radar_frame_image_under, 624 x 261 under one picture: {each:?} a call \
+             ({} and {} bytes in, {} out)",
+            below.len(),
+            above.len(),
+            drawn.len()
+        );
+
+        let (width, height, pixels) = pixels_of(&drawn);
+        assert_eq!((width, height), (624, 261));
+        assert_eq!(pixels.len(), 624 * 261);
+        let count = |of: &dyn Fn(usize) -> bool| (0..pixels.len()).filter(|at| of(*at)).count();
+        let seen = count(&|at| upper[at] != 7);
+        let unseen = count(&|at| upper[at] == 7);
+        // Clear wherever the upper sees, dry or rain; the lower's own
+        // wherever it does not.
+        assert_eq!(count(&|at| upper[at] != 7 && pixels[at] == 0), seen);
+        assert_eq!(
+            count(&|at| upper[at] == 7 && pixels[at] == lower[at]),
+            unseen
+        );
+        assert_eq!(seen + unseen, 624 * 261);
+        // Both have rain in what the upper sees and the lower has rain
+        // beyond it, or this would show nothing.
+        assert!(count(&|at| (1..7).contains(&upper[at]) && (1..7).contains(&lower[at])) > 1000);
+        assert!(count(&|at| upper[at] == 0 && (1..7).contains(&lower[at])) > 1000);
+        let rain_left = count(&|at| (1..7).contains(&pixels[at]));
+        assert_eq!(
+            rain_left,
+            count(&|at| upper[at] == 7 && (1..7).contains(&lower[at]))
+        );
+        assert!(rain_left > 1000);
     }
 }

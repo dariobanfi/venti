@@ -357,6 +357,21 @@ enum LaunchOptions {
         return arguments[flag + 1]
     }
 
+    #if DEBUG
+    /// The made-up Google account "Continue with Google" signs in with in
+    /// a UI test, given as `--google-dev <email> [<name>]`: the token comes
+    /// from the development server (`GET /v1/dev/google-id-token`) and
+    /// Google's page does not open. Not in a release build.
+    static var devGoogleAccount: (email: String, name: String?)? {
+        guard isUITesting, let flag = arguments.firstIndex(of: "--google-dev"),
+              arguments.indices.contains(flag + 1)
+        else { return nil }
+        let name = arguments.indices.contains(flag + 2) && !arguments[flag + 2].hasPrefix("--")
+            ? arguments[flag + 2] : nil
+        return (arguments[flag + 1], name)
+    }
+    #endif
+
     /// Where the map tab's map opens, given as `--map-at <lat>,<lon>,<zoom>`:
     /// a UI test frames what its screenshots are to show. Without it, and
     /// where the three numbers do not read, the map opens as always.

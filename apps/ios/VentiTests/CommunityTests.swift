@@ -69,6 +69,12 @@ final class CommunityTests: XCTestCase {
         let row = try XCTUnwrap(community.flights.first)
         XCTAssertEqual(row.pilot, "Mara Muster")
         XCTAssertTrue(PublicFlightRow.detail(of: row).hasSuffix("· Sample Wing"))
+        // With the site the server says it took off from, between the two.
+        var named = row
+        named.takeoffName = "Wallberg"
+        XCTAssertTrue(PublicFlightRow.detail(of: named).hasSuffix("· Wallberg · Sample Wing"))
+        named.takeoffName = nil
+        XCTAssertEqual(PublicFlightRow.detail(of: named), PublicFlightRow.detail(of: row))
         XCTAssertEqual(row.score?.kind, .freeFlight)
 
         // Asked for again, it is there already.

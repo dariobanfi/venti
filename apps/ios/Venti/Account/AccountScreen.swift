@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 import VentiCore
 
@@ -12,14 +13,18 @@ struct AccountScreen: View {
         Group {
             if let signedIn = account.account {
                 SignedInView(signedIn: signedIn)
+            } else if let signUp = account.googleSignUp {
+                GoogleHandleStep(signUp: signUp)
+                    .id(signUp.signup)
             } else {
                 SignInForm()
             }
         }
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
-        // What Venti says of the account now.
+        // What Venti says of the account now, and what it offers.
         .task {
+            await server.readStatus()
             await account.read()
         }
         .alert(
@@ -46,11 +51,18 @@ private struct SignInForm: View {
     @Environment(AccountModel.self) private var account
     @Environment(WindModel.self) private var server
 
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+
     @State private var isNew = false
     @State private var handle = ""
     @State private var displayName = ""
     @State private var password = ""
     @State private var invite = ""
+    /// Whether the handle and password form is open, where Google is the
+    /// first way in.
+    @State private var withPassword = false
+
+    private let words = googleWords()
 
     var body: some View {
         VentiList {
@@ -58,7 +70,47 @@ private struct SignInForm: View {
                 Text("With an account, your flights are copied to Venti. They appear on your other devices, and you can share one with a link. A flight stays private until you share it.")
             }
 
-            if let address = server.server {
+            if server.server != nil, !server.hasAskedStatus {
+                Section {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("account-status-loading")
+                }
+            } else if let address = server.server, server.offersGoogle, !withPassword {
+                Section {
+                    Button {
+                        Task { await continueWithGoogle(on: address) }
+                    } label: {
+                        Group {
+                            if account.isWorking {
+                                ProgressView()
+                            } else {
+                                Text(words.continueWithGoogle)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.venti(.primary))
+                    .disabled(account.isWorking)
+                    .accessibilityIdentifier("account-google")
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+
+                    Button {
+                        withPassword = true
+                    } label: {
+                        Text(words.withPassword)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.venti(.quiet))
+                    .accessibilityIdentifier("account-with-password")
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                } header: {
+                    Text(address.host() ?? address.absoluteString)
+                }
+                .listRowSeparator(.hidden)
+            } else if let address = server.server {
                 Section {
                     VentiSegmented(
                         options: [(value: false, name: "Sign in"), (value: true, name: "New account")],
@@ -111,6 +163,118 @@ private struct SignInForm: View {
             }
         }
     }
+
+    /// Google's page, then the server: signed in, or on to the handle step.
+    private func continueWithGoogle(on server: URL) async {
+        do {
+            let tokens = GoogleTokens(session: webAuthenticationSession, server: server)
+            guard let token = try await tokens.idToken() else { return }
+            await account.continueWithGoogle(server: server, idToken: token)
+        } catch {
+            account.problem = AccountModel.words(for: error)
+        }
+    }
+}
+
+/// After a first sign-in with Google: the handle the pilot is known by,
+/// the server's suggestion filled in, the name from Google, and an invite
+/// code where Venti takes accounts by invite.
+private struct GoogleHandleStep: View {
+    let signUp: GoogleSignUp
+
+    @Environment(AccountModel.self) private var account
+    @Environment(WindModel.self) private var server
+
+    @State private var handle: String
+    @State private var displayName: String
+    @State private var invite = ""
+
+    private let words = googleWords()
+
+    init(signUp: GoogleSignUp) {
+        self.signUp = signUp
+        _handle = State(initialValue: signUp.suggestedHandle ?? "")
+        _displayName = State(initialValue: signUp.name ?? "")
+    }
+
+    /// Where the server does not say who may make an account, it may ask
+    /// for a code: the field is there then too.
+    private var asksForInvite: Bool {
+        server.registration == nil || server.registration == .invite
+    }
+
+    var body: some View {
+        VentiList {
+            Section {
+                VStack(alignment: .leading, spacing: VentiSpace.s2) {
+                    Text(words.chooseHandle)
+                        .font(.venti(.title3, .semibold))
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("google-handle-title")
+                    Text(words.chooseHandleLine)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, VentiSpace.s1)
+            }
+
+            Section {
+                TextField("Handle", text: $handle)
+                    .textContentType(.username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("google-handle")
+                TextField("Name shown to others", text: $displayName)
+                    .textContentType(.name)
+                    .accessibilityIdentifier("google-display-name")
+                if asksForInvite {
+                    TextField("Invite code", text: $invite)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("google-invite")
+                }
+            } footer: {
+                if let line = signUp.suggestionLine {
+                    Text(line)
+                        .accessibilityIdentifier("google-suggestion-line")
+                }
+            }
+
+            if let address = server.server {
+                Section {
+                    Button {
+                        Task {
+                            await account.createGoogleAccount(
+                                server: address, handle: handle, displayName: displayName, invite: invite
+                            )
+                        }
+                    } label: {
+                        Group {
+                            if account.isWorking {
+                                ProgressView()
+                            } else {
+                                Text(words.createAccount)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.venti(.primary))
+                    .disabled(account.isWorking || handle.isEmpty)
+                    .accessibilityIdentifier("google-create")
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    account.leaveGoogleSignUp()
+                }
+                .disabled(account.isWorking)
+                .accessibilityIdentifier("google-cancel")
+            }
+        }
+    }
 }
 
 /// The account, and how the logbook and the server stand.
@@ -118,11 +282,15 @@ private struct SignedInView: View {
     let signedIn: AccountView
 
     @Environment(AccountModel.self) private var account
+    @Environment(WindModel.self) private var server
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
 
     @State private var isConfirmingSignOut = false
     @State private var isDeleting = false
     @State private var password = ""
+
+    private let words = googleWords()
 
     var body: some View {
         VentiList {
@@ -130,6 +298,31 @@ private struct SignedInView: View {
                 LabeledContent("Handle", value: "@\(signedIn.handle)")
                 LabeledContent("Name", value: signedIn.displayName)
                 LabeledContent("Server", value: URL(string: signedIn.server)?.host() ?? signedIn.server)
+                if let email = signedIn.googleEmail {
+                    LabeledContent("Google", value: email)
+                        .accessibilityIdentifier("account-google-email")
+                }
+            }
+
+            // Google, shown to the pilot and to nobody else.
+            if signedIn.googleEmail != nil || server.offersGoogle {
+                Section {
+                    if signedIn.googleEmail != nil {
+                        Button(words.unlinkGoogle) {
+                            Task { await account.unlinkGoogle() }
+                        }
+                        .accessibilityIdentifier("account-unlink-google")
+                    } else {
+                        Button(words.linkGoogle) {
+                            Task {
+                                guard let token = await googleToken() else { return }
+                                await account.linkGoogle(idToken: token)
+                            }
+                        }
+                        .accessibilityIdentifier("account-link-google")
+                    }
+                }
+                .disabled(account.isWorking || signedIn.needsSignIn)
             }
 
             Section {
@@ -175,7 +368,7 @@ private struct SignedInView: View {
                 .accessibilityIdentifier("programs-link")
                 // The pilot's alarms, which Venti checks where the data
                 // arrives, and what they fired.
-                NavigationLink(AlertWords.title) {
+                NavigationLink(alertFormWords().title) {
                     AlertsScreen()
                 }
                 .disabled(signedIn.needsSignIn)
@@ -186,6 +379,7 @@ private struct SignedInView: View {
                 Button("Sign out") {
                     isConfirmingSignOut = true
                 }
+                .accessibilityIdentifier("account-sign-out")
                 Button("Delete account", role: .destructive) {
                     isDeleting = true
                 }
@@ -196,6 +390,7 @@ private struct SignedInView: View {
             Button("Sign out") {
                 Task { await account.signOut() }
             }
+            .accessibilityIdentifier("account-sign-out-confirm")
         } message: {
             Text("Your flights stay on this iPhone and on Venti.")
         }
@@ -206,11 +401,41 @@ private struct SignedInView: View {
                 password = ""
                 Task { _ = await account.deleteAccount(password: entered) }
             }
+            // An account made with Google has no password: its Google
+            // account confirms in its place.
+            if signedIn.googleEmail != nil {
+                Button(words.continueWithGoogle, role: .destructive) {
+                    password = ""
+                    Task {
+                        // The alert goes first: one thing is presented at a time.
+                        try? await Task.sleep(for: .milliseconds(600))
+                        guard let token = await googleToken() else { return }
+                        _ = await account.deleteAccount(googleIDToken: token)
+                    }
+                }
+            }
             Button("Cancel", role: .cancel) {
                 password = ""
             }
         } message: {
-            Text("The account and every flight on Venti are deleted at once and for good, and your shared links stop working. The flights on this iPhone stay. Enter your password to go on.")
+            Text(
+                signedIn.googleEmail == nil
+                    ? "The account and every flight on Venti are deleted at once and for good, and your shared links stop working. The flights on this iPhone stay. Enter your password to go on."
+                    : "The account and every flight on Venti are deleted at once and for good, and your shared links stop working. The flights on this iPhone stay. Enter your password, or confirm with Google, to go on."
+            )
+        }
+    }
+
+    /// An ID token of Google's, `nil` when the pilot closed Google's page
+    /// or it could not be had (then said as the problem).
+    private func googleToken() async -> String? {
+        do {
+            return try await GoogleTokens(
+                session: webAuthenticationSession, server: URL(string: signedIn.server)
+            ).idToken()
+        } catch {
+            account.problem = AccountModel.words(for: error)
+            return nil
         }
     }
 }

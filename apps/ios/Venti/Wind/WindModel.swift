@@ -35,6 +35,15 @@ final class WindModel {
     /// Whether this Venti takes sites from pilots, as its status says:
     /// false until it has said so, and for one that takes none.
     private(set) var takesSitesFromPilots = false
+    /// Whether this Venti offers signing in with Google, as its status
+    /// says: false until it has said so, and for one that does not.
+    private(set) var offersGoogle = false
+    /// Who may make an account here, as its status says; `nil` until it
+    /// has said so, or where it does not say.
+    private(set) var registration: Registration?
+    /// Whether the status was read at least once, or could not be: the
+    /// account's screen waits for it before it offers a way in.
+    private(set) var hasAskedStatus = false
 
     /// Venti's address: the one the app was built with (`VentiServer`).
     let address: String
@@ -118,10 +127,7 @@ final class WindModel {
         do {
             if clock.map({ Date().timeIntervalSince($0.readAt) >= Self.refreshInterval }) ?? true {
                 let (status, body) = try await get(serverStatusPath(), from: server)
-                let state = try serverStatus(status: status, body: body)
-                clock = (TimeInterval(state.timeUnixS) - Date().timeIntervalSince1970, Date())
-                lateProviders = state.lateProviders
-                takesSitesFromPilots = state.takesSitesFromPilots
+                take(try serverStatus(status: status, body: body))
             }
             let path = try windMapPath(south: area.south, west: area.west, north: area.north, east: area.east)
             let (status, body) = try await get(path, from: server)
@@ -158,10 +164,32 @@ final class WindModel {
            let (status, body) = try? await get(serverStatusPath(), from: server),
            let state = try? serverStatus(status: status, body: body)
         {
-            clock = (TimeInterval(state.timeUnixS) - Date().timeIntervalSince1970, Date())
-            takesSitesFromPilots = state.takesSitesFromPilots
+            take(state)
         }
         return now
+    }
+
+    /// Reads the server's status anew: what the account's screen offers
+    /// (Google, an invite code) follows it. Quiet: without an answer what
+    /// was said last holds.
+    func readStatus() async {
+        defer { hasAskedStatus = true }
+        guard let server,
+              let (status, body) = try? await get(serverStatusPath(), from: server),
+              let state = try? serverStatus(status: status, body: body)
+        else { return }
+        take(state)
+    }
+
+    /// Keeps what a status says: the clock, the late providers and what
+    /// this Venti offers.
+    private func take(_ state: ServerStatus) {
+        clock = (TimeInterval(state.timeUnixS) - Date().timeIntervalSince1970, Date())
+        lateProviders = state.lateProviders
+        takesSitesFromPilots = state.takesSitesFromPilots
+        offersGoogle = state.googleSignIn
+        registration = state.registration
+        hasAskedStatus = true
     }
 
     /// The stations around a glider in the air and around the place its

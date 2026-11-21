@@ -77,6 +77,9 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.sports
+        # Google's iOS client for "Continue with Google" is in
+        # Config/Base.xcconfig (VENTI_GOOGLE_CLIENT_ID), where a build for
+        # another Google project overrides it.
       # Venti's address, built into the app (its Info.plist's VentiServer):
       # there is one Venti and the app is its; it is no setting. Debug talks
       # to the owner's own Venti on this Mac, as a simulator reaches it.

@@ -8,4 +8,11 @@
 VENTI_BUNDLE_ID = fly.venti.app
 VENTI_PROFILE =
 
+// Google's iOS client for "Continue with Google" (the Info.plist's
+// VentiGoogleClientID), and the URL scheme Google sends the pilot back by:
+// the client ID reversed. Not secrets: they ship in every copy of the app.
+// A build for another Google project sets both in Local.xcconfig.
+VENTI_GOOGLE_CLIENT_ID = 490070141586-pknvec3oddmk79fjbe0238lg8r259p12.apps.googleusercontent.com
+VENTI_GOOGLE_REDIRECT_SCHEME = com.googleusercontent.apps.490070141586-pknvec3oddmk79fjbe0238lg8r259p12
+
 #include? "Local.xcconfig"

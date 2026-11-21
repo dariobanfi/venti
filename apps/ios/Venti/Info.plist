@@ -80,6 +80,25 @@
 	<!-- Venti's address, from the build setting VENTI_SERVER (project.yml). -->
 	<key>VentiServer</key>
 	<string>$(VENTI_SERVER)</string>
+	<!-- Google's client for "Continue with Google", from the build settings
+	     VENTI_GOOGLE_CLIENT_ID and VENTI_GOOGLE_REDIRECT_SCHEME (project.yml).
+	     Not secrets: they ship in every copy of the app. -->
+	<key>VentiGoogleClientID</key>
+	<string>$(VENTI_GOOGLE_CLIENT_ID)</string>
+	<key>VentiGoogleRedirectScheme</key>
+	<string>$(VENTI_GOOGLE_REDIRECT_SCHEME)</string>
+	<!-- Google sends the pilot back to the app by its reversed client ID. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Google sign-in</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(VENTI_GOOGLE_REDIRECT_SCHEME)</string>
+			</array>
+		</dict>
+	</array>
 	<!-- The Debug build's Venti, and the tests' servers, are on this Mac
 	     (127.0.0.1) and are reached without encryption. Everything on the
 	     internet is reached over HTTPS only. -->

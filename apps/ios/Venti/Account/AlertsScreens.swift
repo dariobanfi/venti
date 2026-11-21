@@ -1,38 +1,14 @@
 import SwiftUI
 import VentiCore
 
-/// The few words the screens of the alarms need that the core does not
-/// give: the titles of the form's fields and of the list, and the line
-/// for signing in. What an alarm waits for, what fired and what is wrong
-/// with a draft are the core's.
-enum AlertWords {
-    static let entry = "Alert me"
-    static let title = "Alerts"
-    static let fired = "What fired"
-    static let signIn = "Alarms live on your account. Sign in to set one."
-    static let none = "No alarms yet"
-    static let noneText = "Set one with \"Alert me\" on a wind station's page or a take-off's page. Venti checks it as the data arrives."
-    static let nothingFired = "Nothing has fired in the last 30 days."
-    static let footer = "Venti checks your alarms where the data arrives. The app fetches what fired when you open it, and from time to time in the background, and tells you with a notification."
-    static let hoursNote = "Hours are Central European Time."
-    /// The days a day alarm may name, 0 for today.
-    static let days = ["Today", "Tomorrow", "In 2 days", "In 3 days"]
-
-    static func atLeast(_ kind: AlertDayKind) -> String {
-        switch kind {
-        case .flyable: "Flyable"
-        case .local: "Local"
-        case .crossCountry: "Cross-country"
-        case .big: "Big day"
-        }
-    }
-}
-
 /// "Alert me" on a wind station's page or a take-off's page: the form for
 /// a new alarm, filled in with the station or the place. Signed out, the
 /// way to signing in, with one line.
 struct AlertMeSection: View {
     let draft: AlertDraft
+
+    /// The core's words of the alarms' screens, as every word of them.
+    private let words = alertFormWords()
 
     @Environment(AccountModel.self) private var account
     @State private var isOpen = false
@@ -40,7 +16,7 @@ struct AlertMeSection: View {
     var body: some View {
         Section {
             if account.isSignedIn {
-                Button(AlertWords.entry, systemImage: "bell") {
+                Button(words.alertMe, systemImage: "bell") {
                     isOpen = true
                 }
                 .accessibilityIdentifier("alert-me")
@@ -51,13 +27,13 @@ struct AlertMeSection: View {
                 NavigationLink {
                     AccountScreen()
                 } label: {
-                    Label(AlertWords.entry, systemImage: "bell")
+                    Label(words.alertMe, systemImage: "bell")
                 }
                 .accessibilityIdentifier("alert-me-sign-in")
             }
         } footer: {
             if !account.isSignedIn {
-                Text(AlertWords.signIn)
+                Text(words.signedOut)
             }
         }
     }
@@ -66,6 +42,8 @@ struct AlertMeSection: View {
 /// "Alerts" under the account: the alarms, each with its line and a
 /// switch, a tap to change one; under them what fired, the newest first.
 struct AlertsScreen: View {
+    /// The core's words of the alarms' screens.
+    private let words = alertFormWords()
     @Environment(AlertsModel.self) private var alerts
     @Environment(AccountModel.self) private var account
 
@@ -82,7 +60,7 @@ struct AlertsScreen: View {
                         AccountScreen()
                     }
                 } footer: {
-                    Text(AlertWords.signIn)
+                    Text(words.signedOut)
                 }
             } else {
                 if let words = problem ?? alerts.problem {
@@ -97,7 +75,7 @@ struct AlertsScreen: View {
                 }
                 if alerts.alerts.isEmpty {
                     Section {
-                        VentiEmpty(title: AlertWords.none, text: AlertWords.noneText) {}
+                        VentiEmpty(title: words.listTitle, text: words.listEmpty) {}
                             .accessibilityIdentifier("alerts-none")
                     }
                 } else {
@@ -105,13 +83,13 @@ struct AlertsScreen: View {
                         ForEach(alerts.alerts, id: \.id) { alert in
                             AlertRow(alert: alert, edit: { editing = alert }, problem: $problem)
                         }
-                    } footer: {
-                        Text(AlertWords.footer)
+                    } header: {
+                        Text(words.listTitle)
                     }
                 }
                 Section {
                     if alerts.fired.isEmpty {
-                        Text(AlertWords.nothingFired)
+                        Text(words.firedEmpty)
                             .foregroundStyle(.secondary)
                             .accessibilityIdentifier("alerts-fired-none")
                     }
@@ -128,7 +106,9 @@ struct AlertsScreen: View {
                         .accessibilityIdentifier("alerts-fired-line")
                     }
                 } header: {
-                    Text(AlertWords.fired)
+                    Text(words.firedTitle)
+                } footer: {
+                    Text(words.firedNote)
                 }
             }
         }
@@ -137,7 +117,7 @@ struct AlertsScreen: View {
                 AlertForm(draft: draft, id: alert.id)
             }
         }
-        .navigationTitle(AlertWords.title)
+        .navigationTitle(words.title)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
             await alerts.sync()
@@ -204,6 +184,8 @@ private struct AlertRow: View {
 /// first try to save. A new alarm, or the one with `id`, which can also be
 /// deleted.
 struct AlertForm: View {
+    /// The core's words of the alarms' screens.
+    private let words = alertFormWords()
     let id: String?
 
     @Environment(AlertsModel.self) private var alerts
@@ -249,11 +231,17 @@ struct AlertForm: View {
                 }
 
                 Section {
-                    TextField("Name", text: $draft.name)
+                    TextField(words.name, text: $draft.name)
                         .accessibilityIdentifier("alert-name")
                     faultLines("name")
+                    switch draft.kind {
+                    case .wind:
+                        LabeledContent(words.station, value: draft.stationName)
+                    case .day:
+                        LabeledContent(words.place, value: draft.placeName)
+                    }
                 } header: {
-                    Text("Name")
+                    Text(words.name)
                 }
 
                 switch draft.kind {
@@ -264,33 +252,33 @@ struct AlertForm: View {
                 }
 
                 Section {
-                    Toggle("On", isOn: $draft.enabled)
+                    Toggle(words.on, isOn: $draft.enabled)
                         .accessibilityIdentifier("alert-enabled")
                 }
 
                 if let id {
                     Section {
-                        Button("Delete alarm", role: .destructive) {
+                        Button(words.delete, role: .destructive) {
                             isConfirmingDelete = true
                         }
                         .disabled(isWorking)
                         .accessibilityIdentifier("alert-delete")
-                        .confirmationDialog("Delete this alarm?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-                            Button("Delete alarm", role: .destructive) {
+                        .confirmationDialog(words.deleteQuestion, isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                            Button(words.delete, role: .destructive) {
                                 Task { await remove(id) }
                             }
                         }
                     }
                 }
             }
-            .navigationTitle(id == nil ? AlertWords.entry : draft.name)
+            .navigationTitle(id == nil ? words.alertMe : words.changeTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(words.save) {
                         Task { await save() }
                     }
                     .disabled(isWorking)
@@ -306,18 +294,18 @@ struct AlertForm: View {
     /// as the sites' filter shows directions; the least and most wind,
     /// the gusts and the hours as steppers.
     @ViewBuilder private var windFields: some View {
-        let any = sitesFilterChoices().anyWind
+        let any = words.any
         let points: [(value: Int, name: String)] =
             [(-1, any)] + alerts.points.enumerated().map { ($0.offset, $0.element) }
         Section {
             VStack(alignment: .leading, spacing: VentiSpace.s2) {
-                Text("From")
+                Text(words.windFrom)
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                 VentiSegmented(options: points, selection: point(\.fromPoint))
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("alert-from")
-                Text("To")
+                Text(words.windTo)
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                 VentiSegmented(options: points, selection: point(\.toPoint))
@@ -326,39 +314,33 @@ struct AlertForm: View {
             }
             .padding(.vertical, VentiSpace.s1)
             faultLines("rule.directions")
-        } header: {
-            Text("Wind direction at \(draft.stationName)")
-                .textCase(nil)
         }
 
         Section {
-            KmhStepper(title: "Least wind", value: $draft.minKmh)
+            KmhStepper(title: words.least, value: $draft.minKmh)
                 .accessibilityIdentifier("alert-min")
             faultLines("rule.min_kmh")
-            KmhStepper(title: "Most wind", value: $draft.maxKmh)
+            KmhStepper(title: words.most, value: $draft.maxKmh)
                 .accessibilityIdentifier("alert-max")
             faultLines("rule.max_kmh")
-            KmhStepper(title: "Gusts at most", value: $draft.gustsMaxKmh)
+            KmhStepper(title: words.gustsAtMost, value: $draft.gustsMaxKmh)
                 .accessibilityIdentifier("alert-gusts")
             faultLines("rule.gusts_max_kmh")
-        } header: {
-            Text("Wind speed")
         }
 
         Section {
-            Toggle("Only between hours", isOn: hasHours)
-                .accessibilityIdentifier("alert-hours")
-            if hasHours.wrappedValue {
-                Stepper(value: hour(\.fromHour, otherwise: 10), in: 0...23) {
-                    LabeledContent("From", value: Self.hourWords(draft.fromHour.map(Int.init) ?? 10))
-                }
-                Stepper(value: hour(\.toHour, otherwise: 18), in: 1...24) {
-                    LabeledContent("To", value: Self.hourWords(draft.toHour.map(Int.init) ?? 18))
-                }
+            // Below the first hour is "Any": no bound.
+            Stepper(value: hour(\.fromHour, lowest: 0), in: -1...23) {
+                LabeledContent(words.fromHour, value: hourWords(draft.fromHour))
             }
+            .accessibilityIdentifier("alert-from-hour")
+            Stepper(value: hour(\.toHour, lowest: 1), in: 0...24) {
+                LabeledContent(words.toHour, value: hourWords(draft.toHour))
+            }
+            .accessibilityIdentifier("alert-to-hour")
             faultLines("rule.hours")
-        } footer: {
-            Text(AlertWords.hoursNote)
+        } header: {
+            Text(words.hoursTitle)
         }
     }
 
@@ -369,25 +351,16 @@ struct AlertForm: View {
         )
     }
 
-    private var hasHours: Binding<Bool> {
+    /// An hour that may be left out: one under the lowest is none.
+    private func hour(_ path: WritableKeyPath<AlertDraft, UInt8?>, lowest: Int) -> Binding<Int> {
         Binding(
-            get: { draft.fromHour != nil || draft.toHour != nil },
-            set: { isOn in
-                draft.fromHour = isOn ? 10 : nil
-                draft.toHour = isOn ? 18 : nil
-            }
+            get: { draft[keyPath: path].map(Int.init) ?? lowest - 1 },
+            set: { draft[keyPath: path] = $0 < lowest ? nil : UInt8(clamping: $0) }
         )
     }
 
-    private func hour(_ path: WritableKeyPath<AlertDraft, UInt8?>, otherwise: Int) -> Binding<Int> {
-        Binding(
-            get: { draft[keyPath: path].map(Int.init) ?? otherwise },
-            set: { draft[keyPath: path] = UInt8(clamping: $0) }
-        )
-    }
-
-    static func hourWords(_ hour: Int) -> String {
-        String(format: "%02d:00", hour)
+    private func hourWords(_ hour: UInt8?) -> String {
+        hour.map { String(format: "%02d:00", Int($0)) } ?? words.any
     }
 
     // MARK: Day
@@ -396,26 +369,23 @@ struct AlertForm: View {
     /// least kind of day.
     @ViewBuilder private var dayFields: some View {
         Section {
-            ForEach(Array(AlertWords.days.enumerated()), id: \.offset) { day, words in
-                Toggle(words, isOn: dayAhead(UInt8(day)))
+            ForEach(Array(words.dayNames.enumerated()), id: \.offset) { day, name in
+                Toggle(name, isOn: dayAhead(UInt8(day)))
                     .accessibilityIdentifier("alert-day-\(day)")
             }
             faultLines("rule.days_ahead")
         } header: {
-            Text("Days at \(draft.placeName)")
-                .textCase(nil)
-        } footer: {
-            Text(AlertWords.hoursNote)
+            Text(words.days)
         }
         Section {
             VentiSegmented(
-                options: [AlertDayKind.flyable, .local, .crossCountry, .big].map { ($0, AlertWords.atLeast($0)) },
+                options: words.dayKinds.map { ($0.kind, $0.name) },
                 selection: $draft.atLeast
             )
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("alert-at-least")
         } header: {
-            Text("At least")
+            Text(words.atLeast)
         }
     }
 
@@ -480,12 +450,14 @@ private struct FaultLine: View {
 
 /// A speed in km/h that may be left out: a stepper in fives, down to "Any".
 private struct KmhStepper: View {
+    /// The core's words of the alarms' screens.
+    private let words = alertFormWords()
     let title: String
     @Binding var value: UInt16?
 
     var body: some View {
         Stepper(value: kmh, in: 0...150, step: 5) {
-            LabeledContent(title, value: value.map { "\(Format.count(Int($0))) km/h" } ?? sitesFilterChoices().anyWind)
+            LabeledContent(title, value: value.map { "\(Format.count(Int($0))) \(words.kmh)" } ?? words.any)
         }
     }
 

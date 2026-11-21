@@ -177,11 +177,8 @@ final class AlertsModel {
     func remove(_ id: String) async -> String? {
         do {
             let answer = try await send(alertRemoveRequest(id: id))
-            guard (200..<300).contains(answer.status) else {
-                // The core reads the refusal's words.
-                _ = try VentiCore.alerts(status: answer.status, body: answer.body)
-                return AccountModel.words(for: URLError(.badServerResponse))
-            }
+            // The core reads the answer: one gone already is gone.
+            _ = try alertRemoved(status: answer.status, body: answer.body)
         } catch {
             return AccountModel.words(for: error)
         }

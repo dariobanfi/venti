@@ -2741,7 +2741,7 @@ final class VentiUITests: XCTestCase {
         }
         XCTAssertTrue(link.exists)
         link.tap()
-        let handle = app.textFields["Handle"]
+        let handle = openThePasswordForm(in: app)
         XCTAssertTrue(handle.waitForExistence(timeout: 15))
         keepScreenshot("account-1-sign-in")
         handle.tap()
@@ -3385,6 +3385,107 @@ extension VentiUITests {
         keepScreenshot("alerts-6-form-dark")
     }
 
+    /// The handle and password form of the account screen: behind "Sign
+    /// in with a handle and password" where Venti offers Google, at once
+    /// where it does not. Returns the handle's field.
+    private func openThePasswordForm(in app: XCUIApplication) -> XCUIElement {
+        let handle = app.textFields["Handle"]
+        let withPassword = element("account-with-password", in: app)
+        for _ in 0..<30 where !handle.exists {
+            if withPassword.exists {
+                withPassword.tap()
+                break
+            }
+            usleep(500_000)
+        }
+        return handle
+    }
+
+    /// "Continue with Google" through the development server's made-up
+    /// Google (the launch argument `--google-dev`): a new pilot passes the
+    /// handle step with the suggested handle and lands signed in, showing
+    /// the Google email; signed out and in again with the same email, the
+    /// pilot lands signed in without the handle step. The screens light,
+    /// and the signed-in account once more in the dark.
+    func testAPilotContinuesWithGoogle() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let email = "ui.test@example.com"
+        let google = ["--server", server, "--google-dev", email, "UI Test"]
+        let app = launch(bundledMap: true, extra: google)
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        openAccount(in: app)
+
+        // Signed out: Google first, the password form behind its button.
+        let continueWithGoogle = element("account-google", in: app)
+        XCTAssertTrue(continueWithGoogle.waitForExistence(timeout: 30))
+        XCTAssertEqual(continueWithGoogle.label, "Continue with Google")
+        XCTAssertTrue(element("account-with-password", in: app).exists)
+        XCTAssertFalse(app.textFields["Handle"].exists)
+        sleep(1)
+        keepScreenshot("google-1-signed-out")
+
+        // A new pilot: the handle step, the suggestion filled in.
+        continueWithGoogle.tap()
+        let handle = element("google-handle", in: app)
+        XCTAssertTrue(handle.waitForExistence(timeout: 30))
+        XCTAssertEqual(handle.value as? String, "ui_test")
+        XCTAssertEqual(element("google-display-name", in: app).value as? String, "UI Test")
+        XCTAssertTrue(labelled(containing: "@ui_test is free.", in: app).exists)
+        XCTAssertTrue(element("google-handle-title", in: app).exists)
+        sleep(1)
+        keepScreenshot("google-2-handle-step")
+        element("google-create", in: app).tap()
+
+        // Signed in, with the Google email shown to the pilot.
+        XCTAssertTrue(labelled(containing: "@ui_test", in: app).waitForExistence(timeout: 30))
+        let shown = element("account-google-email", in: app)
+        XCTAssertTrue(shown.waitForExistence(timeout: 15))
+        XCTAssertTrue(shown.label.contains(email), shown.label)
+        XCTAssertTrue(element("account-unlink-google", in: app).exists)
+        XCTAssertTrue(app.buttons["Sync now"].waitForExistence(timeout: 60))
+        sleep(1)
+        keepScreenshot("google-3-signed-in")
+
+        // Signed out, and in again: no handle step.
+        bring("account-sign-out", into: app).tap()
+        let confirm = element("account-sign-out-confirm", in: app)
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10))
+        confirm.tap()
+        XCTAssertTrue(continueWithGoogle.waitForExistence(timeout: 30))
+        continueWithGoogle.tap()
+        XCTAssertTrue(element("account-google-email", in: app).waitForExistence(timeout: 30))
+        XCTAssertFalse(handle.exists)
+        XCTAssertTrue(labelled(containing: "@ui_test", in: app).exists)
+
+        // In the dark, signed in by Google on a second launch.
+        app.terminate()
+        let dark = launch(bundledMap: true, dark: true, extra: google)
+        XCTAssertTrue(dark.buttons["Show my position"].waitForExistence(timeout: 90))
+        openAccount(in: dark)
+        let again = element("account-google", in: dark)
+        XCTAssertTrue(again.waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("google-4-signed-out-dark")
+        again.tap()
+        XCTAssertTrue(element("account-google-email", in: dark).waitForExistence(timeout: 30))
+        XCTAssertTrue(dark.buttons["Sync now"].waitForExistence(timeout: 60))
+        sleep(1)
+        keepScreenshot("google-5-signed-in-dark")
+    }
+
+    /// Opens Settings, Account.
+    private func openAccount(in app: XCUIApplication) {
+        openTab("Settings", in: app)
+        let link = element("account-link", in: app)
+        for _ in 0..<4 where !(link.exists && link.isHittable) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap()
+    }
+
     /// Opens "Alerts" under Settings, Account.
     private func openAlerts(in app: XCUIApplication) {
         openTab("Settings", in: app)
@@ -3402,7 +3503,7 @@ extension VentiUITests {
         }
         XCTAssertTrue(link.waitForExistence(timeout: 10))
         link.tap()
-        let handle = app.textFields["Handle"]
+        let handle = openThePasswordForm(in: app)
         XCTAssertTrue(handle.waitForExistence(timeout: 15))
         handle.tap()
         handle.typeText(account.handle)
@@ -3914,7 +4015,10 @@ extension VentiUITests {
         sleep(2)
         keepScreenshot("site-tiers-dark-4-entry-signed-out")
         entry.tap()
-        XCTAssertTrue(app.textFields["Handle"].waitForExistence(timeout: 15))
+        XCTAssertTrue(
+            app.textFields["Handle"].waitForExistence(timeout: 15)
+                || element("account-google", in: app).exists
+        )
         keepScreenshot("site-tiers-dark-5-entry-opens-the-account")
     }
 

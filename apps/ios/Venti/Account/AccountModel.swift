@@ -97,9 +97,105 @@ final class AccountModel {
         guard !isWorking else { return }
         isWorking = true
         defer { isWorking = false }
+        let signedIn: SignedIn
         do {
             let (status, body, _) = try await ask(try request(), of: server.absoluteString)
-            let signedIn = try core.signedIn(server: server.absoluteString, status: status, body: body)
+            signedIn = try core.signedIn(server: server.absoluteString, status: status, body: body)
+        } catch {
+            problem = Self.words(for: error)
+            return
+        }
+        await keep(signedIn, on: server)
+    }
+
+    // MARK: Google
+
+    /// The handle step after a first sign-in with Google: what the core
+    /// read from the server's answer, until the account is made or the
+    /// pilot goes back.
+    private(set) var googleSignUp: GoogleSignUp?
+
+    /// Signs in with an ID token Google gave for this iPhone. A Google
+    /// account no Venti account is linked to yet goes on to the handle
+    /// step (`googleSignUp`). An empty token is the core's to refuse, in
+    /// its words.
+    func continueWithGoogle(server: URL, idToken: String) async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+        let answer: GoogleSignIn
+        do {
+            let request = try core.googleSignInRequest(idToken: idToken, device: UIDevice.current.name)
+            let (status, body, _) = try await ask(request, of: server.absoluteString)
+            answer = try core.googleSignIn(server: server.absoluteString, status: status, body: body)
+        } catch {
+            problem = Self.words(for: error)
+            return
+        }
+        if let signedIn = answer.signedIn {
+            googleSignUp = nil
+            await keep(signedIn, on: server)
+        } else {
+            googleSignUp = answer.needsHandle
+        }
+    }
+
+    /// Makes the account of the handle step, with the handle the pilot
+    /// chose, and signs in.
+    func createGoogleAccount(server: URL, handle: String, displayName: String, invite: String) async {
+        guard let signUp = googleSignUp else { return }
+        let invite = invite.trimmingCharacters(in: .whitespacesAndNewlines)
+        await enter(server: server) {
+            try core.googleAccountRequest(
+                signup: signUp.signup, handle: handle, displayName: displayName,
+                invite: invite.isEmpty ? nil : invite, device: UIDevice.current.name
+            )
+        }
+        if account != nil {
+            googleSignUp = nil
+        }
+    }
+
+    /// Back from the handle step to the account screen's first buttons.
+    func leaveGoogleSignUp() {
+        googleSignUp = nil
+    }
+
+    /// Links the account this iPhone is signed in to to the Google
+    /// account of an ID token.
+    func linkGoogle(idToken: String) async {
+        await changeGoogle {
+            let (status, body, _) = try await ask(try core.linkGoogleRequest(idToken: idToken), of: $0)
+            return try core.googleLinked(status: status, body: body)
+        }
+    }
+
+    /// Unlinks the account from its Google account; the server refuses it
+    /// for an account Google is the only way into, in the core's words.
+    func unlinkGoogle() async {
+        await changeGoogle {
+            let (status, body, _) = try await ask(core.unlinkGoogleRequest(), of: $0)
+            return try core.googleUnlinked(status: status, body: body)
+        }
+    }
+
+    private func changeGoogle(_ change: (String) async throws -> AccountView?) async {
+        guard !isWorking, let server = account?.server else { return }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            if let now = try await change(server) {
+                account = now
+            }
+        } catch {
+            problem = Self.words(for: error)
+        }
+    }
+
+    /// Keeps a sign-in: the token in the Keychain and the account, then
+    /// the first sync.
+    private func keep(_ signedIn: SignedIn, on server: URL) async {
+        do {
             saveToken(signedIn.token)
             // Without the token every later request would be refused. If
             // the Keychain did not keep it, say that, and do not leave a
@@ -118,9 +214,6 @@ final class AccountModel {
                 return
             }
             account = signedIn.account
-        } catch {
-            problem = Self.words(for: error)
-            return
         }
         await runSync()
         onAccountChanged()
@@ -147,11 +240,21 @@ final class AccountModel {
     /// Deletes the account on the server, with its flights there. The
     /// logbook on this iPhone stays. Returns whether it is gone.
     func deleteAccount(password: String) async -> Bool {
+        await deleteAccount { try core.deleteAccountRequest(password: password) }
+    }
+
+    /// Deletes an account that signs in with Google, confirmed with a
+    /// fresh ID token of its Google account in place of the password.
+    func deleteAccount(googleIDToken: String) async -> Bool {
+        await deleteAccount { try core.deleteAccountWithGoogleRequest(idToken: googleIDToken) }
+    }
+
+    private func deleteAccount(_ asking: () throws -> ServerRequest) async -> Bool {
         guard !isWorking, let account else { return false }
         isWorking = true
         defer { isWorking = false }
         do {
-            let request = try core.deleteAccountRequest(password: password)
+            let request = try asking()
             let (status, body, _) = try await ask(request, of: account.server)
             try core.accountDeleted(status: status, body: body)
             saveToken(nil)

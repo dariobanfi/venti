@@ -123,11 +123,14 @@ struct PublicFlightRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// "15 Aug 2026 · Sample Wing". Without the weekday: the glider's name
-    /// is the part that would be cut off.
+    /// "15 Aug 2026 · Wallberg · Sample Wing": the day, the site the
+    /// server says the flight took off from, and the glider. Without the
+    /// weekday: the glider's name is the part that would be cut off.
     static func detail(of flight: PublicFlight) -> String {
-        let day = Format.dayShort(unixSeconds: flight.startUnixS)
-        return flight.glider.map { "\(day) · \($0)" } ?? day
+        [Format.dayShort(unixSeconds: flight.startUnixS), flight.takeoffName, flight.glider]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
     }
 }
 

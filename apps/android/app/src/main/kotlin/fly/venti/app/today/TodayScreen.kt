@@ -450,7 +450,7 @@ private fun TakeoffCard(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit
                 HourStrip(day.hours)
                 Text(
                     "Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not." +
-                        if (day.hours.any { it.climbMs != null }) {
+                        if (showsThermals(day.hours)) {
                             " Under it the climb to expect in thermals, in m/s, with a bar that grows with it."
                         } else {
                             ""
@@ -506,7 +506,9 @@ private fun TakeoffRow(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit)
 @Composable
 private fun HourStrip(hours: List<OutlookHour>) {
     val colours = Venti.colours
-    val showsClimb = hours.any { it.climbMs != null }
+    // The climbs only where there is something to climb in: a row of
+    // "0.0" adds nothing to a line that says "None to climb in".
+    val showsClimb = showsThermals(hours)
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         for (hour in hours) {
             Column(
@@ -567,6 +569,9 @@ private fun HourStrip(hours: List<OutlookHour>) {
         }
     }
 }
+
+/** Whether some hour of the day has a climb above zero: then the strip shows the climbs. */
+internal fun showsThermals(hours: List<OutlookHour>): Boolean = hours.any { (it.climbMs ?: 0.0) > 0 }
 
 private fun spoken(hour: OutlookHour): String {
     val verdict = when (hour.verdict) {

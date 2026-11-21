@@ -69,6 +69,7 @@ mod forecast;
 mod groups;
 mod health;
 mod imagery;
+mod kept_sites;
 mod live;
 mod log;
 mod maps;
@@ -510,6 +511,14 @@ impl<S: Store> Api<S> {
             .route(
                 "/v1/account/tokens/{id}",
                 delete(account::withdraw_token::<S>),
+            )
+            .route(
+                venti_api_types::v1::KEPT_SITE_CHANGES_PATH,
+                get(kept_sites::changes::<S>),
+            )
+            .route(
+                "/v1/account/kept-sites/{*id}",
+                put(kept_sites::keep::<S>).delete(kept_sites::forget::<S>),
             )
             .route(
                 SESSIONS_PATH,

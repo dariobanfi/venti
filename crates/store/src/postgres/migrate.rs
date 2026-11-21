@@ -97,6 +97,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "reports about sites that pilots made",
         sql: include_str!("../../migrations/0015_reports_about_sites.sql"),
     },
+    Migration {
+        version: 16,
+        name: "the sites a pilot keeps as their own, on the account",
+        sql: include_str!("../../migrations/0016_kept_sites.sql"),
+    },
 ];
 
 /// Applies every migration the database has not seen yet.

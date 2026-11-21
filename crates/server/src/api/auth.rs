@@ -342,6 +342,10 @@ needs! {
     WriteGroups => GroupsWrite,
     /// `reports:write`.
     WriteReports => ReportsWrite,
+    /// `kept-sites:read`.
+    ReadKeptSites => KeptSitesRead,
+    /// `kept-sites:write`.
+    WriteKeptSites => KeptSitesWrite,
 }
 
 /// The address a request came from; see [`crate::accounts::client`].

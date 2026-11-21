@@ -350,7 +350,13 @@ impl Core {
 
     /// Forgets the account on this device. The flights in the logbook
     /// stay, and so do their copies on the server.
+    ///
+    /// The pilot's kept sites stay on the device too. What the device
+    /// noted of keeping them in step with the account is forgotten, so
+    /// that the next sign-in offers the account what the device then
+    /// holds ([`crate::KeptSitesSync`]).
     pub fn signed_out(&self) -> Result<(), CoreError> {
+        self.forget_kept_sync()?;
         self.storage.remove(FILE).map_err(storage_error)
     }
 
@@ -451,6 +457,23 @@ impl Core {
     /// The handle of the pilot this device is signed in as, if it is.
     pub(crate) fn my_handle(&self) -> Result<Option<String>, CoreError> {
         Ok(self.stored_account()?.map(|stored| stored.handle))
+    }
+
+    /// The server and the handle of the account this device is signed in
+    /// to, and whether its session still stands. `None` when signed out.
+    pub(crate) fn signed_in_to(&self) -> Result<Option<(String, String, bool)>, CoreError> {
+        Ok(self
+            .stored_account()?
+            .map(|stored| (stored.server, stored.handle, !stored.session_id.is_empty())))
+    }
+
+    /// Notes that the server no longer knows this device's session: the
+    /// pilot has to sign in again.
+    pub(crate) fn session_ended(&self) {
+        if let Ok(Some(mut stored)) = self.stored_account() {
+            stored.session_id.clear();
+            let _ = self.store_account(&stored);
+        }
     }
 
     /// The stored account, with the storage's own error: a caller that
@@ -571,8 +594,23 @@ enum Waiting {
     Storage,
 }
 
+/// What to say when the server answers that it is busy or that too much
+/// was asked of it, with its `Retry-After` if it sent one.
+pub(crate) fn asked_to_wait(retry_after_s: Option<u32>) -> String {
+    match retry_after_s {
+        Some(seconds) if seconds > 90 => format!(
+            "The server asks to wait {} minutes. What was done so far is kept.",
+            seconds.div_ceil(60)
+        ),
+        Some(seconds) => {
+            format!("The server asks to wait {seconds} seconds. What was done so far is kept.")
+        }
+        None => "The server is busy. Try again in a moment.".to_owned(),
+    }
+}
+
 /// Why a step did not come about.
-enum Halt {
+pub(crate) enum Halt {
     /// The storage has yet to fetch a file ([`io::ErrorKind::WouldBlock`]).
     /// The same call goes through once it has.
     Fetch(CoreError),
@@ -679,20 +717,7 @@ impl FlightSync {
             return Err(failed("This device is no longer signed in. Sign in again.", true).into());
         }
         if status == 429 || status == 503 {
-            return Err(failed(
-                &match retry_after_s {
-                    Some(seconds) if seconds > 90 => format!(
-                        "The server asks to wait {} minutes. What was done so far is kept.",
-                        seconds.div_ceil(60)
-                    ),
-                    Some(seconds) => format!(
-                        "The server asks to wait {seconds} seconds. What was done so far is kept."
-                    ),
-                    None => "The server is busy. Try again in a moment.".to_owned(),
-                },
-                false,
-            )
-            .into());
+            return Err(failed(&asked_to_wait(retry_after_s), false).into());
         }
 
         match waiting {
@@ -955,7 +980,7 @@ impl FlightSync {
 }
 
 /// A step for a shell whose storage never makes it wait: the phones'.
-fn settled(step: Result<SyncStep, Halt>) -> SyncStep {
+pub(crate) fn settled(step: Result<SyncStep, Halt>) -> SyncStep {
     match step {
         Ok(step) | Err(Halt::Over(step)) => step,
         Err(Halt::Fetch(error)) => failed(&error.to_string(), false),
@@ -963,14 +988,14 @@ fn settled(step: Result<SyncStep, Halt>) -> SyncStep {
 }
 
 /// A step for a host that fetches what the storage wants and calls again.
-fn fetched(step: Result<SyncStep, Halt>) -> Result<SyncStep, CoreError> {
+pub(crate) fn fetched(step: Result<SyncStep, Halt>) -> Result<SyncStep, CoreError> {
     match step {
         Ok(step) | Err(Halt::Over(step)) => Ok(step),
         Err(Halt::Fetch(error)) => Err(error),
     }
 }
 
-fn failed(message: &str, needs_sign_in: bool) -> SyncStep {
+pub(crate) fn failed(message: &str, needs_sign_in: bool) -> SyncStep {
     SyncStep::Failed {
         message: message.to_owned(),
         needs_sign_in,

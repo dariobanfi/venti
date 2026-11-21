@@ -47,6 +47,13 @@ pub enum Scope {
     /// Sending a report about what another pilot shares.
     #[serde(rename = "reports:write")]
     ReportsWrite,
+    /// Reading the sites the pilot keeps as their own: the list, and what
+    /// changed since.
+    #[serde(rename = "kept-sites:read")]
+    KeptSitesRead,
+    /// Keeping a site as the pilot's own, and forgetting one.
+    #[serde(rename = "kept-sites:write")]
+    KeptSitesWrite,
     /// A scope this version of the code does not know.
     #[serde(other)]
     Other,
@@ -54,7 +61,7 @@ pub enum Scope {
 
 impl Scope {
     /// Every scope there is, in the order the documents list them.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 10] = [
         Self::AccountRead,
         Self::FlightsRead,
         Self::FlightsWrite,
@@ -63,6 +70,8 @@ impl Scope {
         Self::GroupsRead,
         Self::GroupsWrite,
         Self::ReportsWrite,
+        Self::KeptSitesRead,
+        Self::KeptSitesWrite,
     ];
 
     /// The scope's name on the wire.
@@ -76,6 +85,8 @@ impl Scope {
             Self::GroupsRead => "groups:read",
             Self::GroupsWrite => "groups:write",
             Self::ReportsWrite => "reports:write",
+            Self::KeptSitesRead => "kept-sites:read",
+            Self::KeptSitesWrite => "kept-sites:write",
             Self::Other => "other",
         }
     }

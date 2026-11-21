@@ -18,6 +18,9 @@
 //! | [`ACCOUNT_TOKENS_PATH`] | POST | [`CreateAccessTokenRequest`] | [`CreateAccessTokenResponse`] |
 //! | [`ACCOUNT_TOKENS_PATH`] | GET | | [`AccessTokensResponse`] |
 //! | [`account_token_path`] | DELETE | | nothing |
+//! | [`KEPT_SITE_CHANGES_PATH`] | GET | [`KeptSiteChangesRequest`] | [`KeptSiteChangesResponse`] |
+//! | [`kept_site_path`] | PUT | [`KeepSiteRequest`] | [`KeptSiteResponse`] |
+//! | [`kept_site_path`] | DELETE | | nothing |
 //! | [`FLIGHTS_PATH`] | POST | the flight file | [`UploadResponse`] |
 //! | [`FLIGHTS_PATH`] | GET | [`FlightsRequest`] | [`FlightsResponse`] |
 //! | [`FLIGHT_CHANGES_PATH`] | GET | [`FlightChangesRequest`] | [`FlightChangesResponse`] |
@@ -74,6 +77,7 @@ mod flights;
 mod forecast;
 mod groups;
 mod health;
+mod kept_sites;
 mod live;
 mod maps;
 mod observations;
@@ -112,6 +116,11 @@ pub use groups::{
 pub use health::{
     ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, RadarHealth,
     RegistrationMode, SitesFromPilots, SourceHealth, ThermalMapHealth, ThermalMapModelHealth,
+};
+pub use kept_sites::{
+    KEPT_SITE_CHANGES_PATH, KEPT_SITES_PATH, KeepSiteRequest, KeptSite, KeptSiteChangesRequest,
+    KeptSiteChangesResponse, KeptSiteResponse, MAX_KEPT_CREDIT_LENGTH, MAX_KEPT_SITE_BODY_BYTES,
+    MAX_KEPT_SITES, kept_site_path,
 };
 pub use live::{
     LIVE_LISTED_MINUTES, LiveFix, LivePositionsRequest, LivePositionsResponse, LiveTrack,

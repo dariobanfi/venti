@@ -58,6 +58,7 @@ use venti_core::{
     ThermalMapShapes, ThermalStripDay, TodayOrder, TodayStanding, TodayTakeoffs, TrackPoint,
     WindMap, WindSpan, WindStation,
 };
+use venti_core::{TokenCreated, TokenForm, TokenScope, TokenView, TokenWithdrawal};
 use wasm_bindgen::prelude::*;
 
 /// What the browser has stored for the core, and what is to change in it.
@@ -544,7 +545,20 @@ impl Core {
     }
 
     // The pilot's own flying sites, kept in the browser, and the take-offs
-    // of Today, which begin with them. Nothing of it goes to the server.
+    // of Today, which begin with them. Signed out, nothing of it goes to
+    // the server; signed in, `keptSitesSync` keeps it in step with the
+    // account, where it is private.
+
+    /// Starts bringing the pilot's own sites in step with their account:
+    /// after signing in, after the pilot kept or forgot a site, and
+    /// whenever the logbook is brought in step.
+    #[wasm_bindgen(js_name = keptSitesSync)]
+    pub fn kept_sites_sync(&self) -> KeptSitesSync {
+        KeptSitesSync {
+            sync: Arc::clone(&self.session.core).kept_sites_sync(),
+            staged: Arc::clone(&self.session.staged),
+        }
+    }
 
     /// Marks a site as one of the pilot's own and keeps its record in the
     /// browser. `credits` are the credits of the answer the site came
@@ -870,6 +884,124 @@ impl FlightSync {
         let step = self.sync.receive_when_fetched(status, body, retry_after_s);
         to_js(&settle(&self.staged, step).map_err(thrown)?)
     }
+}
+
+/// One run of bringing the pilot's own sites in step with their account.
+///
+/// Its steps are the logbook's: the page sends each request the run hands
+/// out, with the session token, and passes the answer back, until the run
+/// says that it has finished or why it stopped. In the summary, `sent`
+/// and `fetched` count sites.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct KeptSitesSync {
+    sync: Arc<venti_core::KeptSitesSync>,
+    staged: Arc<StagedStorage>,
+}
+
+#[wasm_bindgen]
+impl KeptSitesSync {
+    /// Begins. `now_unix_s` is the current time: the note of when, for
+    /// the sites kept in this browser since the last run.
+    pub fn start(&self, now_unix_s: f64) -> Result<Ts<SyncStep>, JsValue> {
+        let step = self.sync.start_when_fetched(whole_seconds(now_unix_s));
+        to_js(&settle(&self.staged, step).map_err(thrown)?)
+    }
+
+    /// Takes the server's answer to the last request. `retry_after_s` is
+    /// the answer's `Retry-After` header in seconds, if it had one.
+    pub fn receive(
+        &self,
+        status: u16,
+        body: &[u8],
+        retry_after_s: Option<u32>,
+    ) -> Result<Ts<SyncStep>, JsValue> {
+        let step = self.sync.receive_when_fetched(status, body, retry_after_s);
+        to_js(&settle(&self.staged, step).map_err(thrown)?)
+    }
+}
+
+// The tokens a pilot gives to other programs, for a screen "Programs with
+// access" under the account. The core has the words, says what to send
+// and reads the answers; the page sends each request with the session
+// token. Nothing of it is kept, and a new token's secret least of all.
+
+/// The things a program can be allowed, each with a title and a line.
+#[wasm_bindgen(js_name = tokenScopes)]
+pub fn token_scopes() -> Result<Vec<Ts<TokenScope>>, JsValue> {
+    venti_core::token_scopes().iter().map(to_js).collect()
+}
+
+/// The words of the screen and of the form that makes a token.
+#[wasm_bindgen(js_name = tokenForm)]
+pub fn token_form() -> Result<Ts<TokenForm>, JsValue> {
+    to_js(&venti_core::token_form())
+}
+
+/// Checks the name a pilot gives a token before anything is sent, and
+/// returns it without the spaces around it.
+#[wasm_bindgen(js_name = tokenNameCheck)]
+pub fn token_name_check(name: String) -> Result<String, JsValue> {
+    venti_core::token_name_check(name).map_err(thrown)
+}
+
+/// The request that makes a token: its name, the names of the scopes
+/// chosen, the moment it ends if it has an end, and the password.
+#[wasm_bindgen(js_name = tokenCreateRequest)]
+pub fn token_create_request(
+    name: String,
+    scopes: Vec<String>,
+    ends_unix_s: Option<f64>,
+    password: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let ends_unix_s = ends_unix_s.map(whole_seconds);
+    to_js(&venti_core::token_create_request(name, scopes, ends_unix_s, password).map_err(thrown)?)
+}
+
+/// Reads the answer to `tokenCreateRequest`: the token, and its secret
+/// with the words for the one moment it is shown.
+#[wasm_bindgen(js_name = tokenCreated)]
+pub fn token_created(
+    status: u16,
+    body: Vec<u8>,
+    now_unix_s: f64,
+) -> Result<Ts<TokenCreated>, JsValue> {
+    to_js(&venti_core::token_created(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+/// The request for the account's tokens.
+#[wasm_bindgen(js_name = tokensRequest)]
+pub fn tokens_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::tokens_request())
+}
+
+/// Reads the answer to `tokensRequest`: the tokens, the newest first.
+#[wasm_bindgen]
+pub fn tokens(status: u16, body: Vec<u8>, now_unix_s: f64) -> Result<Vec<Ts<TokenView>>, JsValue> {
+    venti_core::tokens(status, body, whole_seconds(now_unix_s))
+        .map_err(thrown)?
+        .iter()
+        .map(to_js)
+        .collect()
+}
+
+/// The words that ask the pilot before a token is withdrawn.
+#[wasm_bindgen(js_name = tokenWithdrawal)]
+pub fn token_withdrawal(name: String) -> Result<Ts<TokenWithdrawal>, JsValue> {
+    to_js(&venti_core::token_withdrawal(name))
+}
+
+/// The request that withdraws a token, by the identifier the list gives.
+#[wasm_bindgen(js_name = tokenWithdrawRequest)]
+pub fn token_withdraw_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::token_withdraw_request(id).map_err(thrown)?)
+}
+
+/// Reads the answer to `tokenWithdrawRequest`. A token that was withdrawn
+/// already is withdrawn.
+#[wasm_bindgen(js_name = tokenWithdrawn)]
+pub fn token_withdrawn(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
+    venti_core::token_withdrawn(status, body).map_err(thrown)
 }
 
 /// What a sync did, in a line for the pilot: "3 sent, 1 fetched".

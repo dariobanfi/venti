@@ -1,6 +1,7 @@
 mod accounts;
 mod flights;
 mod groups;
+mod kept_sites;
 mod live;
 mod pilot_sites;
 mod reports;
@@ -27,6 +28,7 @@ use crate::{
     StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
     airspace, batch, forecast, site,
 };
+use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
 /// A store that lives in the process and forgets everything when it ends.
 ///
@@ -59,6 +61,7 @@ struct Inner {
     groups: groups::Groups,
     reports: reports::Reports,
     pilot_sites: pilot_sites::PilotSites,
+    kept_sites: kept_sites::KeptSites,
 }
 
 #[derive(Debug)]
@@ -529,6 +532,7 @@ impl Store for MemoryStore {
         inner.live.delete_account(account_id);
         inner.groups.delete_account(account_id);
         inner.reports.delete_account(account_id);
+        inner.kept_sites.delete_account(account_id);
         Ok(())
     }
 
@@ -628,6 +632,42 @@ impl Store for MemoryStore {
             .lock()
             .accounts
             .delete_access_token(account_id, token_id))
+    }
+
+    async fn keep_site(
+        &self,
+        account_id: &str,
+        new: &NewKeptSite,
+        now: Timestamp,
+        room: KeptRoom,
+    ) -> Result<KeepingSite, StoreError> {
+        let inner = &mut *self.lock();
+        if inner.accounts.flight_change(account_id).is_none() {
+            return Ok(KeepingSite::NoAccount);
+        }
+        Ok(inner.kept_sites.keep(account_id, new, now, room))
+    }
+
+    async fn forget_kept_site(
+        &self,
+        account_id: &str,
+        site_id: &str,
+        now: Timestamp,
+        room: KeptRoom,
+    ) -> Result<bool, StoreError> {
+        Ok(self
+            .lock()
+            .kept_sites
+            .forget(account_id, site_id, now, room))
+    }
+
+    async fn kept_site_changes(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> Result<KeptSiteChanges, StoreError> {
+        Ok(self.lock().kept_sites.changes(account_id, since, limit))
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

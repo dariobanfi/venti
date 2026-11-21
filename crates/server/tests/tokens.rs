@@ -9,9 +9,10 @@ use venti_api_types::v1::{
     ACCESS_TOKEN_PREFIX, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, AccessToken,
     AccessTokensResponse, AccountResponse, AddSiteRequest, CreateAccessTokenRequest,
     CreateAccessTokenResponse, ErrorCode, ErrorResponse, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
-    FlightsResponse, GROUP_JOIN_PATH, GROUPS_PATH, LIVE_POSITIONS_PATH, PLAN_BOARD_PATH, Password,
-    REPORTS_PATH, SESSIONS_PATH, SITES_PATH, Scope, SiteDraft, SiteHistoryResponse, SiteResponse,
-    SiteVia, UploadResponse, account_token_path, flight_file_path, flight_path, site_history_path,
+    FlightsResponse, GROUP_JOIN_PATH, GROUPS_PATH, KEPT_SITE_CHANGES_PATH, KEPT_SITES_PATH,
+    LIVE_POSITIONS_PATH, PLAN_BOARD_PATH, Password, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, Scope,
+    SiteDraft, SiteHistoryResponse, SiteResponse, SiteVia, UploadResponse, account_token_path,
+    flight_file_path, flight_path, site_history_path,
 };
 use venti_domain::{GeoPoint, SiteUse};
 use venti_server::clock::Clock;
@@ -83,9 +84,10 @@ fn scoped() -> Vec<(Method, String, Scope)> {
     let g = format!("{GROUPS_PATH}/{ID}");
     let site = format!("{SITES_PATH}/venti:{ID}");
     let flight = format!("{FLIGHTS_PATH}/{ID}");
+    let kept = format!("{KEPT_SITES_PATH}/venti:{ID}");
     use Scope::{
-        AccountRead, FlightsRead, FlightsWrite, GroupsRead, GroupsWrite, LiveWrite, ReportsWrite,
-        SitesWrite,
+        AccountRead, FlightsRead, FlightsWrite, GroupsRead, GroupsWrite, KeptSitesRead,
+        KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite,
     };
     vec![
         (Method::GET, ACCOUNT_PATH.to_owned(), AccountRead),
@@ -117,6 +119,13 @@ fn scoped() -> Vec<(Method, String, Scope)> {
         (Method::PUT, format!("{g}/plans/{ID}/in"), GroupsWrite),
         (Method::DELETE, format!("{g}/plans/{ID}/in"), GroupsWrite),
         (Method::POST, REPORTS_PATH.to_owned(), ReportsWrite),
+        (
+            Method::GET,
+            KEPT_SITE_CHANGES_PATH.to_owned(),
+            KeptSitesRead,
+        ),
+        (Method::PUT, kept.clone(), KeptSitesWrite),
+        (Method::DELETE, kept, KeptSitesWrite),
     ]
 }
 

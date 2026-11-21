@@ -13,10 +13,16 @@
 //! canonical one the server sent, so that what a later version of the app
 //! reads from a site, it reads from the kept ones too.
 //!
-//! **Nothing of this goes to the server.** Which sites a pilot keeps is the
-//! pilot's own, on this device. It does not follow the pilot to another
-//! device or browser; keeping it in step through the account is a later
-//! decision.
+//! **With an account, the list is on the account too.** Which sites a
+//! pilot keeps is the pilot's own and private. Signed out, it is on this
+//! device and nowhere else. Signed in, it is kept in step with the
+//! pilot's account, where nobody else reads it, and follows the pilot to
+//! their other devices; the files on the device are then the copy that
+//! works without a network. There is one way of keeping and forgetting,
+//! [`Core::keep_site`] and [`Core::forget_site`]: they change the device's
+//! copy and note what the account has yet to learn, and
+//! [`crate::KeptSitesSync`] carries it there and brings back what the
+//! other devices did.
 //!
 //! **How old a kept record is.** It is as its source had it when the app
 //! last saw the site in an answer, and carries that date. Today refreshes
@@ -58,30 +64,35 @@ const TODAY_KEPT: usize = 6;
 
 /// The kept sites of one source, as stored.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct KeptLayer {
+pub(crate) struct KeptLayer {
     /// The source.
-    source: SourceId,
+    pub(crate) source: SourceId,
     /// The source's credit, with what its licence asks to be shown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    attribution: Option<Attribution>,
+    pub(crate) attribution: Option<Attribution>,
     /// The sites, in the order the pilot kept them.
-    sites: Vec<KeptRecord>,
+    pub(crate) sites: Vec<KeptRecord>,
 }
 
 /// One kept site, as stored.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct KeptRecord {
+pub(crate) struct KeptRecord {
     /// The canonical record, as the server sent it.
-    site: Site,
+    pub(crate) site: Site,
     /// For a site that pilots made on Venti: who added it and who changed
     /// it last, as the server said when the record was last seen. A
     /// source's site has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    standing: Option<SiteStanding>,
+    pub(crate) standing: Option<SiteStanding>,
     /// The date the source's data was of when the record was last seen in
     /// an answer, seconds since 1970-01-01 UTC.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    as_of_unix_s: Option<i64>,
+    pub(crate) as_of_unix_s: Option<i64>,
+    /// When the pilot kept it, as the account noted it, seconds since
+    /// 1970-01-01 UTC. Absent for a site the account has not taken yet:
+    /// the core reads no clock, so the note is made when the site is sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) kept_at_unix_s: Option<i64>,
 }
 
 /// One of the pilot's own sites, for a list.
@@ -112,7 +123,11 @@ pub struct KeptSites {
     /// credit for each source that has a site in the list.
     pub credits: Vec<Credit>,
     /// What to say with the list: where it is kept, and what a kept
-    /// record is.
+    /// record is. Signed out: "Kept on this device only: sign in to have
+    /// it on your other devices. …"; signed in and in step: "Kept on your
+    /// Venti account and on this device. …"; signed in with something the
+    /// account has yet to learn: "Kept on this device, and on your Venti
+    /// account after the next sync. …".
     pub note: String,
 }
 
@@ -209,6 +224,9 @@ impl Core {
             message: "This site cannot be kept: its record is not one the app can read.".to_owned(),
         })?;
         let source = record.id.source().clone();
+        // Read before anything is written: what the account has yet to
+        // learn is noted with the change, or the change is not made.
+        let mut sync = self.kept_sync()?;
         let mut layer = self
             .kept_layer(&file_of(&source))?
             .unwrap_or_else(|| KeptLayer {
@@ -223,7 +241,9 @@ impl Core {
             site: record,
             standing: standing_of(&site),
             as_of_unix_s,
+            kept_at_unix_s: None,
         };
+        let id = kept.site.id.to_string();
         match layer
             .sites
             .iter_mut()
@@ -232,7 +252,12 @@ impl Core {
             Some(have) => *have = kept,
             None => layer.sites.push(kept),
         }
-        self.store_kept_layer(&layer)
+        self.store_kept_layer(&layer)?;
+        if let Some(sync) = &mut sync {
+            sync.kept_here(&id);
+            self.store_kept_sync(sync)?;
+        }
+        Ok(())
     }
 
     /// Unmarks a site: it is no longer one of the pilot's own. Forgetting
@@ -241,6 +266,7 @@ impl Core {
         let Ok(id) = id.parse::<SiteId>() else {
             return Ok(());
         };
+        let mut sync = self.kept_sync()?;
         let Some(mut layer) = self.kept_layer(&file_of(id.source()))? else {
             return Ok(());
         };
@@ -248,6 +274,10 @@ impl Core {
         layer.sites.retain(|kept| kept.site.id != id);
         if layer.sites.len() != before {
             self.store_kept_layer(&layer)?;
+            if let Some(sync) = &mut sync {
+                sync.forgotten_here(&id.to_string());
+                self.store_kept_sync(sync)?;
+            }
         }
         Ok(())
     }
@@ -263,7 +293,7 @@ impl Core {
             .is_some_and(|layer| layer.sites.iter().any(|kept| kept.site.id == id)))
     }
 
-    /// The pilot's own sites, from the device alone: no network is needed.
+    /// The pilot's own sites, from the device: no network is needed.
     /// With a place given they are listed nearest first, each with its
     /// distance and direction from there; without, by name.
     pub fn kept_sites(&self, from: Option<Coordinate>) -> Result<KeptSites, CoreError> {
@@ -290,9 +320,20 @@ impl Core {
                 .filter(|layer| !layer.sites.is_empty())
                 .filter_map(|layer| layer.attribution.as_ref().map(credit))
                 .collect(),
-            note: "Kept on this device only: not sent to Venti, and not on your other devices. \
-                   A kept site is as its source had it on the day shown with it."
-                .to_owned(),
+            note: format!(
+                "{} A kept site is as its source had it on the day shown with it.",
+                match self.kept_sync()? {
+                    None => {
+                        "Kept on this device only: sign in to have it on your other devices."
+                    }
+                    Some(sync) if sync.is_in_step() => {
+                        "Kept on your Venti account and on this device."
+                    }
+                    Some(_) => {
+                        "Kept on this device, and on your Venti account after the next sync."
+                    }
+                }
+            ),
         })
     }
 
@@ -420,7 +461,7 @@ impl Core {
     /// Every source's kept sites. A file that storage has yet to fetch is
     /// an error and not "nothing kept": the host fetches it and makes its
     /// call again.
-    fn kept_layers(&self) -> Result<Vec<KeptLayer>, CoreError> {
+    pub(crate) fn kept_layers(&self) -> Result<Vec<KeptLayer>, CoreError> {
         let mut names = self.storage.list(FOLDER).map_err(storage_error)?;
         names.sort();
         let mut layers = Vec::new();
@@ -449,7 +490,7 @@ impl Core {
     }
 
     /// Stores a source's kept sites; a source with none left has no file.
-    fn store_kept_layer(&self, layer: &KeptLayer) -> Result<(), CoreError> {
+    pub(crate) fn store_kept_layer(&self, layer: &KeptLayer) -> Result<(), CoreError> {
         let name = file_of(&layer.source);
         if layer.sites.is_empty() {
             return self.storage.remove(&name).map_err(storage_error);

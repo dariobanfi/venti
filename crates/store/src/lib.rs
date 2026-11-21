@@ -37,6 +37,7 @@ mod batch;
 mod flight;
 mod forecast;
 mod group;
+mod kept_site;
 mod live;
 mod memory;
 mod month;
@@ -69,6 +70,7 @@ pub use group::{
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
     PlanSaving, RemovedGroup,
 };
+pub use kept_site::{ForgottenSite, KeepingSite, KeptRoom, KeptSite, KeptSiteChanges, NewKeptSite};
 pub use live::{
     LiveBatch, LiveFix, LiveFixAt, LiveKept, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
     LiveVisibility,
@@ -498,7 +500,8 @@ pub trait Store: Send + Sync + 'static {
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// Removes an account and everything that belongs to it: its password,
-    /// its sessions, its flights and their files, the record of the
+    /// its sessions, the sites it keeps as its own, its flights and their
+    /// files, the record of the
     /// flights it deleted, its live tracks and the identifiers they used,
     /// the reports it made and the reports about it, with the words those
     /// kept of its plans and of groups it kept, and what it put into
@@ -649,6 +652,53 @@ pub trait Store: Send + Sync + 'static {
         account_id: &str,
         token_id: &str,
     ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    // --- The sites a pilot keeps as their own ------------------------------
+
+    /// Keeps a site for an account, and returns it as the account keeps
+    /// it now.
+    ///
+    /// A site the account does not keep is kept, from the moment `new`
+    /// names or from `now` if it names none, unless the account already
+    /// keeps `room.sites` others. A site the account keeps is replaced
+    /// only by one that was kept later; otherwise what the account has
+    /// stays, takes no change number, and is what is returned. A moment
+    /// after `now` counts as `now`. A site the account had forgotten is
+    /// kept again.
+    ///
+    /// The list is private to the account: nothing reads it for anybody
+    /// else, and [`Store::delete_account`] removes it.
+    fn keep_site(
+        &self,
+        account_id: &str,
+        new: &NewKeptSite,
+        now: Timestamp,
+        room: KeptRoom,
+    ) -> impl Future<Output = Result<KeepingSite, StoreError>> + Send;
+
+    /// Forgets a site an account keeps. Returns whether the account kept
+    /// it; forgetting what is not kept changes nothing.
+    ///
+    /// That the site was forgotten is remembered, for the account's other
+    /// devices, for the `room.forgotten` sites forgotten last; see
+    /// [`KeptSiteChanges::floor`].
+    fn forget_kept_site(
+        &self,
+        account_id: &str,
+        site_id: &str,
+        now: Timestamp,
+        room: KeptRoom,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// What changed among an account's kept sites after change number
+    /// `since`, oldest change first, at most `limit` changes. A site
+    /// appears once, as it is now. The answer is taken at one moment.
+    fn kept_site_changes(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> impl Future<Output = Result<KeptSiteChanges, StoreError>> + Send;
 
     // --- Flights ----------------------------------------------------------
 

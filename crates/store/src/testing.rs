@@ -23,6 +23,7 @@ use crate::{
     SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
     StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
 };
+use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
 /// A store whose database is down, or answers with a failure after a delay.
 /// Every call fails; nothing is ever stored.
@@ -286,6 +287,35 @@ impl Store for TroubledStore {
     }
 
     async fn delete_access_token(&self, _: &str, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn keep_site(
+        &self,
+        _: &str,
+        _: &NewKeptSite,
+        _: Timestamp,
+        _: KeptRoom,
+    ) -> Result<KeepingSite, StoreError> {
+        self.fail().await
+    }
+
+    async fn forget_kept_site(
+        &self,
+        _: &str,
+        _: &str,
+        _: Timestamp,
+        _: KeptRoom,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn kept_site_changes(
+        &self,
+        _: &str,
+        _: i64,
+        _: usize,
+    ) -> Result<KeptSiteChanges, StoreError> {
         self.fail().await
     }
 

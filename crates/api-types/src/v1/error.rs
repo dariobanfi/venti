@@ -119,6 +119,13 @@ pub enum ErrorCode {
     TooManyTokens,
     /// The account has no token with this identifier.
     TokenNotFound,
+    /// What a request says about a site to keep cannot be kept: a record
+    /// that is no site's, an identifier that is not the one in the path,
+    /// or a credit that is another source's or too long. The message
+    /// names the field.
+    InvalidKeptSite,
+    /// The account keeps as many sites as it may. Forget one first.
+    TooManyKeptSites,
     /// No flight has this address, or it is not the caller's to see.
     FlightNotFound,
     /// No pilot has this handle.

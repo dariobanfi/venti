@@ -5,6 +5,7 @@ mod airspace;
 mod flights;
 mod forecasts;
 mod groups;
+mod kept_sites;
 mod live;
 mod migrate;
 mod partitions;
@@ -36,6 +37,7 @@ use crate::{
     SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
     StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, batch,
 };
+use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
 /// Connections kept to the database. The API's queries take milliseconds,
 /// so a few connections serve many requests.
@@ -718,6 +720,35 @@ impl Store for PgStore {
         token_id: &str,
     ) -> Result<bool, StoreError> {
         accounts::delete_access_token(&self.client().await?, account_id, token_id).await
+    }
+
+    async fn keep_site(
+        &self,
+        account_id: &str,
+        new: &NewKeptSite,
+        now: Timestamp,
+        room: KeptRoom,
+    ) -> Result<KeepingSite, StoreError> {
+        kept_sites::keep(&mut self.client().await?, account_id, new, now, room).await
+    }
+
+    async fn forget_kept_site(
+        &self,
+        account_id: &str,
+        site_id: &str,
+        now: Timestamp,
+        room: KeptRoom,
+    ) -> Result<bool, StoreError> {
+        kept_sites::forget(&mut self.client().await?, account_id, site_id, now, room).await
+    }
+
+    async fn kept_site_changes(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> Result<KeptSiteChanges, StoreError> {
+        kept_sites::changes(&self.client().await?, account_id, since, limit).await
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

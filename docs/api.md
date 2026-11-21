@@ -7,7 +7,7 @@ The server answers a small JSON API that the phone and web apps use: for the liv
 Everything here is version 1. It has four parts:
 
 - **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals) and [the hours of its days](#get-v1thermalshoursdatelayerheight), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
-- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
+- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [the sites a pilot keeps as their own](#the-sites-a-pilot-keeps), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
 
@@ -168,6 +168,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_cursor`, `invalid_limit` | `after` or `since` is not a value the server gave out; `limit` is not a number from 1 to 100, or from 1 to 5000 for the fixes of a live track |
 | 400 | `invalid_live_track_id` | The identifier sent for a live track is not 26 characters of its alphabet |
 | 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
+| 400 | `invalid_kept_site` | What a request says about a [site to keep](#the-sites-a-pilot-keeps) cannot be kept: no site's record, another identifier than the path's, or a credit that is another source's or too long. `message` names the field |
 | 400 | `invalid_site`, `site_out_of_area` | What a request says about a [site](#sites-that-pilots-make) cannot be kept; the place is in no region this server serves |
 | 400 | `invalid_report` | A [report](#reports) gives a reason the server does not know, has a text of more than 1,000 characters, or gives the reason `other` and no text |
 | 400 | `invalid_token_name`, `invalid_scopes`, `invalid_expiry` | Making a [token for a program](#post-v1accounttokens): its name, its scopes or its end cannot be used |
@@ -200,6 +201,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
 | 409 | `site_too_close`, `site_changed` | A [site](#sites-that-pilots-make) would stand less than 20 m from another, which the error names in `error.site`; the site was changed since the revision the request names |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
+| 409 | `too_many_kept_sites` | The account keeps as many [sites as its own](#the-sites-a-pilot-keeps) as it may |
 | 409 | `too_many_tokens` | The account holds as many [tokens for programs](#tokens-for-other-programs) as it may |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
 | 410 | `site_gone` | The [site](#sites-that-pilots-make) was removed, or taken down. Its identifier is not used again |
@@ -2986,7 +2988,7 @@ Needs a token, and the password in the body: a token alone is not enough for thi
 }
 ```
 
-Deletes the account with everything that belongs to it: its sessions, its flights and their files, its live tracks with their positions, and what it put into [groups](#groups): the plans it posted and its "I am in" on the plans of others. It leaves every group it is in. A group it kept is kept by the member who has been in it longest, under the name it had; a group it was alone in is deleted. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
+Deletes the account with everything that belongs to it: its sessions, its tokens for programs, [the sites it keeps as its own](#the-sites-a-pilot-keeps), its flights and their files, its live tracks with their positions, and what it put into [groups](#groups): the plans it posted and its "I am in" on the plans of others. It leaves every group it is in. A group it kept is kept by the member who has been in it longest, under the name it had; a group it was alone in is deleted. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
 
 To take everything along first, list the flights (`GET /v1/flights`) and download each file (`GET /v1/flights/{id}/igc`).
 
@@ -3020,6 +3022,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `groups:read` | The pilot's groups, their members and their plans |
 | `groups:write` | Everything a pilot writes in groups: making, renaming and deleting a group, a new invite code, handing the keeping over, removing a member, joining and leaving, plans, and "I am in" |
 | `reports:write` | Sending a report |
+| `kept-sites:read` | [The sites the pilot keeps as their own](#the-sites-a-pilot-keeps): what changed among them since |
+| `kept-sites:write` | Keeping a site as the pilot's own, and forgetting one |
 
 **Which request needs which scope.** A session, which Venti's own apps get by signing in, may do all of it.
 
@@ -3055,6 +3059,9 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `PUT /v1/groups/{id}/plans/{plan}/in` | `groups:write` |
 | `DELETE /v1/groups/{id}/plans/{plan}/in` | `groups:write` |
 | `POST /v1/reports` | `reports:write` |
+| `GET /v1/account/kept-sites/changes` | `kept-sites:read` |
+| `PUT /v1/account/kept-sites/{id}` | `kept-sites:write` |
+| `DELETE /v1/account/kept-sites/{id}` | `kept-sites:write` |
 | `GET /v1/sessions` | the session only |
 | `DELETE /v1/sessions` | the session only |
 | `DELETE /v1/sessions/{id}` | the session only |
@@ -3175,6 +3182,244 @@ Needs a session's token. Every token the account holds, the newest first. This i
 Needs a session's token. Withdraws one token, by the `id` from the list. The answer is `204` with no body, and the token's very next request is answered `401`. A token the account does not have gives `404` with `token_not_found`.
 
 Changing the password and signing out everywhere are about sessions and leave the tokens as they are. Deleting the account withdraws them all.
+
+## The sites a pilot keeps
+
+A pilot marks flying sites as their own: the take-offs they fly from. Without an account the list is on the device alone. With one it is on the account too, so that a site kept on the phone is kept in the browser, and it is kept in step as [flights are](#get-v1flightschangessincelimit): a change number per account, "what changed since", and what was forgotten.
+
+- **It is private.** Every request here acts for the account of its token and reads or writes that account's list. Nothing else in the API hands a kept site to anybody: no pilot's page, no list, no connector. [Deleting the account](#delete-v1account) removes the list.
+- **A kept site is a copy, not a site of its own.** It is the site's canonical record as its pilot's device had it when it was kept, of whatever source ([OpenStreetMap's](#get-v1sitesbboxwestsoutheastnorth) or [the layer pilots make](#sites-that-pilots-make)), with that source's credit and the date of the source's data, so that the list can be shown without asking for the source's sites. The record stays its source's, under its source's licence: whoever shows a kept site shows its `attribution`. The server does not look the site up in its own sets, because a pilot keeps a site also when its source has since dropped it; it checks that the record is one a site may have and hands it back as it took it.
+- **Under the site's own identifier.** The address of a kept site is the site's identifier, written into the path as it is: `/v1/account/kept-sites/osm-free-flying:way/1080986173`.
+- **Bounds.** An account keeps at most 200 sites. A body has at most 16 kB, and each text of a credit at most 500 characters. Of the sites an account has forgotten the server remembers the 200 forgotten last.
+- **A token for a program** needs `kept-sites:read` to read and `kept-sites:write` to keep and forget ([tokens](#tokens-for-other-programs)).
+
+### `GET /v1/account/kept-sites/changes?since=&limit=`
+
+Needs a token. What happened to the account's kept sites since the device last asked.
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `since` | The `cursor` of the answer before | Everything |
+| `limit` | How many changes to return, 1 to 100 | 50 |
+
+```sh
+curl -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000' \
+  'http://127.0.0.1:8080/v1/account/kept-sites/changes'
+```
+
+The development mode's demo account keeps no site when it starts. After the request [below](#put-v1accountkept-sitesid), and after one more site was kept and forgotten again:
+
+```json
+{
+  "kept": [
+    {
+      "site": {
+        "id": "osm-free-flying:way/1080986173",
+        "name": "Fluggelände Jägerkamp/Nagelspitz",
+        "position": {
+          "lat": 47.6791413,
+          "lon": 11.9051032
+        },
+        "elevation_m": 1560.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "hang_gliding": true,
+        "official": true,
+        "url": "https://www.openstreetmap.org/way/1080986173",
+        "website": "https://www.dhv.de/",
+        "fee": "yes",
+        "outline": [
+          [
+            11.9055085,
+            47.6789575
+          ],
+          [
+            11.9055532,
+            47.6793075
+          ],
+          [
+            11.9048395,
+            47.6794382
+          ],
+          [
+            11.9046533,
+            47.6788445
+          ],
+          [
+            11.9055085,
+            47.6789575
+          ]
+        ]
+      },
+      "attribution": {
+        "source": "osm-free-flying",
+        "provider": "OpenStreetMap contributors",
+        "licence": "ODbL 1.0",
+        "text": "© OpenStreetMap contributors",
+        "url": "https://www.openstreetmap.org/copyright",
+        "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+      },
+      "as_of": "2026-11-18T19:05:00Z",
+      "kept_at": "2026-11-18T17:30:00Z"
+    }
+  ],
+  "forgotten": [
+    "osm-free-flying:node/5964676196"
+  ],
+  "cursor": "1795028700000002",
+  "more": false,
+  "reset": false
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kept` | Sites that were kept, or kept anew, each as it is now, oldest change first. A site appears once |
+| `kept[].site` | The site's canonical record, as in [a layer of sites](#get-v1sitesbboxwestsoutheastnorth) |
+| `kept[].standing` | For a site that pilots made: who added it and who changed it last, as the server said when it was kept. Left out for a source's site |
+| `kept[].attribution` | The credit of the record's source, as in every answer's `attributions`. Left out if the device sent none |
+| `kept[].as_of` | The moment the source's data was of when the record was last seen. Left out if the device sent none |
+| `kept[].kept_at` | When the pilot kept it |
+| `forgotten` | The identifiers of sites that are no longer kept |
+| `cursor` | Pass this as `since` next time. Keep it per account |
+| `more` | `true` when more changes are waiting: ask again at once with `cursor` |
+| `reset` | `true` when the server could not answer from the `since` it was given and started from the beginning. See below |
+
+How a device keeps in step: forget on the server what was forgotten on the device; ask for changes since its stored cursor until `more` is `false`, take each of `kept` and drop each of `forgotten`; then send what was kept on the device; store the cursor.
+
+`reset` is `true` when `since` lies beyond the account's last change (the server was restored from a backup, or the cursor is another account's), and when it lies before the oldest forgetting the server still remembers. The answer then holds everything the account keeps, from the beginning: a site the device holds as the account's and does not find in it is no longer kept. `since` that is no cursor gives `400` `invalid_cursor`.
+
+### `PUT /v1/account/kept-sites/{id}`
+
+Needs a token. Keeps a site as the account's own. The body is the site as the device has it:
+
+```json
+{
+  "site": {
+    "id": "osm-free-flying:way/1080986173",
+    "name": "Fluggelände Jägerkamp/Nagelspitz",
+    "position": {
+      "lat": 47.6791413,
+      "lon": 11.9051032
+    },
+    "elevation_m": 1560.0,
+    "uses": [
+      "takeoff"
+    ],
+    "paragliding": true,
+    "hang_gliding": true,
+    "official": true,
+    "url": "https://www.openstreetmap.org/way/1080986173",
+    "website": "https://www.dhv.de/",
+    "fee": "yes",
+    "outline": [
+      [
+        11.9055085,
+        47.6789575
+      ],
+      [
+        11.9055532,
+        47.6793075
+      ],
+      [
+        11.9048395,
+        47.6794382
+      ],
+      [
+        11.9046533,
+        47.6788445
+      ],
+      [
+        11.9055085,
+        47.6789575
+      ]
+    ]
+  },
+  "attribution": {
+    "source": "osm-free-flying",
+    "provider": "OpenStreetMap contributors",
+    "licence": "ODbL 1.0",
+    "text": "© OpenStreetMap contributors",
+    "url": "https://www.openstreetmap.org/copyright",
+    "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+  },
+  "as_of": "2026-11-18T19:05:00Z",
+  "kept_at": "2026-11-18T17:30:00Z"
+}
+```
+
+`site` is required and its `id` is the identifier in the path; `standing`, `attribution` (whose `source` is the site's source), `as_of` and `kept_at` may be left out. The answer is `200` with the site as the account keeps it now:
+
+```json
+{
+  "kept": {
+    "site": {
+      "id": "osm-free-flying:way/1080986173",
+      "name": "Fluggelände Jägerkamp/Nagelspitz",
+      "position": {
+        "lat": 47.6791413,
+        "lon": 11.9051032
+      },
+      "elevation_m": 1560.0,
+      "uses": [
+        "takeoff"
+      ],
+      "paragliding": true,
+      "hang_gliding": true,
+      "official": true,
+      "url": "https://www.openstreetmap.org/way/1080986173",
+      "website": "https://www.dhv.de/",
+      "fee": "yes",
+      "outline": [
+        [
+          11.9055085,
+          47.6789575
+        ],
+        [
+          11.9055532,
+          47.6793075
+        ],
+        [
+          11.9048395,
+          47.6794382
+        ],
+        [
+          11.9046533,
+          47.6788445
+        ],
+        [
+          11.9055085,
+          47.6789575
+        ]
+      ]
+    },
+    "attribution": {
+      "source": "osm-free-flying",
+      "provider": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "text": "© OpenStreetMap contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+    },
+    "as_of": "2026-11-18T19:05:00Z",
+    "kept_at": "2026-11-18T17:30:00Z"
+  }
+}
+```
+
+**Of two records of one site, the one kept later stays.** A site the account does not keep is kept, from `kept_at`, or from the moment the request arrives if it names none. A site the account keeps already is replaced only by a request whose `kept_at` is later than the account's; otherwise the account's record stays, nothing changes, and the answer is that record. So a device that signs in can send everything it holds: what it sends without `kept_at` fills in what the account lacks and replaces nothing. A `kept_at` in the future counts as now. A site the account had forgotten is kept again, whatever its `kept_at`: keeping wins over forgetting.
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `invalid_kept_site` | The path does not end in a site's identifier; `site.id` is another; the record holds what no site record may ([the checks of a site](#post-v1sites): lengths, heights, wind sectors, nothing that does not print); `standing.id` is another site's; `attribution.source` is not the site's source, or a text of the credit is longer than 500 characters or does not print |
+| 409 | `too_many_kept_sites` | The account keeps 200 sites already. Keeping one of them anew still works |
+| 413 | `payload_too_large` | The body is larger than 16 kB |
+
+### `DELETE /v1/account/kept-sites/{id}`
+
+Needs a token. Forgets a site. The answer is `204` with no body, also when the account did not keep the site: what was asked for holds either way. The account's other devices learn of it from `forgotten`.
 
 ## Flights
 

@@ -61,6 +61,33 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
         (_, Some("invalid_password")) => {
             "The server does not accept this password. It needs at least 15 characters.".to_owned()
         }
+        (_, Some("too_many_kept_sites")) => {
+            "Your Venti account keeps as many sites as it can. Forget one you no longer need; what was not sent stays on this device."
+                .to_owned()
+        }
+        (_, Some("invalid_kept_site")) => {
+            "The server does not take this site as one of your own. It stays on this device."
+                .to_owned()
+        }
+        (_, Some("too_many_tokens")) => {
+            "Your account has as many programs with access as it can. Withdraw one first."
+                .to_owned()
+        }
+        (_, Some("invalid_token_name")) => "The server does not accept this name.".to_owned(),
+        (_, Some("invalid_scopes")) => {
+            "The server does not know one of the things this program was to be allowed. The app may be older or newer than the server."
+                .to_owned()
+        }
+        (_, Some("invalid_expiry")) => {
+            "The end date has to be a day that is still to come.".to_owned()
+        }
+        (_, Some("token_not_found")) => {
+            "This program's access is no longer there: it was withdrawn already.".to_owned()
+        }
+        (_, Some("session_required")) => {
+            "Only you can do this, signed in with your password; a program with access cannot."
+                .to_owned()
+        }
         (_, Some("flight_not_found")) => "The server no longer has this flight.".to_owned(),
         (_, Some("group_not_found")) => {
             "This group is no longer there, or you are no longer in it.".to_owned()

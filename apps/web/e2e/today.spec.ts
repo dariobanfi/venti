@@ -223,7 +223,7 @@ test('a take-off the pilot keeps leads Today under its heading, is listed in the
 	await expect(own.getByRole('listitem')).toHaveCount(1);
 	await expect(own.getByRole('link', { name: new RegExp(NAME) })).toContainText('1560');
 	await expect(own).toContainText('As of Wed, 18 Nov 2026.');
-	await expect(page.getByText(/^Kept on this device only: not sent to Venti/)).toBeVisible();
+	await expect(page.getByText(/^Kept on this device only/)).toBeVisible();
 	await keep('134-settings-your-take-offs');
 
 	// Forgotten there, it no longer leads Today.

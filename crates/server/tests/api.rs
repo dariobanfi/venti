@@ -293,6 +293,9 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "token_created.json",
         "error_insufficient_scope.json",
         "site_too_close.json",
+        "kept_site_changes.json",
+        "kept_site_keep_request.json",
+        "kept_site.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(
@@ -354,6 +357,23 @@ fn the_documentation_shows_the_answers_as_they_are() {
         format!(
             "at most {} characters, kept with the revision",
             venti_api_types::v1::MAX_SITE_COMMENT_LENGTH
+        ),
+    ] {
+        assert!(docs.contains(&stated), "docs/api.md does not say: {stated}");
+    }
+    // The numbers that bound the sites a pilot keeps.
+    for stated in [
+        format!(
+            "An account keeps at most {} sites",
+            venti_api_types::v1::MAX_KEPT_SITES
+        ),
+        format!(
+            "A body has at most {} kB",
+            venti_api_types::v1::MAX_KEPT_SITE_BODY_BYTES / 1024
+        ),
+        format!(
+            "each text of a credit at most {} characters",
+            venti_api_types::v1::MAX_KEPT_CREDIT_LENGTH
         ),
     ] {
         assert!(docs.contains(&stated), "docs/api.md does not say: {stated}");

@@ -13,6 +13,7 @@ mod airspace;
 mod flights;
 mod forecasts;
 mod groups;
+mod kept_sites;
 mod live;
 mod moderation;
 mod pilot_sites;
@@ -23,6 +24,7 @@ pub(crate) use airspace::*;
 pub(crate) use flights::*;
 pub(crate) use forecasts::*;
 pub(crate) use groups::*;
+pub(crate) use kept_sites::*;
 pub(crate) use live::*;
 pub(crate) use moderation::*;
 pub(crate) use pilot_sites::*;
@@ -97,6 +99,10 @@ macro_rules! store_suite {
             sessions_are_listed_and_removed_per_account,
             no_session_has_an_identifier_that_cannot_be_one,
             a_token_for_a_program_is_good_until_its_end,
+            a_kept_site_is_read_back_and_the_newer_note_wins,
+            a_forgotten_site_is_told_to_the_other_devices,
+            an_account_keeps_so_many_sites_and_no_more,
+            kept_sites_are_an_accounts_own_and_go_with_it,
             tokens_for_programs_are_withdrawn_one_by_one,
             an_account_holds_only_so_many_tokens_for_programs,
             an_account_keeps_only_its_most_recent_sessions,

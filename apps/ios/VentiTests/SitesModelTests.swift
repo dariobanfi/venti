@@ -194,7 +194,7 @@ final class SitesModelTests: XCTestCase {
         await sites.load(tegernsee, from: server)
         var addresses = await asked.addresses
         XCTAssertFalse(try XCTUnwrap(addresses.last).absoluteString.contains("layers"))
-        XCTAssertFalse(sites.isFilterOn)
+        XCTAssertFalse(sites.filtered.isOn)
         XCTAssertEqual(sites.filtered.fromPilotsWords, "")
 
         // Switched on: asked anew with the layer, counted as a filter
@@ -207,8 +207,8 @@ final class SitesModelTests: XCTestCase {
         }
         addresses = await asked.addresses
         XCTAssertTrue(try XCTUnwrap(addresses.last).absoluteString.contains("venti-pilots"))
-        XCTAssertTrue(sites.isFilterOn)
-        XCTAssertFalse(sites.filtered.isOn)
+        XCTAssertTrue(sites.filtered.isOn)
+        XCTAssertTrue(sites.filtered.filterWords.hasSuffix("with places from pilots"), sites.filtered.filterWords)
         XCTAssertEqual(sites.filtered.fromPilots, 1)
         XCTAssertEqual(
             sites.filtered.fromPilotsWords,
@@ -235,6 +235,6 @@ final class SitesModelTests: XCTestCase {
         addresses = await asked.addresses
         XCTAssertFalse(try XCTUnwrap(addresses.last).absoluteString.contains("layers"))
         XCTAssertFalse(SitesChoice(keptIn: store).withPilots)
-        XCTAssertFalse(sites.isFilterOn)
+        XCTAssertFalse(sites.filtered.isOn)
     }
 }

@@ -79,10 +79,34 @@ struct SiteEditing {
         return try siteHistoryPage(status: status, body: body, before: before)
     }
 
-    /// Who says they took off at a site.
-    func confirmations(_ id: String) async throws -> SiteConfirmations {
-        let (status, body) = try await get(try siteConfirmationsPath(id: id))
-        return try siteConfirmations(status: status, body: body)
+    /// The whole of a site's history, the first revision first. The
+    /// core's pages run from the first revision on, and it names the
+    /// revision that undoes the last change, or brings a removed site
+    /// back, on the last of them: all pages are read, a site's history
+    /// being short, each with the last revision of the page before so
+    /// that the core says what its first one changed, and the answer is
+    /// the last page with the revisions of all.
+    func wholeHistory(_ id: String) async throws -> SiteHistory {
+        var page = try await history(id)
+        var revisions = page.revisions
+        var pages = 1
+        while let after = page.nextAfter, pages < Self.pagesAtMost {
+            page = try await history(id, after: after, before: revisions.last)
+            revisions += page.revisions
+            pages += 1
+        }
+        page.revisions = revisions
+        return page
+    }
+
+    /// How many pages of a history are read before the list stops.
+    private static let pagesAtMost = 20
+
+    /// Who says they took off at a site, as the core reads the list for
+    /// that site.
+    func confirmations(of site: SiteView) async throws -> SiteConfirmations {
+        let (status, body) = try await get(try siteConfirmationsPath(id: site.id))
+        return try siteConfirmationsOf(site: site, status: status, body: body)
     }
 
     /// Sends "I took off here and it was good", as the core made the

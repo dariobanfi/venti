@@ -242,7 +242,14 @@ final class AccountModelTests: XCTestCase {
         XCTAssertTrue(none.isEmpty)
         let signedOut = try XCTUnwrap(account.adding(takesSitesFromPilots: true))
         XCTAssertFalse(signedOut.mayAdd)
-        XCTAssertEqual(signedOut.whyNot, "Sign in to add a place pilots take off from.")
+        // The entry is the sentence about signing in, and leads there.
+        XCTAssertEqual(signedOut.entryWords, "Sign in to add a place pilots take off from.")
+        XCTAssertTrue(signedOut.leadsToSignIn)
+        // Where Venti takes none there is no entry, and a line says why.
+        let taken = try XCTUnwrap(account.adding(takesSitesFromPilots: false))
+        XCTAssertEqual(taken.entryWords, "")
+        XCTAssertFalse(taken.leadsToSignIn)
+        XCTAssertFalse(taken.whyNot.isEmpty)
         let closed = try XCTUnwrap(account.offers(for: site, takesSitesFromPilots: true, confirmations: nil))
         XCTAssertFalse(closed.correct.isOffered)
         XCTAssertFalse(closed.confirm.isOffered)

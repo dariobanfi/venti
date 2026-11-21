@@ -112,7 +112,7 @@ struct SiteList: View {
         NavigationStack {
             VentiList {
                 // The filter in a line while one is on: it opens the filter.
-                if sites.isFilterOn {
+                if sites.filtered.isOn {
                     Section {
                         Button {
                             showsFilter = true
@@ -131,7 +131,7 @@ struct SiteList: View {
                         .accessibilityIdentifier("site-row")
                     }
                 } header: {
-                    if sites.isFilterOn {
+                    if sites.filtered.isOn {
                         // What the filter leaves, and how many of those
                         // are places from pilots.
                         Text([filtered.words, filtered.fromPilotsWords].filter { !$0.isEmpty }.joined(separator: "\n"))
@@ -297,8 +297,6 @@ struct SiteScreen: View {
     /// The core's line about what was last done with the site: added,
     /// saved, removed.
     @State private var said: String?
-    /// Whether the site was removed from the map on this page.
-    @State private var isRemoved = false
     /// Who says they took off here, for a site of Venti's own: read when
     /// the page opens, and again after the pilot said so or took it back.
     @State private var confirmations: SiteConfirmations?
@@ -315,6 +313,12 @@ struct SiteScreen: View {
     /// The site the page shows.
     private var site: SiteView {
         written ?? given
+    }
+
+    /// Whether the page shows a removed site, as the core's view from its
+    /// history says: what is offered for it is the core's answer.
+    private var isRemoved: Bool {
+        site.byPilots?.isRemoved == true
     }
 
     @Environment(SitesModel.self) private var sites
@@ -385,7 +389,7 @@ struct SiteScreen: View {
             }
             // A site of Venti's own: how many pilots say they took off
             // here, and the way to say so, where the core offers it.
-            if let by = site.byPilots, let offers, !isRemoved {
+            if let by = site.byPilots, let offers {
                 SiteConfirmSection(
                     site: site, by: by, offers: offers, confirmations: confirmations,
                     onConfirmed: { answer in
@@ -519,7 +523,8 @@ struct SiteScreen: View {
                 }
             }
             if let words = site.description, !words.isEmpty {
-                Section("What its source says") {
+                // Headed by whose words they are, as the core says.
+                Section(site.descriptionTitle) {
                     Text(words)
                         .accessibilityIdentifier("site-description")
                 }
@@ -541,15 +546,17 @@ struct SiteScreen: View {
             // with it, and who added it and changed it last.
             if let by = site.byPilots, let offers {
                 SiteByPilotsSection(
-                    site: site, by: by, offers: offers, isRemoved: isRemoved,
+                    site: site, by: by, offers: offers,
                     onWritten: { answer in
                         written = answer.site
                         said = answer.words
-                        isRemoved = false
+                        Task {
+                            await readConfirmations()
+                        }
                     },
                     onRemoved: { words in
                         said = words
-                        isRemoved = true
+                        await readRemoved()
                     }
                 )
             }
@@ -624,7 +631,19 @@ struct SiteScreen: View {
     /// Who says they took off here: the core finds the pilot's own in it.
     private func readConfirmations() async {
         guard given.byPilots != nil else { return }
-        confirmations = try? await SiteEditing(account: account, wind: wind).confirmations(given.id)
+        confirmations = try? await SiteEditing(account: account, wind: wind).confirmations(of: site)
+    }
+
+    /// After the site was removed here: the page goes on with the site as
+    /// its history has it, which the core marks as removed, so that what
+    /// the page offers is the core's answer for a removed site (its
+    /// history, and the line that it is on no map).
+    private func readRemoved() async {
+        guard let history = try? await SiteEditing(account: account, wind: wind).wholeHistory(given.id),
+              let stood = history.revisions.last?.site
+        else { return }
+        confirmations = nil
+        written = stood
     }
 
     /// Keeps the site as one of the pilot's own, or forgets it. The core

@@ -196,6 +196,13 @@ final class AccountModel {
         )
     }
 
+    /// What may be offered in a site's history to whoever is signed in
+    /// here, as the core's one answer.
+    func historyOffers(_ history: SiteHistory, takesSitesFromPilots: Bool) -> SiteHistoryOffers? {
+        _ = account
+        return try? core.siteHistoryOffers(history: history, takesSitesFromPilots: takesSitesFromPilots)
+    }
+
     /// Whether a site may be added from here, into which tier, and the
     /// words of the entry and its form.
     func adding(takesSitesFromPilots: Bool) -> SiteAdding? {

@@ -79,13 +79,6 @@ final class SitesModel {
         filtered = filterSites(sites: [], filter: choice.filter(measuredFromDeg: nil))
     }
 
-    /// Whether the pilot asks anything of the sites: a filter is on, as
-    /// the core says, or the places from pilots are switched on, which is
-    /// a layer the server is asked for and no part of the core's filter.
-    var isFilterOn: Bool {
-        filtered.isOn || choice.withPilots
-    }
-
     /// The pilot asks something else of the sites.
     func choose(_ choice: SitesChoice) {
         guard choice != self.choice else { return }
@@ -173,11 +166,12 @@ final class SitesModel {
     private func load(_ area: Bounds, from server: URL, with transport: Transport) async {
         do {
             // The places from pilots are in an answer only when it was
-            // asked with them: the switch is the choice of path.
+            // asked with them: the core chooses the path by the filter.
             let withPilots = choice.withPilots
-            let path = withPilots
-                ? try sitesPathWithPilots(south: area.south, west: area.west, north: area.north, east: area.east)
-                : try sitesPath(south: area.south, west: area.west, north: area.north, east: area.east)
+            let path = try sitesPathFor(
+                filter: choice.filter(measuredFromDeg: measuredFromDeg),
+                south: area.south, west: area.west, north: area.north, east: area.east
+            )
             guard let url = URL(string: server.absoluteString + path) else { return }
             let (status, body) = try await transport(url)
             let map = try sitesMap(

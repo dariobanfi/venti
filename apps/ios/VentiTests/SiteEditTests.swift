@@ -162,8 +162,28 @@ final class SiteEditTests: XCTestCase {
         XCTAssertTrue(rebased.draft.windFromDeg.contains(180))
         XCTAssertEqual(rebased.kept, [.height, .wind])
         XCTAssertTrue(rebased.clashes.isEmpty)
+        XCTAssertTrue(rebased.clashesInWords.isEmpty)
         XCTAssertEqual(rebased.theirs.count, 1, "\(rebased.theirs)")
         XCTAssertTrue(rebased.words.hasPrefix("Someone else changed this site"), rebased.words)
+
+        // Had the pilot renamed it too: the field both changed comes with
+        // the core's sentence to show at it, and the pilot's entry is kept.
+        mine.name = "Musterkogel West (upper)"
+        let clashing = try siteDraftRebased(base: site, edited: mine, now: now)
+        XCTAssertEqual(clashing.clashes, [.name])
+        XCTAssertEqual(clashing.clashesInWords.map(\.field), [.name])
+        let sentence = try XCTUnwrap(clashing.clashesInWords.first?.words)
+        XCTAssertTrue(sentence.hasPrefix("Name: you entered"), sentence)
+        XCTAssertTrue(sentence.hasSuffix("Yours is kept."), sentence)
+        XCTAssertEqual(clashing.draft.name, "Musterkogel West (upper)")
+
+        // The form's words for correcting follow the site's tier.
+        let correcting = try siteCorrecting(site: site)
+        XCTAssertTrue(correcting.asPartner)
+        XCTAssertEqual(correcting.title, "Correct this site")
+        XCTAssertEqual(correcting.note, site.byPilots?.note)
+        XCTAssertFalse(correcting.giving.isEmpty)
+        XCTAssertFalse(correcting.sendWords.isEmpty)
     }
 
     /// The server's own example of who says they took off at a site.
@@ -171,7 +191,10 @@ final class SiteEditTests: XCTestCase {
 
     func testConfirmationsAreReadWithoutAnAccountAndSaidAndTakenBackWithOne() async throws {
         let id = "venti:0000000000000000000000s001"
-        let list = try await editing(answering: 200, Self.confirmations).confirmations(id)
+        let site = try sitePage(status: 200, body: Data(Self.written.utf8)).site
+        XCTAssertEqual(site.id, id)
+        let list = try await editing(answering: 200, Self.confirmations).confirmations(of: site)
+        XCTAssertEqual(list.notWholeWords, "")
         XCTAssertEqual(list.pilots, 2)
         XCTAssertEqual(list.words, "2 pilots took off here, last on 16 November 2026")
         XCTAssertEqual(list.lines.count, 2)

@@ -3194,6 +3194,10 @@ extension VentiUITests {
         XCTAssertTrue(said.waitForExistence(timeout: 30))
         XCTAssertTrue(said.label.contains("Added"), said.label)
         XCTAssertEqual(element("site-tier", in: app).label, "From pilots")
+        // Nobody has said yet that they took off here: the core's line.
+        let nobody = element("site-confirmations-none", in: app)
+        XCTAssertTrue(nobody.waitForExistence(timeout: 20))
+        XCTAssertTrue(nobody.label.hasPrefix("No pilot has said yet"), nobody.label)
         sleep(2)
         keepScreenshot("site-edit-5-new-site-page")
         app.buttons["Done"].firstMatch.tap()
@@ -3262,6 +3266,23 @@ extension VentiUITests {
         let removed = bring("site-said", into: app, down: true)
         XCTAssertTrue(removed.label.contains("Removed"), removed.label)
         keepScreenshot("site-edit-10-removed")
+        // What the page offers now is the core's answer for a removed
+        // site: its history, and the line that it is on no map.
+        let gone = bring("site-offers-note", into: app)
+        XCTAssertTrue(gone.label.hasPrefix("This site was removed"), gone.label)
+        XCTAssertFalse(element("site-correct", in: app).exists)
+        XCTAssertFalse(element("site-remove", in: app).exists)
+        XCTAssertFalse(element("site-confirm", in: app).exists)
+        keepScreenshot("site-edit-10b-removed-offers")
+        element("site-history", in: app).tap()
+        let bringBack = element("site-bring-back", in: app)
+        XCTAssertTrue(bringBack.waitForExistence(timeout: 20))
+        XCTAssertEqual(bringBack.label, "Bring this site back")
+        XCTAssertFalse(element("site-undo", in: app).exists)
+        sleep(1)
+        keepScreenshot("site-edit-10c-removed-history")
+        app.navigationBars["History"].buttons.firstMatch.tap()
+        sleep(1)
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["Done"].firstMatch.tap()
         sleep(2)
@@ -3495,6 +3516,136 @@ extension VentiUITests {
         let why = bring("site-offers-note", into: app)
         XCTAssertTrue(why.label.hasPrefix("Sign in to correct this site"), why.label)
         keepScreenshot("site-tiers-dark-3-page-offers")
+
+        // Signed out, the core's entry for adding is its sentence about
+        // signing in, and it opens the account.
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["Done"].firstMatch.tap()
+        sleep(2)
+        element("overview-map", in: app)
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: -140, dy: -230))
+            .press(forDuration: 1.2)
+        let entry = element("add-site-sign-in", in: app)
+        XCTAssertTrue(entry.waitForExistence(timeout: 20))
+        XCTAssertEqual(entry.label, "Sign in to add a place pilots take off from.")
+        XCTAssertFalse(element("add-site-here", in: app).exists)
+        sleep(2)
+        keepScreenshot("site-tiers-dark-4-entry-signed-out")
+        entry.tap()
+        XCTAssertTrue(app.textFields["Handle"].waitForExistence(timeout: 15))
+        keepScreenshot("site-tiers-dark-5-entry-opens-the-account")
+    }
+
+    /// The two tiers' screens on the narrowest iPhone at a larger text
+    /// size (the step above the largest of the standard sizes, about
+    /// 135 %), light and dark: the filter's sheet with the switch, a place
+    /// from pilots' page with the entry to confirm, the sheet to confirm
+    /// in, the pilots who took off there, and the form for a new place.
+    /// It keeps the screenshots; what it asserts is that each screen's
+    /// parts are reached. Run it on the iPhone 17e
+    /// (`ui-tests.sh -n 1 --first "iPhone 17e"`).
+    func testThePlacesFromPilotsFitWithLargerText() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        leaveTheSitesFilterAskingNothing()
+        let account = try await makeAccount(on: server)
+        for (dark, name) in [(false, "light"), (true, "dark")] {
+            let app = launch(
+                bundledMap: true, dark: dark,
+                extra: [
+                    "--server", server, "--map-at", Self.lechtal, "--all-sites",
+                    "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL",
+                ]
+            )
+            XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+            signIn(account, in: app)
+            setLayer("layer-sites", on: true, in: app)
+
+            // The filter's sheet, the switch at its foot off and on.
+            let layer = openThePilotsSwitch(in: app)
+            sleep(1)
+            keepScreenshot("site-tiers-larger-text-\(name)-1-filter-switch-off")
+            set(layer, on: true)
+            sleep(2)
+            keepScreenshot("site-tiers-larger-text-\(name)-2-filter-switch-on")
+            // Back to the sheet's head. A swipe down at its head puts the
+            // sheet away, which is as good as "Done".
+            for _ in 0..<2 where app.buttons["Done"].firstMatch.exists {
+                app.swipeDown()
+                usleep(500_000)
+            }
+            keepScreenshot("site-tiers-larger-text-\(name)-2b-filter-top")
+            let done = app.buttons["Done"].firstMatch
+            if done.waitForExistence(timeout: 3) {
+                done.tap()
+            }
+            XCTAssertTrue(element("sites-filter-line", in: app).waitForExistence(timeout: 20))
+            sleep(3)
+            keepScreenshot("site-tiers-larger-text-\(name)-3-line-over-the-map")
+
+            // The list and a place from pilots' page.
+            app.buttons["Flying sites"].tap()
+            let row = labelled(containing: "Beispieljoch", in: app)
+            XCTAssertTrue(row.waitForExistence(timeout: 30))
+            sleep(1)
+            keepScreenshot("site-tiers-larger-text-\(name)-4-list")
+            row.tap()
+            XCTAssertTrue(element("site-tier", in: app).waitForExistence(timeout: 20))
+            let count = element("site-confirmations", in: app)
+            XCTAssertTrue(count.waitForExistence(timeout: 20))
+            sleep(1)
+            keepScreenshot("site-tiers-larger-text-\(name)-5-page-head")
+            let confirm = bring("site-confirm", into: app)
+            sleep(1)
+            keepScreenshot("site-tiers-larger-text-\(name)-6-page-confirm-entry")
+
+            // The sheet to confirm in.
+            confirm.tap()
+            XCTAssertTrue(element("site-confirm-day", in: app).waitForExistence(timeout: 15))
+            sleep(1)
+            keepScreenshot("site-tiers-larger-text-\(name)-7-confirm-sheet")
+            _ = bring("site-confirm-send", into: app)
+            keepScreenshot("site-tiers-larger-text-\(name)-7b-confirm-sheet-foot")
+            app.buttons["Cancel"].firstMatch.tap()
+            sleep(1)
+
+            // The pilots who took off here.
+            bring("site-confirmations", into: app, down: true).tap()
+            XCTAssertTrue(element("site-confirmation", in: app).waitForExistence(timeout: 20))
+            sleep(1)
+            keepScreenshot("site-tiers-larger-text-\(name)-8-pilots-who-took-off-here")
+            app.navigationBars.buttons.firstMatch.tap()
+
+            // The notice and what the core offers, at the page's foot.
+            _ = bring("site-tier-note", into: app)
+            keepScreenshot("site-tiers-larger-text-\(name)-9-page-notice")
+            _ = bring("site-history", into: app)
+            keepScreenshot("site-tiers-larger-text-\(name)-10-page-offers")
+            app.navigationBars.buttons.firstMatch.tap()
+            app.buttons["Done"].firstMatch.tap()
+            sleep(2)
+
+            // The form for a new place, empty, with its faults, and its foot.
+            let entry = pressTheMap(dx: -140, dy: -230, in: app)
+            sleep(2)
+            keepScreenshot("site-tiers-larger-text-\(name)-11-entry-on-the-map")
+            entry.tap()
+            XCTAssertTrue(element("site-name", in: app).waitForExistence(timeout: 15))
+            sleep(1)
+            keepScreenshot("site-tiers-larger-text-\(name)-12-form")
+            bring("site-send", into: app).tap()
+            XCTAssertTrue(element("site-fault", in: app).waitForExistence(timeout: 10))
+            sleep(1)
+            keepScreenshot("site-tiers-larger-text-\(name)-13-form-faults")
+            for step in 1...4 {
+                app.swipeUp()
+                usleep(700_000)
+                keepScreenshot("site-tiers-larger-text-\(name)-14-form-further-\(step)")
+            }
+            app.terminate()
+        }
     }
 }
 

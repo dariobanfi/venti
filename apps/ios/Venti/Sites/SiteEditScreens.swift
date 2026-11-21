@@ -6,9 +6,9 @@ import VentiCore
 /// The form for a flying site of Venti's own two tiers: a new one, or one
 /// to correct. What it asks, in which order, under which titles, what is
 /// wrong with an entry and what giving a site means are the core's
-/// (`siteForm`, `siteDraftCheck`, and for a new site `SiteAdding`, which
-/// has the tier's title, sentence, notice and button); the form shows them
-/// and edits a draft.
+/// (`siteForm`, `siteDraftCheck`, and the tier's title, sentence, notice
+/// and button: `SiteAdding` for a new site, `SiteCorrecting` for a
+/// correction); the form shows them and edits a draft.
 struct SiteEditForm: View {
     /// Called with the server's answer once the site is written, before
     /// the form closes.
@@ -19,9 +19,10 @@ struct SiteEditForm: View {
     @Environment(SitesModel.self) private var sites
     @Environment(\.dismiss) private var dismiss
 
-    /// The words of a new site's form, for the tier it goes to. Absent for
-    /// a correction.
-    private let adding: SiteAdding?
+    /// The form's title, what giving means, the tier's notice and the
+    /// button, as the core says them for the tier the site goes to or is
+    /// of.
+    private let says: Says
     /// The site the draft was made from, or as it stood when it was last
     /// looked at: what the core tells the pilot's entries from. Absent for
     /// a new site.
@@ -47,40 +48,46 @@ struct SiteEditForm: View {
     private let form = siteForm()
     private let words = siteWords()
 
+    /// What the form says for a tier: the core's words, of `SiteAdding`
+    /// or of `SiteCorrecting`.
+    private struct Says {
+        let title: String
+        let giving: String
+        let note: String
+        let send: String
+    }
+
     /// A new site at a place, with the words of the tier it goes to.
     init(adding: SiteAdding, at place: Coordinate, onWritten: @escaping (SiteWritten) -> Void) {
-        self.init(draft: siteDraftNew(place: place), of: nil, adding: adding, onWritten: onWritten)
+        self.init(
+            draft: siteDraftNew(place: place), of: nil,
+            says: Says(title: adding.title, giving: adding.giving, note: adding.note, send: adding.sendWords),
+            onWritten: onWritten
+        )
     }
 
-    /// A correction of a site, on the draft the core made of it.
-    init(draft: SiteDraftView, of site: SiteView, onWritten: @escaping (SiteWritten) -> Void) {
-        self.init(draft: draft, of: site, adding: nil, onWritten: onWritten)
-    }
-
-    private init(
-        draft: SiteDraftView, of site: SiteView?, adding: SiteAdding?, onWritten: @escaping (SiteWritten) -> Void
+    /// A correction of a site, on the draft the core made of it, with
+    /// the words the core has for correcting a site of its tier.
+    init(
+        draft: SiteDraftView, of site: SiteView, correcting: SiteCorrecting,
+        onWritten: @escaping (SiteWritten) -> Void
     ) {
-        self.adding = adding
+        self.init(
+            draft: draft, of: site,
+            says: Says(
+                title: correcting.title, giving: correcting.giving, note: correcting.note,
+                send: correcting.sendWords
+            ),
+            onWritten: onWritten
+        )
+    }
+
+    private init(draft: SiteDraftView, of site: SiteView?, says: Says, onWritten: @escaping (SiteWritten) -> Void) {
+        self.says = says
         self.onWritten = onWritten
         _base = State(initialValue: site)
         _draft = State(initialValue: draft)
         _height = State(initialValue: draft.heightText)
-    }
-
-    /// The form's title: the tier's for a new site.
-    private var title: String {
-        adding?.title ?? form.titleCorrect
-    }
-
-    /// What giving means: the tier's sentence, for a new site as the core
-    /// hands it, and for a correction the sentence of the site's tier.
-    private var giving: String {
-        adding?.giving ?? (base?.byPilots?.fromPilots == false ? form.givingAsPartner : form.giving)
-    }
-
-    /// The tier's notice: for a correction, the site's own.
-    private var notice: String {
-        adding?.note ?? base?.byPilots?.note ?? ""
     }
 
     var body: some View {
@@ -147,7 +154,7 @@ struct SiteEditForm: View {
                         }
                         // What giving a site means, with the licence, over
                         // the button that gives it.
-                        Text(giving)
+                        Text(says.giving)
                             .font(.venti(.footnote))
                             .foregroundStyle(.venti(.textSecondary))
                             .accessibilityIdentifier("site-giving")
@@ -162,7 +169,7 @@ struct SiteEditForm: View {
                         Button {
                             send(scrolling: list)
                         } label: {
-                            Text(adding?.sendWords ?? form.sendCorrection)
+                            Text(says.send)
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.venti(.primary))
@@ -170,13 +177,13 @@ struct SiteEditForm: View {
                         .listRowSeparator(.hidden)
                         .accessibilityIdentifier("site-send")
                     } footer: {
-                        Text(notice)
+                        Text(says.note)
                             .accessibilityIdentifier("site-form-notice")
                     }
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(title)
+            .navigationTitle(says.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -262,14 +269,20 @@ struct SiteEditForm: View {
         }
     }
 
-    /// What stands under a field: its faults, the core's line of help, and
-    /// how far a text is over what the field takes.
+    /// What stands under a field: its faults, the core's sentence where
+    /// the pilot and someone else both changed it, the core's line of
+    /// help, and how far a text is over what the field takes.
     private func under(_ field: SiteFormField, faults: [SiteDraftFault]) -> some View {
         VStack(alignment: .leading, spacing: VentiSpace.s1) {
             ForEach(faults.filter { $0.field == field.field }, id: \.words) { fault in
                 Text(fault.words)
                     .foregroundStyle(.venti(.danger))
                     .accessibilityIdentifier("site-fault")
+            }
+            ForEach((rebased?.clashesInWords ?? []).filter { $0.field == field.field }, id: \.words) { clash in
+                Text(clash.words)
+                    .foregroundStyle(.venti(.danger))
+                    .accessibilityIdentifier("site-clash-words")
             }
             if !field.help.isEmpty {
                 Text(field.help)
@@ -361,6 +374,20 @@ struct SiteEditForm: View {
                 problem = SiteEditing.words(for: error)
             }
         }
+    }
+}
+
+private extension View {
+    /// For the words of a button that are a sentence of the core's and
+    /// not a verb ("I took off here and it was good", "Add a place pilots
+    /// take off from"): the pack's button holds one line, and on a narrow
+    /// iPhone with larger text that cut the sentence short. Here it goes
+    /// on to a second and third line, with the pack's space above and
+    /// below, which changes nothing while one line holds it.
+    func sentenceInAButton() -> some View {
+        lineLimit(3)
+            .multilineTextAlignment(.center)
+            .padding(.vertical, VentiSpace.s2)
     }
 }
 
@@ -527,12 +554,16 @@ struct SiteConfirmSection: View {
         // The count as the list has it, and until it is read as the site
         // itself says it.
         let count = confirmations?.words ?? by.confirmedInWords
+        // Empty where nobody takes off, as the core reads the list for
+        // this site.
         let nobody = confirmations?.nobodyWords ?? ""
-        if !count.isEmpty || offers.confirm.isOffered {
+        // No section without a row in it.
+        let rows = [count, nobody, offers.confirmedWords, offers.confirm.words, offers.withdraw.words, problem ?? ""]
+        if rows.contains(where: { !$0.isEmpty }) {
             Section {
                 if !count.isEmpty {
                     NavigationLink {
-                        SiteConfirmationsScreen(id: site.id, read: confirmations)
+                        SiteConfirmationsScreen(site: site, read: confirmations)
                     } label: {
                         Text(count)
                     }
@@ -551,6 +582,7 @@ struct SiteConfirmSection: View {
                         isConfirming = true
                     } label: {
                         Text(offers.confirm.words)
+                            .sentenceInAButton()
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.venti(offers.hasConfirmed ? .quiet : .primary))
@@ -769,7 +801,8 @@ struct SiteConfirmSheet: View {
 /// "Pilots who took off here": the count, and each pilot's confirmation
 /// in the core's line, the newest day first.
 struct SiteConfirmationsScreen: View {
-    let id: String
+    /// The site: the core reads the list for it.
+    let site: SiteView
 
     @Environment(AccountModel.self) private var account
     @Environment(WindModel.self) private var wind
@@ -781,8 +814,8 @@ struct SiteConfirmationsScreen: View {
 
     /// - Parameter read: the list as the site's page has it, shown until
     ///   it is read anew.
-    init(id: String, read: SiteConfirmations?) {
-        self.id = id
+    init(site: SiteView, read: SiteConfirmations?) {
+        self.site = site
         _list = State(initialValue: read)
     }
 
@@ -804,11 +837,18 @@ struct SiteConfirmationsScreen: View {
                             .textCase(nil)
                             .accessibilityIdentifier("site-confirmations-words")
                     }
+                } footer: {
+                    // Where more pilots confirmed than the list holds.
+                    if !list.notWholeWords.isEmpty {
+                        Text(list.notWholeWords)
+                            .accessibilityIdentifier("site-confirmations-not-whole")
+                    }
                 }
             } else if let problem {
                 Section {
                     Text(problem)
                         .foregroundStyle(.venti(.danger))
+                        .accessibilityIdentifier("site-confirmations-problem")
                     Button("Try again") {
                         Task {
                             await load()
@@ -831,7 +871,7 @@ struct SiteConfirmationsScreen: View {
 
     private func load() async {
         do {
-            list = try await SiteEditing(account: account, wind: wind).confirmations(id)
+            list = try await SiteEditing(account: account, wind: wind).confirmations(of: site)
             problem = nil
         } catch {
             if list == nil {
@@ -849,12 +889,11 @@ struct SiteByPilotsSection: View {
     let site: SiteView
     let by: SiteByPilots
     let offers: SiteOffers
-    /// Whether the site was removed from the map on this page.
-    let isRemoved: Bool
     /// Called when the site was written anew: corrected, or put back.
     let onWritten: (SiteWritten) -> Void
-    /// Called with the core's line when the site was removed.
-    let onRemoved: (String) -> Void
+    /// Called with the core's line when the site was removed; the entries
+    /// wait until it is through.
+    let onRemoved: (String) async -> Void
 
     @Environment(AccountModel.self) private var account
     @Environment(WindModel.self) private var wind
@@ -871,13 +910,14 @@ struct SiteByPilotsSection: View {
 
     var body: some View {
         Section {
-            if !isRemoved, offers.correct.isOffered {
+            if offers.correct.isOffered {
                 Button(offers.correct.words, systemImage: "pencil") {
                     correct()
                 }
+                .disabled(isWorking)
                 .accessibilityIdentifier("site-correct")
             }
-            if !isRemoved, offers.remove.isOffered {
+            if offers.remove.isOffered {
                 Button(offers.remove.words, systemImage: "trash", role: .destructive) {
                     why = ""
                     isAskingRemoval = true
@@ -887,7 +927,7 @@ struct SiteByPilotsSection: View {
             }
             if offers.history.isOffered {
                 NavigationLink {
-                    SiteHistoryScreen(site: site, onWritten: onWritten)
+                    SiteHistoryScreen(id: site.id, onWritten: onWritten)
                 } label: {
                     Label(offers.history.words, systemImage: "clock.arrow.circlepath")
                 }
@@ -895,7 +935,10 @@ struct SiteByPilotsSection: View {
                 // On one row, not on the section: a section hands what
                 // hangs on it to every row.
                 .sheet(item: $correcting) { correcting in
-                    SiteEditForm(draft: correcting.draft, of: correcting.site, onWritten: onWritten)
+                    SiteEditForm(
+                        draft: correcting.draft, of: correcting.site, correcting: correcting.says,
+                        onWritten: onWritten
+                    )
                 }
                 .sheet(item: $reporting) { reported in
                     ReportSheet(reported: reported)
@@ -910,14 +953,15 @@ struct SiteByPilotsSection: View {
                     Text(words.removeAbout)
                 }
             }
-            if !isRemoved, offers.report.isOffered {
+            if offers.report.isOffered {
                 Button(offers.report.words, systemImage: "exclamationmark.bubble") {
                     reporting = .site(site.id)
                 }
                 .accessibilityIdentifier("site-report")
             }
-            // Why something a pilot might look for is not here.
-            if !isRemoved, !offers.note.isEmpty {
+            // Why something a pilot might look for is not here; of a
+            // removed site, that it was removed.
+            if !offers.note.isEmpty {
                 Text(offers.note)
                     .foregroundStyle(.venti(.textSecondary))
                     .accessibilityIdentifier("site-offers-note")
@@ -933,11 +977,14 @@ struct SiteByPilotsSection: View {
         }
     }
 
-    /// The form on the site as the page has it; the core refuses a site
-    /// that is not of Venti's own, in its words.
+    /// The form on the site as the page has it, with the core's words for
+    /// correcting a site of its tier; the core refuses a site that is not
+    /// of Venti's own, in its words.
     private func correct() {
         do {
-            correcting = DraftToCorrect(draft: try siteDraftOf(site: site), site: site)
+            correcting = DraftToCorrect(
+                draft: try siteDraftOf(site: site), site: site, says: try siteCorrecting(site: site)
+            )
             problem = nil
         } catch {
             problem = error.words
@@ -954,7 +1001,7 @@ struct SiteByPilotsSection: View {
             do {
                 let words = try await editing.remove(site.id, comment: why)
                 await sites.refresh()
-                onRemoved(words)
+                await onRemoved(words)
             } catch {
                 problem = SiteEditing.words(for: error)
             }
@@ -962,10 +1009,12 @@ struct SiteByPilotsSection: View {
     }
 }
 
-/// A draft to open the form on, with the site it was made from.
+/// A draft to open the form on, with the site it was made from and what
+/// the core says on the form of a site of its tier.
 private struct DraftToCorrect: Identifiable {
     let draft: SiteDraftView
     let site: SiteView
+    let says: SiteCorrecting
     var id: String { "\(draft.siteId ?? "") \(draft.revision ?? 0)" }
 }
 
@@ -985,11 +1034,13 @@ private struct WhyField: View {
 
 /// A site's history: its revisions, newest first, each in the core's line
 /// with what it changed under it; the way to undo the last change, to put
-/// an earlier revision back, and to bring a removed site back, each under
-/// the core's words.
+/// an earlier revision back, to bring a removed site back and to report a
+/// revision, each where the core offers it (`siteHistoryOffers`) and under
+/// the core's words, with the core's line about what is not offered. It
+/// needs the site's identifier and nothing else.
 struct SiteHistoryScreen: View {
-    /// The site as its page has it.
-    let site: SiteView
+    /// The site's identifier.
+    let id: String
     /// Called when a revision was put back.
     let onWritten: (SiteWritten) -> Void
 
@@ -1006,23 +1057,8 @@ struct SiteHistoryScreen: View {
     @State private var why = ""
     @State private var isWorking = false
     @State private var reporting: Reported?
-    /// A revision's site as it stood, opened.
-    @State private var stood: SiteView?
 
     private let words = siteWords()
-
-    private var id: String { site.id }
-
-    /// What the core offers this pilot for the site. It has no entry of
-    /// its own for putting a revision back: that is offered where
-    /// correcting the site is, being a way of writing it.
-    private var offers: SiteOffers? {
-        account.offers(for: site, takesSitesFromPilots: wind.takesSitesFromPilots, confirmations: nil)
-    }
-
-    private var canWrite: Bool {
-        offers?.correct.isOffered ?? false
-    }
 
     /// A revision to put back, and whether that brings a removed site
     /// back: the question and the button say which.
@@ -1053,20 +1089,31 @@ struct SiteHistoryScreen: View {
                 }
             }
             if let history {
+                // What the core offers whoever is signed in here in this
+                // history, asked once for the list.
+                let offers = account.historyOffers(history, takesSitesFromPilots: wind.takesSitesFromPilots)
+                // Why something a pilot might look for is not here.
+                if let note = offers?.note, !note.isEmpty {
+                    Section {
+                        Text(note)
+                            .foregroundStyle(.venti(.textSecondary))
+                            .accessibilityIdentifier("site-history-note")
+                    }
+                }
                 // A removed site: the revision that brings it back as it
                 // stood before, under the core's words.
-                if canWrite, let back = history.bringBackRevision {
+                if let offer = offers?.bringBack, offer.isOffered, let back = history.bringBackRevision {
                     Section {
-                        Button(history.bringBackWords, systemImage: "arrow.uturn.backward") {
+                        Button(offer.words, systemImage: "arrow.uturn.backward") {
                             ask(back)
                         }
                         .disabled(isWorking)
                         .accessibilityIdentifier("site-bring-back")
                     }
                 }
-                if canWrite, let undo = history.undoRevision {
+                if let offer = offers?.undo, offer.isOffered, let undo = history.undoRevision {
                     Section {
-                        Button(history.undoWords, systemImage: "arrow.uturn.backward") {
+                        Button(offer.words, systemImage: "arrow.uturn.backward") {
                             ask(undo)
                         }
                         .disabled(isWorking)
@@ -1075,7 +1122,7 @@ struct SiteHistoryScreen: View {
                 }
                 Section {
                     ForEach(history.revisions, id: \.number) { revision in
-                        row(revision)
+                        row(revision, offers: offers)
                     }
                 } footer: {
                     if let credit = history.credit {
@@ -1119,9 +1166,9 @@ struct SiteHistoryScreen: View {
         }
     }
 
-    /// One revision: the core's line, what it changed, and what can be
-    /// done with it.
-    private func row(_ revision: SiteRevisionView) -> some View {
+    /// One revision: the core's line, what it changed, and what the core
+    /// offers to do with it.
+    private func row(_ revision: SiteRevisionView, offers: SiteHistoryOffers?) -> some View {
         VStack(alignment: .leading, spacing: VentiSpace.s1) {
             Text(revision.words)
             ForEach(revision.changes, id: \.self) { change in
@@ -1131,15 +1178,15 @@ struct SiteHistoryScreen: View {
                     .accessibilityIdentifier("site-revision-change")
             }
             HStack(spacing: VentiSpace.s4) {
-                if canWrite, revision.canBePutBack {
+                if offers?.putBack.isOffered == true, revision.canBePutBack {
                     Button(revision.putBackWords) {
                         ask(revision.number)
                     }
                     .disabled(isWorking)
                     .accessibilityIdentifier("site-put-back")
                 }
-                if offers?.report.isOffered == true {
-                    Button(words.reportRevision) {
+                if let report = offers?.reportRevision, report.isOffered {
+                    Button(report.words) {
                         reporting = .siteRevision(id, revision: revision.number)
                     }
                     .foregroundStyle(.venti(.textSecondary))
@@ -1168,25 +1215,14 @@ struct SiteHistoryScreen: View {
     /// one changed, and the list is the pages on end, turned round.
     private func load() async {
         do {
-            let editing = SiteEditing(account: account, wind: wind)
-            var page = try await editing.history(id)
-            var revisions = page.revisions
-            var pages = 1
-            while let after = page.nextAfter, pages < Self.pagesAtMost {
-                page = try await editing.history(id, after: after, before: revisions.last)
-                revisions += page.revisions
-                pages += 1
-            }
-            page.revisions = revisions.reversed()
-            history = page
+            var whole = try await SiteEditing(account: account, wind: wind).wholeHistory(id)
+            whole.revisions.reverse()
+            history = whole
             problem = nil
         } catch {
             problem = SiteEditing.words(for: error)
         }
     }
-
-    /// How many pages of a history are read before the list stops.
-    private static let pagesAtMost = 20
 
     private func putBack(_ revision: UInt32) {
         guard !isWorking else { return }
@@ -1209,12 +1245,12 @@ struct SiteHistoryScreen: View {
 }
 
 /// What a long press on the map opens: the forecast for the place, as
-/// before, and from its bar the way to add a place pilots take off from,
-/// where the core says a pilot of the crowdsourced tier may
-/// (`SiteAdding`). A partner of Venti adds on the website: the iPhone
-/// shows a partner no entry. Signed out, where Venti takes places from
-/// pilots, the entry is the core's line about signing in, and leads to
-/// the account. Once a site is added the sheet shows its page.
+/// before, and from its bar the core's entry for adding a place pilots
+/// take off from (`SiteAdding`): shown whenever the core has words for
+/// it, opening the account where the core says it leads to signing in,
+/// and the form otherwise. A partner of Venti adds on the website: the
+/// iPhone shows a partner no entry. Once a site is added the sheet shows
+/// its page.
 struct PressedPlaceSheet: View {
     let place: Coordinate
     /// Whether a site's sign lay under the finger: nothing is added on
@@ -1241,34 +1277,33 @@ struct PressedPlaceSheet: View {
                         // Over the forecast, where it is seen at half
                         // height too: a bar has room for a sign alone.
                         .safeAreaInset(edge: .top, spacing: 0) {
-                            if let adding, !isOnASite {
-                                if adding.mayAdd, !adding.asPartner {
-                                    Button {
-                                        isAdding = true
-                                    } label: {
-                                        Label(adding.entryWords, systemImage: "plus")
-                                            .frame(maxWidth: .infinity)
-                                    }
-                                    .buttonStyle(.venti(.quiet))
-                                    .padding(.horizontal, VentiSpace.s4)
-                                    .padding(.bottom, VentiSpace.s2)
-                                    .background(.venti(.bg))
-                                    .accessibilityIdentifier("add-site-here")
-                                } else if !adding.mayAdd, wind.takesSitesFromPilots, !account.isSignedIn {
-                                    Button {
+                            if let adding, !isOnASite, !adding.entryWords.isEmpty, !adding.asPartner {
+                                Button {
+                                    if adding.leadsToSignIn {
                                         detent = .large
                                         needsSignIn = true
-                                    } label: {
-                                        Text(adding.whyNot)
-                                            .multilineTextAlignment(.center)
-                                            .frame(maxWidth: .infinity)
+                                    } else {
+                                        isAdding = true
                                     }
-                                    .buttonStyle(.venti(.quiet))
-                                    .padding(.horizontal, VentiSpace.s4)
-                                    .padding(.bottom, VentiSpace.s2)
-                                    .background(.venti(.bg))
-                                    .accessibilityIdentifier("add-site-sign-in")
+                                } label: {
+                                    Group {
+                                        if adding.leadsToSignIn {
+                                            Text(adding.entryWords)
+                                        } else {
+                                            Label(adding.entryWords, systemImage: "plus")
+                                        }
+                                    }
+                                    .sentenceInAButton()
+                                    .frame(maxWidth: .infinity)
                                 }
+                                .buttonStyle(.venti(.quiet))
+                                // On the button itself: named after its
+                                // ground, the element reaches under the
+                                // bar, and a tap on its middle hits that.
+                                .accessibilityIdentifier(adding.leadsToSignIn ? "add-site-sign-in" : "add-site-here")
+                                .padding(.horizontal, VentiSpace.s4)
+                                .padding(.bottom, VentiSpace.s2)
+                                .background(.venti(.bg))
                             }
                         }
                         .navigationDestination(isPresented: $needsSignIn) {

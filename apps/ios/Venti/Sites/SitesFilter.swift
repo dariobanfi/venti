@@ -4,9 +4,9 @@ import VentiCore
 /// What the pilot asks of the flying sites, as the app keeps it: which
 /// sites, the wind a take-off is to work in, the height take-offs lie at
 /// or above, and whether the places from pilots are among them. What it
-/// leaves of the sites, and every word about it, is the core's
-/// (`filterSites`, `sitesFilterChoices`, `siteWords`); this is the choice
-/// alone.
+/// leaves of the sites, which path asks for them, and every word about
+/// it, is the core's (`filterSites`, `sitesPathFor`,
+/// `sitesFilterChoices`); this is the choice alone.
 struct SitesChoice: Hashable {
     /// The wind asked of take-offs.
     enum Wind: Hashable {
@@ -74,15 +74,15 @@ struct SitesChoice: Hashable {
         case .from(let degrees): (degrees, .chosen)
         case .measuredNow: (measuredFromDeg, .measuredNow)
         }
-        return SitesFilter(shown: shown, windFromDeg: fromDeg, windIs: windIs, takeoffsFromM: fromM)
+        return SitesFilter(
+            shown: shown, windFromDeg: fromDeg, windIs: windIs, takeoffsFromM: fromM, withPilots: withPilots
+        )
     }
 }
 
 /// The choices of the filter and their words, as the core has them.
 enum SitesChoices {
     static let core = sitesFilterChoices()
-    /// The words of the crowdsourced layer's switch, and of a site's page.
-    static let words = siteWords()
 
     /// The winds to choose among: any, the wind measured now where the
     /// map has one, and the sixteen points of the compass.
@@ -170,12 +170,12 @@ struct SitesFilterForm: View {
                 Text(choices.note)
             }
             // At the foot: the crowdsourced layer, off until the pilot
-            // switches it on, in the core's words.
+            // switches it on, a part of the filter with the filter's words.
             Section {
-                Toggle(SitesChoices.words.pilotsLayer, isOn: withPilots)
+                Toggle(choices.withPilotsWords, isOn: withPilots)
                     .accessibilityIdentifier("sites-from-pilots")
             } footer: {
-                Text(SitesChoices.words.pilotsLayerAbout)
+                Text(choices.withPilotsAbout)
                     .accessibilityIdentifier("sites-from-pilots-about")
             }
         }

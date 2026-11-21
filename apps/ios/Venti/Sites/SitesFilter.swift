@@ -109,6 +109,7 @@ enum SitesChoices {
 /// it change as it is chosen.
 struct SitesFilterForm: View {
     @Environment(SitesModel.self) private var sites
+    @Environment(CandidatesModel.self) private var candidates
 
     var body: some View {
         let choices = SitesChoices.core
@@ -178,6 +179,15 @@ struct SitesFilterForm: View {
                 Text(choices.withPilotsAbout)
                     .accessibilityIdentifier("sites-from-pilots-about")
             }
+            // Beside it, the places where pilots take off and no site
+            // stands: a layer of the map of its own, off until switched on.
+            Section {
+                Toggle(FlightsAtSitesWords.core.layer, isOn: showsCandidates)
+                    .accessibilityIdentifier("sites-candidates")
+            } footer: {
+                Text(FlightsAtSitesWords.core.layerAbout)
+                    .accessibilityIdentifier("sites-candidates-about")
+            }
         }
         .accessibilityIdentifier("sites-filter-form")
         .navigationTitle("Filter the sites")
@@ -203,6 +213,14 @@ struct SitesFilterForm: View {
             var choice = sites.choice
             choice.wind = wind
             sites.choose(choice)
+        }
+    }
+
+    private var showsCandidates: Binding<Bool> {
+        Binding {
+            candidates.isOn
+        } set: { isOn in
+            candidates.switchOn(isOn)
         }
     }
 

@@ -17,6 +17,9 @@ struct OverviewMap: UIViewRepresentable {
     /// The take-offs that say nothing to what the filter asks: drawn
     /// apart from the others, muted and without their names.
     var unsaidSites: [SiteView] = []
+    /// The places where pilots take off and no site stands, while their
+    /// layer is on: small rings, not pins.
+    var candidates: [SiteCandidateView] = []
     /// Other pilots in the air, to draw.
     var gliders: [LiveGlider] = []
     /// Where the pilot's groups plan to fly today and tomorrow, to mark.
@@ -33,6 +36,9 @@ struct OverviewMap: UIViewRepresentable {
     let onStation: (String) -> Void
     /// Called with a site's identifier when the pilot taps its sign.
     var onSite: (String) -> Void = { _ in }
+    /// Called with a place's position among `candidates` when the pilot
+    /// taps its ring.
+    var onCandidate: (Int) -> Void = { _ in }
     /// Called with a live track's identifier when the pilot taps its
     /// glider.
     var onGlider: (String) -> Void = { _ in }
@@ -109,6 +115,11 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onRegion = onRegion
         coordinator.onStation = onStation
         coordinator.onSite = onSite
+        coordinator.onCandidate = { id in
+            if let index = Int(id) {
+                onCandidate(index)
+            }
+        }
         coordinator.onGlider = onGlider
         coordinator.onPlan = onPlan
         coordinator.onPlace = onPlace
@@ -120,6 +131,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.showRadar(radar, on: map)
         coordinator.show(plans, on: map)
         coordinator.show(sites, unsaid: unsaidSites, on: map)
+        coordinator.show(candidates, on: map)
         coordinator.show(gliders, on: map)
         coordinator.showFollowed(followed, on: map)
         coordinator.show(outlines, on: map)
@@ -139,6 +151,7 @@ struct OverviewMap: UIViewRepresentable {
         var onRegion: (Bounds) -> Void = { _ in }
         var onStation: (String) -> Void = { _ in }
         var onSite: (String) -> Void = { _ in }
+        var onCandidate: (String) -> Void = { _ in }
         var onGlider: (String) -> Void = { _ in }
         var onPlan: (String) -> Void = { _ in }
         private var plans: [GroupsModel.Pin] = []
@@ -172,6 +185,8 @@ struct OverviewMap: UIViewRepresentable {
         private var sites: [SiteView] = []
         private var drawnSites: [SiteView]?
         private var unsaidSites: [SiteView] = []
+        private var candidates: [SiteCandidateView] = []
+        private var drawnCandidates: [SiteCandidateView]?
         private var drawnUnsaidSites: [SiteView]?
         /// The sites' areas that are drawn: those larger than their sign
         /// at the map's scale.
@@ -183,6 +198,7 @@ struct OverviewMap: UIViewRepresentable {
         private static let tracks = "logbook-tracks"
         private static let wind = "wind-stations"
         private static let sites = "flying-sites"
+        private static let candidates = "site-candidates"
         private static let live = "live-gliders"
         private static let plans = "plan-pins"
         private static let liveTrack = "live-track"
@@ -269,6 +285,11 @@ struct OverviewMap: UIViewRepresentable {
             drawSites(on: map)
         }
 
+        func show(_ candidates: [SiteCandidateView], on map: MLNMapView) {
+            self.candidates = candidates
+            drawCandidates(on: map)
+        }
+
         func show(_ outlines: [[Coordinate]], on map: MLNMapView) {
             self.outlines = outlines
             drawOutlines(on: map)
@@ -314,6 +335,7 @@ struct OverviewMap: UIViewRepresentable {
             drawOutlines(on: mapView)
             drawStations(on: mapView)
             drawSites(on: mapView)
+            drawCandidates(on: mapView)
             drawPlans(on: mapView)
             drawGliders(on: mapView)
             drawFollowed(on: mapView)
@@ -377,6 +399,7 @@ struct OverviewMap: UIViewRepresentable {
             // is on top wins where several are under the finger.
             for (layer, open) in [
                 (Self.live, onGlider), (Self.plans, onPlan), (Self.wind, onStation), (Self.sites, onSite),
+                (Self.candidates, onCandidate),
             ] {
                 let hits = map.visibleFeatures(in: reach, styleLayerIdentifiers: [layer])
                 let nearest = hits.min { first, second in
@@ -471,6 +494,18 @@ struct OverviewMap: UIViewRepresentable {
             }
             // A site mapped as an area, under its sign.
             SiteFields.add(to: style)
+            // The places where pilots take off and no site stands, under
+            // the sites' signs: a small hollow ring in the muted ink, the
+            // size of the smallest dot the app's maps draw, so that it is
+            // not taken for a site.
+            let candidates = MLNShapeSource(identifier: Self.candidates, shape: empty, options: nil)
+            style.addSource(candidates)
+            let rings = MapSetup.dot(
+                Self.candidates, from: candidates, radius: MapSetup.smallestDot,
+                color: Palette.haloOnMap, ring: Palette.candidateOnMap
+            )
+            rings.minimumZoomLevel = 9
+            style.addLayer(rings)
             let sites = MLNShapeSource(identifier: Self.sites, shape: empty, options: nil)
             style.addSource(sites)
             let signs = MLNSymbolStyleLayer(identifier: Self.sites, source: sites)
@@ -599,7 +634,9 @@ struct OverviewMap: UIViewRepresentable {
             }
             source.shape = MLNMultiPolylineFeature(polylines: lines)
 
-            if let box = Self.box(around: outlines) {
+            // Where a UI test names the place the map opens at, it stays
+            // there.
+            if LaunchOptions.mapAt == nil, let box = Self.box(around: outlines) {
                 MapSetup.show(box, on: map, animated: false)
             }
         }
@@ -625,6 +662,23 @@ struct OverviewMap: UIViewRepresentable {
                     + sites.map { Self.siteFeature(for: $0) }
             )
             drawFields(on: map)
+        }
+
+        /// Draws the places where pilots take off and no site stands, once
+        /// the style is there and only when they have changed.
+        private func drawCandidates(on map: MLNMapView) {
+            guard isStyleLoaded, candidates != drawnCandidates,
+                  let source = map.style?.source(withIdentifier: Self.candidates) as? MLNShapeSource
+            else { return }
+            drawnCandidates = candidates
+            source.shape = MLNShapeCollectionFeature(
+                shapes: candidates.enumerated().map { index, candidate in
+                    let feature = MLNPointFeature()
+                    feature.coordinate = candidate.position.location
+                    feature.attributes = ["id": String(index)]
+                    return feature
+                }
+            )
         }
 
         /// Draws the areas of the sites that are mapped as one, where

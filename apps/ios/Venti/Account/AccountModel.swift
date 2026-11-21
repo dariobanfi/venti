@@ -210,6 +210,31 @@ final class AccountModel {
         return try? core.siteAdding(takesSitesFromPilots: takesSitesFromPilots)
     }
 
+    /// The places of an answer where pilots take off and no site stands
+    /// that this pilot took off at, with the core's offer to add each
+    /// (`candidateForPilot`): the core decides who is offered what. The
+    /// iPhone shows a partner none, as it shows a partner no entry for
+    /// adding. Worked out away from the screen: the core reads the pilot's
+    /// flights from there.
+    func candidateOffers(_ candidates: SiteCandidates, takesSitesFromPilots: Bool) async -> [CandidateOffer] {
+        guard let adding = adding(takesSitesFromPilots: takesSitesFromPilots), !adding.asPartner,
+              !candidates.candidates.isEmpty
+        else { return [] }
+        let core = core
+        let offsetS = Int32(clamping: TimeZone.current.secondsFromGMT())
+        return await Task.detached(priority: .userInitiated) {
+            (try? core.candidateForPilot(
+                candidates: candidates, takesSitesFromPilots: takesSitesFromPilots, utcOffsetS: offsetS
+            )) ?? []
+        }.value
+    }
+
+    /// "Not this one": the core keeps the place on this iPhone and offers
+    /// it, or one near it, no more.
+    func setAside(_ candidate: SiteCandidateView) {
+        try? core.candidateSetAside(position: candidate.position)
+    }
+
     /// The pilot's own flights of a day that began at a site, to name
     /// with a confirmation. Mostly none.
     func flights(toConfirm site: SiteView, on day: String, utcOffsetS: Int32) -> [SiteConfirmFlight] {

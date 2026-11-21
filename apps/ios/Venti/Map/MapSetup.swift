@@ -97,6 +97,10 @@ enum MapSetup {
         return layer
     }
 
+    /// The radius of the smallest dot the app's maps draw: a flight's
+    /// start and end, a thermal in the cockpit.
+    static let smallestDot = 5.0
+
     /// A round dot with a ring around it.
     static func dot(
         _ identifier: String, from source: MLNSource, radius: Double, color: UIColor, ring: UIColor

@@ -2163,7 +2163,7 @@ final class VentiUITests: XCTestCase {
 
         // What the pilots of the server share with everyone: on the
         // League tab. The server's development mode has public flights
-        // of three made-up pilots.
+        // of several made-up pilots.
         openTab("League", in: app)
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
@@ -2174,8 +2174,8 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("community-1-everyone")
         // The pilots of the server by their best flights. The development
-        // mode's flights are all of 2026; every year together holds them
-        // whatever year the test runs in.
+        // mode's flights are of 2025 and 2026; every year together holds
+        // them whatever year the test runs in.
         app.buttons["Ranking"].tap()
         let allYears = app.buttons["All years"]
         XCTAssertTrue(allYears.waitForExistence(timeout: 30))
@@ -2679,8 +2679,9 @@ final class VentiUITests: XCTestCase {
 
     /// A flight is laid beside another pilot's of the same day: both on
     /// the map and in the profile, and their numbers side by side. Runs
-    /// against a Venti server in development mode, whose two oldest
-    /// public flights were flown from the same place on the same day.
+    /// against a Venti server in development mode, where the demo
+    /// pilot's one public flight and one of Mara's were flown from the
+    /// same place on the same day.
     func testAFlightIsLaidBesideAnother() throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")
@@ -2691,11 +2692,12 @@ final class VentiUITests: XCTestCase {
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
         everyone.tap()
-        // Five flights, the newest first: the last is the oldest.
+        // The demo pilot's one public flight, by its pilot: not by its
+        // place in the list, which grows with the development mode.
         let rows = app.descendants(matching: .any).matching(identifier: "public-flight-row")
-        let oldest = rows.element(boundBy: 4)
-        XCTAssertTrue(oldest.waitForExistence(timeout: 40))
-        oldest.tap()
+        let demo = rows.matching(NSPredicate(format: "label CONTAINS %@", "Demo Pilot")).firstMatch
+        XCTAssertTrue(demo.waitForExistence(timeout: 40))
+        demo.tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 40))
 
         // From the flight's details: lay another flight beside it.
@@ -3849,5 +3851,124 @@ extension VentiUITests {
         _ = bring("token-submit", into: app)
         sleep(1)
         keepScreenshot("programs-dark-3-form-end")
+    }
+}
+
+/// What public flights say about a site, and the places where pilots take
+/// off and no site stands, against the development server's made-up
+/// flights.
+extension VentiUITests {
+    /// The made-up place without a site in the Lechtal, the map's middle.
+    private static let candidate = "47.2612,10.9312"
+
+    func testPublicFlightsAtASiteAndTheTakeoffsWithoutASite() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        leaveTheSitesFilterAskingNothing()
+        let account = try await makeAccount(on: server)
+        // The sample flight moved to the place: the pilot took off there.
+        let app = launch(
+            bundledMap: true,
+            extra: [
+                "--server", server, "--map-at", Self.candidate + ",12.5", "--all-sites",
+                "--sample-flight-at", Self.candidate,
+            ]
+        )
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(account, in: app)
+        setLayer("layer-sites", on: true, in: app)
+        // What stands in the map's middle is the place: nothing over it.
+        setLayer("layer-wind", on: false, in: app)
+        setLayer("layer-pilots", on: false, in: app)
+
+        // A take-off's page: the section under the confirmations.
+        openMusterkogelWest(in: app)
+        let section = bring("site-flights", into: app)
+        XCTAssertEqual(section.label, "Public flights from here")
+        let words = element("site-flights-words", in: app)
+        XCTAssertTrue(words.waitForExistence(timeout: 20))
+        XCTAssertTrue(words.label.contains("public flight"), words.label)
+        let months = app.descendants(matching: .any).matching(identifier: "flown-month")
+        if words.label.hasPrefix("No public flight") {
+            XCTAssertEqual(months.count, 0)
+        } else {
+            XCTAssertEqual(months.count, 12)
+            XCTAssertTrue(months.element(boundBy: 0).label.hasPrefix("January"), months.element(boundBy: 0).label)
+        }
+        sleep(1)
+        keepScreenshot("flights-at-sites-1-site-section")
+        if element("site-best-flight", in: app).exists {
+            _ = bring("site-best-flight", into: app)
+            keepScreenshot("flights-at-sites-2-best-flights")
+        }
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["Done"].firstMatch.tap()
+        sleep(1)
+
+        // The layer's switch beside "Places from pilots", off and on.
+        let filter = element("sites-filter", in: app)
+        XCTAssertTrue(filter.waitForExistence(timeout: 30))
+        filter.tap()
+        let layer = bringInSheet("sites-candidates", in: app)
+        _ = bringInSheet("sites-candidates-about", in: app)
+        XCTAssertEqual(layer.label, "Take-offs without a site")
+        XCTAssertFalse(isOn(layer))
+        set(layer, on: true)
+        sleep(1)
+        keepScreenshot("flights-at-sites-3-filter-switch-on")
+        app.buttons["Done"].firstMatch.tap()
+        sleep(3)
+        keepScreenshot("flights-at-sites-4-layer-on-the-map")
+
+        // The ring in the map's middle: its sheet, with the offer to the
+        // pilot who took off there.
+        // The ring is drawn once Venti has answered: tapped again while
+        // nothing opens.
+        let place = element("candidate-words", in: app)
+        for _ in 0..<4 where !place.exists {
+            element("overview-map", in: app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            _ = place.waitForExistence(timeout: 8)
+        }
+        XCTAssertTrue(place.waitForExistence(timeout: 10))
+        XCTAssertTrue(place.label.hasPrefix("Pilots take off here"), place.label)
+        sleep(2)
+        keepScreenshot("flights-at-sites-5-candidate-sheet")
+        // Under the place, in a list that has only the rows in view.
+        let offer = bringInSheet("candidate-offer-words", in: app)
+        XCTAssertTrue(offer.label.hasPrefix("You took off here on"), offer.label)
+        _ = bringInSheet("candidate-set-aside", in: app)
+        XCTAssertEqual(element("candidate-add", in: app).label, "Add this place")
+        sleep(1)
+        keepScreenshot("flights-at-sites-6-candidate-offer")
+        // "Not this one": set aside, and the sheet closes.
+        element("candidate-set-aside", in: app).tap()
+        sleep(2)
+        XCTAssertFalse(element("candidate-words", in: app).exists)
+        app.terminate()
+
+        // The section in the dark.
+        let dark = launch(
+            bundledMap: true, dark: true,
+            extra: ["--server", server, "--map-at", Self.candidate + ",12.5", "--all-sites"]
+        )
+        XCTAssertTrue(dark.buttons["Show my position"].waitForExistence(timeout: 90))
+        setLayer("layer-sites", on: true, in: dark)
+        openMusterkogelWest(in: dark)
+        _ = bring("site-flights", into: dark)
+        sleep(1)
+        keepScreenshot("flights-at-sites-dark-site-section")
+    }
+
+    /// Opens the made-up take-off "Musterkogel West" from the list of the
+    /// sites.
+    private func openMusterkogelWest(in app: XCUIApplication) {
+        let list = app.buttons["Flying sites"]
+        XCTAssertTrue(list.waitForExistence(timeout: 60))
+        list.tap()
+        let row = labelled(containing: "Musterkogel West", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        row.tap()
+        XCTAssertTrue(element("site-plan-route", in: app).waitForExistence(timeout: 20))
     }
 }

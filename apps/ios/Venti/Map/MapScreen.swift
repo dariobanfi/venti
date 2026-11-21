@@ -19,6 +19,7 @@ struct MapScreen: View {
     @Environment(AppNavigation.self) private var navigation
     @Environment(ThermalMapModel.self) private var thermals
     @Environment(RadarModel.self) private var radar
+    @Environment(CandidatesModel.self) private var candidates
     @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
@@ -38,6 +39,8 @@ struct MapScreen: View {
     @State private var chosen: ChosenStation?
     @State private var showsStations = false
     @State private var chosenSite: ChosenSite?
+    /// A place where pilots take off and no site stands, tapped.
+    @State private var chosenCandidate: ChosenCandidate?
     @State private var showsSites = false
     @State private var showsSitesFilter = false
     @State private var chosenGlider: ChosenGlider?
@@ -83,6 +86,7 @@ struct MapScreen: View {
                 airspace: hidesAirspace ? [] : airspaceInView,
                 sites: hidesSites ? [] : sites.filtered.fitting,
                 unsaidSites: hidesSites ? [] : sites.filtered.unsaid,
+                candidates: hidesSites ? [] : candidates.candidates,
                 gliders: hidesPilots ? [] : live.gliders,
                 plans: groups.pins(),
                 followed: live.followed?.track ?? [],
@@ -93,6 +97,7 @@ struct MapScreen: View {
                     tellSitesTheWind(in: region)
                     wind.show(region)
                     sites.show(region)
+                    candidates.show(region)
                     live.show(region)
                     // The airspace around what the pilot is looking at,
                     // unless it is the whole continent.
@@ -113,6 +118,11 @@ struct MapScreen: View {
                 onSite: { id in
                     if let site = sites.sites.first(where: { $0.id == id }) {
                         chosenSite = ChosenSite(site: site)
+                    }
+                },
+                onCandidate: { index in
+                    if let answer = candidates.answer, answer.candidates.indices.contains(index) {
+                        chosenCandidate = ChosenCandidate(candidate: answer.candidates[index], answer: answer)
                     }
                 },
                 onGlider: { id in
@@ -227,6 +237,7 @@ struct MapScreen: View {
             VStack(spacing: 4) {
                 layerChips
                 notice
+                candidatesNotice
             }
         }
         .overlay(alignment: .bottomLeading) {
@@ -332,6 +343,14 @@ struct MapScreen: View {
         .sheet(isPresented: $showsSites) {
             SiteList()
         }
+        // A place where pilots take off and no site stands: a small sheet,
+        // the place in view above it.
+        .sheet(item: $chosenCandidate) { chosen in
+            CandidateSheet(chosen: chosen) {
+                chosenCandidate = nil
+            }
+            .presentationDetents([.medium, .large])
+        }
         // The filter of the sites, at half height first: the map above it
         // changes as the pilot chooses.
         .sheet(isPresented: $showsSitesFilter) {
@@ -393,6 +412,7 @@ struct MapScreen: View {
             if tab != .map {
                 chosen = nil
                 chosenSite = nil
+                chosenCandidate = nil
                 chosenPlan = nil
                 chosenGlider = nil
                 pressed = nil
@@ -502,6 +522,23 @@ struct MapScreen: View {
                 .ventiFloating(in: .rect(cornerRadius: 14))
                 .padding(.horizontal, 16)
                 .accessibilityIdentifier("wind-notice")
+        }
+    }
+
+    /// What the layer of the take-offs without a site says over the map,
+    /// while it is on: the core's words to zoom in, what went wrong, or
+    /// that more places lie here than one answer lists.
+    @ViewBuilder private var candidatesNotice: some View {
+        if candidates.isOn, !hidesSites, wind.server != nil,
+           let words = candidates.words ?? candidates.answer.flatMap({ $0.more ? $0.moreWords : nil })
+        {
+            Text(words)
+                .font(.venti(.footnote))
+                .padding(.horizontal, VentiSpace.s3)
+                .padding(.vertical, VentiSpace.s2)
+                .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
+                .padding(.horizontal, VentiSpace.s4)
+                .accessibilityIdentifier("candidates-notice")
         }
     }
 

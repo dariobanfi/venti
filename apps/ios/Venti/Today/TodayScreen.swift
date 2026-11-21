@@ -16,6 +16,7 @@ struct TodayScreen: View {
     @Environment(TodayModel.self) private var today
     @Environment(WindModel.self) private var wind
     @Environment(KeptSitesModel.self) private var kept
+    @Environment(AccountModel.self) private var account
 
     /// Which of the forecast's days is shown: 0 is today.
     @State private var day = 0
@@ -25,6 +26,11 @@ struct TodayScreen: View {
     @State private var position = PilotPosition()
     @State private var isShowingSettings = false
     @State private var isShowingAssistant = false
+    /// The core's offer to add a place the pilot took off at and no site
+    /// names, among the places around the take-offs listed: one at most.
+    @State private var offer: CandidateOffer?
+    /// The core's line once the place was added from here.
+    @State private var offerSaid: String?
 
     /// Where the take-offs are looked for until the pilot's position is
     /// known: the middle of the first region, between the Tegernsee and
@@ -87,12 +93,57 @@ struct TodayScreen: View {
                 await today.load(around: place)
             }
         }
+        // The offer, asked for when the take-offs listed or the account
+        // change.
+        .task(id: OfferAsked(
+            ids: today.places.map(\.id), server: wind.server, account: account.isSignedIn,
+            takes: wind.takesSitesFromPilots
+        )) {
+            await askForAnOffer()
+        }
         .onChange(of: today.places) {
             guard !hasChosenDay else { return }
             // The first day that has flying hours left: in the evening
             // that is tomorrow.
             day = days.firstIndex { !$0.hours.isEmpty } ?? 0
         }
+    }
+
+    /// What decides that the offer is asked for again.
+    private struct OfferAsked: Equatable {
+        let ids: [String]
+        let server: URL?
+        let account: Bool
+        let takes: Bool
+    }
+
+    /// The box around the take-offs listed, with a little room around.
+    static func box(around places: [Coordinate]) -> Bounds? {
+        guard let first = places.first else { return nil }
+        var box = Bounds(south: first.lat, west: first.lon, north: first.lat, east: first.lon)
+        for place in places {
+            box.south = min(box.south, place.lat)
+            box.north = max(box.north, place.lat)
+            box.west = min(box.west, place.lon)
+            box.east = max(box.east, place.lon)
+        }
+        let margin = 0.05
+        return Bounds(
+            south: box.south - margin, west: box.west - margin, north: box.north + margin, east: box.east + margin
+        )
+    }
+
+    /// Asks Venti for the places around the take-offs listed and the core
+    /// for its offer among them. Nothing where the core gives no path for
+    /// the box (wider than Venti answers for) or offers nothing.
+    private func askForAnOffer() async {
+        guard let server = wind.server, let box = Self.box(around: today.places.map(\.site.position)),
+              let answer = try? await CandidatesModel.fetch(box, from: server, transport: WindModel.fetch)
+        else {
+            offer = nil
+            return
+        }
+        offer = await account.candidateOffers(answer, takesSitesFromPilots: wind.takesSitesFromPilots).first
     }
 
     /// What decides that the server is asked again.
@@ -357,6 +408,27 @@ struct TodayScreen: View {
                             }
                             rows(shown.near)
                         }
+                    }
+                    // A place the pilot took off at and no site names, as
+                    // the core offers it: under the take-offs.
+                    if let offer {
+                        CandidateOfferView(
+                            offer: offer,
+                            onAdded: { written in
+                                offerSaid = written.words
+                                self.offer = nil
+                            },
+                            onSetAside: {
+                                self.offer = nil
+                            }
+                        )
+                        .ventiCard()
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("today-candidate-offer")
+                    } else if let offerSaid {
+                        Label(offerSaid, systemImage: "checkmark.circle")
+                            .font(.ventiType(.caption))
+                            .foregroundStyle(.venti(.textSecondary))
                     }
                     if position.place == nil, !position.isDenied {
                         Button {

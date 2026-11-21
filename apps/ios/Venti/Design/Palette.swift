@@ -52,6 +52,11 @@ enum Palette {
     static var siteUnsaidOnMap: UIColor { UIColor(VentiTheme.light.textMuted) }
     static var siteUnsaidGroundOnMap: UIColor { UIColor(VentiTheme.light.surfaceRaised) }
 
+    /// A place where pilots take off and no site stands: a small ring in
+    /// the muted ink, hollow on the map's paper, so that it is not taken
+    /// for a site's pin.
+    static var candidateOnMap: UIColor { UIColor(VentiTheme.light.textMuted) }
+
     /// What has gone quiet on the map: an old reading, a glider nothing
     /// was heard of for a while.
     static var quietOnMap: UIColor { UIColor(VentiTheme.light.borderStrong) }

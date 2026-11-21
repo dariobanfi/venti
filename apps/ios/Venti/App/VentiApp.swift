@@ -16,7 +16,8 @@ struct VentiApp: App {
             switch session {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
-                let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar
+                let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar,
+                let candidates
             ):
                 RootScreen()
                     .environment(logbook)
@@ -37,6 +38,7 @@ struct VentiApp: App {
                     .environment(thermals)
                     .environment(own)
                     .environment(radar)
+                    .environment(candidates)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -56,7 +58,7 @@ enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
         TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
-        ThermalMapModel, KeptSitesModel, RadarModel
+        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel
     )
     case failed(String)
 
@@ -68,6 +70,9 @@ enum Session {
                 for text in LaunchOptions.sampleLogbook() {
                     _ = try? core.importFlight(igcText: text)
                 }
+            }
+            if let place = LaunchOptions.sampleFlightAt, let text = LaunchOptions.sampleFlight(startingAt: place) {
+                _ = try? core.importFlight(igcText: text)
             }
             let logbook = LogbookModel(core: core, folder: folder)
             if LaunchOptions.usesSampleWaypoints {
@@ -90,9 +95,14 @@ enum Session {
             // a UI test can start with the filter asking nothing.
             if LaunchOptions.showsAllSites {
                 SitesChoice().keep(in: .standard)
+                UserDefaults.standard.set(false, forKey: Preferences.mapShowsCandidates)
             }
             let sites = SitesModel(store: .standard)
             sites.server = { wind.server }
+            // The places where pilots take off and no site stands: a
+            // layer of the map, off until the pilot switches it on.
+            let candidates = CandidatesModel(store: .standard)
+            candidates.server = { wind.server }
             // And the forecasts for the take-offs of the Today tab.
             // Today begins with the pilot's own take-offs, which the
             // core keeps on the iPhone.
@@ -189,7 +199,7 @@ enum Session {
             let groups = GroupsModel(core: core, account: account)
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps, today, thermals, own, radar
+                groups, maps, today, thermals, own, radar, candidates
             )
         } catch {
             return .failed(error.words)
@@ -319,6 +329,52 @@ enum LaunchOptions {
     /// Where the map tab's map opens, given as `--map-at <lat>,<lon>,<zoom>`:
     /// a UI test frames what its screenshots are to show. Without it, and
     /// where the three numbers do not read, the map opens as always.
+    /// `--sample-flight-at <lat>,<lon>`: the sample flight in the
+    /// logbook, moved so that its track begins there. For a UI test of
+    /// what is offered to a pilot who took off at a place.
+    static var sampleFlightAt: (lat: Double, lon: Double)? {
+        guard let flag = arguments.firstIndex(of: "--sample-flight-at"), arguments.indices.contains(flag + 1) else {
+            return nil
+        }
+        let numbers = arguments[flag + 1].split(separator: ",").compactMap { Double($0) }
+        guard numbers.count == 2, abs(numbers[0]) <= 85, abs(numbers[1]) <= 180 else { return nil }
+        return (numbers[0], numbers[1])
+    }
+
+    /// The sample flight with every fix moved by as much as its first
+    /// needs to stand at the place. The fixes are IGC's B records:
+    /// `B` and the time, `DDMMmmmN`, `DDDMMmmmE`, then the rest.
+    static func sampleFlight(startingAt place: (lat: Double, lon: Double)) -> String? {
+        guard let url = Bundle.main.url(forResource: "sample", withExtension: "igc"),
+              let text = try? String(contentsOf: url, encoding: .utf8)
+        else { return nil }
+        let lines = text.components(separatedBy: "\n")
+        func degrees(_ line: Substring) -> (lat: Double, lon: Double)? {
+            let chars = Array(line)
+            guard chars.count >= 24, chars[0] == "B" else { return nil }
+            let lat = String(chars[7..<14]), lon = String(chars[15..<23])
+            guard let latD = Double(lat.prefix(2)), let latM = Double(lat.dropFirst(2)),
+                  let lonD = Double(lon.prefix(3)), let lonM = Double(lon.dropFirst(3))
+            else { return nil }
+            let north = (latD + latM / 60_000) * (chars[14] == "S" ? -1 : 1)
+            let east = (lonD + lonM / 60_000) * (chars[23] == "W" ? -1 : 1)
+            return (north, east)
+        }
+        guard let first = lines.lazy.compactMap({ degrees(Substring($0)) }).first else { return nil }
+        let (dLat, dLon) = (place.lat - first.lat, place.lon - first.lon)
+        return lines.map { line in
+            guard let fix = degrees(Substring(line)) else { return line }
+            let chars = Array(line)
+            let (lat, lon) = (fix.lat + dLat, fix.lon + dLon)
+            let latMinutes = Int(((abs(lat) - floor(abs(lat))) * 60_000).rounded())
+            let lonMinutes = Int(((abs(lon) - floor(abs(lon))) * 60_000).rounded())
+            let latText = String(format: "%02d%05d%@", Int(abs(lat)), latMinutes, lat < 0 ? "S" : "N")
+            let lonText = String(format: "%03d%05d%@", Int(abs(lon)), lonMinutes, lon < 0 ? "W" : "E")
+            return String(chars[0..<7]) + latText + lonText + String(chars[24...])
+        }
+        .joined(separator: "\n")
+    }
+
     static var mapAt: (lat: Double, lon: Double, zoom: Double)? {
         guard let flag = arguments.firstIndex(of: "--map-at"), arguments.indices.contains(flag + 1) else {
             return nil

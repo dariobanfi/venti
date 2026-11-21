@@ -59,8 +59,14 @@ struct SiteEditForm: View {
 
     /// A new site at a place, with the words of the tier it goes to.
     init(adding: SiteAdding, at place: Coordinate, onWritten: @escaping (SiteWritten) -> Void) {
+        self.init(adding: adding, draft: siteDraftNew(place: place), onWritten: onWritten)
+    }
+
+    /// A new site on a draft the core made: "Add this place" of a place
+    /// where pilots take off, at the pilot's own take-off.
+    init(adding: SiteAdding, draft: SiteDraftView, onWritten: @escaping (SiteWritten) -> Void) {
         self.init(
-            draft: siteDraftNew(place: place), of: nil,
+            draft: draft, of: nil,
             says: Says(title: adding.title, giving: adding.giving, note: adding.note, send: adding.sendWords),
             onWritten: onWritten
         )
@@ -377,7 +383,7 @@ struct SiteEditForm: View {
     }
 }
 
-private extension View {
+extension View {
     /// For the words of a button that are a sentence of the core's and
     /// not a verb ("I took off here and it was good", "Add a place pilots
     /// take off from"): the pack's button holds one line, and on a narrow

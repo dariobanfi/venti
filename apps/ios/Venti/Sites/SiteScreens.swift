@@ -345,6 +345,10 @@ struct SiteScreen: View {
     /// The newest public flights that took off here. Empty until the
     /// server has answered, and for a site nobody shared a flight from.
     @State private var flown: [PublicFlight] = []
+    /// What the public flights that began here say about the site, as
+    /// the core reads Venti's answer. Absent until it has answered, and
+    /// where it could not be asked.
+    @State private var flightsHere: SiteFlights?
 
     /// How far from a site a wind station still says something about it,
     /// metres.
@@ -411,6 +415,11 @@ struct SiteScreen: View {
                         }
                     }
                 )
+            }
+            // What the public flights that began here say: for a site of
+            // any layer, nothing at all for one that is not a take-off.
+            if let flightsHere {
+                SiteFlightsSection(flights: flightsHere)
             }
             if site.official == true || site.discouraged || site.paragliding == false {
                 Section {
@@ -584,6 +593,11 @@ struct SiteScreen: View {
         .task(id: site.id) {
             guard wind.server != nil, site.kind == .takeoff || site.kind == .towing else { return }
             flown = (try? await community.flights(near: site.position)) ?? []
+        }
+        // What the public flights that began here say about the site.
+        .task(id: site.id) {
+            guard let server = wind.server else { return }
+            flightsHere = try? await SiteFlightsReading.read(site.id, from: server)
         }
         // Whether it is one of the pilot's own, and what the core says
         // with those.

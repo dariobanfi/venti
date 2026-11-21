@@ -56,6 +56,9 @@ enum Preferences {
     /// Whether the map and the list show the places from pilots, the
     /// crowdsourced layer: off until the pilot switches it on.
     static let mapSitesFromPilots = "VentiMapSitesFromPilots"
+    /// Whether the map shows the places where pilots take off and no site
+    /// stands: off until the pilot switches it on.
+    static let mapShowsCandidates = "VentiMapShowsCandidates"
     /// Whether the pilot has switched off airspace from the server.
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 

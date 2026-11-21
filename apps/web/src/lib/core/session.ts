@@ -25,6 +25,7 @@ import type {
 	ImportedFlight,
 	LogbookStatistics,
 	SiteStatistics,
+	Tendencies,
 	LogbookView,
 	SyncStep
 } from './pkg/venti_core_wasm.js';
@@ -114,6 +115,34 @@ export class CoreSession {
 	/** The places flights began at, the one flown from most often first. */
 	siteStatistics(): SiteStatistics[] {
 		return this.#core.siteStatistics();
+	}
+
+	/**
+	 * What the pilot's own tracks say about how they fly. An older flight
+	 * whose file is not in memory is left out the first time and wanted:
+	 * its file is fetched and the core asked again, until it wants none.
+	 * What the core kept of those flights' figures is stored.
+	 */
+	tendencies(): Promise<Tendencies> {
+		return this.#inTurn(async () => {
+			const fetched = new Set<string>();
+			for (;;) {
+				const found = this.#core.tendencies();
+				const wanted = this.#files.takeWanted().filter((name) => !fetched.has(name));
+				if (wanted.length === 0) {
+					try {
+						await this.#commit();
+					} catch {
+						// Figures kept for later; counted again next time if not stored.
+					}
+					return found;
+				}
+				for (const name of wanted) {
+					fetched.add(name);
+					this.#files.provide(name, await this.#store.read(name));
+				}
+			}
+		});
 	}
 
 	importFlight(igcText: string): Promise<ImportedFlight> {

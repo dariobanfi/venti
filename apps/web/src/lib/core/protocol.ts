@@ -42,6 +42,7 @@ import type {
 	LeagueHandover,
 	LogbookStatistics,
 	SiteStatistics,
+	Tendencies,
 	LogbookView,
 	PilotPage,
 	PlanBoard,
@@ -84,6 +85,8 @@ export interface Calls {
 	statistics: { given: undefined; answer: LogbookStatistics };
 	/** The places flights began at, the one flown from most often first. */
 	siteStatistics: { given: undefined; answer: SiteStatistics[] };
+	/** What the pilot's own tracks say about how they fly. */
+	tendencies: { given: undefined; answer: Tendencies };
 	/** A flight file's bytes, as the pilot picked or dropped it. */
 	importFlight: { given: ArrayBuffer; answer: ImportedFlight };
 	/** The following are given a flight's identifier. */
@@ -298,6 +301,7 @@ export async function answer<Name extends CallName>(
 		logbook: () => session.logbook(),
 		statistics: () => session.statistics(),
 		siteStatistics: () => session.siteStatistics(),
+		tendencies: () => session.tendencies(),
 		importFlight: (file) => session.importFlight(flightFileText(file)),
 		flight: (id) => session.flight(id),
 		flightAnalysis: (id) => session.flightAnalysis(id),

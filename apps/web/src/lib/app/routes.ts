@@ -27,6 +27,10 @@ export function statisticsHref(): string {
 	return resolve('/logbook/statistics');
 }
 
+export function howYouFlyHref(): string {
+	return resolve('/logbook/statistics/how-you-fly');
+}
+
 export function settingsHref(): string {
 	return resolve('/settings');
 }

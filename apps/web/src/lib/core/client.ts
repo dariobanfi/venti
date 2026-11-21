@@ -84,6 +84,11 @@ export class CoreClient {
 		return this.#call('siteStatistics', undefined);
 	}
 
+	/** What the pilot's own tracks say about how they fly. */
+	tendencies() {
+		return this.#call('tendencies', undefined);
+	}
+
 	/** Imports a flight file. Its bytes are handed over, not copied: `file` is empty afterwards. */
 	importFlight(file: ArrayBuffer) {
 		return this.#call('importFlight', file, [file]);

@@ -9,7 +9,7 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { flightHref, logbookHref } from '#lib/app/routes.ts';
+	import { flightHref, howYouFlyHref, logbookHref } from '#lib/app/routes.ts';
 	import { MediaQuery } from 'svelte/reactivity';
 	import type {
 		BestFlight,
@@ -402,6 +402,14 @@
 				</section>
 			{/if}
 		</div>
+
+		<!-- What the pilot's own tracks say about how they fly: a screen of its own. -->
+		<nav class="more" aria-label="More about your flying">
+			<a class="card row" href={howYouFlyHref()}>
+				<span>How you fly</span>
+				<span class="chevron"><Icon name="forward" /></span>
+			</a>
+		</nav>
 	{:else if statistics}
 		<p class="nothing">There is nothing to count yet. Statistics appear with the first flight.</p>
 	{/if}
@@ -451,6 +459,10 @@
 
 	.chart {
 		padding: 1rem;
+	}
+
+	.more {
+		margin-top: 1.5rem;
 	}
 
 	.measures {

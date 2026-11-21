@@ -168,6 +168,25 @@ describe('a logbook in the browser', () => {
 		expect(tab.logbook().years[0].flights[0].score?.distanceM).toBeGreaterThan(1000);
 	});
 
+	it('says how the pilot flies, counting every stored flight after a reload', async () => {
+		browser = new Browser();
+		for (let day = 1; day <= 3; day += 1) {
+			await (await browser.tab()).importFlight(sampleFlightOn(day));
+		}
+		// A tab opened later holds none of the files in memory.
+		const later = await browser.tab();
+
+		const tendencies = await later.tendencies();
+
+		expect(tendencies.flights).toBe(3);
+		expect(tendencies.thermals).toBeGreaterThan(0);
+		expect(tendencies.note).not.toBe('');
+		for (const observation of tendencies.observations) {
+			expect(observation.title).not.toBe('');
+			expect(observation.words).not.toBe('');
+		}
+	});
+
 	it('recognises a flight that is already there', async () => {
 		browser = new Browser();
 		const tab = await browser.tab();

@@ -215,6 +215,8 @@ fun CockpitScreen(
     var thermals by remember { mutableStateOf(preferences.mapShowsThermals) }
     // The ground: the drawn map or photographs from above, one choice with every other map.
     var aerial by remember { mutableStateOf(preferences.mapShowsAerial) }
+    // Who made the photographs in view, as the map last said.
+    var photos by remember { mutableStateOf<String?>(null) }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
     // The airspace the loudest warning is about: the map steps back as far
@@ -290,6 +292,7 @@ fun CockpitScreen(
                             content = map,
                             modifier = Modifier.fillMaxSize(),
                             kept = keptMap,
+                            onPhotosCredit = { photos = it },
                             onUpdate = {
                                 map.airspace = fly.airspace()
                                 map.range = fly.range
@@ -347,7 +350,7 @@ fun CockpitScreen(
                         ) {
                             // Who made the photographs, by name, while they show.
                             if (aerial && page != CockpitPage.Instruments) {
-                                PhotosCredit()
+                                PhotosCredit(photos)
                             }
                             if (page == CockpitPage.Map) Row(
                                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
@@ -377,10 +380,34 @@ fun CockpitScreen(
                                 }
                             }
                         }
+                        // At the lower right, clear of the credits at the
+                        // lower left and the landing at the upper left: on
+                        // the first page the airspace that matters next,
+                        // small; on the map's page the distance so far.
+                        Box(
+                            Modifier.align(Alignment.BottomEnd).padding(
+                                start = VentiSpace.s7,
+                                end = VentiSpace.s2,
+                                bottom = VentiSpace.s2,
+                            ),
+                        ) {
+                            when (page) {
+                                CockpitPage.Instruments -> view.airspaceProximity?.let { AirspaceProximityBadge(it) }
+                                CockpitPage.Map -> fly.score?.let { ScoreBadge(it) }
+                                CockpitPage.Flight -> Unit
+                            }
+                        }
                     }
                 }
                 CockpitRule()
                 if (page == CockpitPage.Map) {
+                    // The airspace that matters next, large: it stays while
+                    // a warning is up, and can be about another airspace
+                    // than the band, which is about the most urgent warning.
+                    view.airspaceProximity?.let { reading ->
+                        AirspaceProximityStrip(reading)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
                     // With a task: where the flight stands in it, above
                     // the line that says where to fly.
                     if (taskStatus != null) {
@@ -654,7 +681,15 @@ private fun InstrumentsPage(view: CockpitView, way: WayToTarget?, onWinds: () ->
             if (view.circling) {
                 Reading("Gained", view.thermal?.let { Format.signedMetres(it.gainM) }, "m", modifier = Modifier.weight(1f))
             } else {
-                Reading("Ground speed", view.groundSpeedMs?.let(Format::kilometresPerHour), "km/h", modifier = Modifier.weight(1f))
+                // Under it the course, in the core's words: none while the
+                // glider moves too slowly for a course to mean something.
+                Reading(
+                    "Ground speed",
+                    view.groundSpeedMs?.let(Format::kilometresPerHour),
+                    "km/h",
+                    note = view.courseWords,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
         Row {
@@ -1019,14 +1054,14 @@ private fun Reading(
 
 /** A text size that ignores the phone's text-size setting. */
 @Composable
-private fun fixedSize(size: Dp): TextUnit = with(LocalDensity.current) { size.toSp() }
+internal fun fixedSize(size: Dp): TextUnit = with(LocalDensity.current) { size.toSp() }
 
 /**
  * One of the pack's type styles at a size that ignores the phone's
  * text-size setting: its pixels taken as the screen's own units.
  */
 @Composable
-private fun fixed(style: VentiTypeStyle): TextStyle =
+internal fun fixed(style: VentiTypeStyle): TextStyle =
     style.text.copy(fontSize = fixedSize(style.sizePx.dp), lineHeight = fixedSize(style.lineHeightPx.dp))
 
 /**
@@ -1091,7 +1126,7 @@ private fun DaylightBadge(daylight: DaylightLeft) {
  * `ground` and `ink` are given for one that warns; the others are plain.
  */
 @Composable
-private fun Badge(
+internal fun Badge(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     ground: Color? = null,

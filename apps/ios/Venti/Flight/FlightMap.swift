@@ -20,6 +20,8 @@ struct FlightMap: UIViewRepresentable {
     var source: MapStyle.Source = .standard
     /// Whether the ground is photographs from above instead of the drawn map.
     var aerial = false
+    /// Where the map says who made the photographs in view.
+    var photos: PhotoCredits?
     /// A second flight laid beside this one, to draw under it.
     var other: FlightView?
     /// Where that flight's glider was at the moment marked, if it was in
@@ -40,6 +42,7 @@ struct FlightMap: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
+        context.coordinator.photos = photos
         context.coordinator.showAerial(aerial, on: map)
         context.coordinator.update(map, cursor: cursor, covered: covered, score: score, airspace: airspace)
         context.coordinator.update(map, other: other, otherCursor: otherCursor)
@@ -47,6 +50,7 @@ struct FlightMap: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
+        var photos: PhotoCredits?
         private let flight: FlightView
         private var cursor: TrackPoint?
         private var score: FlightScore?
@@ -105,8 +109,14 @@ struct FlightMap: UIViewRepresentable {
             }
         }
 
+        /// The map has come to rest: who made the photographs now in view.
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            photos?.update(from: mapView)
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             MapSetup.showAerial(aerial, on: mapView)
+            photos?.update(from: mapView)
             // Airspace lowest of all, under the route and the track.
             AirspaceLayers.add(to: style)
             addRoute(to: style)

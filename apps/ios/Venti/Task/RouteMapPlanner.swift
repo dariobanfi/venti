@@ -20,6 +20,8 @@ struct RouteMapPlanner: View {
     @State private var places: [Coordinate]
     @State private var problem: String?
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+    /// Who made the photographs in view on the map.
+    @State private var photos = PhotoCredits()
 
     /// A route with nothing drawn yet, or one that begins at a place: a
     /// take-off whose page the pilot came from.
@@ -36,7 +38,8 @@ struct RouteMapPlanner: View {
                     scored: plan.score?.route ?? [],
                     faiAreas: plan.faiAreas,
                     source: maps.browsingSource(at: nil),
-                    aerial: showsAerial
+                    aerial: showsAerial,
+                    photos: photos
                 ) { place in
                     add(place)
                 }
@@ -55,7 +58,7 @@ struct RouteMapPlanner: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 // Whose photographs: at the top, where the panel and the
                 // map's credits button leave room.
-                PhotographCredit()
+                PhotographCredit(credits: photos)
                     .padding(.leading, 12)
                     .padding(.top, 16)
                     .padding(.trailing, 80)
@@ -179,6 +182,8 @@ struct RouteDrawingMap: UIViewRepresentable {
     var source: MapStyle.Source = .standard
     /// Whether the ground is photographs from above instead of the drawn map.
     var aerial = false
+    /// Where the map says who made the photographs in view.
+    var photos: PhotoCredits?
     /// Called with the place under the finger after a tap.
     var onTap: (Coordinate) -> Void
 
@@ -210,12 +215,14 @@ struct RouteDrawingMap: UIViewRepresentable {
 
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.onTap = onTap
+        context.coordinator.photos = photos
         context.coordinator.showAerial(aerial, on: map)
         context.coordinator.show(places, scored: scored, faiAreas: faiAreas, on: map)
     }
 
     @MainActor
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
+        var photos: PhotoCredits?
         var onTap: (Coordinate) -> Void = { _ in }
         private var places: [Coordinate] = []
         private var scored: [Coordinate] = []
@@ -247,8 +254,14 @@ struct RouteDrawingMap: UIViewRepresentable {
             onTap(Coordinate(lat: place.latitude, lon: place.longitude))
         }
 
+        /// The map has come to rest: who made the photographs now in view.
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            photos?.update(from: mapView)
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             MapSetup.showAerial(aerial, on: mapView)
+            photos?.update(from: mapView)
             let ink = Palette.inkOnMap
 
             // Where a third place makes an FAI triangle of the first leg:

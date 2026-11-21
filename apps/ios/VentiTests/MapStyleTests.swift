@@ -1,3 +1,4 @@
+import VentiCore
 import XCTest
 
 @testable import Venti
@@ -38,7 +39,7 @@ final class MapStyleTests: XCTestCase {
     /// providers wherever the rest is drawn from.
     private func sources(of style: [String: Any]) throws -> [String: [String: Any]] {
         let sources = try XCTUnwrap(style["sources"] as? [String: [String: Any]])
-        XCTAssertEqual(Set(sources.keys), ["basemap", "terrain", "aerial-world", "aerial-bavaria"])
+        XCTAssertEqual(Set(sources.keys), ["basemap", "terrain", "aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-bavaria"])
         return sources.filter { !$0.key.hasPrefix("aerial-") }
     }
 
@@ -98,7 +99,10 @@ final class MapStyleTests: XCTestCase {
         let views = try MapStyle.views()
         XCTAssertEqual(
             views.aerial,
-            ["aerial-world", "aerial-austria", "aerial-bavaria", "aerial-road", "aerial-aerialway-casing"]
+            [
+                "aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-austria", "aerial-bavaria",
+                "aerial-road", "aerial-aerialway-casing",
+            ]
         )
         XCTAssertEqual(views.drawn, ["path", "track", "road-minor", "road-major", "rail"])
 
@@ -112,11 +116,66 @@ final class MapStyleTests: XCTestCase {
             }
             // Whoever made the photographs is named with them.
             let sources = try XCTUnwrap(style["sources"] as? [String: [String: Any]])
-            for name in ["aerial-world", "aerial-bavaria"] {
+            for name in ["aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-bavaria"] {
                 XCTAssertEqual(sources[name]?["type"] as? String, "raster", name)
                 XCTAssertFalse((sources[name]?["attribution"] as? String ?? "").isEmpty, name)
             }
         }
+    }
+
+    /// A box of the map around a place, about as much as a phone shows.
+    private func around(lat: Double, lon: Double, by degrees: Double = 0.05) -> Bounds {
+        Bounds(south: lat - degrees, west: lon - degrees, north: lat + degrees, east: lon + degrees)
+    }
+
+    /// The short line names the makers of the photographs in view: the
+    /// layers whose box meets the map and whose zoom it has reached, the
+    /// world's mosaic last.
+    func testThePhotographsCreditNamesTheMakersInView() throws {
+        let makers = try MapStyle.aerialMakers()
+        XCTAssertEqual(
+            makers.map(\.credit),
+            ["EOX", "swisstopo", "Autonome Provinz Bozen - Südtirol", "basemap.at", "Bayerische Vermessungsverwaltung"]
+        )
+        // Over the Tegernsee.
+        XCTAssertEqual(
+            MapStyle.photoCredit(makers, visible: around(lat: 47.70, lon: 11.76), zoom: 12),
+            "Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX"
+        )
+        // Over Interlaken.
+        XCTAssertEqual(
+            MapStyle.photoCredit(makers, visible: around(lat: 46.69, lon: 7.86), zoom: 12),
+            "Photos: swisstopo · EOX"
+        )
+        // Zoomed out, anywhere: the world's mosaic alone.
+        for place in [(47.70, 11.76), (46.69, 7.86), (46.5, 11.35)] {
+            XCTAssertEqual(
+                MapStyle.photoCredit(makers, visible: around(lat: place.0, lon: place.1, by: 1), zoom: 8),
+                "Photos: EOX"
+            )
+        }
+        // Without a server the style has no Austrian layer, and the line
+        // does not name its maker.
+        let withoutAustria = makers.filter { $0.layer != "aerial-austria" }
+        XCTAssertEqual(
+            MapStyle.photoCredit(withoutAustria, visible: around(lat: 47.70, lon: 11.76), zoom: 12),
+            "Photos: Bayerische Vermessungsverwaltung · EOX"
+        )
+        // Each name once.
+        let twice = makers + [MapStyle.AerialMaker(layer: "again", credit: "EOX", bounds: nil, minZoom: 0)]
+        XCTAssertEqual(MapStyle.photoCredit(twice, visible: around(lat: 46.69, lon: 7.86), zoom: 12), "Photos: swisstopo · EOX")
+    }
+
+    /// The credits screen has every photograph provider's own wording.
+    func testEveryPhotographProviderHasItsWording() throws {
+        for maker in try MapStyle.aerialMakers() {
+            XCTAssertFalse(maker.wording.isEmpty, maker.layer)
+            XCTAssertFalse(maker.wording.contains("<"), maker.wording)
+            XCTAssertTrue(maker.link?.hasPrefix("https://") == true, maker.layer)
+        }
+        XCTAssertEqual(
+            MapStyle.plainText(#"<a href="https://basemap.at">Datenquelle: basemap.at</a>"#), "Datenquelle: basemap.at"
+        )
     }
 
     func testEveryTileSourceOfTheBundledStyleIsAFileInTheApp() throws {

@@ -158,6 +158,8 @@ struct FlightDetail: View {
 
     /// The position in the track the pilot is inspecting, if any.
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+    /// Who made the photographs in view on the map.
+    @State private var photos = PhotoCredits()
     @State private var cursor: Int?
     /// The ground under the flight, once its tiles are there.
     @State private var ground: [GroundUnderFlight] = []
@@ -189,6 +191,7 @@ struct FlightDetail: View {
                     ),
                     source: mapSource,
                     aerial: showsAerial,
+                    photos: photos,
                     other: compared?.flight,
                     otherCursor: cursor.flatMap { compared?.point(atSeconds: flight.track[$0].seconds) }
                 )
@@ -207,7 +210,7 @@ struct FlightDetail: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 // And whose photographs, beside the map's credits button
                 // and over the panel.
-                PhotographCredit()
+                PhotographCredit(credits: photos)
                     .padding(.leading, 44)
                     .padding(.trailing, 16)
                     .padding(.bottom, panelHeight + 8)

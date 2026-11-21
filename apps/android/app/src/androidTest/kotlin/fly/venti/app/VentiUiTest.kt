@@ -705,11 +705,27 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-8-airspace")
+        // While a warning is up the airspace that matters next stands over
+        // the first page's map too, small, in the core's words; it may be
+        // about another airspace than the band, but there is one.
+        waitForAll(banner, hasTestTag("airspace-proximity"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-8-airspace-proximity")
+
+        // On the map's page it is large: the name, where and how high, and
+        // the height line; beside the map the distance flown so far.
+        turnTo("Map")
+        // The height line is inside the reading, which is one element for
+        // TalkBack: it is found by the reading's tag.
+        waitFor(hasTestTag("airspace-proximity-map"))
+        assertTrue(exists(hasTestTag("airspace-proximity-map") and saying("SAMPLE ZONE (NOT REAL)")))
+        waitFor(hasTestTag("score-badge"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-8b-airspace-proximity-map")
 
         // The line ahead from the side, with the zone as a block if it
         // lies on the line just now; which it does is the flight's to say.
         // Its button is over the map of the second page.
-        turnTo("Map")
         tap(described("Ahead, from the side"))
         waitForAll(hasTestTag("ahead-chart"), hasTestTag("ahead-words"))
         letTheMapDraw(1)
@@ -2594,8 +2610,10 @@ class VentiUiTest {
         waitFor(aerial and isSelected().not())
         tap(aerial)
         waitFor(aerial and isSelected())
-        // Whose photographs they are, by name, while they show.
-        waitFor(hasText("Photos: basemap.at", substring = true))
+        // Whose photographs they are, by name, while they show: those in
+        // view. The map opens zoomed out over the Alps, where only the
+        // world's mosaic is drawn.
+        waitFor(hasText("Photos: EOX"))
         letTheMapDraw(12)
         keepScreenshot("online-1b-map-aerial")
 
@@ -2603,9 +2621,11 @@ class VentiUiTest {
         waitFor(hasText("No flights yet"))
         tap(hasText("Add a sample flight"))
         waitFor(described("Flight details"))
-        // One choice for every map: the flight's map shows the photographs too.
+        // One choice for every map: the flight's map shows the photographs too,
+        // close over the Tegernsee, with Bavaria's among them.
         waitFor(aerial and isSelected())
         waitFor(hasTestTag("photos-credit"))
+        waitFor(hasText("Bayerische Vermessungsverwaltung", substring = true))
         letTheMapDraw(12)
         keepScreenshot("online-2b-flight-aerial")
         // Off again, as the test found it.

@@ -18,7 +18,10 @@ import {
 
 const chip = (page: Page, name: string) =>
 	page.getByRole('group', { name: 'Layers on the map' }).getByRole('button', { name });
-/** The short line that names the photographs' makers. */
+/**
+ * The short line that names the makers of the photographs that can show
+ * over the Tegernsee valley at a valley's zoom (`aerial-credit.ts`).
+ */
 const PHOTOS = 'Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX';
 const shown = (page: Page) => page.getByText(/^Flying sites on this part of the map/);
 
@@ -87,12 +90,33 @@ test('the layers button lays photographs from above under the map, and the brows
 	expect(new Set(photographs)).toContain('tiles.maps.eox.at');
 	// Whoever made the photographs is named on the map while they show.
 	await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText('EOX IT Services');
-	// A phone folds the map's own credits behind their button: a short line
-	// names the photographs' makers beside the others. A wide map writes the
-	// credits out and needs none.
-	const photos = page.getByText(PHOTOS);
-	if (wide) await expect(photos).toHaveCount(0);
-	else await expect(photos).toBeVisible();
+	// A wide map writes its credits out, with every maker's own wording as
+	// the style's sources give it: MapLibre names each source whose layer
+	// shows at this zoom, wherever its photographs are. It needs no short line.
+	if (wide) {
+		for (const wording of [
+			'EOxCloudless',
+			'©swisstopo',
+			'Autonome Provinz Bozen - Südtirol',
+			'Datenquelle: basemap.at',
+			'Bayerische Vermessungsverwaltung'
+		]) {
+			await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText(wording);
+		}
+		await expect(page.getByText(/^Photos: /)).toHaveCount(0);
+	} else {
+		// A phone folds the map's own credits behind their button: a short
+		// line names the makers of the photographs that can show. Zoomed out
+		// below the regions' photographs, only the world's; one step in,
+		// once the map has come to rest, the valley's makers too.
+		await expect(page.getByText('Photos: EOX', { exact: true })).toBeVisible();
+		const canvas = page.locator('canvas.maplibregl-canvas');
+		await canvas.focus();
+		await page.keyboard.press('Equal');
+		await mapDrawn();
+		await canvas.blur();
+		await expect(page.getByText(PHOTOS)).toBeVisible();
+	}
 	await keep('101-map-aerial');
 
 	// A reload keeps the view, and the button switches back to the drawn map.
@@ -103,7 +127,7 @@ test('the layers button lays photographs from above under the map, and the brows
 	await expect(aerial).toHaveAttribute('aria-pressed', 'false');
 	await expect(page.locator('.maplibregl-ctrl-attrib-inner')).not.toContainText('EOX');
 	// On the drawn map the short line is gone.
-	await expect(page.getByText(PHOTOS)).toHaveCount(0);
+	await expect(page.getByText(/^Photos: /)).toHaveCount(0);
 	expect(problems).toEqual([]);
 });
 

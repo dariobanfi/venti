@@ -125,14 +125,19 @@ fun AerialButton(isOn: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier 
  * map's credits button and on the credits screen.
  */
 @Composable
-fun PhotosCredit(modifier: Modifier = Modifier) {
+fun PhotosCredit(
+    /** The line, from the map ([MapSurface]'s `onPhotosCredit`); nothing is shown without one. */
+    credit: String?,
+    modifier: Modifier = Modifier,
+) {
+    if (credit == null) return
     Surface(
         modifier = modifier.testTag("photos-credit"),
         shape = MaterialTheme.shapes.small,
         color = Venti.colours.surface.copy(alpha = 0.85f),
     ) {
         Text(
-            fly.venti.app.map.MapSetup.PHOTOS_CREDIT,
+            credit,
             style = MaterialTheme.typography.labelSmall,
             color = Venti.colours.textSecondary,
             maxLines = 2,

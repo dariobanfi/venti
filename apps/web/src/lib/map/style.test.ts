@@ -21,6 +21,8 @@ describe('the map style prepared for the browser', () => {
 		expect(Object.keys(style.sources).sort()).toEqual([
 			'aerial-austria',
 			'aerial-bavaria',
+			'aerial-south-tyrol',
+			'aerial-switzerland',
 			'aerial-world',
 			'basemap',
 			'terrain'
@@ -74,6 +76,8 @@ describe('the map style prepared for the browser', () => {
 
 		expect(AERIAL_LAYERS).toEqual([
 			'aerial-world',
+			'aerial-switzerland',
+			'aerial-south-tyrol',
 			'aerial-austria',
 			'aerial-bavaria',
 			'aerial-road',
@@ -82,6 +86,8 @@ describe('the map style prepared for the browser', () => {
 		expect(DRAWN_LAYERS).toEqual(['path', 'track', 'road-minor', 'road-major', 'rail']);
 		expect(photographs.map((layer) => layer.id)).toEqual([
 			'aerial-world',
+			'aerial-switzerland',
+			'aerial-south-tyrol',
 			'aerial-austria',
 			'aerial-bavaria'
 		]);

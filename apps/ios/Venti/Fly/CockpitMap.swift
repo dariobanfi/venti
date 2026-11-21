@@ -45,6 +45,8 @@ struct CockpitMap: UIViewRepresentable {
     /// Whether the ground is photographs from above instead of the drawn
     /// map, as on the app's other maps.
     var aerial = false
+    /// Where the map says who made the photographs in view.
+    var photos: PhotoCredits?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -73,6 +75,7 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.task = task
         context.coordinator.taskStatus = taskStatus
         context.coordinator.followsTheCircle = followsTheCircle
+        context.coordinator.photos = photos
         context.coordinator.showAerial(aerial, on: map)
         context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
@@ -80,6 +83,7 @@ struct CockpitMap: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
+        var photos: PhotoCredits?
         static let cruiseZoom = 13.0
         static let thermalZoom = 15.5
         /// The map never zooms further out than this by itself.
@@ -145,8 +149,14 @@ struct CockpitMap: UIViewRepresentable {
             return layer
         }
 
+        /// The map has come to rest: who made the photographs now in view.
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            photos?.update(from: mapView)
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             MapSetup.showAerial(aerial, on: mapView)
+            photos?.update(from: mapView)
             // Airspace lowest of all.
             AirspaceLayers.add(to: style)
 

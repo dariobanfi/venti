@@ -66,7 +66,12 @@ const PHOTOGRAPH = Buffer.from(
 );
 
 /** The hosts of the aerial view's photographs, as the shared style names them. */
-export const AERIAL_HOSTS = ['tiles.maps.eox.at', 'wmtsod1.bayernwolke.de'];
+export const AERIAL_HOSTS = [
+	'tiles.maps.eox.at',
+	'wmts.geo.admin.ch',
+	'geoservices.buergernetz.bz.it',
+	'wmtsod1.bayernwolke.de'
+];
 
 async function answerWithTile(route: Route, archive: PMTiles, contentType: string): Promise<void> {
 	const match = /\/(\d+)\/(\d+)\/(\d+)\.\w+$/.exec(new URL(route.request().url()).pathname);

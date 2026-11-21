@@ -46,6 +46,8 @@ describe('the site’s content security policy', () => {
 			'https://tiles.openfreemap.org',
 			'https://tiles.mapterhorn.com',
 			'https://tiles.maps.eox.at',
+			'https://wmts.geo.admin.ch',
+			'https://geoservices.buergernetz.bz.it',
 			'https://wmtsod1.bayernwolke.de',
 			'https://thermal.kk7.ch'
 		]);

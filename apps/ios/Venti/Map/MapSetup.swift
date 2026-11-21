@@ -50,6 +50,24 @@ enum MapSetup {
         map.attributionButton.tintColor = creditsTint(aerial: aerial)
     }
 
+    /// The layers of photographs of the shared style, read once.
+    private static let makers = (try? MapStyle.aerialMakers()) ?? []
+
+    /// Who made the photographs in view on this map, in one short line:
+    /// of the layers of photographs the map's style has (one asked of a
+    /// server is not there without one), those that draw here at this
+    /// zoom. `nil` before the map has its style.
+    static func photoCredit(on map: MLNMapView) -> String? {
+        guard let style = map.style else { return nil }
+        let loaded = makers.filter { style.layer(withIdentifier: $0.layer) != nil }
+        let box = map.visibleCoordinateBounds
+        return MapStyle.photoCredit(
+            loaded,
+            visible: Bounds(south: box.sw.latitude, west: box.sw.longitude, north: box.ne.latitude, east: box.ne.longitude),
+            zoom: map.zoomLevel
+        )
+    }
+
     /// Moves the camera so the box is in view, clear of what covers the map.
     static func show(_ box: Bounds, on map: MLNMapView, animated: Bool) {
         // A box with no extent, such as a single position, would zoom in

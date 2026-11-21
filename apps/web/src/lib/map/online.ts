@@ -21,11 +21,18 @@ export const ONLINE = {
 	terrainAttribution: '<a href="https://mapterhorn.com/attribution">© Mapterhorn</a>',
 	/**
 	 * Where the photographs of the aerial view come from: EOX for the whole
-	 * world, the Bavarian survey office for Bavaria. Their addresses stand
-	 * in the shared style (`map/style.json`), the same for every app; here
-	 * are their hosts, for the policy, and a test holds the two together.
+	 * world, swisstopo for Switzerland, the province of Bolzano for South
+	 * Tyrol, the Bavarian survey office for Bavaria. Austria's come through
+	 * Venti's own server. Their addresses stand in the shared style
+	 * (`map/style.json`), the same for every app; here are their hosts, for
+	 * the policy, and a test holds the two together.
 	 */
-	aerialHosts: ['https://tiles.maps.eox.at', 'https://wmtsod1.bayernwolke.de'],
+	aerialHosts: [
+		'https://tiles.maps.eox.at',
+		'https://wmts.geo.admin.ch',
+		'https://geoservices.buergernetz.bz.it',
+		'https://wmtsod1.bayernwolke.de'
+	],
 	/**
 	 * Where the thermal map comes from, for the policy as above. Its author
 	 * asks to be told the page's domain with every request, which the style

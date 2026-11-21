@@ -378,6 +378,8 @@ internal fun FlightDetail(
     var isShowingDetails by remember { mutableStateOf(false) }
     var panelHeight by remember { mutableIntStateOf(0) }
     val map = remember(flight) { FlightMap(flight) }
+    // Who made the photographs in view, as the map last said.
+    var photos by remember { mutableStateOf<String?>(null) }
 
     val density = LocalDensity.current
     val covered = with(density) {
@@ -392,6 +394,7 @@ internal fun FlightDetail(
         MapSurface(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map of the flight" },
+            onPhotosCredit = { photos = it },
             onUpdate = {
                 val point = cursor?.let { flight.track.getOrNull(it) }
                 map.showAerial(aerial)
@@ -409,6 +412,7 @@ internal fun FlightDetail(
         if (aerial) {
             // Who made the photographs, by name, just above the panel.
             PhotosCredit(
+                photos,
                 // Clear of the map's own credits button in the corner.
                 Modifier.align(Alignment.BottomStart).padding(
                     start = VentiSpace.s7,

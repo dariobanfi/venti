@@ -38,7 +38,6 @@
 	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
 	import {
-		AERIAL_CREDIT,
 		aerialOn,
 		forecastOn,
 		keepAerial,
@@ -75,11 +74,13 @@
 	}
 	/** Whether the ground is photographs from above: the pilot's choice for every map. */
 	let aerial = $state(aerialOn(globalThis.localStorage));
+	/** Whose photographs can show where the map has come to rest, as the map says. */
+	let photosShowing = $state('');
 	/**
 	 * Whose the photographs are, while they show on a map whose own credits
 	 * are folded behind their button. A wide map writes them out itself.
 	 */
-	const photosCredit = $derived(aerial && !wide.current ? AERIAL_CREDIT : '');
+	const photosCredit = $derived(aerial && !wide.current ? photosShowing : '');
 	/** Whether the map shows the kind of day, square by square: off until the pilot asks. */
 	let forecast = $state(forecastOn(globalThis.localStorage));
 	const thermals = $derived(app.thermals);
@@ -302,6 +303,7 @@
 		onproblem={(problem) =>
 			(app.notice = { title: 'Position unavailable', lines: [problemText(problem)] })}
 		onregion={(region, zoom) => (view = { region, zoom })}
+		onphotos={(line) => (photosShowing = line)}
 		onstation={(id) => openStation(wind?.station(id))}
 		onsite={(id) => openSite(sites?.site(id))}
 		onglider={openGlider}

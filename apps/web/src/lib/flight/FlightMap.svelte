@@ -31,6 +31,7 @@
 		PAPER_ON_MAP,
 		ROUTE_ON_MAP
 	} from '#lib/design/palette.ts';
+	import { aerialMakers, photosCredit } from '#lib/map/aerial-credit.ts';
 	import { addLine } from '#lib/map/casing.ts';
 	import type { Map } from '#lib/map/setup.ts';
 	import { NOTHING, place, routeLines, trackByBand } from '#lib/map/shapes.ts';
@@ -60,6 +61,11 @@
 		ground?: readonly GroundUnderFlight[];
 		/** Whether the camera follows the marked moment from behind, in 3D. */
 		follow?: boolean;
+		/**
+		 * Called whenever the map has come to rest with the short line of
+		 * whose photographs of the aerial view can show there (`aerial-credit.ts`).
+		 */
+		onphotos?: (line: string) => void;
 	}
 
 	let {
@@ -75,7 +81,8 @@
 		other,
 		analysis,
 		ground = [],
-		follow = false
+		follow = false,
+		onphotos
 	}: Props = $props();
 
 	let container: HTMLDivElement;
@@ -123,6 +130,20 @@
 					module.dot('flight-cursor-dot', 'flight-cursor', 8, ACCENT_ON_MAP, PAPER_ON_MAP)
 				);
 				map = styled;
+				// Whose photographs can show, read from the style the map loaded.
+				const makers = aerialMakers(styled.getStyle());
+				const tellPhotos = () => {
+					const visible = styled.getBounds();
+					const region = {
+						south: visible.getSouth(),
+						west: visible.getWest(),
+						north: visible.getNorth(),
+						east: visible.getEast()
+					};
+					onphotos?.(photosCredit(makers, region, styled.getZoom()));
+				};
+				tellPhotos();
+				styled.on('moveend', tellPhotos);
 			});
 		});
 		return () => {

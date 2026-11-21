@@ -171,6 +171,17 @@ struct CreditsScreen: View {
                     link: "https://maplibre.org"
                 )
             }
+            // The aerial view's photographs: every provider in the
+            // shared style, in its own words, whatever the map shows.
+            Section("Aerial photographs") {
+                ForEach(Self.photographs, id: \.layer) { maker in
+                    credit(
+                        maker.credit,
+                        maker.wording + (Self.wordingIsOurs.contains(maker.layer) ? Self.oursNote : ""),
+                        link: maker.link ?? ""
+                    )
+                }
+            }
             Section("Wind") {
                 // Whose stations the server delivers is the server's to
                 // say: the credits come with its answers.
@@ -195,6 +206,14 @@ struct CreditsScreen: View {
         .navigationTitle("Data and licences")
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    /// The layers of photographs of the shared style, with their wording.
+    private static let photographs = (try? MapStyle.aerialMakers()) ?? []
+
+    /// Providers whose credit is worded by Venti, since they prescribe
+    /// none (docs/data-sources.md): South Tyrol's.
+    private static let wordingIsOurs: Set<String> = ["aerial-south-tyrol"]
+    private static let oursNote = " Worded by Venti: the province prescribes no credit."
 
     private func credit(_ title: String, _ text: String, link: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {

@@ -23,7 +23,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
-	import { AERIAL_CREDIT, aerialOn, keepAerial } from '#lib/map/layers.ts';
+	import { aerialOn, keepAerial } from '#lib/map/layers.ts';
 	import MapButton from '#lib/map/MapButton.svelte';
 	import { type Beside, otherAt } from './beside';
 	import { nearestIndex } from './chart';
@@ -188,6 +188,8 @@
 	let follow = $state(false);
 	/** Whether the ground is photographs from above: the pilot's choice for every map. */
 	let aerial = $state(aerialOn(globalThis.localStorage));
+	/** Whose photographs can show where the map has come to rest, as the map says. */
+	let photos = $state('');
 	let map = $state<FlightMap>();
 
 	/** How much of the map the top bar and the panel cover, measured in pixels. */
@@ -229,6 +231,7 @@
 			{analysis}
 			{ground}
 			follow={terrain3d && follow}
+			onphotos={(line) => (photos = line)}
 		/>
 		<!-- A map says nothing to a screen reader: this much it can be told. -->
 		{#if airspaceDrawn !== undefined && !app.airspace?.isEmpty}
@@ -238,9 +241,9 @@
 		{/if}
 		<!-- Whose the photographs are, while they show and the map's own
 		     credits are folded behind their button. -->
-		{#if airspaceCredit || (aerial && !wide)}
+		{#if airspaceCredit || (aerial && !wide && photos)}
 			<p class="credits">
-				{#if aerial && !wide}<span>{AERIAL_CREDIT}</span>{/if}
+				{#if aerial && !wide && photos}<span>{photos}</span>{/if}
 				{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
 			</p>
 		{/if}

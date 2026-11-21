@@ -47,6 +47,8 @@ struct MapScreen: View {
     @State private var forecastDate = ""
     /// A square of the forecast map the pilot tapped.
     @State private var chosenSquare: ChosenSquare?
+    /// Who made the photographs in view on the map.
+    @State private var photos = PhotoCredits()
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -101,6 +103,7 @@ struct MapScreen: View {
                 },
                 source: maps.browsingSource(at: nil),
                 aerial: showsAerial,
+                photos: photos,
                 forecast: forecastDay,
                 onSquare: { index in
                     guard let day = forecastDay, let map = thermals.map, day.cells.indices.contains(index) else {
@@ -419,7 +422,8 @@ struct MapScreen: View {
         let line = parts.joined(separator: " · ")
         // Who made the photographs, on a line of its own while they show.
         guard showsAerial else { return line }
-        return line.isEmpty ? AerialButton.credit : line + "\n" + AerialButton.credit
+        guard !photos.line.isEmpty else { return line }
+        return line.isEmpty ? photos.line : line + "\n" + photos.line
     }
 
     @ViewBuilder private var credits: some View {

@@ -1,5 +1,6 @@
 package fly.venti.app.map
 
+import fly.venti.core.Bounds
 import fly.venti.app.maps.KeptMap
 import fly.venti.app.AppFiles
 import kotlinx.serialization.SerializationException
@@ -196,6 +197,66 @@ object MapStyle {
             thermals = names("venti:layer", "thermals"),
         )
     }
+
+    /**
+     * One layer of photographs of the aerial view, as the short credit line
+     * needs it: whose they are (`venti:credit`), where its source has
+     * tiles (`bounds`; `null` for everywhere) and from which zoom the layer
+     * shows (`minzoom`; 0 without one).
+     */
+    data class AerialPhotos(val credit: String, val bounds: Bounds?, val minZoom: Double)
+
+    /**
+     * The layers of photographs of a prepared style, in the style's order:
+     * those marked `venti:view: aerial`, of type raster, with a
+     * `venti:credit`, whose source the style has. A source left out of the
+     * prepared style (one that asks a server the app has not got) is left
+     * out with its layer.
+     */
+    fun aerialPhotos(style: String): List<AerialPhotos> {
+        val fields = (
+            try {
+                Json.parseToJsonElement(style) as? JsonObject
+            } catch (_: SerializationException) {
+                null
+            }
+            ) ?: return emptyList()
+        val sources = fields["sources"] as? JsonObject ?: return emptyList()
+        val layers = fields["layers"] as? JsonArray ?: return emptyList()
+        return layers.mapNotNull { element ->
+            val layer = element as? JsonObject ?: return@mapNotNull null
+            val metadata = layer["metadata"] as? JsonObject ?: return@mapNotNull null
+            if ((metadata["venti:view"] as? JsonPrimitive)?.content != "aerial") return@mapNotNull null
+            if ((layer["type"] as? JsonPrimitive)?.content != "raster") return@mapNotNull null
+            val credit = (metadata["venti:credit"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+            val source = sources[(layer["source"] as? JsonPrimitive)?.content] as? JsonObject ?: return@mapNotNull null
+            val box = (source["bounds"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content?.toDoubleOrNull() }
+            AerialPhotos(
+                credit = credit,
+                bounds = box?.takeIf { it.size == 4 }?.let { (west, south, east, north) -> Bounds(south, west, north, east) },
+                minZoom = (layer["minzoom"] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: 0.0,
+            )
+        }
+    }
+
+    /**
+     * The short line that names the makers of the photographs in view:
+     * "Photos: " and the credit of every layer whose bounds meet the part
+     * of the map on screen and whose `minzoom` the zoom has reached. A
+     * layer without bounds counts everywhere and comes last; each name
+     * once, " · " between. `null` when none is in view.
+     */
+    fun photosCredit(layers: List<AerialPhotos>, visible: Bounds, zoom: Double): String? {
+        val shown = layers.filter { layer ->
+            zoom >= layer.minZoom && layer.bounds.let { it == null || meet(it, visible) }
+        }
+        val names = (shown.filter { it.bounds != null } + shown.filter { it.bounds == null }).map { it.credit }.distinct()
+        return if (names.isEmpty()) null else "Photos: " + names.joinToString(" · ")
+    }
+
+    /** Whether two boxes have some part in common, edges included. */
+    private fun meet(one: Bounds, other: Bounds): Boolean =
+        one.south <= other.north && other.south <= one.north && one.west <= other.east && other.west <= one.east
 
     /** A file's location the way the map engine wants it: `file:///data/...`. */
     private fun url(file: File): String = "file://" + file.absolutePath

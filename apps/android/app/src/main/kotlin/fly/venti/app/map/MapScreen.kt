@@ -131,6 +131,8 @@ fun MapScreen(
     var hidesPilots by remember { mutableStateOf(preferences?.mapHidesPilots == true) }
     // The ground: the drawn map, or photographs from above. One choice for every map.
     var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
+    // Who made the photographs in view, as the map last said.
+    var photos by remember { mutableStateOf<String?>(null) }
     // The thermal map, where the style has it: only with the app's domain set.
     var thermals by remember { mutableStateOf(preferences?.mapShowsThermals == true) }
     val offersThermals = remember { MapSetup.offersThermals(context) }
@@ -249,7 +251,7 @@ fun MapScreen(
         airspace.mapCredit.takeIf { showsAirspace && !hidesAirspace },
         sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true && !hidesSites },
         // Who made the photographs, by name, while they show.
-        MapSetup.PHOTOS_CREDIT.takeIf { aerial },
+        photos.takeIf { aerial },
         MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
         thermalMap?.creditLine?.takeIf { showsForecast },
     )
@@ -261,6 +263,7 @@ fun MapScreen(
         MapSurface(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
+            onPhotosCredit = { photos = it },
             onUpdate = {
                 map.showAerial(aerial)
                 map.showThermals(thermals && offersThermals)

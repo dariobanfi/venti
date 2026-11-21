@@ -2,6 +2,7 @@ package fly.venti.app.map
 
 import fly.venti.app.AppFiles
 import fly.venti.app.TestSupport
+import fly.venti.core.Bounds
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -116,11 +117,54 @@ class MapStyleTest {
         assertEquals(shared, style(MapStyle.Source.Bundled).getValue("layers"))
     }
 
+    /** A small piece of the map around a place, as the screen shows it at zoom 12. */
+    private fun around(lat: Double, lon: Double) = Bounds(lat - 0.05, lon - 0.08, lat + 0.05, lon + 0.08)
+
+    @Test
+    fun theShortCreditNamesTheMakersOfThePhotographsInView() {
+        val photos = MapStyle.aerialPhotos(MapStyle.json(MapStyle.Source.Online, template, region, server = "https://venti.example"))
+        assertEquals(
+            listOf("EOX", "swisstopo", "Autonome Provinz Bozen - Südtirol", "basemap.at", "Bayerische Vermessungsverwaltung"),
+            photos.map { it.credit },
+        )
+        // Over the Tegernsee: Austria's box takes in the south of Bavaria.
+        assertEquals(
+            "Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX",
+            MapStyle.photosCredit(photos, around(47.70, 11.76), 12.0),
+        )
+        assertEquals("Photos: swisstopo · EOX", MapStyle.photosCredit(photos, around(46.69, 7.86), 12.0))
+        // Zoomed out, only the world's mosaic is drawn, anywhere.
+        assertEquals("Photos: EOX", MapStyle.photosCredit(photos, around(47.70, 11.76), 8.0))
+        assertEquals("Photos: EOX", MapStyle.photosCredit(photos, around(46.69, 7.86), 8.0))
+        // Each name once.
+        assertEquals("Photos: EOX", MapStyle.photosCredit(photos + photos.first(), around(0.0, 0.0), 12.0))
+        assertNull(MapStyle.photosCredit(emptyList(), around(47.70, 11.76), 12.0))
+    }
+
+    @Test
+    fun anAppWithoutAServerDoesNotNameThePhotographsItCannotShow() {
+        // Without a server the style leaves out Austria's photographs, which go through Venti.
+        val photos = MapStyle.aerialPhotos(MapStyle.json(MapStyle.Source.Online, template, region, server = null))
+        assertFalse(photos.any { it.credit == "basemap.at" })
+        assertEquals(
+            "Photos: Bayerische Vermessungsverwaltung · EOX",
+            MapStyle.photosCredit(photos, around(47.70, 11.76), 12.0),
+        )
+    }
+
     @Test
     fun theAerialViewIsHiddenUntilItIsAskedFor() {
         val views = MapStyle.views(template)
         assertEquals(
-            listOf("aerial-world", "aerial-austria", "aerial-bavaria", "aerial-road", "aerial-aerialway-casing"),
+            listOf(
+                "aerial-world",
+                "aerial-switzerland",
+                "aerial-south-tyrol",
+                "aerial-austria",
+                "aerial-bavaria",
+                "aerial-road",
+                "aerial-aerialway-casing",
+            ),
             views.aerial,
         )
         assertEquals(listOf("path", "track", "road-minor", "road-major", "rail"), views.drawn)

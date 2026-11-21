@@ -1,4 +1,5 @@
 import Foundation
+import VentiCore
 
 /// Prepares the shared map style for the place its tiles come from.
 ///
@@ -94,6 +95,90 @@ enum MapStyle {
             aerial: names("venti:view", "aerial"), drawn: names("venti:view", "drawn"),
             thermals: names("venti:layer", "thermals")
         )
+    }
+
+    /// A layer of photographs of the aerial view and who made them: the
+    /// layer's `venti:credit`, the box its source covers (none for one that
+    /// covers the world) and the zoom from which it is drawn.
+    struct AerialMaker: Equatable {
+        let layer: String
+        let credit: String
+        let bounds: Bounds?
+        let minZoom: Double
+        /// The provider's own wording, as the source's attribution has it,
+        /// without its links.
+        var wording = ""
+        /// The first link of that attribution.
+        var link: String?
+    }
+
+    /// The layers of photographs in the shared style, in its order: every
+    /// raster layer of the aerial view that names its maker.
+    static func aerialMakers(in bundle: Bundle = .main) throws -> [AerialMaker] {
+        guard let template = bundle.url(forResource: "style", withExtension: "json") else {
+            throw StyleError.missing("style.json")
+        }
+        guard let style = try JSONSerialization.jsonObject(with: Data(contentsOf: template)) as? [String: Any],
+              let layers = style["layers"] as? [[String: Any]],
+              let sources = style["sources"] as? [String: [String: Any]]
+        else {
+            throw StyleError.malformed
+        }
+        return layers.compactMap { layer -> AerialMaker? in
+            let metadata = layer["metadata"] as? [String: Any]
+            guard layer["type"] as? String == "raster",
+                  metadata?["venti:view"] as? String == "aerial",
+                  let id = layer["id"] as? String,
+                  let credit = metadata?["venti:credit"] as? String
+            else { return nil }
+            let source = (layer["source"] as? String).flatMap { sources[$0] }
+            let box = (source?["bounds"] as? [Double]).flatMap { edges -> Bounds? in
+                guard edges.count == 4 else { return nil }
+                return Bounds(south: edges[1], west: edges[0], north: edges[3], east: edges[2])
+            }
+            let zoom = max(
+                (layer["minzoom"] as? Double) ?? 0,
+                (source?["minzoom"] as? Double) ?? 0
+            )
+            let attribution = source?["attribution"] as? String ?? ""
+            return AerialMaker(
+                layer: id, credit: credit, bounds: box, minZoom: zoom,
+                wording: plainText(attribution), link: firstLink(in: attribution)
+            )
+        }
+    }
+
+    /// An attribution's words without its markup: "© swisstopo".
+    static func plainText(_ html: String) -> String {
+        html.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The address of an attribution's first link.
+    static func firstLink(in html: String) -> String? {
+        guard let range = html.range(of: #"href="[^"]+""#, options: .regularExpression) else { return nil }
+        return String(html[range].dropFirst(6).dropLast())
+    }
+
+    /// The short line that names the makers of the photographs in view:
+    /// "Photos: " and the credit of every layer whose box meets the part of
+    /// the map on screen and whose zoom the map has reached, in the
+    /// style's order with the layers that cover the world last, each name
+    /// once. `makers` are the layers of the style the map loaded.
+    static func photoCredit(_ makers: [AerialMaker], visible: Bounds, zoom: Double) -> String {
+        let drawn = makers.filter { maker in
+            guard zoom >= maker.minZoom else { return false }
+            guard let box = maker.bounds else { return true }
+            return box.south <= visible.north && box.north >= visible.south
+                && box.west <= visible.east && box.east >= visible.west
+        }
+        var names: [String] = []
+        for maker in drawn.filter({ $0.bounds != nil }) + drawn.filter({ $0.bounds == nil })
+        where !names.contains(maker.credit) {
+            names.append(maker.credit)
+        }
+        return "Photos: " + names.joined(separator: " · ")
     }
 
     /// The folder inside the app that holds the bundled region and the fonts.

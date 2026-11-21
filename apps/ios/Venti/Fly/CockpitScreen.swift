@@ -64,6 +64,8 @@ struct CockpitScreen: View {
     @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
     /// The aerial view: one choice for every map of the app.
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+    /// Who made the photographs in view on the map.
+    @State private var photos = PhotoCredits()
 
     /// Whether the map shows the photographs: as chosen, on the pages where
     /// the map is large. The first page's small map keeps the drawn ground,
@@ -109,6 +111,14 @@ struct CockpitScreen: View {
                     .layoutPriority(-1)
                 CockpitRule()
                 if page == .map {
+                    // The airspace that matters next, large, while the
+                    // cockpit has airspace to warn from.
+                    if fly.airspaceCheck != .noAirspace {
+                        AirspaceProximityStrip(proximity: view.airspaceProximity) {
+                            isShowingAirspace = true
+                        }
+                        CockpitRule()
+                    }
                     // With a task: where the flight stands in it, above
                     // the line that says where to fly, which is then its
                     // next turnpoint unless the pilot chose another place.
@@ -284,7 +294,8 @@ struct CockpitScreen: View {
             // On the first page the thermal view beside it is where the
             // circle is looked at.
             followsTheCircle: page != .instruments,
-            aerial: mapIsAerial
+            aerial: mapIsAerial,
+            photos: photos
         )
             // Drawn from the region kept on the iPhone wherever one covers
             // the glider: the map is made anew when the glider comes into
@@ -387,15 +398,29 @@ struct CockpitScreen: View {
                             .accessibilityAddTraits(.isButton)
                             .accessibilityHint("Lists the places to fly to")
                     }
+                    // Beside the large map, the distance so far and how it
+                    // scores, as the third page has them.
+                    if page == .map, let score = fly.score {
+                        ScoreBadge(score: score)
+                    }
                 }
                 .padding(VentiSpace.s2)
             }
             .overlay(alignment: .bottomTrailing) {
                 VStack(alignment: .trailing, spacing: 0) {
+                    // The airspace that matters next, small, on the first
+                    // page: clear of the landing and the daylight at the
+                    // upper left and of the credits' button at the lower
+                    // left. It stays while a warning is up.
+                    if page == .instruments, let proximity = view.airspaceProximity {
+                        AirspaceProximityBadge(proximity: proximity)
+                            .padding([.top, .horizontal], VentiSpace.s2)
+                            .padding(.bottom, Self.airspaceCredit(airspace.credits) == nil ? VentiSpace.s2 : 0)
+                    }
                     // Who made the photographs, while they show: in the
                     // flight theme's smallest size, which is the label's.
-                    if mapIsAerial {
-                        Text(AerialButton.credit)
+                    if mapIsAerial, !photos.line.isEmpty {
+                        Text(photos.line)
                             .font(.ventiType(.label))
                             .multilineTextAlignment(.trailing)
                             .fixedSize(horizontal: false, vertical: true)
@@ -830,10 +855,13 @@ private struct Instruments: View {
                         unit: "m"
                     )
                 } else {
+                    // Under it the course, in the core's words, while the
+                    // glider moves fast enough for one to mean something.
                     Reading(
                         name: "Ground speed",
                         value: view.groundSpeedMs.map(Format.kilometresPerHour(metresPerSecond:)),
-                        unit: "km/h"
+                        unit: "km/h",
+                        note: view.courseWords
                     )
                 }
             }
@@ -933,7 +961,7 @@ private struct FlightPage: View {
                     spoken: "Cross-country distance",
                     value: score.map { Format.kilometres(metres: $0.distanceM) },
                     unit: "km",
-                    note: score.map(Self.kind)
+                    note: score.map(ScoreBadge.kind)
                 )
             }
             HStack(spacing: VentiSpace.s3) {
@@ -977,19 +1005,6 @@ private struct FlightPage: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// How the distance scores, and for an open triangle how far it is to
-    /// where it began: "Triangle, 1.2 km to close".
-    static func kind(_ score: LiveScore) -> String {
-        let kind = switch score.kind {
-        case .freeFlight: "Free flight"
-        case .freeTriangle: score.closed ? "Closed triangle" : "Triangle"
-        case .faiTriangle: score.closed ? "Closed FAI triangle" : "FAI triangle"
-        }
-        if let gap = score.closingM, !score.closed, gap >= 100 {
-            return "\(kind), \(Format.kilometres(metres: gap)) km to close"
-        }
-        return kind
-    }
 }
 
 /// One reading of the cockpit: the number, and under it its name.

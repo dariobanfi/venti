@@ -43,6 +43,8 @@ struct OverviewMap: UIViewRepresentable {
     var source: MapStyle.Source = .standard
     /// Whether the ground is photographs from above instead of the drawn map.
     var aerial = false
+    /// Where the map says who made the photographs in view.
+    var photos: PhotoCredits?
     /// The day of the forecast map to draw, square by square; nothing
     /// while the layer is off.
     var forecast: ThermalMapDay?
@@ -100,12 +102,14 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
         coordinator.show(airspace, on: map)
+        coordinator.photos = photos
         coordinator.showAerial(aerial, on: map)
         coordinator.follow(isFollowing, on: map)
     }
 
     @MainActor
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
+        var photos: PhotoCredits?
         /// Tells the screen whether the map is following the pilot, and
         /// about a problem if there is one.
         var report: (Bool, String?) -> Void = { _, _ in }
@@ -236,6 +240,7 @@ struct OverviewMap: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             prepare(style)
             MapSetup.showAerial(aerial, on: mapView)
+            photos?.update(from: mapView)
             isStyleLoaded = true
             drawOutlines(on: mapView)
             drawStations(on: mapView)
@@ -249,6 +254,7 @@ struct OverviewMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            photos?.update(from: mapView)
             tellRegion(of: mapView)
         }
 

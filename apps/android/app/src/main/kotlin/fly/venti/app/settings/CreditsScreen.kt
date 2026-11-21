@@ -106,6 +106,21 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 }
                 row {
                     Credit(
+                        "Aerial view in Switzerland",
+                        "©swisstopo. Includes material © (2016-2018) Planet. All rights reserved",
+                        link = "https://www.swisstopo.admin.ch",
+                    )
+                }
+                row {
+                    // Our own wording: the province prescribes none.
+                    Credit(
+                        "Aerial view in South Tyrol",
+                        "© Autonome Provinz Bozen - Südtirol, Orthofoto 2023, CC BY 4.0",
+                        link = "https://natur-raum.provinz.bz.it/de/orthofotos-und-historische-luftbilder",
+                    )
+                }
+                row {
+                    Credit(
                         "Thermal map",
                         "thermal.kk7.ch by M. von Känel, under CC-BY-NC-SA 4.0. Shown only while it is switched on.",
                         link = "https://creativecommons.org/licenses/by-nc-sa/4.0/",

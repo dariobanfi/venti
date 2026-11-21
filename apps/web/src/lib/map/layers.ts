@@ -83,10 +83,3 @@ export function keepLayersOff(
 		// A private window, or no storage: the choice lasts for the visit.
 	}
 }
-
-/**
- * Whose the photographs of the aerial view are, in a short line, for a map
- * whose own credits are folded behind their button (a phone's width): the
- * names alone. The providers' full wording is behind that button.
- */
-export const AERIAL_CREDIT = 'Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX';

@@ -4,6 +4,7 @@
 	pilot's own position when asked for.
 -->
 <script lang="ts">
+	import { type AerialMaker, aerialMakers, photosCredit } from './aerial-credit';
 	import { addLine } from './casing';
 	import type { MapLayer } from './layers';
 	import { onMount } from 'svelte';
@@ -65,6 +66,11 @@
 		onproblem: (problem: PositionProblem) => void;
 		/** Called with the part of the map in view, and its zoom, whenever the map has come to rest. */
 		onregion: (region: Bounds, zoom: number) => void;
+		/**
+		 * Called whenever the map has come to rest with the short line of
+		 * whose photographs of the aerial view can show there (`aerial-credit.ts`).
+		 */
+		onphotos?: (line: string) => void;
 		/** Called with a station's identifier when the pilot chooses its arrow. */
 		onstation: (id: string) => void;
 		/** Called with a site's identifier when the pilot chooses its sign. */
@@ -101,6 +107,7 @@
 		coveredBottom,
 		onproblem,
 		onregion,
+		onphotos,
 		onstation,
 		onsite,
 		onglider,
@@ -130,6 +137,8 @@
 	let lastFix: Fix | undefined;
 	let stopWatching: (() => void) | undefined;
 	let airspaceOnMap: AirspaceOnMap | undefined;
+	/** The aerial view's layers of photographs in the style the map loaded, read once. */
+	let makers: AerialMaker[] | undefined;
 
 	onMount(() => {
 		let gone = false;
@@ -257,15 +266,15 @@
 
 	function tellRegion(map: Map) {
 		const visible = map.getBounds();
-		onregion(
-			{
-				south: visible.getSouth(),
-				west: visible.getWest(),
-				north: visible.getNorth(),
-				east: visible.getEast()
-			},
-			map.getZoom()
-		);
+		const region = {
+			south: visible.getSouth(),
+			west: visible.getWest(),
+			north: visible.getNorth(),
+			east: visible.getEast()
+		};
+		onregion(region, map.getZoom());
+		makers ??= aerialMakers(map.getStyle());
+		onphotos?.(photosCredit(makers, region, map.getZoom()));
 	}
 
 	/**

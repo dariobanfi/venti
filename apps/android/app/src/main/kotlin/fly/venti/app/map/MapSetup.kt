@@ -7,7 +7,9 @@ import android.view.Gravity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -70,10 +72,16 @@ fun MapSurface(
      */
     kept: KeptMap? = MapSetup.browsing(),
     onUpdate: () -> Unit = {},
+    /**
+     * Told the short line that names the makers of the photographs in view
+     * ("Photos: swisstopo · EOX"), or `null`, whenever the map comes to rest.
+     */
+    onPhotosCredit: (String?) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val view = remember(content) { MapSetup.makeMapView(context, content, kept) }
+    val tell by rememberUpdatedState(onPhotosCredit)
+    val view = remember(content) { MapSetup.makeMapView(context, content, kept, onPhotosCredit = { tell(it) }) }
 
     DisposableEffect(lifecycle, view) {
         // The view is told of each step of the screen's life in order, and
@@ -236,18 +244,17 @@ object MapSetup {
     fun aerialCasing(line: String, source: String, width: Float): LineLayer =
         line("$line$AERIAL_CASING", source, halo, width + 3f).withProperties(PropertyFactory.visibility(Property.NONE))
 
-    /**
-     * Who made the photographs, by name only, for the map's lower left
-     * while they show: their full words are behind the map's credits
-     * button and on the credits screen.
-     */
-    const val PHOTOS_CREDIT = "Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX"
-
     /** Whose the thermal map is, in its own words, with the map's credits while it shows. */
     const val THERMALS_CREDIT = "thermal.kk7.ch CC-BY-NC-SA"
 
     /** A map view with the app's style and no camera yet. */
-    fun makeMapView(context: Context, content: MapContent, kept: KeptMap? = null): MapView {
+    fun makeMapView(
+        context: Context,
+        content: MapContent,
+        kept: KeptMap? = null,
+        /** Told who made the photographs in view whenever the map comes to rest: [MapStyle.photosCredit]. */
+        onPhotosCredit: (String?) -> Unit = {},
+    ): MapView {
         MapLibre.getInstance(context.applicationContext)
         val density = context.resources.displayMetrics.density
         val options = MapLibreMapOptions.createFromAttributes(context)
@@ -274,7 +281,25 @@ object MapSetup {
                     style(context)
                 }
             }.getOrNull() ?: return@getMapAsync
-            map.setStyle(Style.Builder().fromJson(json)) { style -> content.styleLoaded(map, style, view) }
+            // Who made the photographs in view, by name, for the short line
+            // the screens show while the photographs do: worked out again
+            // whenever the map comes to rest.
+            val photos = MapStyle.aerialPhotos(json)
+            val credit = {
+                val box = map.projection.visibleRegion.latLngBounds
+                onPhotosCredit(
+                    MapStyle.photosCredit(
+                        photos,
+                        Bounds(box.latitudeSouth, box.longitudeWest, box.latitudeNorth, box.longitudeEast),
+                        map.cameraPosition.zoom,
+                    ),
+                )
+            }
+            map.addOnCameraIdleListener { credit() }
+            map.setStyle(Style.Builder().fromJson(json)) { style ->
+                content.styleLoaded(map, style, view)
+                credit()
+            }
         }
         return view
     }

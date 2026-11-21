@@ -693,6 +693,15 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(element("cockpit-end", in: app).exists, "The cockpit can be read while it replays.")
         XCTAssertFalse(element("airspace-notice", in: app).exists)
 
+        // The airspace that matters next stands all the time, small over a
+        // corner of the first page's map: the zone, already in reach from
+        // the take-off, though no warning is up.
+        let proximity = element("airspace-proximity", in: app)
+        XCTAssertTrue(proximity.waitForExistence(timeout: 60))
+        XCTAssertTrue(proximity.value.map { "\($0)" }?.contains("SAMPLE ZONE (NOT REAL)") == true)
+        sleep(1)
+        keepScreenshot("fly-8-airspace-proximity")
+
         // The warning comes when the glider is two kilometres from the
         // zone, nine minutes into the flight.
         let banner = element("airspace-banner", in: app)
@@ -717,6 +726,14 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("fly-6b-airspace-ahead")
         app.buttons["Done"].tap()
+
+        // On the map's page the same reading is large, under the map, with
+        // its height line; the small one is not there.
+        XCTAssertTrue(element("airspace-proximity-map", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(valued(containing: "SAMPLE ZONE (NOT REAL)", in: app).exists)
+        XCTAssertFalse(element("airspace-proximity", in: app).exists)
+        sleep(1)
+        keepScreenshot("fly-8b-airspace-proximity-map")
 
         // On a slow machine a tap can fall into the moment the band is
         // drawn anew, and is lost: once more, then.
@@ -1826,8 +1843,11 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(aerial.waitForExistence(timeout: 30))
         XCTAssertTrue(aerial.isSelected)
         sleep(12)
-        // The map tab names them in its own line of credits.
-        XCTAssertTrue(element("wind-credits", in: app).label.contains("Photos: basemap.at"))
+        // The map tab names them in its own line of credits: the makers
+        // of the photographs in view. This test names no Venti server, so
+        // the style has no Austrian layer and basemap.at is not named.
+        let credits = element("wind-credits", in: app).label
+        XCTAssertTrue(credits.contains("Photos: ") && credits.contains("Bayerische Vermessungsverwaltung · EOX"), credits)
         keepScreenshot("online-4-map-aerial")
         aerial.tap()
         XCTAssertFalse(aerial.isSelected)

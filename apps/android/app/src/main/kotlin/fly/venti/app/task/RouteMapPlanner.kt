@@ -106,6 +106,8 @@ fun RouteMapPlanner(
     preferences: Preferences? = null,
 ) {
     var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
+    // Who made the photographs in view, as the map last said.
+    var photos by remember { mutableStateOf<String?>(null) }
     var places by remember { mutableStateOf(listOfNotNull(from)) }
     var problem by remember { mutableStateOf<String?>(null) }
     val plan = remember(places) { planRoute(places) }
@@ -142,6 +144,7 @@ fun RouteMapPlanner(
                     .fillMaxSize()
                     .testTag("route-map")
                     .semantics { contentDescription = "Map to draw the route on. Tap where the route goes next." },
+                onPhotosCredit = { photos = it },
                 onUpdate = {
                     map.showAerial(aerial)
                     map.show(places, plan)
@@ -159,7 +162,7 @@ fun RouteMapPlanner(
                 )
             }
             if (aerial) {
-                PhotosCredit(Modifier.align(Alignment.TopStart).padding(VentiSpace.s2))
+                PhotosCredit(photos, Modifier.align(Alignment.TopStart).padding(VentiSpace.s2))
             }
             Surface(
                 modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(8.dp).fillMaxWidth(),

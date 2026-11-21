@@ -58,6 +58,9 @@ enum class SettingsRoute {
     /** The pilot's waypoints. */
     Waypoints,
 
+    /** The pilot's own take-offs, which Today lists first. */
+    KeptSites,
+
     /** The pilot's airspace. */
     Airspace,
 

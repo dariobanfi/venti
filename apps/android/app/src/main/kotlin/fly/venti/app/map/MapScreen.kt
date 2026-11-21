@@ -84,6 +84,7 @@ import fly.venti.app.live.GliderSheet
 import fly.venti.app.live.LiveModel
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.sites.SiteSheet
+import fly.venti.app.sites.KeptSitesModel
 import fly.venti.app.sites.SitesModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
@@ -110,6 +111,8 @@ fun MapScreen(
     sites: SitesModel,
     live: LiveModel,
     waypoints: WaypointsModel,
+    /** The pilot's own take-offs, which a site's page marks. */
+    keptSites: KeptSitesModel,
     /** The pilot's own account, which a report of a glider's track is sent from. */
     account: AccountModel,
     /** The pilot's groups and their plans for a flying day. */
@@ -451,6 +454,7 @@ fun MapScreen(
         SiteSheet(
             sites = sites,
             waypoints = waypoints,
+            own = keptSites,
             wind = wind,
             showsList = showsSites,
             chosen = chosenSite,

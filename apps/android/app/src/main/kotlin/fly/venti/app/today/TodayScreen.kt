@@ -75,12 +75,15 @@ import fly.venti.app.design.numbers
 import fly.venti.app.design.status
 import fly.venti.app.design.text
 import fly.venti.app.settings.Preferences
+import fly.venti.app.sites.KeptSitesModel
 import fly.venti.app.wind.WindModel
 import fly.venti.core.Coordinate
 import fly.venti.core.Flyability
 import fly.venti.core.OutlookDay
 import fly.venti.core.OutlookHour
 import fly.venti.core.SiteView
+import fly.venti.core.TodayStanding
+import fly.venti.core.todayOrder
 import kotlinx.coroutines.launch
 
 /**
@@ -97,6 +100,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun TodayScreen(
     today: TodayModel,
+    /** The pilot's own take-offs: Today lists them anew when one is kept or forgotten. */
+    kept: KeptSitesModel,
     wind: WindModel,
     preferences: Preferences,
     /** Opens a take-off's page. */
@@ -133,9 +138,10 @@ fun TodayScreen(
 
     // Asked when the tab is first shown, when the pilot's position
     // arrives, when Venti's address changes, and again after a while.
-    LaunchedEffect(place, wind.address) {
+    // And when the pilot has kept or forgotten a take-off: the core lists them anew.
+    LaunchedEffect(place, wind.address, kept.changes) {
         if (nearPilot) position.readIfAllowed()
-        if (!today.isFresh(place)) today.load(place)
+        today.show(place)
     }
     val places = today.places
     val days = days(places)
@@ -145,7 +151,8 @@ fun TodayScreen(
         day = days.indexOfFirst { it.hours.isNotEmpty() }.coerceAtLeast(0)
     }
     val chosen = days.getOrNull(day)
-    val shown = ordered(places, chosen)
+    // The order on the chosen day, and the take-off that looks best, are the core's.
+    val shown = remember(places, chosen) { TodayList.of(places, chosen) }
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -162,7 +169,7 @@ fun TodayScreen(
             Head(
                 dayLine = dayLine(days, day, isNearPilot = position.place != null && nearPilot),
                 headline = headline(today.state, shown, chosen),
-                thermals = shown.firstOrNull()?.let { outlookDay(it, chosen) }?.thermalWords.orEmpty(),
+                thermals = shown.card?.let { outlookDay(it, chosen) }?.thermalWords.orEmpty(),
                 onOpenSettings = onOpenSettings,
                 onOpenAssistant = onOpenAssistant,
             )
@@ -171,12 +178,20 @@ fun TodayScreen(
                 verticalArrangement = Arrangement.spacedBy(VentiSpace.s4),
             ) {
                 when (val state = today.state) {
-                    is TodayState.Failed -> Explained(
-                        title = "The forecast could not be read",
-                        words = state.message,
-                        action = "Try again",
-                        act = { scope.launch { today.load(place) } },
-                    )
+                    is TodayState.Failed -> {
+                        Explained(
+                            title = "The forecast could not be read",
+                            words = state.message,
+                            action = "Try again",
+                            act = { scope.launch { today.load(place) } },
+                        )
+                        // The pilot's own take-offs are on the phone, and
+                        // are listed without Venti too.
+                        if (places.isNotEmpty()) {
+                            Takeoffs(today, shown, chosen, onOpen)
+                            SiteCredits(today)
+                        }
+                    }
                     TodayState.Idle, TodayState.Loading -> Box(
                         modifier = Modifier.fillMaxWidth().padding(top = VentiSpace.s6),
                         contentAlignment = Alignment.Center,
@@ -185,7 +200,8 @@ fun TodayScreen(
                     }
                     TodayState.Loaded -> if (places.isEmpty()) {
                         Explained(
-                            title = "No take-offs within 30 km",
+                            // "No take-offs within 30 km": how far is the core's to say.
+                            title = "No take-offs ${today.nearTitle.replaceFirstChar { it.lowercase() }}",
                             words = if (position.place == null || !nearPilot) {
                                 "These would be the take-offs around the Tegernsee. Venti knows none there yet."
                             } else {
@@ -201,15 +217,7 @@ fun TodayScreen(
                                 day = it
                             })
                         }
-                        shown.firstOrNull()?.let { first ->
-                            TakeoffCard(first, outlookDay(first, chosen), onClick = { onOpen(first.site) })
-                        }
-                        Column {
-                            shown.drop(1).forEachIndexed { index, other ->
-                                if (index > 0) HorizontalDivider(color = Venti.colours.border)
-                                TakeoffRow(other, outlookDay(other, chosen), onClick = { onOpen(other.site) })
-                            }
-                        }
+                        Takeoffs(today, shown, chosen, onOpen)
                         if (!(nearPilot && position.place != null) && !position.isDenied) {
                             OutlinedButton(
                                 onClick = ::useMyPosition,
@@ -218,11 +226,124 @@ fun TodayScreen(
                                 Text("Use my position")
                             }
                         }
-                        Foot(today, shown.firstOrNull()?.let { outlookDay(it, chosen) })
+                        Foot(today, shown.card?.let { outlookDay(it, chosen) })
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * The take-offs of a day as the screen lays them out. Their order and
+ * which one looks best are the core's (`todayOrder`); this only puts the
+ * best on the card and the others in the rows of their group.
+ */
+internal class TodayList(
+    /** The take-off on the card: the one the core calls the best, or the first while none has a forecast. */
+    val card: TodayPlace?,
+    /** The pilot's own take-offs besides the card's, in the core's order. */
+    val kept: List<TodayPlace>,
+    /** The others besides the card's, in the core's order. */
+    val near: List<TodayPlace>,
+    /** Whether the two groups are named: when the list has take-offs of both. */
+    val isGrouped: Boolean,
+) {
+    val isEmpty: Boolean get() = card == null
+
+    /** Every take-off shown, the card's first. */
+    val all: List<TodayPlace> get() = listOfNotNull(card) + kept + near
+
+    companion object {
+        fun of(places: List<TodayPlace>, day: OutlookDay?): TodayList {
+            val order = todayOrder(
+                places.map { place ->
+                    val shown = outlookDay(place, day)
+                    TodayStanding(place.site.id, place.isKept, place.distanceM, shown?.verdict, shown?.thermals)
+                },
+            )
+            val byId = places.associateBy { it.site.id }
+            val ordered = order.ids.mapNotNull(byId::get)
+            val card = order.best?.let(byId::get) ?: ordered.firstOrNull()
+            val rows = ordered.filter { it !== card }
+            return TodayList(
+                card = card,
+                kept = rows.filter { it.isKept },
+                near = rows.filter { !it.isKept },
+                isGrouped = places.any { it.isKept } && places.any { !it.isKept },
+            )
+        }
+    }
+}
+
+/**
+ * The best take-off as a card and the others as rows. When the pilot has
+ * take-offs of their own and there are others around, each group stands
+ * under the core's name for it, the pilot's own first; the card stands at
+ * the head of the page and, when it is one of the pilot's own, under their
+ * heading.
+ */
+@Composable
+private fun Takeoffs(today: TodayModel, shown: TodayList, chosen: OutlookDay?, onOpen: (SiteView) -> Unit) {
+    val card = shown.card ?: return
+    val cardIsKept = shown.isGrouped && card.isKept
+    if (cardIsKept) GroupTitle(today.keptTitle, "today-kept-title")
+    TakeoffCard(card, outlookDay(card, chosen), onClick = { onOpen(card.site) })
+    if (shown.isGrouped) {
+        if (shown.kept.isNotEmpty()) {
+            if (!cardIsKept) GroupTitle(today.keptTitle, "today-kept-title")
+            Rows(shown.kept, chosen, onOpen)
+        }
+        KeptMore(today)
+        if (shown.near.isNotEmpty()) {
+            GroupTitle(today.nearTitle, "today-near-title")
+            Rows(shown.near, chosen, onOpen)
+        }
+    } else {
+        Rows(shown.kept + shown.near, chosen, onOpen)
+        KeptMore(today)
+    }
+}
+
+/** The core's name for a group of take-offs, over its rows. */
+@Composable
+private fun GroupTitle(title: String, tag: String) {
+    Text(
+        title,
+        style = VentiType.label.text,
+        color = Venti.colours.textSecondary,
+        modifier = Modifier.fillMaxWidth().testTag(tag).semantics { heading() },
+    )
+}
+
+@Composable
+private fun Rows(places: List<TodayPlace>, chosen: OutlookDay?, onOpen: (SiteView) -> Unit) {
+    if (places.isEmpty()) return
+    Column {
+        places.forEachIndexed { index, other ->
+            if (index > 0) HorizontalDivider(color = Venti.colours.border)
+            TakeoffRow(other, outlookDay(other, chosen), onClick = { onOpen(other.site) })
+        }
+    }
+}
+
+/** The core's line when the pilot has more take-offs than Today lists. */
+@Composable
+private fun KeptMore(today: TodayModel) {
+    if (today.keptMore.isEmpty()) return
+    Text(
+        today.keptMore,
+        style = MaterialTheme.typography.bodySmall,
+        color = Venti.colours.textSecondary,
+        modifier = Modifier.testTag("today-kept-more"),
+    )
+}
+
+/** Whose data the take-offs are, as the licences ask wherever they are shown. */
+@Composable
+private fun SiteCredits(today: TodayModel) {
+    for (credit in today.siteCredits) {
+        Text(credit.text, style = MaterialTheme.typography.bodySmall, color = Venti.colours.textSecondary)
     }
 }
 
@@ -245,7 +366,7 @@ private fun days(places: List<TodayPlace>): List<OutlookDay> =
  * What a take-off's forecast says of the chosen day: the day that begins at
  * the same moment, wherever it stands in that forecast.
  */
-private fun outlookDay(place: TodayPlace, chosen: OutlookDay?): OutlookDay? =
+internal fun outlookDay(place: TodayPlace, chosen: OutlookDay?): OutlookDay? =
     chosen?.let { day -> place.outlook?.days?.firstOrNull { it.startUnixS == day.startUnixS } }
 
 /**
@@ -255,25 +376,6 @@ private fun outlookDay(place: TodayPlace, chosen: OutlookDay?): OutlookDay? =
 private fun waitingWords(place: TodayPlace): String =
     if (place.isAsked) "No forecast for this day" else "Reading the forecast"
 
-/**
- * The take-offs in the order they are shown: by what the forecast says of
- * the chosen day, the better first, and among equals the nearer. One the
- * server has not answered for yet comes last.
- */
-private fun ordered(places: List<TodayPlace>, day: OutlookDay?): List<TodayPlace> =
-    places.sortedWith(
-        compareBy<TodayPlace> { place ->
-            val shown = outlookDay(place, day)
-            // Flyable days first, the better thermals first among them.
-            when (shown?.verdict) {
-                Flyability.FLYABLE -> ThermalScale.rank(shown.thermals)
-                Flyability.MARGINAL -> 4
-                Flyability.NOT_FLYABLE -> 5
-                null -> 6
-            }
-        }.thenBy { it.distanceM },
-    )
-
 /** "Saturday, near you", or the day alone while the take-offs are those around the middle of the first region. */
 private fun dayLine(days: List<OutlookDay>, day: Int, isNearPilot: Boolean): String {
     val start = days.getOrNull(day)?.startUnixS ?: (System.currentTimeMillis() / 1000)
@@ -282,13 +384,13 @@ private fun dayLine(days: List<OutlookDay>, day: Int, isNearPilot: Boolean): Str
 }
 
 /** The day in a line: the best take-off's. Before there is one, what the screen is waiting for. */
-private fun headline(state: TodayState, shown: List<TodayPlace>, day: OutlookDay?): String = when (state) {
+private fun headline(state: TodayState, shown: TodayList, day: OutlookDay?): String = when (state) {
     is TodayState.Failed -> "No forecast"
     TodayState.Idle, TodayState.Loading -> "Reading the forecast"
     TodayState.Loaded -> when {
-        shown.isEmpty() -> "No take-offs near"
-        else -> shown.firstOrNull()?.let { outlookDay(it, day) }?.headline
-            ?: if (shown.all { it.isAsked }) "No forecast" else "Reading the forecast"
+        shown.isEmpty -> "No take-offs near"
+        else -> shown.card?.let { outlookDay(it, day) }?.headline
+            ?: if (shown.all.all { it.isAsked }) "No forecast" else "Reading the forecast"
     }
 }
 
@@ -585,5 +687,8 @@ private fun Foot(
         for (credit in today.credits) {
             Text(credit.text, style = style, color = colour)
         }
+        // And whose the take-offs are: the pilot's own are shown with the
+        // credit they were kept with.
+        SiteCredits(today)
     }
 }

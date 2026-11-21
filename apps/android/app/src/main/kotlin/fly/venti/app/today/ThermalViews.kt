@@ -24,7 +24,6 @@ import app.venti.design.VentiScaleBreaks
 import app.venti.design.VentiSpace
 import fly.venti.app.design.Venti
 import fly.venti.core.OutlookDay
-import fly.venti.core.Thermals
 
 /** Where a climb stands on the design language's thermal scale. */
 object ThermalScale {
@@ -33,17 +32,6 @@ object ThermalScale {
 
     /** The height of an hour's bar for a step, dp: it grows with the step. */
     fun barHeight(step: Int): Int = 2 + 2 * step
-
-    /**
-     * The order of a flyable day by its thermals, the best first: a big
-     * day, a cross-country day, local thermals, then weak or none.
-     */
-    fun rank(thermals: Thermals?): Int = when (thermals) {
-        Thermals.BIG -> 0
-        Thermals.CROSS_COUNTRY -> 1
-        Thermals.LOCAL -> 2
-        Thermals.WEAK, null -> 3
-    }
 }
 
 /** The scale's colour for a climb, in the theme in use. */

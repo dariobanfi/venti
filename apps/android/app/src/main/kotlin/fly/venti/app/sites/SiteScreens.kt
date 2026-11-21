@@ -8,6 +8,7 @@ import fly.venti.app.community.CommunityModel
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -37,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -88,7 +90,9 @@ import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.StationPage
 import fly.venti.app.wind.WindGlyph
 import fly.venti.app.wind.WindModel
+import fly.venti.core.Credit
 import fly.venti.core.SiteView
+import kotlinx.coroutines.launch
 import fly.venti.core.StationNearby
 import fly.venti.core.WindSpan
 import fly.venti.core.WindStation
@@ -106,6 +110,8 @@ import kotlin.math.roundToLong
 fun SiteSheet(
     sites: SitesModel,
     waypoints: WaypointsModel,
+    /** The pilot's own take-offs: a site's page marks it as one and unmarks it. */
+    own: KeptSitesModel,
     /** Where a site's forecast is asked for. */
     wind: WindModel,
     /** Whether the list is what the pilot opened. */
@@ -120,6 +126,12 @@ fun SiteSheet(
     onOpenFlight: (PublicFlight) -> Unit = {},
     /** What the site's page leads to beyond itself; `null` where it leads nowhere. */
     actions: SiteActions? = null,
+    /**
+     * Whose data a site is and of which date, where the page was not opened
+     * from the sites on the map: Today's, which has the credit a take-off
+     * of the pilot's own was kept with.
+     */
+    known: SiteSources = SiteSources(),
 ) {
     // What the pilot has opened from the site's page, the newest last: a
     // wind station near the site, a forecast. Back takes the last away.
@@ -159,7 +171,8 @@ fun SiteSheet(
             null -> if (chosen != null) {
                 SitePage(
                     site = chosen,
-                    sites = sites,
+                    sources = known.with(sites),
+                    own = own,
                     wind = wind,
                     isKept = chosen.id in kept,
                     onKeep = {
@@ -181,6 +194,19 @@ fun SiteSheet(
             }
         }
     }
+}
+
+/**
+ * Whose data the sites are, with what the licences ask to be shown, and the
+ * date of that data: said under a site's page, and kept with a site the
+ * pilot marks as a take-off of their own.
+ */
+data class SiteSources(val credits: List<Credit> = emptyList(), val asOfUnixS: Long? = null) {
+    /** These and those of the sites on the map, the map's first: its answer is the one the site was tapped in. */
+    fun with(sites: SitesModel): SiteSources = SiteSources(sites.credits + credits, sites.asOf ?: asOfUnixS)
+
+    /** How old the data is, as the server's API asks a client to say: "As of Wed, 18 Nov 2026." */
+    val asOfInWords: String? get() = asOfUnixS?.let { "As of ${Format.day(it)}." }
 }
 
 /**
@@ -371,7 +397,9 @@ private fun SiteRow(site: SiteView, onClick: () -> Unit) {
 @Composable
 private fun SitePage(
     site: SiteView,
-    sites: SitesModel,
+    /** Whose data the site is, and of which date. */
+    sources: SiteSources,
+    own: KeptSitesModel,
     /** The wind stations the map has, for the wind measured near the site. */
     wind: WindModel,
     /** Whether the pilot has kept the site as a waypoint from this sheet. */
@@ -389,6 +417,13 @@ private fun SitePage(
     actions: SiteActions?,
 ) {
     val links = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+    // Whether the site is one of the pilot's own take-offs, as the core
+    // says: asked when the page opens and after each keeping or forgetting.
+    var isOwn by remember(site.id) { mutableStateOf(false) }
+    LaunchedEffect(site.id, own.changes) {
+        isOwn = own.isKept(site.id)
+    }
     // Whether flights begin here: the forecast's verdict and "Start
     // flight" are for such a place.
     val isForTakingOff = SiteKind.TAKEOFF in site.uses && !site.discouraged
@@ -524,10 +559,43 @@ private fun SitePage(
             item {
                 Group {
                     row {
+                        OwnRow(isOwn) { keep ->
+                            scope.launch {
+                                if (keep) own.keep(site, sources.credits, sources.asOfUnixS) else own.forget(site.id)
+                            }
+                        }
+                    }
+                    row {
                         KeepRow(isKept, onKeep)
                     }
                 }
                 SectionFooter("As a waypoint the cockpit can navigate to it, also without a network.")
+                own.problem?.let { SectionFooter(it, Modifier.testTag("site-own-problem")) }
+            }
+            // What its source says beyond the name and the wind, as it is
+            // written there: the mapper's words, the core's sentences, and
+            // somebody else's web page, which opens outside the app.
+            val said = SiteWords.said(site)
+            val website = SiteWords.website(site)
+            if (site.description != null || said.isNotEmpty() || website != null) {
+                item {
+                    Group(Modifier.testTag("site-more")) {
+                        site.description?.let { words ->
+                            row { SaidRow(words, Modifier.testTag("site-description")) }
+                        }
+                        for (sentence in said) {
+                            row { SaidRow(sentence) }
+                        }
+                        if (website != null) {
+                            row {
+                                WebsiteRow(website) {
+                                    // No app that opens web pages: nothing to do.
+                                    runCatching { links.openUri(website) }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             item {
                 site.url?.let { address ->
@@ -539,7 +607,7 @@ private fun SitePage(
                         }
                     }
                 }
-                SectionFooter(SiteWords.footnote(site, sites))
+                SectionFooter(SiteWords.footnote(site, sources))
             }
         }
     }
@@ -637,6 +705,75 @@ private fun MarkRow(@DrawableRes icon: Int, text: String, colour: Color = Materi
         Icon(painterResource(icon), contentDescription = null, tint = colour)
         Spacer(Modifier.width(16.dp))
         Text(text, style = MaterialTheme.typography.bodyLarge, color = colour)
+    }
+}
+
+/**
+ * Marks the site as one of the pilot's own take-offs, and unmarks it: the
+ * row of the waypoint below it, as a switch. Today lists the pilot's own first.
+ */
+@Composable
+private fun OwnRow(isOwn: Boolean, onChange: (Boolean) -> Unit) {
+    val colour = if (isOwn) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("site-own")
+            .toggleable(value = isOwn, role = Role.Switch, onValueChange = onChange)
+            .heightIn(min = VentiSize.touch)
+            .padding(horizontal = VentiSpace.s4),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(if (isOwn) R.drawable.ic_check else R.drawable.ic_add),
+            contentDescription = null,
+            tint = colour,
+        )
+        Spacer(Modifier.width(VentiSpace.s4))
+        Text(
+            if (isOwn) SiteWords.OWN else SiteWords.KEEP_AS_OWN,
+            style = MaterialTheme.typography.bodyLarge,
+            color = colour,
+        )
+    }
+}
+
+/** Something a site's source says of it, as text: never read as markup. */
+@Composable
+private fun SaidRow(words: String, modifier: Modifier = Modifier) {
+    Text(
+        words,
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = modifier.fillMaxWidth().padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3),
+    )
+}
+
+/** The site's web page, by its address: it opens in the browser, outside the app. */
+@Composable
+private fun WebsiteRow(address: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("site-website")
+            .clickable(role = Role.Button, onClickLabel = "Open in the browser", onClick = onClick)
+            .heightIn(min = VentiSize.touch)
+            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            address,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(VentiSpace.s3))
+        Icon(
+            painterResource(R.drawable.ic_open_in_new),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -779,10 +916,29 @@ object SiteWords {
      * Under a site's page: what a site on a map is worth, the notice and
      * the credit of the site's source, and how old its data is.
      */
-    fun footnote(site: SiteView, sites: SitesModel): String {
-        val credit = sites.credits.firstOrNull { it.source == site.source }
-        return listOfNotNull(CAUTION, credit?.notice, credit?.text, sites.asOfInWords).joinToString("\n\n")
+    fun footnote(site: SiteView, sources: SiteSources): String {
+        val credit = sources.credits.firstOrNull { it.source == site.source }
+        return listOfNotNull(CAUTION, credit?.notice, credit?.text, sources.asOfInWords).joinToString("\n\n")
     }
+
+    /** On the switch that marks a site as one of the pilot's own take-offs, off and on. */
+    const val KEEP_AS_OWN = "Keep as my take-off"
+    const val OWN = "Kept"
+
+    /**
+     * The core's sentences about a fee, rules for guests and a time not to
+     * fly, those that are not empty, in that order. Nothing is worked out
+     * from them.
+     */
+    fun said(site: SiteView): List<String> =
+        listOf(site.feeInWords, site.guestsInWords, site.noFlightInWords).filter { it.isNotEmpty() }
+
+    /**
+     * The site's web page, if its source names one: an `http` or `https`
+     * address, which is all the core hands on and all that is opened.
+     */
+    fun website(site: SiteView): String? =
+        site.website?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
 
     /**
      * Where a span's wedge starts and how far it sweeps, in degrees as a

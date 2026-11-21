@@ -32,7 +32,8 @@ class ThermalForecastTest {
             {"pressure_hpa": 600.0, "altitude_m": 4300.0, "wind_speed_ms": 4.0, "temperature_c": -4.0}]}""".format(local - 2)
     }
 
-    private val madeUpBigDay = """{
+    /** Also the forecast of `TodayModelTest`, where a day has to have a verdict. */
+    internal val madeUpBigDay = """{
         "point": {"lat": 47.7, "lon": 11.8},
         "fetched_at": "2026-07-04T05:40:00Z",
         "layers": [{"source": "open-meteo", "series": [
@@ -76,12 +77,5 @@ class ThermalForecastTest {
         assertEquals(5, ThermalScale.step(3.2))
         assertEquals(2, ThermalScale.barHeight(0))
         assertEquals(12, ThermalScale.barHeight(5))
-    }
-
-    @Test
-    fun aFlyableDayWithBetterThermalsComesFirst() {
-        val order = listOf(null, Thermals.WEAK, Thermals.LOCAL, Thermals.BIG, Thermals.CROSS_COUNTRY)
-            .sortedBy(ThermalScale::rank)
-        assertEquals(listOf(Thermals.BIG, Thermals.CROSS_COUNTRY, Thermals.LOCAL, null, Thermals.WEAK), order)
     }
 }

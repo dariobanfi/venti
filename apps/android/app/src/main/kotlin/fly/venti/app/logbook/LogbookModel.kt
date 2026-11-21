@@ -18,6 +18,7 @@ import fly.venti.app.groups.GroupsModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.app.task.TaskModel
+import fly.venti.app.sites.KeptSitesModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.core.Assistant
 import fly.venti.core.Core
@@ -222,6 +223,9 @@ class LogbookModel(
 
     /** The pilot's task, which the core keeps beside the logbook: one at a time. */
     fun makeTasks(now: () -> Long = { System.currentTimeMillis() / 1000 }): TaskModel = TaskModel(core, now, background)
+
+    /** The pilot's own take-offs, which the core keeps beside the logbook, on this phone only. */
+    fun makeKeptSites(): KeptSitesModel = KeptSitesModel(core, background)
 
     /** The pilot's waypoints, which the core keeps beside the logbook. */
     fun makeWaypoints(): WaypointsModel = WaypointsModel(core, background)

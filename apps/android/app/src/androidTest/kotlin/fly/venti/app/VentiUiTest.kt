@@ -2464,6 +2464,141 @@ class VentiUiTest {
     fun todayInDarkAppearance() = lookAtToday("dark", dark = true)
 
     /**
+     * A take-off of the pilot's own, against Venti in development mode:
+     * kept on its page, where its source's fee and web page stand too; then
+     * first on Today under "Your take-offs", with the others under "Within
+     * 30 km"; listed in the settings with the core's note, and forgotten
+     * there, after which Today is as it was. Another take-off has the
+     * sentence about rules for guests, and a ramp on the Wallberg, opened
+     * on the map, its mapper's description. Skipped without a server.
+     */
+    private fun keepATakeoff(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark, onToday = true) { putExtra(LaunchOptions.SERVER, server) }
+        val takeoff = "Fluggelände Jägerkamp/Nagelspitz"
+        val page = hasTestTag("site-page")
+        fun top(what: SemanticsMatcher) = screen.onAllNodes(what).onFirst().fetchSemanticsNode().boundsInRoot.top
+
+        // None kept: Today names no groups.
+        waitFor(hasTestTag("today-card"))
+        waitFor(hasText(takeoff) and hasClickAction())
+        assertFalse(exists(hasTestTag("today-kept-title")))
+        assertFalse(exists(hasTestTag("today-near-title")))
+
+        // The take-off's page: the switch, and what its source says beyond
+        // the name and the wind. The page is a lazy list in a sheet at half
+        // height: pulled up, then scrolled to each row.
+        screen.onAllNodes(hasText(takeoff) and hasClickAction()).onFirst().performScrollTo().performClick()
+        waitFor(page)
+        screen.onNode(page).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
+        screen.onNode(page).performScrollToNode(hasTestTag("site-own"))
+        waitFor(hasTestTag("site-own") and hasText("Keep as my take-off"))
+        tap(hasTestTag("site-own"))
+        waitFor(hasTestTag("site-own") and hasText("Kept"))
+        screen.onNode(page).performScrollToNode(hasTestTag("site-more"))
+        waitFor(hasText("A fee is asked for using this site."))
+        screen.onNode(page).performScrollToNode(hasTestTag("site-website"))
+        assertTrue(exists(hasTestTag("site-website") and hasText("https://www.dhv.de/")))
+        screen.onNode(page).performScrollToNode(hasText("See or correct it at the source"))
+        assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-own-1-site")
+        tap(hasText("Done"))
+
+        // Today lists it first, under the core's heading, and the others
+        // under theirs.
+        waitFor(hasTestTag("today-kept-title") and hasText("Your take-offs"))
+        waitFor(hasTestTag("today-near-title") and hasText("Within 30 km"))
+        val own = top(hasText(takeoff) and hasClickAction())
+        assertTrue(top(hasTestTag("today-kept-title")) < own)
+        assertTrue(own < top(hasTestTag("today-near-title")))
+        assertTrue(exists(hasTestTag("today-row")))
+        screen.onNode(hasTestTag("today-head")).performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-own-2-today")
+        screen.onNode(hasTestTag("today-foot")).performScrollTo()
+        assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-own-2b-today-foot")
+
+        // Another take-off of Today's, whose source names rules for guests:
+        // the core's sentence about them.
+        screen.onAllNodes(hasText("Vogelsang Ost") and hasClickAction()).onFirst().performScrollTo().performClick()
+        waitFor(page)
+        screen.onNode(page).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
+        screen.onNode(page).performScrollToNode(hasTestTag("site-more"))
+        waitFor(hasText("Guests have to read this site's rules for guests before they fly here."))
+        tap(hasText("Done"))
+        waitFor(hasTestTag("today-card"))
+
+        // A ramp on the Wallberg, which has no name and is not among
+        // Today's six: opened by its sign on the map, it has its mapper's
+        // words, as they were written.
+        val scenario = checkNotNull(app)
+        tap(tab("Map"))
+        waitFor(described("Show my position"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.6653, lon = 11.7954, zoom = 14.0))
+        waitFor(described("Flying sites"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
+        }
+        letTheMapDraw()
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6652212, lon = 11.7954245)))
+        waitFor(page)
+        screen.onNode(page).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
+        screen.onNode(page).performScrollToNode(hasTestTag("site-description"))
+        waitFor(hasTestTag("site-description") and hasText("Startrampe (vermutlich für Drachenflieger)"))
+        screen.onNode(page).performScrollToNode(hasText("See or correct it at the source"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-own-3-description")
+        tap(hasText("Done"))
+        waitFor(described("Flying sites"))
+
+        // All of the pilot's own, in the settings, with where they are kept.
+        // Today comes back where it was scrolled to: the corner that opens
+        // the settings is at its head.
+        tap(tab("Today"))
+        waitFor(hasTestTag("today-card"))
+        screen.onNode(hasTestTag("today-head")).performScrollTo()
+        openFromToday("Settings")
+        waitFor(hasText("Vario sound"))
+        screen.onNode(hasTestTag("kept-sites-link")).performScrollTo().performClick()
+        waitFor(hasTestTag("kept-site") and hasAnyDescendant(described(takeoff)))
+        assertTrue(exists(hasText("Kept on this device only", substring = true)))
+        assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-own-4-list")
+
+        // Forgotten there, after the app has asked.
+        tap(hasTestTag("kept-forget"))
+        waitFor(hasTestTag("kept-forget-confirm"))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-own-5-forget")
+        tap(hasTestTag("kept-forget-confirm"))
+        waitFor(hasText("No take-offs of your own yet"))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-own-6-none")
+
+        // And Today is as it was.
+        tap(described("Back"))
+        waitFor(hasText("Vario sound"))
+        tap(tab("Today"))
+        waitFor(hasTestTag("today-card"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("today-kept-title")) }
+        assertFalse(exists(hasTestTag("today-near-title")))
+    }
+
+    @Test
+    fun thePilotKeepsATakeoffOfTheirOwn() = keepATakeoff("light", dark = false)
+
+    @Test
+    fun thePilotsOwnTakeoffInDarkAppearance() = keepATakeoff("dark", dark = true)
+
+    /**
      * Today when Venti cannot be reached: an address nothing listens on, as
      * a phone without a network or a server that is down would be. The app
      * opens on it and says so, with "Try again". The settings are a page of

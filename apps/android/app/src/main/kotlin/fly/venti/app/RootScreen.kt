@@ -56,7 +56,9 @@ import fly.venti.app.settings.SettingsScreen
 import fly.venti.app.task.TaskModel
 import fly.venti.app.task.TaskScreen
 import fly.venti.app.waypoints.WaypointsScreen
+import fly.venti.app.sites.KeptSitesScreen
 import fly.venti.app.sites.SiteActions
+import fly.venti.app.sites.SiteSources
 import fly.venti.app.sites.SiteSheet
 import fly.venti.app.task.RouteMapPlanner
 import fly.venti.core.Coordinate
@@ -292,6 +294,11 @@ private fun Sections(
                     SettingsRoute.Waypoints -> kept.SaveableStateProvider("waypoints") {
                         WaypointsScreen(session.waypoints, onBack = { navigation.back() })
                     }
+                    SettingsRoute.KeptSites -> KeptSitesScreen(
+                        session.keptSites,
+                        session.preferences,
+                        onBack = { navigation.back() },
+                    )
                     SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
                     SettingsRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
                     SettingsRoute.Account -> kept.SaveableStateProvider("account") {
@@ -313,6 +320,7 @@ private fun Sections(
                 null -> kept.SaveableStateProvider("today") {
                     TodayScreen(
                         session.today,
+                        session.keptSites,
                         session.wind,
                         session.preferences,
                         onOpen = { site ->
@@ -328,9 +336,13 @@ private fun Sections(
                         SiteSheet(
                             sites = session.sites,
                             waypoints = session.waypoints,
+                            own = session.keptSites,
                             wind = session.wind,
                             showsList = false,
                             chosen = site,
+                            // A take-off of the pilot's own may lie where the map
+                            // has no answer for: Today has the credit it was kept with.
+                            known = SiteSources(session.today.siteCredits, session.today.sitesAsOf),
                             onChoose = { todaySite = it },
                             onDismiss = { todaySite = null },
                             community = session.community,
@@ -365,6 +377,7 @@ private fun Sections(
                     session.sites,
                     session.live,
                     session.waypoints,
+                    session.keptSites,
                     session.account,
                     session.groups,
                     requests = session.scope,

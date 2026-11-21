@@ -2,7 +2,16 @@ package fly.venti.app.today
 
 import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
+import fly.venti.app.logbook.LogbookModel
+import fly.venti.app.sites.KeptSitesModel
 import fly.venti.core.Coordinate
+import fly.venti.core.SiteKind
+import fly.venti.core.SitesMap
+import fly.venti.core.TodayStanding
+import fly.venti.core.sitesMap
+import fly.venti.core.sitesPath
+import fly.venti.core.todayArea
+import fly.venti.core.todayOrder
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -16,7 +25,9 @@ import java.io.IOException
 /**
  * The Today tab's take-offs against the real core, with the server played
  * by the answers the real server's own tests keep: the sites east of the
- * Tegernsee, and a forecast.
+ * Tegernsee, and a forecast. Which take-offs are listed and in which order
+ * is the core's and tested there; here it is that the model asks the core,
+ * and what it does with the answer.
  */
 class TodayModelTest {
     private val tegernsee = Coordinate(lat = 47.6, lon = 11.75)
@@ -25,8 +36,23 @@ class TodayModelTest {
 
     private class Clock(var now: Long = 1_795_000_000_000)
 
-    private fun model(clock: Clock = Clock(), answer: (String) -> HttpAnswer): TodayModel =
+    /** The pilot's own take-offs, kept by the real core in a folder of the test's own. */
+    private fun keptSites(): KeptSitesModel =
+        LogbookModel.open(TestSupport.newFolder("today"), TestSupport.files).makeKeptSites()
+
+    /** The sites of the recorded answer, as the core reads them for the area it asks Today's take-offs of. */
+    private fun recordedMap(around: Coordinate): SitesMap {
+        val area = todayArea(around.lat, around.lon)
+        return sitesMap(area.south, area.west, area.north, area.east, 200.toUShort(), recorded("sites.json"))
+    }
+
+    private fun model(
+        clock: Clock = Clock(),
+        kept: KeptSitesModel = keptSites(),
+        answer: (String) -> HttpAnswer,
+    ): TodayModel =
         TodayModel(
+            kept = kept,
             transport = { url -> answer(url) },
             deviceClock = { clock.now },
             background = Dispatchers.Unconfined,
@@ -45,30 +71,150 @@ class TodayModelTest {
     }
 
     @Test
-    fun theTakeoffsAroundArePutInOrderWithANameFirst() = runBlocking {
-        val today = model(answer = ::recordedServer)
+    fun theTakeoffsAreThoseTheCoreListsForTheAreaItNames() = runBlocking {
+        val asked = CopyOnWriteArrayList<String>()
+        val kept = keptSites()
+        val today = model(kept = kept) { url ->
+            asked += url
+            recordedServer(url)
+        }
         today.load(tegernsee)
 
         assertEquals(TodayState.Loaded, today.state)
-        // The landings are left out; the named take-off comes before the
-        // two without a name, which are nearer.
-        val names = today.places.map { it.site.isNamed }
-        assertEquals(listOf(true, false, false), names)
-        assertTrue(today.places[1].distanceM <= today.places[2].distanceM)
-        assertTrue(today.places.all { it.distanceM <= TodayModel.REACH_M })
+        // The sites were asked for in the box the core names for the place.
+        val area = todayArea(tegernsee.lat, tegernsee.lon)
+        assertEquals(
+            "https://venti.example" + sitesPath(area.south, area.west, area.north, area.east),
+            asked.first { "/v1/sites?" in it },
+        )
+        // Which take-offs, and in which order, is what the core says of that answer.
+        val listed = kept.todayTakeoffs(tegernsee, recordedMap(tegernsee))
+        assertEquals(3, listed.takeoffs.size)
+        assertEquals(listed.takeoffs.map { it.site.id }, today.places.map { it.site.id })
+        assertEquals(listed.takeoffs.map { it.distanceM }, today.places.map { it.distanceM })
+        assertTrue(today.places.none { it.isKept })
+        assertEquals(listed.keptTitle, today.keptTitle)
+        assertEquals("Within 30 km", today.nearTitle)
+        assertEquals("", today.keptMore)
+        assertTrue(today.siteCredits.any { "OpenStreetMap" in it.text })
+        assertNotNull(today.sitesAsOf)
         // Each with what the forecast says of it, and whose forecast it is.
-        assertTrue(today.places.all { it.outlook != null })
+        assertTrue(today.places.all { it.outlook != null && it.isAsked })
         assertTrue(today.credits.isNotEmpty())
     }
 
     @Test
-    fun aTakeoffFurtherThanThirtyKilometresIsNotAmongThem() = runBlocking {
+    fun aPlaceWithNoTakeoffAroundHasAnEmptyList() = runBlocking {
         val today = model(answer = ::recordedServer)
-        // Munich: the take-offs east of the Tegernsee are some 50 km away.
+        // Munich: the take-offs east of the Tegernsee are some 50 km away,
+        // which the core leaves out.
         today.load(Coordinate(lat = 48.14, lon = 11.58))
 
         assertEquals(TodayState.Loaded, today.state)
         assertTrue(today.places.isEmpty())
+    }
+
+    @Test
+    fun aTakeoffThePilotKeepsComesFirstAlsoFromFarAwayAndGoesWhenItIsForgotten() = runBlocking {
+        val asked = CopyOnWriteArrayList<String>()
+        val kept = keptSites()
+        val today = model(kept = kept) { url ->
+            asked += url
+            recordedServer(url)
+        }
+        val munich = Coordinate(lat = 48.14, lon = 11.58)
+        today.load(munich)
+        assertTrue(today.places.isEmpty())
+        assertTrue(today.isFresh(munich))
+
+        // Kept from a site's page, with the credits and the date of the answer it came from.
+        val map = recordedMap(tegernsee)
+        val takeoff = map.sites.first { it.isNamed && SiteKind.TAKEOFF in it.uses }
+        assertTrue(kept.keep(takeoff, map.credits, map.asOfUnixS))
+
+        // What is shown is no longer fresh; shown again, the core lists the
+        // take-offs anew from the answer at hand, and only the new
+        // take-off's forecast is asked for.
+        assertFalse(today.isFresh(munich))
+        val sitesAsked = asked.count { "/v1/sites?" in it }
+        today.show(munich)
+        assertEquals(sitesAsked, asked.count { "/v1/sites?" in it })
+        assertEquals(1, asked.count { "/v1/forecast?" in it })
+        assertEquals(listOf(takeoff.id), today.places.map { it.site.id })
+        assertTrue(today.places.single().isKept)
+        assertNotNull(today.places.single().outlook)
+        assertEquals("Your take-offs", today.keptTitle)
+        assertTrue(today.siteCredits.any { "OpenStreetMap" in it.text })
+        assertTrue(today.isFresh(munich))
+
+        // Forgotten, it is gone the next time Today is shown.
+        assertTrue(kept.forget(takeoff.id))
+        today.show(munich)
+        assertTrue(today.places.isEmpty())
+        assertEquals(TodayState.Loaded, today.state)
+    }
+
+    @Test
+    fun withoutAnAnswerFromVentiThePilotsOwnTakeoffsAreStillListed() = runBlocking {
+        val kept = keptSites()
+        val map = recordedMap(tegernsee)
+        val takeoff = map.sites.first { it.isNamed && SiteKind.TAKEOFF in it.uses }
+        kept.keep(takeoff, map.credits, map.asOfUnixS)
+        val today = model(kept = kept) { throw IOException("no route to host") }
+        today.load(tegernsee)
+
+        // The screen says that Venti was not reached, and lists what the phone has,
+        // with the credit the take-off was kept with.
+        assertTrue(today.state is TodayState.Failed)
+        assertEquals(listOf(takeoff.id), today.places.map { it.site.id })
+        assertTrue(today.places.single().isAsked)
+        assertTrue(today.siteCredits.any { "OpenStreetMap" in it.text })
+        assertFalse(today.isFresh(tegernsee))
+    }
+
+    @Test
+    fun theCardIsTheTakeoffTheCoreCallsBestAndTheRowsStandInItsOrder() = runBlocking {
+        val kept = keptSites()
+        // The recorded forecast is one hour of a November morning and makes
+        // no day; a made-up summer day does, at the moment its hours begin.
+        val bigDay = ThermalForecastTest().madeUpBigDay.toByteArray()
+        val today = model(kept = kept) { url ->
+            if ("/v1/forecast?" in url) HttpAnswer(200, bigDay) else recordedServer(url)
+        }
+        today.clock = { 1_783_137_600 }
+        today.load(tegernsee)
+        val day = today.places.firstNotNullOfOrNull { it.outlook?.days?.firstOrNull() }
+        assertNotNull(day)
+
+        // None kept: one list, as the core orders it for the day.
+        val plain = TodayList.of(today.places, day)
+        val order = todayOrder(
+            today.places.map { place ->
+                val shown = outlookDay(place, day)
+                TodayStanding(place.site.id, place.isKept, place.distanceM, shown?.verdict, shown?.thermals)
+            },
+        )
+        assertFalse(plain.isGrouped)
+        assertEquals(order.best, plain.card?.site?.id)
+        assertEquals(order.ids.filter { it != order.best }, (plain.kept + plain.near).map { it.site.id })
+        assertEquals(order.ids.toSet(), plain.all.map { it.site.id }.toSet())
+
+        // One kept, an unnamed ramp the plain list has among its rows: the
+        // two groups are named, and the kept one is not among the others.
+        val ramp = today.places.first { !it.site.isNamed }.site
+        val map = recordedMap(tegernsee)
+        kept.keep(ramp, map.credits, map.asOfUnixS)
+        today.show(tegernsee)
+        val grouped = TodayList.of(today.places, day)
+        assertTrue(grouped.isGrouped)
+        assertEquals(listOf(ramp.id), (listOfNotNull(grouped.card) + grouped.kept).filter { it.isKept }.map { it.site.id })
+        assertTrue(grouped.near.none { it.isKept })
+        assertEquals(3, grouped.all.size)
+
+        // While no forecast has come, the card is the first the core lists: the pilot's own.
+        val waiting = TodayList.of(today.places.map { it.copy(outlook = null) }, null)
+        assertEquals(ramp.id, waiting.card?.site?.id)
+        assertTrue(TodayList.of(emptyList(), null).isEmpty)
     }
 
     @Test
@@ -110,7 +256,7 @@ class TodayModelTest {
     @Test
     fun anAnswerIsKeptForHalfAnHourAndForThePlaceItWasFor() = runBlocking {
         val clock = Clock()
-        val today = model(clock, ::recordedServer)
+        val today = model(clock, answer = ::recordedServer)
         assertFalse(today.isFresh(tegernsee))
         today.load(tegernsee)
         assertNotNull(today.places.firstOrNull())

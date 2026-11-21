@@ -234,7 +234,7 @@ class SitesModelTest {
         assertTrue(under, "© OpenStreetMap contributors" in under)
 
         // A site's page says what a sign on a map is worth, and what its source asks to be said.
-        val footnote = SiteWords.footnote(listed.first(), sites)
+        val footnote = SiteWords.footnote(listed.first(), SiteSources().with(sites))
         assertTrue(footnote, footnote.startsWith(SiteWords.CAUTION))
         assertTrue(footnote, "Open Database License" in footnote)
         assertTrue(footnote, "© OpenStreetMap contributors" in footnote)

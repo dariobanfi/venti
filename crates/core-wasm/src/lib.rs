@@ -49,9 +49,9 @@ use venti_core::{
     ImportedFlight, KeptAirspace, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
     LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
     PublicFlightsOrder, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
-    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SitesMap, StagedStorage,
-    StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, ThermalMap, TrackPoint, WindMap,
-    WindSpan,
+    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SitesMap,
+    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, ThermalMap,
+    TrackPoint, WindMap, WindSpan,
 };
 use wasm_bindgen::prelude::*;
 
@@ -147,6 +147,18 @@ impl Core {
     /// Statistics over the whole logbook.
     pub fn statistics(&self) -> Result<Ts<LogbookStatistics>, JsValue> {
         to_js(&self.session.core.statistics())
+    }
+
+    /// The logbook by where its flights began: one entry for each place,
+    /// the one flown from most often first.
+    #[wasm_bindgen(js_name = siteStatistics)]
+    pub fn site_statistics(&self) -> Result<Vec<Ts<SiteStatistics>>, JsValue> {
+        self.session
+            .core
+            .site_statistics()
+            .iter()
+            .map(to_js)
+            .collect()
     }
 
     /// One flight from the logbook, prepared for display.

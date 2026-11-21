@@ -16,6 +16,7 @@ export const MAP_LAYERS: readonly { layer: MapLayer; name: string }[] = [
 
 const KEY = 'venti.map-layers-off';
 const AERIAL_KEY = 'venti.map-aerial';
+const FORECAST_KEY = 'venti.map-forecast';
 
 /**
  * Whether the pilot looks at the aerial view instead of the drawn ground,
@@ -33,6 +34,27 @@ export function aerialOn(storage: Pick<Storage, 'getItem'> | undefined): boolean
 export function keepAerial(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
 	try {
 		storage?.setItem(AERIAL_KEY, on ? 'on' : 'off');
+	} catch {
+		// A private window, or no storage: the choice lasts for the visit.
+	}
+}
+
+/**
+ * Whether the map shows the kind of day, square by square (the "Forecast"
+ * chip), as this browser remembers it. Off until the pilot switches it on.
+ */
+export function forecastOn(storage: Pick<Storage, 'getItem'> | undefined): boolean {
+	try {
+		return storage?.getItem(FORECAST_KEY) === 'on';
+	} catch {
+		return false;
+	}
+}
+
+/** Remembers whether the "Forecast" layer is on. Nothing happens where the browser keeps nothing. */
+export function keepForecast(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
+	try {
+		storage?.setItem(FORECAST_KEY, on ? 'on' : 'off');
 	} catch {
 		// A private window, or no storage: the choice lasts for the visit.
 	}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aerialOn, keepAerial, keepLayersOff, layersOff } from './layers';
+import { aerialOn, forecastOn, keepAerial, keepForecast, keepLayersOff, layersOff } from './layers';
 
 function memory() {
 	const kept = new Map<string, string>();
@@ -31,6 +31,18 @@ describe('the aerial view', () => {
 		};
 		expect(aerialOn(refusing)).toBe(false);
 		expect(() => keepAerial(refusing, true)).not.toThrow();
+	});
+});
+
+describe('the forecast layer', () => {
+	it('is off until the pilot switches it on, and remembered by the browser', () => {
+		const storage = memory();
+		expect(forecastOn(storage)).toBe(false);
+		keepForecast(storage, true);
+		expect(forecastOn(storage)).toBe(true);
+		keepForecast(storage, false);
+		expect(forecastOn(storage)).toBe(false);
+		expect(forecastOn(undefined)).toBe(false);
 	});
 });
 

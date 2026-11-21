@@ -137,3 +137,19 @@ export function thermalStep(metresPerSecond: number): number {
 	const index = THERMAL_BREAKS.findIndex((limit) => metresPerSecond < limit);
 	return (index === -1 ? THERMAL_BREAKS.length : index) + 1;
 }
+
+/**
+ * The squares of the thermal map, by the core's step of the thermal scale
+ * (`scale_step`, 1 to 6): the light theme's steps, the map being light in
+ * both appearances.
+ */
+export const THERMAL_ON_MAP: readonly string[] = [1, 2, 3, 4, 5, 6].map((index) =>
+	light(tokens.scale.thermal.light, String(index))
+);
+
+/**
+ * A square whose day is not flyable: a quiet veil in the light theme's
+ * muted text colour, and not the danger colour, which is nearly the
+ * thermal scale's darkest step.
+ */
+export const NOT_FLYABLE_ON_MAP = light(tokens.theme.light, 'text-muted');

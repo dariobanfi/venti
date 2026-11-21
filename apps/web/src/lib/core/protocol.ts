@@ -53,6 +53,7 @@ import type {
 	ReportSubject,
 	SiteAtPlace,
 	SiteOutlook,
+	ThermalMap,
 	SitesMap,
 	SiteView,
 	StationHistory
@@ -62,6 +63,7 @@ import type { GroupsSource } from './groups-source';
 import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
+import type { ThermalMapSource } from './thermal-map-source';
 import type { TodaySource, TodayTakeoffs } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
 import type { WindAnswer, WindSource } from './wind-source';
@@ -160,6 +162,8 @@ export interface Calls {
 		given: Pick<SiteView, 'position' | 'wind' | 'elevationM'>;
 		answer: SiteOutlook | undefined;
 	};
+	/** The kind of day, square by square, from today on. Nothing if this site has no server. */
+	thermalMap: { given: undefined; answer: ThermalMap | undefined };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -264,6 +268,7 @@ export interface Answering {
 	groups: GroupsSource;
 	terrain: TerrainSource;
 	today: TodaySource;
+	thermals: ThermalMapSource;
 }
 
 /** Does what a call asks of the core. */
@@ -279,7 +284,8 @@ export async function answer<Name extends CallName>(
 		community,
 		groups,
 		terrain,
-		today
+		today,
+		thermals
 	}: Answering,
 	call: Name,
 	given: Calls[Name]['given']
@@ -312,6 +318,7 @@ export async function answer<Name extends CallName>(
 		todayTakeoffs: (place) => today.takeoffs(place),
 		todayOutlook: ({ id, nowUnixS }) => today.outlook(id, nowUnixS),
 		siteOutlook: (site) => today.outlookFor(site),
+		thermalMap: () => thermals.map(),
 		compareFlights: ({ first, other }) =>
 			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
 		hasServer: () => wind.present(),

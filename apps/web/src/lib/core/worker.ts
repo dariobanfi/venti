@@ -18,6 +18,7 @@ import { CoreSession } from './session';
 import { SitesSource } from './sites-source';
 import { type FileStore, MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
+import { ThermalMapSource } from './thermal-map-source';
 import { TodaySource } from './today-source';
 import { WindSource } from './wind-source';
 
@@ -53,6 +54,10 @@ const starting: Promise<Answering> = (async () => {
 		groups: new GroupsSource(session),
 		terrain: new TerrainSource(),
 		today: new TodaySource(
+			() => wind.present(),
+			() => wind.now()
+		),
+		thermals: new ThermalMapSource(
 			() => wind.present(),
 			() => wind.now()
 		)

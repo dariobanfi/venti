@@ -26,6 +26,10 @@ const DESKTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }
 // or the one `vite.config.ts` is told as well, for a machine whose port 8080
 // is taken.
 const VENTI_SERVER = new URL(process.env.VENTI_DEV_SERVER ?? 'http://127.0.0.1:8080');
+// The stand-in in front of it whose forecast and thermal map are made up
+// (`tools/made-up-day/serve.py`), for the screens of a strong day. The
+// tests ask it for the thermal map in place of the development server.
+const MADE_UP_DAY = new URL(process.env.VENTI_MADE_UP_DAY_SERVER ?? 'http://127.0.0.1:8081');
 
 function project(name: string, size: typeof PHONE | typeof DESKTOP, dark: boolean): Project {
 	return { name, use: { ...size, colorScheme: dark ? 'dark' : 'light' } };
@@ -76,6 +80,12 @@ export default defineConfig({
 			reuseExistingServer: true,
 			// The first start compiles the server.
 			timeout: 900_000
+		},
+		{
+			command: `python3 tools/made-up-day/serve.py --behind ${VENTI_SERVER.origin} --port ${MADE_UP_DAY.port}`,
+			cwd: '../..',
+			url: `${MADE_UP_DAY.origin}/v1/thermals`,
+			reuseExistingServer: true
 		}
 	]
 });

@@ -13,6 +13,7 @@
 		Coordinate,
 		LiveGlider,
 		SiteView,
+		ThermalMapDay,
 		TrailPointView,
 		WindStation
 	} from '#lib/core/index.ts';
@@ -23,6 +24,8 @@
 		LABEL_ON_MAP,
 		PAPER_ON_MAP
 	} from '#lib/design/palette.ts';
+	import { layerAbove, THERMAL_SOURCE, thermalLayer } from '#lib/forecast/thermal-layer.ts';
+	import { squareAt, squareFeatures } from '#lib/forecast/thermal-map.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
 	import { siteFeatures, SITES_SOURCE, sitesLayer } from '#lib/sites/mark.ts';
@@ -77,6 +80,13 @@
 		hidden?: readonly MapLayer[];
 		/** Whether the ground is photographs from above instead of the drawn map. */
 		aerial?: boolean;
+		/** The day of the thermal map whose squares to draw, while the "Forecast" layer is on. */
+		thermalDay?: ThermalMapDay;
+		/**
+		 * Called with a square's place in its day's list when the pilot
+		 * chooses it where nothing else the map draws is under the pointer.
+		 */
+		onsquare?: (cell: number) => void;
 	}
 
 	let {
@@ -96,7 +106,9 @@
 		onglider,
 		onairspace,
 		hidden = [],
-		aerial = false
+		aerial = false,
+		thermalDay,
+		onsquare
 	}: Props = $props();
 
 	/** The northern Alps between Lake Constance and Salzburg. */
@@ -149,6 +161,12 @@
 	 * gliders of other pilots above everything.
 	 */
 	function addLayers(module: typeof import('./setup'), map: Map) {
+		// The kind of day, square by square: over the ground and the roads,
+		// under the base map's cable cars, borders and names and under
+		// everything else this map draws.
+		map.addSource(THERMAL_SOURCE, { type: 'geojson', data: NOTHING });
+		map.addLayer(thermalLayer(), layerAbove(map.getStyle().layers ?? []));
+
 		airspaceOnMap = drawAirspace(
 			module,
 			map,
@@ -222,7 +240,7 @@
 		map.addLayer(liveLayer(module.LABEL_FONT));
 
 		map.on('click', (event) => choose(map, event.point));
-		for (const layer of [LIVE_SOURCE, WIND, SITES_SOURCE]) {
+		for (const layer of [LIVE_SOURCE, WIND, SITES_SOURCE, THERMAL_SOURCE]) {
 			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
 			map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 		}
@@ -278,6 +296,11 @@
 				return;
 			}
 		}
+		// Nothing else under the pointer: the square of the thermal map there.
+		if (!thermalDay || !onsquare) return;
+		const at = map.unproject([point.x, point.y]);
+		const square = squareAt(thermalDay, { lat: at.lat, lon: at.lng });
+		if (square) onsquare(thermalDay.cells.indexOf(square));
 	}
 
 	// Draws the airspace again when the app gets it, and when it changes:
@@ -311,6 +334,12 @@
 	$effect(() => {
 		if (!map || airspace?.revision === undefined) return;
 		airspaceOnMap?.look();
+	});
+
+	// Draws the squares of the day looked at, and none while the layer is off.
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.shapes(map, THERMAL_SOURCE)?.setData(squareFeatures(thermalDay));
 	});
 
 	// Draws the flying sites when they change.

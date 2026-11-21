@@ -9,13 +9,22 @@
 	import { thermalStep } from '#lib/design/palette.ts';
 
 	interface Props {
-		climbMs: number;
+		climbMs?: number;
+		/**
+		 * The colour to wear instead, as the map draws a square of the
+		 * thermal map: the light theme's step whatever the page's theme.
+		 */
+		color?: string;
 	}
 
-	let { climbMs }: Props = $props();
+	let { climbMs = 0, color }: Props = $props();
 </script>
 
-<span class="mark step-{thermalStep(climbMs)}" aria-hidden="true"></span>
+<span
+	class="mark {color ? '' : `step-${thermalStep(climbMs)}`}"
+	style:background={color}
+	aria-hidden="true"
+></span>
 
 <style>
 	.mark {

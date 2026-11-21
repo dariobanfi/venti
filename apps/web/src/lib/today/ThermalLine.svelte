@@ -8,14 +8,16 @@
 	import ThermalMark from './ThermalMark.svelte';
 
 	interface Props {
-		day: Pick<OutlookDay, 'climbMs' | 'thermalWords' | 'thermalLine'>;
+		day: Pick<OutlookDay, 'thermalWords' | 'thermalLine'> & { climbMs?: number };
+		/** The mark's colour, where it stands for a square of the map. */
+		color?: string;
 	}
 
-	let { day }: Props = $props();
+	let { day, color }: Props = $props();
 </script>
 
 <p class="thermals">
-	<ThermalMark climbMs={day.climbMs ?? 0} />
+	<ThermalMark climbMs={day.climbMs ?? 0} {color} />
 	<span class="words">
 		<span>{day.thermalWords}</span>
 		<span class="line">{day.thermalLine}</span>

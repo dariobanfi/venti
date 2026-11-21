@@ -22,6 +22,13 @@
 	import { reportedTrack } from '#lib/community/report.ts';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import ForecastView from '#lib/forecast/ForecastView.svelte';
+	import {
+		creditLine as forecastCreditLine,
+		hasSquaresIn,
+		isDrawn
+	} from '#lib/forecast/thermal-map.ts';
+	import ThermalMapCard from '#lib/forecast/ThermalMapCard.svelte';
+	import ThermalSquare from '#lib/forecast/ThermalSquare.svelte';
 	import GliderView from '#lib/live/GliderView.svelte';
 	import LiveList from '#lib/live/LiveList.svelte';
 	import { countIn as glidersIn } from '#lib/live/mark.ts';
@@ -32,7 +39,9 @@
 	import {
 		AERIAL_CREDIT,
 		aerialOn,
+		forecastOn,
 		keepAerial,
+		keepForecast,
 		keepLayersOff,
 		type MapLayer,
 		MAP_LAYERS,
@@ -70,6 +79,27 @@
 	 * are folded behind their button. A wide map writes them out itself.
 	 */
 	const photosCredit = $derived(aerial && !wide.current ? AERIAL_CREDIT : '');
+	/** Whether the map shows the kind of day, square by square: off until the pilot asks. */
+	let forecast = $state(forecastOn(globalThis.localStorage));
+	const thermals = $derived(app.thermals);
+	const showForecast = $derived(forecast && Boolean(app.account?.hasServer) && Boolean(thermals));
+	// Asked for when the layer is switched on, and again when the map is half an hour old.
+	$effect(() => {
+		if (showForecast) return thermals?.keepCurrent();
+	});
+	/** The day of the thermal map on the map, while the layer is on. */
+	const thermalDay = $derived(showForecast ? thermals?.day : undefined);
+	/** The square the pilot chose, by its corner: the same square on another day. */
+	let chosenSquare = $state.raw<{ south: number; west: number }>();
+	const square = $derived(
+		thermalDay?.cells.find(
+			(cell) =>
+				isDrawn(cell) && cell.south === chosenSquare?.south && cell.west === chosenSquare?.west
+		)
+	);
+	/** Whose forecast the squares are. */
+	const forecastCredit = $derived(showForecast ? forecastCreditLine(thermals?.map, text) : '');
+
 	const CHIP_ICONS = {
 		wind: 'wind',
 		airspace: 'airspace',
@@ -189,15 +219,17 @@
 			: { left: 0, right: 0, bottom: gliderPage.height }
 	);
 
-	/** One thing is open beside the map at a time: a station, a site or a glider. */
+	/** One thing is open beside the map at a time: a station, a site, a glider or a square. */
 	function openStation(picked: WindStation | undefined) {
 		if (!picked) return;
+		chosenSquare = undefined;
 		chosenSite = undefined;
 		chosenGlider = undefined;
 		chosen = picked;
 	}
 
 	function openGlider(id: string) {
+		chosenSquare = undefined;
 		chosen = undefined;
 		chosenSite = undefined;
 		chosenGlider = id;
@@ -205,6 +237,7 @@
 
 	function openSite(picked: SiteView | undefined) {
 		if (!picked) return;
+		chosenSquare = undefined;
 		chosen = undefined;
 		chosenGlider = undefined;
 		chosenSite = {
@@ -212,6 +245,21 @@
 			credit: places.credits.find((credit) => credit.source === picked.source),
 			asOfUnixS: places.asOfUnixS
 		};
+	}
+
+	function openSquare(cell: number) {
+		const picked = thermalDay?.cells[cell];
+		if (!picked) return;
+		chosen = undefined;
+		chosenSite = undefined;
+		chosenGlider = undefined;
+		chosenSquare = { south: picked.south, west: picked.west };
+	}
+
+	/** The forecast for the middle of a square of the thermal map. */
+	function squareForecast(cell: { south: number; west: number; north: number; east: number }) {
+		const place = { lat: (cell.south + cell.north) / 2, lon: (cell.west + cell.east) / 2 };
+		forecastFor = { place, name: text.place(place.lat, place.lon) };
 	}
 
 	const said = $derived(notice(current, text.list));
@@ -248,10 +296,26 @@
 		onairspace={(count) => (airspaceDrawn = count)}
 		hidden={off}
 		{aerial}
+		{thermalDay}
+		onsquare={openSquare}
 	/>
 	<!-- The design pack's chips: what the map shows, switched on and off. -->
 	{#if app.account?.hasServer}
 		<div class="chips" role="group" aria-label="Layers on the map">
+			<!-- The kind of day, square by square: the server's thermal map. -->
+			<button
+				class="chip"
+				type="button"
+				aria-pressed={forecast}
+				onclick={() => {
+					forecast = !forecast;
+					keepForecast(globalThis.localStorage, forecast);
+					if (!forecast) chosenSquare = undefined;
+				}}
+			>
+				<Icon name="forecast" />
+				Forecast
+			</button>
 			{#each MAP_LAYERS as { layer, name } (layer)}
 				<button
 					class="chip"
@@ -289,7 +353,52 @@
 	></div>
 	<div class="buttons-size" bind:clientWidth={buttonsWidth}></div>
 
+	{#snippet thermalCard(chosenHere: boolean)}
+		{#if thermals}
+			<ThermalMapCard
+				map={thermals.map}
+				day={thermals.day}
+				asking={thermals.asking}
+				problem={thermals.problem}
+				inView={!view || !thermals.day || hasSquaresIn(thermals.day, view.region)}
+				onday={(date) => (thermals.chosenDate = date)}
+				onretry={() => void thermals.load()}
+			>
+				{#if chosenHere && square && thermals.map && thermals.day}
+					<div class="chosen-square">
+						<header>
+							<h3>{thermals.day.name}</h3>
+							<button
+								type="button"
+								aria-label="Close"
+								title="Close"
+								onclick={() => (chosenSquare = undefined)}
+							>
+								<Icon name="close" />
+							</button>
+						</header>
+						<ThermalSquare
+							map={thermals.map}
+							day={thermals.day}
+							cell={square}
+							onforecast={() => square && squareForecast(square)}
+							named={false}
+							withRun={false}
+						/>
+					</div>
+				{/if}
+			</ThermalMapCard>
+		{/if}
+	{/snippet}
+
 	<div class="over">
+		<!-- On a wide screen the forecast map's card is a pane at the map's
+		     side, and a square chosen on the map is shown in it. -->
+		{#if showForecast && wide.current}
+			<aside class="forecast-pane" aria-label="Forecast map">
+				{@render thermalCard(true)}
+			</aside>
+		{/if}
 		{#if wind}
 			<MapPanel
 				shown={station?.id}
@@ -322,6 +431,27 @@
 				/>
 			{/if}
 		</MapPanel>
+		{#if !wide.current && thermals?.map && thermalDay}
+			<!-- A square of the thermal map, on a narrow screen: a sheet of half
+			     the screen, the square staying in view above it. -->
+			<MapPanel
+				shown={square ? `${square.south},${square.west}` : undefined}
+				title={thermalDay.name}
+				wide={false}
+				half
+				onclose={() => (chosenSquare = undefined)}
+			>
+				{#if square}
+					<ThermalSquare
+						map={thermals.map}
+						day={thermalDay}
+						cell={square}
+						onforecast={() => square && squareForecast(square)}
+						named={false}
+					/>
+				{/if}
+			</MapPanel>
+		{/if}
 		{#if live}
 			<!-- Another pilot's glider. Its flight is on the map while this is
 			     open, so a narrow screen keeps its upper half for the map. -->
@@ -348,14 +478,23 @@
 	<!-- Whose wind, airspace and flying sites are on the map. Their licences
 	     ask for the credit next to the data; the full wording is on each
 	     station's page, on the airspace screen and on each site's page. -->
-	{#if credits || airspaceCredit || sitesCredit || photosCredit}
-		<p class="credits">
-			{#if photosCredit}<span>{photosCredit}</span>{/if}
-			{#if credits}<span>Wind: {credits}</span>{/if}
-			{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
-			{#if sitesCredit}<span>{sitesCredit}</span>{/if}
-		</p>
-	{/if}
+	<div class="foot">
+		<!-- On a narrow screen the forecast map's card stands over the credits. -->
+		{#if showForecast && !wide.current}
+			<div class="forecast-card">
+				{@render thermalCard(false)}
+			</div>
+		{/if}
+		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit}
+			<p class="credits">
+				{#if photosCredit}<span>{photosCredit}</span>{/if}
+				{#if credits}<span>Wind: {credits}</span>{/if}
+				{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
+				{#if sitesCredit}<span>{sitesCredit}</span>{/if}
+				{#if forecastCredit}<span>{forecastCredit}</span>{/if}
+			</p>
+		{/if}
+	</div>
 
 	<div class="controls">
 		<div class="zoom">
@@ -518,7 +657,8 @@
 	   wide screen, and what the pilot has to be told about the wind. */
 	.over {
 		position: absolute;
-		top: calc(0.75rem + var(--safe-top));
+		/* Under the row of chips, which stays in reach. */
+		top: calc(var(--space-3) + 3rem + var(--safe-top));
 		right: calc(1rem + var(--safe-right));
 		/* The credits at the bottom edge stay in sight. */
 		bottom: calc(4rem + var(--nav-bottom));
@@ -547,12 +687,80 @@
 		color: var(--text-secondary);
 	}
 
-	/* In the manner of the map's own credits, directly above them. */
-	.credits {
+	/* The map's lower edge, over its own credits and left of the round
+	   buttons: the forecast map's card, and the credits of what Venti draws. */
+	.foot {
 		position: absolute;
 		left: calc(0.75rem + var(--safe-left));
+		right: calc(5rem + var(--safe-right));
 		bottom: calc(var(--nav-bottom) + 2.875rem);
-		max-width: calc(100% - 6rem);
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-2);
+		pointer-events: none;
+	}
+
+	.forecast-card {
+		align-self: stretch;
+		max-width: 26rem;
+		/* At most two fifths of the screen; the rest scrolls inside. */
+		max-height: 40dvh;
+		overflow-y: auto;
+		padding: var(--space-3);
+		border-radius: var(--radius-card);
+		background: var(--surface);
+		box-shadow: var(--shadow-float);
+		pointer-events: auto;
+	}
+
+	/* A pane at the map's side on a wide screen, as dense as the rest of it. */
+	.forecast-pane {
+		flex: none;
+		width: 18rem;
+		max-height: 100%;
+		overflow-y: auto;
+		padding: var(--space-3);
+		border-radius: var(--radius-card);
+		background: var(--surface);
+		box-shadow: var(--shadow-float);
+		pointer-events: auto;
+	}
+
+	.chosen-square {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		margin-top: var(--space-1);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--separator);
+	}
+
+	.chosen-square header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.chosen-square h3 {
+		margin: 0;
+		font-size: var(--subheadline);
+	}
+
+	.chosen-square header button {
+		display: grid;
+		place-items: center;
+		width: var(--target);
+		height: var(--target);
+		margin: calc(var(--space-2) * -1);
+		color: var(--text-secondary);
+	}
+
+	/* In the manner of the map's own credits, directly above them. */
+	.credits {
+		max-width: 100%;
+		margin: 0;
+		pointer-events: auto;
 		padding: 0.125rem 0.5rem;
 		border-radius: 0.75rem;
 		background: var(--on-map-paper);
@@ -595,7 +803,7 @@
 		}
 
 		/* The map's credits are written out in one line here, not behind a button. */
-		.credits {
+		.foot {
 			bottom: 2.375rem;
 		}
 	}

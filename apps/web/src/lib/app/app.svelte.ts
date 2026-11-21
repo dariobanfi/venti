@@ -24,6 +24,7 @@ import {
 	type SiteView
 } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
+import { ThermalMapModel } from '#lib/forecast/thermal-map.svelte.ts';
 import { GroupsModel } from '#lib/groups/model.svelte.ts';
 import { TodayModel } from '#lib/today/model.svelte.ts';
 import {
@@ -56,6 +57,9 @@ export class App {
 
 	/** The take-offs around a place, and what the forecast says of each. */
 	today = $state.raw<TodayModel>();
+
+	/** The kind of day, square by square, for the map's "Forecast" layer. */
+	thermals = $state.raw<ThermalMapModel>();
 
 	/** The pilot's account on the Venti server. Nothing until the core has started. */
 	account = $state.raw<AccountModel>();
@@ -91,6 +95,7 @@ export class App {
 				this.live = new LiveModel(core);
 				this.everyone = new CommunityModel(core);
 				this.today = new TodayModel(core);
+				this.thermals = new ThermalMapModel(core);
 				const logbook = await LogbookModel.open(core);
 				// A sync may have fetched or removed flights.
 				const account = await AccountModel.open(core, () => logbook.refresh());

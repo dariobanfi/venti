@@ -13,6 +13,7 @@ import { CoreSession } from './session';
 import { SitesSource } from './sites-source';
 import { MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
+import { ThermalMapSource } from './thermal-map-source';
 import { sampleFlight, startCore } from './testing';
 import { WindSource } from './wind-source';
 
@@ -54,7 +55,8 @@ class SameProcess implements Channel {
 						groups: new GroupsSource(session, unreachable),
 						// A browser that is offline: no elevation tile is to be had.
 						terrain: new TerrainSource(unreachable),
-						today: new TodaySource(async () => false)
+						today: new TodaySource(async () => false),
+						thermals: new ThermalMapSource(async () => false)
 					},
 					call,
 					given

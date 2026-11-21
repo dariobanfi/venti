@@ -221,6 +221,11 @@ export class CoreClient {
 		});
 	}
 
+	/** The kind of day, square by square, from today on. Nothing if this site has no server. */
+	thermalMap() {
+		return this.#call('thermalMap', undefined);
+	}
+
 	/** What the forecast says about flying from one of the take-offs last listed. */
 	todayOutlook(id: string, nowUnixS: number) {
 		return this.#call('todayOutlook', { id, nowUnixS });

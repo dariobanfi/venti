@@ -26,6 +26,7 @@
  *   everyone, and fetches one of them to show.
  * - `groups-source.ts` talks to it about the pilot's groups and their plans
  *   for a flying day, from the pilot's account.
+ * - `thermal-map-source.ts` asks it for the kind of day, square by square.
  * - `terrain-source.ts` fetches the map's elevation tiles under a flight,
  *   from the map's tile server, for the core to read the ground from.
  */
@@ -107,6 +108,10 @@ export type {
 	OutlookHour,
 	Flyability,
 	Thermals,
+	ThermalLegendEntry,
+	ThermalMap,
+	ThermalMapCell,
+	ThermalMapDay,
 	SitesMap,
 	SiteView,
 	StationHistory,

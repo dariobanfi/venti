@@ -1,0 +1,196 @@
+import { describe, expect, it } from 'vitest';
+import type { ThermalMap, ThermalMapCell, ThermalMapDay } from '#lib/core/index.ts';
+import { format } from '#lib/design/format.ts';
+import { NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
+import style from '../../../../../map/style.json';
+import { layerAbove, thermalLayer } from './thermal-layer';
+import {
+	creditLine,
+	dayOf,
+	hasSquaresIn,
+	isDue,
+	judgedAt,
+	KEEP_MS,
+	RETRY_MS,
+	runLine,
+	squareAt,
+	squareFeatures
+} from './thermal-map';
+
+const text = format();
+
+function cell(south: number, west: number, more: Partial<ThermalMapCell> = {}): ThermalMapCell {
+	return {
+		south,
+		west,
+		north: south + 0.1,
+		east: west + 0.1,
+		verdict: 'flyable',
+		thermals: 'crossCountry',
+		scaleStep: 5,
+		status: 'Flyable',
+		why: '',
+		thermalWords: 'Cross-country day',
+		thermalLine: '1.8 m/s to a cloud base of 3250 m',
+		groundM: 1240,
+		...more
+	};
+}
+
+/** A cross-country square, one that is not flyable, and one without an estimate. */
+const DAY: ThermalMapDay = {
+	date: '2026-07-12',
+	name: 'Today',
+	whole: true,
+	note: '',
+	cells: [
+		cell(47.5, 11.5),
+		cell(47.5, 11.6, {
+			verdict: 'notFlyable',
+			thermals: undefined,
+			scaleStep: undefined,
+			status: 'Not flyable',
+			why: 'Rain',
+			thermalWords: '',
+			thermalLine: ''
+		}),
+		cell(47.5, 11.7, {
+			verdict: 'marginal',
+			thermals: undefined,
+			scaleStep: undefined,
+			thermalWords: '',
+			thermalLine: ''
+		})
+	]
+};
+
+describe('the squares of a day', () => {
+	it('are drawn in their step, the day that is not flyable as the veil, and none without an estimate', () => {
+		const drawn = squareFeatures(DAY).features;
+		expect(drawn.map((feature) => feature.properties)).toEqual([
+			{ cell: 0, fill: 5 },
+			{ cell: 1, fill: 0 }
+		]);
+		expect(drawn[0].geometry).toEqual({
+			type: 'Polygon',
+			coordinates: [
+				[
+					[11.5, 47.5],
+					[11.6, 47.5],
+					[11.6, 47.6],
+					[11.5, 47.6],
+					[11.5, 47.5]
+				]
+			]
+		});
+		expect(squareFeatures(undefined).features).toEqual([]);
+	});
+
+	it('are found under a place, but not where nothing is drawn', () => {
+		expect(squareAt(DAY, { lat: 47.55, lon: 11.55 })).toBe(DAY.cells[0]);
+		expect(squareAt(DAY, { lat: 47.55, lon: 11.65 })).toBe(DAY.cells[1]);
+		expect(squareAt(DAY, { lat: 47.55, lon: 11.75 })).toBeUndefined();
+		expect(squareAt(DAY, { lat: 48, lon: 11.55 })).toBeUndefined();
+	});
+
+	it('say whether a part of the map has any', () => {
+		expect(hasSquaresIn(DAY, { south: 47.4, west: 11.4, north: 47.52, east: 11.52 })).toBe(true);
+		expect(hasSquaresIn(DAY, { south: 47.4, west: 11.71, north: 47.52, east: 11.9 })).toBe(false);
+		expect(hasSquaresIn(DAY, { south: 48, west: 11, north: 48.5, east: 12 })).toBe(false);
+	});
+});
+
+describe('the map', () => {
+	const map: ThermalMap = {
+		days: [DAY, { ...DAY, date: '2026-07-13', name: 'Tomorrow' }],
+		legend: [],
+		model: 'ICON-D2',
+		runUnixS: Date.UTC(2026, 6, 12, 4) / 1000,
+		computedUnixS: 0,
+		note: '',
+		credits: [
+			{
+				source: 'open-meteo',
+				provider: 'Open-Meteo',
+				text: '',
+				licence: 'CC BY 4.0',
+				url: ''
+			}
+		]
+	};
+
+	it('shows the day chosen, or its first', () => {
+		expect(dayOf(map, '2026-07-13')?.name).toBe('Tomorrow');
+		expect(dayOf(map, undefined)?.name).toBe('Today');
+		expect(dayOf(map, '2026-07-20')?.name).toBe('Today');
+		expect(dayOf(undefined, undefined)).toBeUndefined();
+	});
+
+	it('says its model, its run and whose it is', () => {
+		// The day and the time are written as the reader's region writes them.
+		expect(runLine(map, text)).toBe(
+			`ICON-D2, run of ${text.dayInYear(map.runUnixS)} at ${text.time(map.runUnixS)}`
+		);
+		expect(runLine(map, text)).toMatch(/^ICON-D2, run of Sun, /);
+		expect(creditLine(map, text)).toBe('Forecast: Open-Meteo');
+		expect(creditLine(undefined, text)).toBe('');
+		expect(judgedAt(1240, text)).toBe('Judged at the model’s ground, 1240 m');
+	});
+});
+
+describe('asking for the map', () => {
+	const NOW = 1_000_000_000;
+
+	it('is due at once, and again when the map is half an hour old', () => {
+		expect(isDue({ triedMs: undefined, fetchedMs: undefined }, NOW)).toBe(true);
+		expect(isDue({ triedMs: NOW, fetchedMs: NOW }, NOW + KEEP_MS - 1)).toBe(false);
+		expect(isDue({ triedMs: NOW, fetchedMs: NOW }, NOW + KEEP_MS)).toBe(true);
+	});
+
+	it('waits five minutes after an asking that failed', () => {
+		expect(isDue({ triedMs: NOW, fetchedMs: undefined }, NOW + RETRY_MS - 1)).toBe(false);
+		expect(isDue({ triedMs: NOW, fetchedMs: undefined }, NOW + RETRY_MS)).toBe(true);
+		// A map fetched before stays until it is half an hour old.
+		const earlier = NOW - KEEP_MS + 10 * 60_000;
+		expect(isDue({ triedMs: NOW, fetchedMs: earlier }, NOW + RETRY_MS)).toBe(false);
+		expect(isDue({ triedMs: NOW, fetchedMs: earlier }, NOW + 10 * 60_000)).toBe(true);
+	});
+});
+
+describe('the layer of squares', () => {
+	it('takes the light theme’s thermal steps and the veil, see-through by the zoom', () => {
+		const layer = thermalLayer();
+		expect(layer.paint?.['fill-color']).toEqual([
+			'match',
+			['get', 'fill'],
+			...THERMAL_ON_MAP.flatMap((color, index) => [index + 1, color]),
+			NOT_FLYABLE_ON_MAP
+		]);
+		expect(layer.paint?.['fill-opacity']).toEqual([
+			'interpolate',
+			['linear'],
+			['zoom'],
+			8,
+			0.5,
+			12,
+			0.3
+		]);
+	});
+
+	it('lies under the base map’s cable cars, borders and names', () => {
+		const layers = [
+			{ id: 'land', type: 'fill' },
+			{ id: 'road-major', type: 'line' },
+			{ id: 'aerial-aerialway-casing', type: 'line' },
+			{ id: 'aerialway', type: 'line' },
+			{ id: 'boundary', type: 'line' },
+			{ id: 'place', type: 'symbol' }
+		];
+		expect(layerAbove(layers)).toBe('aerial-aerialway-casing');
+		expect(layerAbove(layers.slice(4))).toBe('boundary');
+		expect(layerAbove(layers.slice(5))).toBe('place');
+		expect(layerAbove(layers.slice(0, 2))).toBeUndefined();
+		// The base map's own style has them.
+		expect(layerAbove(style.layers)).toBe('aerial-aerialway-casing');
+	});
+});

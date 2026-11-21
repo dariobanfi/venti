@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use chrono::NaiveDate;
 use venti_domain::Timestamp;
 
 /// A session's last use is written down only when the recorded one is this
@@ -95,6 +96,34 @@ pub struct Session {
     /// When the session was last used, to within
     /// [`SESSION_TOUCH_MINUTES`].
     pub last_used_at: Timestamp,
+}
+
+/// A token a pilot gave to another program, so that it can act for the
+/// account in what the pilot allowed and nothing else.
+///
+/// It is no session: it is not made by signing in, it does not expire by
+/// lying unused, and it is gone only when the pilot withdraws it, when its
+/// end comes, or with the account.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccessToken {
+    /// The token's identifier. It is not the secret and gives no access.
+    pub id: String,
+    /// The account the token acts for.
+    pub account_id: String,
+    /// What the pilot called the program the token is for.
+    pub name: String,
+    /// What the token may do, as the names of scopes. The store keeps the
+    /// words and gives them no meaning: a word the server no longer knows
+    /// opens nothing.
+    pub scopes: Vec<String>,
+    /// When the pilot made it.
+    pub created_at: Timestamp,
+    /// The day, in UTC, of its latest use. `None` until it is used. No
+    /// more than the day is kept: enough for a pilot to see which of
+    /// their tokens are in use, and one write a day.
+    pub last_used_on: Option<NaiveDate>,
+    /// The moment from which it is no longer good. `None` never ends.
+    pub expires_at: Option<Timestamp>,
 }
 
 /// An invite to create.

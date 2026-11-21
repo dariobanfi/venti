@@ -11,9 +11,10 @@
 //! **Reading is open to anyone**, by box, by identifier, a site's
 //! history, and what changed since.
 //!
-//! **Writing takes an account**, through [`Signed`] and nothing else, so
-//! that a token with scopes later changes that one place and no handler
-//! here. Whether this server takes sites at all, who may write, and how
+//! **Writing takes an account**: a session, or a token that has the scope
+//! `sites:write`, which every handler that writes says in its signature
+//! ([`May`]`<`[`WriteSites`]`>`). A revision keeps through which of the
+//! two it came in. Whether this server takes sites at all, who may write, and how
 //! much, is [`crate::pilot_sites`]'s to say; [`PilotSites::writer`] asks
 //! it for every write, in one place. Every write is a revision: nothing
 //! here overwrites or deletes, and no handler can take a site down, which
@@ -36,7 +37,7 @@ use venti_domain::{BoundingBox, Site, SiteId, SiteUse, SourceId, Timestamp};
 use venti_sources::Kind;
 use venti_store::{NewPilotSite, PilotSite, RevisionKind, SiteAct, SiteRevising, SiteWrite, Store};
 
-use super::auth::Signed;
+use super::auth::{May, Signed, WriteSites};
 use super::error::ApiError;
 use super::{Api, body, cache};
 use crate::accounts::secret;
@@ -385,6 +386,10 @@ pub(crate) async fn show<S: Store>(
                         via: match revision.via {
                             venti_store::SiteVia::Session => SiteVia::Session,
                             venti_store::SiteVia::Operator => SiteVia::Operator,
+                            // The token's name stays here: it is the
+                            // pilot's word for a program of theirs, and
+                            // a history is read by everyone.
+                            venti_store::SiteVia::Token(_) => SiteVia::Token,
                         },
                         kind: match revision.kind {
                             RevisionKind::Created => SiteRevisionKind::Created,
@@ -552,7 +557,7 @@ fn comment(comment: Option<&str>) -> Result<Option<String>, ApiError> {
 /// `POST /v1/sites`: adds a site, as its first revision.
 pub(crate) async fn add<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteSites>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
@@ -566,7 +571,7 @@ pub(crate) async fn add<S: Store>(
         site: api.site_from(request.site, id)?,
         author_id: signed.account.id.clone(),
         at: now,
-        via: venti_store::SiteVia::Session,
+        via: signed.site_via(),
         comment: comment(request.comment.as_deref())?,
     };
     let site = written(api.store.add_pilot_site(&new, APART_M).await?)?;
@@ -576,7 +581,7 @@ pub(crate) async fn add<S: Store>(
 /// `PUT /v1/sites/{id}`: replaces what a site says, as a new revision.
 pub(crate) async fn change<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteSites>,
     headers: HeaderMap,
     Path(rest): Path<String>,
     body: Bytes,
@@ -591,7 +596,7 @@ pub(crate) async fn change<S: Store>(
         id,
         author_id: Some(signed.account.id.clone()),
         at: now,
-        via: venti_store::SiteVia::Session,
+        via: signed.site_via(),
         comment: comment(request.comment.as_deref())?,
         expects: Some(request.revision),
     };
@@ -603,7 +608,7 @@ pub(crate) async fn change<S: Store>(
 /// revision said, as a new revision.
 pub(crate) async fn restore<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteSites>,
     headers: HeaderMap,
     Path(rest): Path<String>,
     body: Bytes,
@@ -623,7 +628,7 @@ pub(crate) async fn restore<S: Store>(
         id,
         author_id: Some(signed.account.id.clone()),
         at: now,
-        via: venti_store::SiteVia::Session,
+        via: signed.site_via(),
         act: SiteAct::Restore(request.restore),
         comment: comment(request.comment.as_deref())?,
         expects: None,
@@ -637,7 +642,7 @@ pub(crate) async fn restore<S: Store>(
 /// the site back by restoring a revision.
 pub(crate) async fn remove<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteSites>,
     headers: HeaderMap,
     Path(rest): Path<String>,
     body: Bytes,
@@ -656,7 +661,7 @@ pub(crate) async fn remove<S: Store>(
         id,
         author_id: Some(signed.account.id.clone()),
         at: now,
-        via: venti_store::SiteVia::Session,
+        via: signed.site_via(),
         act: SiteAct::Remove { take_down: false },
         comment: comment(request.comment.as_deref())?,
         expects: None,

@@ -20,7 +20,7 @@ use venti_store::{
     Flight, FlightKey, Kept, Listing, Room, Saved, Store, Visibility, VisibilityChange,
 };
 
-use super::auth::{Signed, Viewer};
+use super::auth::{May, ReadFlights, Viewer, Viewing, WriteFlights};
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::log::Sparse;
@@ -77,7 +77,8 @@ impl<S: Store> Api<S> {
             .flight(id.as_str())
             .await?
             .ok_or_else(no_such_flight)?;
-        let may_see = flight.visibility != Visibility::Private || viewer.is(&flight.account_id);
+        let may_see =
+            flight.visibility != Visibility::Private || viewer.owns(&flight.account_id)?;
         may_see.then_some(flight).ok_or_else(no_such_flight)
     }
 }
@@ -252,7 +253,7 @@ impl Drop for Place<'_> {
 /// `POST /v1/flights`: stores a flight file. The body is the file.
 pub(crate) async fn upload<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteFlights>,
     body: Body,
 ) -> Result<Response, ApiError> {
     let now = api.clock.now();
@@ -426,7 +427,7 @@ impl<S: Store> Api<S> {
 /// `GET /v1/flights`: the account's flights, newest first.
 pub(crate) async fn list<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<ReadFlights>,
     Query(params): Query<PageParams>,
 ) -> Result<Response, ApiError> {
     let (flights, next) = api
@@ -454,7 +455,7 @@ pub(crate) struct ChangesParams {
 /// the device last asked.
 pub(crate) async fn changes<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<ReadFlights>,
     Query(params): Query<ChangesParams>,
 ) -> Result<Response, ApiError> {
     let limit = body::page_size(params.limit.as_deref())?;
@@ -506,7 +507,7 @@ pub(crate) async fn changes<S: Store>(
 /// else unless it is private.
 pub(crate) async fn show<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    viewer: Viewer,
+    Viewing(viewer, ..): Viewing<ReadFlights>,
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
@@ -514,17 +515,18 @@ pub(crate) async fn show<S: Store>(
     let answer = FlightResponse {
         flight: wire::flight(&flight)?,
     };
-    Ok(match viewer {
+    Ok(if viewer.is_signed() {
         // Asked with a token: made for that account, kept by nobody.
-        Viewer(Some(_)) => cache::private_json(StatusCode::OK, &answer),
-        Viewer(None) => cache::shared_json(&headers, &answer, keeper(&flight)),
+        cache::private_json(StatusCode::OK, &answer)
+    } else {
+        cache::shared_json(&headers, &answer, keeper(&flight))
     })
 }
 
 /// `GET /v1/flights/{id}/igc`: the flight file, exactly as it was uploaded.
 pub(crate) async fn file<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    viewer: Viewer,
+    Viewing(viewer, ..): Viewing<ReadFlights>,
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
@@ -548,9 +550,10 @@ pub(crate) async fn file<S: Store>(
             ApiError::internal()
         })?;
 
-    let mut response = match viewer {
-        Viewer(Some(_)) => cache::private(file.into_response()),
-        Viewer(None) => cache::shared(&headers, "application/octet-stream", file, keeper(&flight)),
+    let mut response = if viewer.is_signed() {
+        cache::private(file.into_response())
+    } else {
+        cache::shared(&headers, "application/octet-stream", file, keeper(&flight))
     };
     cache::set(
         &mut response,
@@ -576,7 +579,7 @@ pub(crate) async fn file<S: Store>(
 /// `PATCH /v1/flights/{id}`: changes who may see a flight.
 pub(crate) async fn update<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteFlights>,
     Path(id): Path<String>,
     headers: HeaderMap,
     body: Bytes,
@@ -626,7 +629,7 @@ pub(crate) async fn update<S: Store>(
 /// `DELETE /v1/flights/{id}`: deletes a flight and its file.
 pub(crate) async fn delete<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteFlights>,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let id: FlightId = id.parse().map_err(|_| no_such_flight())?;

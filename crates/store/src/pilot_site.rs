@@ -37,28 +37,44 @@ pub struct SitePilot {
 }
 
 /// Through what a revision came in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SiteVia {
     /// A session of the pilot's own sign-in.
     Session,
     /// Whoever runs the server, from its command line.
     Operator,
+    /// A token the pilot gave to another program, by the name the pilot
+    /// gave the token. The name is kept as it was at the write: it stays
+    /// when the token is renamed, withdrawn or gone with its account.
+    Token(String),
 }
 
 impl SiteVia {
     /// The word the database keeps.
-    pub fn as_str(self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::Session => "session",
             Self::Operator => "operator",
+            Self::Token(_) => "token",
         }
     }
 
-    /// The way a word of the database names.
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "session" => Some(Self::Session),
-            "operator" => Some(Self::Operator),
+    /// The name of the token a revision came through, if it came through
+    /// one.
+    pub fn token(&self) -> Option<&str> {
+        match self {
+            Self::Token(name) => Some(name),
+            Self::Session | Self::Operator => None,
+        }
+    }
+
+    /// The way a word of the database names, with the token's name where
+    /// the word is `token`.
+    pub fn from_parts(name: &str, token: Option<String>) -> Option<Self> {
+        match (name, token) {
+            ("session", None) => Some(Self::Session),
+            ("operator", None) => Some(Self::Operator),
+            ("token", Some(token)) => Some(Self::Token(token)),
             _ => None,
         }
     }

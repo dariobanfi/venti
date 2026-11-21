@@ -54,8 +54,8 @@ use venti_domain::{
 };
 
 pub use account::{
-    Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
-    Suspension,
+    AccessToken, Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES,
+    SecretHash, Session, Suspension,
 };
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use flight::{
@@ -605,6 +605,50 @@ pub trait Store: Send + Sync + 'static {
         &self,
         idle_since: Timestamp,
     ) -> impl Future<Output = Result<u64, StoreError>> + Send;
+
+    // --- Tokens a pilot gives to another program ---------------------------
+
+    /// Stores a token under the hash of its secret, unless its account
+    /// already holds `most` tokens or is gone. Returns whether it was
+    /// stored.
+    ///
+    /// Unlike a session, a token never makes room for itself by removing
+    /// an older one: a program whose token went that way would stop
+    /// working with nobody having decided so. Tokens whose end has come
+    /// are counted until they are withdrawn.
+    fn create_access_token(
+        &self,
+        token: &AccessToken,
+        secret: &SecretHash,
+        most: usize,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The token a secret belongs to, with its account, and notes the day
+    /// of `now` as the day of its latest use.
+    ///
+    /// A token whose end is at `now` or before it is not returned, and
+    /// its use is not noted. The token returned carries the day that is
+    /// then on record.
+    fn use_access_token(
+        &self,
+        secret: &SecretHash,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Option<(AccessToken, Account)>, StoreError>> + Send;
+
+    /// An account's tokens, the newest first; those whose end has come
+    /// among them.
+    fn access_tokens(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Vec<AccessToken>, StoreError>> + Send;
+
+    /// Removes one token of an account. Returns whether the account had
+    /// it: a token of another account is not touched.
+    fn delete_access_token(
+        &self,
+        account_id: &str,
+        token_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
 
     // --- Flights ----------------------------------------------------------
 

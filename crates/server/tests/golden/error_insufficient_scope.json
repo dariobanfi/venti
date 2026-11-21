@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "insufficient_scope",
+    "message": "this needs the scope 'groups:read', which the token does not have; the pilot makes a token with it in their account",
+    "scope": "groups:read"
+  }
+}

@@ -145,11 +145,13 @@ pub enum SiteRevisionKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SiteVia {
-    /// A session of the pilot's own sign-in: one of Venti's apps, or a
-    /// program that signed in as the pilot.
+    /// A session of the pilot's own sign-in: one of Venti's apps.
     Session,
     /// Whoever runs the server, from its command line.
     Operator,
+    /// A token the pilot gave to another program. Which token is not said
+    /// here: its name is the pilot's own word for a program of theirs.
+    Token,
     /// A way this version of the code does not know.
     #[serde(other)]
     Other,

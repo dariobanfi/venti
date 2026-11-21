@@ -3,7 +3,7 @@
 use chrono::Duration;
 use venti_domain::Timestamp;
 use venti_store::{
-    Account, AccountCreation, GroupJoining, GroupRoom, Listing, NewAccount, NewInvite,
+    AccessToken, Account, AccountCreation, GroupJoining, GroupRoom, Listing, NewAccount, NewInvite,
     ReportListing, SESSION_TOUCH_MINUTES, SecretHash, Session, Store,
 };
 
@@ -620,4 +620,221 @@ pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) 
         .await
         .unwrap();
     assert!(listed.is_empty());
+}
+
+// --- Tokens a pilot gives to another program -----------------------------
+
+fn access_token(name: &str, account: &Account, made: Timestamp) -> AccessToken {
+    AccessToken {
+        id: id(name),
+        account_id: account.id.clone(),
+        name: format!("Program {name}"),
+        scopes: vec!["flights:read".to_owned(), "flights:write".to_owned()],
+        created_at: made,
+        last_used_on: None,
+        expires_at: None,
+    }
+}
+
+async fn token_names(store: &impl Store, account: &Account) -> Vec<String> {
+    let tokens = store.access_tokens(&account.id).await.unwrap();
+    tokens
+        .iter()
+        .map(|token| token.id.trim_start_matches('0').to_owned())
+        .collect()
+}
+
+pub(crate) async fn a_token_for_a_program_is_good_until_its_end(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let lasting = access_token("logger", &dario, at(10, 0));
+    let ending = AccessToken {
+        expires_at: Some(at(12, 0)),
+        ..access_token("vario", &dario, at(10, 1))
+    };
+    assert!(
+        store
+            .create_access_token(&lasting, &secret(1), 10)
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .create_access_token(&ending, &secret(2), 10)
+            .await
+            .unwrap()
+    );
+    // Listed as made, the newest first, and not yet used.
+    assert_eq!(
+        store.access_tokens(&dario.id).await.unwrap(),
+        [ending.clone(), lasting.clone()]
+    );
+
+    // A use is found with the account, and the day of it is kept.
+    let used = store.use_access_token(&secret(1), at(11, 0)).await.unwrap();
+    let today = at(11, 0).date_naive();
+    let lasting_used = AccessToken {
+        last_used_on: Some(today),
+        ..lasting.clone()
+    };
+    assert_eq!(used, Some((lasting_used.clone(), dario.clone())));
+    // A later use on the same day changes nothing; one on a later day
+    // moves the day on, and an earlier clock does not move it back.
+    let again = store.use_access_token(&secret(1), at(11, 30)).await;
+    assert_eq!(again.unwrap().unwrap().0.last_used_on, Some(today));
+    let next_day = at(11, 0) + Duration::days(1);
+    let later = store.use_access_token(&secret(1), next_day).await;
+    assert_eq!(
+        later.unwrap().unwrap().0.last_used_on,
+        Some(next_day.date_naive())
+    );
+    let earlier = store.use_access_token(&secret(1), at(11, 0)).await;
+    assert_eq!(
+        earlier.unwrap().unwrap().0.last_used_on,
+        Some(next_day.date_naive())
+    );
+
+    // A token is good until its end and not at it; a use that is refused
+    // is not written down.
+    let before = store
+        .use_access_token(&secret(2), at(12, 0) - Duration::seconds(1))
+        .await;
+    assert!(before.unwrap().is_some());
+    let at_the_end = store.use_access_token(&secret(2), at(12, 0)).await;
+    assert_eq!(at_the_end.unwrap(), None);
+    let after = store.use_access_token(&secret(2), next_day).await;
+    assert_eq!(after.unwrap(), None);
+    let listed = store.access_tokens(&dario.id).await.unwrap();
+    assert_eq!(listed[0].last_used_on, Some(today), "{listed:?}");
+
+    // A secret nobody was given, and a session's token, open nothing.
+    let unknown = store.use_access_token(&secret(3), at(11, 0)).await;
+    assert_eq!(unknown.unwrap(), None);
+    sign_in(store, "phone", &dario, at(10, 0), 7).await;
+    let a_session = store.use_access_token(&secret(7), at(11, 0)).await;
+    assert_eq!(a_session.unwrap(), None);
+    let as_session = store
+        .use_session(&secret(1), at(11, 0), long_ago())
+        .await
+        .unwrap();
+    assert_eq!(as_session, None, "a token for a program is no session");
+}
+
+pub(crate) async fn tokens_for_programs_are_withdrawn_one_by_one(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let made = |name, account, minute, byte| {
+        let token = access_token(name, account, at(10, minute));
+        async move {
+            assert!(
+                store
+                    .create_access_token(&token, &secret(byte), 10)
+                    .await
+                    .unwrap()
+            );
+        }
+    };
+    made("logger", &dario, 0, 1).await;
+    made("vario", &dario, 1, 2).await;
+    made("annas", &anna, 2, 3).await;
+    assert_eq!(token_names(store, &dario).await, ["vario", "logger"]);
+    assert!(store.access_tokens(&id("nobody")).await.unwrap().is_empty());
+
+    // Another account's token is not there to withdraw, nor is text that
+    // cannot be an identifier.
+    assert!(
+        !store
+            .delete_access_token(&dario.id, &id("annas"))
+            .await
+            .unwrap()
+    );
+    for text in ["", "a\0b", "' OR 1=1 --"] {
+        assert!(!store.delete_access_token(&dario.id, text).await.unwrap());
+        assert!(
+            !store
+                .delete_access_token(text, &id("logger"))
+                .await
+                .unwrap()
+        );
+    }
+    assert!(
+        store
+            .delete_access_token(&dario.id, &id("logger"))
+            .await
+            .unwrap()
+    );
+    assert!(
+        !store
+            .delete_access_token(&dario.id, &id("logger"))
+            .await
+            .unwrap()
+    );
+    assert_eq!(token_names(store, &dario).await, ["vario"]);
+    let gone = store.use_access_token(&secret(1), at(11, 0)).await;
+    assert_eq!(gone.unwrap(), None, "a withdrawn token is worth nothing");
+    let kept = store.use_access_token(&secret(2), at(11, 0)).await;
+    assert!(kept.unwrap().is_some());
+
+    // Signing out everywhere and a new password are about sessions: the
+    // tokens stay.
+    sign_in(store, "phone", &dario, at(10, 0), 8).await;
+    store.delete_sessions(&dario.id).await.unwrap();
+    store
+        .set_password(&dario.id, "$argon2id$another", &id("phone"))
+        .await
+        .unwrap();
+    assert_eq!(token_names(store, &dario).await, ["vario"]);
+
+    // The account takes its tokens with it.
+    store.delete_account(&dario.id).await.unwrap();
+    assert!(token_names(store, &dario).await.is_empty());
+    let orphan = store.use_access_token(&secret(2), at(11, 0)).await;
+    assert_eq!(orphan.unwrap(), None);
+    assert_eq!(token_names(store, &anna).await, ["annas"]);
+}
+
+pub(crate) async fn an_account_holds_only_so_many_tokens_for_programs(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    for (index, name) in ["a", "b", "c"].iter().enumerate() {
+        let token = access_token(name, &dario, at(10, index as u32));
+        let stored = store
+            .create_access_token(&token, &secret(index as u8), 2)
+            .await
+            .unwrap();
+        // The third is refused, and no older one makes room for it.
+        assert_eq!(stored, index < 2, "{name}");
+    }
+    assert_eq!(token_names(store, &dario).await, ["b", "a"]);
+    // The bound is per account, and withdrawing one makes room.
+    let annas = access_token("annas", &anna, at(10, 5));
+    assert!(
+        store
+            .create_access_token(&annas, &secret(9), 2)
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .delete_access_token(&dario.id, &id("a"))
+            .await
+            .unwrap()
+    );
+    let again = access_token("c", &dario, at(10, 6));
+    assert!(
+        store
+            .create_access_token(&again, &secret(2), 2)
+            .await
+            .unwrap()
+    );
+    assert_eq!(token_names(store, &dario).await, ["c", "b"]);
+
+    // An account that is not there holds none.
+    let nobody = account("nobody");
+    let stray = access_token("stray", &nobody, at(10, 7));
+    assert!(
+        !store
+            .create_access_token(&stray, &secret(5), 2)
+            .await
+            .unwrap()
+    );
 }

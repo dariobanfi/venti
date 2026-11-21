@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
-use venti_api_types::v1::{ErrorCode, ErrorResponse};
+use venti_api_types::v1::{ErrorCode, ErrorResponse, Scope};
 use venti_store::StoreError;
 
 use super::log::Sparse;
@@ -17,6 +17,8 @@ pub(crate) struct ApiError {
     message: String,
     /// Seconds after which trying again makes sense.
     retry_after: Option<u64>,
+    /// The scope the request's token lacks, where that is the error.
+    scope: Option<Scope>,
 }
 
 impl ApiError {
@@ -27,6 +29,7 @@ impl ApiError {
             message: message.into(),
             // A server that cannot answer now usually can in half a minute.
             retry_after: (status == StatusCode::SERVICE_UNAVAILABLE).then_some(30),
+            scope: None,
         }
     }
 
@@ -70,6 +73,22 @@ impl ApiError {
     /// The request is understood and refused.
     pub(crate) fn forbidden(code: ErrorCode, message: impl Into<String>) -> Self {
         Self::new(StatusCode::FORBIDDEN, code, message)
+    }
+
+    /// The request carries a token a pilot gave to a program, and the
+    /// token lacks the scope the request needs. The answer names it, in
+    /// words and as a field of its own.
+    pub(crate) fn insufficient_scope(scope: Scope) -> Self {
+        Self {
+            scope: Some(scope),
+            ..Self::forbidden(
+                ErrorCode::InsufficientScope,
+                format!(
+                    "this needs the scope '{scope}', which the token does not have; the \
+                     pilot makes a token with it in their account"
+                ),
+            )
+        }
     }
 
     /// The server failed in a way the client can do nothing about. What
@@ -118,7 +137,9 @@ fn wait(seconds: u64) -> String {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let body = Json(ErrorResponse::new(self.code, self.message));
+        let mut body = ErrorResponse::new(self.code, self.message);
+        body.error.scope = self.scope;
+        let body = Json(body);
         let mut response = (self.status, body).into_response();
         let headers = response.headers_mut();
         // An error describes this moment; nothing may keep it.

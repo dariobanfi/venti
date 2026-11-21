@@ -36,6 +36,7 @@ It also starts with one account, so that an app can be built and tested against 
 | Handle | `demo` |
 | Password | `demo-pilot-password` |
 | A session token that always works | `venti_0000000000000000000000000000000000000000000000000000` |
+| A [token for another program](#tokens-for-other-programs), "Demo logger", which may read and write the account's flights and nothing else | `venti_pat_0000000000000000000000000000000000000000000000000000` |
 | Flights | Three made-up ones: one public (2026-08-15, it lands), one unlisted (2026-07-04, the sample file the apps bundle; its recording ends in the air), one private (2025-06-21, a short one) |
 | Live tracks | Three, made from the sample flight and dated by this mode's clock; see the table below |
 | Groups | One that it keeps, with the two further pilots in it and three plans; see the tables below |
@@ -169,9 +170,11 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
 | 400 | `invalid_site`, `site_out_of_area` | What a request says about a [site](#sites-that-pilots-make) cannot be kept; the place is in no region this server serves |
 | 400 | `invalid_report` | A [report](#reports) gives a reason the server does not know, has a text of more than 1,000 characters, or gives the reason `other` and no text |
+| 400 | `invalid_token_name`, `invalid_scopes`, `invalid_expiry` | Making a [token for a program](#post-v1accounttokens): its name, its scopes or its end cannot be used |
 | 400 | `invalid_group_name` | The name of a [group](#groups) is empty or has more than 60 characters |
 | 400 | `invalid_plan` | A [plan](#plans-for-a-flying-day) is for a day the server takes no plan for, its place is empty or has more than 80 characters, or its note has more than 500 |
-| 401 | `unauthorized` | The request needs an account and carries no valid session token. The answer has `WWW-Authenticate: Bearer` |
+| 401 | `unauthorized` | The request needs an account and carries no valid token: no session's, and none that a pilot [gave to a program](#tokens-for-other-programs). The answer has `WWW-Authenticate: Bearer` |
+| 403 | `insufficient_scope`, `session_required` | The request carries a good [token for a program](#tokens-for-other-programs) that lacks the scope the request needs, which `scope` in the error names; or it asks for what only the pilot's own sign-in may do |
 | 401 | `invalid_credentials` | Signing in: the handle or the password is wrong |
 | 403 | `wrong_password` | The password sent to confirm a change to the account is wrong |
 | 403 | `registration_closed`, `invalid_invite` | The server takes no new accounts, or takes them by invite and the code is not good |
@@ -185,7 +188,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 403 | `sites_closed` | The server takes no [sites from pilots](#sites-that-pilots-make); or a site of a source was to be changed, which is corrected at its source |
 | 404 | `station_not_found` | No station has this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
-| 404 | `session_not_found`, `pilot_not_found` | The account has no such session; no pilot has this handle |
+| 404 | `session_not_found`, `token_not_found`, `pilot_not_found` | The account has no such session; it has no such [token for a program](#tokens-for-other-programs); no pilot has this handle |
 | 404 | `live_track_not_found` | No live track has this identifier: none ever had, its pilot deleted it, or it ended long enough ago to have been removed. The three cannot be told apart |
 | 404 | `group_not_found` | No [group](#groups) has this identifier, or the caller is not in it. The two cannot be told apart, on any endpoint about a group |
 | 404 | `site_not_found`, `site_revision_not_found` | No [site](#sites-that-pilots-make) has this identifier; the site has no revision with this number |
@@ -197,6 +200,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
 | 409 | `site_too_close`, `site_changed` | A [site](#sites-that-pilots-make) would stand less than 20 m from another; the site was changed since the revision the request names |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
+| 409 | `too_many_tokens` | The account holds as many [tokens for programs](#tokens-for-other-programs) as it may |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
 | 410 | `site_gone` | The [site](#sites-that-pilots-make) was removed, or taken down. Its identifier is not used again |
 | 410 | `live_track_gone` | Fixes were sent under an identifier whose live track was deleted or removed, or that was taken out of use. An identifier is used once: begin a new track with a new one |
@@ -1017,7 +1021,7 @@ Every text in a record is the source's, and the source is a map that anyone can 
 Since 2026-11-21 the server keeps flying sites that pilots add themselves, beside the sites of its sources and never merged with them. They are the layer `venti`.
 
 - **An identifier that stays.** A site's identifier is `venti:` and 26 characters, made by the server and never used for another site. Its address is `/v1/sites/{id}` for good; a site that was removed answers `410` with `site_gone`.
-- **Every change is a revision that is kept.** A revision holds the whole record as it stood from then on, who made it, when, through what it came in (`session`: a sign-in of the pilot's own; `operator`: whoever runs the server), and a line saying why. Nothing is overwritten. A change is undone by a revision that restores an earlier one and names it; removing a site is a revision too.
+- **Every change is a revision that is kept.** A revision holds the whole record as it stood from then on, who made it, when, through what it came in (`session`: a sign-in of the pilot's own; `token`: a [token the pilot gave to another program](#tokens-for-other-programs); `operator`: whoever runs the server), and a line saying why. Nothing is overwritten. A change is undone by a revision that restores an earlier one and names it; removing a site is a revision too.
 - **The licence: CC0 1.0.** What pilots give as sites is given under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), by the owner's decision of 2026-11-21. Every answer that carries a site of the layer says so in `attributions`: source `venti`, provider "Venti contributors". The licence asks for no credit; the entry's `notice` is to be shown wherever a site of the layer is: "Added by pilots and not verified. A site on the map is not permission to fly there."
 - **Who may write.** Any signed-in pilot adds a site, and any signed-in pilot corrects, removes or restores any site of the layer, unless whoever runs the server has suspended the account's publishing (`403`, `publishing_suspended`). An account adds at most 20 sites a day and writes at most 100 revisions a day (`429`, `rate_limited`).
 - **Only where the server is told to take them.** A server takes sites from pilots when its configuration says `sites_from_pilots = true`; otherwise every write is `403` with `sites_closed`. It is off unless set, because the terms under which a pilot gives a site, which say that it is given under CC0 1.0 and stays when the account goes, are not written yet. The development mode takes them. Reading is never off.
@@ -2785,6 +2789,8 @@ Authorization: Bearer venti_3x7k9q2m4r8t1v6w0y5a2b3c4d5e6f7g8h9j0kmnpqrstvwxyz01
 
 That header is the only way to act for an account. The server sets no cookies and reads none, and it takes no token from a query string. A request without a token, or with one that was signed out or has expired, gets `401` with `unauthorized`, on every endpoint marked "needs a token" below.
 
+Another program acts for a pilot with a token of its own kind, which the pilot makes and limits: [Tokens for other programs](#tokens-for-other-programs). Where an endpoint below says "needs a token", such a token does too if it has the scope that section's table names; a session's token always does.
+
 What a client has to know:
 
 - **A handle** is 3 to 20 characters: the letters `a` to `z`, digits and `_`. It starts with a letter, does not end with `_` and has no two `_` in a row. Upper and lower case are the same handle; the server keeps and shows it in lower case. A handle and a display name are public: they stand on every flight the pilot shares.
@@ -2961,6 +2967,190 @@ Deletes the account with everything that belongs to it: its sessions, its flight
 To take everything along first, list the flights (`GET /v1/flights`) and download each file (`GET /v1/flights/{id}/igc`).
 
 Not gone at once are the copies in the server's nightly backups, which the operator keeps for fourteen days unless configured otherwise; see [deploy/README.md](../deploy/README.md#backup). Live tracks are in no backup, and neither are plans; the groups an account was in are.
+
+## Tokens for other programs
+
+A pilot who wants a program that is not Venti's own app to act for them (a logger that uploads flights, a script, another maker's app) makes a **token** for it. The program never learns the pilot's password, can do only what the pilot allowed, and is shut out by the pilot at any time. This section can be read alone by whoever builds such a program.
+
+**How a pilot makes one.** Signed in to their account, the pilot names the program, picks what it may do (the **scopes**), and confirms with the password: [`POST /v1/account/tokens`](#post-v1accounttokens). The answer shows the token's **secret** once. The pilot gives the secret to the program. The apps have no screen for it yet; the request below is all there is to it.
+
+**How a program sends it.** As a session's token is sent, in the one header, with every request:
+
+```
+Authorization: Bearer venti_pat_3x7k9q2m4r8t1v6w0y5a2b3c4d5e6f7g8h9j0kmnpqrstvwxyz01
+```
+
+A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `venti_` and 52 characters. The prefix is there so that one found in a log or a repository is recognised for what it is. The server keeps a hash of the secret and cannot show it again: a pilot who lost one withdraws the token and makes another. A program keeps the secret where secrets are kept and never in a URL.
+
+**What needs no token.** Everything anyone may read: stations, airspace, sites and their history, forecasts, public flights, pilots' pages, the ranking, public live tracks, a flight or a live track by its link. A request that carries a token is answered `no-store`, so a program that only reads what is public sends none.
+
+**The scopes.** A token has at least one. A scope opens what is the pilot's own, for the one account the token was made for.
+
+| Scope | What it opens |
+|---|---|
+| `account:read` | The account: handle, display name, since when it exists, whether its publishing is suspended |
+| `flights:read` | The pilot's flights, the private ones among them: the list, what changed since, each flight and its file |
+| `flights:write` | Uploading flights, changing who may see one, deleting one |
+| `live:write` | Sending the positions of a live track, and ending one |
+| `sites:write` | Adding, correcting, removing and restoring [sites that pilots make](#sites-that-pilots-make) |
+| `groups:read` | The pilot's groups, their members and their plans |
+| `groups:write` | Everything a pilot writes in groups: making, renaming and deleting a group, a new invite code, handing the keeping over, removing a member, joining and leaving, plans, and "I am in" |
+| `reports:write` | Sending a report |
+
+**Which request needs which scope.** A session, which Venti's own apps get by signing in, may do all of it.
+
+| Request | Needs |
+|---|---|
+| `GET /v1/account` | `account:read` |
+| `GET /v1/flights` | `flights:read` |
+| `GET /v1/flights/changes` | `flights:read` |
+| `GET /v1/flights/{id}`, `GET /v1/flights/{id}/igc` | Nothing for a flight that is public or shared by link. `flights:read` for the pilot's own private flight |
+| `POST /v1/flights` | `flights:write` |
+| `PATCH /v1/flights/{id}` | `flights:write` |
+| `DELETE /v1/flights/{id}` | `flights:write` |
+| `POST /v1/live/positions` | `live:write` |
+| `DELETE /v1/live/{id}` | `live:write` |
+| `POST /v1/sites` | `sites:write` |
+| `PUT /v1/sites/{id}` | `sites:write` |
+| `DELETE /v1/sites/{id}` | `sites:write` |
+| `POST /v1/sites/{id}/revisions` | `sites:write` |
+| `GET /v1/groups` | `groups:read` |
+| `GET /v1/groups/{id}` | `groups:read` |
+| `GET /v1/groups/{id}/plans` | `groups:read` |
+| `GET /v1/groups/plans` | `groups:read` |
+| `POST /v1/groups` | `groups:write` |
+| `POST /v1/groups/join` | `groups:write` |
+| `PATCH /v1/groups/{id}` | `groups:write` |
+| `DELETE /v1/groups/{id}` | `groups:write` |
+| `POST /v1/groups/{id}/invite` | `groups:write` |
+| `PUT /v1/groups/{id}/keeper` | `groups:write` |
+| `DELETE /v1/groups/{id}/members/{handle}` | `groups:write` |
+| `POST /v1/groups/{id}/plans` | `groups:write` |
+| `PUT /v1/groups/{id}/plans/{plan}` | `groups:write` |
+| `DELETE /v1/groups/{id}/plans/{plan}` | `groups:write` |
+| `PUT /v1/groups/{id}/plans/{plan}/in` | `groups:write` |
+| `DELETE /v1/groups/{id}/plans/{plan}/in` | `groups:write` |
+| `POST /v1/reports` | `reports:write` |
+| `GET /v1/sessions` | the session only |
+| `DELETE /v1/sessions` | the session only |
+| `DELETE /v1/sessions/{id}` | the session only |
+| `PUT /v1/account/password` | the session only |
+| `DELETE /v1/account` | the session only |
+| `POST /v1/account/tokens` | the session only |
+| `GET /v1/account/tokens` | the session only |
+| `DELETE /v1/account/tokens/{id}` | the session only |
+
+"The session only" is what no token may do, whatever its scopes: see or end the pilot's sessions, change the password, delete the account, and make, list or withdraw tokens. A token therefore cannot widen itself or outlive its withdrawal.
+
+**The errors a program meets.**
+
+| Status | `code` | When |
+|---|---|---|
+| 401 | `unauthorized` | The token was withdrawn, has ended or was never given out. The three are answered alike, and as a session that was signed out is. Nothing the program does mends it: the pilot makes a new token |
+| 403 | `insufficient_scope` | The token is good and lacks the scope the request needs. `scope` in the error names it |
+| 403 | `session_required` | The token is good, and the request is one of those for the session only |
+
+A token that lacks a scope is told so:
+
+```json
+{
+  "error": {
+    "code": "insufficient_scope",
+    "message": "this needs the scope 'groups:read', which the token does not have; the pilot makes a token with it in their account",
+    "scope": "groups:read"
+  }
+}
+```
+
+**What a token shares with its account.** Every bound of the API is the account's, and a token has none of its own yet: the uploads a day and at a time, the room for flights, the live tracks and their fixes, the groups, plans and joins a day, the new sites and revisions a day, the reports a day. A program that uses them up uses them up for the pilot's own apps too. An account whose publishing is suspended is suspended for its tokens as well.
+
+**What a write through a token leaves.** A revision of a [site](#get-v1sitesidhistoryafterlimit) says through what it came in: `"via": "token"`. Which token is not said to those who read the history: its name is the pilot's own word for a program of theirs. The server keeps the name with the revision, where whoever runs the server can read it. Flights, live tracks, groups, plans and reports do not record through what they came in.
+
+### `POST /v1/account/tokens`
+
+Needs a session's token, and the password in the body: whoever picks up an unlocked phone cannot leave with a token that outlives signing the phone out. Makes a token.
+
+```json
+{
+  "name": "My logger",
+  "scopes": [
+    "flights:write",
+    "live:write"
+  ],
+  "password": "demo-pilot-password"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | What the program is, in the pilot's words: 1 to 60 characters in any script, without line breaks or invisible characters. It need not differ from the names of the pilot's other tokens |
+| `scopes` | At least one of the scopes above, each once |
+| `expires_at` | The moment from which the token is no longer good. Left out for a token that never ends |
+| `password` | The account's password |
+
+The answer is `201`:
+
+```json
+{
+  "token": {
+    "id": "3kq9x2m7r4t8v1w6y0a5b3c2d4",
+    "name": "My logger",
+    "scopes": [
+      "flights:write",
+      "live:write"
+    ],
+    "created_at": "2026-11-18T19:05:00Z"
+  },
+  "secret": "venti_pat_3x7k9q2m4r8t1v6w0y5a2b3c4d5e6f7g8h9j0kmnpqrstvwxyz01"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `token` | The token as [the list](#get-v1accounttokens) shows it from now on |
+| `secret` | What the program sends. **Shown this once**: say so to the pilot where it is shown, and let them copy it before they leave |
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `invalid_token_name` | The name is empty, longer than 60 characters, or holds a line break or an invisible character |
+| 400 | `invalid_scopes` | No scope, one named twice, or a name that is no scope's |
+| 400 | `invalid_expiry` | `expires_at` is not a moment that is still to come |
+| 403 | `wrong_password` | The password is wrong. Counted for the device as for [changing the password](#put-v1accountpassword) |
+| 409 | `too_many_tokens` | The account holds 20 tokens, those that have ended among them. No older one makes room: withdraw one first |
+
+### `GET /v1/account/tokens`
+
+Needs a session's token. Every token the account holds, the newest first. This is the demo account's:
+
+```json
+{
+  "tokens": [
+    {
+      "id": "00000000000000000000000003",
+      "name": "Demo logger",
+      "scopes": [
+        "flights:read",
+        "flights:write"
+      ],
+      "created_at": "2026-11-18T19:05:00Z"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | For withdrawing it. It is not the secret and gives no access |
+| `name`, `scopes` | As the token was made with. A token cannot be changed: make another and withdraw this one |
+| `created_at` | When it was made |
+| `last_used_on` | The day, in UTC, on which it was last used. Left out until it is used. The server keeps the day and nothing finer, and no address |
+| `expires_at` | From when it is no longer good. Left out for a token that never ends. A token whose end has come stays in the list until it is withdrawn |
+
+### `DELETE /v1/account/tokens/{id}`
+
+Needs a session's token. Withdraws one token, by the `id` from the list. The answer is `204` with no body, and the token's very next request is answered `401`. A token the account does not have gives `404` with `token_not_found`.
+
+Changing the password and signing out everywhere are about sessions and leave the tokens as they are. Deleting the account withdraws them all.
 
 ## Flights
 

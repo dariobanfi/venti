@@ -36,7 +36,7 @@ use venti_api_types::v1::{
 };
 use venti_store::{NewReport, ReportSaved, Store};
 
-use super::auth::{Signed, Viewer};
+use super::auth::{May, Viewer, WriteReports};
 use super::error::ApiError;
 use super::{Api, body, cache, flights, groups, live, pilots};
 use crate::accounts::secret;
@@ -49,7 +49,7 @@ fn invalid(message: impl Into<String>) -> ApiError {
 /// `POST /v1/reports`: stores a report for whoever runs the server.
 pub(crate) async fn create<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteReports>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
@@ -95,7 +95,7 @@ pub(crate) async fn create<S: Store>(
     // to the members of the group and to nobody else.
     let (about_account_id, subject, gone) = match &request.subject {
         ReportSubject::Flight(id) => {
-            let viewer = Viewer(Some(signed.clone()));
+            let viewer = Viewer::allowed(&signed);
             let flight = api.visible_flight(id, &viewer).await?;
             let subject = venti_store::ReportSubject::Flight(flight.id);
             (flight.account_id, subject, flights::no_such_flight())

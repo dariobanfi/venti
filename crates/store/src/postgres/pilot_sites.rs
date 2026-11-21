@@ -61,8 +61,8 @@ const INSERT_SITE: &str = "
 
 const INSERT_REVISION: &str = "
     INSERT INTO pilot_site_revisions
-        (site_id, number, author_id, at, via, kind, restores, comment, record)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)";
+        (site_id, number, author_id, at, via, via_token, kind, restores, comment, record)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
 
 const UPDATE_SITE: &str = "
     UPDATE pilot_sites
@@ -123,7 +123,8 @@ fn revision_from(row: &Row) -> Result<SiteRevision, StoreError> {
         number: number_from(row.get("number"))?,
         at: row.get("at"),
         author: pilot_from(row, "author_id", "author_handle", "author_name"),
-        via: SiteVia::from_name(via).ok_or_else(|| corrupt("way a revision came in", via))?,
+        via: SiteVia::from_parts(via, row.get("via_token"))
+            .ok_or_else(|| corrupt("way a revision came in", via))?,
         kind: RevisionKind::from_parts(kind, restores)
             .ok_or_else(|| corrupt("kind of revision", kind))?,
         comment: row.get("comment"),
@@ -245,7 +246,7 @@ struct Kept<'a> {
     number: u32,
     author_id: Option<&'a str>,
     at: venti_domain::Timestamp,
-    via: SiteVia,
+    via: &'a SiteVia,
     kind: RevisionKind,
     comment: Option<&'a str>,
     record: &'a str,
@@ -262,6 +263,7 @@ async fn insert_revision(tx: &Transaction<'_>, kept: &Kept<'_>) -> Result<(), St
             &kept.author_id,
             &kept.at,
             &kept.via.as_str(),
+            &kept.via.token(),
             &kept.kind.as_str(),
             &restores,
             &kept.comment,
@@ -323,7 +325,7 @@ pub(super) async fn add(
         number: 1,
         author_id: Some(&new.author_id),
         at: new.at,
-        via: new.via,
+        via: &new.via,
         kind: RevisionKind::Created,
         comment: new.comment.as_deref(),
         record: &record,
@@ -406,7 +408,7 @@ pub(super) async fn revise(
         number,
         author_id: revising.author_id.as_deref(),
         at: revising.at,
-        via: revising.via,
+        via: &revising.via,
         kind: writing.kind,
         comment: revising.comment.as_deref(),
         record: &record,
@@ -489,7 +491,7 @@ pub(super) async fn revisions(
     }
     let statement = client
         .prepare_cached(
-            "SELECT r.number, r.at, r.via, r.kind, r.restores, r.comment, r.record,
+            "SELECT r.number, r.at, r.via, r.via_token, r.kind, r.restores, r.comment, r.record,
                     a.id AS author_id, a.handle AS author_handle,
                     a.display_name AS author_name
              FROM pilot_site_revisions r

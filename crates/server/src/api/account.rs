@@ -1,5 +1,10 @@
 //! Accounts and sessions: creating an account, signing in and out,
-//! changing the password, deleting the account.
+//! changing the password, deleting the account, and the tokens a pilot
+//! gives to other programs.
+//!
+//! Everything here but reading the account is for the pilot's own sign-in
+//! ([`OwnSession`]): a token for a program can read the account if it has
+//! the scope, and can do nothing else in this file.
 
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -9,16 +14,18 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use venti_api_types::v1::{
-    AccountResponse, ChangePasswordRequest, CreateAccountRequest, DeleteAccountRequest, ErrorCode,
-    Handle, Password, SessionsResponse, SignInRequest, SignInResponse, parse_display_name,
+    AccessTokensResponse, AccountResponse, ChangePasswordRequest, CreateAccessTokenRequest,
+    CreateAccessTokenResponse, CreateAccountRequest, DeleteAccountRequest, ErrorCode, Handle,
+    Password, Scope, SessionsResponse, SignInRequest, SignInResponse, parse_display_name,
+    parse_token_name,
 };
-use venti_store::{Account, AccountCreation, NewAccount, Session, Store};
+use venti_store::{AccessToken, Account, AccountCreation, NewAccount, Session, Store};
 
-use super::auth::{Client, Signed};
+use super::auth::{Client, May, OwnSession, ReadAccount};
 use super::error::ApiError;
 use super::{Api, body, cache, wire};
 use crate::accounts::client::counting_keys;
-use crate::accounts::secret::{InviteCode, Token, is_id, random_id};
+use crate::accounts::secret::{AccessSecret, InviteCode, Token, is_id, random_id};
 use crate::accounts::throttle::{self, Counted};
 use crate::accounts::{Registration, device_label, is_reserved, password};
 
@@ -122,8 +129,8 @@ impl<S: Store> Api<S> {
     }
 
     /// Whether `password` is the password of the account a request is
-    /// signed in to: what changing the password and deleting the account
-    /// ask for beside the token.
+    /// signed in to: what changing the password, deleting the account and
+    /// making a token for a program ask for beside the session's token.
     ///
     /// Wrong passwords are counted for the session, in the order
     /// [`check_password`](Self::check_password) keeps: a place is taken
@@ -135,7 +142,7 @@ impl<S: Store> Api<S> {
     /// one session, and with it the session's few guesses.
     async fn confirm_password(
         &self,
-        signed: &Signed,
+        signed: &OwnSession,
         password: &Password,
         client: IpAddr,
     ) -> Result<(), ApiError> {
@@ -337,7 +344,7 @@ pub(crate) async fn sign_in<S: Store>(
 /// `GET /v1/sessions`: the devices signed in to the account.
 pub(crate) async fn sessions<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    signed: OwnSession,
 ) -> Result<Response, ApiError> {
     let sessions = api.store.sessions(&signed.account.id).await?;
     // A session that has expired is no device that is signed in, also
@@ -357,7 +364,7 @@ pub(crate) async fn sessions<S: Store>(
 /// `DELETE /v1/sessions/{id}`: signs one device out.
 pub(crate) async fn sign_out<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    signed: OwnSession,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     // Text of another form is the identifier of no session, and the
@@ -376,14 +383,14 @@ pub(crate) async fn sign_out<S: Store>(
 /// `DELETE /v1/sessions`: signs every device out, this one included.
 pub(crate) async fn sign_out_everywhere<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    signed: OwnSession,
 ) -> Result<Response, ApiError> {
     api.store.delete_sessions(&signed.account.id).await?;
     Ok(cache::private(StatusCode::NO_CONTENT.into_response()))
 }
 
 /// `GET /v1/account`: the account the request is signed in to.
-pub(crate) async fn show(signed: Signed) -> Result<Response, ApiError> {
+pub(crate) async fn show(May(signed, ..): May<ReadAccount>) -> Result<Response, ApiError> {
     let account = wire::account(&signed.account)?;
     Ok(cache::private_json(
         StatusCode::OK,
@@ -395,7 +402,7 @@ pub(crate) async fn show(signed: Signed) -> Result<Response, ApiError> {
 /// device out.
 pub(crate) async fn change_password<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    signed: OwnSession,
     Client(client): Client,
     headers: HeaderMap,
     body: Bytes,
@@ -420,7 +427,7 @@ pub(crate) async fn change_password<S: Store>(
 /// `DELETE /v1/account`: deletes the account with everything it holds.
 pub(crate) async fn delete<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    signed: OwnSession,
     Client(client): Client,
     headers: HeaderMap,
     body: Bytes,
@@ -433,6 +440,144 @@ pub(crate) async fn delete<S: Store>(
 
     api.store.delete_account(&signed.account.id).await?;
     tracing::info!(account = %signed.account.handle, "account deleted");
+    Ok(cache::private(StatusCode::NO_CONTENT.into_response()))
+}
+
+/// `POST /v1/account/tokens`: makes a token for another program and shows
+/// its secret, this once.
+pub(crate) async fn create_token<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    signed: OwnSession,
+    Client(client): Client,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let request: CreateAccessTokenRequest = body::json(&headers, &body)?;
+    let now = api.clock.now();
+    let name = parse_token_name(&request.name)
+        .map_err(|e| ApiError::bad_request(ErrorCode::InvalidTokenName, e.to_string()))?;
+    let scopes = token_scopes(&request.scopes)?;
+    if request.expires_at.is_some_and(|end| end <= now) {
+        return Err(ApiError::bad_request(
+            ErrorCode::InvalidExpiry,
+            "expires_at must be a moment that is still to come; leave it out for a \
+             token that never ends",
+        ));
+    }
+    // A session alone is not enough: whoever picks up an unlocked phone
+    // could otherwise leave with a token that outlives signing the phone
+    // out. It is checked last, so that a request with a mistake in it
+    // costs no hashing and no guess.
+    api.confirm_password(&signed, &request.password, client)
+        .await?;
+
+    let secret = AccessSecret::new()?;
+    let token = AccessToken {
+        id: random_id()?,
+        account_id: signed.account.id.clone(),
+        name,
+        scopes: scopes
+            .iter()
+            .map(|scope| scope.as_str().to_owned())
+            .collect(),
+        created_at: now,
+        last_used_on: None,
+        expires_at: request.expires_at,
+    };
+    let most = api.limits.tokens_per_account;
+    let stored = api
+        .store
+        .create_access_token(&token, &secret.hash(), most)
+        .await?;
+    if !stored {
+        return Err(ApiError::new(
+            StatusCode::CONFLICT,
+            ErrorCode::TooManyTokens,
+            format!("an account holds at most {most} tokens; withdraw one first"),
+        ));
+    }
+    // The name is the pilot's own word and stays out of the log.
+    tracing::info!(account = %signed.account.handle, "token for a program made");
+    let answer = CreateAccessTokenResponse {
+        token: wire::access_token(&token),
+        secret: secret.expose().to_owned(),
+    };
+    Ok(cache::private_json(StatusCode::CREATED, &answer))
+}
+
+/// The scopes a request names: at least one, each once, in the order the
+/// documents list them.
+fn token_scopes(names: &[String]) -> Result<Vec<Scope>, ApiError> {
+    let invalid = |message: String| ApiError::bad_request(ErrorCode::InvalidScopes, message);
+    let known = || {
+        let names: Vec<&str> = Scope::ALL.iter().map(|scope| scope.as_str()).collect();
+        names.join(", ")
+    };
+    if names.is_empty() {
+        return Err(invalid(format!(
+            "a token has at least one scope; the scopes are {}",
+            known()
+        )));
+    }
+    // More names than there are scopes hold one twice or one too many;
+    // which, is not looked for in a list of any length.
+    if names.len() > Scope::ALL.len() {
+        return Err(invalid(format!(
+            "a token names each scope once; the scopes are {}",
+            known()
+        )));
+    }
+    let mut scopes = Vec::with_capacity(names.len());
+    for name in names {
+        let scope = Scope::from_name(name).ok_or_else(|| {
+            invalid(format!(
+                "there is no such scope; the scopes are {}",
+                known()
+            ))
+        })?;
+        if scopes.contains(&scope) {
+            return Err(invalid(format!("the scope '{scope}' is named twice")));
+        }
+        scopes.push(scope);
+    }
+    scopes.sort();
+    Ok(scopes)
+}
+
+/// `GET /v1/account/tokens`: the tokens the account gave to other
+/// programs.
+pub(crate) async fn tokens<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    signed: OwnSession,
+) -> Result<Response, ApiError> {
+    let tokens = api.store.access_tokens(&signed.account.id).await?;
+    let tokens = tokens.iter().map(wire::access_token).collect();
+    Ok(cache::private_json(
+        StatusCode::OK,
+        &AccessTokensResponse { tokens },
+    ))
+}
+
+/// `DELETE /v1/account/tokens/{id}`: withdraws one token. Its next
+/// request is answered as one with a token nobody was given.
+pub(crate) async fn withdraw_token<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    signed: OwnSession,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    // As for a session: text of another form is the identifier of none.
+    let deleted = is_id(&id)
+        && api
+            .store
+            .delete_access_token(&signed.account.id, &id)
+            .await?;
+    if !deleted {
+        return Err(ApiError::missing(
+            ErrorCode::TokenNotFound,
+            "the account has no token with this identifier",
+        ));
+    }
+    tracing::info!(account = %signed.account.handle, "token for a program withdrawn");
     Ok(cache::private(StatusCode::NO_CONTENT.into_response()))
 }
 

@@ -907,11 +907,16 @@ fn differing(before: &FlyingSite, after: &FlyingSite) -> Vec<&'static str> {
 /// through what, what it did, in which fields the record then differed
 /// from the one before, and its comment.
 fn revision_line(revision: &SiteRevision, before: Option<&FlyingSite>) -> String {
-    let by = match revision.via {
+    let by = match &revision.via {
         SiteVia::Operator => "the operator".to_owned(),
         SiteVia::Session => format!(
             "{}, through a session",
             site_pilot(revision.author.as_ref())
+        ),
+        SiteVia::Token(name) => format!(
+            "{}, through the token {}",
+            site_pilot(revision.author.as_ref()),
+            quoted(name)
         ),
     };
     let did = match revision.kind {

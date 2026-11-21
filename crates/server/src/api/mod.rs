@@ -20,8 +20,11 @@
 //! can make the server ask a provider, at an address that comes from the
 //! server's configuration and never from the request.
 //!
-//! **What pilots keep here.** An account is acted for with a session token
-//! in the `Authorization` header ([`auth`]). A flight is shown to its pilot
+//! **What pilots keep here.** An account is acted for with a token in the
+//! `Authorization` header: the session's of the app's own sign-in, which
+//! may do everything, or one the pilot gave to another program, which may
+//! do what its scopes say. [`auth`] is the one place that checks, and
+//! every handler names there what it asks. A flight is shown to its pilot
 //! and, unless it is private, to everyone else; a private flight and a
 //! flight that does not exist get the same answer. Only a flight its pilot
 //! made public is in a list that others read: the pilot's page and the list
@@ -96,9 +99,9 @@ use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
-    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
-    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
-    LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
+    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
+    Attribution, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH,
+    HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
     PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH,
     SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
@@ -500,6 +503,14 @@ impl<S: Store> Api<S> {
                 get(account::show).delete(account::delete::<S>),
             )
             .route(ACCOUNT_PASSWORD_PATH, put(account::change_password::<S>))
+            .route(
+                ACCOUNT_TOKENS_PATH,
+                post(account::create_token::<S>).get(account::tokens::<S>),
+            )
+            .route(
+                "/v1/account/tokens/{id}",
+                delete(account::withdraw_token::<S>),
+            )
             .route(
                 SESSIONS_PATH,
                 post(account::sign_in::<S>)

@@ -3,8 +3,8 @@
 use chrono::Timelike;
 use venti_api_types::v1;
 use venti_store::{
-    Account, Flight, Group, GroupMembers, GroupPilot, LiveFix, LiveTrack, LiveVisibility, Place,
-    Plan, ScoreKind, Session, Visibility,
+    AccessToken, Account, Flight, Group, GroupMembers, GroupPilot, LiveFix, LiveTrack,
+    LiveVisibility, Place, Plan, ScoreKind, Session, Visibility,
 };
 
 use super::error::ApiError;
@@ -41,6 +41,23 @@ pub(crate) fn session(session: &Session, current: &str) -> v1::Session {
         created_at: session.created_at,
         last_used_at: session.last_used_at,
         current: session.id == current,
+    }
+}
+
+/// A token for a program as its pilot sees it. A scope's name that this
+/// server does not know opens nothing and is not shown.
+pub(crate) fn access_token(token: &AccessToken) -> v1::AccessToken {
+    v1::AccessToken {
+        id: token.id.clone(),
+        name: token.name.clone(),
+        scopes: token
+            .scopes
+            .iter()
+            .filter_map(|name| v1::Scope::from_name(name))
+            .collect(),
+        created_at: token.created_at,
+        last_used_on: token.last_used_on,
+        expires_at: token.expires_at,
     }
 }
 

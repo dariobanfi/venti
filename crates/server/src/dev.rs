@@ -54,20 +54,20 @@ use std::sync::Arc;
 
 use chrono::{Duration, NaiveDate, NaiveTime};
 use tokio_util::sync::CancellationToken;
-use venti_api_types::v1::Password;
+use venti_api_types::v1::{Password, Scope};
 use venti_domain::Timestamp;
 use venti_flight::igc::{self, IgcFile};
 use venti_flight::testing::synthetic_flight;
 use venti_regions::RegionPack;
 use venti_store::{
-    Account, AccountCreation, GroupCreation, GroupJoining, LiveBatch, LiveFix, LiveRoom, LiveSaved,
-    LiveVisibility, MemoryStore, NewAccount, NewGroup, NewPlan, PlanChange, PlanDetails, PlanRoom,
-    PlanSaving, Room, SecretHash, Session, Store, Visibility,
+    AccessToken, Account, AccountCreation, GroupCreation, GroupJoining, LiveBatch, LiveFix,
+    LiveRoom, LiveSaved, LiveVisibility, MemoryStore, NewAccount, NewGroup, NewPlan, PlanChange,
+    PlanDetails, PlanRoom, PlanSaving, Room, SecretHash, Session, Store, Visibility,
 };
 
 use crate::accounts::client::TrustedProxies;
 use crate::accounts::password::{Cost, Hasher};
-use crate::accounts::secret::{InviteCode, Token};
+use crate::accounts::secret::{AccessSecret, InviteCode, Token};
 use crate::accounts::{Limits, Registration};
 use crate::adapters::{self, Providers};
 use crate::api::{Api, Cors, Settings};
@@ -100,6 +100,19 @@ pub const DEMO_PASSWORD: &str = "demo-pilot-password";
 /// The token of a session the account starts with, so that a client or a
 /// test can ask for the account's data without signing in first.
 pub const DEMO_TOKEN: &str = "venti_0000000000000000000000000000000000000000000000000000";
+
+/// The secret of a token the account starts with for another program,
+/// "Demo logger", which may read and write the account's flights and
+/// nothing else: for trying out what a token opens and what it does not.
+/// Not a secret, as the password is none.
+pub const DEMO_ACCESS_TOKEN: &str =
+    "venti_pat_0000000000000000000000000000000000000000000000000000";
+
+/// What the pilot called that token.
+pub const DEMO_ACCESS_TOKEN_NAME: &str = "Demo logger";
+
+/// The token's identifier.
+pub const DEMO_ACCESS_TOKEN_ID: &str = "00000000000000000000000003";
 
 /// The account's identifier, fixed so that the addresses of its flights
 /// are the same on every start.
@@ -898,6 +911,27 @@ async fn add_demo_account(
         .await
         .map_err(|e| e.to_string())?;
 
+    let logger = AccessToken {
+        id: DEMO_ACCESS_TOKEN_ID.to_owned(),
+        account_id: account.id.clone(),
+        name: DEMO_ACCESS_TOKEN_NAME.to_owned(),
+        scopes: [Scope::FlightsRead, Scope::FlightsWrite]
+            .map(|scope| scope.as_str().to_owned())
+            .to_vec(),
+        created_at: now,
+        last_used_on: None,
+        expires_at: None,
+    };
+    let secret = AccessSecret::parse(DEMO_ACCESS_TOKEN)
+        .ok_or("the demo token for a program does not have the form of one")?;
+    let stored = store
+        .create_access_token(&logger, &secret.hash(), usize::MAX)
+        .await
+        .map_err(|e| e.to_string())?;
+    if !stored {
+        return Err("the demo token for a program could not be stored".to_owned());
+    }
+
     // The live tracks are the server's own too: every fix is taken,
     // whatever its time.
     let room = LiveRoom {
@@ -1129,6 +1163,10 @@ pub async fn dev(
         "demo account: handle {DEMO_HANDLE:?}, password {DEMO_PASSWORD:?}; \
          or send 'Authorization: Bearer {DEMO_TOKEN}'"
     );
+    tracing::info!(
+        "its token for another program, which may read and write flights only: \
+         'Authorization: Bearer {DEMO_ACCESS_TOKEN}'"
+    );
     serve::listen(address, router, shutdown).await
 }
 
@@ -1160,6 +1198,8 @@ mod tests {
     #[test]
     fn the_demo_token_and_password_have_the_form_the_server_asks_for() {
         assert!(Token::parse(DEMO_TOKEN).is_some());
+        assert!(AccessSecret::parse(DEMO_ACCESS_TOKEN).is_some());
+        assert!(crate::accounts::secret::is_id(DEMO_ACCESS_TOKEN_ID));
         assert!(Password::new(DEMO_PASSWORD).check().is_ok());
         assert!(venti_api_types::v1::Handle::new(DEMO_HANDLE).is_ok());
     }

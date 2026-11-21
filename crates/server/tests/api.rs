@@ -287,6 +287,10 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "site_change_request.json",
         "site_written.json",
         "site_restore_request.json",
+        "tokens.json",
+        "token_create_request.json",
+        "token_created.json",
+        "error_insufficient_scope.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(

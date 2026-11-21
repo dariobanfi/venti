@@ -10,6 +10,7 @@
 use std::fmt;
 
 use sha2::{Digest, Sha256};
+use venti_api_types::v1::ACCESS_TOKEN_PREFIX;
 use venti_store::SecretHash;
 
 /// The characters identifiers and tokens are written in: the digits and the
@@ -129,6 +130,53 @@ impl Token {
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Token(<hidden>)")
+    }
+}
+
+/// The secret of a token a pilot gave to another program: what that
+/// program sends to act for the account, within the token's scopes.
+///
+/// It is written as a session's token is, 256 random bits after a prefix,
+/// and the prefix is another: [`ACCESS_TOKEN_PREFIX`]. A session's token
+/// cannot be read as one of these or the other way round, since `_` is not
+/// in the alphabet and the two differ in length, and the two are hashed
+/// apart.
+///
+/// It does not print itself.
+#[derive(Clone, PartialEq, Eq)]
+pub struct AccessSecret(String);
+
+impl AccessSecret {
+    /// A new secret: 256 random bits.
+    pub fn new() -> Result<Self, NoRandomness> {
+        Ok(Self(format!(
+            "{ACCESS_TOKEN_PREFIX}{}",
+            encode(&random::<32>()?)
+        )))
+    }
+
+    /// Reads a secret a client sent. `None` for text that cannot be one,
+    /// which saves asking the database about it.
+    pub fn parse(text: &str) -> Option<Self> {
+        let rest = text.strip_prefix(ACCESS_TOKEN_PREFIX)?;
+        let well_formed = rest.len() == TOKEN_LENGTH && rest.bytes().all(|b| ALPHABET.contains(&b));
+        well_formed.then(|| Self(text.to_owned()))
+    }
+
+    /// The secret, for showing to the pilot once and nothing else.
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+
+    /// What the store keeps of the secret.
+    pub fn hash(&self) -> SecretHash {
+        SecretHash(sha256(&[b"venti access token 1\0", self.0.as_bytes()]))
+    }
+}
+
+impl fmt::Debug for AccessSecret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("AccessSecret(<hidden>)")
     }
 }
 
@@ -263,6 +311,41 @@ mod tests {
             &format!(" {text}"),
         ] {
             assert_eq!(Token::parse(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn a_token_for_a_program_is_told_from_a_sessions_by_its_form() {
+        let secret = AccessSecret::new().unwrap();
+        let text = secret.expose().to_owned();
+
+        assert!(text.starts_with("venti_pat_"));
+        assert_eq!(text.len(), 62);
+        assert_eq!(AccessSecret::parse(&text), Some(secret.clone()));
+        assert_ne!(AccessSecret::new().unwrap(), secret);
+        assert_eq!(secret.hash(), AccessSecret::parse(&text).unwrap().hash());
+        assert_ne!(secret.hash(), AccessSecret::new().unwrap().hash());
+        assert_eq!(format!("{secret:?}"), "AccessSecret(<hidden>)");
+
+        // Neither kind can be read as the other, and the same characters
+        // would not hash alike.
+        assert_eq!(Token::parse(&text), None);
+        let session = Token::new().unwrap();
+        assert_eq!(AccessSecret::parse(session.expose()), None);
+        let as_session = sha256(&[b"venti session token 1\0", text.as_bytes()]);
+        assert_ne!(secret.hash().0, as_session);
+
+        for bad in [
+            "",
+            "venti_pat_",
+            &text[..61],
+            &format!("{text}0"),
+            &text.to_uppercase(),
+            &text.replace("venti_pat_", "venti_"),
+            &format!("venti_pat_{}", "u".repeat(52)),
+            &format!(" {text}"),
+        ] {
+            assert_eq!(AccessSecret::parse(bad), None, "{bad:?}");
         }
     }
 

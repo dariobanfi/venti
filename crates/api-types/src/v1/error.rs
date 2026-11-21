@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::token::Scope;
+
 /// The body of every response with a 4xx or 5xx status.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorResponse {
@@ -15,6 +17,10 @@ pub struct ErrorBody {
     /// An explanation for the person debugging the client. Not for display
     /// to pilots, and not stable.
     pub message: String,
+    /// With [`ErrorCode::InsufficientScope`]: the scope the request needs
+    /// and its token lacks. Absent with every other code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Scope>,
 }
 
 /// Why a request failed, as a stable code.
@@ -60,9 +66,19 @@ pub enum ErrorCode {
     InvalidLimit,
     /// `sort` names no order the list has.
     InvalidSort,
-    /// The request needs an account and carries no valid session token:
-    /// none at all, one that was signed out, or one that expired.
+    /// The request needs an account and carries nothing good that acts
+    /// for one: no token at all, a session's token that was signed out or
+    /// expired, or a token for a program that was withdrawn, has ended or
+    /// was never given out.
     Unauthorized,
+    /// The request carries a good token that a pilot gave to a program,
+    /// and the token lacks the scope this request needs. `scope` in the
+    /// error names it.
+    InsufficientScope,
+    /// The request carries a good token that a pilot gave to a program,
+    /// and asks for what only the pilot's own sign-in may do: the
+    /// sessions, the password, the tokens, deleting the account.
+    SessionRequired,
     /// The handle or the password is wrong. Which of the two is not said.
     InvalidCredentials,
     /// The password sent to confirm a change to the account is wrong.
@@ -76,6 +92,18 @@ pub enum ErrorCode {
     HandleTaken,
     /// The account has no session with this identifier.
     SessionNotFound,
+    /// The name of a token is empty, too long, or holds characters that
+    /// are not allowed.
+    InvalidTokenName,
+    /// The scopes of a token are none, name a scope twice, or name one
+    /// the server does not know.
+    InvalidScopes,
+    /// The end of a token is not a moment that is still to come.
+    InvalidExpiry,
+    /// The account holds as many tokens as it may. Withdraw one first.
+    TooManyTokens,
+    /// The account has no token with this identifier.
+    TokenNotFound,
     /// No flight has this address, or it is not the caller's to see.
     FlightNotFound,
     /// No pilot has this handle.
@@ -203,6 +231,7 @@ impl ErrorResponse {
             error: ErrorBody {
                 code,
                 message: message.into(),
+                scope: None,
             },
         }
     }

@@ -26,7 +26,7 @@ use venti_api_types::v1::{
 use venti_domain::Timestamp;
 use venti_store::{LiveBatch, LiveRemoval, LiveRoom, LiveSaved, LiveTrack, LiveVisibility, Store};
 
-use super::auth::Signed;
+use super::auth::{May, WriteLive};
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::{Api, body, cache, wire};
@@ -108,7 +108,7 @@ impl<S: Store> Api<S> {
 /// `POST /v1/live/positions`: fixes for one live track of the account.
 pub(crate) async fn send<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteLive>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
@@ -394,7 +394,7 @@ pub(crate) async fn show<S: Store>(
 /// its identifier out of use.
 pub(crate) async fn delete<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteLive>,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let id: LiveTrackId = id.parse().map_err(|_| no_such_track())?;

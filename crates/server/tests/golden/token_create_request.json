@@ -1,0 +1,8 @@
+{
+  "name": "My logger",
+  "scopes": [
+    "flights:write",
+    "live:write"
+  ],
+  "password": "demo-pilot-password"
+}

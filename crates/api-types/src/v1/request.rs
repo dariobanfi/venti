@@ -172,6 +172,15 @@ pub const ACCOUNT_PATH: &str = "/v1/account";
 /// Path that changes the password of the account a request is signed in to.
 pub const ACCOUNT_PASSWORD_PATH: &str = "/v1/account/password";
 
+/// Path of the tokens an account gave to other programs: making one and
+/// listing them.
+pub const ACCOUNT_TOKENS_PATH: &str = "/v1/account/tokens";
+
+/// Path of one such token, by the identifier the list gives.
+pub fn account_token_path(id: &str) -> String {
+    format!("{ACCOUNT_TOKENS_PATH}/{}", encode(id))
+}
+
 /// Path of an account's sessions: signing in, listing them, and signing out
 /// everywhere.
 pub const SESSIONS_PATH: &str = "/v1/sessions";

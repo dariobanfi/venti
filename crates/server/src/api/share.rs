@@ -142,7 +142,7 @@ impl<S: Store> Api<S> {
     /// it; otherwise the answer to give instead.
     async fn shared_flight(&self, id: &str) -> Result<Flight, Response> {
         // Nobody is signed in here.
-        self.visible_flight(id, &Viewer(None))
+        self.visible_flight(id, &Viewer::nobody())
             .await
             .map_err(|error| match error.is_missing() {
                 true => nothing_here(),

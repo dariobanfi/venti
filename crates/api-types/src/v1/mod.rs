@@ -15,6 +15,9 @@
 //! | [`ACCOUNT_PATH`] | GET | | [`AccountResponse`] |
 //! | [`ACCOUNT_PATH`] | DELETE | [`DeleteAccountRequest`] | nothing |
 //! | [`ACCOUNT_PASSWORD_PATH`] | PUT | [`ChangePasswordRequest`] | nothing |
+//! | [`ACCOUNT_TOKENS_PATH`] | POST | [`CreateAccessTokenRequest`] | [`CreateAccessTokenResponse`] |
+//! | [`ACCOUNT_TOKENS_PATH`] | GET | | [`AccessTokensResponse`] |
+//! | [`account_token_path`] | DELETE | | nothing |
 //! | [`FLIGHTS_PATH`] | POST | the flight file | [`UploadResponse`] |
 //! | [`FLIGHTS_PATH`] | GET | [`FlightsRequest`] | [`FlightsResponse`] |
 //! | [`FLIGHT_CHANGES_PATH`] | GET | [`FlightChangesRequest`] | [`FlightChangesResponse`] |
@@ -81,6 +84,7 @@ mod sites;
 mod stations;
 mod text;
 mod thermals;
+mod token;
 
 pub use account::{
     Account, AccountResponse, ChangePasswordRequest, CreateAccountRequest, DeleteAccountRequest,
@@ -128,18 +132,18 @@ pub use report::{
     ReportTextError, ReportedPlan, parse_report_text,
 };
 pub use request::{
-    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AirspaceRequest, BboxError,
-    DayError, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, FlightChangesRequest, FlightSort,
-    FlightSortError, FlightsRequest, ForecastRequest, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
-    LIVE_PATH, LIVE_POSITIONS_PATH, LiveTrackRequest, LiveTracksRequest, ObservationsRequest,
-    PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH, PilotRequest, PlanBoardRequest, PlanDays, PlansRequest,
-    PositionError, PublicFlightsRequest, RANKING_PATH, REPORTS_PATH, RankingRequest, SESSIONS_PATH,
-    SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, SitesRequest, StationsRequest, TimeError,
-    flight_file_path, flight_path, format_bbox, format_day, format_time, group_invite_path,
-    group_keeper_path, group_member_path, group_path, group_plans_path, live_page_path,
-    live_track_path, observations_path, parse_bbox, parse_day, parse_position, parse_time,
-    pilot_path, plan_in_path, plan_path, session_path, share_image_path, share_path,
-    site_history_path, site_path, site_revisions_path,
+    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
+    AirspaceRequest, BboxError, DayError, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
+    FlightChangesRequest, FlightSort, FlightSortError, FlightsRequest, ForecastRequest,
+    GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, LiveTrackRequest,
+    LiveTracksRequest, ObservationsRequest, PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH, PilotRequest,
+    PlanBoardRequest, PlanDays, PlansRequest, PositionError, PublicFlightsRequest, RANKING_PATH,
+    REPORTS_PATH, RankingRequest, SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH,
+    SitesRequest, StationsRequest, TimeError, account_token_path, flight_file_path, flight_path,
+    format_bbox, format_day, format_time, group_invite_path, group_keeper_path, group_member_path,
+    group_path, group_plans_path, live_page_path, live_track_path, observations_path, parse_bbox,
+    parse_day, parse_position, parse_time, pilot_path, plan_in_path, plan_path, session_path,
+    share_image_path, share_path, site_history_path, site_path, site_revisions_path,
 };
 pub use sites::{
     AddSiteRequest, ChangeSiteRequest, MAX_SITE_COMMENT_LENGTH, RemoveSiteRequest,
@@ -152,6 +156,10 @@ pub use thermals::{
     THERMAL_GRID_DEG, THERMAL_HOURS_PATH, THERMALS_PATH, ThermalGrid, ThermalHoursRequest,
     ThermalHoursResponse, ThermalKind, ThermalLayer, ThermalMapDay, ThermalMapHour,
     ThermalMapResponse, ThermalReason, ThermalVerdict,
+};
+pub use token::{
+    ACCESS_TOKEN_PREFIX, AccessToken, AccessTokensResponse, CreateAccessTokenRequest,
+    CreateAccessTokenResponse, MAX_TOKEN_NAME_LENGTH, Scope, TokenNameError, parse_token_name,
 };
 
 /// The window of observations returned when a request names no start, in hours.

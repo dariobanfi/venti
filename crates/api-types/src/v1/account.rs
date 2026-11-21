@@ -141,31 +141,35 @@ pub fn parse_display_name(text: &str) -> Result<String, DisplayNameError> {
     if name.chars().count() > MAX_DISPLAY_NAME_LENGTH {
         return Err(DisplayNameError::TooLong);
     }
-    let unwanted = |c: char| {
-        c.is_control()
-            || (c.is_whitespace() && c != ' ')
-            || matches!(
-                u32::from(c),
-                // Soft hyphen, combining grapheme joiner, Arabic letter mark.
-                0x00AD | 0x034F | 0x061C
-                // Hangul fillers, which show as nothing.
-                | 0x115F | 0x1160 | 0x3164 | 0xFFA0
-                // Zero-width characters and direction marks.
-                | 0x180E | 0x200B..=0x200F
-                // Direction embeddings and overrides.
-                | 0x202A..=0x202E
-                // Word joiner, invisible operators, direction isolates.
-                | 0x2060..=0x206F
-                // Byte order mark, interlinear annotation, replacement.
-                | 0xFEFF | 0xFFF9..=0xFFFB
-                // Tag characters.
-                | 0xE0000..=0xE007F
-            )
-    };
-    if let Some(other) = name.chars().find(|c| unwanted(*c)) {
+    if let Some(other) = name.chars().find(|c| unwanted_in_a_name(*c)) {
         return Err(DisplayNameError::Character(u32::from(other)));
     }
     Ok(name.to_owned())
+}
+
+/// Whether a character has no place in a name a person gives something:
+/// one that does not show, or that changes how the text around it is laid
+/// out.
+pub(crate) fn unwanted_in_a_name(c: char) -> bool {
+    c.is_control()
+        || (c.is_whitespace() && c != ' ')
+        || matches!(
+            u32::from(c),
+            // Soft hyphen, combining grapheme joiner, Arabic letter mark.
+            0x00AD | 0x034F | 0x061C
+            // Hangul fillers, which show as nothing.
+            | 0x115F | 0x1160 | 0x3164 | 0xFFA0
+            // Zero-width characters and direction marks.
+            | 0x180E | 0x200B..=0x200F
+            // Direction embeddings and overrides.
+            | 0x202A..=0x202E
+            // Word joiner, invisible operators, direction isolates.
+            | 0x2060..=0x206F
+            // Byte order mark, interlinear annotation, replacement.
+            | 0xFEFF | 0xFFF9..=0xFFFB
+            // Tag characters.
+            | 0xE0000..=0xE007F
+        )
 }
 
 /// A password on its way to the server.

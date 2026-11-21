@@ -26,11 +26,11 @@ use venti_domain::{
 
 use crate::flight::{Room, Saved};
 use crate::{
-    Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
-    KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
-    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite, NewPlan,
-    NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
+    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight,
+    FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
+    GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
+    LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
+    NewPlan, NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
     PlanRemoval, PlanRoom, PlanSaving, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report,
     ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session,
     SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
@@ -689,6 +689,35 @@ impl Store for PgStore {
 
     async fn prune_sessions(&self, idle_since: Timestamp) -> Result<u64, StoreError> {
         accounts::prune_sessions(&self.client().await?, idle_since).await
+    }
+
+    async fn create_access_token(
+        &self,
+        token: &AccessToken,
+        secret: &SecretHash,
+        most: usize,
+    ) -> Result<bool, StoreError> {
+        accounts::create_access_token(&mut self.client().await?, token, secret, most).await
+    }
+
+    async fn use_access_token(
+        &self,
+        secret: &SecretHash,
+        now: Timestamp,
+    ) -> Result<Option<(AccessToken, Account)>, StoreError> {
+        accounts::use_access_token(&self.client().await?, secret, now).await
+    }
+
+    async fn access_tokens(&self, account_id: &str) -> Result<Vec<AccessToken>, StoreError> {
+        accounts::access_tokens(&self.client().await?, account_id).await
+    }
+
+    async fn delete_access_token(
+        &self,
+        account_id: &str,
+        token_id: &str,
+    ) -> Result<bool, StoreError> {
+        accounts::delete_access_token(&self.client().await?, account_id, token_id).await
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

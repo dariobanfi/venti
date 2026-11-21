@@ -7,7 +7,8 @@ use venti_domain::Timestamp;
 
 use crate::flight::next_change;
 use crate::{
-    Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
+    AccessToken, Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES,
+    SecretHash, Session,
 };
 
 #[derive(Debug, Default)]
@@ -20,6 +21,8 @@ pub(super) struct Accounts {
     sessions: BTreeMap<String, (Session, SecretHash)>,
     /// By the hash of the code.
     invites: BTreeMap<SecretHash, Invite>,
+    /// The tokens pilots gave to other programs, by token identifier.
+    tokens: BTreeMap<String, (AccessToken, SecretHash)>,
 }
 
 #[derive(Debug)]
@@ -98,6 +101,67 @@ impl Accounts {
             self.handles.remove(&entry.account.handle);
         }
         self.delete_sessions(account_id);
+        self.tokens
+            .retain(|_, (token, _)| token.account_id != account_id);
+    }
+
+    pub(super) fn create_access_token(
+        &mut self,
+        token: &AccessToken,
+        secret: &SecretHash,
+        most: usize,
+    ) -> bool {
+        let held = self.access_tokens_of(&token.account_id).len();
+        if held >= most || !self.accounts.contains_key(&token.account_id) {
+            return false;
+        }
+        self.tokens
+            .insert(token.id.clone(), (token.clone(), *secret));
+        true
+    }
+
+    pub(super) fn use_access_token(
+        &mut self,
+        secret: &SecretHash,
+        now: Timestamp,
+    ) -> Option<(AccessToken, Account)> {
+        let (token, _) = self
+            .tokens
+            .values_mut()
+            .find(|(_, stored)| stored == secret)?;
+        if token.expires_at.is_some_and(|end| end <= now) {
+            return None;
+        }
+        let today = now.date_naive();
+        if token.last_used_on.is_none_or(|day| day < today) {
+            token.last_used_on = Some(today);
+        }
+        let token = token.clone();
+        let account = self.by_id(&token.account_id)?.clone();
+        Some((token, account))
+    }
+
+    /// An account's tokens, the newest first.
+    pub(super) fn access_tokens_of(&self, account_id: &str) -> Vec<AccessToken> {
+        let mut tokens: Vec<AccessToken> = self
+            .tokens
+            .values()
+            .filter(|(token, _)| token.account_id == account_id)
+            .map(|(token, _)| token.clone())
+            .collect();
+        tokens.sort_by(|a, b| (b.created_at, &b.id).cmp(&(a.created_at, &a.id)));
+        tokens
+    }
+
+    pub(super) fn delete_access_token(&mut self, account_id: &str, token_id: &str) -> bool {
+        let owned = self
+            .tokens
+            .get(token_id)
+            .is_some_and(|(token, _)| token.account_id == account_id);
+        if owned {
+            self.tokens.remove(token_id);
+        }
+        owned
     }
 
     pub(super) fn create_invite(&mut self, invite: &NewInvite) {

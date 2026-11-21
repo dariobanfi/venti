@@ -1,0 +1,12 @@
+{
+  "token": {
+    "id": "3kq9x2m7r4t8v1w6y0a5b3c2d4",
+    "name": "My logger",
+    "scopes": [
+      "flights:write",
+      "live:write"
+    ],
+    "created_at": "2026-11-18T19:05:00Z"
+  },
+  "secret": "venti_pat_3x7k9q2m4r8t1v6w0y5a2b3c4d5e6f7g8h9j0kmnpqrstvwxyz01"
+}

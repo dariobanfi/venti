@@ -42,7 +42,7 @@ use venti_store::{
     PlanChange, PlanDetails, PlanRemoval, PlanSaving, Store,
 };
 
-use super::auth::Signed;
+use super::auth::{May, ReadGroups, Signed, WriteGroups};
 use super::error::ApiError;
 use super::{Api, body, cache, wire};
 use crate::accounts::secret::{InviteCode, random_id};
@@ -334,7 +334,7 @@ fn no_content() -> Response {
 /// `POST /v1/groups`: makes a group that the asker keeps.
 pub(crate) async fn create<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
@@ -376,7 +376,7 @@ pub(crate) async fn create<S: Store>(
 /// `GET /v1/groups`: the groups the asker is in.
 pub(crate) async fn list<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<ReadGroups>,
 ) -> Result<Response, ApiError> {
     let groups = api.store.groups_of(&signed.account.id).await?;
     let answer = GroupsResponse {
@@ -389,7 +389,7 @@ pub(crate) async fn list<S: Store>(
 /// invite code the body carries.
 pub(crate) async fn join<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
@@ -443,7 +443,7 @@ pub(crate) async fn join<S: Store>(
 /// `GET /v1/groups/{id}`: a group and its members, for one of them.
 pub(crate) async fn show<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<ReadGroups>,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let seen = api.group_as_member(&id, &signed).await?;
@@ -454,7 +454,7 @@ pub(crate) async fn show<S: Store>(
 /// `PATCH /v1/groups/{id}`: the keeper gives the group a new name.
 pub(crate) async fn rename<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path(id): Path<String>,
     headers: HeaderMap,
     body: Bytes,
@@ -473,7 +473,7 @@ pub(crate) async fn rename<S: Store>(
 /// `DELETE /v1/groups/{id}`: the keeper deletes the group, with its plans.
 pub(crate) async fn delete<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let id = group_id(&id)?;
@@ -489,7 +489,7 @@ pub(crate) async fn delete<S: Store>(
 /// one before it lets nobody in from then on.
 pub(crate) async fn renew_invite<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let id = group_id(&id)?;
@@ -509,7 +509,7 @@ pub(crate) async fn renew_invite<S: Store>(
 /// member.
 pub(crate) async fn hand_over<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path(id): Path<String>,
     headers: HeaderMap,
     body: Bytes,
@@ -532,7 +532,7 @@ pub(crate) async fn hand_over<S: Store>(
 /// own handle, or the keeper removes the member with the handle.
 pub(crate) async fn remove_member<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path((id, handle)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
     let id = group_id(&id)?;
@@ -558,7 +558,7 @@ pub(crate) async fn remove_member<S: Store>(
 /// the days ahead, or for the days asked for.
 pub(crate) async fn plans<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<ReadGroups>,
     Path(id): Path<String>,
     Query(params): Query<DayParams>,
 ) -> Result<Response, ApiError> {
@@ -579,7 +579,7 @@ pub(crate) async fn plans<S: Store>(
 /// is in, with those groups.
 pub(crate) async fn board<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<ReadGroups>,
     Query(params): Query<DayParams>,
 ) -> Result<Response, ApiError> {
     let (from, to) = api.days(&params, api.clock.now())?;
@@ -603,7 +603,7 @@ pub(crate) async fn board<S: Store>(
 /// `POST /v1/groups/{id}/plans`: a member posts a plan to the group.
 pub(crate) async fn post_plan<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path(id): Path<String>,
     headers: HeaderMap,
     body: Bytes,
@@ -639,7 +639,7 @@ pub(crate) async fn post_plan<S: Store>(
 /// replaces what it says.
 pub(crate) async fn change_plan<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path((id, plan)): Path<(String, String)>,
     headers: HeaderMap,
     body: Bytes,
@@ -677,7 +677,7 @@ pub(crate) async fn change_plan<S: Store>(
 /// the keeper of its group, deletes it.
 pub(crate) async fn delete_plan<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path((id, plan)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
     let (id, plan) = api.plan_ids(&signed, &id, &plan).await?;
@@ -729,7 +729,7 @@ async fn set_in<S: Store>(
 /// `PUT /v1/groups/{id}/plans/{plan}/in`: the asker is in.
 pub(crate) async fn say_in<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path((id, plan)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
     set_in(&api, &signed, (&id, &plan), true).await
@@ -738,7 +738,7 @@ pub(crate) async fn say_in<S: Store>(
 /// `DELETE /v1/groups/{id}/plans/{plan}/in`: the asker takes that back.
 pub(crate) async fn take_back<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    signed: Signed,
+    May(signed, ..): May<WriteGroups>,
     Path((id, plan)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
     set_in(&api, &signed, (&id, &plan), false).await

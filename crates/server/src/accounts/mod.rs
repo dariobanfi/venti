@@ -144,6 +144,9 @@ pub struct Limits {
     pub sessions_per_account: usize,
     /// A session that has not been used for this long stops working.
     pub session_idle: Duration,
+    /// Tokens for other programs that one account can hold. None makes
+    /// room for a new one: the pilot withdraws one first.
+    pub tokens_per_account: usize,
 }
 
 impl Default for Limits {
@@ -172,6 +175,7 @@ impl Default for Limits {
             // still be signed in when spring comes, because a forgotten
             // password cannot be recovered yet.
             session_idle: Duration::days(400),
+            tokens_per_account: 20,
         }
     }
 }

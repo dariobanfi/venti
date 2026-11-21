@@ -13,11 +13,11 @@ use venti_domain::{
 
 use crate::flight::{Room, Saved};
 use crate::{
-    Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
-    KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
-    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite, NewPlan,
-    NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
+    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight,
+    FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
+    GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
+    LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
+    NewPlan, NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
     PlanRemoval, PlanRoom, PlanSaving, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report,
     ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session,
     SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
@@ -261,6 +261,31 @@ impl Store for TroubledStore {
     }
 
     async fn prune_sessions(&self, _: Timestamp) -> Result<u64, StoreError> {
+        self.fail().await
+    }
+
+    async fn create_access_token(
+        &self,
+        _: &AccessToken,
+        _: &SecretHash,
+        _: usize,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn use_access_token(
+        &self,
+        _: &SecretHash,
+        _: Timestamp,
+    ) -> Result<Option<(AccessToken, Account)>, StoreError> {
+        self.fail().await
+    }
+
+    async fn access_tokens(&self, _: &str) -> Result<Vec<AccessToken>, StoreError> {
+        self.fail().await
+    }
+
+    async fn delete_access_token(&self, _: &str, _: &str) -> Result<bool, StoreError> {
         self.fail().await
     }
 

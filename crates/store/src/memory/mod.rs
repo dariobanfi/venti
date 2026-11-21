@@ -16,11 +16,11 @@ use venti_domain::{
 
 use crate::flight::{Room, Saved};
 use crate::{
-    Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
-    KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
-    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite, NewPlan,
-    NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
+    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight,
+    FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
+    GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
+    LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
+    NewPlan, NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
     PlanRemoval, PlanRoom, PlanSaving, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report,
     ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session,
     SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
@@ -593,6 +593,41 @@ impl Store for MemoryStore {
 
     async fn prune_sessions(&self, idle_since: Timestamp) -> Result<u64, StoreError> {
         Ok(self.lock().accounts.prune_sessions(idle_since))
+    }
+
+    async fn create_access_token(
+        &self,
+        token: &AccessToken,
+        secret: &SecretHash,
+        most: usize,
+    ) -> Result<bool, StoreError> {
+        Ok(self
+            .lock()
+            .accounts
+            .create_access_token(token, secret, most))
+    }
+
+    async fn use_access_token(
+        &self,
+        secret: &SecretHash,
+        now: Timestamp,
+    ) -> Result<Option<(AccessToken, Account)>, StoreError> {
+        Ok(self.lock().accounts.use_access_token(secret, now))
+    }
+
+    async fn access_tokens(&self, account_id: &str) -> Result<Vec<AccessToken>, StoreError> {
+        Ok(self.lock().accounts.access_tokens_of(account_id))
+    }
+
+    async fn delete_access_token(
+        &self,
+        account_id: &str,
+        token_id: &str,
+    ) -> Result<bool, StoreError> {
+        Ok(self
+            .lock()
+            .accounts
+            .delete_access_token(account_id, token_id))
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

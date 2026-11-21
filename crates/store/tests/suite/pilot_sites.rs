@@ -366,7 +366,6 @@ pub(crate) async fn a_change_to_a_site_is_a_new_revision_and_the_old_ones_stay(s
             )
         })
         .collect();
-    let (session, operator) = (SiteVia::Session, SiteVia::Operator);
     let name = |handle: &str| Some(handle.to_owned());
     assert_eq!(
         kept,
@@ -375,12 +374,24 @@ pub(crate) async fn a_change_to_a_site_is_a_new_revision_and_the_old_ones_stay(s
                 1,
                 RevisionKind::Created,
                 name("anna"),
-                session,
+                SiteVia::Session,
                 first.clone()
             ),
-            (2, RevisionKind::Changed, name("bernd"), session, second),
-            (3, RevisionKind::Changed, None, operator, third),
-            (4, RevisionKind::Restored(1), name("anna"), session, first),
+            (
+                2,
+                RevisionKind::Changed,
+                name("bernd"),
+                SiteVia::Session,
+                second
+            ),
+            (3, RevisionKind::Changed, None, SiteVia::Operator, third),
+            (
+                4,
+                RevisionKind::Restored(1),
+                name("anna"),
+                SiteVia::Session,
+                first
+            ),
         ]
     );
     assert_eq!(
@@ -520,15 +531,14 @@ pub(crate) async fn a_site_taken_down_comes_back_only_by_the_operator(store: &im
         .into_iter()
         .map(|revision| (revision.kind, revision.via))
         .collect();
-    let (session, operator) = (SiteVia::Session, SiteVia::Operator);
     assert_eq!(
         via,
         [
-            (RevisionKind::Created, session),
-            (RevisionKind::Removed, operator),
-            (RevisionKind::Restored(1), operator),
-            (RevisionKind::Removed, session),
-            (RevisionKind::Removed, operator),
+            (RevisionKind::Created, SiteVia::Session),
+            (RevisionKind::Removed, SiteVia::Operator),
+            (RevisionKind::Restored(1), SiteVia::Operator),
+            (RevisionKind::Removed, SiteVia::Session),
+            (RevisionKind::Removed, SiteVia::Operator),
         ]
     );
 }
@@ -899,4 +909,35 @@ pub(crate) async fn sites_of_pilots_are_found_by_box_apart_from_a_sources(store:
     assert_eq!(store.set_site(&unknown).await.unwrap(), Some(other));
     // The pilots' sites stay through every run.
     assert_eq!(standing_in(store, &alps()).await, ["a", "b", "c"]);
+}
+
+pub(crate) async fn a_revision_through_a_token_keeps_the_tokens_name(store: &impl Store) {
+    let anna = create(store, "anna").await;
+    let logger = SiteVia::Token("Mein Logger".to_owned());
+    let new = NewPilotSite {
+        via: logger.clone(),
+        ..new_site(record("a", 47.5, 11.5), &anna, at(10, 0))
+    };
+    let added = store.add_pilot_site(&new, APART_M).await.unwrap();
+    assert!(matches!(added, SiteWrite::Written(_)), "{added:?}");
+    // The next change comes through the pilot's own sign-in, and the one
+    // after through a token of another name.
+    written(
+        store,
+        &by(&anna, "a", at(11, 0), change(record("a", 47.6, 11.5))),
+    )
+    .await;
+    let vario = SiteVia::Token("Vario".to_owned());
+    let through_vario = SiteRevising {
+        via: vario.clone(),
+        ..by(&anna, "a", at(12, 0), SiteAct::Remove { take_down: false })
+    };
+    written(store, &through_vario).await;
+
+    let via: Vec<SiteVia> = history(store, "a")
+        .await
+        .into_iter()
+        .map(|revision| revision.via)
+        .collect();
+    assert_eq!(via, [logger, SiteVia::Session, vario]);
 }

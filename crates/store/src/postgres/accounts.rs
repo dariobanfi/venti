@@ -8,8 +8,8 @@ use venti_domain::Timestamp;
 use super::{db_error, groups};
 use crate::flight::next_change;
 use crate::{
-    Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
-    StoreError, Suspension,
+    AccessToken, Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES,
+    SecretHash, Session, StoreError, Suspension,
 };
 
 fn account_from(row: &Row) -> Account {
@@ -436,4 +436,144 @@ pub(super) async fn prune_sessions(
         )
         .await
         .map_err(db_error)
+}
+
+fn access_token_from(row: &Row) -> AccessToken {
+    AccessToken {
+        id: row.get("id"),
+        account_id: row.get("account_id"),
+        name: row.get("name"),
+        scopes: row.get("scopes"),
+        created_at: row.get("created_at"),
+        last_used_on: row.get("last_used_on"),
+        expires_at: row.get("expires_at"),
+    }
+}
+
+pub(super) async fn create_access_token(
+    client: &mut Client,
+    token: &AccessToken,
+    secret: &SecretHash,
+    most: usize,
+) -> Result<bool, StoreError> {
+    let most = i64::try_from(most).unwrap_or(i64::MAX);
+    let tx = client.transaction().await.map_err(db_error)?;
+    // The account's row is locked while its tokens are counted, so that of
+    // two requests that race for the last place the second waits here and
+    // then finds it taken.
+    let account = tx
+        .query_opt(
+            "SELECT 1 FROM accounts WHERE id = $1 FOR UPDATE",
+            &[&token.account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    if account.is_none() {
+        return Ok(false);
+    }
+    let held: i64 = tx
+        .query_one(
+            "SELECT count(*) FROM access_tokens WHERE account_id = $1",
+            &[&token.account_id],
+        )
+        .await
+        .map_err(db_error)?
+        .get(0);
+    if held >= most {
+        return Ok(false);
+    }
+    tx.execute(
+        "INSERT INTO access_tokens
+             (id, account_id, token_hash, name, scopes, created_at, last_used_on, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        &[
+            &token.id,
+            &token.account_id,
+            &secret.0.as_slice(),
+            &token.name,
+            &token.scopes,
+            &token.created_at,
+            &token.last_used_on,
+            &token.expires_at,
+        ],
+    )
+    .await
+    .map_err(db_error)?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(true)
+}
+
+/// One statement finds the token, checks that its end has not come and
+/// writes down the day if the recorded one is an earlier day. The outer
+/// query sees the row as it was before the update, so it works out the new
+/// day itself.
+const USE_ACCESS_TOKEN: &str = "
+    WITH touched AS (
+        UPDATE access_tokens SET last_used_on = $3
+        WHERE token_hash = $1 AND (expires_at IS NULL OR expires_at > $2)
+          AND (last_used_on IS NULL OR last_used_on < $3)
+    )
+    SELECT t.id, t.account_id, t.name, t.scopes, t.created_at, t.expires_at,
+           CASE WHEN t.last_used_on IS NULL OR t.last_used_on < $3 THEN $3
+                ELSE t.last_used_on END AS last_used_on,
+           a.handle, a.display_name, a.created_at AS account_created_at,
+           a.publishing_suspended_at
+    FROM access_tokens t
+    JOIN accounts a ON a.id = t.account_id
+    WHERE t.token_hash = $1 AND (t.expires_at IS NULL OR t.expires_at > $2)";
+
+pub(super) async fn use_access_token(
+    client: &Client,
+    secret: &SecretHash,
+    now: Timestamp,
+) -> Result<Option<(AccessToken, Account)>, StoreError> {
+    let statement = client
+        .prepare_cached(USE_ACCESS_TOKEN)
+        .await
+        .map_err(db_error)?;
+    let row = client
+        .query_opt(&statement, &[&secret.0.as_slice(), &now, &now.date_naive()])
+        .await
+        .map_err(db_error)?;
+    Ok(row
+        .as_ref()
+        .map(|row| (access_token_from(row), account_from(row))))
+}
+
+pub(super) async fn access_tokens(
+    client: &Client,
+    account_id: &str,
+) -> Result<Vec<AccessToken>, StoreError> {
+    let statement = client
+        .prepare_cached(
+            "SELECT id, account_id, name, scopes, created_at, last_used_on, expires_at
+             FROM access_tokens WHERE account_id = $1
+             ORDER BY created_at DESC, id DESC",
+        )
+        .await
+        .map_err(db_error)?;
+    let rows = client
+        .query(&statement, &[&account_id])
+        .await
+        .map_err(db_error)?;
+    Ok(rows.iter().map(access_token_from).collect())
+}
+
+pub(super) async fn delete_access_token(
+    client: &Client,
+    account_id: &str,
+    token_id: &str,
+) -> Result<bool, StoreError> {
+    // As for a session: no stored identifier holds a zero byte.
+    if account_id.contains('\0') || token_id.contains('\0') {
+        return Ok(false);
+    }
+    let deleted = client
+        .execute(
+            "DELETE FROM access_tokens WHERE account_id = $1 AND id = $2",
+            &[&account_id, &token_id],
+        )
+        .await
+        .map_err(db_error)?;
+    Ok(deleted > 0)
 }

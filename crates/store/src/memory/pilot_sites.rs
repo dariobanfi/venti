@@ -112,7 +112,7 @@ impl PilotSites {
             revisions: vec![Stored {
                 author_id: Some(new.author_id.clone()),
                 at: new.at,
-                via: new.via,
+                via: new.via.clone(),
                 kind: RevisionKind::Created,
                 comment: new.comment.clone(),
                 record: new.site.clone(),
@@ -176,7 +176,7 @@ impl PilotSites {
         entry.revisions.push(Stored {
             author_id: revising.author_id.clone(),
             at: revising.at,
-            via: revising.via,
+            via: revising.via.clone(),
             kind: writing.kind,
             comment: revising.comment.clone(),
             record: writing.record,
@@ -224,7 +224,7 @@ impl PilotSites {
                 number: number(index),
                 at: stored.at,
                 author: pilot(stored.author_id.as_ref(), accounts),
-                via: stored.via,
+                via: stored.via.clone(),
                 kind: stored.kind,
                 comment: stored.comment.clone(),
                 record: stored.record.clone(),

@@ -13,7 +13,7 @@ XCTrack is closed source. This inventory was assembled from:
 | **official** | xctrack.org pages read directly: home, Manual, External Devices, Change Log, Competition, Open Data, JavaScript Interface, Maps, FAQ | 2026-11-18 |
 | **config** | Real exported XCTrack configuration files published on GitHub (versions 0.9.12.x), which reveal widget classes and option names | 2026-11-18 |
 | **tracker** | The developers' public issue tracker, gitlab.com/xcontest-public/xctrack-public | 2026-11-18 |
-| **manual** | Search summaries of the AIR³ manual, which the XCTrack team recommends. Not read directly, except the airspace parts: [Preferences 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/preferences2/) and [Navigation widgets 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-navigation2/), read 2026-11-19. | To verify, apart from airspace |
+| **manual** | Search summaries of the AIR³ manual, which the XCTrack team recommends. Not read directly, except the airspace parts: [Preferences 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/preferences2/) and [Navigation widgets 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-navigation2/), read 2026-11-19. | To verify, apart from airspace and from what [The smart features, one by one](#the-smart-features-one-by-one-2026-11-21) cites: its pages were read directly on 2026-11-21 |
 
 Items without a tag are **config**. The stable line is 0.9.12.x; 1.0 has been in beta since June 2026 (1.0.7-beta on 2026-10-05).
 
@@ -250,9 +250,280 @@ What follows for the presets: the cross-country numbers belong on the map's page
 8. A Live Activity on the lock screen and, later, a watch companion.
 9. The glide range over the terrain on the cockpit's map, and landings behind a ridge taken out of reach. Built on the iPhone and on Android on 2026-11-20 as a straight glide in every direction; flying around a ridge is not worked out.
 
+## The smart features, one by one (2026-11-21)
+
+What XCTrack works out or decides in flight, feature by feature, as its makers and the manual they recommend describe it in public, against what Venti's engine does today. Nothing here comes from the app itself: it was not downloaded, opened or taken apart, and nobody's copy of its code was read. Where the public pages do not say how something is done, the entry says so; Venti's own method is then ours to choose.
+
+### The ten gaps most worth building for a cross-country pilot
+
+1. **One QNH, and airspace limits above sea level measured at it.** Set from the take-off's known height or a METAR, by hand if wanted. *Medium.*
+2. **Airspace that is switched on and off:** schedules, NOTAM activations, a warning 15, 10 and 5 minutes before the airspace the glider is in becomes active, and "all active" when the data is old. *Large: it needs a source of activations.*
+3. **Events with a sound, a spoken line and an action each:** airspace levels, start gate about to open, turnpoint reached, instrument lost, battery low, thermal begun and ended. *Medium.*
+4. **Other aircraft from the instrument, and each pilot once:** FLARM and FANET traffic through the vario's sentences, bound to names, merged with the same pilot on livetracking; a watchlist; messages. *Large.*
+5. **Wind, airspeed and heading from the instrument when it has them,** and the airspeed and heading estimated from the wind as readings when it has not, with a notice when the glider is carried backwards. *Small to medium.*
+6. **A cable warning that follows the glide:** will the glider arrive lower than the cable plus a margin, looking wider on the side it turns to, with the map zooming in. *Medium; the data is the hard part.*
+7. **The cross-country readings XCTrack has and we lack:** the FAI triangle's smallest, largest and "real" potential as numbers, leg lengths and shares, average cross-country speed, a direction to the nearest point of the closing circle. *Small.*
+8. **The vario's other sounds:** a buzzer just under the lift threshold, an alarm when the pressure data stops, a pattern that tells the ten-second average, and the pilot's own table of pitch, cycle and duty. *Medium.*
+9. **Landing detection that knows the height above ground and the wind,** a mode that asks the pilot, and a mode that never ends the flight (hike and fly). *Small.*
+10. **The task page's missing arithmetic:** altitude over the end of the speed section, an allowance of height for every turnpoint still to round, a choice of which speed an arrival time is worked out from, an elevated goal that is checked. *Small.*
+
+Not in the ten because XCTrack does not have them either, by its own tracker: a polar, MacCready and speed to fly; netto and total energy of its own; a vario fused from barometer and accelerometer; wind without circling; wind taken from other pilots. They stay in [Where we go beyond](#where-we-go-beyond).
+
+### Sources of this section
+
+All read on 2026-11-21, late, into the first hour of the 22nd. Of the tracker's issues, the titles were searched; T-45, T-367, T-594, T-652, T-741, T-807, T-974, T-1119, T-1148 and T-1171 were read with their comments, and the others cited by title, state, date and votes only. The pages were read through a tool that hands back a page's content condensed, so a figure below is as that reading gave it: *to check against the page itself* before Venti takes a number over as its own.
+
+| Key | Page |
+|---|---|
+| X-man | [xctrack.org/Manual.html](https://xctrack.org/Manual.html) |
+| X-log | [xctrack.org/Change_Log.html](https://xctrack.org/Change_Log.html) |
+| X-comp | [xctrack.org/Competition_Tutorial.html](https://xctrack.org/Competition_Tutorial.html) |
+| X-dev | [xctrack.org/External_Devices.html](https://xctrack.org/External_Devices.html) |
+| X-js | [xctrack.org/JavaScriptInterface.html](https://xctrack.org/JavaScriptInterface.html) |
+| X-faq | [xctrack.org/Faq.html](https://xctrack.org/Faq.html) |
+| A-p1 … A-p4 | AIR³ manual, Preferences [1](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/preferences/), [2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/preferences2/), [3](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/preferences3/), [4](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/preferences4/) |
+| A-nav, A-nav-ii | AIR³ manual, menu [Navigation](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/navigation/) and [Navigation II](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/navigation2/) |
+| A-live, A-logs | AIR³ manual, menu [Livetracking](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/livetracking/) and [Tracklogs](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/tracklogs/) |
+| W-air, W-fly | AIR³ manual, widgets [Air](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-air/) and [Flying](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-flying/) |
+| W-nav1, W-nav2 | widgets [Navigation](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-navigation/) and [Navigation 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-navigation2/) |
+| W-xc1 … W-xc3 | widgets [Xcontest](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-xcontest/), [2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-xcontest2/), [3](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-xcontest3/) |
+| W-comp1, W-comp2 | widgets [Competition](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-competition/) and [Competition 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-competition-2/) |
+| W-sys, W-live, W-oth | widgets [System](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/system-xctrack/), [Livetracking](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-livetracking/), [Others](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-other/) |
+| A-fanet | AIR³ FAQ, [enabling FLARM, FANET and ADS-L](https://www.fly-air3.com/en/ufaqs/enable-flarm-fanet-on-air3-7-3/) |
+| T-*n* | Issue *n* of the developers' tracker, `gitlab.com/xcontest-public/xctrack-public/-/issues/n`, with the developers' own answers in it |
+
+The AIR³ pages also read and found to hold nothing on a computation: the manual's index and its Customize page.
+
+"Size" is the work in Venti: **small** is a rule in an engine module that exists and a reading in the view; **medium** is a new module or a new kind of input; **large** needs a data source, a service or a protocol besides.
+
+### Wind
+
+**Wind from circling.**
+- *For the pilot:* the wind's speed and direction where the glider last circled, for the wind readings, the compass, glide predictions and the thermal picture.
+- *How, publicly:* from satellite positions only; a wind appears once a full circle is flown (W-air, W-fly). A developer in the tracker: the method assumes a perfect circle carried along by the wind, and a circle the pilot corrects spoils it (T-594, a developer's answer of 2020-07-03); the compass plays no part in it (T-974, a developer's answer of 2023-04-04). Earlier changes made it follow "more immediate" wind (X-log, 0.4.5) and reset it at take-off (X-log, 0.5.1.4). The method itself is not published. A pilot with a fast glider reports it wrong or silent in strong wind, open since 2020 and repeated in 2025 (T-594).
+- *Venti:* `live/wind.rs`. A circle is fitted to the glider's velocities over the ground of the last 40 s; its centre is the wind and its radius the airspeed. It asks for samples in ten of twelve sectors of direction and a fit good to 2 m/s, and it takes a wind up to twice the airspeed. The wind's age is kept (`CockpitView::wind_age_s`).
+- *Gap:* none; ours covers the case their tracker lists as a weakness. Not flown.
+
+**Wind by height.**
+- *For the pilot:* a graph of wind strength and direction in slices of 100 m, with a line at the present altitude; the same widget can show climb by slice (W-air, "Altitude statistics").
+- *How, publicly:* slices of 100 m over the standard altitude when there is one. For the climb graph: the vario averaged over 20 s, the greatest value per slice kept for 40 minutes and then let fall evenly to nothing over the next 40 (W-air). How a slice's wind is aged is not said.
+- *Venti:* `live/computer.rs` keeps the wind in bands of 200 m (`WIND_BAND_M`), as the mean of what was measured while circling there, with the climb through the band (`CockpitView::winds_by_height`).
+- *Gap:* the climb by band does not age, so a morning's weak climb stands beside the afternoon's; no line at the present altitude is the shell's matter. *Small.*
+
+**Wind from ground-speed differences in straight flight, with no sensor.**
+- *How, publicly:* XCTrack does not do it. Wind comes from circles only (T-974); the manual says of every wind reading that it needs a full circle (W-air, W-xc2).
+- *Venti:* nothing. The fit in `live/wind.rs` needs nearly a whole circle.
+- *Gap against XCTrack:* none. For Venti it would be a step beyond: on a long glide the wind is a memory (`wind_age_s`). Without an airspeed it can only be had from turns of part of a circle, with a known airspeed. *Medium, and to prove on recorded flights before it is shown.*
+
+**Wind and airspeed from an instrument.**
+- *For the pilot:* a wind that is current on the glide, and a true airspeed, from an instrument with a probe.
+- *How, publicly:* when wind or airspeed is switched on for an external device, XCTrack uses those in place of its own; a switch turns a device's wind direction by 180° (A-p4). Sentences that carry them: `LXWP0`, `PDGFTL1`, `PLKAS`, `PTAS1`, and the Bluetooth services of FlyBeeper and Vector Vario; the Environmental Sensing Service has true wind speed and direction (X-dev, X-log 0.9.5 to 0.9.11.3). True or indicated airspeed can be chosen for the reading where a device gives both (X-log, 0.9.12.4).
+- *Venti:* the `sensors` crate reads an airspeed and a heading out of a sentence (`Reading::airspeed_ms`, `heading_deg`); the flight computer uses neither, and reads no wind from an instrument.
+- *Gap:* take an instrument's wind and airspeed, each with its age and its source named, and prefer them over the circle's on a glide. With an airspeed and the course over the ground, a wind in straight flight follows. *Medium; needs an instrument that sends them.*
+
+**Wind from FANET or from other pilots.**
+- *How, publicly:* not found. Nothing read says XCTrack shows or uses the wind of FANET ground stations or of other gliders; weather-station wind in the cockpit is an open request since 2019 with twenty votes (T-426), and the manual's own way is a web page in a widget (W-air, W-oth). *To verify* that 1.0 has not added it.
+- *Venti:* live wind stations are in the app (`crates/core/src/ground_wind.rs`), not in the flight computer.
+- *Gap against XCTrack:* none.
+
+**Airspeed and heading, estimated.**
+- *For the pilot:* an airspeed reading without a probe, and a heading for the compass, the map and the thermal page.
+- *How, publicly:* airspeed is the speed over the ground with the computed wind taken out, so it shows what the pilot does with brake and bar; heading is worked out from the track over the ground and the wind. A compass, the phone's or an instrument's, can be taken for the heading instead; the manual advises against it for its lag and its need of calibration (W-fly, W-nav1, A-p4). The web interface hands out `heading`, `airspeed` and `speedComputed` (X-js).
+- *Venti:* `live/computer.rs` works out the direction through the air for its circling rule once a wind is known, and `live/wind.rs` gives the airspeed of the circle. Neither is a reading in `CockpitView`.
+- *Gap:* two readings, each absent without a wind and marked with the wind's age. *Small.*
+
+**Carried backwards.**
+- *How, publicly:* the speed reading can mark flying backwards, as an option (X-log, 0.9.7 and 0.9.7.6); a developer says the compass is used for this warning and for nothing else in the wind (T-974).
+- *Venti:* `CockpitView::strong_wind` says beforehand that the wind last measured leaves less than 10 km/h of way into it.
+- *Gap:* saying it when it happens: the course over the ground lies opposite the heading. With a compass that is certain; from the wind estimate it is a deduction. *Small.*
+
+### Thermals
+
+**Noticing a thermal.**
+- *How, publicly:* begins when the heading, not the track, has turned 90° or more in 30 s and the 30-second average of the vario is −0.5 m/s or better; ends when it has turned less than 30° in 30 s and the average is below −0.5 m/s (X-man, W-air). In 1.0 the pilot can set the window, the two turns and the two climbs (A-p3; X-log, 1.0.0 RC1). The manual warns that a smaller turn gives false starts and a larger one a late start (A-p3).
+- *Venti:* the same rule and numbers in `live/computer.rs` (`Config::circling_start_deg` and its neighbours), on the direction over the ground or, once a wind is known, through the air.
+- *Gap:* none in the engine; the settings are not on a screen.
+
+**The thermal assistant.**
+- *For the pilot:* a close-up of the last circles, coloured or sized by climb, with a circle drawn around the place of best lift.
+- *How, publicly:* three ways of drawing past positions (W-air; X-log, 0.5.1.5). "Classic", the default: each is moved by the wind times its age. "Particle drift": each is moved by the wind times the height the glider has gained since, divided by the climb there plus one, on the thought that strong lift leans less. "None": the track as flown. The centre is "estimated from climb-rate data" and nothing more is said of it (W-air); the tracker records only that the "core detection algorithm" was changed in 2013 (X-log, 0.4). Settings: scale (120 m advised for a paraglider), length of track, north or another direction on top, airspace, a task's cylinders and line (W-air; X-log, 1.0.0 RC1).
+- *Venti:* `live/thermal.rs`. The last fifty seconds moved with the wind to where their air is now, a circle fitted to them and the lean of the climb around it, and a line of words ("Stronger 20 m NW", "Centred") in `CockpitView::lift`.
+- *Gap:* none in what is computed; ours also says which way to move. "Particle drift" is a second way of drawing the same thing and is not wanted for itself. Not flown.
+
+**The last thermals, and going back to one.**
+- *How, publicly:* the maps mark the latest thermals with their average climb, coloured by it; a slider says how many (W-xc2, W-comp1). A longer track in the assistant "helps relocate a lost thermal" (W-air). Whether a mark is moved with the wind after the glider has left is not said: *to verify.* An arrow back to the last thermal is not described anywhere read.
+- *Venti:* `CockpitView::thermals`: the last twelve that gave 50 m or more, where the glider circled, not moved with the wind.
+- *Gap against XCTrack:* none known. Beyond it: moving a left thermal's mark with the wind for as long as its air can still be reached, and a bearing to it. *Small.*
+
+**Height gained in the thermal.** The present altitude less the altitude where circling began (W-air). Venti: `CockpitView::thermal`, with the average as well. No gap.
+
+**The thermal map (thermal.kk7.ch).** A layer of where flights have found lift, plain or narrowed to the season and hour; the manual notes that each mark is where the lift leaves the ground and that the pilot must add the drift for the height (W-comp2). It is a picture, not a calculation in the app. Venti: to build, see [Overlays in the cockpit](#overlays-in-the-cockpit).
+
+### The glide
+
+**The glider's performance.**
+- *How, publicly:* two numbers the pilot enters, trim speed and glide ratio; they feed the glide marks on the maps, the side view and the altitudes of arrival (A-p1). No polar, no MacCready setting, no speed to fly, no bugs or ballast: asked for since 2022 and open (T-807 with sixteen votes, T-862, T-1220).
+- *Venti:* the same two numbers (`live/navigation.rs`).
+- *Gap against XCTrack:* none. Beyond: a polar of three points gives the best glide in a head or tail wind and a speed to fly; bugs and ballast are a sailplane's matter and of no use to a paraglider. *Medium; needs each wing's polar, which makers rarely publish, so a pilot's own flights would have to supply it.*
+
+**Glide ratio now.** Over an averaging time the pilot sets; shown as the vario instead while climbing (W-fly). Venti: `CockpitView::glide_ratio`, over the last quarter minute. Gap: the time is fixed. *Small.*
+
+**Glide needed, and height on arrival.**
+- *For the pilot:* for the next turnpoint, the end of the speed section, the goal or a waypoint: the glide ratio needed, with a reserve of height the pilot sets, and the height left on arrival (W-nav2, W-comp2).
+- *How, publicly:* arrival height from the satellite altitude, the configured glide ratio and trim speed and the present wind, along the shortest way through the cylinders still to round, less a fixed 15 m for each of them (W-comp2). It can be shown above ground, above sea level, or as the height the leg costs (W-nav1). The glide needed is measured to the nearest point that counts, against the ground's height there when terrain is loaded, not the waypoint's (T-1148, a developer's answer of 2024-09-30); from 1.0.4 the waypoint's height is taken when terrain is missing (X-log). Each reading chooses its target: the centre, the optimised point or the nearest point of the cylinder (W-nav1, W-nav2).
+- *Venti:* `live/navigation.rs` (required and expected glide, arrival height, time, whether a wind was known, ground in the way) and `task/glide.rs` (leg by leg along the shortest way, in the wind); `CockpitView::task_readings` for the next turnpoint and goal.
+- *Gap:* the allowance per turnpoint; a reserve the pilot sets in the glide needed; the reading for the end of the speed section; a choice of height above ground or above sea level. *Small.*
+
+**Time of arrival.** Worked out from a speed the pilot chooses: speed over the ground, airspeed with the wind taken into account, trim speed with the wind, or the flight's cross-country speed so far, each over an averaging time (W-nav1). Venti: trim speed in the wind only (`time_to_go_s`). Gap: the other three. *Small.*
+
+**Glide marks and the side view.**
+- *How, publicly:* on the line ahead of the glider on the maps, a filled mark where the glide of the moment comes down and an open one for the configured glide and trim speed in the computed wind (W-xc2). The side view shows 5 to 50 km of ground and airspace ahead, along the track or towards the target, with a solid line for the present glide (not valid in a climb) and a dotted one for the configured glide; a task's remaining turnpoints are lines in it (W-nav1). Whether the marks on the map stop at the ground is not said: *to verify.*
+- *Venti:* `live/range.rs`: the edge of what a straight glide reaches over the ground in every direction, in the wind; the side view with one glide line and the ground.
+- *Gap:* none; the outline over terrain is beyond what is described (a request for the area within reach was closed in 2017, T-25; only its title was read, not how it was answered). The side view does not follow a task's route (see the Widgets table).
+
+**Height above ground and terrain.** Satellite altitude less the height of the ground from downloaded terrain files (W-fly); terrain also serves the side view, the glide needed (above) and the landing rule (below). Venti: `flight/terrain.rs`, `CockpitView::height_above_ground_m`. No gap.
+
+**Landings within reach.** Not found in XCTrack: a nearest-landing reading is an open request (T-486, 2019; T-1301, 2026). The "nearest airfield" in the Widgets table above is *to verify*. Venti: the landing among the pilot's waypoints it would arrive highest above, with ridges in the way counted. Beyond.
+
+### Airspace and obstacles
+
+**How near is near.**
+- *How, publicly:* one "scaled distance" in which a metre of height counts as four over the ground. Directly below an airspace: "close" from 500 m of height, "really close" from 100 m, and both limits shrink as the glider is further off to the side; "crossed" on entry (A-p2, W-nav2). No prediction from the glider's course is described. Each of the three is an event with an overlay, a sound, and a time for which its repeat is held back; from 2024 the "inside" warning can sound on entry only (T-1119, a developer's answer of 2024-06-14). The durations are not given: *to verify.*
+- *Venti:* `venti-airspace`, with the same margins and the four to one, an "entering" warning from the path of the last 20 s looked 60 s ahead, no flicker at a boundary and silencing ([airspace.md](airspace.md#warnings)).
+- *Gap:* none; the prediction is ours.
+
+**Which altitude a limit is held against.**
+- *How, publicly:* flight levels against standard pressure; limits above sea level against the barometric altitude at the QNH; limits above ground against the satellite altitude and terrain. A switch forces the satellite altitude for flight levels too, for competitions that rule so (W-nav2, A-p1, A-p2). The proximity reading can show a limit as written or turned into a satellite altitude with the QNH (W-nav2).
+- *Venti:* flight levels exact with a pressure altitude; limits above sea level against the cockpit's best altitude ([airspace.md](airspace.md)). No QNH.
+- *Gap:* a QNH (see [Altitude](#altitude-and-qnh)) and the switch. *Medium with the QNH.*
+
+**Active or not.**
+- *How, publicly:* airspace from XContest's service comes with schedules and, for some countries, NOTAM activations; it is refreshed at start and in flight (X-man; X-log, 0.9.4.5 and 1.0.0). When the data is too old, every airspace counts as active and the app says so. An airspace that will become active is drawn grey, and a glider inside it is warned 15, 10 and 5 minutes before. The pilot can set any airspace active or off, for the day or for good, and with the paid version move its floor or ceiling when a NOTAM covers part of it (A-p2).
+- *Venti:* every airspace is active; one can be ignored for a time; nothing is kept between flights.
+- *Gap:* all of it. *Large: schedules and NOTAMs need a source, per country, with a licence ([data-sources.md](data-sources.md#airspace)). The pilot's own on and off, kept from flight to flight, is small and worth having first.*
+
+**High airspace kept back.** An airspace whose floor lies above a height the pilot sets is not shown until the glider is within a set distance (W-nav2, W-xc2). Venti: a filter by box and band of height. No gap.
+
+**The proximity reading.** Name, height to floor or ceiling, distance to the outline, an arrow to the nearest edge or, from inside, the nearest way out, coloured by the scaled distance (W-nav2; X-log, 1.0.0 RC1). Venti: `CockpitView::airspace_proximity`. No gap.
+
+**Obstacles.**
+- *How, publicly:* cables and the like by country from XContest's service. The time to reach one is worked out with the worse of the configured and the present glide ratio and the faster of the configured and the present speed; the area looked at is widened and leans to the side the glider is turning; within a time window the pilot sets, an alert comes if the glider would arrive lower than the obstacle's height plus a margin. The map can zoom in by itself while one is near (A-p2, W-xc1; X-log, 0.9.9 and 0.9.10.1).
+- *Venti:* `flight/cables.rs`: a cable within a margin of the straight course of the next 30 s, with the glider less than 100 m above the cable's height over the ground, or below it.
+- *Gap:* ours compares heights now, not at arrival: a glider sinking toward a cable from well above is warned late, and one in a turn is looked at along a straight line. The map's zoom. *Medium for the rule; the data beyond Tirol is the larger part.*
+
+### A competition task
+
+**Reaching a turnpoint.** One fix inside a band of tolerance around the cylinder's edge, or two fixes in a row on either side of it; the direction does not matter, and the next turnpoint is then taken by itself (A-nav-ii, X-comp). Venti: `task/progress.rs` counts only a crossing of the edge itself, on purpose (Sporting Code 8.1). No gap; the difference is deliberate.
+
+**The shortest way.** Distances, glides and times can each be measured to the turnpoint's centre, to the "optimised point" on its cylinder along the shortest way through the rest of the task, or to the cylinder's nearest point (W-nav1, W-comp2); the method of optimising is not published. The task's length is given both ways, shortest and through the centres (A-nav-ii). Venti: `task/route.rs`, by the Sporting Code's annex. No gap; *to verify* against a scored task, as its head says.
+
+**The start.**
+- *How, publicly:* time to the next gate; the predicted time of crossing the start, early (wait) or late, to the nearest point of the cylinder and to the optimised point; the speed needed to be there on time (W-comp2, X-comp). The tutorial on xctrack.org says the prediction is at trim speed and leaves the wind to the pilot (X-comp); the AIR³ manual gives the same four choices of speed as for an arrival time, two of them with the wind (W-comp2). The tutorial is the older text: *to verify* which holds today. An alert "speed section will open soon" can be a sound, a spoken line or both (A-nav-ii). The choice of entering or leaving the start cylinder was taken out (X-log, 0.9.7).
+- *Venti:* `task/progress.rs` and `TaskReadings::start`: time to the gate, distance and speed to the edge, whether the glider arrives early; a start counts only when both fixes of the crossing are at or after the gate.
+- *Gap:* the alert before the gate as an event (below). *Small.*
+
+**End of speed section and goal.** Distance, glide needed and arrival height for each; the share of the speed section flown, for leading points; a goal line or cylinder; an elevated goal measured from the waypoint's height, with the end of the speed section then tied to the goal (W-comp2, A-nav-ii; X-log, 1.0.0). Venti: distance to both, glide and arrival height for goal, the speed section's average; the share is worked out and not shown; an elevated goal is shown and not checked. Gap: arrival height over the end of the speed section, and the check. *Small.*
+
+**Speed needed.** Only "speed to start" is described. A speed needed to reach goal before the task's deadline is not on any page read: *to verify.* Venti: nothing of the kind. *Small if wanted.*
+
+**Earth model.** WGS-84 or the FAI sphere per task; the two differ by about half a percent, 200 to 300 m on a cylinder of 50 km (X-comp, A-nav-ii). Venti: both (`task/mod.rs`). No gap.
+
+**Going back for a restart, a stopped task.** Stepping the task back by hand, by a button or a key (A-nav-ii). Nothing automatic is described. Venti: the same. No gap.
+
+### Cross-country without a task
+
+**Scoring in flight.**
+- *How, publicly:* the flight is scored as free distance over three turnpoints, flat triangle or FAI triangle, with the league's factors and closing distance as settings (A-p1, W-xc2); worked out again every 15 seconds (X-log, 0.4.8.6) and made "more precise" in 2020 (X-log, 0.9.4.4). The manual says the app's own optimiser is quicker and rougher than the server's, so the two can differ a little (A-logs). The method is not published.
+- *Venti:* `flight/scoring.rs` on a position every ten seconds, every half minute (`CockpitView` score, `LiveScore`).
+- *Gap:* none that a pilot would see.
+
+**FAI areas and potential.**
+- *How, publicly:* the areas in which a third corner makes an FAI triangle, with the smallest and largest triangle written in; three numbers as a reading: the largest FAI triangle still possible, the smallest still certain, and the "real" potential, the largest the flight so far supports, which never falls (W-xc2, W-xc3; X-log, 1.0.0). Lengths of the legs flown and each as a share of the triangle (W-xc2). Which side the areas stand on is not said: *to verify.*
+- *Venti:* `flight/fai.rs`: areas on the longest straight line flown, `smallest_m`, `largest_m`, `is_inside`.
+- *Gap:* the "real" potential, and leg lengths with shares. *Small.*
+
+**Closing a triangle.**
+- *How, publicly:* a closing circle appears once the flight counts as a triangle; the navigation mode leads to the nearest point of the circle and, once inside, to the take-off (A-nav; X-log, 0.6.0-263). A reading gives what the triangle is worth if the glider gets back (W-xc3).
+- *Venti:* `LiveScore::closing`: the circle by XContest's 5%, the distance to its edge, the score closed.
+- *Gap:* a direction to the circle's nearest point as the thing to navigate by, then the take-off. *Small.*
+
+**Average cross-country speed.** The scored distance over three turnpoints divided by the time since take-off (W-xc3). Venti: nothing in the view. *Small.*
+
+**Direction of travel.** A direction for the top of a map or compass that changes only when the glider has made more than 3 km in 20 minutes and has flown straight for about two minutes, so that circling does not turn the map (W-air, W-nav1). The map can also put the glider off centre, toward the back, when its speed over 20 minutes is like its cross-country speed (W-xc1). Venti: nothing. *Small; it belongs with map rotation.*
+
+### Vario and altitude
+
+**Climb rate.**
+- *How, publicly:* from the pressure sensor through a low-pass filter whose strength is a slider; a calibration page shows the pressure, its rate, and the mean and spread of the altitude over 20 s (A-p4). A vario value sent by an instrument is used and averaged like the app's own (X-log, 0.5.0.2). No accelerometer: the developers tried it early and dropped it (T-652, a developer's answer of 2020-11-18). Each vario reading has its own averaging time (W-fly).
+- *Venti:* `live/vario.rs`, a two-state Kalman filter over altitude that weighs each source by its noise; an instrument's own climb is preferred (`VarioSourceKind`); an average over 20 s.
+- *Gap against XCTrack:* a second average the pilot sets (the owner flies with 2 s). *Small.* Beyond: fusing the phone's accelerometer, item 2 of [Where we go beyond](#where-we-go-beyond). *Large; per-frame work that stays in the shell by the architecture's rule.*
+
+**Netto and total energy.** Netto only as a value an instrument sends (X-log, 0.9.12.4). Total energy is on no page read. Venti: neither. Without a polar and an airspeed neither can be worked out honestly. *Medium once both exist.*
+
+**Sources and falling back.** Several sensors at once, each named for what it supplies and put in order; the internal satellite receiver lost for 30 s hands over to the external one, and the flight file is then marked as not complying with CIVL's rules (A-p4). Venti: source fallback for the vario; no mark in the file. *Small, and it matters for a signed file.*
+
+### Altitude and QNH
+
+- *How, publicly:* one QNH for the whole app since 0.9.6 (X-log). It is set from the satellite altitude on the ground before take-off, by hand, or in the paid version from the nearest airport's METAR or weather station at start and about hourly (A-p1, W-fly, W-air). Readings: satellite altitude; barometric altitude at the QNH or at 1013.25 hPa; flight level; height above ground; height above take-off (W-fly).
+- *Venti:* `live/atmosphere.rs` gives pressure altitude; the cockpit has one "best altitude". No QNH, no flight level reading.
+- *Gap:* a QNH worked out on the ground from the terrain's height under the glider (better than the satellite's), corrected by hand, and optionally from a METAR; the altitude at QNH for airspace limits above sea level; a flight level reading near airspace given in flight levels. *Medium. METARs are already read on the server (`sources-awc`).*
+
+### Sound
+
+**The vario's voice.**
+- *How, publicly:* beeps whose pitch and rate rise evenly with the climb up to 6 m/s; below the lift threshold down to −0.5 m/s a double beep, only while the short average is above the long one; a sink alarm of two tones, the second a semitone lower for every 0.5 m/s; four falling tones every 30 s when pressure data stops; a change of tone colour, then a "tik-tak", to tell the ten-second average in steps of 1 m/s (X-man, A-p2). Settings: both thresholds, the averaging time of the sound, separate loudness for weak lift, silent before take-off; in the paid version a table from −7 to +7 m/s of pitch, cycle and duty, kept as a file (A-p2; X-log, 0.9.4).
+- *Venti:* `live/tone.rs`: beeps from 0.2 m/s rising to 6 m/s, a steady falling tone below −2.5 m/s, silence between and on the ground. Fixed.
+- *Gap:* the weak-lift buzzer, the alarm for lost data, thresholds and a table the pilot can set, the pattern for the average. *Medium, most of it in the shells' audio; the rules are small.*
+
+### Take-off and landing
+
+- *How, publicly:* a take-off speed the pilot can set, to be quicker or to keep the receiver's wandering from starting a flight (A-p3; X-log, 0.6.0-382); made "less prone" to false take-offs in 2023 (X-log, 0.9.10). Position sharing begins with a "significant flight": 150 m above ground for more than two minutes (A-live). Landing: automatic, "based on speed and lift" (A-p3), and by a developer's word on the flight's top speed, the wind and the height above ground (T-45, 2017-08-30), stricter high above ground and in strong wind (X-log, 0.5); a glider parked in wind at 400 m was taken for landed where terrain was not loaded (T-741). Or manual, where the app asks "landed or still flying"; or none, for hike and fly (A-p3; X-log, 0.6.0-263). After an automatic landing a new take-off starts a new file (A-p3).
+- *Venti:* `live/computer.rs`: take-off at 4 m/s held for 5 s, or 25 m of steady height change in 30 s; landing below 2 m/s without climbing or sinking for 20 s, taken back if the glider flies again within two minutes.
+- *Gap:* the landing rule does not look at the height above ground, which the core has; no asking mode and no never-land mode. *Small.*
+
+### Events and what they set off
+
+- *How, publicly:* events named on the pages read: take-off, landing, thermal begun and ended, satellite fix found, Bluetooth connected and lost, battery (an action at 5%), the three airspace levels, an airspace about to become active, an obstacle, phases of a task ("speed section will open soon"), a livetracking message (A-p2, A-p3, A-nav-ii; X-log, 0.5.1.1). Each can have a sound, a spoken text, the pilot's own sound or text, and a notice on the screen; and an action: change the page, change the display (backlight), change the app's state (A-p2, A-p3). Events can be announced to other apps (A-p4; X-log, 0.9.12.4). The full list is behind a "show all events" button and is not printed: *to verify.*
+- *Venti:* the core hands out a task's events one at a time (`take_task_event`) and its airspace and cable warnings; the automatic switch to the thermal page hangs on `CockpitView::circling`. There is no one list of events.
+- *Gap:* one stream of events from the core (what happened, when, how urgent, a line to say), and in each shell a table from event to sound, speech and page. *Medium.*
+
+### Other pilots
+
+- *How, publicly:* the glider's position goes to XContest every 60 s and other pilots within 20 km come back, for about 100 KB an hour; the list shows name, altitude, height above ground, take-off, distance flown and distance away, nearest first, within 15 km unless asked for more; a pilot ticked there has their track drawn (A-p1, A-live). A watchlist is followed without ticking when within 15 km (A-live; X-log, 1.0.0). Messages from a list the pilot prepares, shown for a minute (A-live, W-live). The status line counts who is watching (W-sys). The flight is claimed for the league by itself a minute after landing (A-logs).
+- FANET and FLARM, through an instrument or the AIR³'s module: the IDs go out every second and the pilot's name every minute, only while flying (A-fanet); incoming `PFLAA` and `FNNGB` sentences are read (A-p4); a device's ID is bound to a pilot by XContest, by hand or by FANET, and where they disagree XContest's word goes before the pilot's own and that before FANET's, so that one pilot seen by radio and by internet is drawn once (A-live; X-log, 0.9.5). The newest beta sends ADS-L (X-log, 1.0.7). SafeSky: the position is sent out, at an interval the pilot sets (A-p1; X-log, 0.9.11).
+- Navigating to a chosen live pilot is a navigation mode of its own in 1.0 (X-log, 1.0.0; A-p3 lists it among the modes a page can show in). How the target's position is aged between reports is not said: *to verify.*
+- What it does not do, by its tracker: the Open Glider Network (T-367, twenty votes, open since 2018), a traffic radar or buddy-list reading (T-1171), any collision alert. The "final glide of others" in the Livetracking table above was not found on a page read today: *to verify.*
+- *Venti:* the position to the pilot's Venti server, others who share on the map, OGN aircraft and their last five minutes in the core (`FlightSession::others_near`).
+- *Gap:* traffic from the instrument's sentences; one pilot from two sources drawn once; a watchlist; messages; a pilot as a navigation target. *Large as a whole; the sentences and the merging are a medium first step.*
+
+### Bearing, track and heading
+
+XCTrack's words, as the manual uses them (W-fly, W-nav1, W-nav2): **bearing** is the direction the glider moves over the ground, which the manual also calls track; **heading** is where the glider points, worked out from the bearing and the wind or read from a compass; the direction to a target is the "navigation target" or "course to". A compass or map can have north, bearing, heading, the target, the wind or the direction of travel on top; the arrow to an airspace can be turned by north, bearing or heading; the wind can be read relative to the bearing, as with or against (W-nav1, W-nav2). Circling is judged on heading (X-man).
+
+Venti's words differ: **course** is the direction over the ground (`course_deg`, `course_words`), **bearing** the direction to a place (`bearing_deg`). That is the common usage and should stay; a pilot coming from XCTrack will look for "bearing" and find the course. Gap: no heading reading (above), no wind relative to the course. *Small.*
+
+### Also called out in the manual
+
+- **Statistics of a flight** over 30 s, from barometric altitude where there is one (A-logs). Venti: `flight/analysis.rs`.
+- **Time from the satellites** as the clock, and a correction of a receiver whose date is wrong by more than a minute, at the cost of CIVL compliance (W-fly, A-p4). Venti: nothing of the second.
+- **Sunset and civil twilight**, as a time or as time left (W-fly). Venti has both.
+- **Battery of an instrument** in the status line (W-sys). Venti: `InstrumentView::battery_percent`. A forecast of the phone's own battery lasting the flight is on no page read; Venti has none either.
+- **Replay of a flight** through the whole app, faster if wanted (A-logs). Venti has it.
+- **A web page as a reading**, handed the position (W-oth, X-js). Not for Venti: no web views.
+
+### What this section could not confirm
+
+- Every figure above against the page itself (see "Sources of this section").
+- The full list of events, and the times for which a repeated warning is held back.
+- Whether marks of left thermals move with the wind; which side the FAI areas stand on; whether glide marks on the map stop at the ground.
+- Whether the start prediction counts the wind today (the two public texts differ).
+- "Nearest airfield" and "final glide of others" from the tables above; a required speed to goal; wind from FANET stations in 1.0.
+- How take-off is decided beyond a speed, and the landing rule's numbers: not published.
+- The methods behind the wind, the thermal's centre, the route through cylinders and the in-flight scoring: not published, and not looked for anywhere else.
+
 ## Still to verify
 
 - The complete current widget list and names, from the AIR³ manual pages.
-- The meaning of XCTrack's two wind algorithms ("classic" and "particle drift").
+- ~~The meaning of XCTrack's two wind algorithms ("classic" and "particle drift").~~ Read on 2026-11-21: they are ways of moving the thermal assistant's past positions with the wind, not ways of working out the wind; see [Thermals](#thermals).
 - The obstacle data's country coverage.
 - Flyskyhy's and SeeYou Navigator's supported Bluetooth varios, from their own sites, since those are the apps iPhone pilots use today.

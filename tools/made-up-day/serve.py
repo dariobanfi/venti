@@ -21,9 +21,10 @@ server's wire format, so that a map of the kind of day shows every kind:
 a big day in the north-west, a cross-country day beside it, local
 thermals in the south-west, weak ones beside those, a marginal band in the
 east and a corner there that is not flyable, as patches of whole cells.
-Two days, today and tomorrow by the development server's clock (its map's
-`computed_at`, 2026-11-21), the second a step weaker everywhere, with
-climbs and tops that fit each kind. The grid is a small one of its own,
+Three days from today by the development server's clock (the `time` of its
+health answer, which is the clock the apps name "Today" by; its recorded
+forecasts are of other days), each a step weaker everywhere than the day
+before, with climbs and tops that fit each kind. The grid is a small one of its own,
 five rows by nine columns of a tenth of a degree from 47.5 N 11.5 E,
 unless the development server's map has a grid of 30 cells or more (the
 one recorded has four, too few for six patches); the source, model and
@@ -153,9 +154,10 @@ def patch(row, column, rows, columns):
     return ("flyable", "big" if north else "local")
 
 
-def made_up_map(real):
+def made_up_map(real, today=None):
     """A made-up thermal map, on the grid of `real` if it has a big enough
-    one, with its source, model and credit; `real` may be None."""
+    one, with its source, model and credit; `real` may be None. Its days
+    begin at `today`, or on the day `real` was computed without one."""
     real = real or {}
     grid = real.get("grid")
     if not grid or grid["rows"] * grid["columns"] < LEAST_CELLS:
@@ -166,15 +168,15 @@ def made_up_map(real):
         ground = [height if height is not None else 800 for height in real.get("ground_m", [])]
     rows, columns = grid["rows"], grid["columns"]
     computed = real.get("computed_at") or "2026-11-21T03:25:00Z"
-    today = datetime.date.fromisoformat(computed[:10])
+    today = today or datetime.date.fromisoformat(computed[:10])
     days = []
-    for ahead in range(2):
+    for ahead in range(3):
         verdicts, kinds, climbs, tops, clouds = [], [], [], [], []
         for row in range(rows):
             for column in range(columns):
                 verdict, kind = patch(row, column, rows, columns)
-                if kind is not None and ahead:
-                    kind = WEAKER[kind]
+                for _ in range(ahead):
+                    kind = WEAKER[kind] if kind is not None else None
                 climb, top, cloud = KINDS[kind] if kind else (None, None, False)
                 verdicts.append(verdict)
                 kinds.append(kind)
@@ -193,8 +195,9 @@ def made_up_map(real):
     return {
         "source": real.get("source", "open-meteo"),
         "model": real.get("model", "icon-d2"),
-        "run": real.get("run") or f"{today.isoformat()}T00:00:00Z",
-        "computed_at": computed,
+        # A run of the map's first morning, as a real map's would be.
+        "run": f"{today.isoformat()}T00:00:00Z",
+        "computed_at": f"{today.isoformat()}T03:25:00Z",
         "grid": grid,
         "ground_m": ground,
         "days": days,
@@ -239,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 real = None
             status = 200
-            answer = json.dumps(made_up_map(real)).encode()
+            answer = json.dumps(made_up_map(real, self.today())).encode()
             handed_back = {"Content-Type": "application/json", "Cache-Control": "no-store"}
         self.send_response(status)
         for name, value in handed_back.items():
@@ -248,6 +251,15 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(answer)
+
+    def today(self):
+        """The day by the clock of the server behind, or None if it does
+        not say."""
+        try:
+            with urllib.request.urlopen(self.behind + "/v1/health", timeout=20) as response:
+                return datetime.date.fromisoformat(json.loads(response.read())["time"][:10])
+        except (OSError, KeyError, TypeError, ValueError):
+            return None
 
     do_GET = do_HEAD = do_POST = do_PUT = do_PATCH = do_DELETE = forward
 

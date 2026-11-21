@@ -823,9 +823,10 @@ final class VentiUITests: XCTestCase {
         sleep(4)
         keepScreenshot("map-forecast-1-today")
 
-        // The second day: the stand-in's map has two. They are named by
-        // the development server's clock, which stands days before the
-        // map's, so not "Today" and "Tomorrow": the second segment.
+        // The second day. The stand-in dates its map from the development
+        // server's clock, which the app names the days by, so they read
+        // "Today" and "Tomorrow"; which day is today also hangs on the
+        // simulator's time zone, so the test goes by the second segment.
         let tomorrow = element("forecast-days", in: app).buttons.element(boundBy: 1)
         XCTAssertTrue(tomorrow.waitForExistence(timeout: 15))
         tomorrow.tap()

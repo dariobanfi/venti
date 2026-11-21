@@ -1870,9 +1870,10 @@ class VentiUiTest {
         waitFor(hasTestTag("forecast-key"))
         waitForAll(hasTestTag("forecast-days"), hasText("Big day"), hasText("Not flyable"), hasTestTag("forecast-map-run"))
         // The first day the map has is shown first. Its name is the core's,
-        // by the server's clock: `venti-server dev`'s stands at 18 November,
-        // so the stand-in's 21st and 22nd are "Sat" and "Sun" there, and
-        // "Today" and "Tomorrow" on a server with a running clock.
+        // by the server's clock; the stand-in dates its map from that
+        // clock, so the days are "Today", "Tomorrow" and a third. The test
+        // goes by their place in the switch all the same, since which day
+        // is today also hangs on the emulator's time zone.
         val days = isSelectable() and hasAnyAncestor(hasTestTag("forecast-days"))
         waitFor(days)
         assertTrue(screen.onAllNodes(days)[0].fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected) == true)

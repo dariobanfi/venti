@@ -12,10 +12,12 @@
 //!   area the forecast source is listed for, on multiples of the step
 //!   ([`grid_over`]). Each point is asked for as a place, and the model
 //!   answers from its own cell nearest it.
-//! - **One model.** The source's finest, [`MAP_MODEL`]. It reaches two
-//!   days; ICON-EU's later days are a thing to do.
+//! - **Two models.** The source's finest, ICON-D2, and ICON-EU for the
+//!   days ICON-D2 does not have whole ([`MAP_MODELS`]). A day is one
+//!   model's, never a blend: the finest model's, unless the coarser one
+//!   has more of the day's hours, as a take-off's page decides it.
 //! - **Made with each run.** When the server's regular look at the source
-//!   sees a run of the model the map was not made from, the grid is
+//!   sees a run of a model the map was not made from, the grid is
 //!   fetched in requests of many places, one request at a time
 //!   ([`ThermalMap::update`]). The map may use half of the source's hourly
 //!   requests ([`Forecasts::places`]); when that is used up it stops and
@@ -31,7 +33,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use chrono::Duration;
+use chrono::{Duration, NaiveDate};
 use venti_api_types::v1::{
     THERMAL_GRID_DEG, ThermalGrid, ThermalKind, ThermalMapDay, ThermalMapResponse, ThermalReason,
     ThermalVerdict,
@@ -42,10 +44,12 @@ use venti_flight::day::{self, Kind, RatedHour, Reason, Verdict};
 use crate::clock::Clock;
 use crate::forecast::{Forecasts, Refusal};
 
-/// The model the map is made of: ICON-D2, the finest the forecast source
-/// has, some 2 km a cell, with a new run every three hours that reaches 48
-/// hours. To do: the days after from ICON-EU.
-pub const MAP_MODEL: &str = "icon-d2";
+/// The models the map is made of, the finest first. ICON-D2: some 2 km a
+/// cell, a new run every three hours that reaches 48 hours. ICON-EU: some
+/// 5 km a cell, a run every three hours that reaches 78 hours from 00, 06,
+/// 12 and 18 UTC and 30 from the runs between; the adapter asks for three
+/// days, so it adds the day after tomorrow.
+pub const MAP_MODELS: [&str; 2] = ["icon-d2", "icon-eu"];
 
 /// The grid of points every [`THERMAL_GRID_DEG`] degrees inside an area,
 /// on multiples of the step. `None` for an area too small to hold a point.
@@ -126,11 +130,7 @@ impl Kept {
 
     /// Drops the hours of days before yesterday, by the sun at the cell.
     fn drop_before_yesterday(&mut self, now: Timestamp, cell: GeoPoint) {
-        // The sun's clock at the cell runs four minutes a degree ahead of
-        // Greenwich's, as `venti_flight::day` counts its days.
-        #[expect(clippy::cast_possible_truncation)]
-        let ahead = Duration::seconds((cell.lon() * 240.0).round() as i64);
-        let yesterday = (now + ahead).date_naive() - Duration::days(1);
+        let yesterday = day::solar_date(now, cell) - Duration::days(1);
         let from = day::daylight_hours(yesterday, cell)
             .first()
             .copied()
@@ -149,12 +149,18 @@ struct Making {
     left: Vec<usize>,
 }
 
-#[derive(Default)]
-struct State {
+/// What the map keeps of one model.
+struct Of {
+    model: ModelId,
     cells: Vec<Kept>,
     making: Option<Making>,
     /// The run the map was last made from, whole.
     made_from: Option<Timestamp>,
+}
+
+struct State {
+    /// By model, the finest first.
+    models: Vec<Of>,
     /// The map as it is served, without the credit, which is the API's.
     map: Option<Arc<ThermalMapResponse>>,
 }
@@ -163,7 +169,6 @@ struct State {
 pub struct ThermalMap {
     forecasts: Arc<dyn Forecasts>,
     source: SourceId,
-    model: ModelId,
     grid: ThermalGrid,
     points: Vec<GeoPoint>,
     per_request: usize,
@@ -204,13 +209,20 @@ impl ThermalMap {
         }
         let points = points_of(&grid);
         let state = State {
-            cells: vec![Kept::default(); points.len()],
-            ..State::default()
+            models: MAP_MODELS
+                .iter()
+                .map(|model| Of {
+                    model: ModelId::new(*model).expect("the models' names are identifiers"),
+                    cells: vec![Kept::default(); points.len()],
+                    making: None,
+                    made_from: None,
+                })
+                .collect(),
+            map: None,
         };
         Some(Self {
             forecasts,
             source,
-            model: ModelId::new(MAP_MODEL).expect("the model's name is an identifier"),
             grid,
             points,
             per_request,
@@ -225,9 +237,13 @@ impl ThermalMap {
         &self.source
     }
 
-    /// The model the map is made of.
-    pub fn model(&self) -> &ModelId {
-        &self.model
+    /// The models the map is made of, the finest first.
+    pub fn models(&self) -> Vec<ModelId> {
+        self.lock()
+            .models
+            .iter()
+            .map(|of| of.model.clone())
+            .collect()
     }
 
     /// The map, once one was made. Its credit is empty: the API adds the
@@ -241,7 +257,7 @@ impl ThermalMap {
         self.points.len()
     }
 
-    /// How many requests a whole map takes.
+    /// How many requests a whole map of one model takes.
     pub fn requests_per_map(&self) -> usize {
         self.points.len().div_ceil(self.per_request)
     }
@@ -250,24 +266,46 @@ impl ThermalMap {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// What the server's look at the source tells the map: the run of the
-    /// map's model that the source holds. A run the map was not made from
-    /// starts the making of a new map; one being made goes on where it
-    /// stopped. Returns when the map is whole, or when the source's hour
-    /// has no more room for it or a request failed: the next look goes on
-    /// from there. Does nothing while another call is fetching.
-    pub async fn update(&self, seen: Timestamp) {
+    /// What the server's look at the source tells the map: the run of
+    /// each of the map's models that the source holds. A run the map was
+    /// not made from starts the making of that model's part anew; one
+    /// being made goes on where it stopped. The models are fetched one
+    /// after the other, the finest first. Returns when every part is
+    /// whole, or when the source's hour has no more room for the map or a
+    /// request failed: the next look goes on from there. Does nothing
+    /// while another call is fetching.
+    pub async fn update(&self, seen: &[(ModelId, Timestamp)]) {
         let Ok(_fetching) = self.fetching.try_lock() else {
             return;
         };
+        for index in 0..MAP_MODELS.len() {
+            let model = self.lock().models[index].model.clone();
+            let Some(run) = seen
+                .iter()
+                .filter(|(of, _)| *of == model)
+                .map(|(_, run)| *run)
+                .max()
+            else {
+                continue;
+            };
+            if !self.make(index, &model, run).await {
+                return;
+            }
+        }
+    }
+
+    /// Makes the part of one model, from the run the look saw. Whether it
+    /// is whole: `false` when the map has to wait.
+    async fn make(&self, index: usize, model: &ModelId, seen: Timestamp) -> bool {
         {
             let mut state = self.lock();
-            let made = state.made_from.is_some_and(|run| run >= seen);
-            match &state.making {
+            let of = &mut state.models[index];
+            let made = of.made_from.is_some_and(|run| run >= seen);
+            match &of.making {
                 Some(making) if making.run >= seen => {}
-                _ if made => return,
+                _ if made => return true,
                 _ => {
-                    state.making = Some(Making {
+                    of.making = Some(Making {
                         run: seen,
                         left: (0..self.requests_per_map()).collect(),
                     });
@@ -276,8 +314,7 @@ impl ThermalMap {
         }
 
         loop {
-            let next = self
-                .lock()
+            let next = self.lock().models[index]
                 .making
                 .as_ref()
                 .and_then(|making| making.left.first().copied());
@@ -285,149 +322,232 @@ impl ThermalMap {
             let from = request * self.per_request;
             let to = (from + self.per_request).min(self.points.len());
             let points = &self.points[from..to];
-            let output = match self
-                .forecasts
-                .places(&self.source, &self.model, points)
-                .await
-            {
+            let output = match self.forecasts.places(&self.source, model, points).await {
                 Ok(output) => output,
                 Err(Refusal::AskedEnough { retry_after_s }) => {
                     tracing::info!(
                         source = %self.source,
-                        "the thermal map waits: it has used its share of the hour's requests, \
-                         room again in {retry_after_s} s; {} of {} requests to go",
-                        self.left(),
+                        "the thermal map of {model} waits: it has used its share of the hour's \
+                         requests, room again in {retry_after_s} s; {} of {} requests to go",
+                        self.left(index),
                         self.requests_per_map(),
                     );
-                    return;
+                    return false;
                 }
                 Err(refusal) => {
-                    tracing::warn!(source = %self.source, "the thermal map waits: {refusal:?}");
-                    return;
+                    tracing::warn!(
+                        source = %self.source,
+                        "the thermal map of {model} waits: {refusal:?}"
+                    );
+                    return false;
                 }
             };
             if output.series.is_empty() {
                 let failed = output.report.failures.first();
                 tracing::warn!(
                     source = %self.source,
-                    "the thermal map waits: no forecast for places {from}..{to}{}",
+                    "the thermal map of {model} waits: no forecast for places {from}..{to}{}",
                     failed.map_or_else(String::new, |failure| format!(": {}", failure.error)),
                 );
-                return;
+                return false;
             }
             if output.series.len() < points.len() {
                 tracing::warn!(
                     source = %self.source,
-                    "the thermal map lacks {} of the places {from}..{to}; they keep what they had",
+                    "the thermal map of {model} lacks {} of the places {from}..{to}; \
+                     they keep what they had",
                     points.len() - output.series.len(),
                 );
             }
             let mut state = self.lock();
+            let of = &mut state.models[index];
             for series in &output.series {
                 if let Some(at) = points.iter().position(|point| *point == series.point) {
-                    state.cells[from + at].take(series);
+                    of.cells[from + at].take(series);
                 }
             }
-            if let Some(making) = state.making.as_mut() {
+            if let Some(making) = of.making.as_mut() {
                 making.left.retain(|done| *done != request);
             }
         }
 
         let now = self.clock.now();
         let mut state = self.lock();
-        let Some(making) = state.making.take() else {
-            return;
+        let of = &mut state.models[index];
+        let Some(making) = of.making.take() else {
+            return true;
         };
-        state.made_from = Some(making.run);
-        for (kept, point) in state.cells.iter_mut().zip(&self.points) {
-            kept.drop_before_yesterday(now, *point);
+        of.made_from = Some(making.run);
+        for of in &mut state.models {
+            for (kept, point) in of.cells.iter_mut().zip(&self.points) {
+                kept.drop_before_yesterday(now, *point);
+            }
         }
-        let map = self.made(&state.cells, making.run, now);
+        let Some(map) = self.made(&state.models, now) else {
+            return true;
+        };
         tracing::info!(
             source = %self.source,
-            "thermal map made from the run of {}: {} cells, {} days, {} requests",
+            "thermal map made with the run of {model} of {}: {} cells, {} days, {} requests",
             making.run.format("%Y-%m-%d %H:%M UTC"),
             self.points.len(),
             map.days.len(),
             self.requests_per_map(),
         );
         state.map = Some(Arc::new(map));
+        true
     }
 
-    fn left(&self) -> usize {
-        self.lock()
+    fn left(&self, index: usize) -> usize {
+        self.lock().models[index]
             .making
             .as_ref()
             .map_or(0, |making| making.left.len())
     }
 
-    /// The map the kept hours make.
-    fn made(&self, cells: &[Kept], seen: Timestamp, now: Timestamp) -> ThermalMapResponse {
-        let days: Vec<Vec<day::CellDay>> = cells
+    /// The map the kept hours make: none before the finest model's part
+    /// was made once.
+    fn made(&self, models: &[Of], now: Timestamp) -> Option<ThermalMapResponse> {
+        let finest = models.first().filter(|of| of.made_from.is_some())?;
+        // Of each model, each cell's days and how many hours each has.
+        let read: Vec<Read<'_>> = models
             .iter()
-            .zip(&self.points)
+            .filter(|of| of.made_from.is_some())
+            .map(|of| Read::of(of, &self.points))
+            .collect();
+        let dates: BTreeSet<NaiveDate> = read
+            .iter()
+            .flat_map(|read| read.days.iter().flatten().map(|day| day.date))
+            .collect();
+        let days = dates
+            .into_iter()
+            .filter_map(|date| {
+                // A day is one model's, never a blend: the finest model's,
+                // unless a coarser one has more of the day's hours.
+                let mut chosen: Option<(&Read<'_>, usize)> = None;
+                for read in &read {
+                    let hours = read.hours_of(date);
+                    if hours > 0 && chosen.is_none_or(|(_, most)| hours > most) {
+                        chosen = Some((read, hours));
+                    }
+                }
+                let (read, _) = chosen?;
+                Some(read.day(date))
+            })
+            .collect();
+        let run = finest
+            .cells
+            .iter()
+            .flat_map(|kept| kept.hours.values().map(|(run, _)| *run))
+            .max()
+            .or(finest.made_from)?;
+        Some(ThermalMapResponse {
+            source: self.source.clone(),
+            model: finest.model.clone(),
+            run,
+            computed_at: now,
+            grid: self.grid,
+            ground_m: finest
+                .cells
+                .iter()
+                .map(|kept| kept.ground_m.map(metres))
+                .collect(),
+            days,
+            attributions: Vec::new(),
+        })
+    }
+}
+
+/// What one model's kept hours make of each cell.
+struct Read<'a> {
+    of: &'a Of,
+    points: &'a [GeoPoint],
+    /// By cell, the days.
+    days: Vec<Vec<day::CellDay>>,
+}
+
+impl<'a> Read<'a> {
+    fn of(of: &'a Of, points: &'a [GeoPoint]) -> Self {
+        let days = of
+            .cells
+            .iter()
+            .zip(points)
             .map(|(kept, point)| {
                 let hours: Vec<RatedHour> = kept.hours.values().map(|(_, hour)| *hour).collect();
                 day::cell_days(&hours, *point)
             })
             .collect();
-        let dates: BTreeSet<_> = days.iter().flatten().map(|day| day.date).collect();
-        let days = dates
-            .into_iter()
-            .map(|date| {
-                let of_date: Vec<Option<&day::CellDay>> = days
-                    .iter()
-                    .map(|cell| cell.iter().find(|day| day.date == date))
-                    .collect();
-                let thermals = |cell: &Option<&day::CellDay>| cell.and_then(|day| day.thermals);
-                ThermalMapDay {
-                    date,
-                    whole: of_date.iter().flatten().all(|day| day.whole),
-                    verdict: of_date
-                        .iter()
-                        .map(|cell| cell.map(|day| verdict(day.verdict)))
-                        .collect(),
-                    why: of_date
-                        .iter()
-                        .map(|cell| cell.and_then(|day| day.why).map(reason))
-                        .collect(),
-                    thermals: of_date
-                        .iter()
-                        .map(|cell| thermals(cell).map(|found| kind(found.kind)))
-                        .collect(),
-                    climb_ms: of_date
-                        .iter()
-                        .map(|cell| thermals(cell).map(|found| day::tenth(found.climb_ms)))
-                        .collect(),
-                    top_m: of_date
-                        .iter()
-                        .map(|cell| {
-                            thermals(cell)
-                                .and_then(|found| found.top_m)
-                                .map(|top| metres(day::fifty(top)))
-                        })
-                        .collect(),
-                    cloud: of_date
-                        .iter()
-                        .map(|cell| thermals(cell).is_some_and(|found| found.cloud))
-                        .collect(),
-                }
-            })
-            .collect();
-        let run = cells
+        Self { of, points, days }
+    }
+
+    /// How many judged hours of a day the model has, over all cells.
+    fn hours_of(&self, date: NaiveDate) -> usize {
+        self.of
+            .cells
             .iter()
-            .flat_map(|kept| kept.hours.values().map(|(run, _)| *run))
-            .max()
-            .unwrap_or(seen);
-        ThermalMapResponse {
-            source: self.source.clone(),
-            model: self.model.clone(),
+            .zip(self.points)
+            .map(|(kept, point)| {
+                kept.hours
+                    .keys()
+                    .filter(|time| day::solar_date(**time, *point) == date)
+                    .count()
+            })
+            .sum()
+    }
+
+    /// The day as the map has it, from this model.
+    fn day(&self, date: NaiveDate) -> ThermalMapDay {
+        let of_date: Vec<Option<&day::CellDay>> = self
+            .days
+            .iter()
+            .map(|cell| cell.iter().find(|day| day.date == date))
+            .collect();
+        let thermals = |cell: &Option<&day::CellDay>| cell.and_then(|day| day.thermals);
+        let run = self
+            .of
+            .cells
+            .iter()
+            .zip(self.points)
+            .flat_map(|(kept, point)| {
+                kept.hours
+                    .iter()
+                    .filter(|(time, _)| day::solar_date(**time, *point) == date)
+                    .map(|(_, (run, _))| *run)
+            })
+            .max();
+        ThermalMapDay {
+            date,
+            model: Some(self.of.model.clone()),
             run,
-            computed_at: now,
-            grid: self.grid,
-            ground_m: cells.iter().map(|kept| kept.ground_m.map(metres)).collect(),
-            days,
-            attributions: Vec::new(),
+            whole: of_date.iter().flatten().all(|day| day.whole),
+            verdict: of_date
+                .iter()
+                .map(|cell| cell.map(|day| verdict(day.verdict)))
+                .collect(),
+            why: of_date
+                .iter()
+                .map(|cell| cell.and_then(|day| day.why).map(reason))
+                .collect(),
+            thermals: of_date
+                .iter()
+                .map(|cell| thermals(cell).map(|found| kind(found.kind)))
+                .collect(),
+            climb_ms: of_date
+                .iter()
+                .map(|cell| thermals(cell).map(|found| day::tenth(found.climb_ms)))
+                .collect(),
+            top_m: of_date
+                .iter()
+                .map(|cell| {
+                    thermals(cell)
+                        .and_then(|found| found.top_m)
+                        .map(|top| metres(day::fifty(top)))
+                })
+                .collect(),
+            cloud: of_date
+                .iter()
+                .map(|cell| thermals(cell).is_some_and(|found| found.cloud))
+                .collect(),
         }
     }
 }
@@ -489,10 +609,21 @@ mod tests {
         SourceId::new("open-meteo").unwrap()
     }
 
+    fn model(name: &str) -> ModelId {
+        ModelId::new(name).unwrap()
+    }
+
+    /// What a look tells the map that sees this run of ICON-D2.
+    fn d2(run: Timestamp) -> Vec<(ModelId, Timestamp)> {
+        vec![(model("icon-d2"), run)]
+    }
+
     /// A forecast service that answers every place with a series of the
     /// run it is told, two places a request, and refuses when told to.
     struct Made {
         run: Mutex<Timestamp>,
+        /// The run of ICON-EU, which reaches 72 hours here.
+        eu_run: Mutex<Option<Timestamp>>,
         /// Requests answered.
         asked: AtomicUsize,
         /// Requests refused for the hour.
@@ -506,15 +637,20 @@ mod tests {
         fn at(run: Timestamp) -> Arc<Self> {
             Arc::new(Self {
                 run: Mutex::new(run),
+                eu_run: Mutex::new(None),
                 asked: AtomicUsize::new(0),
                 refused: AtomicUsize::new(0),
                 room: Mutex::new(None),
             })
         }
 
-        fn series(&self, point: GeoPoint) -> ForecastSeries {
-            let run = *self.run.lock().unwrap();
-            let hours = (1..=48)
+        fn series(&self, of: &ModelId, point: GeoPoint) -> ForecastSeries {
+            let (run, reach) = if of.as_str() == "icon-eu" {
+                (self.eu_run.lock().unwrap().unwrap_or_default(), 72)
+            } else {
+                (*self.run.lock().unwrap(), 48)
+            };
+            let hours = (1..=reach)
                 .map(|hour| {
                     let mut hour = ForecastHour::empty(run + Duration::hours(hour));
                     hour.wind_speed_ms = Some(2.0);
@@ -524,7 +660,7 @@ mod tests {
                 .collect();
             ForecastSeries {
                 source: source(),
-                model: ModelId::new(MAP_MODEL).unwrap(),
+                model: of.clone(),
                 run,
                 available_at: None,
                 point,
@@ -559,7 +695,7 @@ mod tests {
         fn places<'a>(
             &'a self,
             _: &'a SourceId,
-            _: &'a ModelId,
+            of: &'a ModelId,
             points: &'a [GeoPoint],
         ) -> BoxFuture<'a, Result<ForecastRunOutput, Refusal>> {
             async move {
@@ -575,7 +711,7 @@ mod tests {
                 }
                 self.asked.fetch_add(1, Ordering::SeqCst);
                 let series: Vec<ForecastSeries> =
-                    points.iter().map(|point| self.series(*point)).collect();
+                    points.iter().map(|point| self.series(of, *point)).collect();
                 let report = ForecastRunReport {
                     source: source(),
                     requests: 2,
@@ -633,7 +769,7 @@ mod tests {
         assert_eq!(map.requests_per_map(), 3);
         assert!(map.current().is_none());
 
-        map.update(at(12, 0)).await;
+        map.update(&d2(at(12, 0))).await;
         let first = map.current().unwrap();
         assert_eq!(first.run, at(12, 0));
         assert_eq!(first.computed_at, at(12, 4));
@@ -643,17 +779,17 @@ mod tests {
         assert!(first.days.iter().all(|day| day.verdict.len() == 6));
 
         // The same run again asks for nothing.
-        map.update(at(12, 0)).await;
+        map.update(&d2(at(12, 0))).await;
         assert_eq!(made.asked.load(Ordering::SeqCst), 3);
 
         // The run of 09 UTC: the hours from 10 UTC on are its, those of the
         // morning before stay the first run's.
         *made.run.lock().unwrap() = at(12, 9);
-        map.update(at(12, 9)).await;
+        map.update(&d2(at(12, 9))).await;
         assert_eq!(made.asked.load(Ordering::SeqCst), 6);
         assert_eq!(map.current().unwrap().run, at(12, 9));
         let state = map.lock();
-        let runs = &state.cells[0].hours;
+        let runs = &state.models[0].cells[0].hours;
         assert_eq!(runs.get(&at(12, 8)).map(|(run, _)| *run), Some(at(12, 0)));
         assert_eq!(runs.get(&at(12, 9)).map(|(run, _)| *run), Some(at(12, 0)));
         assert_eq!(runs.get(&at(12, 10)).map(|(run, _)| *run), Some(at(12, 9)));
@@ -668,17 +804,17 @@ mod tests {
         let map = map_of(&made, at(12, 4));
         *made.room.lock().unwrap() = Some(2);
 
-        map.update(at(12, 0)).await;
+        map.update(&d2(at(12, 0))).await;
         // Two requests of three, then the hour had no more room: no map
         // yet, and nothing asked after the refusal.
         assert!(map.current().is_none());
         assert_eq!(made.asked.load(Ordering::SeqCst), 2);
         assert_eq!(made.refused.load(Ordering::SeqCst), 1);
-        assert_eq!(map.left(), 1);
+        assert_eq!(map.left(0), 1);
 
         // The next look finds room, and only the last request is made.
         *made.room.lock().unwrap() = None;
-        map.update(at(12, 0)).await;
+        map.update(&d2(at(12, 0))).await;
         assert_eq!(made.asked.load(Ordering::SeqCst), 3);
         assert_eq!(map.current().unwrap().run, at(12, 0));
 
@@ -686,11 +822,11 @@ mod tests {
         // the map that is there is served meanwhile.
         *made.run.lock().unwrap() = at(12, 3);
         *made.room.lock().unwrap() = Some(1);
-        map.update(at(12, 3)).await;
-        assert_eq!(map.left(), 2);
+        map.update(&d2(at(12, 3))).await;
+        assert_eq!(map.left(0), 2);
         *made.run.lock().unwrap() = at(12, 6);
         *made.room.lock().unwrap() = None;
-        map.update(at(12, 6)).await;
+        map.update(&d2(at(12, 6))).await;
         assert_eq!(made.asked.load(Ordering::SeqCst), 7);
         assert_eq!(map.current().unwrap().run, at(12, 6));
     }
@@ -699,7 +835,7 @@ mod tests {
     async fn days_before_yesterday_are_dropped() {
         let made = Made::at(at(12, 0));
         let early = map_of(&made, at(12, 4));
-        early.update(at(12, 0)).await;
+        early.update(&d2(at(12, 0))).await;
         let dates = |map: &ThermalMap| -> Vec<String> {
             let current = map.current().unwrap();
             current
@@ -713,17 +849,102 @@ mod tests {
         // Three days on, a run of the 15th: the 13th is the day before
         // yesterday, the 12th and the 13th are gone.
         let map = map_of(&made, at(15, 4));
-        map.update(at(12, 0)).await;
+        map.update(&d2(at(12, 0))).await;
         *made.run.lock().unwrap() = at(15, 0);
-        map.update(at(15, 0)).await;
+        map.update(&d2(at(15, 0))).await;
         assert_eq!(dates(&map), ["2026-07-15", "2026-07-16"]);
 
         // On the 14th, the 13th is yesterday and stays.
         let map = map_of(&made, at(14, 4));
         *made.run.lock().unwrap() = at(12, 0);
-        map.update(at(12, 0)).await;
+        map.update(&d2(at(12, 0))).await;
         *made.run.lock().unwrap() = at(14, 0);
-        map.update(at(14, 0)).await;
+        map.update(&d2(at(14, 0))).await;
         assert_eq!(dates(&map), ["2026-07-13", "2026-07-14", "2026-07-15"]);
+    }
+
+    #[tokio::test]
+    async fn the_days_after_the_finest_model_are_the_coarser_ones() {
+        let made = Made::at(at(12, 0));
+        *made.eu_run.lock().unwrap() = Some(at(11, 21));
+        let map = map_of(&made, at(12, 4));
+        let both = vec![
+            (model("icon-d2"), at(12, 0)),
+            (model("icon-eu"), at(11, 21)),
+        ];
+
+        map.update(&both).await;
+
+        // Three requests of each model.
+        assert_eq!(made.asked.load(Ordering::SeqCst), 6);
+        let current = map.current().unwrap();
+        // The answer's model and run are the finest's.
+        assert_eq!(
+            (current.model.as_str(), current.run),
+            ("icon-d2", at(12, 0))
+        );
+        let days: Vec<(String, &str, Option<Timestamp>, bool)> = current
+            .days
+            .iter()
+            .map(|day| {
+                let model = day.model.as_ref().map_or("", ModelId::as_str);
+                (day.date.to_string(), model, day.run, day.whole)
+            })
+            .collect();
+        // ICON-D2 has the 12th and the 13th whole, and nothing of the 14th
+        // by daylight; ICON-EU reaches into the 14th, and has it whole. Of
+        // the 11th ICON-EU has the evening, which has no daylight hour.
+        assert_eq!(
+            days,
+            [
+                ("2026-07-12".to_owned(), "icon-d2", Some(at(12, 0)), true),
+                ("2026-07-13".to_owned(), "icon-d2", Some(at(12, 0)), true),
+                ("2026-07-14".to_owned(), "icon-eu", Some(at(11, 21)), true),
+            ]
+        );
+
+        // A newer run of ICON-D2 that reaches into the 14th, but less of
+        // it than ICON-EU has: the 14th stays ICON-EU's.
+        *made.run.lock().unwrap() = at(12, 15);
+        map.update(&[
+            (model("icon-d2"), at(12, 15)),
+            (model("icon-eu"), at(11, 21)),
+        ])
+        .await;
+        assert_eq!(made.asked.load(Ordering::SeqCst), 9);
+        let current = map.current().unwrap();
+        assert_eq!(current.run, at(12, 15));
+        let models: Vec<&str> = current
+            .days
+            .iter()
+            .map(|day| day.model.as_ref().map_or("", ModelId::as_str))
+            .collect();
+        assert_eq!(models, ["icon-d2", "icon-d2", "icon-eu"]);
+        // The 12th holds hours of both runs of ICON-D2 and names the newer.
+        assert_eq!(current.days[0].run, Some(at(12, 15)));
+    }
+
+    #[tokio::test]
+    async fn the_coarser_model_waits_for_room_like_the_finest() {
+        let made = Made::at(at(12, 0));
+        *made.eu_run.lock().unwrap() = Some(at(11, 21));
+        let map = map_of(&made, at(12, 4));
+        let both = vec![
+            (model("icon-d2"), at(12, 0)),
+            (model("icon-eu"), at(11, 21)),
+        ];
+        *made.room.lock().unwrap() = Some(4);
+
+        // ICON-D2 whole, and one request of ICON-EU: the map is served with
+        // ICON-D2's days alone until ICON-EU's part is whole.
+        map.update(&both).await;
+        let current = map.current().unwrap();
+        assert_eq!(current.days.len(), 2);
+        assert_eq!(map.left(1), 2);
+
+        *made.room.lock().unwrap() = None;
+        map.update(&both).await;
+        assert_eq!(made.asked.load(Ordering::SeqCst), 6);
+        assert_eq!(map.current().unwrap().days.len(), 3);
     }
 }

@@ -1128,7 +1128,7 @@ Every value but `time` may be missing, and a missing value is left out, never wr
 | `501` | `no_forecasts` | The server was not told where its forecast service is. `/v1/health` says the same with `"forecasts": "not_configured"`. Asking again does not help, and the server asks nobody else |
 | `503` | `unavailable` | No forecast for the place is at hand and none could be fetched: the forecast service did not answer, the forecast is still being fetched (the first one for a place can take longer than a request waits), or the server has asked its service as often as it may in an hour. `Retry-After` says when to ask again |
 
-**Why a client is counted.** The server may ask its forecast service 400 times an hour, which is some ninety places, for everyone together. The thermal map ([below](#get-v1thermals)) takes 46 of them with each run of ICON-D2, one every three hours, and never more than half of an hour's. A forecast that is at hand costs nothing; one that has to be fetched comes out of that. An app that shows forecasts asks for the place the pilot opens, not for every place on the map. A request that is refused because the server has asked its service often enough (`503`) is not counted against the client.
+**Why a client is counted.** The server may ask its forecast service 400 times an hour, which is some ninety places, for everyone together. The thermal map ([below](#get-v1thermals)) takes 46 of them with each run of ICON-D2 and 46 with each run of ICON-EU, each model a run every three hours, and never more than half of an hour's. A forecast that is at hand costs nothing; one that has to be fetched comes out of that. An app that shows forecasts asks for the place the pilot opens, not for every place on the map. A request that is refused because the server has asked its service often enough (`503`) is not counted against the client.
 
 An answer in which one of the models is missing is still an answer: the server hands on what it has and asks again within two minutes.
 
@@ -1138,7 +1138,7 @@ An answer in which one of the models is missing is still an answer: the server h
 
 The server's thermal map: for every cell of a grid over the area it has forecasts for, whether each day can be flown by the air alone, what kind of day its thermals make, the climb to expect and how high they go. It takes no parameters; the answer is the whole map.
 
-The server works the map out itself, with each run of ICON-D2, from the model's heat, temperatures and wind, by the same fixed rules an app applies to a take-off's forecast (`venti_flight::day`, [design.md](design.md#thermals)): one answer for a region instead of some 1,800 forecasts for one place on every phone. A cell is judged at the height of the model's ground there, a take-off at its own, so the two can differ where a take-off lies far above the valley. **It is a reading of a model for a square some ten kilometres wide, and no statement that any place in it can be flown: show the model and its run with it.** [architecture.md](architecture.md#the-thermal-map) says how the map is made and kept.
+The server works the map out itself, with each run of ICON-D2 and of ICON-EU, from the model's heat, temperatures and wind, by the same fixed rules an app applies to a take-off's forecast (`venti_flight::day`, [design.md](design.md#thermals)): one answer for a region instead of some 1,800 forecasts for one place on every phone. A cell is judged at the height of the model's ground there, a take-off at its own, so the two can differ where a take-off lies far above the valley. **It is a reading of a model for a square some ten kilometres wide, and no statement that any place in it can be flown: show the model and its run with it.** [architecture.md](architecture.md#the-thermal-map) says how the map is made and kept.
 
 ```bash
 curl 'http://127.0.0.1:8080/v1/thermals'
@@ -1168,6 +1168,8 @@ The answer of the development mode, whole:
   "days": [
     {
       "date": "2026-11-21",
+      "model": "icon-d2",
+      "run": "2026-11-21T00:00:00Z",
       "whole": true,
       "verdict": [
         "not_flyable",
@@ -1208,6 +1210,8 @@ The answer of the development mode, whole:
     },
     {
       "date": "2026-11-22",
+      "model": "icon-d2",
+      "run": "2026-11-21T00:00:00Z",
       "whole": true,
       "verdict": [
         "flyable",
@@ -1261,12 +1265,12 @@ The answer of the development mode, whole:
 
 | Field | Meaning |
 |---|---|
-| `source`, `model` | Where the values are from: `open-meteo` and `icon-d2`. The credit is the entry of `attributions` with the same `source` |
-| `run` | When the newest run began that the map holds hours of. Earlier hours of a day can be an earlier run's: a run says nothing of the hours before it began. **Show the pilot the run** |
+| `source`, `model` | Where the values are from: `open-meteo`, and the finest model the map is read from, `icon-d2`. A day names the model it is read from itself. The credit is the entry of `attributions` with the same `source` |
+| `run` | When the newest run of that model began that the map holds hours of. Earlier hours of a day can be an earlier run's: a run says nothing of the hours before it began |
 | `computed_at` | When the server worked the map out |
 | `grid` | Where the cells are: see below |
 | `ground_m` | The height of the model's ground at each cell, whole metres above mean sea level, which is the height the cell is judged at. `null` where the model's answer for the cell is missing |
-| `days` | The days the map has, oldest first: yesterday, today and tomorrow while the server has run for a day, today and tomorrow after a start |
+| `days` | The days the map has, oldest first: from yesterday, while the server has run for a day, to the day after tomorrow, which is ICON-EU's |
 
 **The grid.** Cell number `row * columns + column` is the square of `step_deg` degrees (0.1°: some 11 km north to south and 7.5 km east to west in the Alps) around the point at latitude `south + row * step_deg` and longitude `west + column * step_deg`. The first cell is the south-west one; cells run west to east, rows south to north. The points lie on multiples of the step, inside the area of the server's regions; the model's values for a cell are those of its own cell (about 2 km wide) nearest the point, one sample out of the twenty or so in the square. For the first region the grid has 23 rows of 79 cells, 1,817 in all, from 46.3 N 9.4 E to 48.5 N 17.2 E.
 
@@ -1275,7 +1279,9 @@ A day holds its values in lists as long as the grid has cells, in the grid's ord
 | Field | Meaning |
 |---|---|
 | `date` | The day, by the sun at the cells: from one midnight by the sun to the next |
-| `whole` | Whether every cell that has a verdict was judged with all of the day's daylight hours. `false` on a day the runs at hand do not reach the whole of (the day ICON-D2's newest run ends in), and on today after a start of the server, when the hours before the run began are missing. Such a day is judged by the hours there are, which can make it look worse than it is |
+| `model` | The model the day is read from: `icon-d2` or `icon-eu`. A day is one model's, never a blend: the finest model's, unless a coarser one has more of the day's hours over the cells, which is the day the finest model's run ends in and the days after it. ICON-D2 reaches 48 hours, so the day after tomorrow is mostly ICON-EU's, whose cells are some 5 km wide where ICON-D2's are 2 km: a coarser reading. **Show the pilot the day's model and run.** Since 2026-11-21; a server older than that leaves it out, and the day is then the answer's `model`'s |
+| `run` | When the newest run of the day's model began that the day holds hours of. Left out where `model` is: the answer's `run` |
+| `whole` | Whether every cell that has a verdict was judged with all of the day's daylight hours. `false` on a day the runs at hand do not reach the whole of (the day both models' newest runs end in), and on today after a start of the server, when the hours before the run began are missing. Such a day is judged by the hours there are, which can make it look worse than it is |
 | `verdict` | Per cell `flyable`, `marginal` or `not_flyable`, by the air alone; `null` where the day has no hours for the cell |
 | `why` | Per cell what speaks against the day: `rain`, `wind` (the mean wind 10 m above the model's ground), `gusts`, `wind_aloft` (the wind at the model's levels within 1,500 m above the ground), `cloud_base` (convective cloud with its base at or just above the ground) or `storms` (air in which showers or thunderstorms can grow). It is the thing met most often among the hours that are no better than the day's verdict, and of equally frequent ones the earliest. `null` on a flyable day and where the day has no hours. Since 2026-11-21; a server older than that leaves the list out, and a client then shows no reason |
 | `thermals` | Per cell the kind of day: `weak`, `local`, `cross_country` or `big`. `null` on a day that is not flyable, and where there is no estimate |
@@ -1291,7 +1297,7 @@ A client expects values of `verdict` and `thermals` it does not know, and fields
 
 **Caching.** `Cache-Control: public, max-age=60` and an `ETag`, like a forecast. The map changes with each run of the model, every three hours, so a client that asks again with `If-None-Match` mostly gets a `304`.
 
-**Size.** The map of the first region made from the run of ICON-D2 of 2026-11-21 00:00 UTC, 1,817 cells and two days, was 126 kB plain and 10 kB with gzip (measured 2026-11-21 from answers of an instance for the whole grid). A day more adds about a third. The server compresses it for a client that sends `Accept-Encoding: gzip`, as every answer of the API.
+**Size.** The map of the first region made from the run of ICON-D2 of 2026-11-21 00:00 UTC, 1,817 cells and two days, was 126 kB plain and 10 kB with gzip (measured 2026-11-21 from answers of an instance for the whole grid). A day more adds about a third: with ICON-EU's day after tomorrow and yesterday, four days, some 250 kB plain (an estimate from that measurement; ICON-EU's grid was not fetched whole). The server compresses it for a client that sends `Accept-Encoding: gzip`, as every answer of the API.
 
 **When there is no map.**
 
@@ -1300,7 +1306,7 @@ A client expects values of `verdict` and `thermals` it does not know, and fields
 | `501` | `no_forecasts` | The server was not told where its forecast service is, so it has no map. Asking again does not help |
 | `503` | `unavailable` | The server has a forecast service and no map yet: after a start, or while the service does not answer. `Retry-After` says when to ask again (60 seconds) |
 
-**In the development mode** the map is made, by the code a real server runs, from answers recorded on 2026-11-21 at 03:20 UTC for four points around the Tegernsee and the Spitzingsee, a grid of two rows of two cells from 47.6 N 11.8 E; the map's `computed_at` is 03:25 UTC. The run is ICON-D2's of 00:00 UTC, newer than that of the mode's forecasts for a place. It is a November day: not flyable on the 21st, weak thermals on the 22nd. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint with a made-up map of all four kinds.
+**In the development mode** the map is made, by the code a real server runs, from answers recorded on 2026-11-21 at 03:20 UTC for four points around the Tegernsee and the Spitzingsee, a grid of two rows of two cells from 47.6 N 11.8 E; the map's `computed_at` is 03:25 UTC. The runs are ICON-D2's of 00:00 UTC, newer than that of the mode's forecasts for a place, and ICON-EU's of 21:00 UTC the evening before. That run of ICON-EU reaches 30 hours, into the night of the 22nd, so both days are ICON-D2's and no day is ICON-EU's. It is a November day: not flyable on the 21st, weak thermals on the 22nd. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint with a made-up map of all four kinds.
 
 ## Maps
 

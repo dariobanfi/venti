@@ -48,7 +48,7 @@ async fn the_development_mode_serves_the_map_of_the_recorded_places() {
 
     assert_eq!(map.source.as_str(), "open-meteo");
     assert_eq!(map.model.as_str(), "icon-d2");
-    assert_eq!(map.run, adapters::thermal_map_recorded_run());
+    assert_eq!(map.run, adapters::thermal_map_recorded_runs()[0].1);
     assert_eq!(map.computed_at, adapters::thermal_map_recorded_at());
     assert_eq!(map.grid, adapters::recorded_thermal_grid());
     assert_eq!(
@@ -63,6 +63,13 @@ async fn the_development_mode_serves_the_map_of_the_recorded_places() {
     assert_eq!(dates, ["2026-11-21", "2026-11-22"]);
     for day in &map.days {
         assert!(day.whole, "{}", day.date);
+        // ICON-EU's run of 21 UTC reaches 30 hours, into the night of the
+        // 22nd: ICON-D2 has both days whole, and has them.
+        assert_eq!(
+            day.model.as_ref().map(|model| model.as_str()),
+            Some("icon-d2")
+        );
+        assert_eq!(day.run, Some(map.run));
         assert_eq!(day.verdict.len(), 4);
         assert_eq!(day.thermals.len(), 4);
         assert_eq!(day.climb_ms.len(), 4);
@@ -182,5 +189,5 @@ async fn a_look_that_sees_a_run_has_the_map_made() {
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
     let made = map.current().expect("the map is made after the look");
-    assert_eq!(made.run, adapters::thermal_map_recorded_run());
+    assert_eq!(made.run, adapters::thermal_map_recorded_runs()[0].1);
 }

@@ -19,6 +19,8 @@
   "days": [
     {
       "date": "2026-11-21",
+      "model": "icon-d2",
+      "run": "2026-11-21T00:00:00Z",
       "whole": true,
       "verdict": [
         "not_flyable",
@@ -59,6 +61,8 @@
     },
     {
       "date": "2026-11-22",
+      "model": "icon-d2",
+      "run": "2026-11-21T00:00:00Z",
       "whole": true,
       "verdict": [
         "flyable",

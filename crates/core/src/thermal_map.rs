@@ -89,11 +89,19 @@ pub struct ThermalMapDay {
     /// What to call it: "Today", "Tomorrow", else the day of the week,
     /// "Mon".
     pub name: String,
+    /// The weather model the day is read from, by the name pilots know:
+    /// "ICON-D2", or "ICON-EU" for a day the finest model does not reach.
+    /// Show it with the day.
+    pub model: String,
+    /// When the newest run of that model began that the day holds hours
+    /// of, seconds since 1970. Show it with the day.
+    pub run_unix_s: i64,
     /// Whether every square was judged with all of the day's daylight
     /// hours.
     pub whole: bool,
-    /// What to say under the map on a day that is not whole. Empty on one
-    /// that is.
+    /// What to say under the map of this day: that it is not whole, that
+    /// it is read from a coarser model than the map's finest, or both.
+    /// Empty on a whole day of the finest model.
     pub note: String,
     /// The squares that have a verdict, from the south-west, row by row.
     pub cells: Vec<ThermalMapCell>,
@@ -194,20 +202,24 @@ pub fn thermal_map(
         .days
         .iter()
         .filter(|day| day.date >= today)
-        .map(|day| ThermalMapDay {
-            date: day.date.format("%Y-%m-%d").to_string(),
-            name: day_name(day.date, today),
-            whole: day.whole,
-            note: if day.whole {
-                String::new()
-            } else {
-                "Judged by the hours the model's runs at hand have of this day, which are not \
-                 all of its daylight: it can look worse here than it is."
-                    .to_owned()
-            },
-            cells: (0..cells)
-                .filter_map(|cell| square(&grid, day, &response.ground_m, cell))
-                .collect(),
+        .map(|day| {
+            let model = day.model.as_ref().unwrap_or(&response.model);
+            let coarser = model != &response.model;
+            ThermalMapDay {
+                date: day.date.format("%Y-%m-%d").to_string(),
+                name: day_name(day.date, today),
+                model: model_name(model.as_str()),
+                run_unix_s: day.run.unwrap_or(response.run).timestamp(),
+                whole: day.whole,
+                note: day_note(
+                    day.whole,
+                    coarser.then(|| model_name(model.as_str())),
+                    &name,
+                ),
+                cells: (0..cells)
+                    .filter_map(|cell| square(&grid, day, &response.ground_m, cell))
+                    .collect(),
+            }
         })
         .collect();
     Ok(ThermalMap {
@@ -224,6 +236,26 @@ pub fn thermal_map(
         computed_unix_s: response.computed_at.timestamp(),
         credits: response.attributions.iter().map(credit).collect(),
     })
+}
+
+/// What to say under a day: whether it is whole, and the coarser model it
+/// is read from, if it is not the map's finest, `finest`.
+fn day_note(whole: bool, coarser: Option<String>, finest: &str) -> String {
+    let mut note = Vec::new();
+    if let Some(coarser) = coarser {
+        note.push(format!(
+            "This day is read from {coarser}: {finest} does not reach it. {coarser}'s cells \
+             are wider than {finest}'s, so the day is a coarser reading than the days before."
+        ));
+    }
+    if !whole {
+        note.push(
+            "Judged by the hours the model's runs at hand have of this day, which are not all \
+             of its daylight: it can look worse here than it is."
+                .to_owned(),
+        );
+    }
+    note.join(" ")
 }
 
 /// What to call a day that is `date`, when today is `today`.
@@ -376,7 +408,8 @@ mod tests {
                  "thermals": ["weak", "weak", null],
                  "climb_ms": [0.3, 0.0, null], "top_m": [1800, null, null],
                  "cloud": [false, false, false]},
-                {"date": "2026-07-14", "whole": true,
+                {"date": "2026-07-14", "model": "icon-eu", "run": "2026-07-12T00:00:00Z",
+                 "whole": true,
                  "verdict": ["flyable", "flyable", "flyable"],
                  "thermals": ["big", "local", "big"],
                  "climb_ms": [2.2, 0.6, 2.6], "top_m": [3400, 2100, 3600],
@@ -500,6 +533,36 @@ mod tests {
         assert!(map.days[0].note.contains("not all of its daylight"));
         assert!(map.days[1].whole);
         assert_eq!(map.days[1].note, "");
+    }
+
+    #[test]
+    fn a_day_names_its_model_and_says_when_it_is_the_coarser_ones() {
+        let map = map();
+        let days: Vec<(&str, i64)> = map
+            .days
+            .iter()
+            .map(|day| (day.model.as_str(), day.run_unix_s))
+            .collect();
+        // A day that names no model is the map's finest, of its run.
+        assert_eq!(
+            days,
+            [
+                ("ICON-D2", 1_783_825_200),
+                ("ICON-D2", 1_783_825_200),
+                ("ICON-EU", 1_783_814_400)
+            ]
+        );
+        assert_eq!(map.days[1].note, "");
+        assert_eq!(
+            map.days[2].note,
+            "This day is read from ICON-EU: ICON-D2 does not reach it. ICON-EU's cells are \
+             wider than ICON-D2's, so the day is a coarser reading than the days before."
+        );
+        // Both things said of a day that is the coarser model's and not
+        // whole.
+        let note = day_note(false, Some("ICON-EU".to_owned()), "ICON-D2");
+        assert!(note.starts_with("This day is read from ICON-EU"));
+        assert!(note.ends_with("it can look worse here than it is."));
     }
 
     #[test]

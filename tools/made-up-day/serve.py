@@ -25,7 +25,8 @@ patches of whole cells.
 Three days from today by the development server's clock (the `time` of its
 health answer, which is the clock the apps name "Today" by; its recorded
 forecasts are of other days), each a step weaker everywhere than the day
-before, with climbs and tops that fit each kind. The grid is a small one of its own,
+before, with climbs and tops that fit each kind. The first two days are
+ICON-D2's and the third ICON-EU's, as on a real map. The grid is a small one of its own,
 five rows by nine columns of a tenth of a degree from 47.5 N 11.5 E,
 unless the development server's map has a grid of 30 cells or more (the
 one recorded has four, too few for six patches); the source, model and
@@ -187,8 +188,14 @@ def made_up_map(real, today=None):
                 climbs.append(climb)
                 tops.append(top)
                 clouds.append(cloud)
+        # The first two days are ICON-D2's, of the map's run; the third is
+        # ICON-EU's, of a run three hours earlier, as a real map's is.
+        model, run_hour = ("icon-eu", -3) if ahead >= 2 else ("icon-d2", 0)
+        run = datetime.datetime.combine(today, datetime.time()) + datetime.timedelta(hours=run_hour)
         days.append({
             "date": (today + datetime.timedelta(days=ahead)).isoformat(),
+            "model": model,
+            "run": run.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "whole": True,
             "verdict": verdicts,
             "why": whys,

@@ -37,11 +37,12 @@ pub struct ThermalMapResponse {
     /// The source the model's values were fetched from. Its credit is in
     /// `attributions`.
     pub source: SourceId,
-    /// The weather model.
+    /// The finest weather model the map is read from. A day can be read
+    /// from a coarser one: each day names its own (`days[].model`).
     pub model: ModelId,
-    /// When the newest run began that the map holds hours of. Earlier
-    /// hours of a day can be an earlier run's: a run starts at its own
-    /// hour and says nothing of the morning before it.
+    /// When the newest run of that model began that the map holds hours
+    /// of. Earlier hours of a day can be an earlier run's: a run starts at
+    /// its own hour and says nothing of the morning before it.
     pub run: Timestamp,
     /// When the server worked the map out.
     pub computed_at: Timestamp,
@@ -126,6 +127,17 @@ pub struct ThermalMapDay {
     /// The day, by the sun at the cells: from one midnight by the sun to
     /// the next.
     pub date: NaiveDate,
+    /// The weather model the day is read from. A day is one model's, never
+    /// a blend: the finest model's, unless a coarser one has more of the
+    /// day's hours, which is the day the finest model's run ends in and
+    /// the days after it. Left out by a server older than this field: the
+    /// day is then the answer's `model`'s.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelId>,
+    /// When the newest run of that model began that the day holds hours
+    /// of. Left out where `model` is: the answer's `run`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run: Option<Timestamp>,
     /// Whether every cell that has a verdict was judged with all of the
     /// day's daylight hours. `false` on a day the model's runs at hand do
     /// not reach the whole of: the day they end in, and today after a
@@ -249,7 +261,8 @@ mod tests {
             "grid": {"south": 47.0, "west": 11.0, "step_deg": 0.1, "rows": 1, "columns": 3},
             "ground_m": [612, 1240, null],
             "days": [{
-                "date": "2026-07-12", "whole": true,
+                "date": "2026-07-12", "model": "icon-eu", "run": "2026-07-12T00:00:00Z",
+                "whole": true,
                 "verdict": ["flyable", "not_flyable", null],
                 "why": [null, "wind_aloft", null],
                 "thermals": ["cross_country", null, null],
@@ -265,6 +278,11 @@ mod tests {
         assert_eq!(map.model.as_str(), "icon-d2");
         let day = &map.days[0];
         assert_eq!(day.date, NaiveDate::from_ymd_opt(2026, 7, 12).unwrap());
+        assert_eq!(day.model.as_ref().map(ModelId::as_str), Some("icon-eu"));
+        assert_eq!(
+            day.run.map(|run| run.to_rfc3339()).as_deref(),
+            Some("2026-07-12T00:00:00+00:00")
+        );
         assert_eq!(day.verdict[1], Some(ThermalVerdict::NotFlyable));
         assert_eq!(day.why[1], Some(ThermalReason::WindAloft));
         assert_eq!(day.thermals[0], Some(ThermalKind::CrossCountry));
@@ -280,5 +298,10 @@ mod tests {
         let older = text.replace(r#""why": [null, "wind_aloft", null],"#, "");
         let map: ThermalMapResponse = serde_json::from_str(&older).unwrap();
         assert!(map.days[0].why.is_empty());
+
+        // One that names no model for a day: the day is the answer's.
+        let older = text.replace(r#""model": "icon-eu", "run": "2026-07-12T00:00:00Z","#, "");
+        let map: ThermalMapResponse = serde_json::from_str(&older).unwrap();
+        assert_eq!((map.days[0].model.clone(), map.days[0].run), (None, None));
     }
 }

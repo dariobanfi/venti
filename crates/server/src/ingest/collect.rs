@@ -184,14 +184,17 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             .thermal_map
             .as_ref()
             .filter(|map| map.source() == &job.source)
-            && let Some(run) = models
-                .iter()
-                .filter(|model| &model.model == map.model())
-                .map(|model| model.run)
-                .max()
         {
-            let map = map.clone();
-            tokio::spawn(async move { map.update(run).await });
+            let of_the_map = map.models();
+            let seen: Vec<_> = models
+                .iter()
+                .filter(|model| of_the_map.contains(&model.model))
+                .map(|model| (model.model.clone(), model.run))
+                .collect();
+            if !seen.is_empty() {
+                let map = map.clone();
+                tokio::spawn(async move { map.update(&seen).await });
+            }
         }
         let record = self.record(&job.source, started_at, &Outcome::of_forecasts(report));
         self.save_forecast_check(&record, &models).await && healthy

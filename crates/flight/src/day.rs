@@ -391,7 +391,8 @@ pub fn thermal_day(hours: &[RatedHour]) -> Option<ThermalDay> {
 
 /// The day by the sun that an hour belongs to at a place: the sun's own
 /// clock runs four minutes a degree ahead of Greenwich's.
-fn solar_date(time: DateTime<Utc>, place: GeoPoint) -> NaiveDate {
+#[must_use]
+pub fn solar_date(time: DateTime<Utc>, place: GeoPoint) -> NaiveDate {
     (time + Duration::seconds((place.lon() * 240.0).round() as i64)).date_naive()
 }
 

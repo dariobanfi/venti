@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use venti_api_types::v1::{THERMAL_GRID_DEG, ThermalGrid};
-use venti_domain::{GeoPoint, Timestamp};
+use venti_domain::{GeoPoint, ModelId, Timestamp};
 use venti_sources::testing::FixtureFetch;
 use venti_sources::{ForecastSource, ImagerySource, Registry};
 use venti_sources_basemapat::BasemapAt;
@@ -210,16 +210,23 @@ pub fn thermal_map_recorded_at() -> Timestamp {
     venti_sources_openmeteo::fixtures::places_recorded_at()
 }
 
-/// The run of ICON-D2 the answers of the thermal map are of: 2026-11-21
-/// 00:00 UTC. The development mode's map is made as if a look had seen it.
+/// The runs the answers of the thermal map are of: ICON-D2's of
+/// 2026-11-21 00:00 UTC and ICON-EU's of 2026-11-20 21:00 UTC. The
+/// development mode's map is made as if a look had seen them.
 ///
 /// # Panics
 ///
-/// Never: the date is a constant.
-pub fn thermal_map_recorded_run() -> Timestamp {
-    chrono::TimeZone::with_ymd_and_hms(&chrono::Utc, 2026, 11, 21, 0, 0, 0)
-        .single()
-        .expect("a valid date")
+/// Never: the names and dates are constants.
+pub fn thermal_map_recorded_runs() -> Vec<(ModelId, Timestamp)> {
+    let at = |day, hour| {
+        chrono::TimeZone::with_ymd_and_hms(&chrono::Utc, 2026, 11, day, hour, 0, 0)
+            .single()
+            .expect("a valid date")
+    };
+    vec![
+        (ModelId::new("icon-d2").expect("a model's name"), at(21, 0)),
+        (ModelId::new("icon-eu").expect("a model's name"), at(20, 21)),
+    ]
 }
 
 /// The places the recorded forecasts are for. The development mode has a

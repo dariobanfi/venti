@@ -769,7 +769,7 @@ pub async fn recorded_with_its_store(
         map_clock,
     )
     .ok_or("the forecast source cannot be asked for several places")?;
-    map.update(adapters::thermal_map_recorded_run()).await;
+    map.update(&adapters::thermal_map_recorded_runs()).await;
     if map.current().is_none() {
         return Err("the recorded answers for several places no longer make a thermal map".into());
     }

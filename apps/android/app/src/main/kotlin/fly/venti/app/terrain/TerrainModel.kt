@@ -114,47 +114,65 @@ class TerrainModel(
      * read, and let go again. Empty where there is no ground to be had.
      * Which moments and what heights are the core's (`groundUnder`).
      */
-    suspend fun ground(under: FlightView): List<GroundUnderFlight> {
-        val area = under.bounds
-        return when (val from = withContext(background) { source() }) {
+    suspend fun ground(under: FlightView): List<GroundUnderFlight> =
+        covering(under.bounds).use { ground ->
+            withContext(background) { ground.terrain.groundUnder(under.track, PLACES_UNDER_A_FLIGHT) }
+        }
+
+    /** Heights read for an area, and whether they are a terrain of their own, which goes when they are closed. */
+    class Ground(val terrain: Terrain, private val isOwn: Boolean) : AutoCloseable {
+        override fun close() {
+            if (isOwn) terrain.close()
+        }
+    }
+
+    /**
+     * The ground under an area: a flight's, or a planned route's for the
+     * heights to leave its places at. What kept regions have of it is
+     * read, then the tiles it lacks are brought from the phone's store or
+     * the tile server. How many tiles, at which zoom, is the core's
+     * (`tilesCovering`). The caller closes what it is given.
+     */
+    suspend fun covering(area: Bounds): Ground =
+        when (val from = withContext(background) { source() }) {
             // The region that comes with the app is small: it is read
             // once, into the terrain the cockpit uses too.
             is Source.Archive -> {
                 readArchive(from.file)
-                groundOn(terrain, under, area)
+                if (archives.isNotEmpty()) withContext(background) { terrain.readCovering(area) }
+                Ground(terrain, isOwn = false)
             }
-            // A terrain of its own, which goes when the flight is closed:
+            // A terrain of its own, which goes when its user is done:
             // the cockpit's holds the ground around the glider and no more.
-            is Source.Server, Source.Nowhere -> Terrain().use { own ->
-                for (file in archives) {
-                    runCatching { own.openArchive(file.path) }
-                }
-                if (from is Source.Server) {
-                    if (archives.isNotEmpty()) withContext(background) { own.readCovering(area) }
-                    for (tile in own.tilesCovering(area)) {
-                        // Without a network the other tiles would not come either.
-                        if (withContext(background) { bring(tile, from.template, own) } == Came.NO_ANSWER) break
+            is Source.Server, Source.Nowhere -> {
+                val own = Terrain()
+                try {
+                    for (file in archives) {
+                        runCatching { own.openArchive(file.path) }
                     }
+                    if (archives.isNotEmpty()) withContext(background) { own.readCovering(area) }
+                    if (from is Source.Server) {
+                        for (tile in own.tilesCovering(area)) {
+                            // Without a network the other tiles would not come either.
+                            if (withContext(background) { bring(tile, from.template, own) } == Came.NO_ANSWER) break
+                        }
+                    }
+                    Ground(own, isOwn = true)
+                } catch (error: Throwable) {
+                    own.close()
+                    throw error
                 }
-                groundOn(own, under, area)
             }
-        }
-    }
-
-    /** What kept regions have under the flight, then the ground under its track. */
-    private suspend fun groundOn(heights: Terrain, flight: FlightView, area: Bounds): List<GroundUnderFlight> =
-        withContext(background) {
-            if (archives.isNotEmpty()) heights.readCovering(area)
-            heights.groundUnder(flight.track, PLACES_UNDER_A_FLIGHT)
         }
 
     /** Reads the archive that came with the app into the terrain, once. */
     private suspend fun readArchive(file: File) {
         if (archiveRead == file) return
-        archiveRead = file
         withContext(background) {
             runCatching { terrain.addArchive(file.readBytes()) }
         }
+        // Only once it is read: a reading cut short is done again.
+        archiveRead = file
     }
 
     /** What became of the wish for one tile. */

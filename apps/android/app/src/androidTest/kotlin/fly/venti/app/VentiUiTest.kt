@@ -1592,7 +1592,7 @@ class VentiUiTest {
     /**
      * Everyone's flights: the League tab lists what the pilots of Venti
      * share with everyone, the newest first or the best, and ranks them.
-     * The development mode has five public flights of three made-up
+     * The development mode has eleven public flights of six made-up
      * pilots. One opens like a flight of the logbook, from its file, and
      * nothing of it is kept. Skipped without a server.
      */
@@ -3560,6 +3560,69 @@ class VentiUiTest {
 
     @Test
     fun aRouteOnTheMapInDarkAppearance() = drawARouteOnTheMap("dark", dark = true)
+
+    /**
+     * The weather along a drawn route: three places over the Tegernsee,
+     * the development mode's forecast region, inside the ground that comes
+     * with the app. Opened, the section has the day, the start, the speed
+     * and the glide, the core's line for the route and, at the first
+     * place, the height to leave it at. Skipped without a server.
+     */
+    private fun seeTheWeatherAlongARoute(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        tap(tab("Fly"))
+        waitFor(hasTestTag("task-before-takeoff"))
+        tap(hasTestTag("task-before-takeoff"))
+        waitFor(hasTestTag("task-draw-route"))
+        screen.onNode(hasTestTag("task-draw-route")).performScrollTo()
+        tap(hasTestTag("task-draw-route"))
+        val words = hasTestTag("route-words")
+        waitFor(words and hasText("Tap the map where the route begins."))
+        letTheMapDraw(2)
+        // The places stand in the upper half of the map, above the card.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.66, lon = 11.78, zoom = 12.0))
+        letTheMapDraw(2)
+        // The Wallberg, Rottach-Egern on the lake, and the valley east of it by Ellmau.
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6642, lon = 11.7967)))
+        waitFor(words and hasText("Tap the next place to fly to."))
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6960, lon = 11.7700)))
+        waitFor(hasTestTag("route-weather-toggle"))
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.685, lon = 11.815)))
+        waitFor(described("Legs") and saying("2  "))
+
+        tap(hasTestTag("route-weather-toggle"))
+        waitFor(hasTestTag("route-weather-toggle") and saying("Expanded"))
+        waitFor(hasTestTag("route-weather-words") and hasText("The route takes", substring = true))
+        // The forecast came: its model and credit stand under the places.
+        waitFor(hasTestTag("route-weather-credits"))
+        assertFalse(exists(hasTestTag("route-weather-problem")))
+        waitFor(hasTestTag("route-weather-departure"))
+        val departure = screen.onAllNodes(hasTestTag("route-weather-departure")).fetchSemanticsNodes().first()
+            .config[SemanticsProperties.Text].joinToString()
+        assertTrue(departure, departure.startsWith("Leave Point 1 at "))
+        assertTrue(exists(hasTestTag("route-weather-leg") and hasText("The first leg", substring = true)))
+        assertTrue(exists(described("More: Speed over the ground")))
+        screen.onNode(hasTestTag("route-card")).performScrollToNode(hasTestTag("route-weather-words"))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-route-weather-1-open")
+        screen.onNode(hasTestTag("route-card")).performScrollToNode(hasTestTag("route-weather-credits"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-route-weather-2-places")
+
+        // A faster pilot is there sooner: the core reads the route again, nothing is asked.
+        tap(described("More: Speed over the ground"))
+        waitFor(hasTestTag("route-weather-words") and hasText("at 25 km/h", substring = true))
+    }
+
+    @Test
+    fun theWeatherAlongADrawnRoute() = seeTheWeatherAlongARoute("light", dark = false)
+
+    @Test
+    fun theWeatherAlongARouteInDarkAppearance() = seeTheWeatherAlongARoute("dark", dark = true)
 
     /**
      * A map for flying without a network: the development mode hands out

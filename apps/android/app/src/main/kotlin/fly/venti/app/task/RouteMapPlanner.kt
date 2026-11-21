@@ -6,7 +6,13 @@ import fly.venti.app.design.PhotosCredit
 import fly.venti.app.design.AerialButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.DisposableEffect
+import fly.venti.app.forecast.ThermalMapModel
+import fly.venti.app.terrain.TerrainModel
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -63,6 +69,9 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
+/** How much of the planner's height its card takes at the most, with the weather open. */
+private const val CARD_SHARE = 0.6f
+
 /** What drawing a route says that is not the core's, and the rule for a tap. */
 object RouteDrawing {
     const val TITLE = "Draw a route"
@@ -104,6 +113,10 @@ fun RouteMapPlanner(
     from: Coordinate? = null,
     /** Where the choice of the aerial view is kept; `null` for none. */
     preferences: Preferences? = null,
+    /** The thermal map, for the days and Venti's clock of the weather along the route; `null` for no weather. */
+    thermalMap: ThermalMapModel? = null,
+    /** The ground, for the heights to leave the route's places at. */
+    terrain: TerrainModel? = null,
 ) {
     var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
     // Who made the photographs in view, as the map last said.
@@ -115,6 +128,13 @@ fun RouteMapPlanner(
         problem = null
         places = RouteDrawing.add(places, place)
     } }
+    val weather = remember(thermalMap, terrain) {
+        thermalMap?.let { map ->
+            RouteWeatherModel(ground = terrain?.let { ground -> { area -> ground.covering(area) } })
+                .also { it.server = map.server }
+        }
+    }
+    DisposableEffect(weather) { onDispose { weather?.close() } }
     BackHandler(onBack = onDismiss)
 
     Scaffold(
@@ -137,7 +157,7 @@ fun RouteMapPlanner(
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
             MapSurface(
                 content = map,
                 modifier = Modifier
@@ -170,7 +190,15 @@ fun RouteMapPlanner(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 shadowElevation = 6.dp,
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // With the weather open the card grows: it scrolls before it covers more than half the map.
+                Column(
+                    Modifier
+                        .heightIn(max = maxHeight * CARD_SHARE)
+                        .testTag("route-card")
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     Text(
                         problem ?: plan.words,
                         style = MaterialTheme.typography.bodyMedium,
@@ -217,6 +245,14 @@ fun RouteMapPlanner(
                         ) {
                             Icon(painterResource(R.drawable.ic_delete), contentDescription = RouteDrawing.CLEAR, modifier = Modifier.size(22.dp))
                         }
+                    }
+                    if (weather != null && thermalMap != null && places.size >= 2) {
+                        RouteWeatherSection(
+                            weather,
+                            thermalMap,
+                            places,
+                            glideRatio = preferences?.glideRatio ?: Preferences.DEFAULT_GLIDE_RATIO,
+                        )
                     }
                 }
             }

@@ -1,5 +1,8 @@
 package fly.venti.app.task
 
+import fly.venti.app.forecast.ThermalMapModel
+import fly.venti.app.terrain.TerrainModel
+
 import fly.venti.app.settings.Preferences
 import android.content.ClipboardManager
 import android.content.Context
@@ -101,6 +104,9 @@ fun TaskScreen(
     onBack: () -> Unit,
     /** Where the choice of the aerial view is kept, for the route map. */
     preferences: Preferences? = null,
+    /** The thermal map and the ground, for the weather along a drawn route; `null` for none. */
+    thermalMap: ThermalMapModel? = null,
+    terrain: TerrainModel? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -123,7 +129,7 @@ fun TaskScreen(
 
     // Drawing a route takes the whole screen, with a map of its own.
     if (isDrawingRoute) {
-        RouteMapPlanner(tasks, onDismiss = { isDrawingRoute = false }, preferences = preferences)
+        RouteMapPlanner(tasks, onDismiss = { isDrawingRoute = false }, preferences = preferences, thermalMap = thermalMap, terrain = terrain)
         return
     }
 

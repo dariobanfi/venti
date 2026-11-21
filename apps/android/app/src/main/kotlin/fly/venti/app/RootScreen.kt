@@ -437,7 +437,14 @@ private fun Sections(
                 }
             }
             AppTab.Map -> routeFrom?.let { from ->
-                RouteMapPlanner(session.tasks, onDismiss = { routeFrom = null }, from = from, preferences = session.preferences)
+                RouteMapPlanner(
+                    session.tasks,
+                    onDismiss = { routeFrom = null },
+                    from = from,
+                    preferences = session.preferences,
+                    thermalMap = session.thermalMap,
+                    terrain = session.terrain,
+                )
             } ?: kept.SaveableStateProvider("map") {
                 MapScreen(
                     logbook,
@@ -464,7 +471,14 @@ private fun Sections(
             }
             AppTab.Fly -> when (navigation.flyRoute) {
                 FlyRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
-                FlyRoute.Task -> TaskScreen(session.tasks, session.waypoints, onBack = { navigation.back() }, preferences = session.preferences)
+                FlyRoute.Task -> TaskScreen(
+                    session.tasks,
+                    session.waypoints,
+                    onBack = { navigation.back() },
+                    preferences = session.preferences,
+                    thermalMap = session.thermalMap,
+                    terrain = session.terrain,
+                )
                 FlyRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
                 FlyRoute.Live -> LiveScreen(
                     session.fly,

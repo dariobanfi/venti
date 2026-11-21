@@ -2,8 +2,8 @@
  * What a visitor sees first of what is flown on Venti: at the head of
  * everyone's flights and under an empty logbook, the best flights of the
  * day, or the newest where nobody shared one today, and the top of this
- * year's ranking. From the development mode's five public flights, all
- * of August and September 2026.
+ * year's ranking. From the development mode's public flights, the newest of
+ * August and September 2026.
  */
 
 import { expect, test } from './helpers';
@@ -26,8 +26,8 @@ test('everyone’s flights begin with the best of the day and the top of the yea
 	);
 	const top = page.getByRole('list', { name: /^Top of \d{4}$/ }).getByRole('listitem');
 	await expect(top).toHaveCount(3);
-	await expect(top.first()).toContainText('Mara Muster');
-	await expect(top.first()).toContainText('23.42');
+	await expect(top.first()).toContainText('Lena Probe');
+	await expect(top.first()).toContainText('28.19');
 	await keep('91-everyone-front');
 
 	// The head stands over the plain list only: another order has its own.

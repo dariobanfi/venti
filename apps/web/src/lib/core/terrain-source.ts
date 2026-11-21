@@ -35,7 +35,7 @@ const PATIENCE_MS = 20_000;
 export type GetTile = (address: string) => Promise<{ status: number; body: Uint8Array }>;
 
 /** Asks as the map asks, so that the browser's cache serves them both. */
-const getTile: GetTile = async (address) => {
+export const getTile: GetTile = async (address) => {
 	const response = await fetch(address, { signal: AbortSignal.timeout(PATIENCE_MS) });
 	return { status: response.status, body: new Uint8Array(await response.arrayBuffer()) };
 };
@@ -50,6 +50,41 @@ export interface GroundAsked {
 	/** The box the flight lies in. */
 	bounds: Bounds;
 	track: TrackPoint[];
+}
+
+/**
+ * Fetches into `terrain` the elevation tiles the core says cover a box,
+ * six at a time, while `wanted` says so. A tile the server has not, or
+ * whose bytes are no elevation tile, leaves a gap; without an answer at
+ * all the rest are not asked for. Never throws for a tile.
+ */
+export async function fetchTiles(
+	terrain: Terrain,
+	bounds: Bounds,
+	get: GetTile,
+	tilesAddress: string,
+	wanted: () => boolean = () => true
+): Promise<void> {
+	const tiles = terrain.tilesCovering(bounds.south, bounds.west, bounds.north, bounds.east);
+	let reachable = true;
+	const bring = async () => {
+		for (;;) {
+			const tile = tiles.shift();
+			// Without an answer to one tile the others would not come
+			// either: the browser is offline, or the tile server is.
+			if (!tile || !reachable || !wanted()) return;
+			try {
+				const answer = await get(tilesAddress.replace('{z}/{x}/{y}', tile.path));
+				// The tile server has no tile here: that ground stays unknown.
+				if (answer.status !== 200) continue;
+				terrain.addTile(tile.z, tile.x, tile.y, answer.body);
+			} catch (error) {
+				// Bytes that are no elevation tile leave a gap and no more.
+				if (!(error instanceof Error) || error.name !== 'InvalidFile') reachable = false;
+			}
+		}
+	};
+	await Promise.all(Array.from({ length: AT_ONCE }, bring));
 }
 
 export class TerrainSource {
@@ -76,26 +111,7 @@ export class TerrainSource {
 		const wanted = () => this.#asking === asking;
 		const terrain = new Terrain();
 		try {
-			const tiles = terrain.tilesCovering(bounds.south, bounds.west, bounds.north, bounds.east);
-			let reachable = true;
-			const bring = async () => {
-				for (;;) {
-					const tile = tiles.shift();
-					// Without an answer to one tile the others would not come
-					// either: the browser is offline, or the tile server is.
-					if (!tile || !reachable || !wanted()) return;
-					try {
-						const answer = await this.#get(this.#tiles.replace('{z}/{x}/{y}', tile.path));
-						// The tile server has no tile here: that ground stays unknown.
-						if (answer.status !== 200) continue;
-						terrain.addTile(tile.z, tile.x, tile.y, answer.body);
-					} catch (error) {
-						// Bytes that are no elevation tile leave a gap and no more.
-						if (!(error instanceof Error) || error.name !== 'InvalidFile') reachable = false;
-					}
-				}
-			};
-			await Promise.all(Array.from({ length: AT_ONCE }, bring));
+			await fetchTiles(terrain, bounds, this.#get, this.#tiles, wanted);
 			return wanted() ? terrain.groundUnder(track, PLACES_UNDER_A_FLIGHT) : [];
 		} finally {
 			terrain.free();

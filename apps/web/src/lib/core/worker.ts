@@ -15,6 +15,7 @@ import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
 import { type Answering, answer, describeFailure, type Reply, type Request } from './protocol';
 import { RadarSource } from './radar-source';
+import { RouteWeatherSource } from './route-weather-source';
 import { CoreSession } from './session';
 import { SiteEditSource } from './site-edit-source';
 import { TakeoffsSource } from './takeoffs-source';
@@ -73,7 +74,8 @@ const starting: Promise<Answering> = (async () => {
 		radar: new RadarSource(
 			() => wind.present(),
 			() => wind.now()
-		)
+		),
+		routeWeather: new RouteWeatherSource(() => wind.present())
 	};
 })();
 

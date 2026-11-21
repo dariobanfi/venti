@@ -1,8 +1,8 @@
 /**
  * A place pilots fly from, from the Venti server in its development mode:
  * its flying sites are what OpenStreetMap had for the northern Alps on
- * 18 November 2026, and its five public flights all take off beside the
- * two ramps on the Wallberg. `playwright.config.ts` starts the server.
+ * 18 November 2026, and five of its public flights take off beside the
+ * two ramps on the Wallberg, the others at the made-up sites near Garmisch. `playwright.config.ts` starts the server.
  */
 
 import type { Page } from '@playwright/test';

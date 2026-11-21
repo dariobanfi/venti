@@ -8,13 +8,14 @@
 	import { addLine } from './casing';
 	import type { MapLayer } from './layers';
 	import type { ImageSource } from 'maplibre-gl';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import { AIRSPACE_MIN_ZOOM } from '#lib/airspace/layers.ts';
 	import type {
 		Bounds,
 		Coordinate,
 		LiveGlider,
+		RoutePlan,
 		SiteCandidateView,
 		SiteView,
 		ThermalMapDay,
@@ -47,6 +48,17 @@
 		radarOpacity
 	} from '#lib/radar/radar-layer.ts';
 	import type { OnMap } from '#lib/radar/radar.svelte.ts';
+	import {
+		drawnLine,
+		faiOutlines,
+		numberedPlaces,
+		ROUTE_DOTS,
+		ROUTE_DRAWN,
+		ROUTE_FAI,
+		ROUTE_PLACES,
+		ROUTE_SCORED,
+		scoredLine
+	} from '#lib/route/on-map.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
 	import {
@@ -165,6 +177,25 @@
 		 * chooses nothing. `middle` says where the mark is.
 		 */
 		placing?: boolean;
+		/**
+		 * The route being planned, while the planner is open: its places in
+		 * order and what the core says of it. A click then adds a place, and
+		 * a place is dragged to move it.
+		 */
+		route?: {
+			places: readonly Coordinate[];
+			plan: RoutePlan | undefined;
+			/** The height to leave each place at, where the core says one, metres. */
+			departures?: readonly (number | undefined)[];
+		};
+		/**
+		 * Called with the place clicked while a route is planned: a site's
+		 * sign gives the site's place and its identifier, a place of the
+		 * route its own place again.
+		 */
+		onrouteat?: (at: Coordinate, siteId?: string) => void;
+		/** Called when a place of the route was dragged elsewhere, with its place in the route. */
+		onroutemove?: (index: number, to: Coordinate) => void;
 	}
 
 	let {
@@ -195,7 +226,10 @@
 		onhourat,
 		onsquare,
 		onairspaceat,
-		placing = false
+		placing = false,
+		route,
+		onrouteat,
+		onroutemove
 	}: Props = $props();
 
 	/** The northern Alps between Lake Constance and Salzburg. */
@@ -339,6 +373,8 @@
 		map.addSource(LIVE_SOURCE, { type: 'geojson', data: NOTHING });
 		map.addLayer(liveLayer(module.LABEL_FONT));
 
+		addRoute(module, map);
+
 		map.on('click', (event) => choose(map, event.point));
 		for (const layer of [LIVE_SOURCE, WIND, SITES_SOURCE, CANDIDATES_SOURCE, THERMAL_SOURCE]) {
 			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
@@ -353,6 +389,97 @@
 			paint: { 'circle-radius': 16, 'circle-color': ACCENT_ON_MAP, 'circle-opacity': 0.2 }
 		});
 		map.addLayer(module.dot('position-dot', 'position', 7, ACCENT_ON_MAP, PAPER_ON_MAP));
+	}
+
+	/**
+	 * The route being planned, over everything else: where a third place
+	 * makes an FAI triangle of the first leg, dashed; the line through the
+	 * places, with the light casing over photographs; the route as it would
+	 * be scored, dashed in the app's colour; the places with their numbers.
+	 * As the phones draw it.
+	 */
+	function addRoute(module: typeof import('./setup'), map: Map) {
+		map.addSource(ROUTE_FAI, { type: 'geojson', data: NOTHING });
+		const areas = module.line('route-fai-line', ROUTE_FAI, ACCENT_ON_MAP, 1.5);
+		map.addLayer({
+			...areas,
+			paint: { ...areas.paint, 'line-dasharray': [3, 2], 'line-opacity': 0.85 }
+		});
+		map.addSource(ROUTE_DRAWN, { type: 'geojson', data: NOTHING });
+		addLine(map, module.line('route-drawn-line', ROUTE_DRAWN, INK_ON_MAP, 3));
+		map.addSource(ROUTE_SCORED, { type: 'geojson', data: NOTHING });
+		const scored = module.line('route-scored-line', ROUTE_SCORED, ACCENT_ON_MAP, 2);
+		addLine(map, { ...scored, paint: { ...scored.paint, 'line-dasharray': [3, 2] } });
+		map.addSource(ROUTE_PLACES, { type: 'geojson', data: NOTHING });
+		map.addLayer(module.dot(ROUTE_DOTS, ROUTE_PLACES, 11, PAPER_ON_MAP, INK_ON_MAP));
+		map.addLayer({
+			id: 'route-places-number',
+			type: 'symbol',
+			source: ROUTE_PLACES,
+			layout: {
+				'text-field': ['get', 'label'],
+				'text-font': [module.LABEL_FONT],
+				'text-size': 13,
+				'text-allow-overlap': true,
+				'text-ignore-placement': true
+			},
+			paint: { 'text-color': INK_ON_MAP }
+		});
+		// Under each place the height to leave it at, where the core says one.
+		map.addLayer({
+			id: 'route-places-height',
+			type: 'symbol',
+			source: ROUTE_PLACES,
+			layout: {
+				'text-field': ['get', 'height'],
+				'text-font': [module.LABEL_FONT],
+				'text-size': 12,
+				'text-anchor': 'top',
+				'text-offset': [0, 1.1],
+				'text-optional': true
+			},
+			paint: {
+				'text-color': LABEL_ON_MAP,
+				'text-halo-color': PAPER_ON_MAP,
+				'text-halo-width': 1.6
+			}
+		});
+		map.on('mouseenter', ROUTE_DOTS, () => (map.getCanvas().style.cursor = 'grab'));
+		map.on('mouseleave', ROUTE_DOTS, () => (map.getCanvas().style.cursor = ''));
+
+		// A place of the route is dragged to move it: the map does not pan
+		// meanwhile, and the line follows the pointer until it is let go.
+		const startDrag = (
+			event: { preventDefault: () => void; features?: { properties: Record<string, unknown> }[] },
+			moving: 'mousemove' | 'touchmove',
+			ending: 'mouseup' | 'touchend'
+		) => {
+			const index = event.features?.[0]?.properties.index;
+			if (!route || typeof index !== 'number') return;
+			event.preventDefault();
+			const from = route.places[index];
+			if (!from) return;
+			let to: Coordinate | undefined;
+			map.getCanvas().style.cursor = 'grabbing';
+			const moved = (event: { lngLat: { lat: number; lng: number } }) => {
+				to = { lat: event.lngLat.lat, lon: event.lngLat.lng };
+				const places = (route?.places ?? []).map((place) =>
+					place.lat === from.lat && place.lon === from.lon ? (to ?? place) : place
+				);
+				setup?.shapes(map, ROUTE_DRAWN)?.setData(drawnLine(places));
+				setup?.shapes(map, ROUTE_PLACES)?.setData(numberedPlaces(places));
+			};
+			map.on(moving, moved);
+			map.once(ending, () => {
+				map.off(moving, moved);
+				map.getCanvas().style.cursor = '';
+				if (to) onroutemove?.(index, to);
+			});
+		};
+		map.on('mousedown', ROUTE_DOTS, (event) => startDrag(event, 'mousemove', 'mouseup'));
+		map.on('touchstart', ROUTE_DOTS, (event) => {
+			if (event.points.length === 1) startDrag(event, 'touchmove', 'touchend');
+		});
 	}
 
 	function tellRegion(map: Map) {
@@ -376,6 +503,10 @@
 	function choose(map: Map, point: { x: number; y: number }) {
 		// While a place is chosen the map is only moved.
 		if (placing) return;
+		if (route) {
+			planAt(map, point);
+			return;
+		}
 		for (const [layer, open] of [
 			[LIVE_SOURCE, onglider],
 			[WIND, onstation],
@@ -415,6 +546,60 @@
 			onairspaceat?.({ lat: at.lat, lon: at.lng });
 		}
 	}
+
+	/**
+	 * A click while a route is planned: on a place of the route, that place
+	 * again, as to close a triangle; on a site's sign, the site; else the
+	 * place under the pointer.
+	 */
+	function planAt(map: Map, point: { x: number; y: number }) {
+		const near = (layer: string) => {
+			const hits = map.queryRenderedFeatures(
+				[
+					[point.x - REACH, point.y - REACH],
+					[point.x + REACH, point.y + REACH]
+				],
+				{ layers: [layer] }
+			);
+			const distance = (feature: (typeof hits)[number]) => {
+				const at = map.project((feature.geometry as GeoJSON.Point).coordinates as [number, number]);
+				return Math.hypot(at.x - point.x, at.y - point.y);
+			};
+			return hits.toSorted((first, second) => distance(first) - distance(second))[0];
+		};
+		const own = near(ROUTE_DOTS)?.properties.index;
+		const again = typeof own === 'number' ? route?.places[own] : undefined;
+		if (again) {
+			onrouteat?.({ lat: again.lat, lon: again.lon });
+			return;
+		}
+		const site = hidden.includes('sites') ? undefined : near(SITES_SOURCE);
+		if (site && typeof site.properties.id === 'string') {
+			const [lon, lat] = (site.geometry as GeoJSON.Point).coordinates;
+			onrouteat?.({ lat, lon }, site.properties.id);
+			return;
+		}
+		const at = map.unproject([point.x, point.y]);
+		onrouteat?.({ lat: at.lat, lon: at.lng });
+	}
+
+	// Draws the route being planned when it changes, and none while the
+	// planner is closed. A double click adds two places, not a zoom.
+	$effect(() => {
+		if (!map || !setup) return;
+		const places = route?.places ?? [];
+		setup.shapes(map, ROUTE_DRAWN)?.setData(drawnLine(places));
+		setup.shapes(map, ROUTE_PLACES)?.setData(numberedPlaces(places, route?.departures));
+		setup.shapes(map, ROUTE_SCORED)?.setData(scoredLine(route?.plan));
+		setup.shapes(map, ROUTE_FAI)?.setData(faiOutlines(route?.plan));
+		if (route) map.doubleClickZoom.disable();
+		else map.doubleClickZoom.enable();
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiRoute?: unknown }).ventiRoute = {
+			places: places.length,
+			scored: route?.plan?.score?.route.length ?? 0
+		};
+	});
 
 	// Draws the airspace again when the app gets it, and when it changes:
 	// a file was brought in, or the server's airspace was fetched.
@@ -571,7 +756,8 @@
 	$effect(() => {
 		if (!map || !setup) return;
 		setup.shapes(map, 'logbook-tracks')?.setData(outlineLines(outlines));
-		const box = boundsAround(outlines);
+		const kept = untrack(() => route?.places ?? []);
+		const box = boundsAround(kept.length > 0 ? [kept] : outlines);
 		const covered = { top: 0, right: 0, bottom: coveredBottom, left: 0 };
 		if (box && !lastFix) setup.showBounds(map, box, covered);
 		else map.setPadding(covered);
@@ -630,6 +816,12 @@
 	export function showPlace(at: { lat: number; lon: number }) {
 		following = false;
 		map?.jumpTo({ center: [at.lon, at.lat], zoom: Math.max(map.getZoom(), PLACING_ZOOM) });
+	}
+
+	/** Brings a place to the middle of the map, close enough to see the valleys around it. */
+	export function showAround(at: { lat: number; lon: number }) {
+		following = false;
+		map?.easeTo({ center: [at.lon, at.lat], zoom: Math.max(map.getZoom(), 10.5) });
 	}
 
 	/** One step closer or further away, for the buttons of a wide screen. */

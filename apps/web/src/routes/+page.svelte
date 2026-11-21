@@ -4,6 +4,7 @@
 	the pilot's airspace and the pilot's own flights.
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -62,6 +63,10 @@
 	} from '#lib/map/layers.ts';
 	import { problemText } from '#lib/map/position.ts';
 	import RadarCard from '#lib/radar/RadarCard.svelte';
+	import { RoutePlanner } from '#lib/route/planner.svelte.ts';
+	import RoutePlanCard from '#lib/route/RoutePlanCard.svelte';
+	import RouteWeather from '#lib/route/RouteWeather.svelte';
+	import { RouteWeatherModel } from '#lib/route/weather.svelte.ts';
 	import { said as whyNot, type SiteDraft } from '#lib/sites/edit.svelte.ts';
 	import { measuredNow } from '#lib/sites/filter.ts';
 	import { countIn, flownFrom } from '#lib/sites/mark.ts';
@@ -540,6 +545,7 @@
 	function startAdding() {
 		if (!adding?.mayAdd) return;
 		closeOthers();
+		planner.close();
 		editing = undefined;
 		placingProblem = undefined;
 		placing = true;
@@ -719,6 +725,59 @@
 		showWritten(written.site, written.words);
 	}
 
+	// --- The route planner ---
+
+	/** The route the pilot draws on the map, kept in the browser until it is cleared. */
+	const planner = new RoutePlanner(globalThis.localStorage, (places) => app.planRoute(places));
+	/** The weather along it: the start, the speed and the glide, and the core's answer. */
+	const routeWeather = new RouteWeatherModel(globalThis.localStorage, (asked) =>
+		app.routeWeather(asked)
+	);
+	/** The days the route can be flown on with a forecast: the thermal map's. */
+	const routeDays = $derived(app.account?.hasServer ? (thermals?.map?.days ?? []) : []);
+	// Asked again whenever the route, the day or the setting changes.
+	$effect(() => {
+		if (planner.open) void routeWeather.show(planner.places, routeDays);
+	});
+	// The thermal map's days, asked for once while the planner is open.
+	$effect(() => {
+		if (planner.open && app.account?.hasServer && thermals && !thermals.map && !thermals.asking) {
+			if (!untrack(() => thermals.problem)) void thermals.load();
+		}
+	});
+	/** What the map draws of it and takes clicks for, while the planner is open. */
+	const route = $derived(
+		planner.open && !placing
+			? {
+					places: planner.places,
+					plan: planner.plan,
+					departures: routeWeather.along?.points.map((point) => point.departureM)
+				}
+			: undefined
+	);
+
+	/** "Plan a route": the planner opens on the route kept, or closes. */
+	function togglePlanner() {
+		if (!planner.open) {
+			closeOthers();
+			placing = false;
+		}
+		planner.toggle();
+	}
+
+	/** A click while planning: the next place, with the site's name where it was a site's sign. */
+	function planAt(at: Coordinate, siteId?: string) {
+		const name = siteId ? sites?.site(siteId)?.name : undefined;
+		planner.add(name ? { ...at, name } : at);
+	}
+
+	/** "Plan route" on a site's page: a new route that begins at the site. */
+	function planFrom(site: SiteView) {
+		planner.startAt({ lat: site.position.lat, lon: site.position.lon, name: site.name });
+		closeOthers();
+		map?.showAround(site.position);
+	}
+
 	const said = $derived(notice(current, text.list));
 	const credits = $derived(text.list(current.credits.map((credit) => credit.provider)));
 	/** Whose sites are on the map. Their licence asks for this wherever they are shown. */
@@ -767,7 +826,13 @@
 		onhourat={openHourSquare}
 		onairspaceat={openAirspace}
 		{placing}
+		{route}
+		onrouteat={planAt}
+		onroutemove={(index, to) => planner.move(index, to)}
 	/>
+	{#snippet alongTheRoute()}
+		<RouteWeather weather={routeWeather} days={routeDays} />
+	{/snippet}
 	<!-- The design pack's chips: what the map shows, switched on and off. -->
 	{#if app.account?.hasServer}
 		<div class="chips" role="group" aria-label="Layers on the map">
@@ -922,8 +987,13 @@
 		<!-- On a wide screen the cards of the radar and of the forecast map are
 		     panes at the map's side, the radar's first, and a square chosen on
 		     the map is shown in the forecast's. -->
-		{#if (showRadar || showForecast || (sites && filtering) || sitesFiltered) && wide.current}
+		{#if (planner.open || showRadar || showForecast || (sites && filtering) || sitesFiltered) && wide.current}
 			<div class="panes">
+				{#if planner.open}
+					<aside class="forecast-pane" aria-label="Plan a route">
+						<RoutePlanCard {planner} onclose={() => planner.close()} weather={alongTheRoute} />
+					</aside>
+				{/if}
 				<!-- The sites' filter: its choices while they are open, and else,
 				     while a filter is on, what it is and what it leaves. -->
 				{#if sites && filtering}
@@ -983,6 +1053,7 @@
 				<SitePage
 					{...chosenSite}
 					onforecast={() => (forecastFor = { place: site.position, name: site.name })}
+					onplan={() => planFrom(site)}
 					flightsHref={flownFrom(site) ? placeHref(site.position, site.id) : undefined}
 					outlook={siteOutlook}
 					written={siteWritten?.id === site.id ? siteWritten.words : undefined}
@@ -1168,6 +1239,13 @@
 				</div>
 			</div>
 		{/if}
+		<!-- On a narrow screen the route planner's card stands over the map's
+		     foot, as the phones' panel does, and leaves the map to the finger. -->
+		{#if planner.open && !placing && !wide.current}
+			<div class="forecast-card">
+				<RoutePlanCard {planner} onclose={() => planner.close()} weather={alongTheRoute} />
+			</div>
+		{/if}
 		<!-- On a narrow screen the radar's card and the forecast map's stand
 		     over the credits. -->
 		{#if sitesFiltered && !wide.current}
@@ -1235,6 +1313,9 @@
 			<!-- Everyone the map shows in the air, as a list. -->
 			<MapButton label="In the air" icon="glider" onclick={() => (listingGliders = true)} />
 		{/if}
+		<!-- The route planner: places tapped on the map, in order, and what
+		     the core says the route comes to. -->
+		<MapButton label="Plan a route" icon="route" pressed={planner.open} onclick={togglePlanner} />
 		<!-- The ground under everything: the drawn map, or photographs from above. -->
 		<MapButton
 			label="Aerial view"

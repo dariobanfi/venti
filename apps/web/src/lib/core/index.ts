@@ -130,7 +130,14 @@ export type {
 	ReportReason,
 	ReportReasonChoice,
 	ReportSubject,
+	PlannedScore,
 	RouteKind,
+	RouteLegView,
+	RoutePlan,
+	RouteAlong,
+	RouteLegWeather,
+	RoutePointWeather,
+	RouteSetting,
 	SiteKind,
 	SiteAtPlace,
 	SiteOutlook,
@@ -218,6 +225,7 @@ export type { NewAccount, SyncOutcome } from './account-source';
 export type { AccessWanted, ProgramView } from './tokens-source';
 export { CoreClient } from './client';
 export type { TodayAnswer } from './today-source';
+export type { RouteWeatherAnswer, RouteWeatherAsked } from './route-weather-source';
 export type { SiteDraftChecked, SiteSent } from './site-edit-source';
 export type { Box } from './takeoffs-source';
 export type {

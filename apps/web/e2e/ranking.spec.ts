@@ -1,7 +1,8 @@
 /**
- * The ranking, from the Venti server in its development mode: three made-up
- * pilots with five public flights between them, all flown in August and
- * September 2026. `playwright.config.ts` starts the server.
+ * The ranking, from the Venti server in its development mode: six made-up
+ * pilots with eleven public flights between them, all flown in 2026 but
+ * one of Timo Entwurf's, of July 2025. `playwright.config.ts` starts the
+ * server.
  *
  * The page offers the year the browser's clock shows and the three before
  * it. These tests name 2026, which is among them until 2029.
@@ -11,6 +12,8 @@ import type { Page } from '@playwright/test';
 import { expect, rowsOf, test } from './helpers';
 
 const pilots = (page: Page) => rowsOf(page, /^Ranking of /);
+/** How many pilots the development mode ranks, in all years and in 2026: 6 since 2026-11-21. */
+const RANKED = 6;
 const whose = (page: Page) => page.getByRole('navigation', { name: 'Whose flights' });
 const counted = (page: Page, pilot: string) =>
 	page.getByRole('list', { name: `The flights of ${pilot} that count` }).getByRole('listitem');
@@ -37,24 +40,26 @@ test('the pilots are ranked by their best flights, in a year or in all years', a
 	// All years: every public flight of the development mode counts.
 	await page.getByRole('radio', { name: 'All years' }).check();
 	await expect(page).toHaveURL(/\?season=All(%20|\+)years$/);
-	await expect(pilots(page)).toHaveCount(3);
+	await expect(pilots(page)).toHaveCount(RANKED);
 
-	// Mara Muster's two flights give the most points.
+	// Lena Probe's three flights give the most points.
 	const first = pilots(page).first();
-	await expect(first.getByRole('link', { name: 'Mara Muster' })).toBeVisible();
-	await expect(first).toContainText('23.42');
-	await expect(first).toContainText('2 flights');
-	// The flights that count, the best first, each with its day, its
-	// distance and its points.
+	await expect(first.getByRole('link', { name: 'Lena Probe' })).toBeVisible();
+	await expect(first).toContainText('28.19');
+	await expect(first).toContainText('3 flights');
+	// Then Mara Muster: the flights that count, the best first, each with
+	// its day, its distance and its points.
+	await expect(pilots(page).nth(1)).toContainText('Mara Muster');
+	await expect(pilots(page).nth(1)).toContainText('23.42');
 	await expect(counted(page, 'Mara Muster')).toHaveCount(2);
 	await expect(counted(page, 'Mara Muster').first()).toContainText('Sun, 16 Aug 2026');
 	await expect(counted(page, 'Mara Muster').first()).toContainText('12.0 km');
 	await expect(counted(page, 'Mara Muster').first()).toContainText('11.98');
 	await expect(counted(page, 'Mara Muster').last()).toContainText('11.44');
-	// Then Jonas Beispiel, then the demo pilot with one flight.
-	await expect(pilots(page).nth(1)).toContainText('Jonas Beispiel');
-	await expect(pilots(page).nth(1)).toContainText('21.00');
-	await expect(pilots(page).last()).toContainText('Demo Pilot');
+	// Then Jonas Beispiel, and last Ines Vorlage with one flight.
+	await expect(pilots(page).nth(2)).toContainText('Jonas Beispiel');
+	await expect(pilots(page).nth(2)).toContainText('21.00');
+	await expect(pilots(page).last()).toContainText('Ines Vorlage');
 	await expect(pilots(page).last()).toContainText('1 flight');
 	await expect(counted(page, 'Demo Pilot')).toHaveCount(1);
 	// The rule, and whose reckoning it is, is said under the list.
@@ -66,7 +71,7 @@ test('the pilots are ranked by their best flights, in a year or in all years', a
 	// The address holds the season: opened again, the ranking is the same.
 	await page.reload();
 	await expect(page.getByRole('radio', { name: 'All years' })).toBeChecked();
-	await expect(pilots(page)).toHaveCount(3);
+	await expect(pilots(page)).toHaveCount(RANKED);
 
 	// The oldest year offered: nobody flew then.
 	await seasons.nth(3).check();
@@ -82,8 +87,8 @@ test('the ranking of a year names the year in its address, and leads to pilots a
 }) => {
 	await page.goto('/logbook/ranking/?season=2026');
 	await expect(page.getByRole('radio', { name: '2026' })).toBeChecked();
-	await expect(pilots(page)).toHaveCount(3);
-	await expect(pilots(page).first()).toContainText('Mara Muster');
+	await expect(pilots(page)).toHaveCount(RANKED);
+	await expect(pilots(page).first()).toContainText('Lena Probe');
 	await keep('84-ranking');
 
 	// A flight that counts opens that flight.
@@ -92,7 +97,7 @@ test('the ranking of a year names the year in its address, and leads to pilots a
 	await page.goBack();
 
 	// A pilot's name leads to that pilot's flights.
-	await pilots(page).nth(1).getByRole('link', { name: 'Jonas Beispiel' }).click();
+	await pilots(page).nth(2).getByRole('link', { name: 'Jonas Beispiel' }).click();
 	await expect(page).toHaveURL(/\/logbook\/everyone\/pilot\/\?handle=jonas$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'Jonas Beispiel' })).toBeVisible();
 });
@@ -109,5 +114,5 @@ test('a server that cannot rank says so, and can be asked again', async ({ conte
 	).toBeVisible();
 	down = false;
 	await page.getByRole('button', { name: 'Try again' }).click();
-	await expect(pilots(page)).toHaveCount(3);
+	await expect(pilots(page)).toHaveCount(RANKED);
 });

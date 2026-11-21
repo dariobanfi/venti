@@ -62,6 +62,7 @@
 		glider: drawing('wing'),
 		pin: drawing('site'),
 		track: drawing('track'),
+		route: drawing('triangle'),
 		league: drawing('league'),
 		forecast: drawing('forecast'),
 		good: drawing('good'),

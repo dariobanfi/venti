@@ -1,15 +1,20 @@
 /**
- * Everyone's flights, from the Venti server in its development mode: five
- * public flights of three made-up pilots, flown on 15 and 16 August and on
- * 6 September 2026. Every one is the sample flight, whole or cut short.
- * `playwright.config.ts` starts the server.
+ * Everyone's flights, from the Venti server in its development mode: the
+ * public flights of its made-up pilots, the newest Jonas Beispiel's of
+ * 6 September 2026 and the oldest Timo Entwurf's of July 2025. Five of them
+ * are the sample flight, whole or cut short, beside the Wallberg; the rest
+ * take off at the made-up sites near Garmisch. `playwright.config.ts`
+ * starts the server.
  */
 
 import type { Page } from '@playwright/test';
 import { expect, metric, panel, rowsOf, test } from './helpers';
 
-/** The newest of the five, Jonas Beispiel's of 6 September. */
+/** The newest, Jonas Beispiel's of 6 September. */
 const NEWEST = 'nfmvgygyr34epnfbcekb04nwqc';
+
+/** How many public flights the development mode holds: 11 since 2026-11-21. */
+const ALL = 11;
 
 const rows = (page: Page) => rowsOf(page, 'Everyone’s flights');
 const whose = (page: Page) => page.getByRole('navigation', { name: 'Whose flights' });
@@ -31,13 +36,14 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	await expect(page).toHaveTitle('Everyone’s flights · Venti');
 
 	// The newest first: who flew, when and with what, how far and how long.
-	await expect(rows(page)).toHaveCount(5);
+	await expect(rows(page)).toHaveCount(ALL);
 	const first = rows(page).first();
 	await expect(first.getByRole('link', { name: 'Jonas Beispiel' })).toBeVisible();
 	await expect(first).toContainText(/Sun, 6 Sept? 2026[\s\S]*Sample Wing/);
 	await expect(first).toContainText('12.0 km');
 	await expect(first).toContainText('0:29 h');
-	await expect(rows(page).last()).toContainText('Demo Pilot');
+	// The oldest last.
+	await expect(rows(page).last()).toContainText('Timo Entwurf');
 	// Whose reckoning the numbers are is said under the list.
 	await expect(page.getByText(/Distances and points are Venti’s own reckoning/)).toBeVisible();
 	await keep('61-everyone');
@@ -45,9 +51,14 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	// The best by points. The address says what is asked for.
 	await page.getByRole('radio', { name: 'Best' }).check();
 	await expect(page).toHaveURL(/\?order=best$/);
-	await expect(rows(page).last()).toContainText('9.0 km');
+	// The fewest points last: Lena Probe's short flight of 6 June.
+	await expect(rows(page).last()).toContainText('Lena Probe');
+	await expect(rows(page).last()).toContainText('4.7 km');
 	// A wide screen has room for the points themselves.
-	if (wide) await expect(rows(page).first()).toContainText('11.98');
+	if (wide) {
+		await expect(rows(page).first()).toContainText('12.01');
+		await expect(rows(page).last()).toContainText('4.71');
+	}
 
 	// One day: choosing the first day alone means that day.
 	await page.getByLabel('From').fill('2026-08-15');
@@ -70,14 +81,14 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 
 	// Days on which nobody flew say so, and any day brings the list back.
 	await page.getByRole('button', { name: 'Any day' }).click();
-	await expect(rows(page)).toHaveCount(5);
+	await expect(rows(page)).toHaveCount(ALL);
 	await page.getByLabel('From').fill('2026-07-01');
 	await expect(
 		page.getByRole('heading', { name: 'No public flights on these days' })
 	).toBeVisible();
 	await keep('63-everyone-no-flights');
 	await page.getByRole('button', { name: 'Any day' }).click();
-	await expect(rows(page)).toHaveCount(5);
+	await expect(rows(page)).toHaveCount(ALL);
 
 	// The pilot's own side is one click away, and comes back to the same list.
 	await whose(page).getByRole('link', { name: 'Mine' }).click();
@@ -89,7 +100,7 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 
 test('a long list is read a page at a time', async ({ context, page }) => {
 	// The server's pages hold fifty flights and its development mode has
-	// five: here it is asked for two at a time.
+	// fewer: here it is asked for two at a time, until every one is read.
 	await context.route('**/v1/flights/public**', (route) => {
 		const address = new URL(route.request().url());
 		address.searchParams.set('limit', '2');
@@ -99,13 +110,13 @@ test('a long list is read a page at a time', async ({ context, page }) => {
 
 	const more = page.getByRole('button', { name: 'More flights' });
 	await expect(rows(page)).toHaveCount(2);
-	await more.click();
-	await expect(rows(page)).toHaveCount(4);
-	await more.click();
-	await expect(rows(page)).toHaveCount(5);
+	for (let read = 2; read < ALL; read += 2) {
+		await more.click();
+		await expect(rows(page)).toHaveCount(Math.min(read + 2, ALL));
+	}
 	// The last page has been read.
 	await expect(more).toBeHidden();
-	await expect(rows(page).last()).toContainText('Demo Pilot');
+	await expect(rows(page).last()).toContainText('Timo Entwurf');
 });
 
 test('a pilot’s name leads to that pilot’s flights', async ({ page, keep, wide }) => {
@@ -127,7 +138,7 @@ test('a pilot’s name leads to that pilot’s flights', async ({ page, keep, wi
 	await keep('64-pilot-flights');
 
 	await page.getByRole('link', { name: 'Everyone', exact: true }).first().click();
-	await expect(rows(page)).toHaveCount(5);
+	await expect(rows(page)).toHaveCount(ALL);
 });
 
 test('a handle the server knows no pilot by says so in the core’s words', async ({ page }) => {
@@ -180,7 +191,7 @@ test('another pilot’s flight opens like one’s own, from its file, and is kep
 
 	// Back to the list it was opened from.
 	await page.getByRole('link', { name: 'Everyone', exact: true }).filter({ visible: true }).click();
-	await expect(rows(page)).toHaveCount(5);
+	await expect(rows(page)).toHaveCount(ALL);
 
 	// Nothing of it is in the pilot's own logbook.
 	await whose(page).getByRole('link', { name: 'Mine' }).click();
@@ -201,7 +212,7 @@ test('what another pilot wrote is shown as text, never as markup', async ({ cont
 	});
 	await page.goto('/logbook/everyone/');
 
-	await expect(rows(page)).toHaveCount(5);
+	await expect(rows(page)).toHaveCount(ALL);
 	// The letters are on the page as letters.
 	await expect(rows(page).first().getByRole('link').first()).toHaveText(written.slice(0, 39) + '…');
 	await expect(rows(page).first()).toContainText('<script>document.title = 2</script>');
@@ -221,7 +232,7 @@ test('a flight its pilot took back says so, in the core’s words', async ({ pag
 	).toBeVisible();
 	await keep('66-public-flight-gone');
 	await page.getByRole('link', { name: 'Back to everyone’s flights' }).click();
-	await expect(rows(page)).toHaveCount(5);
+	await expect(rows(page)).toHaveCount(ALL);
 });
 
 test('a site without a server has a logbook without a second side', async ({ context, page }) => {

@@ -59,6 +59,7 @@ import type {
 	PublicFlights,
 	RadarView,
 	Registration,
+	RoutePlan,
 	ReportForm,
 	ReportReason,
 	ReportSubject,
@@ -110,6 +111,12 @@ import type { Box, TakeoffsSource } from './takeoffs-source';
 import type { RadarColours, RadarSource } from './radar-source';
 import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
 import type { AccessWanted, ProgramView, TokensSource } from './tokens-source';
+import { routePlan } from './route-plan';
+import type {
+	RouteWeatherAnswer,
+	RouteWeatherAsked,
+	RouteWeatherSource
+} from './route-weather-source';
 import { type TodayAnswer, todayOrders, type TodaySource } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
 import type { WindAnswer, WindSource } from './wind-source';
@@ -319,6 +326,17 @@ export interface Calls {
 	 */
 	todayOrders: { given: TodayStanding[][]; answer: TodayOrder[] };
 	/**
+	 * A route drawn on the map, given its places in order: each leg, the
+	 * whole, and what it would score flown as drawn, in the core's words.
+	 */
+	planRoute: { given: Coordinate[]; answer: RoutePlan };
+	/**
+	 * A route as the pilot means to fly it, with the weather along it on a
+	 * day of the thermal map: when the pilot is at each place, what the
+	 * forecast has there then, each leg's wind and the heights to leave at.
+	 */
+	routeWeather: { given: RouteWeatherAsked; answer: RouteWeatherAnswer };
+	/**
 	 * Marks a site as one of the pilot's own. Given the site as the core
 	 * gave it, the credits of the answer it came from, and the date of the
 	 * source's data by that answer.
@@ -511,6 +529,7 @@ export interface Answering {
 	today: TodaySource;
 	thermals: ThermalMapSource;
 	radar: RadarSource;
+	routeWeather: RouteWeatherSource;
 }
 
 /** Does what a call asks of the core. */
@@ -531,7 +550,8 @@ export async function answer<Name extends CallName>(
 		terrain,
 		today,
 		thermals,
-		radar
+		radar,
+		routeWeather
 	}: Answering,
 	call: Name,
 	given: Calls[Name]['given']
@@ -603,6 +623,8 @@ export async function answer<Name extends CallName>(
 		openPublicFlight: (id) => community.open(id),
 		todayTakeoffs: (place) => today.takeoffs(place),
 		todayOrders: (days) => todayOrders(days),
+		planRoute: (places) => routePlan(places),
+		routeWeather: (asked) => routeWeather.along(asked),
 		keepSite: ({ site, credits, asOfUnixS }) => session.keepSite(site, credits, asOfUnixS),
 		forgetSite: (id) => session.forgetSite(id),
 		isSiteKept: (id) => session.isSiteKept(id),

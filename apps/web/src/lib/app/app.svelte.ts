@@ -9,6 +9,7 @@
  */
 
 import { createContext } from 'svelte';
+import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { AccountModel } from '#lib/account/model.svelte.ts';
 import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
@@ -20,6 +21,9 @@ import {
 	type FlightView,
 	type ForecastView,
 	type GroundUnderFlight,
+	type RoutePlan,
+	type RouteWeatherAnswer,
+	type RouteWeatherAsked,
 	type SiteOutlook,
 	type SiteView
 } from '#lib/core/index.ts';
@@ -162,6 +166,31 @@ export class App {
 	async siteOutlook(site: SiteView): Promise<SiteOutlook | undefined> {
 		await this.#started;
 		return this.#core?.siteOutlook(site);
+	}
+
+	/**
+	 * What the core says of a route drawn through these places, in order:
+	 * each leg, the whole, and what it would score flown as drawn. Nothing
+	 * if the core could not start.
+	 */
+	async planRoute(places: Coordinate[]): Promise<RoutePlan | undefined> {
+		// The map tab asks for its kept route as it opens, which can be
+		// before the layout has started the core; a page being written out
+		// at build time asks nothing.
+		if (!browser) return undefined;
+		await this.start();
+		return this.#core?.planRoute(places);
+	}
+
+	/**
+	 * A route as the pilot means to fly it, with the weather along it on
+	 * a day of the thermal map, and the heights to leave each place at.
+	 * Nothing if the core could not start.
+	 */
+	async routeWeather(asked: RouteWeatherAsked): Promise<RouteWeatherAnswer | undefined> {
+		if (!browser) return undefined;
+		await this.start();
+		return this.#core?.routeWeather(asked);
 	}
 
 	/** Numbers the questions about the ground under a flight. */

@@ -8,6 +8,7 @@ import type { NewAccount } from './account-source';
 import type { FlightRef, PublicFlightsAsked } from './community-source';
 import type { GroundAsked } from './terrain-source';
 import type { RadarColours } from './radar-source';
+import type { RouteWeatherAsked } from './route-weather-source';
 import type { HoursAsked } from './thermal-map-source';
 import type { AccessWanted } from './tokens-source';
 import type { Box } from './takeoffs-source';
@@ -404,6 +405,16 @@ export class CoreClient {
 	/** The core's order of Today's take-offs on each of several days. */
 	todayOrders(days: TodayStanding[][]) {
 		return this.#call('todayOrders', days);
+	}
+
+	/** What the core says of a route drawn through these places, in order. */
+	planRoute(places: Coordinate[]) {
+		return this.#call('planRoute', places);
+	}
+
+	/** A route as the pilot means to fly it, with the weather along it on a day of the thermal map. */
+	routeWeather(asked: RouteWeatherAsked) {
+		return this.#call('routeWeather', asked);
 	}
 
 	/**

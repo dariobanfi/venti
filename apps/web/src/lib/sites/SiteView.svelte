@@ -69,6 +69,11 @@
 		/** Opens the forecast for the site's place. */
 		onforecast: () => void;
 		/**
+		 * "Plan route": the map's route planner, with the site as the first
+		 * place. Only where the page lies over the map.
+		 */
+		onplan?: () => void;
+		/**
 		 * The page of the flights that took off from the site, where the page
 		 * shows the site alone. Nothing for a site that is only a landing.
 		 */
@@ -100,6 +105,7 @@
 		credit,
 		asOfUnixS,
 		onforecast,
+		onplan,
 		flightsHref,
 		outlook,
 		written,
@@ -355,6 +361,10 @@
 	{/if}
 
 	<div class="card">
+		{#if onplan}
+			<!-- The phones have it beside "Start flight", which a browser has not. -->
+			<button class="row link" type="button" onclick={onplan}>Plan route</button>
+		{/if}
 		<button
 			class="row link"
 			type="button"

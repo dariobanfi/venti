@@ -17,6 +17,7 @@ import { sitesMap } from './pkg/venti_core_wasm.js';
 import { MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
 import { RadarSource } from './radar-source';
+import { RouteWeatherSource } from './route-weather-source';
 import { ThermalMapSource } from './thermal-map-source';
 import { sampleFlight, startCore } from './testing';
 import { TodaySource } from './today-source';
@@ -66,7 +67,8 @@ class SameProcess implements Channel {
 						terrain: new TerrainSource(unreachable),
 						today: new TodaySource(session, async () => false),
 						thermals: new ThermalMapSource(async () => false),
-						radar: new RadarSource(async () => false)
+						radar: new RadarSource(async () => false),
+						routeWeather: new RouteWeatherSource(async () => false, unreachable, unreachable)
 					},
 					call,
 					given

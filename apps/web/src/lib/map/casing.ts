@@ -20,12 +20,15 @@ export const CASING = '-aerial-casing';
 
 /**
  * The lines that get a casing: the logbook's tracks on the map tab, a
- * followed pilot's track, and on a flight's page the scored route and the
- * other flight's line. Each by the name of its outermost dark layer.
+ * followed pilot's track, the route planner's drawn and scored lines, and
+ * on a flight's page the scored route and the other flight's line. Each by
+ * the name of its outermost dark layer.
  */
 export const CASED: readonly string[] = [
 	'logbook-tracks-edge',
 	'live-track-edge',
+	'route-drawn-line',
+	'route-scored-line',
 	'flight-route-line',
 	'other-track-edge'
 ];

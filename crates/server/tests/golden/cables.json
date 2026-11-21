@@ -1,0 +1,364 @@
+{
+  "layers": [
+    {
+      "source": "osm-cables",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "as_of": "2026-11-18T19:05:00Z",
+      "covers": [
+        {
+          "south": 47.66,
+          "west": 11.7,
+          "north": 47.74,
+          "east": 11.82
+        }
+      ],
+      "cables": [
+        {
+          "source": "osm-cables",
+          "local": "way/1155314600",
+          "kind": "power-line",
+          "line": [
+            {
+              "lat": 47.7229026,
+              "lon": 11.711016
+            },
+            {
+              "lat": 47.7229503,
+              "lon": 11.7111713
+            },
+            {
+              "lat": 47.7228317,
+              "lon": 11.7112914
+            },
+            {
+              "lat": 47.722724,
+              "lon": 11.7114006
+            }
+          ],
+          "voltage_kv": 110.0,
+          "url": "https://www.openstreetmap.org/way/1155314600"
+        },
+        {
+          "source": "osm-cables",
+          "local": "way/1155314601",
+          "kind": "power-line",
+          "line": [
+            {
+              "lat": 47.7229026,
+              "lon": 11.711016
+            },
+            {
+              "lat": 47.7228411,
+              "lon": 11.7109166
+            },
+            {
+              "lat": 47.722719,
+              "lon": 11.711039
+            },
+            {
+              "lat": 47.7226087,
+              "lon": 11.7111494
+            }
+          ],
+          "voltage_kv": 110.0,
+          "url": "https://www.openstreetmap.org/way/1155314601"
+        },
+        {
+          "source": "osm-cables",
+          "local": "way/1155314602",
+          "kind": "power-line",
+          "line": [
+            {
+              "lat": 47.722719,
+              "lon": 11.711039
+            },
+            {
+              "lat": 47.7228317,
+              "lon": 11.7112914
+            }
+          ],
+          "voltage_kv": 110.0,
+          "url": "https://www.openstreetmap.org/way/1155314602"
+        },
+        {
+          "source": "osm-cables",
+          "local": "way/1384542475",
+          "kind": "minor-power-line",
+          "line": [
+            {
+              "lat": 47.7184574,
+              "lon": 11.7752396
+            },
+            {
+              "lat": 47.7181569,
+              "lon": 11.7749606
+            },
+            {
+              "lat": 47.7178195,
+              "lon": 11.7746602
+            },
+            {
+              "lat": 47.7174829,
+              "lon": 11.7743598
+            },
+            {
+              "lat": 47.7171815,
+              "lon": 11.7740621
+            },
+            {
+              "lat": 47.7168242,
+              "lon": 11.7737241
+            },
+            {
+              "lat": 47.7167128,
+              "lon": 11.7733627
+            },
+            {
+              "lat": 47.716863,
+              "lon": 11.7727165
+            },
+            {
+              "lat": 47.7170056,
+              "lon": 11.7719056
+            }
+          ],
+          "url": "https://www.openstreetmap.org/way/1384542475"
+        },
+        {
+          "source": "osm-cables",
+          "local": "way/19038453",
+          "kind": "gondola",
+          "line": [
+            {
+              "lat": 47.6750127,
+              "lon": 11.7767441
+            },
+            {
+              "lat": 47.6735446,
+              "lon": 11.7785856
+            },
+            {
+              "lat": 47.6724641,
+              "lon": 11.7799409
+            },
+            {
+              "lat": 47.67153,
+              "lon": 11.7811124
+            },
+            {
+              "lat": 47.6711623,
+              "lon": 11.7815735
+            },
+            {
+              "lat": 47.6696709,
+              "lon": 11.7834441
+            },
+            {
+              "lat": 47.6673925,
+              "lon": 11.7863016
+            },
+            {
+              "lat": 47.6651463,
+              "lon": 11.7891187
+            },
+            {
+              "lat": 47.6644716,
+              "lon": 11.7899647
+            },
+            {
+              "lat": 47.6632935,
+              "lon": 11.7914422
+            },
+            {
+              "lat": 47.6614147,
+              "lon": 11.793787
+            }
+          ],
+          "name": "Wallbergbahn",
+          "url": "https://www.openstreetmap.org/way/19038453"
+        },
+        {
+          "source": "osm-cables",
+          "local": "way/37016046",
+          "kind": "power-line",
+          "line": [
+            {
+              "lat": 47.7767494,
+              "lon": 11.6832523
+            },
+            {
+              "lat": 47.7749196,
+              "lon": 11.6837464
+            },
+            {
+              "lat": 47.7736103,
+              "lon": 11.6875394
+            },
+            {
+              "lat": 47.7718992,
+              "lon": 11.6924146
+            },
+            {
+              "lat": 47.7708156,
+              "lon": 11.6955383
+            },
+            {
+              "lat": 47.7680896,
+              "lon": 11.695891
+            },
+            {
+              "lat": 47.7656553,
+              "lon": 11.696119
+            },
+            {
+              "lat": 47.7621743,
+              "lon": 11.6965753
+            },
+            {
+              "lat": 47.7598163,
+              "lon": 11.699901
+            },
+            {
+              "lat": 47.7579328,
+              "lon": 11.7011358
+            },
+            {
+              "lat": 47.7561715,
+              "lon": 11.701559
+            },
+            {
+              "lat": 47.7546012,
+              "lon": 11.7018421
+            },
+            {
+              "lat": 47.7520458,
+              "lon": 11.7023047
+            },
+            {
+              "lat": 47.749722,
+              "lon": 11.7027582
+            },
+            {
+              "lat": 47.7476162,
+              "lon": 11.7031201
+            },
+            {
+              "lat": 47.7455134,
+              "lon": 11.7028584
+            },
+            {
+              "lat": 47.7439507,
+              "lon": 11.7026272
+            },
+            {
+              "lat": 47.7419963,
+              "lon": 11.7029856
+            },
+            {
+              "lat": 47.7397277,
+              "lon": 11.7039918
+            },
+            {
+              "lat": 47.7376762,
+              "lon": 11.7048577
+            },
+            {
+              "lat": 47.7357515,
+              "lon": 11.7056898
+            },
+            {
+              "lat": 47.7335109,
+              "lon": 11.7058325
+            },
+            {
+              "lat": 47.731419,
+              "lon": 11.7062572
+            },
+            {
+              "lat": 47.7293935,
+              "lon": 11.7066293
+            },
+            {
+              "lat": 47.7272376,
+              "lon": 11.7070743
+            },
+            {
+              "lat": 47.7260138,
+              "lon": 11.7072611
+            },
+            {
+              "lat": 47.7242081,
+              "lon": 11.7075268
+            },
+            {
+              "lat": 47.7233073,
+              "lon": 11.7100256
+            },
+            {
+              "lat": 47.7229026,
+              "lon": 11.711016
+            }
+          ],
+          "voltage_kv": 110.0,
+          "name": "Bad Wiessee - Waakirchen - Bad Tölz;Bad Wiessee - Waakirchen",
+          "operator": "E.ON Netz GmbH",
+          "url": "https://www.openstreetmap.org/way/37016046"
+        },
+        {
+          "source": "osm-cables",
+          "local": "way/37652065",
+          "kind": "material-ropeway",
+          "line": [
+            {
+              "lat": 47.6659204,
+              "lon": 11.7031704
+            },
+            {
+              "lat": 47.66633,
+              "lon": 11.7035892
+            },
+            {
+              "lat": 47.6676608,
+              "lon": 11.7050549
+            },
+            {
+              "lat": 47.6691497,
+              "lon": 11.706635
+            }
+          ],
+          "url": "https://www.openstreetmap.org/way/37652065"
+        },
+        {
+          "source": "osm-cables",
+          "local": "way/927265023",
+          "kind": "minor-power-line",
+          "line": [
+            {
+              "lat": 47.7109401,
+              "lon": 11.7242702
+            },
+            {
+              "lat": 47.7111675,
+              "lon": 11.7248469
+            },
+            {
+              "lat": 47.7111223,
+              "lon": 11.724834
+            }
+          ],
+          "url": "https://www.openstreetmap.org/way/927265023"
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "osm-cables",
+      "provider": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "text": "© OpenStreetMap contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+    }
+  ]
+}

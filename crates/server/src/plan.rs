@@ -144,6 +144,7 @@ pub fn plan(packs: &[RegionPack], registry: &Registry) -> Result<Vec<Job>, PlanE
             (Kind::Observations, &pack.observations.sources),
             (Kind::Airspace, &pack.airspace.sources),
             (Kind::Sites, &pack.sites.sources),
+            (Kind::Cables, &pack.cables.sources),
             (Kind::Forecasts, &forecasts),
             (Kind::Radar, &pack.radar.sources),
         ];
@@ -408,6 +409,7 @@ mod tests {
                 "geosphere-inca-rr",
                 "geosphere-tawes",
                 "openaip",
+                "osm-cables",
                 "osm-free-flying",
                 "suedtirol-meteo"
             ]

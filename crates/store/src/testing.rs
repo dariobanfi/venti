@@ -8,22 +8,23 @@ use std::time::Duration;
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, BoundingBox, GeoPoint, Observation, Site, SiteId, SourceId, Station, StationId,
-    Timestamp,
+    Airspace, BoundingBox, Cable, GeoPoint, Observation, Site, SiteId, SourceId, Station,
+    StationId, Timestamp,
 };
 
 use crate::flight::{Room, Saved};
 use crate::{
-    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight,
-    FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
-    GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
-    LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
-    NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight, PilotSite, PilotSiteChanges, Plan,
-    PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights,
-    PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey, ReportListing,
-    ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation, SiteConfirming, SiteDelivery,
-    SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
-    StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
+    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, CableLayer, CableSet,
+    Coverage, Derived, Flight, FlightChanges, FlightKey, ForecastModel, Group, GroupCreation,
+    GroupJoining, GroupMembers, GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt,
+    LiveRemoval, LiveRoom, LiveSaved, LiveTrack, MemberRemoval, Month, NewAccount, NewFlight,
+    NewGroup, NewInvite, NewPilotSite, NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight,
+    PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
+    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing,
+    ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation,
+    SiteConfirming, SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite,
+    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
+    VisibilityChange,
 };
 use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
@@ -141,6 +142,28 @@ impl Store for TroubledStore {
     }
 
     async fn set_site(&self, _: &SiteId) -> Result<Option<Site>, StoreError> {
+        self.fail().await
+    }
+
+    async fn save_cable_run(
+        &self,
+        _: &RunRecord,
+        _: &SiteDelivery,
+        _: &[Cable],
+    ) -> Result<(), StoreError> {
+        self.fail().await
+    }
+
+    async fn cables_in(
+        &self,
+        _: &[SourceId],
+        _: &BoundingBox,
+        _: usize,
+    ) -> Result<Vec<CableLayer>, StoreError> {
+        self.fail().await
+    }
+
+    async fn cable_sets(&self, _: &[SourceId]) -> Result<Vec<CableSet>, StoreError> {
         self.fail().await
     }
 

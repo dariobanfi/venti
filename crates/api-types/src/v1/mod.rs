@@ -7,6 +7,7 @@
 //! | [`observations_path`] | GET | [`ObservationsRequest`] | [`ObservationsResponse`] |
 //! | [`AIRSPACE_PATH`] | GET | [`AirspaceRequest`] | [`AirspaceResponse`] |
 //! | [`SITES_PATH`] | GET | [`SitesRequest`] | [`SitesResponse`] |
+//! | [`CABLES_PATH`] | GET | [`CablesRequest`] | [`CablesResponse`] |
 //! | [`FORECAST_PATH`] | GET | [`ForecastRequest`] | [`ForecastResponse`] |
 //! | [`ACCOUNTS_PATH`] | POST | [`CreateAccountRequest`] | [`SignInResponse`] |
 //! | [`SESSIONS_PATH`] | POST | [`SignInRequest`] | [`SignInResponse`] |
@@ -83,6 +84,7 @@ mod airspace;
 mod alerts;
 mod archive;
 mod attribution;
+mod cables;
 mod dumps;
 mod error;
 mod flights;
@@ -124,6 +126,7 @@ pub use archive::{
     ArchiveSiteConfirmation, ArchiveSites, MAX_ARCHIVE_FILE_BYTES,
 };
 pub use attribution::Attribution;
+pub use cables::{CABLES_PATH, CableLayer, CablesRequest, CablesResponse, MAX_CABLES};
 pub use dumps::{
     CSV_MEDIA_TYPE, DUMPS_PATH, DumpContent, DumpFile, DumpFormat, DumpLayer, DumpStamp,
     DumpsResponse, GEOJSON_MEDIA_TYPE, JSON_LINES_MEDIA_TYPE, SITES_CSV_COLUMNS, SiteHistoryHead,

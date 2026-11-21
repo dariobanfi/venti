@@ -452,6 +452,117 @@
       "url"
     ]
   },
+  "Cable": {
+    "description": "One cable hung in the air, of exactly one source, as a line. A height is given only where the source maps one; no cable in an answer is no statement that there is none.",
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "local": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/CableKind"
+      },
+      "line": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RawPoint"
+        }
+      },
+      "height_m": {
+        "type": "number"
+      },
+      "voltage_kv": {
+        "type": "number"
+      },
+      "name": {
+        "type": "string"
+      },
+      "operator": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "source",
+      "local",
+      "kind",
+      "line"
+    ]
+  },
+  "CableKind": {
+    "type": "string",
+    "enum": [
+      "power-line",
+      "minor-power-line",
+      "cable-car",
+      "gondola",
+      "chair-lift",
+      "drag-lift",
+      "material-ropeway",
+      "zip-line",
+      "other"
+    ]
+  },
+  "CableLayer": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "fetched_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "as_of": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "covers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RawBox"
+        }
+      },
+      "cables": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Cable"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "fetched_at",
+      "as_of",
+      "cables"
+    ]
+  },
+  "CablesResponse": {
+    "type": "object",
+    "properties": {
+      "layers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CableLayer"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "layers",
+      "attributions"
+    ]
+  },
   "ChangePasswordRequest": {
     "type": "object",
     "properties": {

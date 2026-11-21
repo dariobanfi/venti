@@ -284,6 +284,7 @@ As of 2026-11-19:
 | Canonical types for flying sites and point forecasts (`venti-domain`): `Site`, `ForecastSeries` | Built |
 | `SiteSource` and `ForecastSource`, their registries and their runs (`venti-sources`) | Built |
 | Adapter: `osm-free-flying` | Built, with an answer recorded for the whole first region (2026-11-19, and anew with the outlines of areas on 2026-11-21) and golden files |
+| Cables: `CableSource` and its run (`venti-sources`), the adapter `osm-cables` with an answer recorded near the Tegernsee and golden files, the `[cables]` section of a region pack, storing as one set per source, serving at `GET /v1/cables`, the development mode over the recorded box | Built 2026-11-21; installed on no machine yet, and no region's whole answer fetched yet |
 | Flying sites in the server: collecting once a day, storing as one set per source, serving at `GET /v1/sites`, health, the development mode over the whole first region, `ingest` and with it the canary | Built; installed on no machine yet |
 | The `[sites]` and `[forecasts]` sections of a region pack (`venti-regions`); what the store keeps about forecast models | Built |
 | Adapter: `open-meteo` | Built, with answers recorded for five places, and for four in one request, from an Open-Meteo instance (first on 2026-11-19 from one run for the purpose, last on 2026-11-21 from the owner's installation), and golden files |
@@ -596,7 +597,15 @@ No open real-time lightning source was found.
 |---|---|---|---|
 | Land Tirol "Flughindernisse" | About 2,000 cable spans hazardous to air-sport pilots: material ropeways, power lines, tourist installations | Land Tirol open data, CC BY 4.0 *(to verify for this dataset)* | Open after confirmation |
 | DFS and Austro Control obstacle data sets | Tall obstacles, AIXM | CC BY 4.0 reported for DFS; Austro Control not stated | Open / ask |
-| OpenStreetMap | Aerialways and power lines | ODbL | Open; incomplete for exactly the dangerous hay and material ropeways |
+| OpenStreetMap (`osm-cables`) | Aerialways and power lines | ODbL | Built (2026-11-21); incomplete for exactly the dangerous hay and material ropeways |
+
+#### Cables
+
+`osm-cables` is a second dataset of OpenStreetMap, beside the sites: the same provider, the same licence (ODbL 1.0, share-alike, verified 2026-11-19 on the provider's pages that `crates/sources-osm/manifest-cables.toml` lists), a manifest of its own and a layer of its own. It is merged with nothing: not with another source's cables, not with OpenStreetMap's sites. It asks an Overpass instance, as the sites do, for the ways tagged `power=line` and `power=minor_line`, every way tagged `aerialway`, and `man_made=cable`, once a week per region. Kept: power lines, minor lines, cable cars, gondolas, chair lifts, goods ropeways (`aerialway=goods`, most material ropeways), zip lines, drag lifts only where a height is mapped, and `man_made=cable` only with `location=overhead`. Left out and said in the run's report: stations, pylons, lifts on the ground (`rope_tow`, `magic_carpet`). Read: `height` (metres above the ground), the highest `voltage`, `name`, and `operator` for power lines and lifts for people only, which companies run; a material ropeway's operator may be a person and is not read. The meaning of these keys is *to verify* against the wiki's pages, which were not read for the adapter.
+
+The fixture is one answer for a small box near the Tegernsee (47.66 to 47.74° N, 11.70 to 11.82° E), recorded on 2026-11-21 from overpass-api.de: twelve ways, of which eight are cables (four lines of 110 kV, two minor lines, the Wallbergbahn, one material ropeway) and none has a height. The answer for a whole region was not asked for: some tens of megabytes is an estimate, *to verify*, and far more than the 10 MB a day the main public instance asks of regular users, so a server collects cables from an Overpass instance of its operator's own.
+
+**Its gaps.** OpenStreetMap's cables are incomplete, and incomplete where it matters: material ropeways and hay lines are mapped where someone saw and entered them, low lines on poles often not at all, and a height almost never (it is put on the pylons, which the adapter does not ask for). How incomplete is *to verify* against the two sources that exist for this: the DFS's obstacle data (reported as CC BY 4.0, to verify) and Land Tirol's some 2,000 cable spans hazardous to air sports, whose open-data page asks to be told of use. Neither is touched now; Austro Control's data is "Ask". No cable on a map and no warning in the cockpit is a promise that there is none, and every view says so.
 
 ### Flying sites
 

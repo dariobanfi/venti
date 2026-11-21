@@ -83,6 +83,8 @@ pub enum Kind {
     Forecasts,
     /// Flying sites: take-offs and landings.
     Sites,
+    /// Cables hung in the air: power lines and ropeways, as lines.
+    Cables,
     /// Rain radar: pictures of the rain over an area, a few minutes apart.
     Radar,
     /// Map imagery: raster tiles that the server passes on, or cuts and

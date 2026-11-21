@@ -1,0 +1,44 @@
+id = "osm-cables"
+provider = "OpenStreetMap contributors"
+kinds = ["cables"]
+# OpenStreetMap covers the world and the adapter asks for a box, not for
+# countries. These are the countries the first region's box takes in.
+countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
+# Power lines and ropeways change rarely, and the answer for a region is
+# large: one request a week.
+cadence_seconds = 604800
+auth = "none"
+# The answer for the small box of the recording near the Tegernsee was
+# 8 kB. Every power line, minor line and ropeway of the first region was
+# not asked for: an estimate of some tens of megabytes, to verify at the
+# first run against an instance of the operator's own.
+max_response_kb = 131072
+
+# As for the sites: one query at a time, few a day.
+[rate_limit]
+per_second = 1
+per_hour = 2
+
+[licence]
+name = "ODbL 1.0"
+commercial = true
+redistribution = true
+# A database made from the data may be passed on only under the same licence.
+share_alike = true
+attribution = "© OpenStreetMap contributors"
+link = "https://www.openstreetmap.org/copyright"
+notice = "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+constraints = [
+    "Credit OpenStreetMap wherever the data is shown, in a way that needs no click to see, and link the credit to https://www.openstreetmap.org/copyright.",
+    "The licence is share-alike: cables from OpenStreetMap stay a layer of their own and are merged with no other source's records, neither with another source's cables nor with OpenStreetMap's sites.",
+    "The answer for a region is far larger than the 10 MB a day the main public instance, overpass-api.de, asks regular users to stay under: a server that collects cables for a region asks an instance of its operator's own (the server setting overpass_url).",
+    "Cables in OpenStreetMap are entered by anyone and are incomplete: many material ropeways and low lines are not mapped, and few have a height. A map without a cable is no statement that there is none.",
+]
+verified_on = "2026-11-19"
+verified_from = [
+    "https://www.openstreetmap.org/copyright",
+    "https://osmfoundation.org/wiki/Licence/Attribution_Guidelines",
+    "https://wiki.openstreetmap.org/wiki/Overpass_API",
+    "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
+    "https://www.fossgis.de/arbeitsgruppen/osm-server/nutzungsbedingungen/",
+]

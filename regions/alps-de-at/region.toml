@@ -38,6 +38,13 @@ sources = ["openaip"]
 [sites]
 sources = ["osm-free-flying"]
 
+# Power lines and ropeways from OpenStreetMap, under the ODbL: a layer of its
+# own, apart from the sites. Incomplete: docs/data-sources.md says what lacks.
+# The answer for the region is far larger than the main public Overpass
+# instance asks for in a day: collect it from an instance of your own.
+[cables]
+sources = ["osm-cables"]
+
 # Point forecasts, from an Open-Meteo instance that whoever runs the server
 # runs themself. A server that is not told where it is (open_meteo_url) has
 # no forecasts and says so.

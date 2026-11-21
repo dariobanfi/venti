@@ -1,0 +1,187 @@
+//! Cables in PostgreSQL: one whole set per source, as for sites.
+
+use deadpool_postgres::Client;
+use tokio_postgres::Row;
+use venti_domain::{BoundingBox, Cable, SourceId};
+
+use super::airspace::{boxes_from, edges_of};
+use super::{corrupt, count, db_error, upsert_run};
+use crate::{CableLayer, CableSet, RunRecord, SiteDelivery, StoreError, cable};
+
+const REPLACE_SET: &str = "
+    INSERT INTO cable_sets AS s (source, fetched_at, cables, as_of, covers)
+    VALUES ($1, $2, $3, $4, $5)
+    ON CONFLICT (source) DO UPDATE
+    SET fetched_at = EXCLUDED.fetched_at,
+        cables = EXCLUDED.cables,
+        as_of = EXCLUDED.as_of,
+        covers = EXCLUDED.covers
+    WHERE s.fetched_at <= EXCLUDED.fetched_at";
+
+const INSERT_CABLES: &str = "
+    INSERT INTO cables (source, local, west, south, east, north, record)
+    SELECT $1, t.local, t.west, t.south, t.east, t.north, t.record
+    FROM unnest($2::text[], $3::float8[], $4::float8[], $5::float8[], $6::float8[], $7::text[])
+        AS t (local, west, south, east, north, record)";
+
+/// One statement reads the cables and their sets, so both are of one
+/// moment. Every set is in the answer: one with nothing found is a single
+/// row without a record.
+const CABLES_IN: &str = "
+    WITH found AS (
+        SELECT t.source, t.local, t.record
+        FROM cables t
+        WHERE t.source = ANY($5::text[])
+          AND ST_MakeEnvelope(t.west, t.south, t.east, t.north, 4326)
+              && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+          AND t.west <= $3 AND t.east >= $1
+          AND t.south <= $4 AND t.north >= $2
+        ORDER BY t.source, t.local
+        LIMIT $6
+    )
+    SELECT f.record, s.source, s.fetched_at, s.cables, s.as_of, s.covers
+    FROM cable_sets s
+    LEFT JOIN found f ON f.source = s.source
+    WHERE s.source = ANY($5::text[])
+    ORDER BY s.source, f.local";
+
+fn set_from(row: &Row) -> Result<CableSet, StoreError> {
+    let source: &str = row.get("source");
+    Ok(CableSet {
+        source: SourceId::new(source).map_err(|e| corrupt("source identifier", e))?,
+        fetched_at: row.get("fetched_at"),
+        cables: u32::try_from(row.get::<_, i32>("cables")).unwrap_or(0),
+        as_of: row.get("as_of"),
+        covers: boxes_from(&row.get::<_, Vec<f64>>("covers"))?,
+    })
+}
+
+pub(super) async fn save_run(
+    client: &mut Client,
+    run: &RunRecord,
+    delivery: &SiteDelivery,
+    cables: &[Cable],
+) -> Result<(), StoreError> {
+    cable::check(run, cables)?;
+    let tx = client.transaction().await.map_err(db_error)?;
+    upsert_run(&tx, run).await?;
+
+    if run.healthy {
+        let set = CableSet::of(run, delivery, cables);
+        let statement = tx.prepare_cached(REPLACE_SET).await.map_err(db_error)?;
+        let replaced = tx
+            .execute(
+                &statement,
+                &[
+                    &set.source.as_str(),
+                    &set.fetched_at,
+                    &count(set.cables),
+                    &set.as_of,
+                    &edges_of(&set.covers),
+                ],
+            )
+            .await
+            .map_err(db_error)?;
+        if replaced == 1 {
+            tx.execute(
+                "DELETE FROM cables WHERE source = $1",
+                &[&set.source.as_str()],
+            )
+            .await
+            .map_err(db_error)?;
+            // `check` made sure that every cable has a box.
+            let boxes: Vec<BoundingBox> = cables.iter().filter_map(Cable::bounds).collect();
+            let locals: Vec<&str> = cables.iter().map(|cable| cable.local.as_str()).collect();
+            let edge = |of: fn(&BoundingBox) -> f64| boxes.iter().map(of).collect::<Vec<f64>>();
+            let records = cables
+                .iter()
+                .map(serde_json::to_string)
+                .collect::<Result<Vec<String>, _>>()
+                .map_err(|error| {
+                    StoreError::Failure(format!("a cable cannot be written as JSON: {error}"))
+                })?;
+            let statement = tx.prepare_cached(INSERT_CABLES).await.map_err(db_error)?;
+            tx.execute(
+                &statement,
+                &[
+                    &set.source.as_str(),
+                    &locals,
+                    &edge(BoundingBox::west),
+                    &edge(BoundingBox::south),
+                    &edge(BoundingBox::east),
+                    &edge(BoundingBox::north),
+                    &records,
+                ],
+            )
+            .await
+            .map_err(db_error)?;
+        }
+    }
+    tx.commit().await.map_err(db_error)
+}
+
+pub(super) async fn in_box(
+    client: &Client,
+    sources: &[SourceId],
+    area: &BoundingBox,
+    limit: usize,
+) -> Result<Vec<CableLayer>, StoreError> {
+    let statement = client.prepare_cached(CABLES_IN).await.map_err(db_error)?;
+    let names: Vec<&str> = sources.iter().map(SourceId::as_str).collect();
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let rows = client
+        .query(
+            &statement,
+            &[
+                &area.west(),
+                &area.south(),
+                &area.east(),
+                &area.north(),
+                &names,
+                &limit,
+            ],
+        )
+        .await
+        .map_err(db_error)?;
+    let mut layers: Vec<CableLayer> = Vec::new();
+    for row in &rows {
+        let source: &str = row.get("source");
+        if layers
+            .last()
+            .is_none_or(|layer| layer.set.source.as_str() != source)
+        {
+            layers.push(CableLayer {
+                set: set_from(row)?,
+                cables: Vec::new(),
+            });
+        }
+        if let Some(record) = row.get::<_, Option<&str>>("record") {
+            let cable: Cable =
+                serde_json::from_str(record).map_err(|e| corrupt("cable record", e))?;
+            if let Some(layer) = layers.last_mut() {
+                layer.cables.push(cable);
+            }
+        }
+    }
+    Ok(layers)
+}
+
+pub(super) async fn sets(
+    client: &Client,
+    sources: &[SourceId],
+) -> Result<Vec<CableSet>, StoreError> {
+    let statement = client
+        .prepare_cached(
+            "SELECT s.source, s.fetched_at, s.cables, s.as_of, s.covers
+             FROM cable_sets s
+             WHERE s.source = ANY($1::text[]) ORDER BY s.source",
+        )
+        .await
+        .map_err(db_error)?;
+    let names: Vec<&str> = sources.iter().map(SourceId::as_str).collect();
+    let rows = client
+        .query(&statement, &[&names])
+        .await
+        .map_err(db_error)?;
+    rows.iter().map(set_from).collect()
+}

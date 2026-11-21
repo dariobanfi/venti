@@ -419,6 +419,7 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
     ),
     ("airspace.json", "get", "/v1/airspace", Answer(200)),
     ("airspace_none.json", "get", "/v1/airspace", Answer(200)),
+    ("cables.json", "get", "/v1/cables", Answer(200)),
     ("sites.json", "get", "/v1/sites", Answer(200)),
     ("sites_venti.json", "get", "/v1/sites", Answer(200)),
     ("sites_venti_pilots.json", "get", "/v1/sites", Answer(200)),

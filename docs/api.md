@@ -396,6 +396,14 @@ How the server and each of its data sources are doing.
       "file_date": "2026-11-18T19:05:00Z"
     },
     {
+      "source": "osm-cables",
+      "provider": "OpenStreetMap contributors",
+      "cadence_seconds": 604800,
+      "last_success": "2026-11-18T19:05:00Z",
+      "stale": false,
+      "stations": 0
+    },
+    {
       "source": "osm-free-flying",
       "provider": "OpenStreetMap contributors",
       "cadence_seconds": 86400,
@@ -867,6 +875,67 @@ The credit and the notice come with it: that the source has nothing there is a s
 A box that holds more than 5000 airspaces is refused with `400` and `box_too_large`. The first region is a tenth of that; the eight countries whole would be 3,575, of which Italy alone has 1,557. It is not cut short: a client could take a cut answer for the whole airspace of the box, and a pilot is not warned about airspace that is missing. Ask for such a box in several smaller ones.
 
 **When a source fails.** A run that could not fetch every file of a source changes nothing: the server keeps serving the set of its last complete run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
+
+## `GET /v1/cables?bbox=west,south,east,north`
+
+The cables that touch a box: power lines, minor power lines and ropeways, as lines from pylon to pylon, with their kind and, where the source maps one, their height above the ground. A phone asks for the box of the area it will fly in before the flight, keeps the answer, and the cockpit watches for them offline, as it does with airspace.
+
+`bbox` is required and written as for stations. A cable is found by the smallest box around its line. The development mode serves the cables recorded from OpenStreetMap near the Tegernsee (47.66 to 47.74° N, 11.70 to 11.82° E), eight of them.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/cables?bbox=11.70,47.66,11.82,47.74'
+```
+
+```json
+{
+  "layers": [
+    {
+      "source": "osm-cables",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "as_of": "2026-11-18T19:05:00Z",
+      "covers": [
+        { "south": 47.66, "west": 11.7, "north": 47.74, "east": 11.82 }
+      ],
+      "cables": [
+        {
+          "source": "osm-cables",
+          "local": "way/37016046",
+          "kind": "power-line",
+          "line": [
+            { "lat": 47.7767494, "lon": 11.6832523 },
+            "…"
+          ],
+          "voltage_kv": 110.0,
+          "name": "Bad Wiessee - Waakirchen - Bad Tölz;Bad Wiessee - Waakirchen",
+          "operator": "E.ON Netz GmbH",
+          "url": "https://www.openstreetmap.org/way/37016046"
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "osm-cables",
+      "provider": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "text": "© OpenStreetMap contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "notice": "This data is OpenStreetMap's and is available under the Open Database License, …"
+    }
+  ]
+}
+```
+
+The whole answer is the golden file `crates/server/tests/golden/cables.json`; the line above is cut short here.
+
+- `kind` is one of `power-line`, `minor-power-line`, `cable-car`, `gondola`, `chair-lift`, `drag-lift`, `material-ropeway`, `zip-line` and `other`.
+- `height_m` is there only where the source maps the cable's height above the ground. Few cables in OpenStreetMap have one; none of the eight recorded has.
+- `voltage_kv` is the highest voltage a power line names. `operator` is given for power lines and lifts for people only, which companies run.
+- `local` is the source's own key and stays the same from one run to the next.
+
+**No cable in an answer is no statement that there is none.** OpenStreetMap has many power lines and few of the material ropeways and low lines that are the danger; see [data-sources.md](data-sources.md#cables). The layer is never merged with another source's cables, nor with the sites of the same provider.
+
+**Caching, size and failures** as for airspace: `Cache-Control: public, max-age=3600` with an `ETag`; a box that holds more than 5000 cables is refused with `400` and `box_too_large`, to be asked for in smaller boxes; a run that failed changes nothing.
 
 ## `GET /v1/sites?bbox=west,south,east,north`
 

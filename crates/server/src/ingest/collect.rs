@@ -4,10 +4,11 @@ use std::sync::Arc;
 
 use chrono::Duration;
 use futures::FutureExt;
-use venti_domain::{Airspace, Observation, Site, SourceId, Station, Timestamp};
+use venti_domain::{Airspace, Cable, Observation, Site, SourceId, Station, Timestamp};
 use venti_sources::{
-    AirspaceRunReport, Archive, Fetch, ForecastRunReport, Kind, PlanCtx, RadarRunReport, Registry,
-    RunOptions, RunReport, SiteRunReport, run_airspace, run_observations, run_sites,
+    AirspaceRunReport, Archive, CableRunReport, Fetch, ForecastRunReport, Kind, PlanCtx,
+    RadarRunReport, Registry, RunOptions, RunReport, SiteRunReport, run_airspace, run_cables,
+    run_observations, run_sites,
 };
 use venti_store::{Coverage, ForecastModel, RunRecord, SiteDelivery, Store};
 
@@ -154,6 +155,7 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             Kind::Observations => self.collect_observations(job).await,
             Kind::Airspace => self.collect_airspace(job).await,
             Kind::Sites => self.collect_sites(job).await,
+            Kind::Cables => self.collect_cables(job).await,
             Kind::Forecasts => self.look_at_forecasts(job).await,
             Kind::Radar => self.collect_radar(job).await,
             // No plan has such a job: imagery is fetched when a client
@@ -436,6 +438,61 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         self.save_sites(&record, &delivery, &output.sites).await && healthy
     }
 
+    /// Runs a source of cables once. As for sites, the set it delivers
+    /// replaces the stored one only if every request worked.
+    async fn collect_cables(&self, job: &Job) -> bool {
+        let source = self
+            .registry
+            .cables(&job.source)
+            .unwrap_or_else(|| panic!("the plan names {}, which has no adapter", job.source));
+        let started_at = self.clock.now();
+        let ctx = PlanCtx {
+            now: started_at,
+            area: job.area,
+        };
+        let options = RunOptions::default();
+        let run = run_cables(source, &self.fetch, &self.archive, &ctx, &options);
+        let Some(output) = unless_it_panics(&job.source, run).await else {
+            let failed = self.record(&job.source, started_at, &Outcome::default());
+            let nothing = SiteDelivery {
+                as_of: started_at,
+                covers: Vec::new(),
+            };
+            self.save_cables(&failed, &nothing, &[]).await;
+            return false;
+        };
+        let report = &output.report;
+        let healthy = report.is_healthy();
+        if healthy {
+            tracing::info!(source = %job.source, "{}", cables_summary(report));
+        } else {
+            tracing::warn!(
+                source = %job.source,
+                "unhealthy run, the stored cables stay as they are: {}",
+                cables_summary(report)
+            );
+        }
+        for failure in report.failures.iter().take(LOGGED_PROBLEMS) {
+            tracing::warn!(source = %job.source, "failed {}: {}", failure.tag, failure.error);
+        }
+        let delivery = SiteDelivery {
+            as_of: output.as_of,
+            covers: vec![job.area],
+        };
+        let record = self.record(&job.source, started_at, &Outcome::of_cables(report));
+        self.save_cables(&record, &delivery, &output.cables).await && healthy
+    }
+
+    async fn save_cables(
+        &self,
+        record: &RunRecord,
+        delivery: &SiteDelivery,
+        cables: &[Cable],
+    ) -> bool {
+        let saved = self.store.save_cable_run(record, delivery, cables).await;
+        stored(record, saved)
+    }
+
     fn record(&self, source: &SourceId, started_at: Timestamp, outcome: &Outcome) -> RunRecord {
         let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
         RunRecord {
@@ -547,6 +604,17 @@ impl Outcome {
 
     /// How many sites a run delivered is not in the run history: the set
     /// the store holds says how many there are.
+    fn of_cables(report: &CableRunReport) -> Self {
+        Self {
+            healthy: report.is_healthy(),
+            requests: report.requests,
+            failed_requests: report.failures.len(),
+            skipped: report.skipped.len(),
+            rejected: report.rejected.len(),
+            ..Self::default()
+        }
+    }
+
     fn of_sites(report: &SiteRunReport) -> Self {
         Self {
             healthy: report.is_healthy(),
@@ -595,4 +663,17 @@ impl Outcome {
             ..Self::default()
         }
     }
+}
+
+/// What a cable run delivered, in one line for a person.
+fn cables_summary(report: &CableRunReport) -> String {
+    format!(
+        "{} cables, {} requests, {} failed, {} left out, {} rejected, {} duplicates",
+        report.cables,
+        report.requests,
+        report.failures.len(),
+        report.skipped.len(),
+        report.rejected.len(),
+        report.duplicates,
+    )
 }

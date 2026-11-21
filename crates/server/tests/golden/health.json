@@ -112,6 +112,14 @@
       "file_date": "2026-11-18T19:05:00Z"
     },
     {
+      "source": "osm-cables",
+      "provider": "OpenStreetMap contributors",
+      "cadence_seconds": 604800,
+      "last_success": "2026-11-18T19:05:00Z",
+      "stale": false,
+      "stations": 0
+    },
+    {
       "source": "osm-free-flying",
       "provider": "OpenStreetMap contributors",
       "cadence_seconds": 86400,

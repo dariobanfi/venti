@@ -31,6 +31,7 @@
 //! See `docs/data-sources.md` for the design and the source catalogue.
 
 mod archive;
+mod cables;
 mod fetch;
 mod forecast;
 mod imagery;
@@ -45,6 +46,7 @@ pub mod testing;
 mod validate;
 
 pub use archive::{Archive, ArchiveEntry, ArchiveError};
+pub use cables::{CableRunOutput, CableRunReport, run_cables};
 pub use fetch::{Fetch, FetchError, Fetched};
 pub use forecast::{
     ForecastRejection, ForecastRunOutput, ForecastRunReport, run_forecast, run_forecast_places,
@@ -68,7 +70,7 @@ pub use run::{
 };
 pub use sites::{SiteRejection, SiteRunOutput, SiteRunReport, check_site, run_sites};
 pub use source::{
-    AirspaceSource, ForecastSource, ObservationSource, Parsed, ParsedAirspace, ParsedForecast,
-    ParsedSites, PlanCtx, Request, SiteSource, Skipped, SourceError,
+    AirspaceSource, CableSource, ForecastSource, ObservationSource, Parsed, ParsedAirspace,
+    ParsedCables, ParsedForecast, ParsedSites, PlanCtx, Request, SiteSource, Skipped, SourceError,
 };
 pub use validate::Rejection;

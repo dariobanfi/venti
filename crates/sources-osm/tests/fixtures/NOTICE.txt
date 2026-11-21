@@ -72,3 +72,28 @@ To verify against a real answer of that kind.
 
 Sites in OpenStreetMap are entered by anyone. A record is no permission
 to fly and no statement that a place is safe.
+
+overpass_cables_tegernsee.json is data of OpenStreetMap, © OpenStreetMap
+contributors, under the Open Database License, as above. It was recorded
+on 2026-11-21 at 19:50 UTC from the main public instance,
+https://overpass-api.de/api/interpreter, whose copy of OpenStreetMap was
+of 2026-11-21 19:49:35 UTC: one request with the User-Agent
+venti-server/0.1.0 and the cable adapter's own query for a small box over
+the Tegernsee's south shore, Rottach-Egern and the Wallberg:
+
+    [out:json][timeout:90][bbox:47.66,11.7,47.74,11.82];
+    (way["power"~"^(line|minor_line)$"];way["aerialway"];
+     way["man_made"="cable"];);
+    out tags geom qt;
+
+The answer was 8,191 bytes, twelve ways. Each is in the file in the order
+of the answer with its number, box and points as sent. Of its tags only
+those the adapter reads are kept: power, aerialway, man_made, location,
+height, voltage, name and operator. The others were removed, among them
+the address of the valley station, note and description. The one operator
+kept is a network company's. The file is written with one element per
+line.
+
+To record it again: send the query above, keep the tags listed, then run
+the tests with VENTI_UPDATE_GOLDEN=1 and review what changed. The test
+"the_box_near_the_tegernsee_holds_what_was_recorded" pins the counts.

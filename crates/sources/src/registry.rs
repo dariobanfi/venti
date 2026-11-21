@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use venti_domain::SourceId;
 
 use crate::{
-    AirspaceSource, ForecastSource, Kind, LiveSource, Manifest, ObservationSource, RadarSource,
-    SiteSource,
+    AirspaceSource, CableSource, ForecastSource, Kind, LiveSource, Manifest, ObservationSource,
+    RadarSource, SiteSource,
 };
 
 /// Why an adapter could not be registered.
@@ -29,6 +29,7 @@ pub struct Registry {
     airspace: BTreeMap<SourceId, Box<dyn AirspaceSource>>,
     forecasts: BTreeMap<SourceId, Box<dyn ForecastSource>>,
     sites: BTreeMap<SourceId, Box<dyn SiteSource>>,
+    cables: BTreeMap<SourceId, Box<dyn CableSource>>,
     radar: BTreeMap<SourceId, Box<dyn RadarSource>>,
     live: BTreeMap<SourceId, Box<dyn LiveSource>>,
 }
@@ -88,6 +89,16 @@ impl Registry {
         Ok(())
     }
 
+    /// Adds a source of cables.
+    pub fn register_cables(&mut self, source: Box<dyn CableSource>) -> Result<(), RegistryError> {
+        let id = declared(source.manifest(), Kind::Cables)?;
+        if self.cables.contains_key(&id) {
+            return Err(RegistryError::Duplicate(id));
+        }
+        self.cables.insert(id, source);
+        Ok(())
+    }
+
     /// Adds a source of rain radar.
     pub fn register_radar(&mut self, source: Box<dyn RadarSource>) -> Result<(), RegistryError> {
         let id = declared(source.manifest(), Kind::Radar)?;
@@ -132,6 +143,12 @@ impl Registry {
         self.sites.get(id).map(Box::as_ref)
     }
 
+    /// The source of cables with this identifier, if the build contains
+    /// it.
+    pub fn cables(&self, id: &SourceId) -> Option<&dyn CableSource> {
+        self.cables.get(id).map(Box::as_ref)
+    }
+
     /// The source of rain radar with this identifier, if the build
     /// contains it.
     pub fn radar(&self, id: &SourceId) -> Option<&dyn RadarSource> {
@@ -152,6 +169,7 @@ impl Registry {
             Kind::Airspace => self.airspace(id).map(AirspaceSource::manifest),
             Kind::Forecasts => self.forecasts(id).map(ForecastSource::manifest),
             Kind::Sites => self.sites(id).map(SiteSource::manifest),
+            Kind::Cables => self.cables(id).map(CableSource::manifest),
             Kind::Radar => self.radar(id).map(RadarSource::manifest),
             Kind::Live => self.live(id).map(LiveSource::manifest),
             // Imagery is not collected, and its sources are not in the
@@ -171,6 +189,7 @@ impl Registry {
             .chain(self.airspace.values().map(|source| source.manifest()))
             .chain(self.forecasts.values().map(|source| source.manifest()))
             .chain(self.sites.values().map(|source| source.manifest()))
+            .chain(self.cables.values().map(|source| source.manifest()))
             .chain(self.radar.values().map(|source| source.manifest()))
             .chain(self.live.values().map(|source| source.manifest()));
         for manifest in all {

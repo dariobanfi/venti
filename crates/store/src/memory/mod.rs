@@ -12,23 +12,23 @@ use std::sync::{Mutex, MutexGuard};
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, AirspaceId, BoundingBox, GeoPoint, ModelId, Observation, Site, SiteId, SourceId,
-    Station, StationId, Timestamp,
+    Airspace, AirspaceId, BoundingBox, Cable, GeoPoint, ModelId, Observation, Site, SiteId,
+    SourceId, Station, StationId, Timestamp,
 };
 
 use crate::flight::{Room, Saved};
 use crate::{
-    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight,
-    FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
-    GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
-    LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
-    NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight, PilotSite, PilotSiteChanges, Plan,
-    PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights,
-    PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey, ReportListing,
-    ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation, SiteConfirming, SiteDelivery,
-    SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
-    StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, airspace, batch, forecast,
-    site, takeoff,
+    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, CableLayer, CableSet,
+    Coverage, Derived, Flight, FlightChanges, FlightKey, ForecastModel, Group, GroupCreation,
+    GroupJoining, GroupMembers, GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt,
+    LiveRemoval, LiveRoom, LiveSaved, LiveTrack, MemberRemoval, Month, NewAccount, NewFlight,
+    NewGroup, NewInvite, NewPilotSite, NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight,
+    PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
+    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing,
+    ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation,
+    SiteConfirming, SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite,
+    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
+    VisibilityChange, airspace, batch, cable, forecast, site, takeoff,
 };
 use crate::{CandidateRule, FlightsFrom, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
@@ -53,6 +53,7 @@ struct Inner {
     airspace: BTreeMap<SourceId, StoredSet>,
     /// The flying sites of each source, in the same way.
     sites: BTreeMap<SourceId, StoredSites>,
+    cables: BTreeMap<SourceId, (CableSet, Vec<Cable>)>,
     /// The models of each forecast source, as the latest healthy look
     /// found them, sorted by model.
     forecast_models: BTreeMap<SourceId, Vec<ForecastModel>>,
@@ -381,6 +382,70 @@ impl Store for MemoryStore {
             .iter()
             .filter(|(source, _)| sources.contains(source))
             .map(|(_, stored)| stored.set.clone())
+            .collect())
+    }
+
+    async fn save_cable_run(
+        &self,
+        run: &RunRecord,
+        delivery: &SiteDelivery,
+        cables: &[Cable],
+    ) -> Result<(), StoreError> {
+        cable::check(run, cables)?;
+        let mut inner = self.lock();
+        inner
+            .runs
+            .insert((run.source.clone(), run.started_at), run.clone());
+        let newer_is_stored = inner
+            .cables
+            .get(&run.source)
+            .is_some_and(|(set, _)| set.fetched_at > run.started_at);
+        if run.healthy && !newer_is_stored {
+            let mut sorted = cables.to_vec();
+            sorted.sort_by(|one, two| one.local.cmp(&two.local));
+            inner.cables.insert(
+                run.source.clone(),
+                (CableSet::of(run, delivery, cables), sorted),
+            );
+        }
+        Ok(())
+    }
+
+    async fn cables_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> Result<Vec<CableLayer>, StoreError> {
+        let inner = self.lock();
+        let mut left = limit;
+        let mut layers = Vec::new();
+        for (source, (set, cables)) in &inner.cables {
+            if !sources.contains(source) {
+                continue;
+            }
+            let found: Vec<Cable> = cables
+                .iter()
+                .filter(|cable| cable.touches(area))
+                .take(left)
+                .cloned()
+                .collect();
+            left -= found.len();
+            layers.push(CableLayer {
+                set: set.clone(),
+                cables: found,
+            });
+        }
+        Ok(layers)
+    }
+
+    async fn cable_sets(&self, sources: &[SourceId]) -> Result<Vec<CableSet>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .cables
+            .iter()
+            .filter(|(source, _)| sources.contains(source))
+            .map(|(_, (set, _))| set.clone())
             .collect())
     }
 

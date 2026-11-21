@@ -75,6 +75,7 @@
 //! is a place for free flying, and OpenStreetMap does not say which kind.
 //! Nothing here guesses a use from a name.
 
+mod cables;
 mod direction;
 pub mod fixtures;
 
@@ -87,6 +88,7 @@ use venti_domain::{
 };
 use venti_sources::{Manifest, ParsedSites, PlanCtx, Request, SiteSource, Skipped, SourceError};
 
+pub use cables::OsmCables;
 pub use direction::directions;
 
 /// The interpreter of the main public Overpass instance, which FOSSGIS
@@ -96,7 +98,7 @@ pub const DEFAULT_INTERPRETER: &str = "https://overpass-api.de/api/interpreter";
 /// How long the instance may work on the query, in seconds. The instance
 /// that recorded the fixtures took 53 seconds for the first region on
 /// 2026-11-19 and 22 on 2026-11-21.
-const QUERY_TIMEOUT_S: u32 = 90;
+pub(crate) const QUERY_TIMEOUT_S: u32 = 90;
 
 /// The keys of the tagging scheme that say what a place is used for, with
 /// the use each names.
@@ -168,7 +170,7 @@ impl OsmFreeFlying {
     }
 
     /// The address that asks for the sites inside `area`.
-    fn url(&self, area: &BoundingBox) -> String {
+    pub(crate) fn url(&self, area: &BoundingBox) -> String {
         format!("{}?data={}", self.interpreter, encode(&query(area)))
     }
 }
@@ -191,7 +193,7 @@ fn query(area: &BoundingBox) -> String {
 
 /// Writes text as a query parameter: everything but letters, digits and
 /// `-._~` is percent-encoded.
-fn encode(text: &str) -> String {
+pub(crate) fn encode(text: &str) -> String {
     let mut encoded = String::with_capacity(text.len() * 3);
     for byte in text.bytes() {
         if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
@@ -452,7 +454,7 @@ fn simplified(ring: &[GeoPoint], tolerance_m: f64) -> Vec<GeoPoint> {
         .collect()
 }
 
-fn time(text: &str) -> Option<Timestamp> {
+pub(crate) fn time(text: &str) -> Option<Timestamp> {
     DateTime::parse_from_rfc3339(text)
         .ok()
         .map(|time| time.with_timezone(&Utc))
@@ -500,7 +502,7 @@ fn parts(value: &str) -> impl Iterator<Item = &str> {
 
 /// Reads `ele`: metres above sea level, as a plain number, with or without
 /// the unit written behind it.
-fn elevation(value: &str) -> Option<f64> {
+pub(crate) fn elevation(value: &str) -> Option<f64> {
     let number = value.trim().trim_end_matches('m').trim_end();
     let plain = !number.is_empty()
         && number

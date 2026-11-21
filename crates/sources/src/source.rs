@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use venti_domain::{
-    Airspace, BoundingBox, ForecastSeries, GeoPoint, ModelId, Observation, Site, Station, Timestamp,
+    Airspace, BoundingBox, Cable, ForecastSeries, GeoPoint, ModelId, Observation, Site, Station,
+    Timestamp,
 };
 
 use crate::Manifest;
@@ -169,6 +170,38 @@ pub trait SiteSource: Send + Sync {
         body: &[u8],
         ctx: &PlanCtx,
     ) -> Result<ParsedSites, SourceError>;
+}
+
+/// What a cable adapter made of one response.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ParsedCables {
+    /// Cables found in the response.
+    pub cables: Vec<Cable>,
+    /// The date the response's data is of, if the response says.
+    pub as_of: Option<Timestamp>,
+    /// Records, or parts of the response, that were left out, and why.
+    pub skipped: Vec<Skipped>,
+}
+
+/// An adapter for a source of cables.
+///
+/// Pure, like the others. A cable run is a snapshot, like a site run: it
+/// delivers every cable the source has in the area, and that set replaces
+/// the one before. See [`run_cables`](crate::run_cables).
+pub trait CableSource: Send + Sync {
+    /// The declared facts about this source.
+    fn manifest(&self) -> &Manifest;
+
+    /// The requests that start a run.
+    fn plan(&self, ctx: &PlanCtx) -> Vec<Request>;
+
+    /// Converts the response to one request into canonical records.
+    fn parse(
+        &self,
+        request: &Request,
+        body: &[u8],
+        ctx: &PlanCtx,
+    ) -> Result<ParsedCables, SourceError>;
 }
 
 /// What a forecast adapter made of one response.

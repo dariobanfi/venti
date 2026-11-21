@@ -3,6 +3,7 @@
 mod accounts;
 mod airspace;
 mod alerts;
+mod cables;
 mod flights;
 mod forecasts;
 mod groups;
@@ -23,22 +24,23 @@ use deadpool_postgres::{
 };
 use tokio_postgres::{NoTls, Row};
 use venti_domain::{
-    Airspace, BoundingBox, GeoPoint, Observation, Site, SiteId, SourceId, Station, StationId,
-    Timestamp,
+    Airspace, BoundingBox, Cable, GeoPoint, Observation, Site, SiteId, SourceId, Station,
+    StationId, Timestamp,
 };
 
 use crate::flight::{Room, Saved};
 use crate::{
-    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight,
-    FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
-    GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
-    LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
-    NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight, PilotSite, PilotSiteChanges, Plan,
-    PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights,
-    PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey, ReportListing,
-    ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation, SiteConfirming, SiteDelivery,
-    SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
-    StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, batch,
+    AccessToken, Account, AccountCreation, AirspaceLayer, AirspaceSet, CableLayer, CableSet,
+    Coverage, Derived, Flight, FlightChanges, FlightKey, ForecastModel, Group, GroupCreation,
+    GroupJoining, GroupMembers, GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt,
+    LiveRemoval, LiveRoom, LiveSaved, LiveTrack, MemberRemoval, Month, NewAccount, NewFlight,
+    NewGroup, NewInvite, NewPilotSite, NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight,
+    PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
+    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing,
+    ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation,
+    SiteConfirming, SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite,
+    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
+    VisibilityChange, batch,
 };
 use crate::{CandidateRule, FlightsFrom, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
@@ -547,6 +549,28 @@ impl Store for PgStore {
 
     async fn site_sets(&self, sources: &[SourceId]) -> Result<Vec<SiteSet>, StoreError> {
         sites::sets(&self.client().await?, sources).await
+    }
+
+    async fn save_cable_run(
+        &self,
+        run: &RunRecord,
+        delivery: &SiteDelivery,
+        cables: &[Cable],
+    ) -> Result<(), StoreError> {
+        cables::save_run(&mut self.client().await?, run, delivery, cables).await
+    }
+
+    async fn cables_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> Result<Vec<CableLayer>, StoreError> {
+        cables::in_box(&self.client().await?, sources, area, limit).await
+    }
+
+    async fn cable_sets(&self, sources: &[SourceId]) -> Result<Vec<CableSet>, StoreError> {
+        cables::sets(&self.client().await?, sources).await
     }
 
     async fn set_site(&self, id: &SiteId) -> Result<Option<Site>, StoreError> {

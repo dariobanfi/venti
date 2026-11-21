@@ -69,6 +69,7 @@ async fn health_reports_every_source_fresh() {
             ("geosphere-tawes", 3),
             ("open-meteo", 0),
             ("openaip", 0),
+            ("osm-cables", 0),
             ("osm-free-flying", 0),
             ("suedtirol-meteo", 3)
         ]
@@ -78,13 +79,35 @@ async fn health_reports_every_source_fresh() {
     let airspaces: Vec<Option<u32>> = health.sources.iter().map(|s| s.airspaces).collect();
     assert_eq!(
         airspaces,
-        [None, None, None, None, None, None, Some(192), None, None]
+        [
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(192),
+            None,
+            None,
+            None
+        ]
     );
     // The same for the flying sites.
     let sites: Vec<Option<u32>> = health.sources.iter().map(|s| s.sites).collect();
     assert_eq!(
         sites,
-        [None, None, None, None, None, None, None, Some(502), None]
+        [
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(502),
+            None
+        ]
     );
     // The forecast source says which run each of its models is at. The
     // development mode's forecasts were recorded three days after its

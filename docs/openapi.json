@@ -486,6 +486,117 @@
         ],
         "type": "object"
       },
+      "Cable": {
+        "description": "One cable hung in the air, of exactly one source, as a line. A height is given only where the source maps one; no cable in an answer is no statement that there is none.",
+        "properties": {
+          "height_m": {
+            "type": "number"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CableKind"
+          },
+          "line": {
+            "items": {
+              "$ref": "#/components/schemas/RawPoint"
+            },
+            "type": "array"
+          },
+          "local": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "voltage_kv": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "source",
+          "local",
+          "kind",
+          "line"
+        ],
+        "type": "object"
+      },
+      "CableKind": {
+        "enum": [
+          "power-line",
+          "minor-power-line",
+          "cable-car",
+          "gondola",
+          "chair-lift",
+          "drag-lift",
+          "material-ropeway",
+          "zip-line",
+          "other"
+        ],
+        "type": "string"
+      },
+      "CableLayer": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cables": {
+            "items": {
+              "$ref": "#/components/schemas/Cable"
+            },
+            "type": "array"
+          },
+          "covers": {
+            "items": {
+              "$ref": "#/components/schemas/RawBox"
+            },
+            "type": "array"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "fetched_at",
+          "as_of",
+          "cables"
+        ],
+        "type": "object"
+      },
+      "CablesResponse": {
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/CableLayer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "layers",
+          "attributions"
+        ],
+        "type": "object"
+      },
       "ChangePasswordRequest": {
         "properties": {
           "current_password": {
@@ -5617,6 +5728,41 @@
         "security": [],
         "summary": "The airspace of a box, in layers by source",
         "x-venti-docs": "GET /v1/airspace?bbox=west,south,east,north"
+      }
+    },
+    "/v1/cables": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_cables",
+        "parameters": [
+          {
+            "description": "A box as west,south,east,north in WGS84 degrees, for example 10.5,47.2,11.9,47.8.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CablesResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The cables of a box, in layers by source",
+        "x-venti-docs": "GET /v1/cables?bbox=west,south,east,north"
       }
     },
     "/v1/dumps": {

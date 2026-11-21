@@ -44,15 +44,15 @@ use serde::Serialize;
 use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceHeightFilter, AirspaceImport,
-    AirspaceOverPlace, AirspaceShape, Bounds, Coordinate, CoreError, Credit, FlightAirspace,
-    FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView, FlightVisibility,
-    ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
-    KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveLayer, LiveMap, LiveOthers,
-    LogbookStatistics, LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight,
-    PublicFlights, PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm, ReportReason,
-    ReportSubject, RouteAlong, RoutePlace, RouteSetting, ServerRequest, ServerStatus, SignedIn,
-    SiteAtPlace, SiteDraftFault, SiteDraftView, SiteForm, SiteHistory, SiteInTheWay, SiteOutlook,
-    SitePage, SiteStatistics, SiteView, SiteWritten, SitesFilter, SitesFilterChoices,
+    AirspaceOverPlace, AirspaceShape, Bounds, CableSet, CablesMap, Coordinate, CoreError, Credit,
+    FlightAirspace, FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView,
+    FlightVisibility, ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade,
+    ImportedFlight, KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveLayer, LiveMap,
+    LiveOthers, LogbookStatistics, LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView,
+    PublicFlight, PublicFlights, PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm,
+    ReportReason, ReportSubject, RouteAlong, RoutePlace, RouteSetting, ServerRequest, ServerStatus,
+    SignedIn, SiteAtPlace, SiteDraftFault, SiteDraftView, SiteForm, SiteHistory, SiteInTheWay,
+    SiteOutlook, SitePage, SiteStatistics, SiteView, SiteWritten, SitesFilter, SitesFilterChoices,
     SitesFiltered, SitesMap, StagedStorage, StationAir, StationDay, StationDays, StationHistory,
     Storage, SyncStep, SyncSummary, Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap,
     ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
@@ -1304,6 +1304,20 @@ pub fn token_created(
     now_unix_s: f64,
 ) -> Result<Ts<TokenCreated>, JsValue> {
     to_js(&venti_core::token_created(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+/// The request for the cables around a place: power lines and ropeways
+/// from the server, to draw on the map.
+#[wasm_bindgen(js_name = cablesRequest)]
+pub fn cables_request(lat: f64, lon: f64) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::cables_request(lat, lon).map_err(thrown)?)
+}
+
+/// Reads the answer to `cablesRequest` as a map layer: each cable with its
+/// kind and words, the credits, and what to say of the data's limits.
+#[wasm_bindgen(js_name = cablesLayer)]
+pub fn cables_layer(status: u16, body: Vec<u8>) -> Result<Ts<CablesMap>, JsValue> {
+    to_js(&CableSet::from_answer(status, body).map_err(thrown)?.layer())
 }
 
 /// The request for the account's tokens.

@@ -20,7 +20,7 @@
 use chrono::{TimeZone, Utc};
 use venti_domain::{BoundingBox, Timestamp};
 
-use crate::{DEFAULT_INTERPRETER, OsmFreeFlying};
+use crate::{DEFAULT_INTERPRETER, OsmCables, OsmFreeFlying};
 
 /// The interpreter the recorded answer stands for. An adapter made for
 /// this address asks for the URL that [`recorded`] answers.
@@ -58,5 +58,43 @@ pub fn recorded() -> Vec<(String, &'static [u8])> {
     vec![(
         source.url(&area()),
         include_bytes!("../tests/fixtures/overpass_alps.json").as_slice(),
+    )]
+}
+
+/// When the cables near the Tegernsee were recorded: shortly after the
+/// answer came. A run over them uses this as its time.
+///
+/// # Panics
+///
+/// Never: the date is a constant.
+pub fn cables_recorded_at() -> Timestamp {
+    Utc.with_ymd_and_hms(2026, 11, 21, 19, 51, 0)
+        .single()
+        .expect("a valid date")
+}
+
+/// The small box the cables were recorded for: the Tegernsee's south
+/// shore, Rottach-Egern and the Wallberg.
+///
+/// # Panics
+///
+/// Never: the edges are constants that form a box.
+pub fn cables_area() -> BoundingBox {
+    BoundingBox::new(47.66, 11.70, 47.74, 11.82).expect("a valid box")
+}
+
+/// The recorded answer of the cables near the Tegernsee with the URL it
+/// answers: the request of a cable adapter for [`INTERPRETER`] whose run
+/// covers [`cables_area`]. `tests/fixtures/NOTICE.txt` says how it was
+/// recorded.
+///
+/// # Panics
+///
+/// Never: the address is a constant the adapter accepts.
+pub fn cables_recorded() -> Vec<(String, &'static [u8])> {
+    let source = OsmCables::new(INTERPRETER).expect("the default interpreter is an address");
+    vec![(
+        source.url(&cables_area()),
+        include_bytes!("../tests/fixtures/overpass_cables_tegernsee.json").as_slice(),
     )]
 }

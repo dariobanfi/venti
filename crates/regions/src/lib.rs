@@ -6,7 +6,7 @@
 //! pack; nothing else changes.
 //!
 //! A pack has one section per kind of data: `[observations]`, which every
-//! region has, and `[airspace]`, `[sites]`, `[forecasts]`, `[radar]` and
+//! region has, and `[airspace]`, `[sites]`, `[cables]`, `[forecasts]`, `[radar]` and
 //! `[live]`, which a region may leave out.
 //!
 //! The area is a bounding box for now. A boundary polygon replaces it when a
@@ -45,6 +45,12 @@ pub struct RegionPack {
     /// source stays a layer of its own under its own licence.
     #[serde(default, skip_serializing_if = "SourceList::is_empty")]
     pub sites: SourceList,
+    /// The sources of cables hung in the air. A region may have none.
+    ///
+    /// Each source stays a layer of its own, never merged with another's
+    /// cables nor with the sites of the same provider.
+    #[serde(default, skip_serializing_if = "SourceList::is_empty")]
+    pub cables: SourceList,
     /// The sources of point forecasts. A region may have none.
     ///
     /// A forecast source is a service that whoever runs the server has to
@@ -128,6 +134,7 @@ impl RegionPack {
             &pack.observations,
             &pack.airspace,
             &pack.sites,
+            &pack.cables,
             &pack.forecasts,
             &pack.radar,
             &pack.live,
@@ -179,6 +186,11 @@ impl RegionPack {
         }
         for source in &self.sites.sources {
             if registry.sites(source).is_none() {
+                return Err(unknown(source));
+            }
+        }
+        for source in &self.cables.sources {
+            if registry.cables(source).is_none() {
                 return Err(unknown(source));
             }
         }

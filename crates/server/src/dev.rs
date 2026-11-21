@@ -1288,7 +1288,15 @@ pub async fn recorded_with_its_store(
     let pack = RegionPack::from_toml(FIRST_REGION).map_err(|e| e.to_string())?;
     pack.check_against(&registry).map_err(|e| e.to_string())?;
     let packs = [pack];
-    let jobs: Vec<plan::Job> = plan::plan(&packs, &registry).map_err(|e| e.to_string())?;
+    let mut jobs: Vec<plan::Job> = plan::plan(&packs, &registry).map_err(|e| e.to_string())?;
+    // The cables were recorded for a small box near the Tegernsee, not for
+    // the whole region: the job asks for that box, and that box is where
+    // the development mode's set of cables is whole.
+    for job in &mut jobs {
+        if job.kind == venti_sources::Kind::Cables {
+            job.area = venti_sources_osm::fixtures::cables_area();
+        }
+    }
 
     let store = Arc::new(MemoryStore::new());
     let now = adapters::recorded_at();

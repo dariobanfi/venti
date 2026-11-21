@@ -49,12 +49,89 @@ use venti_sensors::{Battery, SentenceReader};
 
 use crate::ahead::{self, AirspaceAhead};
 use crate::airspace::{AirspaceWatch, compass};
+use crate::cables::{CableKind, CableSet};
 use crate::live::{self as sharing, LiveAudience, LiveShare, LiveShareView};
 use crate::task::{TaskEventView, TaskFlown, TaskStatusView};
 use crate::{
     AirspaceCheck, AirspaceLevel, AirspaceProximity, AirspaceSet, AirspaceWarning, Coordinate,
     CoreError, RouteKind, ServerRequest, Terrain,
 };
+
+/// The cockpit's warning of a cable ahead.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CableWarning {
+    /// The cable's identifier, `source:key`, to silence it by.
+    pub id: String,
+    /// What it is.
+    pub kind: CableKind,
+    /// In words: "Cable ahead: power line in 400 m, 60 m below the line
+    /// you fly".
+    pub words: String,
+    /// How far along the course the glider comes within 150 m of it.
+    pub distance_m: f64,
+    /// How far the glider is above the cable's height, negative below it;
+    /// `None` when the height above the ground is not known.
+    pub above_m: Option<f64>,
+    /// Whether the cable's height is mapped, not assumed.
+    pub height_mapped: bool,
+    /// Whether the pilot has silenced it.
+    pub silenced: bool,
+}
+
+/// The cables a session watches for.
+#[derive(Debug, Default)]
+struct CableWatch {
+    set: Option<Arc<CableSet>>,
+    warning: Option<CableWarning>,
+    /// The cable last sounded for: one cable sounds once while it stays
+    /// ahead.
+    alerted: Option<String>,
+    /// Cables the pilot silenced, with until when, seconds since 1970.
+    silenced: Vec<(String, f64)>,
+    now_unix_s: f64,
+}
+
+impl CableWatch {
+    fn feed(
+        &mut self,
+        now_unix_s: f64,
+        position: GeoPoint,
+        height_above_ground_m: Option<f64>,
+        track_deg: Option<f64>,
+        ground_speed_m_s: Option<f64>,
+    ) {
+        self.now_unix_s = now_unix_s;
+        self.silenced.retain(|(_, until)| *until > now_unix_s);
+        let Some(set) = self.set.as_ref() else {
+            self.warning = None;
+            return;
+        };
+        let glider = venti_flight::cables::Glider {
+            position,
+            height_above_ground_m,
+            track_deg: track_deg.unwrap_or(0.0),
+            // Without a course the glider is taken to stand: only what is
+            // around it counts.
+            ground_speed_m_s: if track_deg.is_some() {
+                ground_speed_m_s.unwrap_or(0.0)
+            } else {
+                0.0
+            },
+        };
+        self.warning = set.ahead(&glider).map(|(found, id, words)| CableWarning {
+            silenced: self.silenced.iter().any(|(silenced, _)| *silenced == id),
+            kind: set.kind_of(found.index),
+            id,
+            words,
+            distance_m: found.distance_m,
+            above_m: found.above_m,
+            height_mapped: found.height_mapped,
+        });
+        if self.warning.is_none() {
+            self.alerted = None;
+        }
+    }
+}
 
 /// How long an external instrument may be silent, in seconds, before it
 /// counts as disconnected and the phone's own pressure sensor takes over.
@@ -633,6 +710,9 @@ struct Inner {
     glider: Glider,
     /// The airspace warnings, once the shell has handed over the airspace.
     watch: Option<AirspaceWatch>,
+    /// The cables to watch for, once the shell has handed them over, and
+    /// the warning of the latest position.
+    cables: CableWatch,
     /// The height of the ground, once the shell has handed over terrain.
     terrain: Option<Arc<Terrain>>,
     /// The ground under the latest position, metres above mean sea level,
@@ -759,6 +839,7 @@ impl FlightSession {
                 target: None,
                 glider: Glider::default(),
                 watch: None,
+                cables: CableWatch::default(),
                 terrain: None,
                 ground_m: None,
                 flown: Vec::new(),
@@ -1107,6 +1188,53 @@ impl FlightSession {
         }
     }
 
+    /// Hands the session the cables to watch for: the set read from the
+    /// server's answer for the flight's area, loaded before the flight as
+    /// the airspace is. `None` takes them away. What the pilot silenced
+    /// stays silenced.
+    pub fn use_cables(&self, cables: Option<Arc<CableSet>>) {
+        let mut inner = self.lock();
+        inner.cables.set = cables;
+        inner.cables.warning = None;
+    }
+
+    /// The cable ahead as of the latest position, by the engine's rule
+    /// (`venti_flight::cables`). `None` without cables or with none ahead,
+    /// which is no promise: the data is incomplete.
+    pub fn cable_warning(&self) -> Option<CableWarning> {
+        self.lock().cables.warning.clone()
+    }
+
+    /// Whether to sound the cable warning, once: true when a cable came
+    /// ahead that was not ahead at the last ask, or came out of a silence,
+    /// and the pilot has not silenced it. Sounded as the airspace warning
+    /// of the level `Entering` is.
+    pub fn take_cable_alert(&self) -> bool {
+        let mut inner = self.lock();
+        let cables = &mut inner.cables;
+        let Some(warning) = cables.warning.as_ref().filter(|warning| !warning.silenced) else {
+            return false;
+        };
+        if cables.alerted.as_deref() == Some(warning.id.as_str()) {
+            return false;
+        }
+        cables.alerted = Some(warning.id.clone());
+        true
+    }
+
+    /// "I have seen it": the cable's warning stays on screen and is quiet
+    /// for this many minutes.
+    pub fn acknowledge_cable(&self, id: String, minutes: u32) {
+        let mut inner = self.lock();
+        let cables = &mut inner.cables;
+        let until = cables.now_unix_s + f64::from(minutes) * 60.0;
+        cables.silenced.retain(|(silenced, _)| *silenced != id);
+        if let Some(warning) = cables.warning.as_mut().filter(|warning| warning.id == id) {
+            warning.silenced = true;
+        }
+        cables.silenced.push((id, until));
+    }
+
     /// Chooses the place to navigate to, or with `None` goes back to
     /// navigating to the take-off.
     pub fn go_to(&self, place: Option<TargetPlace>) {
@@ -1404,6 +1532,16 @@ impl FlightSession {
             .as_ref()
             .and_then(|terrain| terrain.elevation_at(position));
         inner.ground_m = ground_m;
+        inner.cables.feed(
+            sample.time_unix_s,
+            position,
+            state
+                .altitude_m
+                .zip(ground_m)
+                .map(|(up, ground)| up - ground),
+            state.course_deg,
+            state.ground_speed_ms,
+        );
         if let Some(watch) = inner.watch.as_mut() {
             watch.feed(
                 sample.time_unix_s,
@@ -3460,5 +3598,50 @@ mod tests {
         assert_eq!(view.climb_ms, Some(3.0));
         assert_eq!(view.phase, FlightPhase::Ground);
         assert_eq!(view.tone, None);
+    }
+}
+
+#[cfg(test)]
+mod cable_tests {
+    use super::*;
+
+    /// The cables of the development mode, and the Wallbergbahn's lower
+    /// end, where its line begins.
+    fn watch() -> (CableWatch, GeoPoint) {
+        let body = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../server/tests/golden/cables.json"
+        ))
+        .unwrap();
+        let set = CableSet::from_answer(200, body).unwrap();
+        let start = GeoPoint::new(47.6750127, 11.7767441).unwrap();
+        (
+            CableWatch {
+                set: Some(set),
+                ..CableWatch::default()
+            },
+            start,
+        )
+    }
+
+    #[test]
+    fn a_cable_ahead_is_warned_of_once_and_can_be_silenced() {
+        let (mut watch, start) = watch();
+        // 30 m above the ground at the gondola's lower end, flying on.
+        watch.feed(1000.0, start, Some(30.0), Some(135.0), Some(10.0));
+        let warning = watch.warning.clone().unwrap();
+        assert_eq!(warning.kind, CableKind::Gondola);
+        assert!(
+            warning.words.starts_with("Cable here: gondola"),
+            "{}",
+            warning.words
+        );
+        // High above it: nothing.
+        watch.feed(1001.0, start, Some(400.0), Some(135.0), Some(10.0));
+        assert_eq!(watch.warning, None);
+        // Without terrain every cable on the course counts.
+        watch.feed(1002.0, start, None, Some(135.0), Some(10.0));
+        assert!(watch.warning.is_some());
+        assert!(watch.silenced.is_empty());
     }
 }

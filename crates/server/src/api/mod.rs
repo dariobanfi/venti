@@ -67,6 +67,7 @@ mod alerts;
 mod archive;
 mod auth;
 mod body;
+mod cables;
 mod cache;
 mod clients;
 mod dumps;
@@ -114,12 +115,12 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH,
-    AIRSPACE_PATH, Attribution, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
-    GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
-    MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
-    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
-    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH,
-    THERMALS_PATH,
+    AIRSPACE_PATH, Attribution, CABLES_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
+    FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
+    LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
+    PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH,
+    ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH,
+    STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -556,6 +557,7 @@ impl<S: Store> Api<S> {
                 get(observations::observations::<S>),
             )
             .route(AIRSPACE_PATH, get(airspace::airspace::<S>))
+            .route(CABLES_PATH, get(cables::cables::<S>))
             .route(SITES_PATH, get(sites::sites::<S>).post(sites::add::<S>))
             .route(SITE_CHANGES_PATH, get(sites::changes::<S>))
             .route(SITE_CANDIDATES_PATH, get(takeoffs::candidates::<S>))

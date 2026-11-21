@@ -18,7 +18,7 @@ use venti_sources_geosphere_radar::GeosphereIncaRr;
 use venti_sources_ogn::Ogn;
 use venti_sources_openaip::OpenAip;
 use venti_sources_openmeteo::OpenMeteo;
-use venti_sources_osm::OsmFreeFlying;
+use venti_sources_osm::{OsmCables, OsmFreeFlying};
 use venti_sources_suedtirol::SuedtirolMeteo;
 
 /// What whoever runs the server tells it about the services behind some of
@@ -145,6 +145,11 @@ pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
     registry
         .register_sites(Box::new(sites))
         .expect("osm-free-flying registers once");
+    let cables = OsmCables::new(&providers.overpass_url)
+        .map_err(|problem| format!("the address of the Overpass instance: {problem}"))?;
+    registry
+        .register_cables(Box::new(cables))
+        .expect("osm-cables registers once");
     for forecasts in forecast_sources(providers)? {
         registry
             .register_forecasts(forecasts)
@@ -245,6 +250,7 @@ pub fn recorded_payloads() -> FixtureFetch {
         .with_all(venti_sources_awc::fixtures::evening())
         .with_all(venti_sources_openaip::fixtures::recorded())
         .with_all(venti_sources_osm::fixtures::recorded())
+        .with_all(venti_sources_osm::fixtures::cables_recorded())
         .with_all(venti_sources_openmeteo::fixtures::recorded())
 }
 
@@ -392,6 +398,7 @@ mod tests {
                     Kind::Airspace => registry.airspace(&manifest.id).is_some(),
                     Kind::Forecasts => registry.forecasts(&manifest.id).is_some(),
                     Kind::Sites => registry.sites(&manifest.id).is_some(),
+                    Kind::Cables => registry.cables(&manifest.id).is_some(),
                     Kind::Radar => registry.radar(&manifest.id).is_some(),
                     Kind::Live => registry.live(&manifest.id).is_some(),
                     // Imagery sources are not in the registry.
@@ -401,7 +408,7 @@ mod tests {
             }
         }
         // A server that was told nothing has no forecast source.
-        assert_eq!(registry.manifests().count(), 9);
+        assert_eq!(registry.manifests().count(), 10);
         assert!(forecast_sources(&Providers::default()).unwrap().is_empty());
     }
 
@@ -417,7 +424,7 @@ mod tests {
     #[test]
     fn forecasts_are_there_only_when_the_server_is_told_where_from() {
         let told = registry_for(&Providers::recorded()).unwrap();
-        assert_eq!(told.manifests().count(), 10);
+        assert_eq!(told.manifests().count(), 11);
         let open_meteo = venti_domain::SourceId::new("open-meteo").unwrap();
         let manifest = told.manifest(&open_meteo, Kind::Forecasts).unwrap();
         assert_eq!(manifest.kinds, [Kind::Forecasts]);

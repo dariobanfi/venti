@@ -33,7 +33,7 @@ use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
     ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
     ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH, ALERTS_PATH,
-    ARCHIVE_MEDIA_TYPE, CSV_MEDIA_TYPE, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
+    ARCHIVE_MEDIA_TYPE, CABLES_PATH, CSV_MEDIA_TYPE, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
     FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
     LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
@@ -257,6 +257,10 @@ fn operations() -> Vec<Op> {
             .docs("GET /v1/airspace?bbox=west,south,east,north")
             .query(&["bbox!"])
             .json("AirspaceResponse"),
+        get(CABLES_PATH, "The cables of a box, in layers by source")
+            .docs("GET /v1/cables?bbox=west,south,east,north")
+            .query(&["bbox!"])
+            .json("CablesResponse"),
         get(SITES_PATH, "The flying sites of a box, in layers by source")
             .docs("GET /v1/sites?bbox=west,south,east,north")
             .query(&["bbox!", "layers"])

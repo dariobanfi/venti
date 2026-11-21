@@ -35,6 +35,7 @@ mod account;
 mod airspace;
 mod alert;
 mod batch;
+mod cable;
 mod flight;
 mod forecast;
 mod group;
@@ -53,8 +54,8 @@ use std::future::Future;
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, BoundingBox, GeoPoint, Observation, Site, SiteId, SourceId, Station, StationId,
-    Timestamp,
+    Airspace, BoundingBox, Cable, GeoPoint, Observation, Site, SiteId, SourceId, Station,
+    StationId, Timestamp,
 };
 
 pub use account::{
@@ -65,6 +66,7 @@ pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use alert::{
     AddingAlert, Alert, AlertCheck, DAY_ALERT, FiredAlert, FiredAlerts, NewAlert, WIND_ALERT,
 };
+pub use cable::{CableLayer, CableSet};
 pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, NewFlight,
     OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Room, Saved,
@@ -363,6 +365,33 @@ pub trait Store: Send + Sync + 'static {
         &self,
         sources: &[SourceId],
     ) -> impl Future<Output = Result<Vec<SiteSet>, StoreError>> + Send;
+
+    /// Saves a run of a cable source, as [`Store::save_site_run`] saves one
+    /// of sites: the set replaces the stored one only if the run was
+    /// healthy and is not older than it. A healthy run must deliver at
+    /// least one cable, each of the run's source, no two with one key.
+    fn save_cable_run(
+        &self,
+        run: &RunRecord,
+        delivery: &SiteDelivery,
+        cables: &[Cable],
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// The stored cables of `sources` whose line's box touches `area`: one
+    /// layer per source the store holds a set of, sorted by source, the
+    /// cables of each by key, at most `limit` in all.
+    fn cables_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<CableLayer>, StoreError>> + Send;
+
+    /// What the store holds of each of `sources`, sorted by source.
+    fn cable_sets(
+        &self,
+        sources: &[SourceId],
+    ) -> impl Future<Output = Result<Vec<CableSet>, StoreError>> + Send;
 
     /// The site with this identifier in the whole set of its source, as
     /// the set the store holds now has it. `None` if the set has none: a

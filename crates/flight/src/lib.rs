@@ -17,6 +17,7 @@
 
 pub mod aloft;
 pub mod analysis;
+pub mod cables;
 pub mod convection;
 pub mod day;
 pub mod fai;

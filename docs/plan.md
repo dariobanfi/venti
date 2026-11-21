@@ -119,6 +119,28 @@ Written on 2026-11-21 for the session that takes over; everything named here is 
 5. The cockpit: what the owner's own XCTrack layout has and Venti's does not ([xctrack-parity.md](xctrack-parity.md)).
 6. The aerial view: Switzerland and South Tyrol, and photographs kept on the device.
 
+**The steps in more detail**
+
+| Step | Where to begin | Done when |
+|---|---|---|
+| All iPhone tests on the Mac | [apps/ios/AGENTS.md](../apps/ios/AGENTS.md), the first bullet of "Building and testing": the core, the project, `venti-server dev` on 8090 and `tools/made-up-day/serve.py` on 8091, then `xcodebuild test` on the "iPhone 17" simulator | Every test passes there, and the owner has the screenshots `map-forecast-1-today`, `-3-square`, `-4-forecast`, `light-6f-how-you-fly` and `cockpit-aerial` |
+| The live forecast map | `deploy/` on the owner's Mac: `docker compose logs server`, then Map, "Forecast" in the app on the "iPhone 18 Pro" simulator, whose server is `http://127.0.0.1:8088` | The owner has seen the layer with a map the server made from ICON-D2, with its three days and a tapped square; what looks wrong with real data is written down or fixed |
+| Days three and four on the map | `FORECAST_DAYS` in `crates/sources-openmeteo/src/lib.rs`; the fixtures under `crates/sources-openmeteo/tests/fixtures` and what depends on them (the server's goldens, `docs/api.md`, the web's browser tests, which pin the recorded days); [data-sources.md](data-sources.md#forecasts) says how the answers were recorded | The map of a server has four days where ICON-EU reaches, the tests and the documents show the new recordings |
+| The map in the health answer | `crates/api-types/src/v1/health.rs`, `crates/server/src/api/health.rs`, `crates/server/src/thermals.rs`; a field added to the health answer is a type error in the web's hand-built test records until they have it | `GET /v1/health` says which run the map is from and when it was made, or that there is none yet |
+| ICON-EU's cell size | `MODELS` in `crates/core/src/forecast.rs` ("7 km cells") against [data-sources.md](data-sources.md#forecasts) (about 5 km); the provider's own page decides | One figure everywhere, with the date it was checked; the three apps' tests that tap or read "ICON-EU, 7 km cells" follow |
+| "How you fly", third part | `crates/flight/src/habits.rs`, `crates/core/src/tendencies.rs`; a new observation is a new `TendencyKind`, and the three screens show whatever the core gives | The new observations are said in the core's words with a flight each, and were looked at against real flights, counts only |
+
+**Small things seen and left, by app**
+
+- iPhone: in the cockpit with the aerial view on, the photographs' credit wraps to several lines beside the two round buttons at the lower right; to look at on a narrow phone. The small map on the cockpit's first page stays drawn, on purpose.
+- Android: the screen "How you fly" waits with Material's progress circle, because the pack's own loader is not in the Android app yet. The "Forecast" chip stands after "Thermals" on Android and first on the iPhone and the web.
+- Web: Settings was left as it is on a large screen (three rows; a pane beside them would be half empty). The rows of Today's table are about 50 px high, not 32, because the status and its reason stand in them. On a narrow panel the wind's figures in the picture of the day's air lie on the coloured columns and are hard to read, as on the iPhone.
+- Every app: the "Forecast" layer has no test with a live map, the kinds of day have only been seen as the made-up map draws them, and no screenshot shows a day that is ICON-EU's with its note.
+
+**What is still "to verify"**, beyond what each document says of itself: every limit of the rating of a day and of the thermal estimate, against days that were flown; every rule of "How you fly", with pilots; whether an answer for the whole grid from ICON-EU is as large as ICON-D2's (measured for ICON-D2 only: 126 kB for two days, 9.7 kB compressed, 23 requests of 80 places); how long the first map takes on a server that is not the owner's Mac.
+
+**CI at the hand-over** (2026-11-21, 07:46 UTC): the Web workflow was green on `c118535`; the Rust, iPhone and Android workflows were still running on the last commits, which changed documents and the phones' forecast card. The last finished iPhone run was green on `5270a7e`, the last finished Android run had 55 of 58 UI tests passing on `5270a7e`, and all 58 passed on the owner's Mac with the fixes that are on `main` since. The iPhone workflow runs a failed UI test once more by itself.
+
 **Waiting for the owner** (also in the table under "Needed from the owner"): colours of their own for the kinds of day; the limits of the rating and the height a square of the map is judged at; a domain, without which the thermal hotspots of thermal.kk7.ch stay off; whether a flight's times are shown by the clock of the place; sign-in with Apple or Google.
 
 ## Roadmap

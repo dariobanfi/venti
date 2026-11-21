@@ -204,7 +204,7 @@ pub struct OutlookNearby {
     /// more than at the place.
     pub stronger: bool,
     /// What is much stronger, in a line: "Gusts to 55 km/h 25 km to the
-    /// south over ground at 2400 m, 22 km/h here". Empty unless
+    /// south over ground at 2400 m, 22 km/h at the place". Empty unless
     /// `stronger`.
     pub line: String,
 }
@@ -311,7 +311,7 @@ pub struct OutlookDay {
     /// The wind near by, when in an hour still to come it is much
     /// stronger than at the place: the hour with the strongest of it,
     /// "Much stronger near by at 14:00: gusts to 55 km/h 25 km to the
-    /// south over ground at 2400 m, 22 km/h here". Empty when no hour's
+    /// south over ground at 2400 m, 22 km/h at the place". Empty when no hour's
     /// is. A line to show with the day whatever its verdict; it is no part
     /// of the verdict.
     pub nearby: String,
@@ -555,7 +555,7 @@ fn whereabouts_in_words(place: GeoPoint, square: GeoPoint) -> String {
     let found = nearby::whereabouts(place, square);
     let km = (found.distance_km / 5.0).round() * 5.0;
     if km < 5.0 {
-        return "at the place".to_owned();
+        return "in the square around the place".to_owned();
     }
     let point = POINTS[((found.bearing_deg.rem_euclid(360.0) + 22.5) / 45.0) as usize % 8];
     format!("{km:.0} km to the {point}")
@@ -576,13 +576,13 @@ fn outlook_nearby(place: GeoPoint, hour: &ForecastHour, near: &NearbyHour) -> Ou
     };
     let line = match (stronger, &near.gust, &near.wind) {
         (Some(Stronger::Gusts), Some(gust), _) => format!(
-            "Gusts to {} km/h {}, {:.0} km/h here",
+            "Gusts to {} km/h {}, {:.0} km/h at the place",
             gust.kmh,
             place_of(gust),
             here.1.unwrap_or_default()
         ),
         (Some(Stronger::Wind), _, Some(wind)) => format!(
-            "Wind {} km/h {}, {:.0} km/h here",
+            "Wind {} km/h {}, {:.0} km/h at the place",
             wind.kmh,
             place_of(wind),
             here.0.unwrap_or_default()
@@ -1902,7 +1902,7 @@ mod tests {
         assert_eq!(
             day.nearby,
             "Much stronger near by at 14:00: gusts to 55 km/h 20 km to the south over ground \
-             at 2400 m, 18 km/h here"
+             at 2400 m, 18 km/h at the place"
         );
         let verdicts = |outlook: &SiteOutlook| -> Vec<(Flyability, String)> {
             outlook.days[0]
@@ -1925,13 +1925,13 @@ mod tests {
             at("14"),
             Some(OutlookNearby {
                 wind_kmh: "28".to_owned(),
-                wind_where: "at the place".to_owned(),
+                wind_where: "in the square around the place".to_owned(),
                 wind_ground_m: Some(812.0),
                 gust_kmh: "55".to_owned(),
                 gust_where: "20 km to the south".to_owned(),
                 gust_ground_m: Some(2400.0),
                 stronger: true,
-                line: "Gusts to 55 km/h 20 km to the south over ground at 2400 m, 18 km/h here"
+                line: "Gusts to 55 km/h 20 km to the south over ground at 2400 m, 18 km/h at the place"
                     .to_owned(),
             })
         );
@@ -1941,7 +1941,7 @@ mod tests {
         assert_eq!(under.line, "");
         assert_eq!(
             at("16").unwrap().line,
-            "Wind 32 km/h 15 km to the east, 11 km/h here"
+            "Wind 32 km/h 15 km to the east, 11 km/h at the place"
         );
         // An hour the server's map has nothing for.
         assert_eq!(at("9"), None);

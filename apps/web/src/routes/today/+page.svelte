@@ -13,13 +13,17 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { placeHref } from '#lib/app/routes.ts';
-	import type { OutlookDay } from '#lib/core/index.ts';
+	import type { OutlookDay, OutlookHour } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import { type Fix, problemText, watchPosition } from '#lib/map/position.ts';
 	import StatusChip from '#lib/today/StatusChip.svelte';
-	import { bestOn, FIRST_REGION, firstDay, NOTHING_YET } from '#lib/today/model.svelte.ts';
+	import ThermalLine from '#lib/today/ThermalLine.svelte';
+	import ThermalMark from '#lib/today/ThermalMark.svelte';
+	import { thermalStep } from '#lib/design/palette.ts';
+	import { FIRST_REGION, NOTHING_YET } from '#lib/today/model.svelte.ts';
+	import { bestOn, firstDay, inOrder } from '#lib/today/order.ts';
 
 	const app = getApp();
 	const text = format();
@@ -65,7 +69,13 @@
 	/** As the core names them by the calendar: "Today", "Tomorrow", "Sat". */
 	const dayNames = $derived(days.map((day) => day.name));
 	const best = $derived(bestOn(shown.places, dayIndex));
-	const others = $derived(shown.places.filter((place) => place !== best?.place));
+	/** The others in the order the forecast puts them: the better first, among equals the nearer. */
+	const others = $derived(inOrder(shown.places, dayIndex).filter((place) => place !== best?.place));
+	/**
+	 * Whether the best take-off's hours show their climbs: only where one of
+	 * them has something to climb in. A day with none says so in its line.
+	 */
+	const climbs = $derived(best?.day.hours.some((hour) => (hour.climbMs ?? 0) > 0) ?? false);
 	/** Whose forecast it is, and of when: from any take-off that has one. */
 	const outlook = $derived(shown.places.find((place) => place.outlook)?.outlook);
 	const waiting = $derived(
@@ -81,6 +91,20 @@
 
 	/** How tall an hour's bar stands: tall for flyable, low for not. */
 	const BAR = { flyable: 1, marginal: 0.6, notFlyable: 0.25 } as const;
+
+	/** An hour for a screen reader: its status, its wind and its thermals. */
+	function spoken(hour: OutlookHour): string {
+		const verdict =
+			hour.verdict === 'flyable'
+				? 'Flyable'
+				: hour.verdict === 'marginal'
+					? `Marginal: ${hour.why}`
+					: `Not flyable: ${hour.why}`;
+		if (hour.climbMs === undefined) return verdict;
+		if (hour.climbMs <= 0) return `${verdict}, no thermals to climb in`;
+		const top = hour.thermalTopM === undefined ? '' : ` to ${text.metres(hour.thermalTopM)} m`;
+		return `${verdict}, thermals ${text.forecastClimb(hour.climbMs)} m/s${top}`;
+	}
 
 	function readings(day: OutlookDay): { value: string; unit: string; name: string }[] {
 		return [
@@ -107,6 +131,9 @@
 	<header class="valley">
 		<p class="day">{dayLine}</p>
 		<h1 class="hero">{best?.day.headline ?? 'Today'}</h1>
+		{#if best?.day.thermalWords}
+			<p class="kind">{best.day.thermalWords}</p>
+		{/if}
 	</header>
 
 	<div class="body" class:wide={wide.current}>
@@ -174,6 +201,9 @@
 						{#if day.why}
 							<p class="why">{day.why}</p>
 						{/if}
+						{#if day.thermals}
+							<ThermalLine {day} />
+						{/if}
 						<dl class="readings">
 							{#each readings(day) as reading (reading.name)}
 								<div>
@@ -206,18 +236,19 @@
 											style:--tall={BAR[hour.verdict]}
 											title={hour.why || 'Flyable'}
 										></span>
-										<span class="visually-hidden">
-											{hour.verdict === 'flyable'
-												? 'Flyable'
-												: hour.verdict === 'marginal'
-													? `Marginal: ${hour.why}`
-													: `Not flyable: ${hour.why}`}
-										</span>
+										{#if climbs}
+											<span class="climb">
+												{hour.climbMs === undefined ? '–' : text.forecastClimb(hour.climbMs)}
+											</span>
+											<span class="bar thermal t{thermalStep(hour.climbMs ?? 0)}"></span>
+										{/if}
+										<span class="visually-hidden">{spoken(hour)}</span>
 									</li>
 								{/each}
 							</ol>
 							<p class="legend">
-								Wind in km/h at 10 m; the bar is the hour’s status by its height.
+								Wind in km/h at 10 m; the bar is the hour’s status by its height.{#if climbs}{' '}Under
+									it the climb to expect in thermals, in m/s, with a bar that grows with it.{/if}
 							</p>
 						{:else}
 							<p class="why">No daylight hours left on this day.</p>
@@ -238,6 +269,12 @@
 								<span class="sign"><Icon name="takeoff" /></span>
 								<span class="text">
 									<span class="name">{place.site.name}</span>
+									{#if day?.thermalWords}
+										<span class="kind-of-day">
+											<ThermalMark climbMs={day.climbMs ?? 0} />
+											{day.thermalWords}
+										</span>
+									{/if}
 									<span class="lesser">
 										{#if day}
 											{day.why || day.headline}
@@ -287,8 +324,9 @@
 				{/if}
 				<p>
 					Flyable, marginal and not flyable are what the forecast says by fixed limits of wind,
-					gusts, rain and cloud, and the wind directions the take-off’s source gives. They are not
-					advice to fly: look at the place, the sky and the wind there.
+					gusts, rain and cloud, and the wind directions the take-off’s source gives. The kind of
+					day is what the model’s heat and temperatures say of thermals, by fixed limits too. They
+					are not advice to fly: look at the place, the sky and the wind there.
 				</p>
 			</footer>
 		{/if}
@@ -317,7 +355,8 @@
 		text-align: center;
 	}
 
-	.day {
+	.day,
+	.kind {
 		font-size: var(--body);
 		font-weight: 500;
 	}
@@ -476,6 +515,46 @@
 		background: var(--color-danger);
 	}
 
+	.climb {
+		margin-top: var(--space-1);
+		font-weight: 600;
+	}
+
+	/* The climb's bar: taller for a stronger step of the thermal scale, in its colour. */
+	.bar.thermal {
+		border-radius: 0.125rem;
+	}
+
+	.t1 {
+		--tall: 0.17;
+		background: var(--thermal-1);
+	}
+
+	.t2 {
+		--tall: 0.33;
+		background: var(--thermal-2);
+	}
+
+	.t3 {
+		--tall: 0.5;
+		background: var(--thermal-3);
+	}
+
+	.t4 {
+		--tall: 0.67;
+		background: var(--thermal-4);
+	}
+
+	.t5 {
+		--tall: 0.83;
+		background: var(--thermal-5);
+	}
+
+	.t6 {
+		--tall: 1;
+		background: var(--thermal-6);
+	}
+
 	.others li + li {
 		box-shadow: inset 0 1px 0 var(--separator);
 	}
@@ -507,8 +586,15 @@
 		white-space: nowrap;
 	}
 
-	.text .lesser {
+	.text .lesser,
+	.kind-of-day {
 		font-size: var(--subheadline);
+	}
+
+	.kind-of-day {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
 	}
 
 	@media (hover: hover) {

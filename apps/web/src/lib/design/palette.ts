@@ -123,3 +123,17 @@ export const QUIET_ON_MAP = step('vario', 4);
 
 /** The numbers under a station's arrow. */
 export const LABEL_ON_MAP = light(tokens.map.light, 'label');
+
+const THERMAL_BREAKS: readonly number[] = tokens.scale.thermal.$extensions.venti.breaks;
+
+/**
+ * The step of the pack's thermal scale, its scale for a forecast climb, that
+ * a climb in metres per second falls in: 1 for less than the first break
+ * (0.5 m/s) to 6 for the last (3 m/s) and more, as the pack's `scaleColor`
+ * picks it. The step is a number so that a stylesheet can wear it as
+ * `--thermal-1` to `--thermal-6`, which follow the theme.
+ */
+export function thermalStep(metresPerSecond: number): number {
+	const index = THERMAL_BREAKS.findIndex((limit) => metresPerSecond < limit);
+	return (index === -1 ? THERMAL_BREAKS.length : index) + 1;
+}

@@ -8,7 +8,7 @@
  */
 
 import { untrack } from 'svelte';
-import type { Coordinate, CoreClient, OutlookDay, SiteOutlook, SiteView } from '#lib/core/index.ts';
+import type { Coordinate, CoreClient, SiteOutlook, SiteView } from '#lib/core/index.ts';
 import { isInWords } from '#lib/core/index.ts';
 
 /** The middle of the first region, around the Tegernsee and the Brauneck. */
@@ -43,40 +43,6 @@ export const NOTHING_YET: TodayState = {
 	places: [],
 	nowUnixS: 0
 };
-
-/** How the verdicts sort: the best first. */
-const RANK = { flyable: 0, marginal: 1, notFlyable: 2 } as const;
-
-/**
- * The take-off that looks best on a day: the best verdict, and of those the
- * one listed first. Nothing until one has a forecast for that day.
- */
-export function bestOn(
-	places: readonly TodayPlace[],
-	day: number
-): { place: TodayPlace; day: OutlookDay } | undefined {
-	let best: { place: TodayPlace; day: OutlookDay } | undefined;
-	for (const place of places) {
-		const found = place.outlook?.days[day];
-		if (found && (!best || RANK[found.verdict] < RANK[best.day.verdict])) {
-			best = { place, day: found };
-		}
-	}
-	return best;
-}
-
-/**
- * The day the screen opens on: the first that has flying hours left at any
- * take-off, which in the evening is tomorrow. The first day where none has
- * any.
- */
-export function firstDay(places: readonly TodayPlace[]): number {
-	const most = Math.max(0, ...places.map((place) => place.outlook?.days.length ?? 0));
-	for (let day = 0; day < most; day += 1) {
-		if (places.some((place) => (place.outlook?.days[day]?.hours.length ?? 0) > 0)) return day;
-	}
-	return 0;
-}
 
 export class TodayModel {
 	state = $state.raw<TodayState>(NOTHING_YET);

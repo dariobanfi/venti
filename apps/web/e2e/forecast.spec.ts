@@ -7,6 +7,7 @@
 
 import type { Locator, Page } from '@playwright/test';
 import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, showTheValley, test } from './helpers';
+import { madeUpSummer } from './made-up-summer';
 
 /**
  * The night the forecasts were recorded, half an hour after they were,
@@ -166,4 +167,25 @@ test('a forecast the server cannot give is said in its words, and asked for agai
 	await context.unroute('**/v1/forecast**');
 	await forecast.getByRole('button', { name: 'Try again' }).click();
 	await expect(table(forecast)).toBeVisible();
+});
+
+test('a take-off’s page names the kind of day under the forecast’s line', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide
+}) => {
+	// MADE UP: no model forecast this. See `made-up-summer.ts`.
+	await context.route('**/v1/forecast**', madeUpSummer);
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
+	const site = await openTheTakeOff(page, mapDrawn, wide);
+	await expect(
+		site.getByText(/^(Big day|Cross-country day|Local thermals|Weak thermals)$/)
+	).toBeVisible({
+		timeout: 30_000
+	});
+	await expect(site.getByText(/^(\d\.\d m\/s to .*|None to climb in)$/)).toBeVisible();
+	await keep('106-site-thermals');
 });

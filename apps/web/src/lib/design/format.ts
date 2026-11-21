@@ -27,6 +27,8 @@ export interface Format {
 	signedMetres(metres: number): string;
 	/** Metres per second with one decimal and always a sign, except for zero. */
 	climb(metresPerSecond: number): string;
+	/** A forecast climb in metres per second, one decimal and no sign: "1.8", "0.0". */
+	forecastClimb(metresPerSecond: number): string;
 	/** Kilometres per hour, whole, from metres per second. */
 	kilometresPerHour(metresPerSecond: number): string;
 	/** A glide ratio with one decimal. */
@@ -174,6 +176,7 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		metres: (metres) => trueMinus(height.format(metres)),
 		signedMetres: (metres) => trueMinus(signedHeight.format(metres)),
 		climb: (metresPerSecond) => trueMinus(signedTenths.format(metresPerSecond)),
+		forecastClimb: (metresPerSecond) => tenths.format(metresPerSecond),
 		kilometresPerHour: (metresPerSecond) => whole.format(metresPerSecond * 3.6),
 		glideRatio: (ratio) => tenths.format(ratio),
 		percent: (share) => percent.format(share),

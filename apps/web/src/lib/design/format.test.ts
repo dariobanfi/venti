@@ -82,6 +82,11 @@ describe('numbers', () => {
 		expect(format.hoursMinutes(123 * 3600)).toBe('123:00');
 	});
 
+	it('writes a forecast climb with one decimal and no sign', () => {
+		expect(format.forecastClimb(1.8)).toBe('1.8');
+		expect(format.forecastClimb(0)).toBe('0.0');
+	});
+
 	it('writes distances in kilometres', () => {
 		expect(format.kilometres(18402.3)).toBe('18.4');
 		expect(format.kilometres(1234567)).toBe('1,234.6');

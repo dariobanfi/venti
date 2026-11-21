@@ -8,6 +8,7 @@
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import StatusChip from '#lib/today/StatusChip.svelte';
+	import ThermalLine from '#lib/today/ThermalLine.svelte';
 	import { asOf, CAUTION, forecastLine, marks, siteLine, withLinks } from './words';
 	import WindRose from './WindRose.svelte';
 
@@ -49,6 +50,9 @@
 		<p>{siteLine(site, text)}</p>
 		{#if day}
 			<p class="lesser">{forecastLine(day)}</p>
+			{#if day.thermals}
+				<ThermalLine {day} />
+			{/if}
 		{/if}
 	</div>
 	<dl class="card">

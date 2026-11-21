@@ -104,6 +104,7 @@ export type {
 	OutlookDay,
 	OutlookHour,
 	Flyability,
+	Thermals,
 	SitesMap,
 	SiteView,
 	StationHistory,

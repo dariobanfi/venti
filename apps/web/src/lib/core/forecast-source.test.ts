@@ -46,7 +46,7 @@ describe('the forecast for a place, from the server', () => {
 		]);
 		const [d2] = forecast.models;
 		// Each model with its run, and how high it thinks the ground is.
-		expect(d2.runUnixS).toBe(Date.UTC(2026, 10, 19, 18) / 1000);
+		expect(d2.runUnixS).toBe(Date.UTC(2026, 10, 20, 21) / 1000);
 		expect(d2.cellElevationM).toBe(1069);
 		// The heights above ground first, then the pressure surfaces, lowest first.
 		expect(d2.levels.map((level) => level.name)).toEqual([
@@ -58,7 +58,7 @@ describe('the forecast for a place, from the server', () => {
 			'600 hPa',
 			'500 hPa'
 		]);
-		expect(d2.levels[3].aboutAltitudeM).toBe(1300);
+		expect(d2.levels[3].aboutAltitudeM).toBe(1400);
 	});
 
 	it('gives every wind with its strength as the map draws it, and its speeds as a label', async () => {
@@ -66,18 +66,18 @@ describe('the forecast for a place, from the server', () => {
 		const forecast = (await new ForecastSource(async () => true, get, CET).forecast(TEGERNSEE))!;
 
 		const hour = forecast.models[0].days[0].hours[0];
-		// 2.4 m/s from 225° with gusts of 13.1: light, written in km/h.
-		expect(hour.wind).toEqual({ speedMs: 2.4, fromDeg: 225, band: 'light', label: '9/47' });
+		// 6.58 m/s from 250° with gusts of 22.3: fresh, written in km/h.
+		expect(hour.wind).toEqual({ speedMs: 6.58, fromDeg: 250, band: 'fresh', label: '24/80' });
 		expect(hour.aloft).toHaveLength(7);
 		expect(hour.aloft[4]).toMatchObject({ band: 'strong', fromDeg: 277 });
 		// A number, not a BigInt.
-		expect(hour.timeUnixS).toBe(Date.UTC(2026, 10, 19, 19) / 1000);
+		expect(hour.timeUnixS).toBe(Date.UTC(2026, 10, 21, 0) / 1000);
 		expect(hour.isDaylight).toBe(false);
 	});
 
 	it('cuts the days by the clock it is given', async () => {
 		const { get } = server();
-		// 19:00 UTC is 20:00 in Munich and 04:00 the next day in Tokyo.
+		// Midnight UTC is 01:00 in Munich and 09:00 in Tokyo, both on the 21st.
 		const here = (await new ForecastSource(async () => true, get, CET).forecast(TEGERNSEE))!;
 		const tokyo = (await new ForecastSource(
 			async () => true,
@@ -85,8 +85,8 @@ describe('the forecast for a place, from the server', () => {
 			() => 9 * 3600
 		).forecast(TEGERNSEE))!;
 
-		expect(here.models[0].days[0].startUnixS).toBe(Date.UTC(2026, 10, 18, 23) / 1000);
-		expect(tokyo.models[0].days[0].startUnixS).toBe(Date.UTC(2026, 10, 19, 15) / 1000);
+		expect(here.models[0].days[0].startUnixS).toBe(Date.UTC(2026, 10, 20, 23) / 1000);
+		expect(tokyo.models[0].days[0].startUnixS).toBe(Date.UTC(2026, 10, 20, 15) / 1000);
 	});
 
 	it('comes with the credit of its source', async () => {

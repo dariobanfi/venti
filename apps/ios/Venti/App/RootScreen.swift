@@ -82,6 +82,10 @@ struct RootScreen: View {
         .onChange(of: scenePhase, initial: true) { _, phase in
             if phase == .active {
                 Task { await account.sync() }
+                // And what Venti says of the account: whether it is a
+                // partner for flying sites, which decides what a site's
+                // page offers.
+                Task { await account.read() }
             }
         }
         .onChange(of: logbook.view.totals.flights) {

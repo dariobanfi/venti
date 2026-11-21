@@ -159,4 +159,82 @@ final class SitesModelTests: XCTestCase {
         XCTAssertNil(StationNearbyRow.fitWords(unjudged[0]))
         XCTAssertEqual(StationNearbyRow.ageWords(summit, now: 1_000 + 25 * 60), "25 minutes ago")
     }
+
+    /// The places from pilots are asked for only once the pilot switched
+    /// them on, the choice is kept, and a place from pilots says its tier
+    /// under its name on the map.
+    func testThePlacesFromPilotsAreAskedForOnlyWhenSwitchedOn() async throws {
+        let asked = SiteRequests()
+        let pilots = """
+        {"layers": [{
+            "source": "venti-pilots", "fetched_at": "2026-11-18T19:05:00Z", "as_of": "2026-11-18T19:05:00Z",
+            "covers": [],
+            "sites": [{"id": "venti-pilots:0000000000000000000000s002", "name": "Musterkogel Ost",
+                       "position": {"lat": 47.66, "lon": 11.79}, "elevation_m": 1700.0, "uses": ["takeoff"]}],
+            "standing": [{"id": "venti-pilots:0000000000000000000000s002", "revision": 1,
+                          "created_at": "2026-11-06T19:05:00Z", "changed_at": "2026-11-06T19:05:00Z"}]
+        }], "attributions": []}
+        """
+        let name = "venti-sites-test-\(UUID().uuidString)"
+        let store = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { store.removePersistentDomain(forName: name) }
+        let sites = SitesModel(
+            transport: { url in
+                await asked.note(url)
+                let with = url.absoluteString.contains("venti-pilots")
+                return (200, Data((with ? pilots : ServerSites.answer).utf8))
+            },
+            store: store
+        )
+        let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        sites.server = { server }
+
+        // Off by default: the path names no layer, and nothing is marked.
+        XCTAssertFalse(sites.choice.withPilots)
+        await sites.load(tegernsee, from: server)
+        var addresses = await asked.addresses
+        XCTAssertFalse(try XCTUnwrap(addresses.last).absoluteString.contains("layers"))
+        XCTAssertFalse(sites.isFilterOn)
+        XCTAssertEqual(sites.filtered.fromPilotsWords, "")
+
+        // Switched on: asked anew with the layer, counted as a filter
+        // being on, and the core's line says how many are from pilots.
+        var choice = sites.choice
+        choice.withPilots = true
+        sites.choose(choice)
+        for _ in 0..<200 where sites.filtered.fromPilots == 0 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        addresses = await asked.addresses
+        XCTAssertTrue(try XCTUnwrap(addresses.last).absoluteString.contains("venti-pilots"))
+        XCTAssertTrue(sites.isFilterOn)
+        XCTAssertFalse(sites.filtered.isOn)
+        XCTAssertEqual(sites.filtered.fromPilots, 1)
+        XCTAssertEqual(
+            sites.filtered.fromPilotsWords,
+            "It is a place from pilots: not official and not checked by anyone."
+        )
+        XCTAssertTrue(SitesFilterLine.leaves(sites.filtered).hasSuffix(sites.filtered.fromPilotsWords))
+        let place = try XCTUnwrap(sites.sites.first)
+        XCTAssertEqual(place.byPilots?.label, "From pilots")
+        let drawn = OverviewMap.Coordinator.siteFeature(for: place)
+        XCTAssertEqual(drawn.attribute(forKey: "label") as? String, "Musterkogel Ost\nFrom pilots")
+        XCTAssertEqual(drawn.attribute(forKey: "picture") as? String, "site-takeoff")
+
+        // Kept as the pilot left it.
+        XCTAssertTrue(SitesChoice(keptIn: store).withPilots)
+
+        // Switched off: the places from pilots go at once, before any
+        // answer, and the next answer is asked for without the layer.
+        choice.withPilots = false
+        sites.choose(choice)
+        XCTAssertTrue(sites.sites.isEmpty)
+        for _ in 0..<200 where sites.sites.isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        addresses = await asked.addresses
+        XCTAssertFalse(try XCTUnwrap(addresses.last).absoluteString.contains("layers"))
+        XCTAssertFalse(SitesChoice(keptIn: store).withPilots)
+        XCTAssertFalse(sites.isFilterOn)
+    }
 }

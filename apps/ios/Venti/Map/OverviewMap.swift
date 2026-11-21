@@ -652,10 +652,22 @@ struct OverviewMap: UIViewRepresentable {
             feature.attributes = [
                 "id": site.id,
                 "picture": SiteSymbols.name(of: site.kind, isUnsaid: isUnsaid),
-                "label": site.isNamed && !isUnsaid ? site.name : "",
+                "label": isUnsaid ? "" : Self.siteLabel(for: site),
                 "rank": isUnsaid ? 0 : 1,
             ]
             return feature
+        }
+
+        /// What is written under a site's pin: its name where its source
+        /// gives one, and under it the tier of a place from pilots, in the
+        /// core's words, so that it is not taken for an official site. The
+        /// pin is the one its use has: the pack has none for the tier.
+        static func siteLabel(for site: SiteView) -> String {
+            var lines = site.isNamed ? [site.name] : []
+            if let by = site.byPilots, by.fromPilots {
+                lines.append(by.label)
+            }
+            return lines.joined(separator: "\n")
         }
 
         /// Draws the stations, once the style is there and only when they

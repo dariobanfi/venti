@@ -40,11 +40,11 @@ struct Reported: Identifiable {
     }
 
     static func site(_ id: String) -> Reported {
-        Reported(subject: .site(id: id), title: "Report this site")
+        Reported(subject: .site(id: id), title: siteWords().report)
     }
 
     static func siteRevision(_ id: String, revision: UInt32) -> Reported {
-        Reported(subject: .siteRevision(id: id, revision: revision), title: "Report this revision")
+        Reported(subject: .siteRevision(id: id, revision: revision), title: siteWords().reportRevision)
     }
 }
 

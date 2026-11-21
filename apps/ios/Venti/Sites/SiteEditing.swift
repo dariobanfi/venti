@@ -1,13 +1,14 @@
 import Foundation
 import VentiCore
 
-/// Adding and correcting a flying site of Venti's own layer, as the
-/// screens ask for it.
+/// Adding, correcting and confirming a flying site of Venti's own two
+/// tiers, as the screens ask for it.
 ///
 /// What a site has to be, what is sent and what the answers mean is the
-/// core's (`site_edit.rs`). This sends the core's requests with the
-/// account's token, as the groups' and the plans' are sent, reads a site
-/// and its history without one, and holds no rule.
+/// core's (`site_edit.rs`, `site_offers.rs`). This sends the core's
+/// requests with the account's token, as the groups' and the plans' are
+/// sent, reads a site, its history and its confirmations without one, and
+/// holds no rule.
 @MainActor
 struct SiteEditing {
     /// Sends a signed request and returns the answer.
@@ -34,6 +35,10 @@ struct SiteEditing {
     struct Refused: Error, Equatable {
         let words: String
         let inTheWay: SiteInTheWay?
+        /// Whether it was refused because someone else changed the site
+        /// meanwhile, as the core reads the answer: the form then goes on
+        /// from the site as it stands, with the core's merge.
+        var wasChanged = false
     }
 
     /// Sends a draft: a new site, or the correction of the site the draft
@@ -63,11 +68,35 @@ struct SiteEditing {
         return try sitePage(status: status, body: body)
     }
 
-    /// A site's revisions, newest first; `after` asks for the ones before
-    /// those already shown.
-    func history(_ id: String, after: UInt32? = nil) async throws -> SiteHistory {
+    /// A page of a site's revisions, from the first on; `after` asks for
+    /// the page after the one that ended there, and `before` is that
+    /// page's last revision, so that the core says what the first of this
+    /// page changed.
+    func history(
+        _ id: String, after: UInt32? = nil, before: SiteRevisionView? = nil
+    ) async throws -> SiteHistory {
         let (status, body) = try await get(try siteHistoryPath(id: id, after: after))
-        return try siteHistory(status: status, body: body)
+        return try siteHistoryPage(status: status, body: body, before: before)
+    }
+
+    /// Who says they took off at a site.
+    func confirmations(_ id: String) async throws -> SiteConfirmations {
+        let (status, body) = try await get(try siteConfirmationsPath(id: id))
+        return try siteConfirmations(status: status, body: body)
+    }
+
+    /// Sends "I took off here and it was good", as the core made the
+    /// request, and returns the site with it counted and what to say.
+    func confirm(_ request: ServerRequest, day: String) async throws -> SiteWritten {
+        let answer = try await send(request)
+        return try siteConfirmed(status: answer.status, body: answer.body, day: day)
+    }
+
+    /// Takes the pilot's confirmation of a site back, and returns what
+    /// became of it in a line.
+    func withdraw(_ id: String) async throws -> String {
+        let answer = try await send(try siteWithdrawRequest(id: id))
+        return try siteWithdrawn(status: answer.status, body: answer.body)
     }
 
     private func written(_ request: ServerRequest) async throws -> SiteWritten {
@@ -77,7 +106,8 @@ struct SiteEditing {
         } catch {
             throw Refused(
                 words: AccountModel.words(for: error),
-                inTheWay: siteInTheWay(status: answer.status, body: answer.body)
+                inTheWay: siteInTheWay(status: answer.status, body: answer.body),
+                wasChanged: siteWasChanged(status: answer.status, body: answer.body)
             )
         }
     }
@@ -141,36 +171,33 @@ extension SiteDraftView {
             uses.append(kind)
         }
     }
+}
 
-    /// The draft on a site that someone else changed meanwhile: what the
-    /// pilot entered stays, and everything the pilot left as it was is as
-    /// the site stands now, so that sending again neither loses the
-    /// pilot's entries nor takes the other pilot's change back.
-    ///
-    /// - Parameters:
-    ///   - begun: the draft as the form opened with it.
-    ///   - now: the draft of the site as it stands now.
-    func carried(from begun: SiteDraftView, onto now: SiteDraftView) -> SiteDraftView {
-        var result = now
-        func carry<Value: Equatable>(_ field: WritableKeyPath<SiteDraftView, Value>) {
-            if self[keyPath: field] != begun[keyPath: field] {
-                result[keyPath: field] = self[keyPath: field]
-            }
-        }
-        carry(\.name)
-        carry(\.elevationM)
-        carry(\.uses)
-        carry(\.windFromDeg)
-        carry(\.description)
-        carry(\.fee)
-        carry(\.website)
-        carry(\.noFlightTime)
-        carry(\.guestGuidelines)
-        // A place the pilot moved goes through the core, which knows what
-        // else of a draft goes with the old place.
-        if position != begun.position {
-            result = siteDraftMoved(draft: result, place: position)
-        }
-        return result
+/// A day as the core takes one, "2026-11-21", on this iPhone's calendar.
+enum SiteDay {
+    private static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        return calendar
+    }
+
+    /// The day a moment falls on here.
+    static func day(unixSeconds: Int64) -> String {
+        let parts = calendar.dateComponents(
+            [.year, .month, .day], from: Date(timeIntervalSince1970: TimeInterval(unixSeconds))
+        )
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// How far this iPhone's clock is ahead of UTC at noon of a day,
+    /// seconds: what the core counts a flight to the pilot's day by.
+    static func utcOffsetS(on day: String) -> Int32 {
+        let numbers = day.split(separator: "-").compactMap { Int($0) }
+        guard numbers.count == 3,
+              let noon = calendar.date(
+                  from: DateComponents(year: numbers[0], month: numbers[1], day: numbers[2], hour: 12)
+              )
+        else { return Int32(clamping: TimeZone.current.secondsFromGMT()) }
+        return Int32(clamping: TimeZone.current.secondsFromGMT(for: noon))
     }
 }

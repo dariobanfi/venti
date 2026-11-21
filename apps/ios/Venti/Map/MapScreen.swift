@@ -197,8 +197,8 @@ struct MapScreen: View {
                     } label: {
                         Label("Filter the sites", systemImage: SitesFilterIcon.name)
                     }
-                    .buttonStyle(.ventiRound(isOn: sites.filtered.isOn))
-                    .accessibilityValue(sites.filtered.isOn ? sites.filtered.filterWords : "")
+                    .buttonStyle(.ventiRound(isOn: sites.isFilterOn))
+                    .accessibilityValue(sites.isFilterOn ? sites.filtered.filterWords : "")
                     .accessibilityIdentifier("sites-filter")
                 }
                 if !live.gliders.isEmpty {
@@ -572,13 +572,13 @@ struct MapScreen: View {
     /// Whether the map shows what a filter of the sites leaves: a filter
     /// is on, and so is the layer.
     private var isSitesFilterOn: Bool {
-        sites.filtered.isOn && !hidesSites && wind.server != nil
+        sites.isFilterOn && !hidesSites && wind.server != nil
     }
 
     /// The filter's button stands while the sites are on the map and
     /// there are sites to choose among, or a filter that may hide them.
     private var showsSitesFilterButton: Bool {
-        wind.server != nil && !hidesSites && (!sites.sites.isEmpty || sites.filtered.isOn)
+        wind.server != nil && !hidesSites && (!sites.sites.isEmpty || sites.isFilterOn)
     }
 
     /// The wind the station nearest to the map's middle measured last,

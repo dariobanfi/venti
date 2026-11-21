@@ -57,8 +57,9 @@ final class SitesModel {
     /// Fetches around the system's cache: for asking again after a pilot
     /// wrote a site, when the answer kept is known to be old.
     @ObservationIgnored private let fresh: Transport
-    /// The area the sites were asked for, from which server, and when.
-    @ObservationIgnored private var answered: (area: Bounds, server: URL, at: Date)?
+    /// The area the sites were asked for, from which server, whether with
+    /// the places from pilots, and when.
+    @ObservationIgnored private var answered: (area: Bounds, server: URL, withPilots: Bool, at: Date)?
     @ObservationIgnored private var waiting: Task<Void, Never>?
     /// Where the pilot's choice is kept between launches, if anywhere.
     @ObservationIgnored private let store: UserDefaults?
@@ -78,12 +79,34 @@ final class SitesModel {
         filtered = filterSites(sites: [], filter: choice.filter(measuredFromDeg: nil))
     }
 
+    /// Whether the pilot asks anything of the sites: a filter is on, as
+    /// the core says, or the places from pilots are switched on, which is
+    /// a layer the server is asked for and no part of the core's filter.
+    var isFilterOn: Bool {
+        filtered.isOn || choice.withPilots
+    }
+
     /// The pilot asks something else of the sites.
     func choose(_ choice: SitesChoice) {
         guard choice != self.choice else { return }
+        let layerChanged = choice.withPilots != self.choice.withPilots
         self.choice = choice
         if let store {
             choice.keep(in: store)
+        }
+        if layerChanged {
+            // Switched off, the places from pilots go at once, with or
+            // without an answer; either way the server is asked anew,
+            // because the layer is in an answer only when it was asked for.
+            if !choice.withPilots {
+                sites.removeAll { $0.byPilots?.fromPilots == true }
+            }
+            if let answered {
+                waiting?.cancel()
+                waiting = Task { [weak self] in
+                    await self?.load(answered.area, from: answered.server)
+                }
+            }
         }
         refilter()
     }
@@ -127,8 +150,8 @@ final class SitesModel {
             return
         }
         guard region.east - region.west <= Self.widestMap else { return }
-        if let answered, answered.server == server, answered.area.contains(region),
-           Date().timeIntervalSince(answered.at) < Self.keepFor
+        if let answered, answered.server == server, answered.withPilots == choice.withPilots,
+           answered.area.contains(region), Date().timeIntervalSince(answered.at) < Self.keepFor
         {
             return
         }
@@ -149,7 +172,12 @@ final class SitesModel {
 
     private func load(_ area: Bounds, from server: URL, with transport: Transport) async {
         do {
-            let path = try sitesPath(south: area.south, west: area.west, north: area.north, east: area.east)
+            // The places from pilots are in an answer only when it was
+            // asked with them: the switch is the choice of path.
+            let withPilots = choice.withPilots
+            let path = withPilots
+                ? try sitesPathWithPilots(south: area.south, west: area.west, north: area.north, east: area.east)
+                : try sitesPath(south: area.south, west: area.west, north: area.north, east: area.east)
             guard let url = URL(string: server.absoluteString + path) else { return }
             let (status, body) = try await transport(url)
             let map = try sitesMap(
@@ -157,12 +185,13 @@ final class SitesModel {
                 status: UInt16(clamping: status), body: body
             )
             // The pilot may have changed the server while this was under way.
-            guard server == self.server() else { return }
+            // Or the layer's switch.
+            guard server == self.server(), withPilots == choice.withPilots else { return }
             sites = map.sites
             credits = map.credits
             isWhole = map.isWhole
             asOfUnixS = map.asOfUnixS
-            answered = (area, server, Date())
+            answered = (area, server, withPilots, Date())
             problem = nil
             refilter()
         } catch is CancellationError {

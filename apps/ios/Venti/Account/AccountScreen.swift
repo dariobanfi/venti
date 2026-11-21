@@ -18,6 +18,10 @@ struct AccountScreen: View {
         }
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
+        // What Venti says of the account now.
+        .task {
+            await account.read()
+        }
         .alert(
             "Account",
             isPresented: Binding(

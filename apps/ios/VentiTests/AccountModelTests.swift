@@ -207,6 +207,96 @@ final class AccountModelTests: XCTestCase {
         XCTAssertNil(box.token)
     }
 
+    /// What Venti says of the account is asked for and kept by the core,
+    /// and what a site offers and whether a place may be added follow it.
+    func testWhatVentiSaysOfTheAccountDecidesWhatASiteOffers() async throws {
+        final class Answer: @unchecked Sendable {
+            var status = 200
+            var body = #"{"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z", "edits_sites": true}}"#
+        }
+        let core = try makeCore()
+        let (sent, box, answer) = (Sent(), TokenBox(), Answer())
+        let plain = server(noting: sent)
+        let account = AccountModel(
+            core: core,
+            transport: { request in
+                if request.httpMethod == "GET", request.url?.path == "/v1/account" {
+                    await sent.add(request)
+                    return (answer.status, Data(answer.body.utf8), nil)
+                }
+                return try await plain(request)
+            },
+            readToken: { box.token }, saveToken: { box.token = $0 }
+        )
+        // A partner's take-off, as the server hands it out.
+        let site = try sitePage(
+            status: 200,
+            body: Data(#"{"site": {"id": "venti:0000000000000000000000s001", "name": "Musterkogel West", "position": {"lat": 47.3, "lon": 10.9}, "uses": ["takeoff"]}, "standing": {"id": "venti:0000000000000000000000s001", "revision": 1, "created_at": "2026-10-29T19:05:00Z", "changed_at": "2026-10-29T19:05:00Z"}, "lasting": true, "attributions": []}"#.utf8)
+        ).site
+        XCTAssertEqual(site.byPilots?.label, "From a partner")
+
+        // Signed out: nothing is asked, nothing is added, and the core's
+        // line says why.
+        await account.read()
+        let none = await sent.requests
+        XCTAssertTrue(none.isEmpty)
+        let signedOut = try XCTUnwrap(account.adding(takesSitesFromPilots: true))
+        XCTAssertFalse(signedOut.mayAdd)
+        XCTAssertEqual(signedOut.whyNot, "Sign in to add a place pilots take off from.")
+        let closed = try XCTUnwrap(account.offers(for: site, takesSitesFromPilots: true, confirmations: nil))
+        XCTAssertFalse(closed.correct.isOffered)
+        XCTAssertFalse(closed.confirm.isOffered)
+        XCTAssertTrue(closed.history.isOffered)
+        XCTAssertFalse(closed.note.isEmpty)
+
+        // Signed in as an ordinary pilot: a place from pilots may be
+        // added, and a partner's site is not this pilot's to correct.
+        let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
+        await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
+        XCTAssertEqual(account.account?.mayEditPartnerSites, false)
+        let pilot = try XCTUnwrap(account.adding(takesSitesFromPilots: true))
+        XCTAssertTrue(pilot.mayAdd)
+        XCTAssertFalse(pilot.asPartner)
+        XCTAssertEqual(pilot.entryWords, "Add a place pilots take off from")
+        XCTAssertEqual(pilot.sendWords, "Add as a place from pilots")
+        let asPilot = try XCTUnwrap(account.offers(for: site, takesSitesFromPilots: true, confirmations: nil))
+        XCTAssertFalse(asPilot.correct.isOffered)
+        XCTAssertFalse(asPilot.remove.isOffered)
+        XCTAssertTrue(asPilot.confirm.isOffered)
+        XCTAssertEqual(asPilot.confirm.words, "I took off here and it was good")
+        XCTAssertTrue(asPilot.report.isOffered)
+        XCTAssertTrue(asPilot.note.hasPrefix("A partner of Venti added this site"), asPilot.note)
+
+        // Venti says the account is a partner: asked with the token, kept,
+        // and the site is the account's to correct.
+        await account.read()
+        let asked = await sent.requests.last
+        XCTAssertEqual(asked?.url?.path, "/v1/account")
+        XCTAssertEqual(asked?.value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
+        XCTAssertEqual(account.account?.mayEditPartnerSites, true)
+        XCTAssertEqual(account.adding(takesSitesFromPilots: true)?.asPartner, true)
+        let asPartner = try XCTUnwrap(account.offers(for: site, takesSitesFromPilots: true, confirmations: nil))
+        XCTAssertTrue(asPartner.correct.isOffered)
+        XCTAssertEqual(asPartner.correct.words, "Correct this site")
+
+        // No answer: the account is as it was last said.
+        answer.status = 503
+        answer.body = ""
+        await account.read()
+        XCTAssertEqual(account.account?.mayEditPartnerSites, true)
+        XCTAssertTrue(account.isSignedIn)
+
+        // The session ended on the server: no error, the account says so,
+        // and the token goes.
+        answer.status = 401
+        answer.body = #"{"error": {"code": "unauthorized", "message": "x"}}"#
+        await account.read()
+        XCTAssertFalse(account.isSignedIn)
+        XCTAssertEqual(account.account?.needsSignIn, true)
+        XCTAssertNil(box.token)
+        XCTAssertNil(account.problem)
+    }
+
     func testAnEndedSessionAsksThePilotToSignInAgain() async throws {
         let core = try makeCore()
         let (sent, box) = (Sent(), TokenBox())

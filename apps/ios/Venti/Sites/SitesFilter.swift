@@ -2,9 +2,10 @@ import SwiftUI
 import VentiCore
 
 /// What the pilot asks of the flying sites, as the app keeps it: which
-/// sites, the wind a take-off is to work in, and the height take-offs lie
-/// at or above. What it leaves of the sites, and every word about it, is
-/// the core's (`filterSites`, `sitesFilterChoices`); this is the choice
+/// sites, the wind a take-off is to work in, the height take-offs lie at
+/// or above, and whether the places from pilots are among them. What it
+/// leaves of the sites, and every word about it, is the core's
+/// (`filterSites`, `sitesFilterChoices`, `siteWords`); this is the choice
 /// alone.
 struct SitesChoice: Hashable {
     /// The wind asked of take-offs.
@@ -21,6 +22,9 @@ struct SitesChoice: Hashable {
     var wind: Wind = .any
     /// Take-offs from this height up, metres; `nil` for any.
     var fromM: Double?
+    /// Whether the places from pilots are asked for too: the crowdsourced
+    /// layer, which no map shows until its pilot switches it on.
+    var withPilots = false
 
     init() {}
 
@@ -41,6 +45,7 @@ struct SitesChoice: Hashable {
         }
         let from = store.double(forKey: Preferences.mapSitesFromM)
         fromM = from > 0 ? from : nil
+        withPilots = store.bool(forKey: Preferences.mapSitesFromPilots)
     }
 
     /// Keeps the choice for the next launch.
@@ -58,6 +63,7 @@ struct SitesChoice: Hashable {
         }
         store.set(wind, forKey: Preferences.mapSitesWind)
         store.set(fromM ?? 0, forKey: Preferences.mapSitesFromM)
+        store.set(withPilots, forKey: Preferences.mapSitesFromPilots)
     }
 
     /// The choice as the core takes it. "Measured now" hands over the
@@ -75,6 +81,8 @@ struct SitesChoice: Hashable {
 /// The choices of the filter and their words, as the core has them.
 enum SitesChoices {
     static let core = sitesFilterChoices()
+    /// The words of the crowdsourced layer's switch, and of a site's page.
+    static let words = siteWords()
 
     /// The winds to choose among: any, the wind measured now where the
     /// map has one, and the sixteen points of the compass.
@@ -141,6 +149,14 @@ struct SitesFilterForm: View {
                     .accessibilityIdentifier("sites-filter-on")
                 Text(filtered.words)
                     .accessibilityIdentifier("sites-filter-words")
+                // How many of them are places from pilots, while that
+                // layer is on and has any here.
+                if !filtered.fromPilotsWords.isEmpty {
+                    Text(filtered.fromPilotsWords)
+                        .font(.venti(.footnote))
+                        .foregroundStyle(.venti(.textSecondary))
+                        .accessibilityIdentifier("sites-filter-from-pilots")
+                }
                 if !filtered.unsaidTitle.isEmpty {
                     VStack(alignment: .leading, spacing: VentiSpace.s1) {
                         Text(filtered.unsaidTitle)
@@ -152,6 +168,15 @@ struct SitesFilterForm: View {
                 }
             } footer: {
                 Text(choices.note)
+            }
+            // At the foot: the crowdsourced layer, off until the pilot
+            // switches it on, in the core's words.
+            Section {
+                Toggle(SitesChoices.words.pilotsLayer, isOn: withPilots)
+                    .accessibilityIdentifier("sites-from-pilots")
+            } footer: {
+                Text(SitesChoices.words.pilotsLayerAbout)
+                    .accessibilityIdentifier("sites-from-pilots-about")
             }
         }
         .accessibilityIdentifier("sites-filter-form")
@@ -177,6 +202,16 @@ struct SitesFilterForm: View {
         } set: { wind in
             var choice = sites.choice
             choice.wind = wind
+            sites.choose(choice)
+        }
+    }
+
+    private var withPilots: Binding<Bool> {
+        Binding {
+            sites.choice.withPilots
+        } set: { withPilots in
+            var choice = sites.choice
+            choice.withPilots = withPilots
             sites.choose(choice)
         }
     }
@@ -239,9 +274,11 @@ struct SitesFilterLine: View {
         .accessibilityIdentifier("sites-filter-line")
     }
 
-    /// What the filter leaves, and under it what says nothing.
+    /// What the filter leaves, under it how many of those are places
+    /// from pilots, and what says nothing.
     static func leaves(_ filtered: SitesFiltered) -> String {
-        [filtered.words, filtered.unsaidTitle].filter { !$0.isEmpty }.joined(separator: "\n")
+        [filtered.words, filtered.fromPilotsWords, filtered.unsaidTitle]
+            .filter { !$0.isEmpty }.joined(separator: "\n")
     }
 }
 

@@ -125,28 +125,106 @@ final class SiteEditTests: XCTestCase {
         XCTAssertTrue(fields.contains(.name), "\(fields)")
     }
 
-    func testWhatThePilotEnteredIsCarriedOntoASiteSomeoneElseChanged() throws {
+    func testASiteSomeoneElseChangedIsToldApartAndTheCoreCarriesTheDraftOntoIt() async throws {
         let site = try sitePage(status: 200, body: Data(Self.written.utf8)).site
-        let begun = try siteDraftOf(site: site)
-
         // The pilot corrects the height and ticks a wind direction.
-        var mine = begun
+        var mine = try siteDraftOf(site: site)
         mine.setHeight("1880")
         mine.toggleWind(180)
 
-        // Meanwhile someone else renamed the site, at revision 4.
-        var now = begun
-        now.name = "Musterkogel West ramp"
-        now.revision = 4
+        // The server refuses: someone else changed the site. The plumbing
+        // says so with the core's reading of the answer, and a refusal of
+        // another kind does not.
+        do {
+            _ = try await editing(answering: 409, #"{"error": {"code": "site_changed", "message": "x"}}"#)
+                .write(mine, comment: "")
+            XCTFail("The server refused, and nothing was thrown.")
+        } catch let refused as SiteEditing.Refused {
+            XCTAssertTrue(refused.wasChanged)
+        }
+        do {
+            _ = try await editing(answering: 409, Self.tooClose).write(mine, comment: "")
+            XCTFail("The server refused, and nothing was thrown.")
+        } catch let refused as SiteEditing.Refused {
+            XCTAssertFalse(refused.wasChanged)
+        }
 
-        let carried = mine.carried(from: begun, onto: now)
-        XCTAssertEqual(carried.revision, 4)
-        XCTAssertEqual(carried.name, "Musterkogel West ramp")
-        XCTAssertEqual(carried.elevationM, 1880)
-        XCTAssertTrue(carried.windFromDeg.contains(180))
-        XCTAssertEqual(carried.position, now.position)
+        // Meanwhile someone else renamed the site, at revision 4: the
+        // form reads it as it stands and hands the three to the core.
+        let renamed = Self.written
+            .replacingOccurrences(of: #""name": "Musterkogel West""#, with: #""name": "Musterkogel West ramp""#)
+            .replacingOccurrences(of: #""revision": 3"#, with: #""revision": 4"#)
+        let now = try await editing(answering: 200, renamed).page(site.id).site
+        let rebased = try siteDraftRebased(base: site, edited: mine, now: now)
+        XCTAssertEqual(rebased.draft.revision, 4)
+        XCTAssertEqual(rebased.draft.name, "Musterkogel West ramp")
+        XCTAssertEqual(rebased.draft.elevationM, 1880)
+        XCTAssertTrue(rebased.draft.windFromDeg.contains(180))
+        XCTAssertEqual(rebased.kept, [.height, .wind])
+        XCTAssertTrue(rebased.clashes.isEmpty)
+        XCTAssertEqual(rebased.theirs.count, 1, "\(rebased.theirs)")
+        XCTAssertTrue(rebased.words.hasPrefix("Someone else changed this site"), rebased.words)
+    }
 
-        // Nothing entered: the site as it stands now.
-        XCTAssertEqual(begun.carried(from: begun, onto: now), now)
+    /// The server's own example of who says they took off at a site.
+    private static let confirmations = #"{"id": "venti:0000000000000000000000s001", "confirmed": {"pilots": 2, "latest_day": "2026-11-16"}, "confirmations": [{"by": {"handle": "mara", "display_name": "Mara Muster"}, "day": "2026-11-16", "note": "North-west at noon, smooth."}, {"by": {"handle": "jonas", "display_name": "Jonas Beispiel"}, "day": "2026-11-09"}]}"#
+
+    func testConfirmationsAreReadWithoutAnAccountAndSaidAndTakenBackWithOne() async throws {
+        let id = "venti:0000000000000000000000s001"
+        let list = try await editing(answering: 200, Self.confirmations).confirmations(id)
+        XCTAssertEqual(list.pilots, 2)
+        XCTAssertEqual(list.words, "2 pilots took off here, last on 16 November 2026")
+        XCTAssertEqual(list.lines.count, 2)
+        XCTAssertTrue(list.lines[0].words.contains("North-west at noon, smooth."), list.lines[0].words)
+
+        // Said: the request the core made goes out signed, and the answer
+        // is the site with the core's sentence for the day.
+        let sent = Sent()
+        let core = try Core(
+            dataFolder: FileManager.default.temporaryDirectory
+                .appendingPathComponent("venti-site-test-\(UUID().uuidString)", isDirectory: true).path
+        )
+        let request = try core.siteConfirmRequest(
+            id: id, day: "2026-11-20", today: "2026-11-21", note: "Smooth at noon.", flight: nil
+        )
+        let confirmed = try await editing(answering: 200, Self.written, noting: sent)
+            .confirm(request, day: "2026-11-20")
+        XCTAssertEqual(confirmed.words, "You confirmed this site for Fri 20 Nov.")
+        XCTAssertEqual(confirmed.site.id, id)
+
+        // Taken back.
+        let words = try await editing(answering: 204, "", noting: sent).withdraw(id)
+        XCTAssertFalse(words.isEmpty)
+        let requests = await sent.requests
+        XCTAssertEqual(requests.map(\.method), ["PUT", "DELETE"])
+        XCTAssertTrue(requests.allSatisfy(\.needsToken))
+        XCTAssertTrue(String(decoding: requests[0].body ?? Data(), as: UTF8.self).contains("Smooth at noon."))
+
+        // A refusal is the core's words.
+        do {
+            _ = try await editing(answering: 400, #"{"error": {"code": "invalid_confirmation", "message": "x"}}"#)
+                .confirm(request, day: "2026-11-20")
+            XCTFail("The server refused, and nothing was thrown.")
+        } catch {
+            XCTAssertFalse(SiteEditing.words(for: error).isEmpty)
+            XCTAssertTrue(error is CoreError)
+        }
+    }
+
+    func testADayIsNamedAsTheCoreTakesOneOnThisIPhonesCalendar() throws {
+        // Noon UTC of 21 November 2026 is that day in every time zone
+        // from UTC-11 to UTC+11.
+        let day = SiteDay.day(unixSeconds: 1_795_262_400)
+        XCTAssertEqual(day.count, 10)
+        XCTAssertTrue(day.hasPrefix("2026-11-2"), day)
+        // The core takes it for the form's today, and offers the days back
+        // from it under their words.
+        let form = try siteConfirmForm(today: day)
+        XCTAssertEqual(form.days.first?.day, day)
+        XCTAssertEqual(form.days.prefix(2).map(\.words), ["Today", "Yesterday"])
+        XCTAssertEqual(
+            SiteDay.utcOffsetS(on: day),
+            Int32(TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: 1_795_262_400)))
+        )
     }
 }

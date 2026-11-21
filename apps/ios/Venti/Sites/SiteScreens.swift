@@ -112,7 +112,7 @@ struct SiteList: View {
         NavigationStack {
             VentiList {
                 // The filter in a line while one is on: it opens the filter.
-                if filtered.isOn {
+                if sites.isFilterOn {
                     Section {
                         Button {
                             showsFilter = true
@@ -131,8 +131,10 @@ struct SiteList: View {
                         .accessibilityIdentifier("site-row")
                     }
                 } header: {
-                    if filtered.isOn {
-                        Text(filtered.words)
+                    if sites.isFilterOn {
+                        // What the filter leaves, and how many of those
+                        // are places from pilots.
+                        Text([filtered.words, filtered.fromPilotsWords].filter { !$0.isEmpty }.joined(separator: "\n"))
                             .textCase(nil)
                             .accessibilityIdentifier("sites-list-words")
                     }
@@ -251,7 +253,12 @@ private struct SiteRow: View {
     }
 
     private var detail: String {
+        // A place from pilots says so first, in the core's words; a
+        // partner's site says its tier on its page only.
         var parts: [String] = []
+        if let by = site.byPilots, by.fromPilots {
+            parts.append(by.label)
+        }
         if site.isNamed {
             parts.append(site.kindInWords)
         }
@@ -292,6 +299,9 @@ struct SiteScreen: View {
     @State private var said: String?
     /// Whether the site was removed from the map on this page.
     @State private var isRemoved = false
+    /// Who says they took off here, for a site of Venti's own: read when
+    /// the page opens, and again after the pilot said so or took it back.
+    @State private var confirmations: SiteConfirmations?
 
     /// - Parameter said: the core's line about the site, where the page
     ///   opens on a site just added.
@@ -372,6 +382,31 @@ struct SiteScreen: View {
                         }
                     }
                 }
+            }
+            // A site of Venti's own: how many pilots say they took off
+            // here, and the way to say so, where the core offers it.
+            if let by = site.byPilots, let offers, !isRemoved {
+                SiteConfirmSection(
+                    site: site, by: by, offers: offers, confirmations: confirmations,
+                    onConfirmed: { answer in
+                        written = answer.site
+                        said = answer.words
+                        Task {
+                            await readConfirmations()
+                            // The core's sentence now stands in the
+                            // button's place: not said twice.
+                            if self.offers?.hasConfirmed == true {
+                                said = nil
+                            }
+                        }
+                    },
+                    onWithdrawn: { words in
+                        said = words
+                        Task {
+                            await readAgain()
+                        }
+                    }
+                )
             }
             if site.official == true || site.discouraged || site.paragliding == false {
                 Section {
@@ -475,6 +510,14 @@ struct SiteScreen: View {
             // More about the site, as its source has it: the mapper's
             // words as written, the core's sentences, and the web page
             // its source names, which opens outside the app.
+            // Over the description of a site of Venti's own: the core's
+            // notice of its tier, which says what the words are worth.
+            if let by = site.byPilots, !by.note.isEmpty {
+                Section {
+                    CardCaution(words: by.note)
+                        .accessibilityIdentifier("site-tier-note")
+                }
+            }
             if let words = site.description, !words.isEmpty {
                 Section("What its source says") {
                     Text(words)
@@ -494,11 +537,11 @@ struct SiteScreen: View {
                     }
                 }
             }
-            // A site that pilots made on Venti: who added it and when it
-            // was last changed, and what a pilot can do with it.
-            if let by = site.byPilots {
+            // A site of Venti's own: what the core offers a pilot to do
+            // with it, and who added it and changed it last.
+            if let by = site.byPilots, let offers {
                 SiteByPilotsSection(
-                    site: site, by: by, isRemoved: isRemoved,
+                    site: site, by: by, offers: offers, isRemoved: isRemoved,
                     onWritten: { answer in
                         written = answer.site
                         said = answer.words
@@ -546,15 +589,11 @@ struct SiteScreen: View {
                 await own.load(from: nil)
             }
         }
-        // A site that pilots made is read again as it stands now: the map's
-        // answer may be an hour old, and another pilot may have changed
-        // the site since.
+        // A site of Venti's own is read again as it stands now, with who
+        // says they took off there: the map's answer may be an hour old,
+        // and another pilot may have changed or confirmed the site since.
         .task(id: given.id) {
-            guard given.byPilots != nil,
-                  let page = try? await SiteEditing(account: account, wind: wind).page(given.id),
-                  page.canBeCorrected
-            else { return }
-            written = page.site
+            await readAgain()
         }
         // What the forecast says about flying from here.
         .task(id: site.id) {
@@ -564,6 +603,28 @@ struct SiteScreen: View {
         .fullScreenCover(isPresented: $isPlanningRoute) {
             RouteMapPlanner(from: site.position)
         }
+    }
+
+    /// What the core offers whoever is signed in here for this site.
+    private var offers: SiteOffers? {
+        account.offers(
+            for: site, takesSitesFromPilots: wind.takesSitesFromPilots, confirmations: confirmations
+        )
+    }
+
+    /// Reads a site of Venti's own as it stands, and its confirmations.
+    private func readAgain() async {
+        guard given.byPilots != nil else { return }
+        if let page = try? await SiteEditing(account: account, wind: wind).page(given.id) {
+            written = page.site
+        }
+        await readConfirmations()
+    }
+
+    /// Who says they took off here: the core finds the pilot's own in it.
+    private func readConfirmations() async {
+        guard given.byPilots != nil else { return }
+        confirmations = try? await SiteEditing(account: account, wind: wind).confirmations(given.id)
     }
 
     /// Keeps the site as one of the pilot's own, or forgets it. The core
@@ -632,6 +693,14 @@ struct SiteScreen: View {
                 }
             }
             VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                // The tier of a site of Venti's own, by its name, in the
+                // core's words: "From pilots", "From a partner".
+                if let label = site.byPilots?.label, !label.isEmpty {
+                    Text(label)
+                        .font(.ventiType(.label))
+                        .foregroundStyle(.venti(.textSecondary))
+                        .accessibilityIdentifier("site-tier")
+                }
                 Text(inALine)
                     .foregroundStyle(.venti(.textSecondary))
                 if let day {

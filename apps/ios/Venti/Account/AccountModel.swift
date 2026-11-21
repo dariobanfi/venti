@@ -161,6 +161,61 @@ final class AccountModel {
         }
     }
 
+    // MARK: What Venti says of the account
+
+    /// Asks Venti what it says of the account: its name, and whether it
+    /// is a partner of Venti for flying sites or stopped from publishing,
+    /// which the core keeps and reads what a site offers from. Asked when
+    /// the app comes to the front and when the account's page opens.
+    /// Quiet: without an answer the account is as it was last said. A
+    /// session that ended is no error: the account then says so.
+    func read() async {
+        guard let server = account?.server, let request = try? core.accountRequest(),
+              let (status, body, _) = try? await ask(request, of: server, timeout: 20),
+              let read = try? core.accountRead(status: status, body: body)
+        else { return }
+        if read.needsSignIn {
+            saveToken(nil)
+        }
+        account = read
+    }
+
+    // MARK: Flying sites
+
+    /// What may be offered for a site to whoever is signed in here, as
+    /// the core's one answer. `nil` only where the core cannot read the
+    /// account it stores: nothing is offered then.
+    func offers(
+        for site: SiteView, takesSitesFromPilots: Bool, confirmations: SiteConfirmations?
+    ) -> SiteOffers? {
+        // The answer follows the account: a view that reads it is drawn
+        // again when the account changes.
+        _ = account
+        return try? core.siteOffers(
+            site: site, takesSitesFromPilots: takesSitesFromPilots, confirmations: confirmations
+        )
+    }
+
+    /// Whether a site may be added from here, into which tier, and the
+    /// words of the entry and its form.
+    func adding(takesSitesFromPilots: Bool) -> SiteAdding? {
+        _ = account
+        return try? core.siteAdding(takesSitesFromPilots: takesSitesFromPilots)
+    }
+
+    /// The pilot's own flights of a day that began at a site, to name
+    /// with a confirmation. Mostly none.
+    func flights(toConfirm site: SiteView, on day: String, utcOffsetS: Int32) -> [SiteConfirmFlight] {
+        (try? core.siteConfirmFlights(site: site, day: day, utcOffsetS: utcOffsetS)) ?? []
+    }
+
+    /// The request that says of a site "I took off here and it was good".
+    func confirmRequest(
+        for id: String, day: String, today: String, note: String, flight: String?
+    ) throws -> ServerRequest {
+        try core.siteConfirmRequest(id: id, day: day, today: today, note: note, flight: flight)
+    }
+
     // MARK: Sync
 
     /// Brings the logbook and the server in step, if the pilot is signed

@@ -3075,14 +3075,75 @@ extension VentiUITests {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", kind + "-")).firstMatch
     }
 
-    /// A pilot adds a take-off beside the made-up "Musterkogel West",
-    /// finds it on the map, corrects its height, reads the two revisions,
-    /// undoes the correction and removes the site; and is refused a site
-    /// on top of "Musterkogel West", with the offer to open that one.
+    /// Preferences outlive a test: whatever becomes of a test that
+    /// switches the places from pilots on, the tests after it find them
+    /// off and a filter that asks nothing.
+    private func leaveTheSitesFilterAskingNothing() {
+        addTeardownBlock { @MainActor in
+            let app = XCUIApplication()
+            app.launchArguments = ["--ui-testing", "--all-sites", "--server", Self.nowhere]
+            app.launch()
+            app.terminate()
+        }
+    }
+
+    /// Brings an element of a sheet that opens at half height into the
+    /// screen: the first drag pulls the sheet up, the next ones scroll it.
+    private func bringInSheet(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        let wanted = element(identifier, in: app)
+        let window = app.windows.firstMatch
+        for _ in 0..<5 where !isOnScreen(wanted, in: app) {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+                .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+            usleep(800_000)
+        }
+        XCTAssertTrue(wanted.waitForExistence(timeout: 10), identifier)
+        return wanted
+    }
+
+    /// Opens the filter of the sites from its button on the map, and
+    /// brings the switch "Places from pilots" at its foot into view.
+    private func openThePilotsSwitch(in app: XCUIApplication) -> XCUIElement {
+        let filter = element("sites-filter", in: app)
+        XCTAssertTrue(filter.waitForExistence(timeout: 60))
+        filter.tap()
+        XCTAssertTrue(element("sites-shown", in: app).waitForExistence(timeout: 15))
+        let layer = bringInSheet("sites-from-pilots", in: app)
+        _ = bringInSheet("sites-from-pilots-about", in: app)
+        return layer
+    }
+
+    /// Whether a switch is on.
+    private func isOn(_ toggle: XCUIElement) -> Bool {
+        (toggle.value as? String) == "1"
+    }
+
+    /// Sets a switch of a list. A tap on the row's middle does not always
+    /// reach the switch itself: its right end does.
+    private func set(_ toggle: XCUIElement, on: Bool) {
+        if isOn(toggle) != on {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            usleep(800_000)
+        }
+        if isOn(toggle) != on {
+            toggle.tap()
+            usleep(800_000)
+        }
+        XCTAssertEqual(isOn(toggle), on)
+    }
+
+    /// A pilot adds a place pilots take off from beside the made-up
+    /// "Musterkogel West", which goes to the crowdsourced tier: it is on
+    /// the map and in its list only once the places from pilots are
+    /// switched on. The pilot then corrects its height, reads the two
+    /// revisions, undoes the correction and removes the site; and is
+    /// refused a site on top of "Musterkogel West", with the offer to open
+    /// that one.
     func testAPilotAddsCorrectsAndRemovesASite() async throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")
         }
+        leaveTheSitesFilterAskingNothing()
         let account = try await makeAccount(on: server)
         // "Musterkogel West" in the map's middle, so close that a finger's
         // width is a few metres: at zoom 19 a point is a tenth of a metre.
@@ -3090,14 +3151,18 @@ extension VentiUITests {
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
         signIn(account, in: app)
 
-        // Some 27 m north-west of it: a place of its own.
+        // Some 27 m north-west of it: a place of its own. An account the
+        // test made is an ordinary pilot: the entry and the form are the
+        // crowdsourced tier's, in the core's words.
         let entry = pressTheMap(dx: -140, dy: -230, in: app)
+        XCTAssertEqual(entry.label, "Add a place pilots take off from")
         sleep(2)
         keepScreenshot("site-edit-1-entry-on-the-map")
         entry.tap()
 
         let name = element("site-name", in: app)
         XCTAssertTrue(name.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.navigationBars["A place pilots take off from"].exists)
         sleep(1)
         keepScreenshot("site-edit-2-form-empty")
 
@@ -3120,23 +3185,39 @@ extension VentiUITests {
         let send = bring("site-send", into: app)
         XCTAssertTrue(element("site-giving", in: app).exists)
         XCTAssertTrue(element("site-licence", in: app).exists)
+        XCTAssertEqual(send.label, "Add as a place from pilots")
         keepScreenshot("site-edit-4-giving-and-send")
         send.tap()
 
-        // The core's line, on the new site's page.
+        // The core's line, on the new site's page, which says its tier.
         let said = element("site-said", in: app)
         XCTAssertTrue(said.waitForExistence(timeout: 30))
         XCTAssertTrue(said.label.contains("Added"), said.label)
+        XCTAssertEqual(element("site-tier", in: app).label, "From pilots")
         sleep(2)
         keepScreenshot("site-edit-5-new-site-page")
         app.buttons["Done"].firstMatch.tap()
         sleep(3)
+
+        // The places from pilots are off: the new place is not in the
+        // list of what the map shows, and the partner's take-off is.
+        app.buttons["Flying sites"].tap()
+        XCTAssertTrue(labelled(containing: "Musterkogel West", in: app).waitForExistence(timeout: 20))
+        XCTAssertFalse(labelled(containing: "Testkogel", in: app).exists)
+        app.buttons["Done"].firstMatch.tap()
+        sleep(1)
+
+        // Switched on, at the foot of the filter: it is on the map.
+        set(openThePilotsSwitch(in: app), on: true)
+        app.buttons["Done"].firstMatch.tap()
+        sleep(3)
         keepScreenshot("site-edit-6-on-the-map")
 
-        // On the map: in the list of what the map shows.
+        // And in the list of what the map shows, marked.
         app.buttons["Flying sites"].tap()
         let row = labelled(containing: "Testkogel", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 20))
+        XCTAssertTrue(row.label.contains("From pilots"), row.label)
         row.tap()
 
         // Correct its height.
@@ -3227,6 +3308,193 @@ extension VentiUITests {
         keepScreenshot("site-edit-form-dark-1")
         _ = bring("site-send", into: app)
         keepScreenshot("site-edit-form-dark-2-giving")
+    }
+}
+
+/// The two tiers of Venti's own sites, against the development server:
+/// its partner's take-off "Musterkogel West" and landing "Musterwiese",
+/// and the crowdsourced take-off "Beispieljoch".
+extension VentiUITests {
+    /// The three made-up sites in one view of the map.
+    private static let lechtal = "47.29,10.9,12"
+
+    /// With the places from pilots off, the crowdsourced take-off is not
+    /// in the list of what the map shows; switched on at the foot of the
+    /// filter, it is, marked. A pilot the test made says of it "I took
+    /// off here and it was good" for yesterday with a line, reads the
+    /// core's sentence and their line among the pilots', and takes it
+    /// back. A partner's site offers that pilot no correcting, and the
+    /// core's line says why.
+    func testAPilotSwitchesThePlacesFromPilotsOnAndConfirmsOne() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        leaveTheSitesFilterAskingNothing()
+        let account = try await makeAccount(on: server)
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", Self.lechtal, "--all-sites"])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(account, in: app)
+        setLayer("layer-sites", on: true, in: app)
+
+        // Off: the partner's sites, and no place from pilots.
+        app.buttons["Flying sites"].tap()
+        XCTAssertTrue(labelled(containing: "Musterkogel West", in: app).waitForExistence(timeout: 30))
+        XCTAssertFalse(labelled(containing: "Beispieljoch", in: app).exists)
+        XCTAssertFalse(labelled(containing: "From pilots", in: app).exists)
+        app.buttons["Done"].firstMatch.tap()
+        sleep(1)
+
+        // The switch at the foot of the filter, off and on.
+        let layer = openThePilotsSwitch(in: app)
+        XCTAssertEqual(layer.label, "Places from pilots")
+        XCTAssertFalse(isOn(layer))
+        sleep(1)
+        keepScreenshot("site-tiers-1-filter-switch-off")
+        set(layer, on: true)
+        // The core's line under what the filter leaves.
+        let among = element("sites-filter-from-pilots", in: app)
+        for _ in 0..<3 where !isOnScreen(among, in: app) {
+            app.swipeDown()
+            usleep(600_000)
+        }
+        XCTAssertTrue(among.waitForExistence(timeout: 20))
+        XCTAssertTrue(among.label.contains("from pilots"), among.label)
+        _ = bringInSheet("sites-from-pilots-about", in: app)
+        sleep(1)
+        keepScreenshot("site-tiers-2-filter-switch-on")
+        app.buttons["Done"].firstMatch.tap()
+
+        // Counted as a filter being on: its line stands over the map.
+        XCTAssertTrue(element("sites-filter-line", in: app).waitForExistence(timeout: 20))
+        sleep(3)
+        keepScreenshot("site-tiers-3-on-the-map")
+
+        // In the list, marked.
+        app.buttons["Flying sites"].tap()
+        let row = labelled(containing: "Beispieljoch", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        XCTAssertTrue(row.label.contains("From pilots"), row.label)
+        XCTAssertFalse(labelled(containing: "Musterkogel West", in: app).label.contains("From"))
+        sleep(1)
+        keepScreenshot("site-tiers-4-list")
+        row.tap()
+
+        // Its page: the tier by the name, one pilot's confirmation, the
+        // sentence to say, and the notice.
+        XCTAssertTrue(element("site-tier", in: app).waitForExistence(timeout: 20))
+        XCTAssertEqual(element("site-tier", in: app).label, "From pilots")
+        let count = element("site-confirmations", in: app)
+        XCTAssertTrue(count.waitForExistence(timeout: 20))
+        XCTAssertTrue(count.label.contains("1 pilot took off here"), count.label)
+        let confirm = element("site-confirm", in: app)
+        XCTAssertTrue(confirm.waitForExistence(timeout: 20))
+        XCTAssertEqual(confirm.label, "I took off here and it was good")
+        sleep(1)
+        keepScreenshot("site-tiers-5-page-from-pilots")
+        _ = bring("site-tier-note", into: app)
+        keepScreenshot("site-tiers-6-page-notice-and-offers")
+
+        // Said for yesterday, with a line.
+        bring("site-confirm", into: app, down: true).tap()
+        let day = element("site-confirm-day", in: app)
+        XCTAssertTrue(day.waitForExistence(timeout: 15))
+        day.tap()
+        let yesterday = app.buttons["Yesterday"]
+        XCTAssertTrue(yesterday.waitForExistence(timeout: 10))
+        yesterday.tap()
+        sleep(1)
+        keepScreenshot("site-tiers-7-confirm-sheet")
+        let note = element("site-confirm-note", in: app)
+        note.tap()
+        note.typeText("Smooth at noon")
+        sleep(1)
+        keepScreenshot("site-tiers-7b-confirm-sheet-with-a-line")
+        bring("site-confirm-send", into: app).tap()
+
+        // The core's sentence in the button's place, with the two ways on.
+        let confirmed = element("site-confirmed", in: app)
+        XCTAssertTrue(confirmed.waitForExistence(timeout: 30))
+        XCTAssertTrue(confirmed.label.hasPrefix("You confirmed this site for"), confirmed.label)
+        XCTAssertEqual(element("site-confirm", in: app).label, "Change the day")
+        let withdraw = element("site-withdraw", in: app)
+        XCTAssertEqual(withdraw.label, "Take my confirmation back")
+        XCTAssertTrue(count.label.contains("2 pilots took off here"), count.label)
+        sleep(1)
+        keepScreenshot("site-tiers-8-page-after-confirming")
+
+        // "Pilots who took off here", with the pilot's own line.
+        count.tap()
+        XCTAssertTrue(app.navigationBars["Pilots who took off here"].waitForExistence(timeout: 15))
+        let mine = labelled(containing: "Smooth at noon", in: app)
+        XCTAssertTrue(mine.waitForExistence(timeout: 20))
+        XCTAssertTrue(mine.label.contains("@\(account.handle)"), mine.label)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "site-confirmation").count, 2)
+        sleep(1)
+        keepScreenshot("site-tiers-9-pilots-who-took-off-here")
+        app.navigationBars["Pilots who took off here"].buttons.firstMatch.tap()
+
+        // Taken back.
+        bring("site-withdraw", into: app).tap()
+        let back = app.alerts.buttons["Take my confirmation back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.alerts.staticTexts["Take your confirmation of this site back?"].exists)
+        back.tap()
+        XCTAssertTrue(
+            labelled(containing: "Your confirmation of this site is taken back", in: app)
+                .waitForExistence(timeout: 30)
+        )
+        let again = bring("site-confirm", into: app)
+        XCTAssertEqual(again.label, "I took off here and it was good")
+        XCTAssertFalse(element("site-confirmed", in: app).exists)
+        keepScreenshot("site-tiers-10-taken-back")
+
+        // A place from pilots is this pilot's to correct; a partner's is
+        // not, and the core's line says why.
+        XCTAssertTrue(bring("site-correct", into: app).exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        let partners = labelled(containing: "Musterkogel West", in: app)
+        XCTAssertTrue(partners.waitForExistence(timeout: 20))
+        partners.tap()
+        XCTAssertTrue(element("site-tier", in: app).waitForExistence(timeout: 20))
+        XCTAssertEqual(element("site-tier", in: app).label, "From a partner")
+        let why = bring("site-offers-note", into: app)
+        XCTAssertTrue(why.label.hasPrefix("A partner of Venti added this site"), why.label)
+        XCTAssertFalse(element("site-correct", in: app).exists)
+        XCTAssertFalse(element("site-remove", in: app).exists)
+        XCTAssertTrue(element("site-history", in: app).exists)
+        XCTAssertTrue(element("site-report", in: app).exists)
+        keepScreenshot("site-tiers-11-a-partners-site-offers-no-correcting")
+    }
+
+    /// A place from pilots' page in the dark, signed out: the core's line
+    /// says what signing in would offer.
+    func testAPlaceFromPilotsInTheDark() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        leaveTheSitesFilterAskingNothing()
+        let app = launch(
+            bundledMap: true, dark: true, extra: ["--server", server, "--map-at", Self.lechtal, "--all-sites"]
+        )
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        setLayer("layer-sites", on: true, in: app)
+        set(openThePilotsSwitch(in: app), on: true)
+        sleep(1)
+        keepScreenshot("site-tiers-dark-1-filter-switch-on")
+        app.buttons["Done"].firstMatch.tap()
+        app.buttons["Flying sites"].tap()
+        let row = labelled(containing: "Beispieljoch", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        row.tap()
+        XCTAssertTrue(element("site-tier", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(element("site-confirmations", in: app).waitForExistence(timeout: 20))
+        // Signed out: nothing to say or correct, and the line says why.
+        XCTAssertFalse(element("site-confirm", in: app).exists)
+        sleep(1)
+        keepScreenshot("site-tiers-dark-2-page-from-pilots")
+        let why = bring("site-offers-note", into: app)
+        XCTAssertTrue(why.label.hasPrefix("Sign in to correct this site"), why.label)
+        keepScreenshot("site-tiers-dark-3-page-offers")
     }
 }
 

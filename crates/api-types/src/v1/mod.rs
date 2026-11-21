@@ -42,6 +42,8 @@
 //! | [`pilot_path`] | GET | [`PilotRequest`] | [`PilotResponse`] |
 //! | [`PUBLIC_FLIGHTS_PATH`] | GET | [`PublicFlightsRequest`] | [`FlightsResponse`] |
 //! | [`RANKING_PATH`] | GET | [`RankingRequest`] | [`RankingResponse`] |
+//! | [`PILOTS_PATH`] | GET | [`PilotsRequest`] | [`PilotsResponse`] |
+//! | [`pilot_statistics_path`] | GET | | [`PilotStatisticsResponse`] |
 //! | [`LIVE_POSITIONS_PATH`] | POST | [`LivePositionsRequest`] | [`LivePositionsResponse`] |
 //! | [`LIVE_PATH`] | GET | [`LiveTracksRequest`] | [`LiveTracksResponse`] |
 //! | [`LIVE_OTHERS_PATH`] | GET | [`LiveOthersRequest`] | [`LiveOthersResponse`] |
@@ -149,6 +151,12 @@ pub use flights::{
     RouteKind, TAKEOFF_SITE_WITHIN_M, TrackLine, TrackProperties, UpdateFlightRequest,
     UploadResponse, Visibility, WithdrawnFlight,
 };
+pub use flights::{
+    FlownSite, FoundPilot, HighestFlight, LongestFlight, PILOT_SEARCH_MAX_CHARS,
+    PILOT_SEARCH_MIN_CHARS, PILOT_SITE_STEP_DEG, PILOT_TOP_SITES, PilotSeason,
+    PilotStatisticsResponse, PilotTotals, PilotsResponse, RankingMonth, RankingYear, YearMonth,
+    YearMonthError,
+};
 pub use forecast::{ForecastLayer, ForecastNearby, ForecastResponse, NearbyHour, NearbyStrongest};
 pub use groups::{
     CreateGroupRequest, CreateGroupResponse, Group, GroupId, GroupIdError, GroupInviteCode,
@@ -198,15 +206,16 @@ pub use request::{
     DEV_GOOGLE_ID_TOKEN_PATH, DayError, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
     FlightChangesRequest, FlightSort, FlightSortError, FlightsRequest, ForecastRequest,
     GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
-    LiveOthersRequest, LiveTrackRequest, LiveTracksRequest, ObservationsRequest, PLAN_BOARD_PATH,
-    PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, PilotRequest, PlanBoardRequest, PlanDays,
-    PlansRequest, PositionError, PublicFlightChangesRequest, PublicFlightsRequest, RANKING_PATH,
-    REPORTS_PATH, RankingRequest, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH,
-    SITES_PATH, STATIONS_PATH, SitesRequest, StationsRequest, TimeError, account_token_path,
-    flight_file_path, flight_path, flight_track_path, format_bbox, format_day, format_time,
-    group_invite_path, group_keeper_path, group_member_path, group_path, group_plans_path,
-    live_page_path, live_track_path, observations_path, parse_bbox, parse_day, parse_position,
-    parse_time, pilot_path, plan_in_path, plan_path, session_path, share_image_path, share_path,
+    LiveOthersRequest, LiveTrackRequest, LiveTracksRequest, ObservationsRequest, PILOTS_PATH,
+    PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, PilotRequest, PilotsRequest,
+    PlanBoardRequest, PlanDays, PlansRequest, PositionError, PublicFlightChangesRequest,
+    PublicFlightsRequest, RANKING_PATH, REPORTS_PATH, RankingRequest, SESSIONS_PATH,
+    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, SitesRequest,
+    StationsRequest, TimeError, account_token_path, flight_file_path, flight_path,
+    flight_track_path, format_bbox, format_day, format_time, group_invite_path, group_keeper_path,
+    group_member_path, group_path, group_plans_path, live_page_path, live_track_path,
+    observations_path, parse_bbox, parse_day, parse_position, parse_time, pilot_path,
+    pilot_statistics_path, plan_in_path, plan_path, session_path, share_image_path, share_path,
     site_candidates_path, site_confirmation_path, site_confirmations_path, site_flights_path,
     site_history_path, site_path, site_revisions_path, sites_path,
 };

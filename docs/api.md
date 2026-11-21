@@ -17,7 +17,7 @@ For the maker of a program that is not one of Venti's apps: a page, a script, an
 
 **The description.** [`GET /v1/openapi.json`](#get-v1openapijson) is an OpenAPI 3.1 document of everything under `/v1`: every path and method, its parameters, the shape of its answer and of its body, the one shape every error has, and for each request whether it needs nothing, the pilot's own sign-in, or a token with which scope. The same document is in the repository as [openapi.json](openapi.json). A client can be generated from it. What it does not say is here: what a field means, when which error comes, the bounds.
 
-**Reading without a key.** Everything anyone may read needs no account, no key and no registration: [stations](#get-v1stationsbboxwestsoutheastnorth) and [their observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth) with [their history](#get-v1sitesidhistoryafterlimit), [who confirmed them](#get-v1sitesidconfirmations) and [what public flights say about them](#what-public-flights-say-about-a-site), [forecasts](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the rain radar](#get-v1radar), [public flights](#public-flights) with [their tracks](#get-v1flightsidtrack), [a pilot's page](#pilots), [the ranking](#ranking), [public live tracks](#live-tracks). Send no token with such a request: an answer to a request with a token is made for one account and is kept by nobody. From a browser, a page on any site may make these reads; [Browsers](#rules-that-hold-for-every-endpoint) says what exactly.
+**Reading without a key.** Everything anyone may read needs no account, no key and no registration: [stations](#get-v1stationsbboxwestsoutheastnorth) and [their observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth) with [their history](#get-v1sitesidhistoryafterlimit), [who confirmed them](#get-v1sitesidconfirmations) and [what public flights say about them](#what-public-flights-say-about-a-site), [forecasts](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the rain radar](#get-v1radar), [public flights](#public-flights) with [their tracks](#get-v1flightsidtrack), [a pilot's page](#pilots), [the search for pilots](#get-v1pilotsqlimit) and [a pilot's totals](#get-v1pilotshandlestatistics), [the ranking](#ranking), [public live tracks](#live-tracks). Send no token with such a request: an answer to a request with a token is made for one account and is kept by nobody. From a browser, a page on any site may make these reads; [Browsers](#rules-that-hold-for-every-endpoint) says what exactly.
 
 **Acting for a pilot.** A pilot makes a token for the program in their account, limited to scopes, and gives the program its secret; the program sends it as `Authorization: Bearer venti_pat_…`. The program never sees the pilot's password, and the pilot withdraws the token at any time. [Tokens for other programs](#tokens-for-other-programs) has the scopes, which request needs which, and the errors a program meets.
 
@@ -110,6 +110,9 @@ curl http://127.0.0.1:8080/v1/flights/public                          # the elev
 curl http://127.0.0.1:8080/v1/ranking                                 # their six pilots, by the sum of their best three flights
 curl 'http://127.0.0.1:8080/v1/flights/public?bbox=11.6,47.55,12,47.85&sort=score'
 curl http://127.0.0.1:8080/v1/pilots/mara
+curl 'http://127.0.0.1:8080/v1/pilots?q=le'                           # Lena Probe, by a part of her name
+curl http://127.0.0.1:8080/v1/pilots/lena/statistics                  # what her three public flights add up to
+curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08'                 # the ranking of one month
 ```
 
 The demo account's [live tracks](#live-tracks) are over the Tegernsee valley, where the sample flight is. Their times are fixed against this mode's clock, which stands at 19:05:00 UTC on 2026-11-18, so an app that works out "how old is this position" against the server's clock always gets the same answer:
@@ -6035,6 +6038,166 @@ Each entry of `flights` is a flight as `GET /v1/flights/{id}` shows it. `after`,
 
 A pilot has a page once they have made a flight public. A handle nobody has gives `404` with `pilot_not_found`, and so does the handle of a pilot who shares nothing publicly: an account that keeps to itself cannot be found here, and the two answers cannot be told apart. A pilot whose only public flight was taken down, and one whose publishing is suspended, shares nothing publicly and has no page either.
 
+### `GET /v1/pilots?q=&limit=`
+
+The pilots whose handle or display name holds a text: the search of a list of flights or of a ranking. Anyone may ask, without a token, and the answer is the same for everyone.
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `q` | A part of a handle or of a display name, 2 to 60 characters; spaces at its ends are not counted. Anything else is `400` `invalid_request` | Required |
+| `limit` | How many pilots to return, 1 to 100 | 50 |
+
+```bash
+curl 'http://127.0.0.1:8080/v1/pilots?q=le'
+```
+
+```json
+{
+  "pilots": [
+    {
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "flights": 3
+    }
+  ]
+}
+```
+
+**Who is found.** A pilot with at least one public flight, as on a pilot's page: an account that shares nothing publicly is found by no text, its own handle included. The text is looked for anywhere in the handle and in the name, whatever the case of either (`q=PROBE` finds Lena Probe). Case is folded as Unicode folds it; for letters outside ASCII a database may fold a few differently (to verify against the production database's locale).
+
+**The order.** The pilots of whom the handle or the name begins with the text come first, then the pilot with the most public flights, then by handle. `flights` is the number of the pilot's public flights. The answer has no `next`: a search is narrowed by typing more, not read page by page.
+
+**To list a pilot's flights**, ask [the list of public flights](#public-flights) with `pilot=<handle>`; what they add up to is below.
+
+**The bound.** A search counts as a read of public flights for the address that asks: [600 an hour](#how-often-an-address-may-read). A page that searches as its reader types should wait for a pause in the typing. `Cache-Control: public, no-cache` and an `ETag`, as for a pilot's page.
+
+### `GET /v1/pilots/{handle}/statistics`
+
+What a pilot's public flights add up to, all together and year by year. Anyone may ask, without a token; the answer is the same for everyone, the pilot included, and is made anew from the flights that are public at that moment. A flight that is private or shared by link is in no number of it.
+
+```bash
+curl http://127.0.0.1:8080/v1/pilots/lena/statistics
+```
+
+```json
+{
+  "pilot": {
+    "handle": "lena",
+    "display_name": "Lena Probe"
+  },
+  "counted": 3,
+  "overall": {
+    "flights": 3,
+    "scored": 3,
+    "distance_m": 28191.0,
+    "points": 28.19,
+    "airtime_s": 3865,
+    "longest": {
+      "id": "ww5qkxhxaedefvypb3wy3v6m3m",
+      "distance_m": 12007.4
+    },
+    "highest": {
+      "id": "hwj4105bnzcgcavngacrzjt3s4",
+      "max_altitude_m": 2117
+    },
+    "sites": [
+      {
+        "site": {
+          "id": "venti:0000000000000000000000s001",
+          "name": "Musterkogel West"
+        },
+        "flights": 2
+      }
+    ],
+    "by_month": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "seasons": [
+    {
+      "year": 2026,
+      "totals": {
+        "flights": 3,
+        "scored": 3,
+        "distance_m": 28191.0,
+        "points": 28.19,
+        "airtime_s": 3865,
+        "longest": {
+          "id": "ww5qkxhxaedefvypb3wy3v6m3m",
+          "distance_m": 12007.4
+        },
+        "highest": {
+          "id": "hwj4105bnzcgcavngacrzjt3s4",
+          "max_altitude_m": 2117
+        },
+        "sites": [
+          {
+            "site": {
+              "id": "venti:0000000000000000000000s001",
+              "name": "Musterkogel West"
+            },
+            "flights": 2
+          }
+        ],
+        "by_month": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}
+```
+
+`overall` is every public flight; `seasons` has one entry for each year the pilot has a public flight in, the newest first, with the same numbers for that year in `totals`.
+
+| Field | Meaning |
+|---|---|
+| `flights` | How many public flights |
+| `scored` | How many of them are long enough to score |
+| `distance_m` | The scoring distances of those, added up, in metres |
+| `points` | The sum of the points of the best `counted` (three) of them, in hundredths: what [the ranking](#ranking) of the same span gives the pilot |
+| `airtime_s` | The airtime of all of them, added up, in seconds |
+| `longest` | The flight with the longest scoring distance: its `id` and `distance_m`. Left out when no flight scores |
+| `highest` | The flight that went highest: its `id` and `max_altitude_m`. Of two as long or as high, the newer is named |
+| `sites` | The take-off sites flown from most: each `site` (`id` and `name`, as a flight's [`takeoff_site`](#get-v1flightsid)) with its `flights`, the most first and by identifier among sites with as many, at most five. A flight that took off where no site with a name stands is in none |
+| `by_month` | How many of the flights began in each month of the year, January first, all years together: twelve numbers that add up to `flights` |
+
+**A season is a year by UTC**, and the months are those of UTC, as the ranking's `month` and its periods are. (What flights say about [a site](#what-public-flights-say-about-a-site) counts its months by the day at the site; in the Alps the two never differ.)
+
+**The site of a take-off** is looked up as for a flight, within 500 m, with the take-off taken to the nearest 0.0001° (11 m): a pilot's hundred starts from one meadow are a handful of places to look up. At the very edge of the 500 m a flight may therefore name a site here and none on its own page, or the other way round.
+
+**Who has totals.** A pilot who has a [page](#get-v1pilotshandleafterlimit): one with at least one public flight. Any other handle gives `404` `pilot_not_found`, the same answer as for a handle nobody has.
+
+**The bound.** It counts as a read of public flights for the address that asks: [600 an hour](#how-often-an-address-may-read). `Cache-Control: public, no-cache` and an `ETag`: a flight that is made private is in no number of the next answer.
+
 ## Public flights
 
 ### `GET /v1/flights/public?pilot=&bbox=&from=&to=&sort=&after=&limit=`
@@ -6062,7 +6225,7 @@ The answer carries [`terms`](#flights), under what its flights are given.
 
 #### How often an address may read
 
-Five requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), and [what flights say about a site](#what-public-flights-say-about-a-site), of one site and of the candidates in a box. An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. Every such answer says what the address has left in `RateLimit` ([Limits](#limits)). A session's token does not change the count: it is the address's. A token for a program does: the read is counted against the token's own budget instead. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
+Seven requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), [what flights say about a site](#what-public-flights-say-about-a-site), of one site and of the candidates in a box, [the search for pilots](#get-v1pilotsqlimit) and [a pilot's totals](#get-v1pilotshandlestatistics). An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. Every such answer says what the address has left in `RateLimit` ([Limits](#limits)). A session's token does not change the count: it is the address's. A token for a program does: the read is counted against the token's own budget instead. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
 
 **A day** is asked for with its first moment as `from` and the first moment of the next day as `to`. The server knows no time zone: a client that means the pilots' own day writes its offset into both times (`2026-08-15T00:00:00+02:00`, with the `+` written as `%2B` in a URL). The best flights of 15 August 2026, by UTC:
 
@@ -6470,7 +6633,7 @@ Once a day is enough for most uses; once a minute is the most that makes sense. 
 
 ## Ranking
 
-### `GET /v1/ranking?bbox=&from=&to=&limit=`
+### `GET /v1/ranking?bbox=&from=&to=&month=&limit=`
 
 The pilots of everyone's public flights, ranked: a pilot's points are the sum of the points of their best three flights, and the pilot with the most comes first. Anyone may ask, without a token, and the answer is the same for everyone. Only public flights count. A flight that is private or shared by link counts for nobody, whatever is asked for, the asker's own included.
 
@@ -6481,12 +6644,13 @@ It is asked in the words of the [list of public flights](#public-flights), and m
 | `bbox` | `west,south,east,north` in degrees: only flights that **took off** inside the box count | Flights from anywhere |
 | `from` | An RFC 3339 time: only flights that started at this moment or later count | No bound |
 | `to` | An RFC 3339 time: only flights that started **before** this moment count. It must be later than `from` | No bound |
+| `month` | A calendar month by UTC, written `YYYY-MM`: only flights that started in it count. It is a `from` and a `to` in one word and is not sent with either (`400` `invalid_range`); a month that cannot be read is `400` `invalid_time` | No bound |
 | `limit` | How many pilots to return from the top, 1 to 100 | 50 |
 
-**A season** is a span of time the client names, as a day is for the list of flights: the server knows no calendar and no time zone. The year 2026 by UTC is `from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z`. With `bbox` it is the ranking of the pilots who flew from one mountain, or in one region. The two pilots at the top of August 2026:
+**A season** is a span of time the client names, as a day is for the list of flights: the server knows no time zone. The year 2026 by UTC is `from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z`. **A month** by UTC has a word of its own: `month=2026-08` means `from=2026-08-01T00:00:00Z&to=2026-09-01T00:00:00Z`. With `bbox` it is the ranking of the pilots who flew from one mountain, or in one region. The two pilots at the top of August 2026:
 
 ```bash
-curl 'http://127.0.0.1:8080/v1/ranking?from=2026-08-01T00:00:00Z&to=2026-09-01T00:00:00Z&limit=2'
+curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
 ```
 
 ```json
@@ -6659,6 +6823,48 @@ curl 'http://127.0.0.1:8080/v1/ranking?from=2026-08-01T00:00:00Z&to=2026-09-01T0
       ]
     }
   ],
+  "periods": [
+    {
+      "year": 2026,
+      "flights": 10,
+      "months": [
+        {
+          "month": "2026-09",
+          "flights": 1
+        },
+        {
+          "month": "2026-08",
+          "flights": 4
+        },
+        {
+          "month": "2026-07",
+          "flights": 1
+        },
+        {
+          "month": "2026-06",
+          "flights": 2
+        },
+        {
+          "month": "2026-05",
+          "flights": 1
+        },
+        {
+          "month": "2026-04",
+          "flights": 1
+        }
+      ]
+    },
+    {
+      "year": 2025,
+      "flights": 1,
+      "months": [
+        {
+          "month": "2025-07",
+          "flights": 1
+        }
+      ]
+    }
+  ],
   "terms": {
     "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
     "decided": false
@@ -6674,6 +6880,8 @@ curl 'http://127.0.0.1:8080/v1/ranking?from=2026-08-01T00:00:00Z&to=2026-09-01T0
 | `pilots[].points` | The sum of the points of the flights that count, rounded to hundredths as a flight's points are |
 | `pilots[].scored` | How many of the pilot's public flights among those asked for scored at all, the ones that count among them. A client can say "best 3 of 14" |
 | `pilots[].flights[]` | The flights that count, the best first, each as the list of public flights shows it. Flights with the same points follow each other by `id`, the larger first |
+
+**Which periods there are.** `periods` names every year in which a public flight that scores started, the newest first, each with how many such flights it has and with its months that have one, the newest first too: `{"year": 2026, "flights": 10, "months": [{"month": "2026-09", "flights": 1}, ...]}`. A `month` is written as the parameter `month` takes it. The periods are those of the `bbox` that was asked for and of no span: they are the same whichever year or month the answer ranks, so a page offers them as the other rankings there are, and offers no empty one. Years and months are those of UTC. An answer of a server that does not say has none.
 
 **Who is ranked.** A pilot with at least one public flight that scores, among the flights asked for. A flight too short to score counts for nothing, and a pilot who has only such flights, or none that is public, is not in the answer. The points are worked out by this server from the flight's file, for every flight by the same rules ([`score`](#get-v1flightsid)); they are not a league's, and neither is this ranking.
 

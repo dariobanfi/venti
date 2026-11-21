@@ -287,6 +287,8 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "public_flight_changes.json",
         "flight_track.json",
         "ranking.json",
+        "pilots.json",
+        "pilot_statistics.json",
         "report_request.json",
         "report_group_request.json",
         "report_plan_request.json",

@@ -1,0 +1,92 @@
+{
+  "pilot": {
+    "handle": "lena",
+    "display_name": "Lena Probe"
+  },
+  "counted": 3,
+  "overall": {
+    "flights": 3,
+    "scored": 3,
+    "distance_m": 28191.0,
+    "points": 28.19,
+    "airtime_s": 3865,
+    "longest": {
+      "id": "ww5qkxhxaedefvypb3wy3v6m3m",
+      "distance_m": 12007.4
+    },
+    "highest": {
+      "id": "hwj4105bnzcgcavngacrzjt3s4",
+      "max_altitude_m": 2117
+    },
+    "sites": [
+      {
+        "site": {
+          "id": "venti:0000000000000000000000s001",
+          "name": "Musterkogel West"
+        },
+        "flights": 2
+      }
+    ],
+    "by_month": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "seasons": [
+    {
+      "year": 2026,
+      "totals": {
+        "flights": 3,
+        "scored": 3,
+        "distance_m": 28191.0,
+        "points": 28.19,
+        "airtime_s": 3865,
+        "longest": {
+          "id": "ww5qkxhxaedefvypb3wy3v6m3m",
+          "distance_m": 12007.4
+        },
+        "highest": {
+          "id": "hwj4105bnzcgcavngacrzjt3s4",
+          "max_altitude_m": 2117
+        },
+        "sites": [
+          {
+            "site": {
+              "id": "venti:0000000000000000000000s001",
+              "name": "Musterkogel West"
+            },
+            "flights": 2
+          }
+        ],
+        "by_month": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}

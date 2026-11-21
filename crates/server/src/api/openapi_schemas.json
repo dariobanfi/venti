@@ -3024,13 +3024,20 @@
           "$ref": "#/components/schemas/RankedPilot"
         }
       },
+      "periods": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RankingYear"
+        }
+      },
       "terms": {
         "$ref": "#/components/schemas/FlightTerms"
       }
     },
     "required": [
       "counted",
-      "pilots"
+      "pilots",
+      "periods"
     ]
   },
   "RawBox": {
@@ -5118,6 +5125,216 @@
     },
     "required": [
       "id_sha256"
+    ]
+  },
+  "RankingYear": {
+    "description": "A year in which a public flight that scores started, with its months that have one, the newest first.",
+    "type": "object",
+    "properties": {
+      "year": {
+        "type": "integer"
+      },
+      "flights": {
+        "type": "integer"
+      },
+      "months": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RankingMonth"
+        }
+      }
+    },
+    "required": [
+      "year",
+      "flights",
+      "months"
+    ]
+  },
+  "RankingMonth": {
+    "type": "object",
+    "properties": {
+      "month": {
+        "type": "string",
+        "description": "The month by UTC, written YYYY-MM, as the ranking's `month` takes it."
+      },
+      "flights": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "month",
+      "flights"
+    ]
+  },
+  "PilotsResponse": {
+    "type": "object",
+    "properties": {
+      "pilots": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FoundPilot"
+        }
+      }
+    },
+    "required": [
+      "pilots"
+    ]
+  },
+  "FoundPilot": {
+    "type": "object",
+    "properties": {
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "flights": {
+        "type": "integer",
+        "description": "How many public flights the pilot has."
+      }
+    },
+    "required": [
+      "pilot",
+      "flights"
+    ]
+  },
+  "PilotStatisticsResponse": {
+    "type": "object",
+    "properties": {
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "counted": {
+        "type": "integer"
+      },
+      "overall": {
+        "$ref": "#/components/schemas/PilotTotals"
+      },
+      "seasons": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PilotSeason"
+        }
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "pilot",
+      "counted",
+      "overall",
+      "seasons",
+      "terms"
+    ]
+  },
+  "PilotSeason": {
+    "description": "A year by UTC of a pilot's public flights.",
+    "type": "object",
+    "properties": {
+      "year": {
+        "type": "integer"
+      },
+      "totals": {
+        "$ref": "#/components/schemas/PilotTotals"
+      }
+    },
+    "required": [
+      "year",
+      "totals"
+    ]
+  },
+  "PilotTotals": {
+    "type": "object",
+    "properties": {
+      "flights": {
+        "type": "integer"
+      },
+      "scored": {
+        "type": "integer"
+      },
+      "distance_m": {
+        "type": "number",
+        "description": "The scoring distances of the flights that score, added up, in metres."
+      },
+      "points": {
+        "type": "number",
+        "description": "The sum of the points of the best `counted` flights, as a ranking of the same span gives it."
+      },
+      "airtime_s": {
+        "type": "integer"
+      },
+      "longest": {
+        "$ref": "#/components/schemas/LongestFlight"
+      },
+      "highest": {
+        "$ref": "#/components/schemas/HighestFlight"
+      },
+      "sites": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlownSite"
+        }
+      },
+      "by_month": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "description": "Flights by the month of the year they began in, January first: twelve numbers."
+      }
+    },
+    "required": [
+      "flights",
+      "scored",
+      "distance_m",
+      "points",
+      "airtime_s",
+      "sites",
+      "by_month"
+    ]
+  },
+  "LongestFlight": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "distance_m": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "id",
+      "distance_m"
+    ]
+  },
+  "HighestFlight": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "max_altitude_m": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "id",
+      "max_altitude_m"
+    ]
+  },
+  "FlownSite": {
+    "type": "object",
+    "properties": {
+      "site": {
+        "$ref": "#/components/schemas/FlightSite"
+      },
+      "flights": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "site",
+      "flights"
     ]
   }
 }

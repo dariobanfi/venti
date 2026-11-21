@@ -572,6 +572,18 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn scored_months(&self, _: &PublicFlights) -> Result<Vec<(Month, u32)>, StoreError> {
+        self.fail().await
+    }
+
+    async fn pilots_named(&self, _: &str, _: usize) -> Result<Vec<crate::FoundPilot>, StoreError> {
+        self.fail().await
+    }
+
+    async fn flown_by(&self, _: &str) -> Result<Vec<crate::Flown>, StoreError> {
+        self.fail().await
+    }
+
     async fn flight_changes(&self, _: &str, _: i64, _: usize) -> Result<FlightChanges, StoreError> {
         self.fail().await
     }

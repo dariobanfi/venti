@@ -1541,6 +1541,21 @@
         ],
         "type": "object"
       },
+      "FlownSite": {
+        "properties": {
+          "flights": {
+            "type": "integer"
+          },
+          "site": {
+            "$ref": "#/components/schemas/FlightSite"
+          }
+        },
+        "required": [
+          "site",
+          "flights"
+        ],
+        "type": "object"
+      },
       "ForecastHour": {
         "properties": {
           "cape_j_kg": {
@@ -1732,6 +1747,22 @@
           "available",
           "not_configured"
         ]
+      },
+      "FoundPilot": {
+        "properties": {
+          "flights": {
+            "description": "How many public flights the pilot has.",
+            "type": "integer"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          }
+        },
+        "required": [
+          "pilot",
+          "flights"
+        ],
+        "type": "object"
       },
       "Frequency": {
         "properties": {
@@ -1948,6 +1979,21 @@
           "flight-level"
         ],
         "type": "string"
+      },
+      "HighestFlight": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "max_altitude_m": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "max_altitude_m"
+        ],
+        "type": "object"
       },
       "JoinGroupRequest": {
         "properties": {
@@ -2339,6 +2385,21 @@
           "public"
         ]
       },
+      "LongestFlight": {
+        "properties": {
+          "distance_m": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "distance_m"
+        ],
+        "type": "object"
+      },
       "MapCredit": {
         "properties": {
           "text": {
@@ -2651,6 +2712,116 @@
         "required": [
           "pilot",
           "flights"
+        ],
+        "type": "object"
+      },
+      "PilotSeason": {
+        "description": "A year by UTC of a pilot's public flights.",
+        "properties": {
+          "totals": {
+            "$ref": "#/components/schemas/PilotTotals"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "totals"
+        ],
+        "type": "object"
+      },
+      "PilotStatisticsResponse": {
+        "properties": {
+          "counted": {
+            "type": "integer"
+          },
+          "overall": {
+            "$ref": "#/components/schemas/PilotTotals"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/PilotSeason"
+            },
+            "type": "array"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/FlightTerms"
+          }
+        },
+        "required": [
+          "pilot",
+          "counted",
+          "overall",
+          "seasons",
+          "terms"
+        ],
+        "type": "object"
+      },
+      "PilotTotals": {
+        "properties": {
+          "airtime_s": {
+            "type": "integer"
+          },
+          "by_month": {
+            "description": "Flights by the month of the year they began in, January first: twelve numbers.",
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "distance_m": {
+            "description": "The scoring distances of the flights that score, added up, in metres.",
+            "type": "number"
+          },
+          "flights": {
+            "type": "integer"
+          },
+          "highest": {
+            "$ref": "#/components/schemas/HighestFlight"
+          },
+          "longest": {
+            "$ref": "#/components/schemas/LongestFlight"
+          },
+          "points": {
+            "description": "The sum of the points of the best `counted` flights, as a ranking of the same span gives it.",
+            "type": "number"
+          },
+          "scored": {
+            "type": "integer"
+          },
+          "sites": {
+            "items": {
+              "$ref": "#/components/schemas/FlownSite"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "flights",
+          "scored",
+          "distance_m",
+          "points",
+          "airtime_s",
+          "sites",
+          "by_month"
+        ],
+        "type": "object"
+      },
+      "PilotsResponse": {
+        "properties": {
+          "pilots": {
+            "items": {
+              "$ref": "#/components/schemas/FoundPilot"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "pilots"
         ],
         "type": "object"
       },
@@ -3046,10 +3217,32 @@
         ],
         "type": "object"
       },
+      "RankingMonth": {
+        "properties": {
+          "flights": {
+            "type": "integer"
+          },
+          "month": {
+            "description": "The month by UTC, written YYYY-MM, as the ranking's `month` takes it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "flights"
+        ],
+        "type": "object"
+      },
       "RankingResponse": {
         "properties": {
           "counted": {
             "type": "integer"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/RankingYear"
+            },
+            "type": "array"
           },
           "pilots": {
             "items": {
@@ -3063,7 +3256,31 @@
         },
         "required": [
           "counted",
-          "pilots"
+          "pilots",
+          "periods"
+        ],
+        "type": "object"
+      },
+      "RankingYear": {
+        "description": "A year in which a public flight that scores started, with its months that have one, the newest first.",
+        "properties": {
+          "flights": {
+            "type": "integer"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/RankingMonth"
+            },
+            "type": "array"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "flights",
+          "months"
         ],
         "type": "object"
       },
@@ -8332,6 +8549,52 @@
         "x-venti-docs": "GET /v1/openapi.json"
       }
     },
+    "/v1/pilots": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_pilots",
+        "parameters": [
+          {
+            "description": "A part of a pilot's handle or display name, 2 to 60 characters, in any case.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PilotsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The pilots with public flights whose handle or name holds a text",
+        "x-venti-docs": "GET /v1/pilots?q=&limit="
+      }
+    },
     "/v1/pilots/{handle}": {
       "get": {
         "description": "Anyone; no token.",
@@ -8385,6 +8648,41 @@
         "security": [],
         "summary": "A pilot's page: their public flights, newest first",
         "x-venti-docs": "GET /v1/pilots/{handle}?after=&limit="
+      }
+    },
+    "/v1/pilots/{handle}/statistics": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_pilots_handle_statistics",
+        "parameters": [
+          {
+            "description": "A pilot's handle.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PilotStatisticsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "What a pilot's public flights add up to, all together and year by year",
+        "x-venti-docs": "GET /v1/pilots/{handle}/statistics"
       }
     },
     "/v1/push/key": {
@@ -8516,6 +8814,15 @@
             }
           },
           {
+            "description": "A calendar month by UTC, written YYYY-MM: a `from` and a `to` in one word, and not sent with either.",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "The most entries one answer carries, 1 to 100.",
             "in": "query",
             "name": "limit",
@@ -8544,7 +8851,7 @@
         },
         "security": [],
         "summary": "Pilots by the sum of their best public flights",
-        "x-venti-docs": "GET /v1/ranking?bbox=&from=&to=&limit="
+        "x-venti-docs": "GET /v1/ranking?bbox=&from=&to=&month=&limit="
       }
     },
     "/v1/reports": {

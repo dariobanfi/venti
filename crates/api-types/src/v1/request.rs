@@ -6,7 +6,7 @@
 use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
 use venti_domain::{BoundingBox, GeoError, GeoPoint, SiteId, StationId, Timestamp};
 
-use super::{FlightId, GroupId, Handle, LiveTrackId, PlanId};
+use super::{FlightId, GroupId, Handle, LiveTrackId, PlanId, YearMonth};
 
 /// Path of the health endpoint.
 pub const HEALTH_PATH: &str = "/v1/health";
@@ -429,6 +429,40 @@ impl PilotRequest {
     }
 }
 
+/// Path of the search for pilots by handle or name.
+pub const PILOTS_PATH: &str = "/v1/pilots";
+
+/// A search for the pilots with a public flight whose handle or display
+/// name holds a text, whatever the case of either.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PilotsRequest {
+    /// The text: at least
+    /// [`PILOT_SEARCH_MIN_CHARS`](super::PILOT_SEARCH_MIN_CHARS)
+    /// characters, spaces at its ends not counted.
+    pub q: String,
+    /// How many pilots to return, at most
+    /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE).
+    pub limit: Option<usize>,
+}
+
+impl PilotsRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        with_query(
+            PILOTS_PATH.to_owned(),
+            [
+                ("q", Some(self.q.clone())),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
+    }
+}
+
+/// Path of what a pilot's public flights add up to.
+pub fn pilot_statistics_path(pilot: &Handle) -> String {
+    format!("/v1/pilots/{pilot}/statistics")
+}
+
 /// Path that takes a report about a flight, a pilot's page, a live
 /// track, a group or a plan. What is reported is named in the body, not in
 /// the path: the identifier of a live track is the key to it, a group is
@@ -713,6 +747,9 @@ pub struct RankingRequest {
     pub from: Option<Timestamp>,
     /// Only flights that started before this moment count.
     pub to: Option<Timestamp>,
+    /// Only flights that started in this month by UTC count: a `from` and
+    /// a `to` in one word, and not to be sent with either.
+    pub month: Option<YearMonth>,
     /// How many pilots to return from the top, at most
     /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE). The server's default is
     /// [`DEFAULT_PAGE_SIZE`](super::DEFAULT_PAGE_SIZE).
@@ -731,6 +768,7 @@ impl RankingRequest {
             [
                 ("from", self.from.map(format_time)),
                 ("to", self.to.map(format_time)),
+                ("month", self.month.map(|month| month.to_string())),
                 ("limit", self.limit.map(|limit| limit.to_string())),
             ],
         )

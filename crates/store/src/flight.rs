@@ -499,6 +499,67 @@ impl Ranked {
     }
 }
 
+/// A pilot who has made a flight public, as a search by name finds them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FoundPilot {
+    /// The pilot's handle, as the account is now.
+    pub handle: String,
+    /// The pilot's display name, as the account is now.
+    pub name: String,
+    /// How many public flights the pilot has.
+    pub flights: u32,
+}
+
+/// What a search for pilots looks for: the text in small letters. A handle
+/// or a name holds it wherever its own small letters do.
+pub(crate) fn sought(text: &str) -> String {
+    text.to_lowercase()
+}
+
+/// Whether a handle or a display name holds text that [`sought`] made,
+/// and whether one of them begins with it.
+pub(crate) fn holds_text(sought: &str, handle: &str, name: &str) -> Option<bool> {
+    let (handle, name) = (handle.to_lowercase(), name.to_lowercase());
+    (handle.contains(sought) || name.contains(sought))
+        .then(|| handle.starts_with(sought) || name.starts_with(sought))
+}
+
+/// One of a pilot's public flights in the few numbers a pilot's totals are
+/// made of: no file, no outline, no profile.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Flown {
+    /// The flight's address.
+    pub id: String,
+    /// When the flown part of the recording begins.
+    pub start: Timestamp,
+    /// The length of the flown part, seconds.
+    pub airtime_s: i64,
+    /// The scoring distance in metres and the points, if the flight is
+    /// long enough to score.
+    pub score: Option<(f64, f64)>,
+    /// Highest satellite altitude, metres.
+    pub max_altitude_m: i32,
+    /// Where the glider took off, if the recording shows it flying.
+    pub takeoff: Option<GeoPoint>,
+}
+
+impl Flown {
+    /// These numbers of a flight.
+    pub(crate) fn of(flight: &Flight) -> Self {
+        Self {
+            id: flight.id.clone(),
+            start: flight.derived.start,
+            airtime_s: flight.derived.airtime_s,
+            score: flight
+                .derived
+                .score
+                .map(|score| (score.distance_m, score.points)),
+            max_altitude_m: flight.derived.max_altitude_m,
+            takeoff: flight.derived.takeoff.map(|takeoff| takeoff.position),
+        }
+    }
+}
+
 /// How two places in a ranking compare: the pilot with more points comes
 /// first, and among pilots with the same points the handle decides, byte
 /// by byte.

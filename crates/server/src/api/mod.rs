@@ -121,7 +121,7 @@ use venti_api_types::v1::{
     ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH,
     Attribution, CABLES_PATH, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH,
     FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH,
-    LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
+    LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PILOTS_PATH, PLAN_BOARD_PATH,
     PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH,
     ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH,
     STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
@@ -682,7 +682,12 @@ impl<S: Store> Api<S> {
             )
             .route("/v1/flights/{id}/igc", get(flights::file::<S>))
             .route("/v1/flights/{id}/track", get(flights::track::<S>))
+            .route(PILOTS_PATH, get(pilots::search::<S>))
             .route("/v1/pilots/{handle}", get(pilots::show::<S>))
+            .route(
+                "/v1/pilots/{handle}/statistics",
+                get(pilots::statistics::<S>),
+            )
             .route(LIVE_PATH, get(live::list::<S>))
             .route(LIVE_OTHERS_PATH, get(live::others::<S>))
             .route(REPORTS_PATH, post(reports::create::<S>))

@@ -43,7 +43,7 @@ use crate::{
     SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
     VisibilityChange, batch,
 };
-use crate::{CandidateRule, FlightsFrom, TakeoffCandidate};
+use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 use crate::{GoogleLink, GoogleLinking, NewGoogleAccount};
 
@@ -1027,6 +1027,18 @@ impl Store for PgStore {
         limit: usize,
     ) -> Result<Vec<Ranked>, StoreError> {
         flights::ranking(&self.client().await?, which, counted, limit).await
+    }
+
+    async fn scored_months(&self, which: &PublicFlights) -> Result<Vec<(Month, u32)>, StoreError> {
+        flights::scored_months(&self.client().await?, which).await
+    }
+
+    async fn pilots_named(&self, text: &str, limit: usize) -> Result<Vec<FoundPilot>, StoreError> {
+        flights::pilots_named(&self.client().await?, text, limit).await
+    }
+
+    async fn flown_by(&self, account_id: &str) -> Result<Vec<Flown>, StoreError> {
+        flights::flown_by(&self.client().await?, account_id).await
     }
 
     async fn flight_changes(

@@ -17,12 +17,13 @@
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use venti_api_types::v1::{
     self as api, Flight, FlightResponse, FlightSort, FlightsResponse, PilotRequest, PilotResponse,
-    PublicFlightsRequest, RankingRequest, RankingResponse,
+    PublicFlightsRequest, RankingRequest, RankingResponse, RankingYear,
 };
 use venti_domain::{BoundingBox, Timestamp};
 
 use crate::live::one_line;
 use crate::server::answer;
+use crate::takeoffs::{MONTHS, count};
 use crate::{Bounds, Coordinate, CoreError, EntryScore, RouteKind};
 
 /// The order of a list of public flights.
@@ -433,6 +434,124 @@ pub struct Ranking {
     pub pilots: Vec<RankedPilot>,
     /// The rule in a sentence, for under the list.
     pub rule: String,
+    /// The years that have a ranking, the newest first, each with its
+    /// months that have one: what a page offers beside "All years". They
+    /// are the same whichever of them the ranking is of. Empty from a
+    /// server that does not say; [`ranking_seasons`] then names years.
+    #[uniffi(default = [])]
+    pub periods: Vec<RankingYearChoice>,
+}
+
+/// A year a ranking can be asked for, because flights that score were
+/// flown in it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct RankingYearChoice {
+    /// What it is called: "2026".
+    #[uniffi(default = "")]
+    pub name: String,
+    /// Its first second, seconds since 1970-01-01 UTC: for
+    /// [`ranking_path`].
+    #[uniffi(default = 0)]
+    pub from_unix_s: i64,
+    /// The first second after it.
+    #[uniffi(default = 0)]
+    pub to_unix_s: i64,
+    /// How many public flights that score began in it.
+    #[uniffi(default = 0)]
+    pub flights: u32,
+    /// The year in words, for a reader of the screen: "2026: 10 flights".
+    #[uniffi(default = "")]
+    pub words: String,
+    /// Its months that have a ranking, the newest first.
+    #[uniffi(default = [])]
+    pub months: Vec<RankingMonthChoice>,
+}
+
+/// A month a ranking can be asked for.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct RankingMonthChoice {
+    /// What it is called beside its year: "August".
+    #[uniffi(default = "")]
+    pub name: String,
+    /// What it is called alone: "August 2026".
+    #[uniffi(default = "")]
+    pub title: String,
+    /// The month as the server writes it, "2026-08": for
+    /// [`ranking_month_path`].
+    #[uniffi(default = "")]
+    pub month: String,
+    /// How many public flights that score began in it.
+    #[uniffi(default = 0)]
+    pub flights: u32,
+    /// The month in words: "August 2026: 4 flights".
+    #[uniffi(default = "")]
+    pub words: String,
+}
+
+fn period_choices(periods: &[RankingYear]) -> Vec<RankingYearChoice> {
+    let first_second = |year: i32| {
+        Utc.with_ymd_and_hms(year, 1, 1, 0, 0, 0)
+            .single()
+            .map(|start| start.timestamp())
+    };
+    periods
+        .iter()
+        .filter_map(|year| {
+            Some(RankingYearChoice {
+                name: year.year.to_string(),
+                from_unix_s: first_second(year.year)?,
+                to_unix_s: first_second(year.year + 1)?,
+                flights: year.flights,
+                words: format!(
+                    "{}: {}",
+                    year.year,
+                    count(year.flights, "flight", "flights")
+                ),
+                months: year
+                    .months
+                    .iter()
+                    .filter_map(|month| {
+                        let (_, long) = MONTHS.get(month.month.month().checked_sub(1)? as usize)?;
+                        let title = format!("{long} {}", month.month.year());
+                        Some(RankingMonthChoice {
+                            name: (*long).to_owned(),
+                            words: format!(
+                                "{title}: {}",
+                                count(month.flights, "flight", "flights")
+                            ),
+                            title,
+                            month: month.month.to_string(),
+                            flights: month.flights,
+                        })
+                    })
+                    .collect(),
+            })
+        })
+        .collect()
+}
+
+/// The path and query to `GET` from the server for the ranking of one
+/// month: `month` as a [`RankingMonthChoice`] names it, "2026-08".
+/// `area` counts only flights that took off inside a part of the map.
+#[uniffi::export]
+pub fn ranking_month_path(area: Option<Bounds>, month: String) -> Result<String, CoreError> {
+    let asked = "The app could not ask the server for this ranking.";
+    let Which { bbox, .. } = which(area, None, None, asked)?;
+    let month = month.parse().map_err(|_| CoreError::Server {
+        message: asked.to_owned(),
+    })?;
+    Ok(RankingRequest {
+        bbox,
+        from: None,
+        to: None,
+        month: Some(month),
+        limit: None,
+    }
+    .path_and_query())
 }
 
 /// The path and query to `GET` from the server for the ranking of its
@@ -454,6 +573,7 @@ pub fn ranking_path(
         "The app could not ask the server for this ranking.",
     )?;
     Ok(RankingRequest {
+        month: None,
         bbox,
         from,
         to,
@@ -497,6 +617,7 @@ pub fn ranking(status: u16, body: Vec<u8>) -> Result<Ranking, CoreError> {
         ),
     };
     Ok(Ranking {
+        periods: period_choices(&response.periods),
         pilots,
         rule: format!(
             "{rule} Worked out by Venti from the flights' files, by the same rules for \
@@ -596,6 +717,40 @@ mod tests {
             ]
         );
         assert_eq!(ranking.pilots[0].handle, "mara");
+        // The periods the server says there are, the newest first.
+        let years: Vec<&str> = ranking
+            .periods
+            .iter()
+            .map(|year| year.words.as_str())
+            .collect();
+        assert_eq!(years, ["2026: 10 flights", "2025: 1 flight"]);
+        let this_year = &ranking.periods[0];
+        assert_eq!(
+            ranking_path(None, Some(this_year.from_unix_s), Some(this_year.to_unix_s)).unwrap(),
+            "/v1/ranking?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z"
+        );
+        let august = &this_year.months[1];
+        assert_eq!(
+            (august.name.as_str(), august.title.as_str(), august.flights),
+            ("August", "August 2026", 4)
+        );
+        assert_eq!(august.words, "August 2026: 4 flights");
+        assert_eq!(this_year.months[0].words, "September 2026: 1 flight");
+        assert_eq!(
+            ranking_month_path(None, august.month.clone()).unwrap(),
+            "/v1/ranking?month=2026-08"
+        );
+        let area = Bounds {
+            south: 47.55,
+            west: 11.6,
+            north: 47.85,
+            east: 12.0,
+        };
+        assert_eq!(
+            ranking_month_path(Some(area), "2026-08".to_owned()).unwrap(),
+            "/v1/ranking?bbox=11.6,47.55,12,47.85&month=2026-08"
+        );
+        assert!(ranking_month_path(None, "August".to_owned()).is_err());
         assert_eq!(ranking.pilots[0].flights[0].pilot, "Mara Muster");
         assert_eq!(
             ranking.rule,

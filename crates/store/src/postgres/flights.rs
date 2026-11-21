@@ -15,13 +15,13 @@ use super::takeoffs::distance;
 use super::{corrupt, db_error};
 use crate::flight::{
     Kept, PublicEffect, Room, Saved, cut, cut_public, may_be_set, next_change, next_public_change,
-    ranked_order,
+    ranked_order, sought,
 };
 use crate::takeoff::around;
 use crate::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Score, ScoreKind, StoreError,
-    Visibility, VisibilityChange, WithdrawnFlight,
+    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Flown, FoundPilot, Listing, Month,
+    NewFlight, OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked,
+    Score, ScoreKind, StoreError, Visibility, VisibilityChange, WithdrawnFlight,
 };
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
@@ -718,6 +718,123 @@ pub(super) async fn ranking(
         .collect();
     ranked.sort_by(ranked_order);
     Ok(ranked)
+}
+
+/// The months that have a scored public flight among those asked for.
+///
+/// As in [`public`], the condition on visibility is in the query as text.
+pub(super) async fn scored_months(
+    client: &Client,
+    which: &PublicFlights,
+) -> Result<Vec<(Month, u32)>, StoreError> {
+    let edges = edges_of(which);
+    let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
+    let mut conditions = public_conditions(which, &edges, &mut parameters);
+    conditions.push("f.score_points IS NOT NULL".to_owned());
+    let query = format!(
+        "SELECT date_part('year', f.started_at AT TIME ZONE 'UTC')::int4 AS year,
+                date_part('month', f.started_at AT TIME ZONE 'UTC')::int4 AS month,
+                count(*) AS flights
+         FROM flights f
+         WHERE {}
+         GROUP BY 1, 2
+         ORDER BY 1, 2",
+        conditions.join(" AND ")
+    );
+    let rows = client
+        .query(query.as_str(), &parameters)
+        .await
+        .map_err(db_error)?;
+    rows.iter()
+        .map(|row| {
+            let (year, month): (i32, i32) = (row.get("year"), row.get("month"));
+            let flights: i64 = row.get("flights");
+            let month = u32::try_from(month)
+                .ok()
+                .and_then(|month| Month::new(year, month))
+                .ok_or_else(|| corrupt("month of a flight", month))?;
+            Ok((month, u32::try_from(flights).unwrap_or(u32::MAX)))
+        })
+        .collect()
+}
+
+/// The pilots with a public flight whose handle or name holds a text.
+///
+/// The database makes the small letters of a handle and a name, by its
+/// own rules for letters outside ASCII. Handles are compared byte by
+/// byte, as the in-memory store compares them.
+pub(super) async fn pilots_named(
+    client: &Client,
+    text: &str,
+    limit: usize,
+) -> Result<Vec<FoundPilot>, StoreError> {
+    let sought = sought(text);
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let statement = client
+        .prepare_cached(
+            "SELECT a.handle, a.display_name, count(*) AS public_flights,
+                    (strpos(lower(a.handle), $1) = 1
+                     OR strpos(lower(a.display_name), $1) = 1) AS begins
+             FROM accounts a JOIN flights f ON f.account_id = a.id
+             WHERE f.visibility = 'public'
+               AND (strpos(lower(a.handle), $1) > 0 OR strpos(lower(a.display_name), $1) > 0)
+             GROUP BY a.id, a.handle, a.display_name
+             ORDER BY begins DESC, public_flights DESC, a.handle COLLATE \"C\"
+             LIMIT $2",
+        )
+        .await
+        .map_err(db_error)?;
+    let rows = client
+        .query(&statement, &[&sought, &limit])
+        .await
+        .map_err(db_error)?;
+    Ok(rows
+        .iter()
+        .map(|row| FoundPilot {
+            handle: row.get("handle"),
+            name: row.get("display_name"),
+            flights: u32::try_from(row.get::<_, i64>("public_flights")).unwrap_or(u32::MAX),
+        })
+        .collect())
+}
+
+/// An account's public flights in the numbers its totals are made of.
+pub(super) async fn flown_by(client: &Client, account_id: &str) -> Result<Vec<Flown>, StoreError> {
+    // The condition on visibility is spelled as in the partial index.
+    let statement = client
+        .prepare_cached(
+            "SELECT f.id, f.started_at, f.airtime_s, f.score_distance_m, f.score_points,
+                    f.max_altitude_m, f.takeoff_lat, f.takeoff_lon
+             FROM flights f
+             WHERE f.account_id = $1 AND f.visibility = 'public'
+             ORDER BY f.started_at DESC, f.id DESC",
+        )
+        .await
+        .map_err(db_error)?;
+    let rows = client
+        .query(&statement, &[&account_id])
+        .await
+        .map_err(db_error)?;
+    rows.iter()
+        .map(|row| {
+            let distance_m: Option<f64> = row.get("score_distance_m");
+            let points: Option<f64> = row.get("score_points");
+            let lat: Option<f64> = row.get("takeoff_lat");
+            let lon: Option<f64> = row.get("takeoff_lon");
+            Ok(Flown {
+                id: row.get("id"),
+                start: row.get("started_at"),
+                airtime_s: row.get("airtime_s"),
+                score: distance_m.zip(points),
+                max_altitude_m: row.get("max_altitude_m"),
+                takeoff: lat
+                    .zip(lon)
+                    .map(|(lat, lon)| GeoPoint::new(lat, lon))
+                    .transpose()
+                    .map_err(|e| corrupt("flight position", e))?,
+            })
+        })
+        .collect()
 }
 
 pub(super) async fn changes(

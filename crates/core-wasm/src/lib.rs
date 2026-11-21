@@ -61,6 +61,7 @@ use venti_core::{
 use venti_core::{AlertDraft, AlertFaultView, AlertFormWords, AlertView, FiredLine, FiredPage};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{GoogleSignIn, GoogleWords};
+use venti_core::{PilotStatistics, PilotsFound};
 use venti_core::{
     SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteCorrecting,
     SiteDraftRebased, SiteHistoryOffers, SiteOffers, SiteRevisionView, SiteWords, SitesRemoved,
@@ -2724,6 +2725,42 @@ pub fn ranking_path(
         to_unix_s.map(whole_seconds),
     )
     .map_err(thrown)
+}
+
+/// The path and query to `GET` for the ranking of one month, as a month
+/// of the ranking's `periods` names it ("2026-08"); with `area`, of the
+/// flights that took off inside it.
+#[wasm_bindgen(js_name = rankingMonthPath)]
+pub fn ranking_month_path(area: Option<Ts<Bounds>>, month: String) -> Result<String, JsValue> {
+    venti_core::ranking_month_path(area.as_ref().map(from_js).transpose()?, month).map_err(thrown)
+}
+
+/// The path and query to `GET` for the pilots whose handle or name holds
+/// a text. Fewer than two characters are refused in words.
+#[wasm_bindgen(js_name = pilotsSearchPath)]
+pub fn pilots_search_path(text: String) -> Result<String, JsValue> {
+    venti_core::pilots_search_path(text).map_err(thrown)
+}
+
+/// Reads the server's answer to `pilotsSearchPath`: a line for each
+/// pilot, "Lena Probe (@lena), 3 public flights".
+#[wasm_bindgen(js_name = pilotsFound)]
+pub fn pilots_found(status: u16, body: Vec<u8>) -> Result<Ts<PilotsFound>, JsValue> {
+    to_js(&venti_core::pilots_found(status, body).map_err(thrown)?)
+}
+
+/// The path to `GET` for what a pilot's public flights add up to.
+#[wasm_bindgen(js_name = pilotStatisticsPath)]
+pub fn pilot_statistics_path(handle: String) -> Result<String, JsValue> {
+    venti_core::pilot_statistics_path(handle).map_err(thrown)
+}
+
+/// Reads the server's answer to `pilotStatisticsPath`: the totals of all
+/// years and of each year as labelled rows, the sites flown from most
+/// and the twelve months.
+#[wasm_bindgen(js_name = pilotStatistics)]
+pub fn pilot_statistics(status: u16, body: Vec<u8>) -> Result<Ts<PilotStatistics>, JsValue> {
+    to_js(&venti_core::pilot_statistics(status, body).map_err(thrown)?)
 }
 
 /// Reads the server's answer to `rankingPath`.

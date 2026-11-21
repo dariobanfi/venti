@@ -352,9 +352,224 @@ pub struct RankingResponse {
     /// The pilots, the one with the most points first, and by handle among
     /// pilots with the same points.
     pub pilots: Vec<RankedPilot>,
+    /// The years and months that have a ranking: those in which a public
+    /// flight that scores started, in the part of the map that was asked
+    /// for and whatever span was. The newest year first. Empty from a
+    /// server that does not say.
+    #[serde(default)]
+    pub periods: Vec<RankingYear>,
     /// Under what the flights are given.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terms: Option<FlightTerms>,
+}
+
+/// A calendar month by UTC, written `2026-07`: what a ranking's `month`
+/// is asked with and what its periods are named by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct YearMonth {
+    year: i32,
+    month: u32,
+}
+
+/// Why text is not a [`YearMonth`].
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("{0:?} is not a month: write it as YYYY-MM, for example 2026-07")]
+pub struct YearMonthError(String);
+
+impl YearMonth {
+    /// A month of a year from 0 to 9999, by its number from 1 to 12.
+    pub fn new(year: i32, month: u32) -> Option<Self> {
+        ((0..=9999).contains(&year) && (1..=12).contains(&month)).then_some(Self { year, month })
+    }
+
+    /// The year.
+    pub fn year(&self) -> i32 {
+        self.year
+    }
+
+    /// The month of the year, 1 to 12.
+    pub fn month(&self) -> u32 {
+        self.month
+    }
+}
+
+impl fmt::Display for YearMonth {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:04}-{:02}", self.year, self.month)
+    }
+}
+
+impl FromStr for YearMonth {
+    type Err = YearMonthError;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let digits = |part: &str, length: usize| {
+            (part.len() == length && part.bytes().all(|byte| byte.is_ascii_digit()))
+                .then(|| part.parse::<u32>().ok())
+                .flatten()
+        };
+        text.split_once('-')
+            .and_then(|(year, month)| {
+                Self::new(i32::try_from(digits(year, 4)?).ok()?, digits(month, 2)?)
+            })
+            .ok_or_else(|| YearMonthError(text.to_owned()))
+    }
+}
+
+impl TryFrom<String> for YearMonth {
+    type Error = YearMonthError;
+
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        text.parse()
+    }
+}
+
+impl From<YearMonth> for String {
+    fn from(month: YearMonth) -> Self {
+        month.to_string()
+    }
+}
+
+/// A year that has a ranking, with its months that have one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RankingYear {
+    /// The year, by UTC.
+    pub year: i32,
+    /// How many public flights that score started in it.
+    pub flights: u32,
+    /// Its months that have such a flight, the newest first.
+    pub months: Vec<RankingMonth>,
+}
+
+/// A month that has a ranking.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RankingMonth {
+    /// The month, as `GET /v1/ranking?month=` takes it.
+    pub month: YearMonth,
+    /// How many public flights that score started in it.
+    pub flights: u32,
+}
+
+/// The fewest characters a search for pilots takes.
+pub const PILOT_SEARCH_MIN_CHARS: usize = 2;
+
+/// The most characters a search for pilots takes.
+pub const PILOT_SEARCH_MAX_CHARS: usize = 60;
+
+/// The answer of `GET /v1/pilots?q=`: the pilots with a public flight
+/// whose handle or display name holds the text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PilotsResponse {
+    /// The pilots: those whose handle or name begins with the text first,
+    /// then the pilot with the most public flights, then by handle.
+    pub pilots: Vec<FoundPilot>,
+}
+
+/// A pilot a search found.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FoundPilot {
+    /// The pilot.
+    pub pilot: Pilot,
+    /// How many public flights the pilot has.
+    pub flights: u32,
+}
+
+/// How many of the take-off sites a pilot flew from most their totals
+/// name.
+pub const PILOT_TOP_SITES: usize = 5;
+
+/// What a take-off is rounded to before the site it belongs to is looked
+/// up for a pilot's totals, in degrees: 11 m from north to south.
+pub const PILOT_SITE_STEP_DEG: f64 = 0.0001;
+
+/// The answer of `GET /v1/pilots/{handle}/statistics`: what a pilot's
+/// public flights add up to, all together and year by year.
+///
+/// It is made from the flights the pilot made public and from nothing
+/// else, anew for every answer. Years and months are those of UTC, as a
+/// ranking's are.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PilotStatisticsResponse {
+    /// The pilot.
+    pub pilot: Pilot,
+    /// How many of a pilot's flights count for `points` at most:
+    /// [`RANKING_COUNTED`], as in a ranking.
+    pub counted: u32,
+    /// All public flights together.
+    pub overall: PilotTotals,
+    /// Each year the pilot has a public flight in, the newest first.
+    pub seasons: Vec<PilotSeason>,
+    /// Under what the flights are given.
+    pub terms: FlightTerms,
+}
+
+/// A year of a pilot's public flights.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PilotSeason {
+    /// The year, by UTC.
+    pub year: i32,
+    /// What its flights add up to.
+    pub totals: PilotTotals,
+}
+
+/// What some of a pilot's public flights add up to.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PilotTotals {
+    /// How many flights.
+    pub flights: u32,
+    /// How many of them score.
+    pub scored: u32,
+    /// The scoring distances of those that score, added up, in metres.
+    pub distance_m: f64,
+    /// The sum of the points of the best `counted` of them, rounded to
+    /// hundredths: what a ranking of the same span gives the pilot.
+    pub points: f64,
+    /// The airtime of all of them, added up, in seconds.
+    pub airtime_s: i64,
+    /// The flight with the longest scoring distance. Left out when none
+    /// scores.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub longest: Option<LongestFlight>,
+    /// The flight that went highest. Left out without a flight.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub highest: Option<HighestFlight>,
+    /// The take-off sites flown from most, the one with the most flights
+    /// first and by identifier among sites with as many: at most
+    /// [`PILOT_TOP_SITES`]. A flight that took off where no site with a
+    /// name stands is in none.
+    pub sites: Vec<FlownSite>,
+    /// How many of the flights began in each month of the year, January
+    /// first, all years together: twelve numbers that add up to
+    /// `flights`.
+    pub by_month: [u32; 12],
+}
+
+/// The longest of some flights.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LongestFlight {
+    /// The flight's address on the server.
+    pub id: FlightId,
+    /// Its scoring distance, metres.
+    pub distance_m: f64,
+}
+
+/// The highest of some flights.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HighestFlight {
+    /// The flight's address on the server.
+    pub id: FlightId,
+    /// Its highest satellite altitude, metres above mean sea level.
+    pub max_altitude_m: i32,
+}
+
+/// A take-off site with how often a pilot flew from it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlownSite {
+    /// The site, as a flight names the one it took off from.
+    pub site: FlightSite,
+    /// How many of the flights took off from it.
+    pub flights: u32,
 }
 
 /// A pilot's place in a ranking.

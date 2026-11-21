@@ -53,7 +53,7 @@ const SET_ASIDE_KEPT: usize = 200;
 /// The file the places a pilot set aside are kept in.
 const SET_ASIDE_FILE: &str = "candidates-set-aside.json";
 
-const MONTHS: [(&str, &str); 12] = [
+pub(crate) const MONTHS: [(&str, &str); 12] = [
     ("Jan", "January"),
     ("Feb", "February"),
     ("Mar", "March"),
@@ -361,7 +361,7 @@ pub fn site_flights_words() -> SiteFlightsWords {
     }
 }
 
-fn terms(terms: &FlightTerms) -> PublicFlightTerms {
+pub(crate) fn terms(terms: &FlightTerms) -> PublicFlightTerms {
     PublicFlightTerms {
         text: terms.text.clone(),
         licence: terms.licence.clone(),
@@ -369,7 +369,7 @@ fn terms(terms: &FlightTerms) -> PublicFlightTerms {
     }
 }
 
-fn count(number: u32, one: &str, many: &str) -> String {
+pub(crate) fn count(number: u32, one: &str, many: &str) -> String {
     if number == 1 {
         format!("1 {one}")
     } else {
@@ -382,7 +382,7 @@ fn short_day(day: NaiveDate) -> String {
     day.format("%-d %b %Y").to_string()
 }
 
-fn months(by_month: &[u32; 12]) -> Vec<FlownMonth> {
+pub(crate) fn months(by_month: &[u32; 12]) -> Vec<FlownMonth> {
     let most = by_month.iter().copied().max().unwrap_or(0);
     MONTHS
         .iter()

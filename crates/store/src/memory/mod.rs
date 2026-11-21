@@ -31,7 +31,7 @@ use crate::{
     SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
     VisibilityChange, airspace, batch, cable, forecast, site, takeoff,
 };
-use crate::{CandidateRule, FlightsFrom, TakeoffCandidate};
+use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 use crate::{GoogleLink, GoogleLinking, NewGoogleAccount};
 
@@ -1056,6 +1056,19 @@ impl Store for MemoryStore {
         Ok(inner
             .flights
             .ranking(which, counted, limit, &inner.accounts))
+    }
+
+    async fn scored_months(&self, which: &PublicFlights) -> Result<Vec<(Month, u32)>, StoreError> {
+        Ok(self.lock().flights.scored_months(which))
+    }
+
+    async fn pilots_named(&self, text: &str, limit: usize) -> Result<Vec<FoundPilot>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.flights.pilots_named(text, limit, &inner.accounts))
+    }
+
+    async fn flown_by(&self, account_id: &str) -> Result<Vec<Flown>, StoreError> {
+        Ok(self.lock().flights.flown_by(account_id))
     }
 
     async fn flight_changes(

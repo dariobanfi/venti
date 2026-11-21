@@ -167,6 +167,48 @@
       ]
     }
   ],
+  "periods": [
+    {
+      "year": 2026,
+      "flights": 10,
+      "months": [
+        {
+          "month": "2026-09",
+          "flights": 1
+        },
+        {
+          "month": "2026-08",
+          "flights": 4
+        },
+        {
+          "month": "2026-07",
+          "flights": 1
+        },
+        {
+          "month": "2026-06",
+          "flights": 2
+        },
+        {
+          "month": "2026-05",
+          "flights": 1
+        },
+        {
+          "month": "2026-04",
+          "flights": 1
+        }
+      ]
+    },
+    {
+      "year": 2025,
+      "flights": 1,
+      "months": [
+        {
+          "month": "2025-07",
+          "flights": 1
+        }
+      ]
+    }
+  ],
   "terms": {
     "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
     "decided": false

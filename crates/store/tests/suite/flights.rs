@@ -3,8 +3,9 @@
 use chrono::Duration;
 use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
-    Account, Derived, Flight, Kept, Listing, NewFlight, Place, PublicFlightChanges, PublicFlights,
-    PublicOrder, Room, Saved, Score, ScoreKind, Store, StoreError, Visibility, VisibilityChange,
+    Account, Derived, Flight, Flown, Kept, Listing, Month, NewFlight, Place, PublicFlightChanges,
+    PublicFlights, PublicOrder, Room, Saved, Score, ScoreKind, Store, StoreError, Visibility,
+    VisibilityChange,
 };
 
 use super::accounts::{create, id};
@@ -1697,4 +1698,183 @@ pub(crate) async fn suspending_and_deleting_an_account_withdraws_flights(store: 
     store.resume_publishing(&dario.id).await.unwrap();
     let back = set(store, &d1, Visibility::Public, at(22, 30)).await;
     assert_eq!(back.public_change, Some(micros(at(22, 30))));
+}
+
+// --- The months of a ranking, pilots by name, a pilot's totals ----------------
+
+pub(crate) async fn scored_months_are_counted(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let carla = create(store, "carla").await;
+    assert!(store.scored_months(&everywhere()).await.unwrap().is_empty());
+
+    // The first second of November by UTC and the last of October.
+    let november = Month::of(at(9, 0)).start();
+    let a_year_before = at(9, 0) - Duration::days(365);
+    publish(store, &flown(&dario, 1, at(9, 0), WALLBERG, Some(30.0))).await;
+    publish(store, &flown(&dario, 2, november, WALLBERG, Some(20.0))).await;
+    let october = november - Duration::seconds(1);
+    publish(store, &flown(&dario, 3, october, WALLBERG, Some(10.0))).await;
+    publish(store, &flown(&dario, 4, a_year_before, WALLBERG, Some(5.0))).await;
+    publish(store, &flown(&anna, 1, at(10, 0), KOESSEN, Some(120.0))).await;
+    // A flight too short to score ranks nobody, and one that is not
+    // public counts for nobody.
+    let september = october - Duration::days(40);
+    publish(store, &flown(&carla, 1, september, WALLBERG, None)).await;
+    save(store, &flown(&anna, 2, september, KOESSEN, Some(500.0))).await;
+    let unlisted = flown(&anna, 3, september, KOESSEN, Some(400.0));
+    share(store, &unlisted, Visibility::Unlisted).await;
+
+    let month = |year, month| Month::new(year, month).unwrap();
+    assert_eq!(
+        store.scored_months(&everywhere()).await.unwrap(),
+        [
+            (month(2025, 11), 1),
+            (month(2026, 10), 1),
+            (month(2026, 11), 3)
+        ]
+    );
+    // Of a part of the map, of a span and of a pilot.
+    let tegernsee = area(47.55, 11.6, 47.85, 12.0);
+    assert_eq!(
+        store.scored_months(&tegernsee).await.unwrap(),
+        [
+            (month(2025, 11), 1),
+            (month(2026, 10), 1),
+            (month(2026, 11), 2)
+        ]
+    );
+    let this_month = PublicFlights {
+        from: Some(november),
+        ..everywhere()
+    };
+    assert_eq!(
+        store.scored_months(&this_month).await.unwrap(),
+        [(month(2026, 11), 3)]
+    );
+    let of_anna = PublicFlights {
+        pilot: Some(anna.id.clone()),
+        ..everywhere()
+    };
+    assert_eq!(
+        store.scored_months(&of_anna).await.unwrap(),
+        [(month(2026, 11), 1)]
+    );
+}
+
+async fn found(store: &impl Store, text: &str, limit: usize) -> Vec<(String, u32)> {
+    store
+        .pilots_named(text, limit)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|pilot| (pilot.handle, pilot.flights))
+        .collect()
+}
+
+pub(crate) async fn pilots_are_found_by_name(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    let carla = create(store, "carla").await;
+    assert!(found(store, "a", 10).await.is_empty());
+
+    for n in 1..=2 {
+        publish(store, &new_flight(&dario, n, at(9, u32::from(n)))).await;
+    }
+    save(store, &new_flight(&dario, 3, at(9, 3))).await;
+    publish(store, &new_flight(&anna, 1, at(10, 0))).await;
+    for n in 1..=3 {
+        publish(store, &new_flight(&carla, n, at(11, u32::from(n)))).await;
+    }
+    // Bernd shares one flight by link and keeps one: he has no page, and
+    // no search finds him.
+    share(
+        store,
+        &new_flight(&bernd, 1, at(8, 0)),
+        Visibility::Unlisted,
+    )
+    .await;
+    save(store, &new_flight(&bernd, 2, at(8, 30))).await;
+
+    let pilot = |handle: &str, flights: u32| (handle.to_owned(), flights);
+    // Every name begins with "Pilot ": the most public flights first.
+    let all = [pilot("carla", 3), pilot("dario", 2), pilot("anna", 1)];
+    assert_eq!(found(store, "PILOT ", 10).await, all);
+    assert_eq!(found(store, "pilot", 2).await, all[..2]);
+    assert!(found(store, "pilot", 0).await.is_empty());
+    // A handle or a name that begins with the text comes before one that
+    // holds it further in.
+    assert_eq!(
+        found(store, "a", 10).await,
+        [pilot("anna", 1), pilot("carla", 3), pilot("dario", 2)]
+    );
+    assert_eq!(
+        found(store, "Ar", 10).await,
+        [pilot("carla", 3), pilot("dario", 2)]
+    );
+    assert_eq!(found(store, "pilot D", 10).await, [pilot("dario", 2)]);
+    assert!(found(store, "bernd", 10).await.is_empty());
+    assert!(found(store, "zz", 10).await.is_empty());
+    // Text that means something to a database's pattern is text.
+    assert!(found(store, "%", 10).await.is_empty());
+    assert!(found(store, "_", 10).await.is_empty());
+    // A pilot is named as the account is now.
+    let anna_found = store.pilots_named("ann", 10).await.unwrap();
+    assert_eq!(anna_found[0].name, "Pilot anna");
+
+    // A pilot who withdraws their only public flight is found no more.
+    store
+        .set_visibility(
+            &anna.id,
+            &new_flight(&anna, 1, at(10, 0)).id,
+            Visibility::Private,
+            at(22, 0),
+        )
+        .await
+        .unwrap();
+    assert!(found(store, "ann", 10).await.is_empty());
+}
+
+pub(crate) async fn flown_by_has_public_flights(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    assert!(store.flown_by(&dario.id).await.unwrap().is_empty());
+
+    let scored = flown(&dario, 1, at(9, 0), BRAUNECK, Some(42.5));
+    publish(store, &scored).await;
+    // One that never shows the glider flying and is too short to score.
+    let mut ground = flown(&dario, 2, at(12, 0), WALLBERG, None);
+    ground.derived.takeoff = None;
+    ground.derived.airtime_s = 61;
+    ground.derived.max_altitude_m = 801;
+    publish(store, &ground).await;
+    save(store, &flown(&dario, 3, at(13, 0), WALLBERG, Some(500.0))).await;
+    let unlisted = flown(&dario, 4, at(14, 0), WALLBERG, Some(400.0));
+    share(store, &unlisted, Visibility::Unlisted).await;
+    publish(store, &flown(&anna, 1, at(10, 0), KOESSEN, Some(120.0))).await;
+
+    assert_eq!(
+        store.flown_by(&dario.id).await.unwrap(),
+        [
+            Flown {
+                id: ground.id.clone(),
+                start: at(12, 0),
+                airtime_s: 61,
+                score: None,
+                max_altitude_m: 801,
+                takeoff: None,
+            },
+            Flown {
+                id: scored.id.clone(),
+                start: at(9, 0),
+                airtime_s: 1744,
+                score: Some((42_500.0, 42.5)),
+                max_altitude_m: 2117,
+                takeoff: Some(GeoPoint::new(BRAUNECK.0, BRAUNECK.1).unwrap()),
+            },
+        ]
+    );
+    assert_eq!(store.flown_by(&anna.id).await.unwrap().len(), 1);
+    assert!(store.flown_by("nobody").await.unwrap().is_empty());
 }

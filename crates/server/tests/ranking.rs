@@ -192,7 +192,49 @@ async fn the_development_mode_ranks_its_six_pilots() {
     );
     let top = ranking(&router, &august).await;
     assert_eq!(top.pilots.len(), 2);
+    // A month has a word of its own, which means the same span.
+    let by_its_name = RankingRequest {
+        month: Some("2026-08".parse().unwrap()),
+        limit: Some(2),
+        ..everything()
+    };
+    assert_eq!(
+        by_its_name.path_and_query(),
+        "/v1/ranking?month=2026-08&limit=2"
+    );
+    assert_eq!(ranking(&router, &by_its_name).await, top);
     assert_golden(&golden("ranking.json"), &example(top));
+
+    // The periods are the same whatever span is asked for: every year and
+    // month in which a public flight that scores started, the newest
+    // first. Eleven flights in all, one of them in 2025.
+    assert_eq!(all.periods, ranking(&router, &august).await.periods);
+    let years: Vec<(i32, u32)> = all
+        .periods
+        .iter()
+        .map(|year| (year.year, year.flights))
+        .collect();
+    assert_eq!(years, [(2026, 10), (2025, 1)]);
+    for year in &all.periods {
+        let months: u32 = year.months.iter().map(|month| month.flights).sum();
+        assert_eq!(months, year.flights);
+        assert!(
+            year.months
+                .windows(2)
+                .all(|pair| pair[0].month > pair[1].month)
+        );
+        // Each month that is offered has a ranking.
+        for month in &year.months {
+            assert_eq!(month.month.year(), year.year);
+            let asked = RankingRequest {
+                month: Some(month.month),
+                ..everything()
+            };
+            let ranked = ranking(&router, &asked).await.pilots;
+            let scored: u32 = ranked.iter().map(|pilot| pilot.scored).sum();
+            assert_eq!(scored, month.flights, "{}", month.month);
+        }
+    }
 
     // The flights of this mode took off in two places: a box ranks the
     // three pilots who flew from the one, the three who flew from the
@@ -384,6 +426,83 @@ async fn a_ranking_of_a_part_of_the_map_counts_the_flights_that_took_off_there()
     assert_eq!(there.pilots[0].points, there.pilots[1].points);
 }
 
+#[tokio::test]
+async fn the_periods_are_those_of_public_flights_in_the_box() {
+    let router = open_server();
+    assert!(ranking(&router, &everything()).await.periods.is_empty());
+    let dario = sign_up(&router, "dario").await.token;
+    let anna = sign_up(&router, "anna").await.token;
+    let whole = synthetic_flight().fixes.len();
+    let last_year = NaiveDate::from_ymd_opt(2025, 9, 14).unwrap();
+    for (date, east, visibility) in [
+        (day(7, 1), 0.0, Visibility::Public),
+        (day(7, 20), 0.0, Visibility::Public),
+        (day(5, 3), 1.0, Visibility::Public),
+        (last_year, 0.0, Visibility::Public),
+        // What is not public is in no period.
+        (day(3, 3), 0.0, Visibility::Private),
+        (day(2, 2), 0.0, Visibility::Unlisted),
+    ] {
+        fly(&router, &dario, &flight_file(date, east, whole), visibility).await;
+    }
+    fly(
+        &router,
+        &anna,
+        &flight_file(day(7, 2), 0.0, whole),
+        Visibility::Public,
+    )
+    .await;
+
+    let periods = |answer: &RankingResponse| -> Vec<(i32, u32, Vec<String>)> {
+        answer
+            .periods
+            .iter()
+            .map(|year| {
+                let months = year
+                    .months
+                    .iter()
+                    .map(|month| format!("{}: {}", month.month, month.flights))
+                    .collect();
+                (year.year, year.flights, months)
+            })
+            .collect()
+    };
+    let words = |months: &[&str]| months.iter().map(|&month| month.to_owned()).collect();
+    assert_eq!(
+        periods(&ranking(&router, &everything()).await),
+        [
+            (2026, 4, words(&["2026-07: 3", "2026-05: 1"])),
+            (2025, 1, words(&["2025-09: 1"])),
+        ]
+    );
+    // A box has the periods of the flights that took off in it, and a
+    // month's ranking has them all the same.
+    let here = RankingRequest {
+        bbox: Some(tegernsee()),
+        month: Some("2026-07".parse().unwrap()),
+        ..everything()
+    };
+    let july = ranking(&router, &here).await;
+    assert_eq!(
+        periods(&july),
+        [
+            (2026, 3, words(&["2026-07: 3"])),
+            (2025, 1, words(&["2025-09: 1"])),
+        ]
+    );
+    // July ranks both pilots, Dario by his two flights of that month.
+    assert_eq!(handles(&july.pilots), ["dario", "anna"]);
+    assert_eq!(july.pilots[0].scored, 2);
+    // A month nobody flew in ranks nobody and still says what there is.
+    let june = RankingRequest {
+        month: Some("2026-06".parse().unwrap()),
+        ..everything()
+    };
+    let june = ranking(&router, &june).await;
+    assert!(june.pilots.is_empty());
+    assert_eq!(june.periods.len(), 2);
+}
+
 // --- Who may keep an answer ---------------------------------------------------------
 
 #[tokio::test]
@@ -448,6 +567,17 @@ async fn a_question_that_cannot_be_read_is_explained() {
     }
     for limit in ["limit=0", "limit=101", "limit=many", "limit=-1"] {
         refused(limit, ErrorCode::InvalidLimit).await;
+    }
+    for month in ["month=", "month=2026-13", "month=2026-8", "month=august"] {
+        let said = refused(month, ErrorCode::InvalidTime).await;
+        assert!(said.contains("YYYY-MM"), "{said}");
+    }
+    for both in [
+        "month=2026-08&from=2026-08-01T00:00:00Z",
+        "month=2026-08&to=2026-09-01T00:00:00Z",
+    ] {
+        let said = refused(both, ErrorCode::InvalidRange).await;
+        assert!(said.contains("not both"), "{said}");
     }
 
     // The ranking is read and nothing else.

@@ -37,7 +37,7 @@ use venti_api_types::v1::{
     CSV_MEDIA_TYPE, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
     FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
-    LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
+    LIVE_POSITIONS_PATH, MAPS_PATH, PILOTS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
     PUBLIC_FLIGHTS_PATH, PUSH_KEY_PATH, PUSH_SUBSCRIPTION_PATH, RADAR_PATH, RANKING_PATH,
     REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH,
     SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
@@ -599,6 +599,18 @@ fn operations() -> Vec<Op> {
         .docs("GET /v1/pilots/{handle}?after=&limit=")
         .query(PAGE)
         .json("PilotResponse"),
+        get(
+            PILOTS_PATH,
+            "The pilots with public flights whose handle or name holds a text",
+        )
+        .docs("GET /v1/pilots?q=&limit=")
+        .query(&["q!", "limit"])
+        .json("PilotsResponse"),
+        get(
+            "/v1/pilots/{handle}/statistics",
+            "What a pilot's public flights add up to, all together and year by year",
+        )
+        .json("PilotStatisticsResponse"),
         get(PUBLIC_FLIGHTS_PATH, "Everyone's public flights")
             .docs("GET /v1/flights/public?pilot=&bbox=&from=&to=&sort=&after=&limit=")
             .query(&[
@@ -623,8 +635,8 @@ fn operations() -> Vec<Op> {
             RANKING_PATH,
             "Pilots by the sum of their best public flights",
         )
-        .docs("GET /v1/ranking?bbox=&from=&to=&limit=")
-        .query(&["bbox", "from:time", "to:time", "limit"])
+        .docs("GET /v1/ranking?bbox=&from=&to=&month=&limit=")
+        .query(&["bbox", "from:time", "to:time", "month", "limit"])
         .json("RankingResponse"),
         // Live tracks.
         post(
@@ -819,6 +831,14 @@ fn query_parameter(spec: &str) -> Value {
             json!({"type": "integer", "minimum": 1, "maximum": 5000}),
         ),
         "pilot" => ("A pilot's handle.", json!({"type": "string"})),
+        "q" => (
+            "A part of a pilot's handle or display name, 2 to 60 characters, in any case.",
+            json!({"type": "string"}),
+        ),
+        "month" => (
+            "A calendar month by UTC, written YYYY-MM: a `from` and a `to` in one word, and not sent with either.",
+            json!({"type": "string"}),
+        ),
         "site" => (
             "A site's identifier, of any layer: the flights that took off within 500 m of it.",
             json!({"type": "string"}),

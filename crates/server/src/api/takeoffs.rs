@@ -127,14 +127,31 @@ impl<S: Store> Api<S> {
             return Ok(shown);
         }
         let places: Vec<GeoPoint> = takeoffs.iter().map(|&(_, place)| place).collect();
-        let near = self
-            .store
-            .sites_near(&self.site_sources(), &places, TAKEOFF_SITE_WITHIN_M)
-            .await?;
-        for ((at, place), sites) in takeoffs.into_iter().zip(near) {
-            shown[at].takeoff_site = takeoff_site(place, &sites);
+        let sites = self.takeoff_sites(&places).await?;
+        for ((at, _), site) in takeoffs.into_iter().zip(sites) {
+            shown[at].takeoff_site = site;
         }
         Ok(shown)
+    }
+
+    /// The site each of some take-offs belongs to ([`takeoff_site`]), in
+    /// their order, looked up in one question to the store.
+    pub(crate) async fn takeoff_sites(
+        &self,
+        places: &[GeoPoint],
+    ) -> Result<Vec<Option<FlightSite>>, ApiError> {
+        if places.is_empty() {
+            return Ok(Vec::new());
+        }
+        let near = self
+            .store
+            .sites_near(&self.site_sources(), places, TAKEOFF_SITE_WITHIN_M)
+            .await?;
+        Ok(places
+            .iter()
+            .zip(near)
+            .map(|(&place, sites)| takeoff_site(place, &sites))
+            .collect())
     }
 
     /// One flight as an answer shows it: [`Api::shown_flights`].

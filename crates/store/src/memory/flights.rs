@@ -6,14 +6,14 @@ use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 
 use super::accounts::Accounts;
 use crate::flight::{
-    Kept, PublicEffect, Room, Saved, cut, cut_public, may_be_set, next_public_change, ranked_order,
-    score_order,
+    Kept, PublicEffect, Room, Saved, cut, cut_public, holds_text, may_be_set, next_public_change,
+    ranked_order, score_order, sought,
 };
 use crate::takeoff::{Cell, Tally, cell_of, cells_of};
 use crate::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, FlightsFrom, Listing, NewFlight,
-    OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, ScoreKey,
-    StoreError, Visibility, VisibilityChange, WithdrawnFlight,
+    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, FlightsFrom, Flown, FoundPilot,
+    Listing, Month, NewFlight, OutdatedFlight, Place, PublicFlightChanges, PublicFlights,
+    PublicOrder, Ranked, ScoreKey, StoreError, Visibility, VisibilityChange, WithdrawnFlight,
 };
 
 #[derive(Debug, Default)]
@@ -272,6 +272,71 @@ impl Flights {
         ranked.sort_by(ranked_order);
         ranked.truncate(limit);
         ranked
+    }
+
+    pub(super) fn scored_months(&self, which: &PublicFlights) -> Vec<(Month, u32)> {
+        let mut months: BTreeMap<Month, u32> = BTreeMap::new();
+        for entry in self.flights.values() {
+            let flight = &entry.flight;
+            if flight.visibility == Visibility::Public
+                && which.holds(flight)
+                && flight.derived.score.is_some()
+            {
+                *months.entry(Month::of(flight.derived.start)).or_default() += 1;
+            }
+        }
+        months.into_iter().collect()
+    }
+
+    pub(super) fn pilots_named(
+        &self,
+        text: &str,
+        limit: usize,
+        accounts: &Accounts,
+    ) -> Vec<FoundPilot> {
+        let sought = sought(text);
+        let mut public: BTreeMap<&str, u32> = BTreeMap::new();
+        for entry in self.flights.values() {
+            if entry.flight.visibility == Visibility::Public {
+                *public.entry(entry.flight.account_id.as_str()).or_default() += 1;
+            }
+        }
+        let mut found: Vec<(bool, FoundPilot)> = public
+            .into_iter()
+            .filter_map(|(account_id, flights)| {
+                let account = accounts.by_id(account_id)?;
+                let begins = holds_text(&sought, &account.handle, &account.display_name)?;
+                Some((
+                    begins,
+                    FoundPilot {
+                        handle: account.handle.clone(),
+                        name: account.display_name.clone(),
+                        flights,
+                    },
+                ))
+            })
+            .collect();
+        found.sort_by(|(a_begins, a), (b_begins, b)| {
+            b_begins
+                .cmp(a_begins)
+                .then(b.flights.cmp(&a.flights))
+                .then_with(|| a.handle.cmp(&b.handle))
+        });
+        found.truncate(limit);
+        found.into_iter().map(|(_, pilot)| pilot).collect()
+    }
+
+    pub(super) fn flown_by(&self, account_id: &str) -> Vec<Flown> {
+        let mut flights: Vec<&Flight> = self
+            .flights
+            .values()
+            .map(|entry| &entry.flight)
+            .filter(|flight| {
+                flight.account_id == account_id && flight.visibility == Visibility::Public
+            })
+            .collect();
+        flights.sort_by_key(|flight| std::cmp::Reverse(flight.key()));
+        flights.into_iter().map(Flown::of).collect()
     }
 
     /// The public flights that took off somewhere, each with where. A

@@ -69,9 +69,9 @@ pub use alert::{
 };
 pub use cable::{CableLayer, CableSet};
 pub use flight::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, Near, NewFlight,
-    OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Room, Saved,
-    Score, ScoreKey, ScoreKind, Visibility, VisibilityChange, WithdrawnFlight,
+    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Flown, FoundPilot, Kept, Listing,
+    Near, NewFlight, OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder,
+    Ranked, Room, Saved, Score, ScoreKey, ScoreKind, Visibility, VisibilityChange, WithdrawnFlight,
 };
 pub use forecast::{ForecastModel, ThermalPart};
 pub use group::{
@@ -1067,6 +1067,39 @@ pub trait Store: Send + Sync + 'static {
         counted: usize,
         limit: usize,
     ) -> impl Future<Output = Result<Vec<Ranked>, StoreError>> + Send;
+
+    /// The months in which the public flights that `which` describes and
+    /// that score started, by UTC, the oldest first, each with how many of
+    /// them: the months a ranking of those flights has someone in.
+    ///
+    /// A flight that is private or unlisted is in no month's count.
+    fn scored_months(
+        &self,
+        which: &PublicFlights,
+    ) -> impl Future<Output = Result<Vec<(Month, u32)>, StoreError>> + Send;
+
+    /// The pilots with a public flight whose handle or display name holds
+    /// `text`, whatever the case of either: those of whom one begins with
+    /// it first, then the pilot with the most public flights, then by
+    /// handle, byte by byte. At most `limit` are returned.
+    ///
+    /// A pilot who has made no flight public is never found, and a flight
+    /// that is private or unlisted is in no count.
+    fn pilots_named(
+        &self,
+        text: &str,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<FoundPilot>, StoreError>> + Send;
+
+    /// Every public flight of an account in the few numbers a pilot's
+    /// totals are made of, newest first as [`Store::flights_of`] orders
+    /// them. See [`Flown`].
+    ///
+    /// A flight that is private or unlisted is not among them.
+    fn flown_by(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Vec<Flown>, StoreError>> + Send;
 
     /// What the public flights that began within `within_m` metres of a
     /// place say about it: how many, of how many pilots, the newest one's

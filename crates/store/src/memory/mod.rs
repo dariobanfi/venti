@@ -9,8 +9,8 @@ use std::sync::{Mutex, MutexGuard};
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, AirspaceId, BoundingBox, Observation, Site, SiteId, SourceId, Station, StationId,
-    Timestamp,
+    Airspace, AirspaceId, BoundingBox, ModelId, Observation, Site, SiteId, SourceId, Station,
+    StationId, Timestamp,
 };
 
 use crate::flight::{Room, Saved};
@@ -22,8 +22,8 @@ use crate::{
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
     PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
     ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Suspension, Visibility, VisibilityChange, airspace, batch,
-    forecast, site,
+    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
+    airspace, batch, forecast, site,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -49,6 +49,8 @@ struct Inner {
     /// The models of each forecast source, as the latest healthy look
     /// found them, sorted by model.
     forecast_models: BTreeMap<SourceId, Vec<ForecastModel>>,
+    /// The parts of the thermal map, by source and model.
+    thermal_parts: BTreeMap<(SourceId, ModelId), ThermalPart>,
     accounts: accounts::Accounts,
     flights: flights::Flights,
     live: live::Live,
@@ -405,6 +407,29 @@ impl Store for MemoryStore {
             .iter()
             .filter(|(source, _)| sources.contains(source))
             .flat_map(|(_, models)| models.iter().cloned())
+            .collect())
+    }
+
+    async fn save_thermal_part(&self, part: &ThermalPart) -> Result<(), StoreError> {
+        let mut inner = self.lock();
+        let key = (part.source.clone(), part.model.clone());
+        let newer_is_stored = inner
+            .thermal_parts
+            .get(&key)
+            .is_some_and(|stored| stored.written_at > part.written_at);
+        if !newer_is_stored {
+            inner.thermal_parts.insert(key, part.clone());
+        }
+        Ok(())
+    }
+
+    async fn thermal_parts(&self, source: &SourceId) -> Result<Vec<ThermalPart>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .thermal_parts
+            .iter()
+            .filter(|((of, _), _)| of == source)
+            .map(|(_, part)| part.clone())
             .collect())
     }
 

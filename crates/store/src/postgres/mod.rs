@@ -31,7 +31,7 @@ use crate::{
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
     PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
     ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Suspension, Visibility, VisibilityChange, batch,
+    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -553,6 +553,14 @@ impl Store for PgStore {
         sources: &[SourceId],
     ) -> Result<Vec<ForecastModel>, StoreError> {
         forecasts::models(&self.client().await?, sources).await
+    }
+
+    async fn save_thermal_part(&self, part: &ThermalPart) -> Result<(), StoreError> {
+        forecasts::save_thermal_part(&self.client().await?, part).await
+    }
+
+    async fn thermal_parts(&self, source: &SourceId) -> Result<Vec<ThermalPart>, StoreError> {
+        forecasts::thermal_parts(&self.client().await?, source).await
     }
 
     async fn create_account(&self, new: &NewAccount) -> Result<AccountCreation, StoreError> {

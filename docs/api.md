@@ -1291,7 +1291,7 @@ A day holds its values in lists as long as the grid has cells, in the grid's ord
 
 A client expects values of `verdict` and `thermals` it does not know, and fields it does not know.
 
-**Kept in memory.** The server keeps the map in memory and does not write it down. After a start it makes the map again from the run its forecast service holds, which takes a minute or two, and today then lacks the hours before that run began: its `whole` is `false` until the next day. Until the first map is made the endpoint answers `503`.
+**Across a restart.** The server writes down what it judged of the cells each time it makes a model's part of the map, and reads it back when it starts: the map is there at once, and today keeps the hours before the newest run began. A server that starts with nothing written down (the first start, or the development mode, which has no database) makes the map from the runs its forecast service holds, which takes a minute or two, and today then lacks the hours before those runs began: its `whole` is `false` until the next day. Until the first map is made the endpoint answers `503`.
 
 **Credit.** Show the credit of the source next to the map, with its link.
 
@@ -1304,7 +1304,7 @@ A client expects values of `verdict` and `thermals` it does not know, and fields
 | Status | `error.code` | When |
 |---|---|---|
 | `501` | `no_forecasts` | The server was not told where its forecast service is, so it has no map. Asking again does not help |
-| `503` | `unavailable` | The server has a forecast service and no map yet: after a start, or while the service does not answer. `Retry-After` says when to ask again (60 seconds) |
+| `503` | `unavailable` | The server has a forecast service and no map yet: after its first start, or while the service does not answer. `Retry-After` says when to ask again (60 seconds) |
 
 **In the development mode** the map is made, by the code a real server runs, from answers recorded on 2026-11-21 at 03:20 UTC for four points around the Tegernsee and the Spitzingsee, a grid of two rows of two cells from 47.6 N 11.8 E; the map's `computed_at` is 03:25 UTC. The runs are ICON-D2's of 00:00 UTC, newer than that of the mode's forecasts for a place, and ICON-EU's of 21:00 UTC the evening before. That run of ICON-EU reaches 30 hours, into the night of the 22nd, so both days are ICON-D2's and no day is ICON-EU's. It is a November day: not flyable on the 21st, weak thermals on the 22nd. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint with a made-up map of all four kinds.
 

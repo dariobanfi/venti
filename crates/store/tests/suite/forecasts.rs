@@ -4,7 +4,7 @@
 
 use chrono::{Duration, TimeZone, Utc};
 use venti_domain::{ModelId, SourceId, Timestamp};
-use venti_store::{ForecastModel, Month, RunRecord, Store, StoreError};
+use venti_store::{ForecastModel, Month, RunRecord, Store, StoreError, ThermalPart};
 
 use super::{at, run, source};
 
@@ -202,4 +202,54 @@ pub(crate) async fn pruning_leaves_the_forecast_models_alone(store: &impl Store)
     assert_eq!(status.last_started, None);
     // What was found stays, with its date, until a newer look replaces it.
     assert_eq!(models_of(store, &[OPEN_METEO]).await, known);
+}
+
+fn part(source_name: &str, name: &str, written_at: Timestamp, cells: &[u8]) -> ThermalPart {
+    ThermalPart {
+        source: source(source_name),
+        model: ModelId::new(name).unwrap(),
+        made_from: written_at - Duration::minutes(70),
+        written_at,
+        cells: cells.to_vec(),
+    }
+}
+
+pub(crate) async fn a_part_of_the_thermal_map_is_read_back_by_source_and_model(store: &impl Store) {
+    let icon_eu = part(OPEN_METEO, "icon-eu", at(18, 0), &[0x1f, 0x8b, 0, 255]);
+    let icon_d2 = part(OPEN_METEO, "icon-d2", at(18, 10), &[1, 2, 3]);
+    let elsewhere = part(OTHER, "icon-d2", at(18, 20), &[9]);
+    for one in [&icon_eu, &icon_d2, &elsewhere] {
+        store.save_thermal_part(one).await.unwrap();
+    }
+
+    // By model, the bytes as they were handed over.
+    let stored = store.thermal_parts(&source(OPEN_METEO)).await.unwrap();
+    assert_eq!(stored, [icon_d2, icon_eu]);
+    let stored = store.thermal_parts(&source(OTHER)).await.unwrap();
+    assert_eq!(stored, [elsewhere]);
+    assert!(
+        store
+            .thermal_parts(&source("nobody"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+pub(crate) async fn a_later_part_of_the_thermal_map_replaces_an_earlier_one(store: &impl Store) {
+    let first = part(OPEN_METEO, "icon-d2", at(18, 0), &[1]);
+    let later = part(OPEN_METEO, "icon-d2", at(18, 3), &[2, 2]);
+    store.save_thermal_part(&first).await.unwrap();
+    store.save_thermal_part(&later).await.unwrap();
+    assert_eq!(
+        store.thermal_parts(&source(OPEN_METEO)).await.unwrap(),
+        std::slice::from_ref(&later)
+    );
+
+    // One written before what is stored changes nothing.
+    store.save_thermal_part(&first).await.unwrap();
+    assert_eq!(
+        store.thermal_parts(&source(OPEN_METEO)).await.unwrap(),
+        [later]
+    );
 }

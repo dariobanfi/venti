@@ -20,7 +20,7 @@ use crate::{
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
     PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
     ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Suspension, Visibility, VisibilityChange,
+    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -145,6 +145,14 @@ impl Store for TroubledStore {
     }
 
     async fn forecast_models(&self, _: &[SourceId]) -> Result<Vec<ForecastModel>, StoreError> {
+        self.fail().await
+    }
+
+    async fn save_thermal_part(&self, _: &ThermalPart) -> Result<(), StoreError> {
+        self.fail().await
+    }
+
+    async fn thermal_parts(&self, _: &SourceId) -> Result<Vec<ThermalPart>, StoreError> {
         self.fail().await
     }
 

@@ -22,7 +22,7 @@ use crate::forecast::{self, Asking};
 use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
 use crate::maps::Maps;
-use crate::thermals::ThermalMap;
+use crate::thermals::{InStore, ThermalMap};
 use crate::{adapters, groups, live, maintenance, plan};
 
 /// How far back from the time of a run observations are taken. See
@@ -97,7 +97,8 @@ pub async fn serve(config: Config) -> Result<(), String> {
             .find(|job| job.kind == venti_sources::Kind::Forecasts)?
             .source
             .clone();
-        let map = ThermalMap::for_source(forecasts.clone(), source, clock.clone())?;
+        let map = ThermalMap::for_source(forecasts.clone(), source, clock.clone())?
+            .with_keeper(Arc::new(InStore(store.clone())));
         tracing::info!(
             "thermal map: {} cells of {}, {} requests a run of each",
             map.cells(),
@@ -110,6 +111,11 @@ pub async fn serve(config: Config) -> Result<(), String> {
         );
         Some(Arc::new(map))
     });
+    // What the map judged before the server stopped, so that today keeps
+    // the hours its newest runs no longer hold.
+    if let Some(map) = &thermal_map {
+        map.restore().await;
+    }
 
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let mut api = Api::new(store.clone(), clock.clone(), manifests, settings);

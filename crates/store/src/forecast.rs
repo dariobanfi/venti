@@ -1,5 +1,6 @@
 //! What the store keeps about forecasts: which run each weather model of a
-//! source was at when the server last looked.
+//! source was at when the server last looked, and what the server's
+//! thermal map judged of each model's cells.
 //!
 //! The forecasts themselves are not stored. They are fetched from the
 //! forecast service when a pilot asks, and that service is their store.
@@ -26,6 +27,25 @@ pub struct ForecastModel {
     pub available_at: Option<Timestamp>,
     /// When the server looked: the start of the run that found this out.
     pub checked_at: Timestamp,
+}
+
+/// What the server's thermal map judged of the cells of one model of a
+/// source, as the server wrote it down when it last made that model's
+/// part whole: so that a restarted server has the hours of today that the
+/// model's newest run no longer holds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThermalPart {
+    /// The source the model's values were fetched from.
+    pub source: SourceId,
+    /// The model.
+    pub model: ModelId,
+    /// The run of the model the part was last made whole from.
+    pub made_from: Timestamp,
+    /// When the server wrote the part down.
+    pub written_at: Timestamp,
+    /// The judged hours of every cell, in the server's own encoding, which
+    /// the store keeps as it is and does not read.
+    pub cells: Vec<u8>,
 }
 
 /// Checks what a look at a forecast source hands over. Both stores call

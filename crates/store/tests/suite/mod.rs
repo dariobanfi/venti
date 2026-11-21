@@ -72,6 +72,8 @@ macro_rules! store_suite {
             a_failed_or_older_look_changes_nothing_about_the_models,
             a_bad_look_at_the_forecast_models_is_refused,
             pruning_leaves_the_forecast_models_alone,
+            a_part_of_the_thermal_map_is_read_back_by_source_and_model,
+            a_later_part_of_the_thermal_map_replaces_an_earlier_one,
             an_account_is_created_and_found_by_its_handle,
             a_handle_belongs_to_one_account,
             an_invite_creates_exactly_one_account,

@@ -62,7 +62,7 @@ pub use flight::{
     OutdatedFlight, Place, PublicFlights, PublicOrder, Ranked, Room, Saved, Score, ScoreKey,
     ScoreKind, Visibility, VisibilityChange,
 };
-pub use forecast::ForecastModel;
+pub use forecast::{ForecastModel, ThermalPart};
 pub use group::{
     Group, GroupCreation, GroupJoining, GroupMembers, GroupPilot, GroupRoom, KeeperAct,
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
@@ -372,6 +372,20 @@ pub trait Store: Send + Sync + 'static {
         &self,
         sources: &[SourceId],
     ) -> impl Future<Output = Result<Vec<ForecastModel>, StoreError>> + Send;
+
+    /// Stores what the thermal map judged of one model of a source, in
+    /// place of what is stored for that source and model. A part written
+    /// before the stored one replaces nothing.
+    fn save_thermal_part(
+        &self,
+        part: &ThermalPart,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// The parts of the thermal map stored for a source, sorted by model.
+    fn thermal_parts(
+        &self,
+        source: &SourceId,
+    ) -> impl Future<Output = Result<Vec<ThermalPart>, StoreError>> + Send;
 
     // --- Accounts ---------------------------------------------------------
 

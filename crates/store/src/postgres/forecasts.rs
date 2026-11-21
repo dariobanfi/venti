@@ -5,7 +5,7 @@ use tokio_postgres::Row;
 use venti_domain::{ModelId, SourceId, Timestamp};
 
 use super::{corrupt, db_error, upsert_run};
-use crate::{ForecastModel, RunRecord, StoreError, forecast};
+use crate::{ForecastModel, RunRecord, StoreError, ThermalPart, forecast};
 
 const INSERT_MODELS: &str = "
     INSERT INTO forecast_models (source, model, run, available_at, checked_at)
@@ -93,4 +93,65 @@ pub(super) async fn models(
         .await
         .map_err(db_error)?;
     rows.iter().map(model_from).collect()
+}
+
+pub(super) async fn save_thermal_part(
+    client: &Client,
+    part: &ThermalPart,
+) -> Result<(), StoreError> {
+    let statement = client
+        .prepare_cached(
+            "INSERT INTO thermal_map_parts (source, model, made_from, written_at, cells)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (source, model) DO UPDATE
+             SET made_from = excluded.made_from, written_at = excluded.written_at,
+                 cells = excluded.cells
+             WHERE thermal_map_parts.written_at <= excluded.written_at",
+        )
+        .await
+        .map_err(db_error)?;
+    client
+        .execute(
+            &statement,
+            &[
+                &part.source.as_str(),
+                &part.model.as_str(),
+                &part.made_from,
+                &part.written_at,
+                &part.cells,
+            ],
+        )
+        .await
+        .map_err(db_error)?;
+    Ok(())
+}
+
+pub(super) async fn thermal_parts(
+    client: &Client,
+    source: &SourceId,
+) -> Result<Vec<ThermalPart>, StoreError> {
+    let statement = client
+        .prepare_cached(
+            "SELECT source, model, made_from, written_at, cells FROM thermal_map_parts
+             WHERE source = $1 ORDER BY model",
+        )
+        .await
+        .map_err(db_error)?;
+    let rows = client
+        .query(&statement, &[&source.as_str()])
+        .await
+        .map_err(db_error)?;
+    rows.iter()
+        .map(|row| {
+            let source: &str = row.get("source");
+            let model: &str = row.get("model");
+            Ok(ThermalPart {
+                source: SourceId::new(source).map_err(|e| corrupt("source identifier", e))?,
+                model: ModelId::new(model).map_err(|e| corrupt("model name", e))?,
+                made_from: row.get("made_from"),
+                written_at: row.get("written_at"),
+                cells: row.get("cells"),
+            })
+        })
+        .collect()
 }

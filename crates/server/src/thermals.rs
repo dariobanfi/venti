@@ -27,8 +27,11 @@
 //!   a newer run replacing the same hour of an older one. A run says
 //!   nothing of the hours before it began, so the morning of today stays
 //!   the earlier run's. Hours of days before yesterday are dropped.
-//! - **In memory only.** After a start the map is made again from the run
-//!   at hand, and today then lacks the hours before that run began.
+//! - **Written down.** Each time a model's part is made whole its judged
+//!   hours go to the store ([`Keeper`]), and a start reads them back
+//!   ([`ThermalMap::restore`]): today keeps the hours before the newest run
+//!   began across a restart. Without a store, as in the development mode,
+//!   the map is in memory only.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -40,6 +43,10 @@ use venti_api_types::v1::{
 };
 use venti_domain::{BoundingBox, ForecastSeries, GeoPoint, ModelId, SourceId, Timestamp};
 use venti_flight::day::{self, Kind, RatedHour, Reason, Verdict};
+
+use futures::FutureExt;
+use futures::future::BoxFuture;
+use venti_store::{Store, StoreError, ThermalPart};
 
 use crate::clock::Clock;
 use crate::forecast::{Forecasts, Refusal};
@@ -176,6 +183,31 @@ pub struct ThermalMap {
     state: Mutex<State>,
     /// Held while the map is being fetched: one making at a time.
     fetching: tokio::sync::Mutex<()>,
+    /// Where the judged hours are written down, if anywhere.
+    keeper: Option<Arc<dyn Keeper>>,
+}
+
+/// Where the map writes down what it judged and reads it back after a
+/// start: the server's database.
+pub trait Keeper: Send + Sync {
+    /// Writes down one model's part.
+    fn save(&self, part: ThermalPart) -> BoxFuture<'_, Result<(), StoreError>>;
+
+    /// What was written down for a source.
+    fn load(&self, source: SourceId) -> BoxFuture<'_, Result<Vec<ThermalPart>, StoreError>>;
+}
+
+/// The map's parts in a store.
+pub struct InStore<S>(pub Arc<S>);
+
+impl<S: Store + 'static> Keeper for InStore<S> {
+    fn save(&self, part: ThermalPart) -> BoxFuture<'_, Result<(), StoreError>> {
+        async move { self.0.save_thermal_part(&part).await }.boxed()
+    }
+
+    fn load(&self, source: SourceId) -> BoxFuture<'_, Result<Vec<ThermalPart>, StoreError>> {
+        async move { self.0.thermal_parts(&source).await }.boxed()
+    }
 }
 
 impl ThermalMap {
@@ -229,7 +261,17 @@ impl ThermalMap {
             clock,
             state: Mutex::new(state),
             fetching: tokio::sync::Mutex::new(()),
+            keeper: None,
         })
+    }
+
+    /// The same map, writing down what it judged in `keeper` each time it
+    /// makes a model's part whole, and reading it back with
+    /// [`restore`](Self::restore).
+    #[must_use]
+    pub fn with_keeper(mut self, keeper: Arc<dyn Keeper>) -> Self {
+        self.keeper = Some(keeper);
+        self
     }
 
     /// The source the map is made from.
@@ -372,30 +414,107 @@ impl ThermalMap {
         }
 
         let now = self.clock.now();
-        let mut state = self.lock();
-        let of = &mut state.models[index];
-        let Some(making) = of.making.take() else {
-            return true;
+        let written = {
+            let mut state = self.lock();
+            let of = &mut state.models[index];
+            let Some(making) = of.making.take() else {
+                return true;
+            };
+            of.made_from = Some(making.run);
+            for of in &mut state.models {
+                for (kept, point) in of.cells.iter_mut().zip(&self.points) {
+                    kept.drop_before_yesterday(now, *point);
+                }
+            }
+            if let Some(map) = self.made(&state.models, now) {
+                tracing::info!(
+                    source = %self.source,
+                    "thermal map made with the run of {model} of {}: {} cells, {} days, {} requests",
+                    making.run.format("%Y-%m-%d %H:%M UTC"),
+                    self.points.len(),
+                    map.days.len(),
+                    self.requests_per_map(),
+                );
+                state.map = Some(Arc::new(map));
+            }
+            self.keeper.as_ref().map(|_| {
+                let of = &state.models[index];
+                ThermalPart {
+                    source: self.source.clone(),
+                    model: of.model.clone(),
+                    made_from: making.run,
+                    written_at: now,
+                    cells: stored::encode(&self.grid, &of.cells),
+                }
+            })
         };
-        of.made_from = Some(making.run);
+        if let (Some(keeper), Some(part)) = (&self.keeper, written) {
+            let bytes = part.cells.len();
+            match keeper.save(part).await {
+                Ok(()) => tracing::info!(
+                    source = %self.source,
+                    "thermal map: the judged hours of {model} written down, {bytes} bytes"
+                ),
+                // The map goes on in memory; after a start it lacks this.
+                Err(error) => tracing::warn!(
+                    source = %self.source,
+                    "thermal map: the judged hours of {model} could not be written down: {error}"
+                ),
+            }
+        }
+        true
+    }
+
+    /// Reads back what the map wrote down before the server stopped, and
+    /// makes the map from it: so that after a start the map is there at
+    /// once, with the hours of today that the models' newest runs no
+    /// longer hold. A part of another grid, or written in another form, is
+    /// left out, and is made again from the source at the next look.
+    pub async fn restore(&self) {
+        let Some(keeper) = &self.keeper else { return };
+        let parts = match keeper.load(self.source.clone()).await {
+            Ok(parts) => parts,
+            Err(error) => {
+                tracing::warn!(
+                    source = %self.source,
+                    "thermal map: what was written down could not be read: {error}"
+                );
+                return;
+            }
+        };
+        let now = self.clock.now();
+        let mut state = self.lock();
+        for part in parts {
+            let Some(of) = state.models.iter_mut().find(|of| of.model == part.model) else {
+                continue;
+            };
+            match stored::decode(&part.cells, &self.grid) {
+                Some(cells) => {
+                    of.cells = cells;
+                    of.made_from = Some(part.made_from);
+                    tracing::info!(
+                        source = %self.source,
+                        "thermal map: the judged hours of {} read back, of the run of {}",
+                        part.model,
+                        part.made_from.format("%Y-%m-%d %H:%M UTC"),
+                    );
+                }
+                None => tracing::warn!(
+                    source = %self.source,
+                    "thermal map: the judged hours of {} written down are of another grid or \
+                     form; they are made again",
+                    part.model,
+                ),
+            }
+        }
         for of in &mut state.models {
             for (kept, point) in of.cells.iter_mut().zip(&self.points) {
                 kept.drop_before_yesterday(now, *point);
             }
         }
-        let Some(map) = self.made(&state.models, now) else {
-            return true;
-        };
-        tracing::info!(
-            source = %self.source,
-            "thermal map made with the run of {model} of {}: {} cells, {} days, {} requests",
-            making.run.format("%Y-%m-%d %H:%M UTC"),
-            self.points.len(),
-            map.days.len(),
-            self.requests_per_map(),
-        );
-        state.map = Some(Arc::new(map));
-        true
+        if let Some(map) = self.made(&state.models, now) {
+            state.map = Some(Arc::new(map));
+        }
     }
 
     fn left(&self, index: usize) -> usize {
@@ -584,6 +703,195 @@ fn kind(kind: Kind) -> ThermalKind {
         Kind::Local => ThermalKind::Local,
         Kind::CrossCountry => ThermalKind::CrossCountry,
         Kind::Big => ThermalKind::Big,
+    }
+}
+
+/// How the judged hours of a model's cells are written down: JSON, packed
+/// with gzip, in a form of the map's own. An hour is kept as it was
+/// judged, so the hours read back after a start are judged by the rules
+/// of the version that judged them; they are at most a day and a half old
+/// by then, and the next runs replace the most of them.
+mod stored {
+    use std::io::Read as _;
+
+    use chrono::DateTime;
+    use flate2::Compression;
+    use flate2::read::GzDecoder;
+    use flate2::write::GzEncoder;
+    use serde::{Deserialize, Serialize};
+    use venti_api_types::v1::ThermalGrid;
+    use venti_flight::convection::Convection;
+    use venti_flight::day::{Against, Kind, RatedHour, Verdict};
+
+    use super::Kept;
+
+    /// The form's number. Raised when the form changes; a part of another
+    /// form is not read.
+    const FORM: u32 = 1;
+
+    /// The most a part may unpack to: some 30 MB is a grid ten times the
+    /// first region's.
+    const MAX_UNPACKED: u64 = 64 * 1024 * 1024;
+
+    #[derive(Serialize, Deserialize)]
+    struct Part {
+        form: u32,
+        grid: ThermalGrid,
+        cells: Vec<Cell>,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Cell {
+        #[serde(rename = "g")]
+        ground_m: Option<f64>,
+        #[serde(rename = "h")]
+        hours: Vec<Hour>,
+    }
+
+    /// An hour: its time and its run in seconds since 1970, the verdict,
+    /// the kind, what speaks against it and the air.
+    #[derive(Serialize, Deserialize)]
+    struct Hour(i64, i64, u8, Option<u8>, Option<Why>, Option<Air>);
+
+    #[derive(Serialize, Deserialize)]
+    enum Why {
+        R,
+        W(f64),
+        G(f64),
+        A(f64, f64),
+        B,
+        N,
+        S,
+    }
+
+    /// Top, cloud base, depth, updraft, climb and wind of the air.
+    #[derive(Serialize, Deserialize)]
+    struct Air(f64, Option<f64>, f64, f64, f64, Option<f64>);
+
+    const VERDICTS: [Verdict; 3] = [Verdict::Flyable, Verdict::Marginal, Verdict::NotFlyable];
+    const KINDS: [Kind; 4] = [Kind::Weak, Kind::Local, Kind::CrossCountry, Kind::Big];
+
+    fn index_of<T: PartialEq>(all: &[T], one: &T) -> u8 {
+        u8::try_from(all.iter().position(|of| of == one).unwrap_or(0)).unwrap_or(0)
+    }
+
+    fn hour(run: i64, rated: &RatedHour) -> Hour {
+        let why = rated.against.map(|against| match against {
+            Against::Rain => Why::R,
+            Against::Wind { kmh } => Why::W(kmh),
+            Against::Gusts { kmh } => Why::G(kmh),
+            Against::WindAloft { kmh, at_m } => Why::A(kmh, at_m),
+            Against::CloudBaseBelow => Why::B,
+            Against::CloudBaseNear => Why::N,
+            Against::Storms => Why::S,
+        });
+        let air = rated.air.map(|air| {
+            Air(
+                air.top_m,
+                air.cloud_base_m,
+                air.depth_m,
+                air.updraft_ms,
+                air.climb_ms,
+                air.wind_ms,
+            )
+        });
+        Hour(
+            rated.time.timestamp(),
+            run,
+            index_of(&VERDICTS, &rated.verdict),
+            rated.kind.map(|kind| index_of(&KINDS, &kind)),
+            why,
+            air,
+        )
+    }
+
+    fn rated(hour: Hour) -> Option<(i64, RatedHour)> {
+        let Hour(time, run, verdict, kind, why, air) = hour;
+        let against = why.map(|why| match why {
+            Why::R => Against::Rain,
+            Why::W(kmh) => Against::Wind { kmh },
+            Why::G(kmh) => Against::Gusts { kmh },
+            Why::A(kmh, at_m) => Against::WindAloft { kmh, at_m },
+            Why::B => Against::CloudBaseBelow,
+            Why::N => Against::CloudBaseNear,
+            Why::S => Against::Storms,
+        });
+        let kind = match kind {
+            Some(kind) => Some(*KINDS.get(usize::from(kind))?),
+            None => None,
+        };
+        Some((
+            run,
+            RatedHour {
+                time: DateTime::from_timestamp(time, 0)?,
+                verdict: *VERDICTS.get(usize::from(verdict))?,
+                against,
+                air: air.map(
+                    |Air(top_m, cloud_base_m, depth_m, updraft_ms, climb_ms, wind_ms)| Convection {
+                        top_m,
+                        cloud_base_m,
+                        depth_m,
+                        updraft_ms,
+                        climb_ms,
+                        wind_ms,
+                    },
+                ),
+                kind,
+            },
+        ))
+    }
+
+    /// A model's cells, written down.
+    pub(super) fn encode(grid: &ThermalGrid, cells: &[Kept]) -> Vec<u8> {
+        let part = Part {
+            form: FORM,
+            grid: *grid,
+            cells: cells
+                .iter()
+                .map(|kept| Cell {
+                    ground_m: kept.ground_m,
+                    hours: kept
+                        .hours
+                        .values()
+                        .map(|(run, rated)| hour(run.timestamp(), rated))
+                        .collect(),
+                })
+                .collect(),
+        };
+        let mut packed = GzEncoder::new(Vec::new(), Compression::default());
+        // Writing to memory does not fail, nor does writing plain data as
+        // JSON.
+        let written = serde_json::to_writer(&mut packed, &part).is_ok();
+        let packed = packed.finish().unwrap_or_default();
+        if written { packed } else { Vec::new() }
+    }
+
+    /// The cells written down, if they are of this grid and of this form.
+    pub(super) fn decode(bytes: &[u8], grid: &ThermalGrid) -> Option<Vec<Kept>> {
+        let mut text = Vec::new();
+        GzDecoder::new(bytes)
+            .take(MAX_UNPACKED)
+            .read_to_end(&mut text)
+            .ok()?;
+        let part: Part = serde_json::from_slice(&text).ok()?;
+        if part.form != FORM || part.grid != *grid || part.cells.len() != grid.cells() {
+            return None;
+        }
+        part.cells
+            .into_iter()
+            .map(|cell| {
+                let mut kept = Kept {
+                    ground_m: cell.ground_m,
+                    ..Kept::default()
+                };
+                for hour in cell.hours {
+                    let (run, rated) = rated(hour)?;
+                    kept.hours
+                        .insert(rated.time, (DateTime::from_timestamp(run, 0)?, rated));
+                }
+                Some(kept)
+            })
+            .collect()
     }
 }
 
@@ -946,5 +1254,83 @@ mod tests {
         map.update(&both).await;
         assert_eq!(made.asked.load(Ordering::SeqCst), 6);
         assert_eq!(map.current().unwrap().days.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn what_was_judged_is_written_down_and_read_back_exactly() {
+        let made = Made::at(at(12, 0));
+        *made.eu_run.lock().unwrap() = Some(at(11, 21));
+        let map = map_of(&made, at(12, 4));
+        map.update(&[
+            (model("icon-d2"), at(12, 0)),
+            (model("icon-eu"), at(11, 21)),
+        ])
+        .await;
+        let state = map.lock();
+        for of in &state.models {
+            let written = stored::encode(&map.grid, &of.cells);
+            let read = stored::decode(&written, &map.grid).unwrap();
+            assert_eq!(read.len(), of.cells.len());
+            for (read, kept) in read.iter().zip(&of.cells) {
+                assert_eq!(read.hours, kept.hours);
+                assert_eq!(read.ground_m, kept.ground_m);
+            }
+            // Of another grid, or not a part at all, nothing is read.
+            let other = ThermalGrid {
+                rows: 3,
+                ..map.grid
+            };
+            assert!(stored::decode(&written, &other).is_none());
+            assert!(stored::decode(b"not packed", &map.grid).is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn after_a_restart_the_map_has_the_morning_it_had_before() {
+        let store = Arc::new(venti_store::MemoryStore::new());
+        let kept_in = |made: &Arc<Made>, now: Timestamp| {
+            map_of(made, now).with_keeper(Arc::new(InStore(store.clone())))
+        };
+        let made = Made::at(at(12, 0));
+        let before = kept_in(&made, at(12, 4));
+        before.update(&d2(at(12, 0))).await;
+        *made.run.lock().unwrap() = at(12, 9);
+        before.update(&d2(at(12, 9))).await;
+        drop(before);
+        let asked = made.asked.load(Ordering::SeqCst);
+        let parts = store.thermal_parts(&source()).await.unwrap();
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].made_from, at(12, 9));
+
+        // A restart: the map is there at once, with today whole, and the
+        // look that sees the run it was made from asks nothing.
+        let restarted = kept_in(&made, at(12, 11));
+        assert!(restarted.current().is_none());
+        restarted.restore().await;
+        let current = restarted.current().unwrap();
+        assert_eq!(current.run, at(12, 9));
+        assert!(current.days[0].whole);
+        assert_eq!(current.computed_at, at(12, 11));
+        restarted.update(&d2(at(12, 9))).await;
+        assert_eq!(made.asked.load(Ordering::SeqCst), asked);
+        let morning = restarted.lock().models[0].cells[0]
+            .hours
+            .get(&at(12, 8))
+            .map(|(run, _)| *run);
+        assert_eq!(morning, Some(at(12, 0)));
+
+        // Without it, the morning before the run of 09 UTC is missing.
+        let forgetful = map_of(&made, at(12, 11));
+        forgetful.update(&d2(at(12, 9))).await;
+        assert!(!forgetful.current().unwrap().days[0].whole);
+
+        // A store that is down costs the written hours, not the map.
+        let troubled = map_of(&made, at(12, 11)).with_keeper(Arc::new(InStore(Arc::new(
+            venti_store::testing::TroubledStore::down(),
+        ))));
+        troubled.restore().await;
+        assert!(troubled.current().is_none());
+        troubled.update(&d2(at(12, 9))).await;
+        assert!(troubled.current().is_some());
     }
 }

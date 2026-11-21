@@ -29,6 +29,8 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
@@ -1204,7 +1206,10 @@ class VentiUiTest {
         screen.onNode(hasTestTag("plan-place")).performTextInput(place)
         screen.onNode(hasTestTag("plan-save")).performScrollTo()
         waitFor(hasTestTag("plan-save") and isEnabled())
-        tap(hasTestTag("plan-save"))
+        // Pressed by its action, not by a touch: the keyboard can still lie
+        // over the button, and a touch then lands on the keyboard (seen on
+        // the Mac with four emulators at once).
+        screen.onNode(hasTestTag("plan-save")).performSemanticsAction(SemanticsActions.OnClick)
         val posted = hasTestTag("plan-row") and described(place)
         waitFor(posted)
         assertTrue(exists(hasText("Today")))

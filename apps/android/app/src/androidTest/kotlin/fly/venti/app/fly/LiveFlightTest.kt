@@ -275,7 +275,8 @@ class LiveFlightTest {
         fly()
         // Once positions arrive the warning goes and the instruments fill.
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
-            !exists(hasText("No GPS")) && reading("Ground speed")?.endsWith("km/h") == true
+            // The value, then the course under it: "37 km/h, 302° NW".
+            !exists(hasText("No GPS")) && reading("Ground speed")?.substringBefore(",")?.endsWith("km/h") == true
         }
         // Recording carries on with the screen off: the service is running
         // and shows its notification.

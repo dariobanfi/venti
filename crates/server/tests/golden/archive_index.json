@@ -1,0 +1,87 @@
+{
+  "format": 1,
+  "made_at": "2026-11-18T19:05:00Z",
+  "account": "demo",
+  "files": [
+    {
+      "path": "account.json",
+      "holds": "The account: handle, name, and since when.",
+      "record": "AccountResponse",
+      "entries": 1
+    },
+    {
+      "path": "sessions.json",
+      "holds": "The devices signed in to the account, by the name each gave.",
+      "record": "SessionsResponse",
+      "entries": 1
+    },
+    {
+      "path": "tokens.json",
+      "holds": "The tokens given to other programs: names, scopes and dates. No secrets.",
+      "record": "AccessTokensResponse",
+      "entries": 1
+    },
+    {
+      "path": "flights.json",
+      "holds": "Every flight of the account, public or not, newest first: what the server worked out of each file. The files are under flights/.",
+      "record": "FlightsResponse",
+      "entries": 3
+    },
+    {
+      "path": "groups.json",
+      "holds": "The groups the account is in, each with who keeps it.",
+      "record": "GroupsResponse",
+      "entries": 1
+    },
+    {
+      "path": "plans.json",
+      "holds": "The plans the account posted to its groups, and the plans of others it said it is in on. Plans for days gone by are no longer kept.",
+      "record": "PlansResponse",
+      "entries": 2
+    },
+    {
+      "path": "sites.json",
+      "holds": "What the account gave to the take-offs and landings that pilots make: every revision it wrote (number 1 made the site), and where it says it took off. The sites were given to everyone and stay when the account goes.",
+      "record": "ArchiveSites",
+      "entries": 4,
+      "licence": {
+        "name": "CC0 1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "path": "kept-sites.json",
+      "holds": "The sites the account keeps as its own, each as it was when kept, and the identifiers of those it forgot lately.",
+      "record": "KeptSiteChangesResponse",
+      "entries": 0
+    },
+    {
+      "path": "reports.json",
+      "holds": "The reports the account sent to whoever runs the server, as it sent them.",
+      "record": "ArchiveReports",
+      "entries": 0
+    }
+  ],
+  "flights": [
+    {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "file": "flights/2026-08-15_1030Z_5t1eshyp.igc"
+    },
+    {
+      "id": "7cf5ytrw45b0aeb5tcr8wet2km",
+      "file": "flights/2026-07-04_1030Z_7cf5ytrw.igc"
+    },
+    {
+      "id": "7fvpx515951prsvkemfbvgkd3w",
+      "file": "flights/2025-06-21_1030Z_7fvpx515.igc"
+    }
+  ],
+  "complete": true,
+  "not_included": [
+    "The password and the secrets of sessions and tokens. The server keeps only a fingerprint of each and cannot hand one out.",
+    "Live tracks. The server keeps one for a short time after its last position and then removes it; the flight reaches the logbook as a file.",
+    "What other pilots put into the groups: their names as members, and their plans unless this account said it is in on them.",
+    "What whoever runs the server noted about a report, and reports others sent.",
+    "What this account withdrew: a deleted flight, a forgotten site's record, a confirmation taken back."
+  ]
+}

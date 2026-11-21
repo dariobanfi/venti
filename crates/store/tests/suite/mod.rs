@@ -83,6 +83,7 @@ macro_rules! store_suite {
             an_account_is_trusted_with_the_sites_until_it_is_not,
             the_two_layers_of_sites_are_kept_and_read_apart,
             a_pilot_confirms_a_site_once_and_takes_it_back,
+            what_an_account_gave_is_listed_for_it_and_for_nobody_else,
             a_revision_through_a_token_keeps_the_tokens_name,
             a_deleted_account_leaves_its_sites_without_an_author,
             sites_of_pilots_are_found_by_box_apart_from_a_sources,

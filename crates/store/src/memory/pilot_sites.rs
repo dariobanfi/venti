@@ -355,6 +355,58 @@ impl PilotSites {
         Some((entry.read(accounts)?, all))
     }
 
+    /// Every revision an account wrote, by site and number.
+    pub(super) fn revisions_by(&self, account_id: &str, accounts: &Accounts) -> Vec<SiteRevision> {
+        // An account that is gone wrote nothing: its revisions are found
+        // without their author from then on.
+        if accounts.by_id(account_id).is_none() {
+            return Vec::new();
+        }
+        let mut all = Vec::new();
+        for entry in self.sites.values() {
+            for (index, stored) in entry.revisions.iter().enumerate() {
+                if stored.author_id.as_deref() != Some(account_id) {
+                    continue;
+                }
+                all.push(SiteRevision {
+                    number: number(index),
+                    at: stored.at,
+                    author: pilot(stored.author_id.as_ref(), accounts),
+                    via: stored.via.clone(),
+                    kind: stored.kind,
+                    comment: stored.comment.clone(),
+                    record: stored.record.clone(),
+                });
+            }
+        }
+        all
+    }
+
+    /// Every confirmation an account has, by site.
+    pub(super) fn confirmations_by(
+        &self,
+        account_id: &str,
+        accounts: &Accounts,
+    ) -> Vec<(SiteId, SiteConfirmation)> {
+        let Some(pilot) = pilot(Some(&account_id.to_owned()), accounts) else {
+            return Vec::new();
+        };
+        self.sites
+            .iter()
+            .filter_map(|(id, entry)| {
+                let kept = entry.confirmations.get(account_id)?;
+                let confirmation = SiteConfirmation {
+                    pilot: pilot.clone(),
+                    day: kept.day,
+                    note: kept.note.clone(),
+                    with_flight: kept.with_flight,
+                    at: kept.at,
+                };
+                Some((id.clone(), confirmation))
+            })
+            .collect()
+    }
+
     /// Takes what an account said of sites with it. Its sites and
     /// revisions stay: they are found without their author from now on.
     pub(super) fn delete_account(&mut self, account_id: &str) {

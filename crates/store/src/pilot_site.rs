@@ -313,6 +313,21 @@ pub struct SiteConfirmation {
     pub at: Timestamp,
 }
 
+/// What one account gave to the sites that pilots make and said to
+/// whoever runs the server: what no other call lists by account. See
+/// [`Store::given_by`](crate::Store::given_by).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Given {
+    /// Every revision the account wrote, by site and then by number. A
+    /// revision names its site in its record. The first revision of a
+    /// site is the one that made it.
+    pub revisions: Vec<SiteRevision>,
+    /// Every confirmation the account has, by site.
+    pub confirmations: Vec<(SiteId, SiteConfirmation)>,
+    /// Every report the account sent that is still kept, oldest first.
+    pub reports: Vec<crate::Report>,
+}
+
 /// A confirmation to keep: the one of this account for this site, in the
 /// place of the one it had.
 #[derive(Debug, Clone, PartialEq, Eq)]

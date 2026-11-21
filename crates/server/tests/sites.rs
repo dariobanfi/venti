@@ -764,6 +764,18 @@ mod of_pilots {
         );
         assert_eq!(crowd.cursor, "11");
         assert_eq!(crowd.attributions[0].source.as_str(), "venti-pilots");
+        // And named, for a list of what was removed lately: the name it
+        // last had, who removed it and when.
+        assert_golden(&golden("site_changes_pilots.json"), &crowd);
+        let [removal] = crowd.removals.as_slice() else {
+            panic!("one site of the layer is removed: {:?}", crowd.removals);
+        };
+        assert_eq!(removal.id, crowd.removed[0]);
+        assert_eq!(removal.name.as_deref(), Some("Musterkogel"));
+        assert_eq!(
+            removal.by.as_ref().map(|by| by.handle.as_str()),
+            Some("jonas")
+        );
         // Since then: nothing, and the cursor stays.
         let since: SiteChangesResponse = get(&router, &format!("{pilots}&since=11")).await.json();
         assert!(since.sites.is_empty() && since.removed.is_empty());
@@ -1101,6 +1113,16 @@ mod of_pilots {
         get(&router, &format!("{}/history", site_path(third)))
             .await
             .error(StatusCode::GONE, ErrorCode::SiteGone);
+        // Among the removed it is named by its identifier and the moment
+        // alone: not by what it was called, and by nobody.
+        let changes: SiteChangesResponse = get(&router, "/v1/sites/changes").await.json();
+        let removal = changes
+            .removals
+            .iter()
+            .find(|removal| removal.id.to_string() == third)
+            .unwrap();
+        assert_eq!((removal.name.as_deref(), removal.by.as_ref()), (None, None));
+        assert_eq!(removal.at, adapters::recorded_at());
         ask(Method::POST, &third_revisions)
             .token(token)
             .json(&back)

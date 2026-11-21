@@ -719,6 +719,80 @@ pub(super) async fn confirmations(
     Ok(Some((read, list)))
 }
 
+/// Every revision an account wrote, by site and number.
+pub(super) async fn revisions_by(
+    client: &Client,
+    account_id: &str,
+) -> Result<Vec<SiteRevision>, StoreError> {
+    let statement = client
+        .prepare_cached(
+            "SELECT r.number, r.at, r.via, r.via_token, r.kind, r.restores, r.comment, r.record,
+                    a.id AS author_id, a.handle AS author_handle,
+                    a.display_name AS author_name
+             FROM pilot_site_revisions r
+             JOIN accounts a ON a.id = r.author_id
+             WHERE r.author_id = $1",
+        )
+        .await
+        .map_err(db_error)?;
+    let rows = client
+        .query(&statement, &[&account_id])
+        .await
+        .map_err(db_error)?;
+    let mut revisions = rows
+        .iter()
+        .map(revision_from)
+        .collect::<Result<Vec<_>, _>>()?;
+    // By site as identifiers are ordered, layer first, which is not the
+    // order of their text: the order the in-memory store gives.
+    revisions.sort_by(|a, b| (&a.record.id, a.number).cmp(&(&b.record.id, b.number)));
+    Ok(revisions)
+}
+
+/// Every confirmation an account has, by site.
+pub(super) async fn confirmations_by(
+    client: &Client,
+    account_id: &str,
+) -> Result<Vec<(SiteId, SiteConfirmation)>, StoreError> {
+    let statement = client
+        .prepare_cached(
+            "SELECT k.site_id, k.day, k.note, k.with_flight, k.at,
+                    a.id AS author_id, a.handle AS author_handle,
+                    a.display_name AS author_name
+             FROM site_confirmations k
+             JOIN accounts a ON a.id = k.account_id
+             WHERE k.account_id = $1",
+        )
+        .await
+        .map_err(db_error)?;
+    let rows = client
+        .query(&statement, &[&account_id])
+        .await
+        .map_err(db_error)?;
+    let mut confirmations = rows
+        .iter()
+        .map(|row| {
+            let site: &str = row.get("site_id");
+            let site: SiteId = site
+                .parse()
+                .map_err(|e| corrupt("identifier of a confirmed site", e))?;
+            let pilot = pilot_from(row, "author_id", "author_handle", "author_name")
+                .ok_or_else(|| corrupt("confirmation", "it has no account"))?;
+            let confirmation = SiteConfirmation {
+                pilot,
+                day: row.get("day"),
+                note: row.get("note"),
+                with_flight: row.get("with_flight"),
+                at: row.get("at"),
+            };
+            Ok((site, confirmation))
+        })
+        .collect::<Result<Vec<_>, StoreError>>()?;
+    // By site, in the order of identifiers; see `revisions_by`.
+    confirmations.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(confirmations)
+}
+
 #[cfg(test)]
 mod tests {
     use venti_domain::{GeoPoint, SiteUse};

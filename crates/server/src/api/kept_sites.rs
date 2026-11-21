@@ -50,7 +50,7 @@ struct Record {
 }
 
 /// A stored kept site as the API hands it out.
-fn wire(kept: &venti_store::KeptSite) -> Result<KeptSite, ApiError> {
+pub(super) fn wire(kept: &venti_store::KeptSite) -> Result<KeptSite, ApiError> {
     // The text is the server's own writing.
     let record: Record = serde_json::from_str(&kept.record).map_err(|_| ApiError::internal())?;
     Ok(KeptSite {

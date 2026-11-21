@@ -100,6 +100,13 @@ pub struct Limits {
     /// bury whoever runs the server. It also bounds how fast an account
     /// can try addresses through this endpoint.
     pub reports_per_day: u32,
+    /// Archives one account may ask for within a day
+    /// (`GET /v1/account/archive`), whatever becomes of the request. An
+    /// archive reads every flight file the account has and packs them
+    /// anew: a pilot wants one now and then, and a program that asked in a
+    /// loop would keep the server at nothing else. Four lets a pilot ask
+    /// again after a download that broke off (an estimate).
+    pub archives_per_day: u32,
     /// Requests to the connector from one address within
     /// [`connector_window`](Self::connector_window). The connector is open
     /// to the internet without sign-in. An assistant's provider sends the
@@ -180,6 +187,7 @@ impl Default for Limits {
             uploads_per_day: 1000,
             slow_upload_weight: 50,
             reports_per_day: 20,
+            archives_per_day: 4,
             connector_requests_per_address: 120,
             connector_requests_per_network: 480,
             connector_window: Duration::minutes(1),
@@ -214,6 +222,7 @@ impl Limits {
             registrations_per_network: u32::MAX,
             uploads_per_day: u32::MAX,
             reports_per_day: u32::MAX,
+            archives_per_day: u32::MAX,
             connector_requests_per_address: u32::MAX,
             connector_requests_per_network: u32::MAX,
             forecast_fetches_per_address: u32::MAX,

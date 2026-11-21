@@ -58,6 +58,7 @@
 
 mod account;
 mod airspace;
+mod archive;
 mod auth;
 mod body;
 mod cache;
@@ -104,11 +105,12 @@ use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
-    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
-    Attribution, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH,
-    HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
-    PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH,
-    SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
+    ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH,
+    AIRSPACE_PATH, Attribution, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH,
+    GROUPS_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES,
+    PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH,
+    REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH,
+    THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -142,6 +144,12 @@ const DEADLINE: Duration = Duration::from_secs(10);
 /// wait for an analysis, the analysis); this is behind them, for whatever
 /// they miss.
 const UPLOAD_DEADLINE: Duration = Duration::from_secs(150);
+
+/// How long making a pilot's archive may take, from the request to the
+/// last byte being ready. Reading and packing the most flight files one
+/// archive holds takes some ten seconds of one processor (an estimate);
+/// this is behind that, for a database that is slow that day.
+const ARCHIVE_DEADLINE: Duration = Duration::from_secs(120);
 
 /// How long a browser may reuse the answer to a CORS preflight request.
 const PREFLIGHT_MAX_AGE: Duration = Duration::from_secs(3600);
@@ -246,6 +254,8 @@ pub struct Api<S> {
     uploads: Throttle,
     /// Reports sent, by account.
     reports: Throttle,
+    /// Archives asked for, by account, and the one turn at making one.
+    archives: archive::Archives,
     /// Uploads under way.
     uploading: flights::Uploading,
     /// The preview pictures of shared flights: the turns at drawing one,
@@ -343,6 +353,7 @@ impl<S: Store> Api<S> {
                 chrono::Duration::days(1),
                 limits.watched_keys,
             ),
+            archives: archive::Archives::new(limits.watched_keys),
             uploading: flights::Uploading::new(),
             pictures: share::Pictures::default(),
             mcp,
@@ -458,8 +469,9 @@ impl<S: Store> Api<S> {
     ///
     /// From the outside in, a request passes: the request log, response
     /// compression, CORS, a note of the address it came from ([`clients`]),
-    /// and then one of five groups of routes. The files of a map region
-    /// are a sixth group, which response compression is not around.
+    /// and then one of five groups of routes. A pilot's archive and the
+    /// files of a map region are two more, which response compression is
+    /// not around.
     ///
     /// - The API's ordinary routes: the guarantee that every error is a
     ///   JSON error body, the deadline, a small limit on the body, the
@@ -473,6 +485,10 @@ impl<S: Store> Api<S> {
     ///   people, in HTML, errors included.
     /// - The connector: it answers assistants, in the protocol's own shape,
     ///   errors included, with a deadline and a body limit of its own.
+    /// - A pilot's archive ([`archive`]): as the files of a map region
+    ///   below, never compressed, because a ZIP file is compressed
+    ///   already; with a deadline of its own and the small limit on the
+    ///   body.
     /// - The files of a map region ([`maps`]): the request log, CORS, the
     ///   note of the address, the guarantee about errors, the handler. A
     ///   file is sent as it is on the disk, never compressed: a compressed
@@ -627,6 +643,16 @@ impl<S: Store> Api<S> {
             .layer(RequestBodyLimitLayer::new(flights::MAX_UPLOAD_BYTES))
             .layer(deadline(UPLOAD_DEADLINE));
 
+        // A pilot's archive: it takes as long as its flight files need,
+        // and it is a ZIP file, which nothing compresses a second time.
+        // The group is merged in below, after the compression is laid
+        // around the others.
+        let archive = Routes::new(&mut routes)
+            .route(ACCOUNT_ARCHIVE_PATH, get(archive::archive::<S>))
+            .done()
+            .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
+            .layer(deadline(ARCHIVE_DEADLINE));
+
         let share = Routes::new(&mut routes)
             .route("/f/{id}", get(share::page::<S>))
             .route("/f/{id}/preview.png", get(share::preview::<S>))
@@ -654,6 +680,7 @@ impl<S: Store> Api<S> {
         let map_files = Routes::new(&mut routes)
             .route(maps::FILE_ROUTE, get(maps::file::<S>))
             .done()
+            .merge(archive)
             .layer(axum::middleware::from_fn(shape::uniform_errors))
             .layer(axum::middleware::from_fn_with_state(
                 api.clone(),

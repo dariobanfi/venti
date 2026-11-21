@@ -31,12 +31,12 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
-    ACCESS_TOKEN_PREFIX, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH,
-    AIRSPACE_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH,
-    HEALTH_PATH, KEPT_SITE_CHANGES_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH,
-    PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH,
-    REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope,
-    THERMAL_HOURS_PATH, THERMALS_PATH,
+    ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
+    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ARCHIVE_MEDIA_TYPE, FLIGHT_CHANGES_PATH,
+    FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, KEPT_SITE_CHANGES_PATH,
+    LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
+    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH,
+    SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 
 use super::cache;
@@ -383,6 +383,15 @@ fn operations() -> Vec<Op> {
             .session()
             .takes("DeleteAccountRequest")
             .nothing(),
+        get(
+            ACCOUNT_ARCHIVE_PATH,
+            "Everything the account gave, as one ZIP file",
+        )
+        .session()
+        .bytes(
+            ARCHIVE_MEDIA_TYPE,
+            "A ZIP file. Its index.json (ArchiveIndex) names every file with the record it holds",
+        ),
         put(ACCOUNT_PASSWORD_PATH, "Change the password")
             .session()
             .takes("ChangePasswordRequest")

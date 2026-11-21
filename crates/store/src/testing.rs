@@ -182,6 +182,10 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn given_by(&self, _: &str) -> Result<crate::Given, StoreError> {
+        self.fail().await
+    }
+
     async fn confirm_pilot_site(
         &self,
         _: &NewSiteConfirmation,

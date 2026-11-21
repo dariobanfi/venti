@@ -38,7 +38,7 @@ use crate::{
     SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
     StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, batch,
 };
-use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
+use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
 /// Connections kept to the database. The API's queries take milliseconds,
 /// so a few connections serve many requests.
@@ -595,6 +595,20 @@ impl Store for PgStore {
         limit: usize,
     ) -> Result<PilotSiteChanges, StoreError> {
         pilot_sites::changes(&self.client().await?, layer, since, limit).await
+    }
+
+    async fn given_by(&self, account_id: &str) -> Result<Given, StoreError> {
+        // PostgreSQL takes no zero byte in text, and no account's
+        // identifier holds one.
+        if account_id.contains('\0') {
+            return Ok(Given::default());
+        }
+        let client = self.client().await?;
+        Ok(Given {
+            revisions: pilot_sites::revisions_by(&client, account_id).await?,
+            confirmations: pilot_sites::confirmations_by(&client, account_id).await?,
+            reports: reports::sent_by(&client, account_id).await?,
+        })
     }
 
     async fn confirm_pilot_site(

@@ -436,6 +436,12 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         Answer(200),
     ),
     ("site_changes.json", "get", "/v1/sites/changes", Answer(200)),
+    (
+        "site_changes_pilots.json",
+        "get",
+        "/v1/sites/changes",
+        Answer(200),
+    ),
     ("site_add_request.json", "post", "/v1/sites", Request),
     ("site_written.json", "post", "/v1/sites", Answer(201)),
     ("site_change_request.json", "put", "/v1/sites/{id}", Request),
@@ -830,7 +836,10 @@ async fn every_golden_answer_is_valid_against_its_schema() {
     let known: BTreeSet<&str> = GOLDEN.iter().map(|(file, ..)| *file).collect();
     for entry in std::fs::read_dir(golden("")).unwrap() {
         let name = entry.unwrap().file_name().into_string().unwrap();
-        let of_the_api = name.ends_with(".json") && !name.starts_with("mcp_");
+        // A file of a pilot's archive is no answer of an operation: the
+        // archive's own test holds it.
+        let of_the_api =
+            name.ends_with(".json") && !name.starts_with("mcp_") && !name.starts_with("archive_");
         assert!(
             !of_the_api || known.contains(name.as_str()),
             "{name} is a golden answer that is checked against no schema: \

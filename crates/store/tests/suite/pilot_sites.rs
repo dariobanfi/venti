@@ -9,12 +9,13 @@ use venti_domain::{
     BoundingBox, GeoPoint, Site, SiteId, SiteOutline, SiteUse, SourceId, Timestamp, WindSector,
 };
 use venti_store::{
-    Account, NewPilotSite, NewSiteConfirmation, PilotSite, PilotSiteChanges, RevisionKind, Session,
-    SiteAct, SiteConfirmed, SiteConfirming, SiteDelivery, SitePilot, SiteRevising, SiteRevision,
-    SiteVia, SiteWrite, Store, StoreError,
+    Account, Given, NewPilotSite, NewReport, NewSiteConfirmation, PilotSite, PilotSiteChanges,
+    ReportSaved, ReportSubject, RevisionKind, Session, SiteAct, SiteConfirmed, SiteConfirming,
+    SiteDelivery, SitePilot, SiteRevising, SiteRevision, SiteVia, SiteWrite, Store, StoreError,
 };
 
 use super::accounts::{create, id, secret};
+use super::moderation::report;
 use super::{alps, at, everything, run};
 
 // --- Helpers -------------------------------------------------------------
@@ -1274,4 +1275,102 @@ pub(crate) async fn a_pilot_confirms_a_site_once_and_takes_it_back(store: &impl 
     assert_eq!(left.confirmed, SiteConfirmed::default());
     assert!(left.stands());
     assert_eq!(left.created_by, None);
+}
+
+pub(crate) async fn what_an_account_gave_is_listed_for_it_and_for_nobody_else(store: &impl Store) {
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    // Nothing yet, and nothing for an account that is not there.
+    assert_eq!(store.given_by(&anna.id).await.unwrap(), Given::default());
+    assert_eq!(
+        store.given_by(&id("nobody")).await.unwrap(),
+        Given::default()
+    );
+
+    // Anna makes two sites and Bernd corrects one of them; Anna removes
+    // the other. Each of them confirms one, and each reports something.
+    add(store, record("b", 47.61, 11.81), &anna, at(10, 1)).await;
+    add(store, record("a", 47.60, 11.80), &anna, at(10, 0)).await;
+    let mut higher = record("a", 47.60, 11.80);
+    higher.elevation_m = Some(1520.0);
+    written(store, &by(&bernd, "a", at(10, 5), change(higher))).await;
+    let removal = by(&anna, "b", at(10, 6), SiteAct::Remove { take_down: false });
+    written(store, &removal).await;
+    let noted = NewSiteConfirmation {
+        note: Some("West at noon".to_owned()),
+        ..confirming("a", &anna, 14, at(11, 0))
+    };
+    confirm(store, &noted).await;
+    confirm(store, &confirming("a", &bernd, 12, at(11, 5))).await;
+    let about_site = NewReport {
+        about_account_id: None,
+        ..report(
+            "r2",
+            &anna,
+            &bernd,
+            ReportSubject::Site {
+                id: site_id("a").to_string(),
+                revision: 2,
+            },
+            at(12, 5),
+        )
+    };
+    let about_pilot = report("r1", &anna, &bernd, ReportSubject::Pilot, at(12, 0));
+    let theirs = report("r3", &bernd, &anna, ReportSubject::Pilot, at(12, 1));
+    for new in [&about_site, &about_pilot, &theirs] {
+        assert_eq!(store.save_report(new).await.unwrap(), ReportSaved::Stored);
+    }
+
+    // Anna's: her three revisions by site and number, her confirmation,
+    // her two reports, the older first.
+    let given = store.given_by(&anna.id).await.unwrap();
+    let revisions: Vec<_> = given
+        .revisions
+        .iter()
+        .map(|r| (short(&r.record.id), r.number, r.kind))
+        .collect();
+    assert_eq!(
+        revisions,
+        [
+            (short(&site_id("a")), 1, RevisionKind::Created),
+            (short(&site_id("b")), 1, RevisionKind::Created),
+            (short(&site_id("b")), 2, RevisionKind::Removed),
+        ]
+    );
+    assert!(given.revisions.iter().all(|r| r.author == pilot(&anna)));
+    assert_eq!(given.revisions[0], history(store, "a").await[0]);
+    let [(site, said)] = given.confirmations.as_slice() else {
+        panic!("one confirmation: {:?}", given.confirmations);
+    };
+    assert_eq!(site, &site_id("a"));
+    assert_eq!(
+        (said.day, said.note.as_deref(), said.at),
+        (day(14), Some("West at noon"), at(11, 0))
+    );
+    assert_eq!(Some(said.pilot.clone()), pilot(&anna));
+    let reports: Vec<_> = given.reports.iter().map(|r| r.id.clone()).collect();
+    assert_eq!(reports, [id("r1"), id("r2")]);
+    assert_eq!(given.reports[1].subject, about_site.subject);
+    assert_eq!(given.reports[0].about.as_ref().unwrap().handle, "bernd");
+
+    // Bernd's: his one revision, his confirmation, his report.
+    let given = store.given_by(&bernd.id).await.unwrap();
+    assert_eq!(given.revisions.len(), 1);
+    assert_eq!(
+        (given.revisions[0].number, given.confirmations.len()),
+        (2, 1)
+    );
+    assert_eq!(given.reports.len(), 1);
+
+    // A revision of a site that was taken down is still its author's.
+    let down = by_operator("a", at(13, 0), SiteAct::Remove { take_down: true });
+    written(store, &down).await;
+    let given = store.given_by(&anna.id).await.unwrap();
+    assert_eq!(given.revisions.len(), 3);
+
+    // And when the account goes, nothing is listed for it any more.
+    store.delete_account(&anna.id).await.unwrap();
+    assert_eq!(store.given_by(&anna.id).await.unwrap(), Given::default());
+    let given = store.given_by(&bernd.id).await.unwrap();
+    assert_eq!((given.revisions.len(), given.reports.len()), (1, 0));
 }

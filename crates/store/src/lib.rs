@@ -78,9 +78,9 @@ pub use live::{
 pub use memory::MemoryStore;
 pub use month::Month;
 pub use pilot_site::{
-    NewPilotSite, NewSiteConfirmation, PARTNERS_LAYER, PilotSite, PilotSiteChanges, RevisionKind,
-    SiteAct, SiteConfirmation, SiteConfirmed, SiteConfirming, SitePilot, SiteRevising,
-    SiteRevision, SiteVia, SiteWrite,
+    Given, NewPilotSite, NewSiteConfirmation, PARTNERS_LAYER, PilotSite, PilotSiteChanges,
+    RevisionKind, SiteAct, SiteConfirmation, SiteConfirmed, SiteConfirming, SitePilot,
+    SiteRevising, SiteRevision, SiteVia, SiteWrite,
 };
 pub use postgres::PgStore;
 pub use report::{
@@ -460,6 +460,17 @@ pub trait Store: Send + Sync + 'static {
         site: &SiteId,
         limit: usize,
     ) -> impl Future<Output = Result<Option<(PilotSite, Vec<SiteConfirmation>)>, StoreError>> + Send;
+
+    /// What an account gave that no other call lists by account: every
+    /// revision of a site it wrote, every confirmation it has, and every
+    /// report it sent that is still kept. See [`Given`].
+    ///
+    /// This is for the account itself, when it takes what it gave with
+    /// it. A revision is listed whether its site stands, is removed or
+    /// was taken down: it is its author's own writing. A report is listed
+    /// with what whoever runs the server did about it, which the caller
+    /// keeps to itself. An account that does not exist gave nothing.
+    fn given_by(&self, account_id: &str) -> impl Future<Output = Result<Given, StoreError>> + Send;
 
     // --- Forecasts --------------------------------------------------------
 

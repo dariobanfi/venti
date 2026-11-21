@@ -103,6 +103,18 @@ impl Reports {
         reports
     }
 
+    /// The reports an account sent, oldest first.
+    pub(super) fn sent_by(&self, account_id: &str, accounts: &Accounts) -> Vec<Report> {
+        let mut reports: Vec<Report> = self
+            .reports
+            .values()
+            .filter(|entry| entry.new.reporter_id == account_id)
+            .filter_map(|entry| Self::read(entry, accounts))
+            .collect();
+        reports.sort_by_key(Report::key);
+        reports
+    }
+
     pub(super) fn close(
         &mut self,
         id: &str,

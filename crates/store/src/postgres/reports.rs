@@ -229,6 +229,30 @@ pub(super) async fn list(
     rows.iter().map(report_from).collect()
 }
 
+/// The reports an account sent, oldest first.
+pub(super) async fn sent_by(client: &Client, account_id: &str) -> Result<Vec<Report>, StoreError> {
+    let statement = client
+        .prepare_cached(
+            "SELECT r.id, r.created_at, reporter.handle AS reporter_handle, r.about_account_id,
+                    about.handle AS about_handle, about.display_name AS about_name,
+                    r.kind, r.subject_id, r.group_id, r.reported_name, r.reported_place,
+                    r.reported_note, r.site_revision, r.reason, r.reporter_text, r.closed_at,
+                    r.closing_note
+             FROM reports r
+             JOIN accounts reporter ON reporter.id = r.reporter_id
+             LEFT JOIN accounts about ON about.id = r.about_account_id
+             WHERE r.reporter_id = $1
+             ORDER BY r.created_at, r.id",
+        )
+        .await
+        .map_err(db_error)?;
+    let rows = client
+        .query(&statement, &[&account_id])
+        .await
+        .map_err(db_error)?;
+    rows.iter().map(report_from).collect()
+}
+
 pub(super) async fn close(
     client: &Client,
     id: &str,

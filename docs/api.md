@@ -1603,6 +1603,7 @@ curl 'http://127.0.0.1:8080/v1/sites/changes'
     }
   ],
   "removed": [],
+  "removals": [],
   "cursor": "10",
   "more": false,
   "reset": false,
@@ -1619,7 +1620,90 @@ curl 'http://127.0.0.1:8080/v1/sites/changes'
 }
 ```
 
-`sites` are the sites that are new, changed or back, each once and as it stands now, with its `standing`; `removed` are the identifiers of sites that are gone. `more` says to ask again at once with `cursor`. `reset` is `true` when the server did not know the cursor and started from the beginning. An account that is deleted takes its name off its sites without a change being listed: a copy's author names can be older than the server's.
+`sites` are the sites that are new, changed or back, each once and as it stands now, with its `standing`. `removed` are the identifiers of sites that are gone: all a mirror needs to remove them. `removals` are the same sites in the same order, each with what a list of "removed lately" shows, so that an app does not have to ask every site's history. `more` says to ask again at once with `cursor`. `reset` is `true` when the server did not know the cursor and started from the beginning. An account that is deleted takes its name off its sites, and off what it removed, without a change being listed: a copy's author names can be older than the server's.
+
+The crowdsourced layer of the development mode has one site that is gone:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites/changes?layer=venti-pilots'
+```
+
+```json
+{
+  "sites": [
+    {
+      "site": {
+        "id": "venti-pilots:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 2104.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      },
+      "standing": {
+        "id": "venti-pilots:0000000000000000000000s002",
+        "revision": 3,
+        "created_at": "2026-11-06T19:05:00Z",
+        "created_by": {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        "changed_at": "2026-11-13T19:05:00Z",
+        "changed_by": {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        },
+        "confirmed": {
+          "pilots": 1,
+          "latest_day": "2026-11-12"
+        }
+      }
+    }
+  ],
+  "removed": [
+    "venti-pilots:0000000000000000000000s004"
+  ],
+  "removals": [
+    {
+      "id": "venti-pilots:0000000000000000000000s004",
+      "name": "Musterkogel",
+      "at": "2026-11-15T19:15:00Z",
+      "by": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      }
+    }
+  ],
+  "cursor": "11",
+  "more": false,
+  "reset": false,
+  "attributions": [
+    {
+      "source": "venti-pilots",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there."
+    }
+  ]
+}
+```
+
+| Field of a removal | Meaning |
+|---|---|
+| `id` | The site, as `removed` names it |
+| `name` | Its name as it last stood. Left out for a site that whoever runs the server took down: such a site shows nothing of what it said |
+| `at` | When it was removed |
+| `by` | Who removed it, by `handle` and `display_name`, as a site's history names a pilot. Left out where whoever runs the server removed it, and where the account is gone |
+
+What the site said, and why it was removed, is in [its history](#get-v1sitesidhistoryafterlimit), which a removed site keeps; a site that was taken down has none to read.
 
 ### `POST /v1/sites`
 
@@ -3118,6 +3202,145 @@ The answers to creating an account and to signing in carry the same `account`. T
 }
 ```
 
+### `GET /v1/account/archive`
+
+Everything the account gave, as one ZIP file: for a pilot who wants a copy, or who leaves. **The pilot's own sign-in only**: a session's token. No token for a program gets it, whatever its scopes (`403` with `session_required`); a program reads its pieces through the scopes it has.
+
+```bash
+curl -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000' \
+  -o venti-demo.zip 'http://127.0.0.1:8080/v1/account/archive'
+```
+
+The answer is `200` with `Content-Type: application/zip` and a name for the file (`Content-Disposition: attachment; filename="venti-demo-2026-11-18.zip"`). It is made for the asking, is kept by nobody (`Cache-Control: no-store`) and is never compressed a second time.
+
+| File | The record it holds | What it is |
+|---|---|---|
+| `index.json` | `ArchiveIndex`, below | What the archive is: when it was made, every file with the record it holds and its licence, every flight with the name of its file |
+| `README.txt` | Text | The same, for a person |
+| `account.json` | The answer of [`GET /v1/account`](#get-v1account) | The account |
+| `sessions.json` | The answer of [`GET /v1/sessions`](#get-v1sessions) | The devices signed in, by the name each gave |
+| `tokens.json` | The answer of [`GET /v1/account/tokens`](#get-v1accounttokens) | The tokens given to other programs: names, scopes, dates |
+| `flights.json` | The answer of [`GET /v1/flights`](#get-v1flightsafterlimit), all pages in one, without `next` | Every flight, public or not, newest first |
+| `flights/2026-08-15_1030Z_5t1eshyp.igc` | The file as it was uploaded, byte for byte: what [`GET /v1/flights/{id}/igc`](#get-v1flightsidigc) answers | One for each flight, named by the day and the time of its take-off in UTC and the first eight characters of the flight's `id` |
+| `groups.json` | The answer of [`GET /v1/groups`](#get-v1groups) | The groups the account is in, each with who keeps it |
+| `plans.json` | The answer of [`GET /v1/groups/{id}/plans`](#get-v1groupsidplansfromto), for all groups in one | The plans the account posted, and the plans of others it said it is in on. Plans for days gone by are [no longer kept](#plans-for-a-flying-day) |
+| `sites.json` | `{"revisions": […], "confirmations": […]}` | What the account gave to the [sites that pilots make](#sites-that-ventis-partners-and-pilots-add). `revisions`: every revision it wrote, by site and number, each as [a site's history](#get-v1sitesidhistoryafterlimit) has it; the site is `site.id`, and the revision with `number` 1 made the site. `confirmations`: where it says it took off, each with `site`, `day`, `note`, `with_flight` and `at`. Given under CC0 1.0 |
+| `kept-sites.json` | The answer of [`GET /v1/account/kept-sites/changes`](#get-v1accountkept-siteschangessincelimit) from the beginning, all pages in one | The sites the account keeps as its own |
+| `reports.json` | `{"reports": [{"sent_at": "…", "report": {…}}]}` | The [reports](#reports) the account sent and the server still keeps: `report` is the body of `POST /v1/reports` as it was sent, a site with the revision the server noted |
+
+Never in it: the password or its fingerprint, and the secret of a session or of a token. `index.json` says in `not_included` what else the account has on the server that the archive does not hold: live tracks, which the server removes 48 hours after their last position; what other pilots put into the groups; and what whoever runs the server noted about a report.
+
+This is `index.json` of the demo account's archive:
+
+```json
+{
+  "format": 1,
+  "made_at": "2026-11-18T19:05:00Z",
+  "account": "demo",
+  "files": [
+    {
+      "path": "account.json",
+      "holds": "The account: handle, name, and since when.",
+      "record": "AccountResponse",
+      "entries": 1
+    },
+    {
+      "path": "sessions.json",
+      "holds": "The devices signed in to the account, by the name each gave.",
+      "record": "SessionsResponse",
+      "entries": 1
+    },
+    {
+      "path": "tokens.json",
+      "holds": "The tokens given to other programs: names, scopes and dates. No secrets.",
+      "record": "AccessTokensResponse",
+      "entries": 1
+    },
+    {
+      "path": "flights.json",
+      "holds": "Every flight of the account, public or not, newest first: what the server worked out of each file. The files are under flights/.",
+      "record": "FlightsResponse",
+      "entries": 3
+    },
+    {
+      "path": "groups.json",
+      "holds": "The groups the account is in, each with who keeps it.",
+      "record": "GroupsResponse",
+      "entries": 1
+    },
+    {
+      "path": "plans.json",
+      "holds": "The plans the account posted to its groups, and the plans of others it said it is in on. Plans for days gone by are no longer kept.",
+      "record": "PlansResponse",
+      "entries": 2
+    },
+    {
+      "path": "sites.json",
+      "holds": "What the account gave to the take-offs and landings that pilots make: every revision it wrote (number 1 made the site), and where it says it took off. The sites were given to everyone and stay when the account goes.",
+      "record": "ArchiveSites",
+      "entries": 4,
+      "licence": {
+        "name": "CC0 1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "path": "kept-sites.json",
+      "holds": "The sites the account keeps as its own, each as it was when kept, and the identifiers of those it forgot lately.",
+      "record": "KeptSiteChangesResponse",
+      "entries": 0
+    },
+    {
+      "path": "reports.json",
+      "holds": "The reports the account sent to whoever runs the server, as it sent them.",
+      "record": "ArchiveReports",
+      "entries": 0
+    }
+  ],
+  "flights": [
+    {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "file": "flights/2026-08-15_1030Z_5t1eshyp.igc"
+    },
+    {
+      "id": "7cf5ytrw45b0aeb5tcr8wet2km",
+      "file": "flights/2026-07-04_1030Z_7cf5ytrw.igc"
+    },
+    {
+      "id": "7fvpx515951prsvkemfbvgkd3w",
+      "file": "flights/2025-06-21_1030Z_7fvpx515.igc"
+    }
+  ],
+  "complete": true,
+  "not_included": [
+    "The password and the secrets of sessions and tokens. The server keeps only a fingerprint of each and cannot hand one out.",
+    "Live tracks. The server keeps one for a short time after its last position and then removes it; the flight reaches the logbook as a file.",
+    "What other pilots put into the groups: their names as members, and their plans unless this account said it is in on them.",
+    "What whoever runs the server noted about a report, and reports others sent.",
+    "What this account withdrew: a deleted flight, a forgotten site's record, a confirmation taken back."
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `format` | 1. A later format gets a later number; within one, the index only gains fields |
+| `made_at` | When the archive was made. Every file in it carries this moment |
+| `account` | The handle of the account |
+| `files` | Every file but the flight files, `index.json` and `README.txt`: its `path`, what it `holds` in words, the `record` by the name the [description of the API](#writing-a-program-against-venti) gives it, how many `entries` its list has, and the `licence` (`name`, `url`) its records stand under where the kind has one. Only `sites.json` has one, CC0 1.0: everything else is the pilot's own and was given to nobody |
+| `flights` | Every flight, newest first: its `id` and the `file` it has in the archive |
+| `complete` | `false` when a flight is listed without a `file`: the archive had no room for it, or the flight was deleted while the archive was made |
+| `not_included` | What the account has on the server that the archive does not hold, in words |
+
+**Reading it back.** A flight file uploaded to an account ([`POST /v1/flights`](#post-v1flights)) makes the flight there again, with everything the server works out of it; who may see it is set anew. Nothing else of an archive is read back by the server today.
+
+**The bounds.** None of them is a setting.
+
+- An account asks for its archive at most 4 times a day; after that `429` with `rate_limited` and `Retry-After`.
+- The server makes one archive at a time, in its memory. Whoever asks meanwhile gets `503` with `unavailable` and `Retry-After: 60`, and that request is not counted.
+- An archive holds at most 512 MB of flight files, counted as they were uploaded, the newest flights first. A flight beyond that is in `flights.json` and in the index without a `file`, `complete` is `false`, and its file is fetched by itself with `GET /v1/flights/{id}/igc`. Hundreds of flights fit; an account with several thousand long ones meets the bound.
+- The server gives up after 120 seconds (`503` with `timeout`).
+
 ### `PUT /v1/account/password`
 
 Needs a token. Changes the password, and signs out every device except the asking one: whoever knew the old password is out.
@@ -3145,7 +3368,24 @@ Needs a token, and the password in the body: a token alone is not enough for thi
 
 Deletes the account with everything that belongs to it: its sessions, its tokens for programs, [the sites it keeps as its own](#the-sites-a-pilot-keeps), its flights and their files, its live tracks with their positions, and what it put into [groups](#groups): the plans it posted and its "I am in" on the plans of others. It leaves every group it is in. A group it kept is kept by the member who has been in it longest, under the name it had; a group it was alone in is deleted. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
 
-To take everything along first, list the flights (`GET /v1/flights`) and download each file (`GET /v1/flights/{id}/igc`).
+To take everything along first, ask for [the archive](#get-v1accountarchive).
+
+What becomes of each kind of thing the account gave:
+
+| Kind | What deleting the account does |
+|---|---|
+| The account, its password, its sessions, its [tokens for programs](#tokens-for-other-programs) | Gone. The handle is free for anyone |
+| Flights and their files, private or public | Gone, with the record of the flights it had deleted. A flight that was public is listed as withdrawn in [`GET /v1/flights/public/changes`](#get-v1flightspublicchangessincepilotlimit), by a hash of its address and without a pilot, so that whoever copied it removes the copy |
+| Live tracks with their positions | Gone, with the identifiers they used |
+| [The sites it keeps as its own](#the-sites-a-pilot-keeps) | Gone |
+| Its places in [groups](#groups) | Gone: it leaves every group. A group it kept passes to the member who has been in it longest; a group it was alone in is deleted, with its plans |
+| The [plans](#plans-for-a-flying-day) it posted | Gone, with who was in on them |
+| Its "I am in" on the plans of others | Gone; the plans stay |
+| The [reports](#reports) it sent | Gone, open or closed |
+| Reports others sent about it, its flights, its plans or a group it kept | Gone too, with the words they kept of a plan or a group's name |
+| The [sites it added and the revisions it wrote](#sites-that-ventis-partners-and-pilots-add) | **They stay**, every revision with its record and its comment: they were given to everyone under CC0 1.0. They name no author from then on: `created_by`, `changed_by` and a revision's `by` are left out, and so is `by` of a site it removed in [`GET /v1/sites/changes`](#get-v1siteschangeslayersincelimit). No change is listed for it, so a copy made earlier still has the name |
+| Its confirmations of sites ("I took off here") | Gone: a confirmation is the pilot's word, not a record given to everyone. The site's count is one less; the site is not listed as changed for it |
+| The invite code the account was made with | Stays as used, without saying by whom |
 
 Not gone at once are the copies in the server's nightly backups, which the operator keeps for fourteen days unless configured otherwise; see [deploy/README.md](../deploy/README.md#backup). Live tracks are in no backup, and neither are plans; the groups an account was in are.
 
@@ -3224,11 +3464,12 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `DELETE /v1/sessions/{id}` | the session only |
 | `PUT /v1/account/password` | the session only |
 | `DELETE /v1/account` | the session only |
+| `GET /v1/account/archive` | the session only |
 | `POST /v1/account/tokens` | the session only |
 | `GET /v1/account/tokens` | the session only |
 | `DELETE /v1/account/tokens/{id}` | the session only |
 
-"The session only" is what no token may do, whatever its scopes: see or end the pilot's sessions, change the password, delete the account, and make, list or withdraw tokens. A token therefore cannot widen itself or outlive its withdrawal.
+"The session only" is what no token may do, whatever its scopes: see or end the pilot's sessions, change the password, delete the account, take [the archive of everything the account gave](#get-v1accountarchive), and make, list or withdraw tokens. A token therefore cannot widen itself or outlive its withdrawal.
 
 **The errors a program meets.**
 

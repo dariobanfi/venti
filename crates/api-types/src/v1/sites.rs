@@ -325,14 +325,38 @@ pub struct SiteRecord {
     pub standing: SiteStanding,
 }
 
+/// A site that is gone, as a list of removed sites names it. What the
+/// site said, revision by revision, is its history's to tell.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SiteRemoval {
+    /// The site.
+    pub id: SiteId,
+    /// Its name as it last stood. Absent for a site that whoever runs the
+    /// server took down: such a site shows nothing of what it said.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// When it was removed.
+    pub at: Timestamp,
+    /// Who removed it. Absent where whoever runs the server did, and
+    /// where the account is gone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<SitePilot>,
+}
+
 /// The answer of `GET /v1/sites/changes`: what happened to the sites that
 /// pilots made since a program last asked.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SiteChangesResponse {
     /// Sites that are new, changed or back, each as it stands now.
     pub sites: Vec<SiteRecord>,
-    /// Sites that are gone. Whoever keeps a copy removes them.
+    /// Sites that are gone, by identifier. Whoever keeps a copy removes
+    /// them, and needs nothing more than this list for it.
     pub removed: Vec<SiteId>,
+    /// The same sites in the same order, each with what a list of removed
+    /// sites shows beside the identifier: its name, who removed it and
+    /// when.
+    #[serde(default)]
+    pub removals: Vec<SiteRemoval>,
     /// Pass this as `since` next time.
     pub cursor: String,
     /// Whether more changes are waiting. Ask again with `cursor` at once.

@@ -14,6 +14,7 @@
 //! | [`session_path`] | DELETE | | nothing |
 //! | [`ACCOUNT_PATH`] | GET | | [`AccountResponse`] |
 //! | [`ACCOUNT_PATH`] | DELETE | [`DeleteAccountRequest`] | nothing |
+//! | [`ACCOUNT_ARCHIVE_PATH`] | GET | | a ZIP file; [`ArchiveIndex`] is its `index.json` |
 //! | [`ACCOUNT_PASSWORD_PATH`] | PUT | [`ChangePasswordRequest`] | nothing |
 //! | [`ACCOUNT_TOKENS_PATH`] | POST | [`CreateAccessTokenRequest`] | [`CreateAccessTokenResponse`] |
 //! | [`ACCOUNT_TOKENS_PATH`] | GET | | [`AccessTokensResponse`] |
@@ -71,6 +72,7 @@
 
 mod account;
 mod airspace;
+mod archive;
 mod attribution;
 mod error;
 mod flights;
@@ -96,6 +98,11 @@ pub use account::{
     Session, SessionsResponse, SignInRequest, SignInResponse, parse_display_name,
 };
 pub use airspace::{AirspaceLayer, AirspaceResponse};
+pub use archive::{
+    ACCOUNT_ARCHIVE_PATH, ARCHIVE_FORMAT, ARCHIVE_INDEX_FILE, ARCHIVE_MEDIA_TYPE, ArchiveFile,
+    ArchiveFlight, ArchiveIndex, ArchiveLicence, ArchiveReport, ArchiveReports,
+    ArchiveSiteConfirmation, ArchiveSites, MAX_ARCHIVE_FILE_BYTES,
+};
 pub use attribution::Attribution;
 pub use error::{ErrorBody, ErrorCode, ErrorResponse, ErrorSite};
 pub use flights::{
@@ -162,9 +169,9 @@ pub use sites::{
     ConfirmSiteRequest, DEFAULT_SITE_LAYERS, MAX_SITE_COMMENT_LENGTH, MAX_SITE_CONFIRMATIONS,
     RemoveSiteRequest, RestoreSiteRequest, SiteChangesResponse, SiteConfirmation,
     SiteConfirmationsResponse, SiteConfirmed, SiteDraft, SiteHistoryResponse, SiteLayer, SitePilot,
-    SiteRecord, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding, SiteVia, SitesResponse,
-    VENTI_PILOTS_SITES_SOURCE, VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL, VENTI_SITES_SOURCE,
-    parse_site_comment,
+    SiteRecord, SiteRemoval, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding, SiteVia,
+    SitesResponse, VENTI_PILOTS_SITES_SOURCE, VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL,
+    VENTI_SITES_SOURCE, parse_site_comment,
 };
 pub use stations::{Station, StationWithLatest, StationsResponse};
 pub use thermals::{

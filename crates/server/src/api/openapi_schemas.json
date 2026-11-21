@@ -2602,8 +2602,16 @@
       },
       "removed": {
         "type": "array",
+        "description": "The sites that are gone, by identifier: all a mirror needs to remove them.",
         "items": {
           "type": "string"
+        }
+      },
+      "removals": {
+        "type": "array",
+        "description": "The same sites in the same order, each with its name, who removed it and when.",
+        "items": {
+          "$ref": "#/components/schemas/SiteRemoval"
         }
       },
       "cursor": {
@@ -2628,6 +2636,7 @@
     "required": [
       "sites",
       "removed",
+      "removals",
       "cursor",
       "more",
       "reset",
@@ -2862,6 +2871,29 @@
     "required": [
       "site",
       "standing"
+    ]
+  },
+  "SiteRemoval": {
+    "description": "A site that is gone, as a list of removed sites names it. `name` is as the site last stood, and absent for a site that whoever runs the server took down. `by` is absent where whoever runs the server removed it and where the account is gone.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "by": {
+        "$ref": "#/components/schemas/SitePilot"
+      }
+    },
+    "required": [
+      "id",
+      "at"
     ]
   },
   "SiteResponse": {

@@ -2915,6 +2915,7 @@ dependencies = [
  "venti-sources-suedtirol",
  "venti-store",
  "venti-tools",
+ "zip",
 ]
 
 [[package]]

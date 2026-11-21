@@ -29,7 +29,7 @@ use crate::{
     StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, airspace, batch, forecast,
     site,
 };
-use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
+use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
 /// A store that lives in the process and forgets everything when it ends.
 ///
@@ -447,6 +447,17 @@ impl Store for MemoryStore {
         Ok(inner
             .pilot_sites
             .changes(layer, since, limit, &inner.accounts))
+    }
+
+    async fn given_by(&self, account_id: &str) -> Result<Given, StoreError> {
+        let inner = self.lock();
+        Ok(Given {
+            revisions: inner.pilot_sites.revisions_by(account_id, &inner.accounts),
+            confirmations: inner
+                .pilot_sites
+                .confirmations_by(account_id, &inner.accounts),
+            reports: inner.reports.sent_by(account_id, &inner.accounts),
+        })
     }
 
     async fn confirm_pilot_site(

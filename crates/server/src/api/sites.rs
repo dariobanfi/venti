@@ -37,8 +37,8 @@ use venti_api_types::v1::{
     ConfirmSiteRequest, ErrorCode, ErrorSite, Handle, MAX_SITE_COMMENT_LENGTH,
     MAX_SITE_CONFIRMATIONS, MAX_SITES, RemoveSiteRequest, RestoreSiteRequest, SiteChangesResponse,
     SiteConfirmation, SiteConfirmationsResponse, SiteConfirmed, SiteDraft, SiteHistoryResponse,
-    SiteLayer, SitePilot, SiteRecord, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding,
-    SiteVia, SitesResponse, parse_bbox, parse_site_comment,
+    SiteLayer, SitePilot, SiteRecord, SiteRemoval, SiteResponse, SiteRevision, SiteRevisionKind,
+    SiteStanding, SiteVia, SitesResponse, parse_bbox, parse_site_comment,
 };
 use venti_domain::{BoundingBox, Site, SiteId, SourceId, Timestamp};
 use venti_sources::Kind;
@@ -427,6 +427,32 @@ fn pilot(pilot: Option<&venti_store::SitePilot>) -> Result<Option<SitePilot>, Ap
         .transpose()
 }
 
+/// A revision as a site's history has it, and as its author's archive
+/// does.
+pub(super) fn revision(revision: venti_store::SiteRevision) -> Result<SiteRevision, ApiError> {
+    Ok(SiteRevision {
+        number: revision.number,
+        at: revision.at,
+        by: pilot(revision.author.as_ref())?,
+        via: match revision.via {
+            venti_store::SiteVia::Session => SiteVia::Session,
+            venti_store::SiteVia::Operator => SiteVia::Operator,
+            // The token's name stays here: it is the pilot's word for a
+            // program of theirs, and a history is read by everyone.
+            venti_store::SiteVia::Token(_) => SiteVia::Token,
+        },
+        kind: match revision.kind {
+            RevisionKind::Created => SiteRevisionKind::Created,
+            RevisionKind::Changed => SiteRevisionKind::Changed,
+            RevisionKind::Restored(_) => SiteRevisionKind::Restored,
+            RevisionKind::Removed => SiteRevisionKind::Removed,
+        },
+        restores: revision.kind.restores(),
+        comment: revision.comment,
+        site: revision.record,
+    })
+}
+
 fn standing(site: &PilotSite) -> Result<SiteStanding, ApiError> {
     Ok(SiteStanding {
         id: site.site.id.clone(),
@@ -584,30 +610,7 @@ pub(crate) async fn show<S: Store>(
             }
             let revisions = revisions
                 .into_iter()
-                .map(|revision| {
-                    Ok(SiteRevision {
-                        number: revision.number,
-                        at: revision.at,
-                        by: pilot(revision.author.as_ref())?,
-                        via: match revision.via {
-                            venti_store::SiteVia::Session => SiteVia::Session,
-                            venti_store::SiteVia::Operator => SiteVia::Operator,
-                            // The token's name stays here: it is the
-                            // pilot's word for a program of theirs, and
-                            // a history is read by everyone.
-                            venti_store::SiteVia::Token(_) => SiteVia::Token,
-                        },
-                        kind: match revision.kind {
-                            RevisionKind::Created => SiteRevisionKind::Created,
-                            RevisionKind::Changed => SiteRevisionKind::Changed,
-                            RevisionKind::Restored(_) => SiteRevisionKind::Restored,
-                            RevisionKind::Removed => SiteRevisionKind::Removed,
-                        },
-                        restores: revision.kind.restores(),
-                        comment: revision.comment,
-                        site: revision.record,
-                    })
-                })
+                .map(revision)
                 .collect::<Result<Vec<_>, ApiError>>()?;
             let more = revisions
                 .last()
@@ -713,19 +716,30 @@ pub(crate) async fn changes<S: Store>(
     let cursor = changes.sites.last().map_or(since, |site| site.change);
     let mut sites = Vec::new();
     let mut removed = Vec::new();
+    let mut removals = Vec::new();
     for site in changes.sites {
-        if site.stands() {
-            sites.push(SiteRecord {
+        match site.removed_at {
+            None => sites.push(SiteRecord {
                 standing: standing(&site)?,
                 site: site.site,
-            });
-        } else {
-            removed.push(site.site.id);
+            }),
+            Some(at) => {
+                removals.push(SiteRemoval {
+                    id: site.site.id.clone(),
+                    // A site that was taken down shows nothing of what
+                    // it said, its name included.
+                    name: site.site.name.filter(|_| !site.taken_down),
+                    at,
+                    by: pilot(site.changed_by.as_ref())?,
+                });
+                removed.push(site.site.id);
+            }
         }
     }
     let answer = SiteChangesResponse {
         sites,
         removed,
+        removals,
         cursor: cursor.to_string(),
         more: changes.more,
         reset,

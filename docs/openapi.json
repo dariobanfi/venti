@@ -2641,7 +2641,15 @@
             "description": "Whether more changes wait: ask again at once with `cursor`.",
             "type": "boolean"
           },
+          "removals": {
+            "description": "The same sites in the same order, each with its name, who removed it and when.",
+            "items": {
+              "$ref": "#/components/schemas/SiteRemoval"
+            },
+            "type": "array"
+          },
           "removed": {
+            "description": "The sites that are gone, by identifier: all a mirror needs to remove them.",
             "items": {
               "type": "string"
             },
@@ -2661,6 +2669,7 @@
         "required": [
           "sites",
           "removed",
+          "removals",
           "cursor",
           "more",
           "reset",
@@ -2895,6 +2904,29 @@
         "required": [
           "site",
           "standing"
+        ],
+        "type": "object"
+      },
+      "SiteRemoval": {
+        "description": "A site that is gone, as a list of removed sites names it. `name` is as the site last stood, and absent for a site that whoever runs the server took down. `by` is absent where whoever runs the server removed it and where the account is gone.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "by": {
+            "$ref": "#/components/schemas/SitePilot"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at"
         ],
         "type": "object"
       },
@@ -4031,6 +4063,42 @@
         ],
         "summary": "The account",
         "x-venti-docs": "GET /v1/account"
+      }
+    },
+    "/v1/account/archive": {
+      "get": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "get_account_archive",
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "description": "A ZIP file. Its index.json (ArchiveIndex) names every file with the record it holds",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Everything the account gave, as one ZIP file",
+        "x-venti-docs": "GET /v1/account/archive"
       }
     },
     "/v1/account/kept-sites/changes": {

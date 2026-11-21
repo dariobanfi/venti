@@ -46,6 +46,7 @@ final class AppNavigation {
 struct RootScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(AccountModel.self) private var account
+    @Environment(AlertsModel.self) private var alerts
     @Environment(TaskModel.self) private var tasks
     @Environment(\.scenePhase) private var scenePhase
     @State private var navigation = AppNavigation()
@@ -86,6 +87,11 @@ struct RootScreen: View {
                 // partner for flying sites, which decides what a site's
                 // page offers.
                 Task { await account.read() }
+                // And what the alarms fired since, each new line a
+                // notification: Venti sends nothing by itself.
+                Task { await alerts.sync(notifies: true) }
+            } else if phase == .background {
+                alerts.scheduleRefresh()
             }
         }
         .onChange(of: logbook.view.totals.flights) {

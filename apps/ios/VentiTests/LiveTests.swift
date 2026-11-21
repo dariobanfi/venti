@@ -260,7 +260,8 @@ final class LiveTests: XCTestCase {
 
     func testThereIsAPictureForEveryKindOfGlider() {
         XCTAssertEqual(
-            Set(LiveSymbols.all.map(\.name)), [LiveSymbols.flying, LiveSymbols.quiet, LiveSymbols.landed]
+            Set(LiveSymbols.all.map(\.name)),
+            [LiveSymbols.flying, LiveSymbols.quiet, LiveSymbols.landed, LiveSymbols.other]
         )
         for picture in LiveSymbols.all {
             XCTAssertEqual(picture.image.size, CGSize(width: LiveSymbols.side, height: LiveSymbols.side))

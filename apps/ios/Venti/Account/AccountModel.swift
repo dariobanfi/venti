@@ -34,6 +34,8 @@ final class AccountModel {
     /// account, and when the account came or went: where the list is kept
     /// has changed, and with `true` the sites on this iPhone have too.
     @ObservationIgnored var onKeptSitesSynced: (_ changedHere: Bool) -> Void = { _ in }
+    /// Called after signing in and out: the alarms follow the account.
+    @ObservationIgnored var onAccountChanged: () -> Void = {}
     @ObservationIgnored private var lastAutomaticSync: Date?
     /// Set when a sync was asked for while one was under way: the logbook
     /// changed again, and another run follows the present one.
@@ -121,6 +123,7 @@ final class AccountModel {
             return
         }
         await runSync()
+        onAccountChanged()
     }
 
     /// Signs this iPhone out. The flights in the logbook stay.
@@ -138,6 +141,7 @@ final class AccountModel {
         account = nil
         lastSync = nil
         onKeptSitesSynced(false)
+        onAccountChanged()
     }
 
     /// Deletes the account on the server, with its flights there. The
@@ -154,6 +158,7 @@ final class AccountModel {
             self.account = nil
             lastSync = nil
             onKeptSitesSynced(false)
+            onAccountChanged()
             return true
         } catch {
             problem = Self.words(for: error)

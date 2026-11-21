@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 import VentiCore
 
 @main
@@ -17,7 +18,7 @@ struct VentiApp: App {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
                 let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar,
-                let candidates
+                let candidates, let alerts
             ):
                 RootScreen()
                     .environment(logbook)
@@ -39,6 +40,7 @@ struct VentiApp: App {
                     .environment(own)
                     .environment(radar)
                     .environment(candidates)
+                    .environment(alerts)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -49,6 +51,10 @@ struct VentiApp: App {
                 )
             }
         }
+        // What the alarms fired, fetched when the system wakes the app.
+        .backgroundTask(.appRefresh(AlertsModel.refreshTask)) {
+            await AlertsModel.refreshInTheBackground()
+        }
     }
 }
 
@@ -58,7 +64,7 @@ enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
         TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
-        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel
+        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel
     )
     case failed(String)
 
@@ -197,9 +203,16 @@ enum Session {
             // Groups and their plans for a flying day, on the pilot's
             // server, with the account's token.
             let groups = GroupsModel(core: core, account: account)
+            // The pilot's alarms, on the account: fetched after signing in
+            // and cleared after signing out. Their notifications show also
+            // while the app is in front.
+            let alerts = AlertsModel(core: core, account: account)
+            account.onAccountChanged = { Task { await alerts.sync() } }
+            AlertsModel.running = alerts
+            UNUserNotificationCenter.current().delegate = AlertNotices.showsInFront
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps, today, thermals, own, radar, candidates
+                groups, maps, today, thermals, own, radar, candidates, alerts
             )
         } catch {
             return .failed(error.words)

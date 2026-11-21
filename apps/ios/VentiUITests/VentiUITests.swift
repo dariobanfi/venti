@@ -2099,7 +2099,6 @@ final class VentiUITests: XCTestCase {
             XCTAssertTrue(line.waitForExistence(timeout: 5))
             XCTAssertEqual(line.label, "Paraglider at 2,140 m, climbing 1.8 m/s, 20 s ago")
             XCTAssertEqual(element("other-name", in: app).label, "WB, Paraglider")
-            XCTAssertTrue(element("other-age", in: app).exists)
             XCTAssertTrue(element("other-credit", in: app).exists)
             XCTAssertTrue(app.navigationBars["Paraglider"].exists)
             sleep(1)
@@ -3188,6 +3187,118 @@ extension VentiUITests {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         XCTAssertTrue((200..<300).contains(status), "The development server made no account: \(status)")
         return (handle, password)
+    }
+
+    /// The pilot's alarms, signed in as the development server's demo
+    /// account: "Alerts" under the account lists its two alarms and, under
+    /// them, what fired (the Patscherkofel's line); "Alert me" on a wind
+    /// station's page opens the form, whose first try to save shows the
+    /// core's fault at the directions; with a direction chosen it saves,
+    /// and the alarm is in the list. Then the list and a form in the dark.
+    func testAPilotSetsAnAlarmAndSeesWhatFired() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        // The map opens on the Zugspitze, whose station the wind's list
+        // then has.
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.42,10.98,10"])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+
+        openAlerts(in: app)
+        XCTAssertTrue(labelled(containing: "Patscherkofel north", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "Nordkette cross-country", in: app).exists)
+        let fired = element("alerts-fired-line", in: app)
+        XCTAssertTrue(fired.waitForExistence(timeout: 30))
+        XCTAssertTrue(fired.label.contains("Patscherkofel"), fired.label)
+        sleep(1)
+        keepScreenshot("alerts-1-list")
+
+        // "Alert me" on the Zugspitze's page.
+        openTab("Map", in: app)
+        let stations = app.buttons["Wind stations"]
+        XCTAssertTrue(stations.waitForExistence(timeout: 30))
+        XCTAssertTrue(element("wind-credits", in: app).waitForExistence(timeout: 60))
+        stations.tap()
+        XCTAssertTrue(app.navigationBars["Wind stations"].waitForExistence(timeout: 15))
+        let summit = labelled(containing: "Zugspitze", in: app)
+        XCTAssertTrue(summit.waitForExistence(timeout: 30))
+        summit.tap()
+        XCTAssertTrue(element("wind-chart", in: app).waitForExistence(timeout: 30))
+        bring("alert-me", into: app).tap()
+        let line = element("alert-line", in: app)
+        XCTAssertTrue(line.waitForExistence(timeout: 15))
+        XCTAssertTrue(line.label.hasPrefix("Wind at Zugspitze"), line.label)
+        sleep(1)
+        keepScreenshot("alerts-2-form")
+
+        // Neither directions nor speeds: the core's fault, at its field.
+        element("alert-save", in: app).tap()
+        let fault = element("alert-fault-rule.directions", in: app)
+        XCTAssertTrue(fault.waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("alerts-3-fault")
+        let north = element("alert-from", in: app).buttons["N"].firstMatch
+        XCTAssertTrue(north.waitForExistence(timeout: 10))
+        north.tap()
+        XCTAssertTrue(line.label.contains("from N"), line.label)
+        for _ in 0..<10 where fault.exists {
+            usleep(300_000)
+        }
+        XCTAssertFalse(fault.exists)
+        element("alert-save", in: app).tap()
+        // The first alarm asks whether Venti may notify.
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow"]
+        if allow.waitForExistence(timeout: 8) {
+            allow.tap()
+        }
+        XCTAssertTrue(element("alert-me", in: app).waitForExistence(timeout: 20))
+        XCTAssertFalse(line.exists)
+        // The station's page is pushed in the stations' sheet over the
+        // map: back to the list, and the list closed with "Done".
+        for _ in 0..<4 where element("wind-chart", in: app).exists || app.navigationBars["Wind stations"].exists {
+            let done = app.navigationBars["Wind stations"].buttons["Done"]
+            if done.exists {
+                done.tap()
+            } else {
+                app.navigationBars.buttons.element(boundBy: 0).tap()
+            }
+            sleep(1)
+        }
+
+        openAlerts(in: app)
+        XCTAssertTrue(labelled(containing: "Wind at Zugspitze from N", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "Patscherkofel north", in: app).exists)
+        sleep(1)
+        keepScreenshot("alerts-4-list-with-the-new-one")
+
+        // In the dark: the list, and the Patscherkofel's alarm in its form.
+        app.terminate()
+        let dark = launch(bundledMap: true, dark: true, extra: ["--server", server])
+        XCTAssertTrue(dark.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: dark)
+        openAlerts(in: dark)
+        // The alarms come the oldest first: the Patscherkofel's is the first.
+        let row = element("alert-row", in: dark)
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        XCTAssertTrue(row.label.contains("Patscherkofel north"), row.label)
+        XCTAssertTrue(element("alerts-fired-line", in: dark).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("alerts-5-list-dark")
+        row.tap()
+        let form = element("alert-line", in: dark)
+        XCTAssertTrue(form.waitForExistence(timeout: 15))
+        XCTAssertTrue(form.label.hasPrefix("Wind at Patscherkofel from N to NE"), form.label)
+        sleep(1)
+        keepScreenshot("alerts-6-form-dark")
+    }
+
+    /// Opens "Alerts" under Settings, Account.
+    private func openAlerts(in app: XCUIApplication) {
+        openTab("Settings", in: app)
+        bring("account-link", into: app).tap()
+        bring("alerts-link", into: app).tap()
+        XCTAssertTrue(app.navigationBars["Alerts"].waitForExistence(timeout: 15))
     }
 
     /// Signs in under Settings, Account, and comes back to the map.

@@ -250,8 +250,8 @@ struct OtherAircraftRow: View {
 }
 
 /// An aircraft another network hears, tapped on the map: what kind, who
-/// where the owner lets it be said, the core's line, how old the position
-/// is, and the network's credit. The network gives positions only: there
+/// where the owner lets it be said, the core's line, which ends with how
+/// old the position is, and the network's credit. The network gives positions only: there
 /// is no track to follow.
 struct OtherAircraftSheet: View {
     @Environment(LiveModel.self) private var live
@@ -268,10 +268,9 @@ struct OtherAircraftSheet: View {
                                 .font(.venti(.headline))
                                 .accessibilityIdentifier("other-name")
                         }
+                        // The line ends with how old the position is.
                         Text(found.aircraft.line)
                             .accessibilityIdentifier("other-line")
-                        LabeledContent("Position", value: found.aircraft.ageWords)
-                            .accessibilityIdentifier("other-age")
                     } footer: {
                         if let notice = found.credit?.notice {
                             Text(notice)

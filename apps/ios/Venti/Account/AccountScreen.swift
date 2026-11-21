@@ -173,6 +173,13 @@ private struct SignedInView: View {
                 }
                 .disabled(signedIn.needsSignIn)
                 .accessibilityIdentifier("programs-link")
+                // The pilot's alarms, which Venti checks where the data
+                // arrives, and what they fired.
+                NavigationLink(AlertWords.title) {
+                    AlertsScreen()
+                }
+                .disabled(signedIn.needsSignIn)
+                .accessibilityIdentifier("alerts-link")
             }
 
             Section {

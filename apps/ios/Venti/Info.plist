@@ -101,12 +101,18 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<!-- A flight is recorded, the vario sounds and the Bluetooth vario is
-	     heard with the screen off. -->
+	     heard with the screen off; and the system wakes the app now and
+	     then to fetch what the pilot's alarms fired (AlertsModel). -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
 		<string>audio</string>
 		<string>bluetooth-central</string>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).alerts</string>
 	</array>
 </dict>
 </plist>

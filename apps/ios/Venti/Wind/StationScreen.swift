@@ -75,6 +75,9 @@ struct StationScreen: View {
                 .accessibilityIdentifier("station-forecast")
             }
 
+            // A wind alarm for this station, on the account.
+            AlertMeSection(draft: AlertsModel.draft(for: station))
+
             if let credit {
                 Section("Source") {
                     VStack(alignment: .leading, spacing: 4) {

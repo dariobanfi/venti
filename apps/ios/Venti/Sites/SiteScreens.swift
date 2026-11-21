@@ -497,6 +497,10 @@ struct SiteScreen: View {
             } footer: {
                 Text(ownProblem ?? Self.ownWords(isOwn: isOwn, note: own.list?.note))
             }
+            // A day alarm for a take-off, on the account.
+            if isForTakingOff {
+                AlertMeSection(draft: AlertsModel.draft(for: site))
+            }
             Section {
                 Button(kept == nil ? "Add to my waypoints" : "In your waypoints", systemImage: kept == nil ? "plus" : "checkmark") {
                     do {

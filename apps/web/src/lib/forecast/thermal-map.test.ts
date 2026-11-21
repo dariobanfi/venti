@@ -43,6 +43,8 @@ const DAY: ThermalMapDay = {
 	name: 'Today',
 	whole: true,
 	note: '',
+	model: 'ICON-D2',
+	runUnixS: 1_783_825_200,
 	cells: [
 		cell(47.5, 11.5),
 		cell(47.5, 11.6, {
@@ -128,10 +130,14 @@ describe('the map', () => {
 
 	it('says its model, its run and whose it is', () => {
 		// The day and the time are written as the reader's region writes them.
-		expect(runLine(map, text)).toBe(
-			`ICON-D2, run of ${text.dayInYear(map.runUnixS)} at ${text.time(map.runUnixS)}`
+		expect(runLine(DAY, text)).toBe(
+			`ICON-D2, run of ${text.dayInYear(DAY.runUnixS)} at ${text.time(DAY.runUnixS)}`
 		);
-		expect(runLine(map, text)).toMatch(/^ICON-D2, run of Sun, /);
+		expect(runLine(DAY, text)).toMatch(/^ICON-D2, run of Sun, /);
+		// A later day can be a coarser model's, with a run of its own.
+		expect(runLine({ model: 'ICON-EU', runUnixS: DAY.runUnixS - 10_800 }, text)).toMatch(
+			/^ICON-EU, run of /
+		);
 		expect(creditLine(map, text)).toBe('Forecast: Open-Meteo');
 		expect(creditLine(undefined, text)).toBe('');
 		expect(judgedAt(1240, text)).toBe('Judged at the model’s ground, 1240 m');

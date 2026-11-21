@@ -31,8 +31,8 @@ export function judgedAt(groundM: number, text: Format): string {
 }
 
 /** "ICON-D2, run of Sat, 21 Nov at 06:00" */
-export function runLine(map: Pick<ThermalMap, 'model' | 'runUnixS'>, text: Format): string {
-	return `${map.model}, run of ${text.dayInYear(map.runUnixS)} at ${text.time(map.runUnixS)}`;
+export function runLine(day: Pick<ThermalMapDay, 'model' | 'runUnixS'>, text: Format): string {
+	return `${day.model}, run of ${text.dayInYear(day.runUnixS)} at ${text.time(day.runUnixS)}`;
 }
 
 /** Whose forecast the map is, in a line for the map's lower edge; empty without credits. */

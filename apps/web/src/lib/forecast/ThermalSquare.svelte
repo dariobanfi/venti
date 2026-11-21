@@ -57,7 +57,7 @@
 	{/if}
 	<p class="caption">{map.note}</p>
 	{#if withRun}
-		<p class="caption numeric">{runLine(map, text)}</p>
+		<p class="caption numeric">{runLine(day, text)}</p>
 	{/if}
 	{#if map.credits.length > 0}
 		<p class="caption">

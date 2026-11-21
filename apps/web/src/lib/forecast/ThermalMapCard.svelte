@@ -66,7 +66,7 @@
 				</li>
 			{/each}
 		</ul>
-		<p class="caption numeric">{runLine(map, text)}</p>
+		<p class="caption numeric">{runLine(day, text)}</p>
 		{#if day.note}
 			<p class="caption">{day.note}</p>
 		{/if}

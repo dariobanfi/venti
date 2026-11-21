@@ -1021,7 +1021,7 @@ final class VentiUITests: XCTestCase {
 
         // The choices are kept between launches: an earlier run that
         // stopped half-way may have left the other layers off.
-        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
+        for layer in ["layer-wind", "layer-airspace", "layer-sites", "layer-pilots"] {
             setLayer(layer, on: true, in: app)
         }
         setLayer("forecast-chip", on: false, in: app)
@@ -1043,13 +1043,22 @@ final class VentiUITests: XCTestCase {
         if element("forecast-layer-thermals", in: app).waitForExistence(timeout: 60) {
             chooseForecastLayer("thermals", in: app)
         }
-        XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 90))
-        XCTAssertTrue(element("forecast-days", in: app).waitForExistence(timeout: 15))
-        XCTAssertTrue(labelled(containing: "Not flyable", in: app).exists)
-        XCTAssertTrue(element("forecast-model", in: app).exists)
+        XCTAssertTrue(element("forecast-days", in: app).waitForExistence(timeout: 90))
+        XCTAssertTrue(element("forecast-hours", in: app).waitForExistence(timeout: 60))
+        // The card as it opens: the key and the notes are not on it.
+        XCTAssertFalse(element("forecast-key", in: app).exists)
         // Time for the squares to be drawn.
         sleep(4)
         keepScreenshot("map-forecast-1-today")
+        // Behind "Key and notes": the key, the model and its run.
+        showKeyAndNotes(true, in: app)
+        XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Not flyable", in: app).exists)
+        XCTAssertTrue(element("forecast-model", in: app).exists)
+        sleep(1)
+        keepScreenshot("map-forecast-1b-key-and-notes")
+        // Closed again: open, the card lies where a square is tapped below.
+        showKeyAndNotes(false, in: app)
 
         // The second day. The stand-in dates its map from the development
         // server's clock, which the app names the days by, so they read
@@ -1060,7 +1069,6 @@ final class VentiUITests: XCTestCase {
         tomorrow.tap()
         usleep(700_000)
         XCTAssertTrue(tomorrow.isSelected)
-        XCTAssertTrue(element("forecast-key", in: app).exists)
         sleep(3)
         keepScreenshot("map-forecast-2-tomorrow")
 
@@ -1144,147 +1152,292 @@ final class VentiUITests: XCTestCase {
         }
     }
 
-    /// Chooses a layer of the forecast map's card by its chip.
+    /// Where the map opens for the screenshots of the hours: the made-up
+    /// map's squares (47.45 to 47.95 N, 11.45 to 12.35 E, nine by five),
+    /// all of them in the part of the map the card leaves to be seen.
+    private static let overTheMadeUpSquares = "47.44,11.9,8.1"
+
+    /// Chooses a layer of the forecast map's card by its chip. The row
+    /// scrolls inside the card: a chip that is not wholly in it is
+    /// brought into it first.
     private func chooseForecastLayer(_ layer: String, in app: XCUIApplication) {
         let chip = element("forecast-layer-\(layer)", in: app)
         XCTAssertTrue(chip.waitForExistence(timeout: 15))
-        for _ in 0..<3 where !isOnScreen(chip, in: app) {
-            element("forecast-layers", in: app).swipeLeft()
+        let row = element("forecast-layers", in: app)
+        for _ in 0..<3 where !row.frame.insetBy(dx: -1, dy: -1).contains(chip.frame) {
+            if chip.frame.midX > row.frame.midX {
+                row.swipeLeft()
+            } else {
+                row.swipeRight()
+            }
+            usleep(600_000)
         }
         chip.tap()
     }
 
+    /// Chooses an hour on the card's line of hours by what the strip
+    /// says of it ("13:00"), and says whether it came to that. The strip
+    /// is one element, and how many hours a day has, and whether "Day"
+    /// stands before them, differs: so it is tapped from where the hour
+    /// should stand outwards, in steps narrower than a cell.
+    @discardableResult
+    private func chooseHour(_ hour: String, in app: XCUIApplication) -> Bool {
+        let strip = element("forecast-hours", in: app)
+        guard strip.waitForExistence(timeout: 60) else { return false }
+        for place in [0.65, 0.59, 0.71, 0.53, 0.77, 0.47, 0.83, 0.41, 0.89, 0.35, 0.95, 0.29, 0.23, 0.17] {
+            if strip.value as? String == hour {
+                return true
+            }
+            strip.coordinate(withNormalizedOffset: CGVector(dx: place, dy: 0.5)).tap()
+            usleep(400_000)
+        }
+        return strip.value as? String == hour
+    }
+
+    /// Opens or closes "Key and notes" on the forecast map's card.
+    private func showKeyAndNotes(_ shown: Bool, in app: XCUIApplication) {
+        let more = element("forecast-more", in: app)
+        XCTAssertTrue(more.waitForExistence(timeout: 15))
+        if (more.value as? String == "Shown") != shown {
+            more.tap()
+            usleep(600_000)
+        }
+        XCTAssertEqual(more.value as? String, shown ? "Shown" : "Hidden")
+    }
+
+    /// Chooses the height of the forecast map's wind from its menu.
+    private func chooseForecastLevel(_ name: String, in app: XCUIApplication) {
+        let level = element("forecast-level", in: app)
+        XCTAssertTrue(level.waitForExistence(timeout: 15))
+        level.tap()
+        let height = app.buttons[name]
+        XCTAssertTrue(height.waitForExistence(timeout: 10))
+        height.tap()
+        XCTAssertTrue(element("forecast-hours", in: app).waitForExistence(timeout: 60))
+    }
+
     /// The forecast map by the hour, against the stand-in with a made-up
     /// day (`tools/made-up-day`): the card's row of layers, the line of
-    /// hours, each of the five layers, the wind at a height, and a tapped
-    /// square of an hour with its days side by side. The day is made up.
-    /// The layer, the level and the chip are kept between launches: the
-    /// test starts on "Thermals" at the ground and leaves it so, off.
+    /// hours, each of the five layers at 13:00, the wind at a height, the
+    /// key and the notes behind their line, and a tapped square of an
+    /// hour with its days side by side. The day is made up. The map opens
+    /// over the made-up squares, all of them above the card. The layer,
+    /// the level and the chip are kept between launches: the test starts
+    /// on "Thermals" at the ground and leaves it so, off.
     func testTheForecastMapShowsTheHoursOfADay() throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
             throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
         }
-        let app = launch(bundledMap: true, extra: ["--server", server])
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", Self.overTheMadeUpSquares])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
-        // Nothing over the squares: the wind, the sites and the pilots off.
-        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
+        // Nothing over the squares: the wind, the airspace, the sites and
+        // the pilots off.
+        let others = ["layer-wind", "layer-airspace", "layer-sites", "layer-pilots"]
+        for layer in others {
             setLayer(layer, on: false, in: app)
         }
         setLayer("forecast-chip", on: true, in: app)
         XCTAssertTrue(element("forecast-chip", in: app).isSelected)
         chooseForecastLayer("thermals", in: app)
 
-        // The day as a whole, and the line of hours under the days.
+        // The day as a whole, and the line of hours under the days; the
+        // key and the notes are not on the card as it opens.
         let strip = element("forecast-hours", in: app)
+        let words = element("forecast-words", in: app)
         XCTAssertTrue(strip.waitForExistence(timeout: 60))
         XCTAssertEqual(strip.value as? String, "The whole day")
+        XCTAssertTrue(words.waitForExistence(timeout: 15))
+        XCTAssertEqual(words.label, "Thermals, the whole day")
+        XCTAssertFalse(element("forecast-key", in: app).exists)
+        XCTAssertFalse(element("forecast-level", in: app).exists)
         sleep(3)
         keepScreenshot("map-hours-1-thermals-day")
 
-        // An hour, by a tap in the middle of the strip.
-        strip.tap()
-        XCTAssertNotEqual(strip.value as? String, "The whole day")
+        // An hour, by a tap on the strip: one o'clock.
+        XCTAssertTrue(chooseHour("13:00", in: app), "The strip says \(String(describing: strip.value))")
+        XCTAssertEqual(words.label, "Thermals, 13:00")
         sleep(3)
         keepScreenshot("map-hours-2-thermals-hour")
-        // VoiceOver's swipe up: the next hour.
-        let before = strip.value as? String
-        strip.swipeRight()
-        sleep(1)
-        XCTAssertNotNil(before)
 
-        // The other layers, each opening at the core's first hour.
+        // The other layers, each opening at the core's first hour and
+        // then set to one o'clock, when the made-up day has rain, gusts
+        // and cloud in it.
         for (layer, name) in [("wind", "3-wind"), ("gusts", "4-gusts"), ("cloud", "5-cloud"), ("rain", "6-rain")] {
             chooseForecastLayer(layer, in: app)
             XCTAssertTrue(strip.waitForExistence(timeout: 60))
-            XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 30))
+            XCTAssertTrue(chooseHour("13:00", in: app), "\(layer): the strip says \(String(describing: strip.value))")
+            XCTAssertTrue(words.label.hasSuffix(", 13:00"), words.label)
+            // The height's menu stands beside the words with the wind alone.
+            XCTAssertEqual(element("forecast-level", in: app).exists, layer == "wind")
             sleep(3)
             keepScreenshot("map-hours-\(name)")
         }
 
-        // The wind at a height, from the level's menu.
+        // The wind at a height, from the level's menu beside the words.
         chooseForecastLayer("wind", in: app)
-        let level = element("forecast-level", in: app)
-        XCTAssertTrue(level.waitForExistence(timeout: 15))
-        level.tap()
-        let height = app.buttons["2000 m"]
-        XCTAssertTrue(height.waitForExistence(timeout: 10))
-        height.tap()
-        XCTAssertTrue(strip.waitForExistence(timeout: 60))
+        chooseForecastLevel("2000 m", in: app)
+        XCTAssertTrue(chooseHour("13:00", in: app), "The strip says \(String(describing: strip.value))")
+        XCTAssertEqual(words.label, "Wind at 2000 m, 13:00")
         sleep(3)
         keepScreenshot("map-hours-7-wind-2000")
 
+        // The key, the model's run and the notes, behind their line.
+        showKeyAndNotes(true, in: app)
+        XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(element("forecast-model", in: app).exists)
+        sleep(1)
+        keepScreenshot("map-hours-7b-key-and-notes")
+        showKeyAndNotes(false, in: app)
+        XCTAssertFalse(element("forecast-key", in: app).exists)
+
         // At 1000 m: where the made-up ground lies higher there is no
         // wind, and a tapped square says so. Squares are tapped across
-        // the map until one says it; each opens a sheet.
-        level.tap()
-        let low = app.buttons["1000 m"]
-        XCTAssertTrue(low.waitForExistence(timeout: 10))
-        low.tap()
-        XCTAssertTrue(strip.waitForExistence(timeout: 60))
+        // the map above the card until one says it; each opens a sheet.
+        chooseForecastLevel("1000 m", in: app)
         sleep(2)
         let sheet = element("forecast-hour-square", in: app)
         var none = false
         var kept = false
-        search: for row in [0.3, 0.4, 0.2, 0.5] {
+        search: for row in [0.3, 0.38, 0.22, 0.34, 0.26] {
             for column in [0.5, 0.3, 0.7, 0.15, 0.85] {
                 app.coordinate(withNormalizedOffset: CGVector(dx: column, dy: row)).tap()
                 guard sheet.waitForExistence(timeout: 5) else { continue }
                 let title = element("forecast-hour-title", in: app).label
-                if !kept {
-                    // The first square tapped: its days side by side.
-                    XCTAssertTrue(element("forecast-square-days", in: app).waitForExistence(timeout: 10))
-                    sleep(1)
-                    keepScreenshot("map-hours-8-square")
-                    kept = true
-                }
+                XCTAssertTrue(element("forecast-square-days", in: app).waitForExistence(timeout: 10))
                 if title.contains("No wind at 1000 m") {
-                    sleep(1)
-                    keepScreenshot("map-hours-9-no-wind-at-1000")
+                    if !none {
+                        sleep(1)
+                        keepScreenshot("map-hours-9-no-wind-at-1000")
+                    }
                     none = true
+                } else {
+                    if !kept {
+                        // A square with a wind: its arrow, and its days
+                        // side by side.
+                        sleep(1)
+                        keepScreenshot("map-hours-8-square")
+                    }
+                    kept = true
                 }
                 app.buttons["Done"].tap()
                 _ = sheet.waitForNonExistence(timeout: 5)
-                if none {
+                if none, kept {
                     break search
                 }
             }
         }
-        XCTAssertTrue(kept, "No tap opened a square of an hour.")
-        XCTAssertTrue(none, "No square said that there is no wind at 1000 m.")
 
-        // Back to "Thermals" at the ground, and off, as the next test
-        // expects the map.
-        level.tap()
-        let ground = app.buttons["Ground"]
-        if ground.waitForExistence(timeout: 10) {
-            ground.tap()
+        // The wind at the ground again, at one o'clock and a zoom closer
+        // (a double tap on the map), where the arrows have their labels:
+        // a screenshot alone, kept if the strip comes to one o'clock.
+        chooseForecastLevel("Ground", in: app)
+        if chooseHour("13:00", in: app) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).doubleTap()
+            sleep(3)
+            keepScreenshot("map-hours-9b-wind-with-labels")
         }
+
+        // Back to "Thermals", and off, as the next test expects the map;
+        // then what the squares had to say.
         chooseForecastLayer("thermals", in: app)
-        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
+        for layer in others {
             setLayer(layer, on: true, in: app)
         }
         setLayer("forecast-chip", on: false, in: app)
         XCTAssertFalse(element("forecast-chip", in: app).isSelected)
+        XCTAssertTrue(kept, "No tap opened a square with a wind at 1000 m.")
+        XCTAssertTrue(none, "No square said that there is no wind at 1000 m.")
     }
 
     /// The keys of the forecast map's layers in the dark appearance, the
-    /// card over the map, which stays light: the wind's, with its hours.
+    /// card over the map, which stays light: the wind's, the cloud's and
+    /// the thermals', with "Key and notes" open.
     func testTheForecastMapsKeysInTheDark() throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
             throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
         }
-        let app = launch(bundledMap: true, dark: true, extra: ["--server", server])
+        let app = launch(
+            bundledMap: true, dark: true, extra: ["--server", server, "--map-at", Self.overTheMadeUpSquares]
+        )
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
         setLayer("forecast-chip", on: true, in: app)
         for (layer, name) in [("wind", "wind"), ("cloud", "cloud"), ("thermals", "thermals")] {
             chooseForecastLayer(layer, in: app)
             XCTAssertTrue(element("forecast-hours", in: app).waitForExistence(timeout: 60))
+            XCTAssertTrue(chooseHour("13:00", in: app))
+            if layer == "wind" {
+                // The card as it opens, in the dark.
+                sleep(3)
+                keepScreenshot("map-hours-dark-wind-closed")
+            }
+            showKeyAndNotes(true, in: app)
             XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 30))
             sleep(3)
             keepScreenshot("map-hours-dark-\(name)")
         }
         setLayer("forecast-chip", on: false, in: app)
         XCTAssertFalse(element("forecast-chip", in: app).isSelected)
+    }
+
+    /// The forecast map's card at a larger text size (the step above the
+    /// largest of the standard sizes, about 135 %), against the stand-in
+    /// with a made-up day: the row of layers, the four days with their
+    /// names whole, a line of eleven hours, the words with the height's
+    /// menu beside them, and the key and the notes open, under the map's
+    /// chips. Run on the narrowest simulator with `--first "iPhone 17e"`,
+    /// this test being the first by name. What the screenshots show is
+    /// for a person to look at; the test holds that the card stays on
+    /// the screen with everything on it to be had.
+    func testTheForecastCardFitsWithLargerText() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing", "--bundled-map", "--server", server, "--map-at", Self.overTheMadeUpSquares,
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL",
+        ]
+        app.launch()
+        openTab("Map", in: app)
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        setLayer("forecast-chip", on: true, in: app)
+        let card = element("forecast-card", in: app)
+        let window = app.windows.firstMatch.frame
+
+        // "Thermals": the strip begins with "Day".
+        chooseForecastLayer("thermals", in: app)
+        XCTAssertTrue(element("forecast-hours", in: app).waitForExistence(timeout: 60))
+        XCTAssertEqual(element("forecast-days", in: app).buttons.count, 4)
+        sleep(3)
+        keepScreenshot("map-hours-larger-text-1-thermals")
+
+        // The wind at a height: the words, and the menu beside them.
+        chooseForecastLayer("wind", in: app)
+        chooseForecastLevel("2000 m", in: app)
+        XCTAssertTrue(chooseHour("13:00", in: app))
+        XCTAssertEqual(element("forecast-words", in: app).label, "Wind at 2000 m, 13:00")
+        XCTAssertTrue(window.contains(element("forecast-level", in: app).frame))
+        sleep(3)
+        keepScreenshot("map-hours-larger-text-2-wind-2000")
+
+        // The key and the notes open: the card stays under the map's
+        // chips, and its line of hours and its days on the screen.
+        showKeyAndNotes(true, in: app)
+        XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("map-hours-larger-text-3-key-and-notes")
+        let chips = element("forecast-chip", in: app).frame
+        let open = card.frame
+        showKeyAndNotes(false, in: app)
+
+        // As the next test expects it: the ground, "Thermals", off.
+        chooseForecastLevel("Ground", in: app)
+        chooseForecastLayer("thermals", in: app)
+        setLayer("forecast-chip", on: false, in: app)
+        XCTAssertFalse(element("forecast-chip", in: app).isSelected)
+        XCTAssertGreaterThanOrEqual(open.minY, chips.maxY, "The open card lies over the map's chips.")
+        XCTAssertTrue(window.contains(open), "The open card does not lie on the screen.")
     }
 
     /// The app's icon on the home screen: the design language's, which

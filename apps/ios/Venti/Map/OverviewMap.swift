@@ -71,8 +71,10 @@ struct OverviewMap: UIViewRepresentable {
         let map = MapSetup.makeMapView(from: source)
         map.delegate = context.coordinator
         map.automaticallyAdjustsContentInset = true
-        // The northern Alps between Lake Constance and Salzburg.
-        map.setCenter(CLLocationCoordinate2D(latitude: 47.45, longitude: 11.6), zoomLevel: 7.4, animated: false)
+        // The northern Alps between Lake Constance and Salzburg, or where
+        // a UI test asks for.
+        let at = LaunchOptions.mapAt ?? (lat: 47.45, lon: 11.6, zoom: 7.4)
+        map.setCenter(CLLocationCoordinate2D(latitude: at.lat, longitude: at.lon), zoomLevel: at.zoom, animated: false)
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         // The map's own double tap zooms; a single tap must wait for it.

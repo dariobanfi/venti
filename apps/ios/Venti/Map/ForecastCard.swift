@@ -1,11 +1,14 @@
 import SwiftUI
 import VentiCore
 
-/// The card at the map's lower edge while the forecast map is on: the
-/// days as the pack's segmented control, the key, the model and when its
-/// run began. While the map is asked for, and when there is none, it says
-/// so in place of the key. The words of the key, the days and the notes
-/// are the core's.
+/// The card at the map's lower edge while the forecast map is on. It
+/// leaves the map to be seen: always there are the layers as a row of
+/// chips, the days as the pack's segmented control, the line of hours and
+/// one line of words, the layer and the hour, with the height's menu
+/// beside them on "Wind". The key, the model with its run and the notes
+/// stand behind "Key and notes", closed when the card opens. While the
+/// map is asked for, and when there is none, it says so. The words of the
+/// layers, the key, the days and the notes are the core's.
 struct ForecastCard: View {
     let state: ThermalMapModel.State
     let map: ThermalMap?
@@ -26,6 +29,9 @@ struct ForecastCard: View {
     @Binding var hour: Int?
     let tryHoursAgain: () -> Void
 
+    /// Whether the key and the notes are shown.
+    @State private var showsKey = false
+
     /// The chosen layer's line of the map's choice of layers.
     private var choice: ThermalMapLayerChoice? {
         map?.layers.first { $0.layer == layer }
@@ -36,51 +42,84 @@ struct ForecastCard: View {
         hours != nil && hoursState == .loaded && !(layer == .thermals && hour == nil)
     }
 
+    /// What the map shows, in a line: the layer and the hour.
+    private var words: String {
+        let marks = hours?.hours ?? []
+        return Self.words(
+            layer: choice?.name, state: hoursState, title: hours?.title,
+            hour: hour.flatMap { marks.indices.contains($0) ? marks[$0].label : nil },
+            hasDay: layer == .thermals
+        )
+    }
+
+    /// The line under the hours: the core's words for the layer and the
+    /// hour's ("Wind at 2000 m, 13:00"); on a layer whose strip begins
+    /// with "Day", "the whole day" where no hour is chosen; the layer's
+    /// name alone while its hours are asked for; and nothing where there
+    /// are no hours, when the map shows the day.
+    static func words(
+        layer: String?, state: ThermalMapModel.HoursState, title: String?, hour: String?, hasDay: Bool
+    ) -> String {
+        switch state {
+        case .loaded:
+            guard let title else { return "" }
+            if let hour {
+                return "\(title), \(hour)"
+            }
+            return hasDay ? "\(title), the whole day" : title
+        case .loading:
+            return layer ?? ""
+        case .idle, .failed:
+            return ""
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+        VStack(alignment: .leading, spacing: VentiSpace.s2) {
             if let map, let day {
                 if !map.layers.isEmpty {
-                    ForecastLayerRow(layers: map.layers, layer: $layer, levels: map.levels, heightM: $heightM)
+                    ForecastLayerRow(layers: map.layers, layer: $layer)
                 }
                 days(of: map, showing: day)
                 if !map.layers.isEmpty {
                     hoursLine
                 }
-                if showsAnHour, let choice {
-                    ForecastHoursKey(key: choice.legend)
-                } else if hoursState == .loading {
-                    EmptyView()
-                } else if isInView {
-                    key(map.legend)
-                } else {
+                wordsLine(of: map)
+                if !showsAnHour, hoursState != .loading, !isInView {
                     Text("The forecast map has no squares for this part of the map.")
                         .font(.ventiType(.label))
                         .foregroundStyle(.venti(.textSecondary))
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("forecast-none-here")
                 }
-                VStack(alignment: .leading, spacing: VentiSpace.s1) {
-                    // Each day is one model's: the days after ICON-D2's are ICON-EU's.
-                    if showsAnHour, let hours {
-                        Text("\(hours.model), run of \(Format.dayAndTime(unixSeconds: hours.runUnixS))")
-                    } else {
-                        Text("\(day.model), run of \(Format.dayAndTime(unixSeconds: day.runUnixS))")
+                Button {
+                    showsKey.toggle()
+                } label: {
+                    HStack(spacing: VentiSpace.s1) {
+                        Text("Key and notes")
+                            .font(.ventiType(.label))
+                        Image(systemName: showsKey ? "chevron.up" : "chevron.down")
+                            .font(.ventiType(.caption))
+                            .accessibilityHidden(true)
                     }
-                    if showsAnHour, let choice, !choice.note.isEmpty {
-                        Text(choice.note)
-                    }
-                    if !day.note.isEmpty {
-                        Text(day.note)
-                    }
-                    if showsAnHour, let hours, !hours.whole, !hours.note.isEmpty {
-                        Text(hours.note)
+                    .foregroundStyle(.venti(.link))
+                    .frame(maxWidth: .infinity, minHeight: VentiSize.touch, alignment: .leading)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(showsKey ? "Shown" : "Hidden")
+                .accessibilityIdentifier("forecast-more")
+                if showsKey {
+                    // As high as it is where the screen has the room, and
+                    // else scrolling in what room there is: a small phone
+                    // with large text.
+                    ViewThatFits(in: .vertical) {
+                        keyAndNotes(of: map, day: day)
+                        ScrollView {
+                            keyAndNotes(of: map, day: day)
+                        }
                     }
                 }
-                .font(.ventiType(.caption))
-                .foregroundStyle(.venti(.textSecondary))
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("forecast-model")
             } else if case .failed(let words) = state {
                 problem(words)
             } else if map != nil {
@@ -102,6 +141,61 @@ struct ForecastCard: View {
         .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("forecast-card")
+    }
+
+    /// The layer and the hour in words, and at their right, on "Wind",
+    /// the menu of its height. Nothing where there is neither.
+    @ViewBuilder private func wordsLine(of map: ThermalMap) -> some View {
+        let hasLevels = choice?.hasLevels == true && !map.levels.isEmpty
+        if !words.isEmpty || hasLevels {
+            HStack(alignment: .center, spacing: VentiSpace.s2) {
+                Text(words)
+                    .font(.ventiType(.label))
+                    .foregroundStyle(.venti(.text))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("forecast-words")
+                Spacer(minLength: 0)
+                if hasLevels {
+                    ForecastLevelMenu(levels: map.levels, heightM: $heightM)
+                        .fixedSize()
+                }
+            }
+        }
+    }
+
+    /// What stands behind "Key and notes": the key of what the map shows,
+    /// the model and when its run began, and the notes.
+    private func keyAndNotes(of map: ThermalMap, day: ThermalMapDay) -> some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            if showsAnHour, let choice {
+                ForecastHoursKey(key: choice.legend)
+            } else {
+                key(map.legend)
+            }
+            VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                // Each day is one model's: the days after ICON-D2's are ICON-EU's.
+                if showsAnHour, let hours {
+                    Text("\(hours.model), run of \(Format.dayAndTime(unixSeconds: hours.runUnixS))")
+                } else {
+                    Text("\(day.model), run of \(Format.dayAndTime(unixSeconds: day.runUnixS))")
+                }
+                if showsAnHour, let choice, !choice.note.isEmpty {
+                    Text(choice.note)
+                }
+                if !day.note.isEmpty {
+                    Text(day.note)
+                }
+                if showsAnHour, let hours, !hours.whole, !hours.note.isEmpty {
+                    Text(hours.note)
+                }
+            }
+            .font(.ventiType(.caption))
+            .foregroundStyle(.venti(.textSecondary))
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("forecast-model")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Where the hours stand: the strip once they are there, and while

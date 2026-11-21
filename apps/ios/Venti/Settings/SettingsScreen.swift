@@ -17,7 +17,9 @@ struct SettingsScreen: View {
 
     var body: some View {
         Group {
-            Form {
+            // The pack's list, on the page's ground with the rows on a
+            // card's surface: a `Form` stands on the system's grey.
+            VentiList {
                 Section {
                     TextField("Your name", text: $pilot)
                         .textContentType(.name)

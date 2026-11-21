@@ -294,6 +294,20 @@ enum LaunchOptions {
         return arguments[flag + 1]
     }
 
+    /// Where the map tab's map opens, given as `--map-at <lat>,<lon>,<zoom>`:
+    /// a UI test frames what its screenshots are to show. Without it, and
+    /// where the three numbers do not read, the map opens as always.
+    static var mapAt: (lat: Double, lon: Double, zoom: Double)? {
+        guard let flag = arguments.firstIndex(of: "--map-at"), arguments.indices.contains(flag + 1) else {
+            return nil
+        }
+        let numbers = arguments[flag + 1].split(separator: ",").compactMap { Double($0) }
+        guard numbers.count == 3, abs(numbers[0]) <= 85, abs(numbers[1]) <= 180, (0...20).contains(numbers[2]) else {
+            return nil
+        }
+        return (numbers[0], numbers[1], numbers[2])
+    }
+
     /// Dark appearance whatever the device is set to, for screenshots.
     /// Normally the app follows the device.
     static var forcedColorScheme: ColorScheme? {

@@ -180,24 +180,35 @@ extension View {
 
 /// The pack's segmented control (`.v-seg`): a few choices side by side in
 /// a pill, the chosen one on the primary colour. Up to four share the
-/// width; more than that keep their own width and scroll.
+/// width: equally where every name fits its share, and else each as wide
+/// as its name needs (`VentiSegmentWidths`), so that no name is cut. More
+/// than four, or four whose names are wider than the pill, keep their own
+/// width and scroll.
 struct VentiSegmented<Value: Hashable>: View {
     let options: [(value: Value, name: String)]
     @Binding var selection: Value
 
     var body: some View {
         if options.count <= 4 {
-            segments(sharingTheWidth: true)
-        } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                segments(sharingTheWidth: false)
+            ViewThatFits(in: .horizontal) {
+                segments(sharingTheWidth: true)
+                scrolling
             }
-            .clipShape(.capsule)
+        } else {
+            scrolling
         }
     }
 
+    private var scrolling: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            segments(sharingTheWidth: false)
+        }
+        .clipShape(.capsule)
+    }
+
     private func segments(sharingTheWidth: Bool) -> some View {
-        HStack(spacing: 0) {
+        let row = sharingTheWidth ? AnyLayout(VentiSegmentWidths()) : AnyLayout(HStackLayout(spacing: 0))
+        return row {
             ForEach(options, id: \.value) { option in
                 let isChosen = option.value == selection
                 Button {
@@ -218,6 +229,63 @@ struct VentiSegmented<Value: Hashable>: View {
         }
         .padding(3)
         .background(.venti(.surfaceRaised), in: .capsule)
+    }
+}
+
+/// How the segments of the pack's segmented control share its width: side
+/// by side without a gap, each as wide as `widths` says.
+struct VentiSegmentWidths: Layout {
+    /// The widths of segments whose names need `needed`, in a pill
+    /// `available` wide. Equal where every name fits an equal share. Else
+    /// a name that needs more than its share gets what it needs, and the
+    /// others share what is left equally. Where the names together are
+    /// wider than the pill, each gets its part of the width by what it
+    /// needs: the control scrolls before it comes to that.
+    static func widths(needed: [CGFloat], available: CGFloat) -> [CGFloat] {
+        let all = needed.reduce(0, +)
+        guard !needed.isEmpty, available > 0, all > 0 else {
+            return needed.map { _ in 0 }
+        }
+        if all >= available {
+            return needed.map { $0 / all * available }
+        }
+        var widths = needed
+        var open = Array(needed.indices)
+        var room = available
+        while !open.isEmpty {
+            let share = room / CGFloat(open.count)
+            let wider = open.filter { needed[$0] > share }
+            if wider.isEmpty {
+                for index in open {
+                    widths[index] = share
+                }
+                break
+            }
+            for index in wider {
+                room -= needed[index]
+            }
+            open.removeAll { wider.contains($0) }
+        }
+        return widths
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let needed = subviews.map { $0.sizeThatFits(.unspecified) }
+        let all = needed.map(\.width).reduce(0, +)
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? all
+        return CGSize(width: width, height: needed.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let needed = subviews.map { $0.sizeThatFits(.unspecified).width }
+        var x = bounds.minX
+        for (subview, width) in zip(subviews, Self.widths(needed: needed, available: bounds.width)) {
+            subview.place(
+                at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading,
+                proposal: ProposedViewSize(width: width, height: bounds.height)
+            )
+            x += width
+        }
     }
 }
 

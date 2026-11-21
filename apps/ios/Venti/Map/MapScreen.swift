@@ -213,6 +213,9 @@ struct MapScreen: View {
                 }
                 credits
             }
+            // Under the row of layer chips, however high the card is with
+            // its key and notes open and the text large.
+            .padding(.top, VentiSize.touch + VentiSpace.s3)
         }
         // Asks again every minute while the map is on screen, and at once
         // when the pilot changes the server.

@@ -29,14 +29,13 @@ extension ThermalHoursLayer {
 }
 
 /// The layers the map offers, as the pack's chips of which one is on, in a
-/// row that scrolls sideways where it does not fit; with the wind, the
-/// level beside it as a menu.
+/// row of their own that scrolls sideways where it does not fit, from one
+/// edge of the card to the other.
 struct ForecastLayerRow: View {
     let layers: [ThermalMapLayerChoice]
     @Binding var layer: ThermalHoursLayer
-    let levels: [ThermalMapLevel]
-    /// The height of the wind above the sea, metres; `nil` at the ground.
-    @Binding var heightM: Int32?
+    /// How far the card's edge lies from the row: the row reaches it.
+    var inset = VentiSpace.s3
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -51,27 +50,36 @@ struct ForecastLayerRow: View {
                     )
                     .accessibilityIdentifier("forecast-layer-\(choice.layer.stored)")
                 }
-                if layers.first(where: { $0.layer == layer })?.hasLevels == true, !levels.isEmpty {
-                    levelMenu
-                }
             }
-            .padding(.horizontal, VentiSpace.s1)
+            .padding(.horizontal, inset)
+            // Room for the chips' shadows, which the scrolling row would
+            // cut off; taken back below, so that the row is as high as
+            // its chips.
+            .padding(.vertical, VentiSpace.s4)
         }
+        .padding(.horizontal, -inset)
+        .padding(.vertical, -VentiSpace.s4)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Layer")
         .accessibilityIdentifier("forecast-layers")
     }
+}
 
-    /// The seven levels are more than a row of chips takes: a menu, its
-    /// label the level chosen.
-    private var levelMenu: some View {
-        let chosen = levels.first { $0.heightM == heightM } ?? levels[0]
-        return Menu {
+/// The height of the wind: the seven levels are more than a row of chips
+/// takes, so a menu, its label the level chosen.
+struct ForecastLevelMenu: View {
+    let levels: [ThermalMapLevel]
+    /// The height of the wind above the sea, metres; `nil` at the ground.
+    @Binding var heightM: Int32?
+
+    var body: some View {
+        let chosen = levels.first { $0.heightM == heightM } ?? levels.first
+        Menu {
             ForEach(levels, id: \.name) { level in
                 Button {
                     heightM = level.heightM
                 } label: {
-                    if level.heightM == chosen.heightM {
+                    if level.heightM == chosen?.heightM {
                         Label(level.name, systemImage: "checkmark")
                     } else {
                         Text(level.name)
@@ -80,7 +88,7 @@ struct ForecastLayerRow: View {
             }
         } label: {
             HStack(spacing: VentiSpace.s1) {
-                Text(chosen.name)
+                Text(chosen?.name ?? "")
                     .font(.ventiType(.label))
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
@@ -95,7 +103,7 @@ struct ForecastLayerRow: View {
             .contentShape(.rect)
         }
         .accessibilityLabel("Height")
-        .accessibilityValue(chosen.words)
+        .accessibilityValue(chosen?.words ?? "")
         .accessibilityIdentifier("forecast-level")
     }
 }
@@ -112,21 +120,68 @@ struct ForecastHourStrip: View {
     /// The chosen hour by its place among `hours`; `nil` for the day.
     @Binding var hour: Int?
 
+    /// How the strip's width is dealt out among its cells, and which cell
+    /// lies under a finger.
+    struct Cells: Equatable {
+        /// How many hours the strip has.
+        let hours: Int
+        /// Whether "Day" stands before them.
+        let hasDay: Bool
+        /// The strip's width.
+        let width: CGFloat
+
+        /// The gap between two cells.
+        static let gap: CGFloat = 2
+        /// "Day" is a word where an hour is two figures: as wide as two
+        /// hours.
+        static let dayShare: CGFloat = 2
+
+        /// The width of an hour's cell.
+        var hourWidth: CGFloat {
+            let cells = hours + (hasDay ? 1 : 0)
+            let shares = CGFloat(hours) + (hasDay ? Self.dayShare : 0)
+            guard shares > 0 else { return 0 }
+            return max((width - Self.gap * CGFloat(cells - 1)) / shares, 0)
+        }
+
+        /// The width of the cell "Day"; nothing where there is none.
+        var dayWidth: CGFloat {
+            hasDay ? hourWidth * Self.dayShare : 0
+        }
+
+        /// The hour under a finger at this distance from the strip's
+        /// start, by its place among the hours; `nil` for "Day". Before
+        /// the strip it is the first cell, past it the last.
+        func hour(at x: CGFloat) -> Int? {
+            let start = hasDay ? dayWidth + Self.gap : 0
+            if hasDay, x < start - Self.gap / 2 {
+                return nil
+            }
+            guard hours > 0, hourWidth > 0 else { return nil }
+            let place = Int(((x - start + Self.gap / 2) / (hourWidth + Self.gap)).rounded(.down))
+            return min(max(place, 0), hours - 1)
+        }
+    }
+
     var body: some View {
         GeometryReader { proxy in
-            HStack(spacing: 2) {
+            let cells = Cells(hours: hours.count, hasDay: hasDay, width: proxy.size.width)
+            HStack(spacing: Cells.gap) {
                 if hasDay {
-                    cell(words: "Day", isChosen: hour == nil)
+                    cell(words: "Day", isChosen: hour == nil, width: cells.dayWidth)
                 }
                 ForEach(hours.indices, id: \.self) { index in
-                    cell(words: String(hours[index].clockHour), isChosen: hour == index)
+                    cell(words: String(hours[index].clockHour), isChosen: hour == index, width: cells.hourWidth)
                 }
             }
             .contentShape(.rect)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { drag in
-                        choose(at: drag.location.x, width: proxy.size.width)
+                        let chosen = cells.hour(at: drag.location.x)
+                        if chosen != hour {
+                            hour = chosen
+                        }
                     }
             )
         }
@@ -145,27 +200,19 @@ struct ForecastHourStrip: View {
     }
 
     /// One cell: the clock's hour, on the primary colour when chosen.
-    private func cell(words: String, isChosen: Bool) -> some View {
+    private func cell(words: String, isChosen: Bool, width: CGFloat) -> some View {
         Text(words)
             .font(.ventiType(.label))
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // A little air at the sides: in narrow cells the figures of
+            // neighbours would else run into one number.
+            .padding(.horizontal, VentiSpace.s1 / 2)
+            .frame(width: width)
+            .frame(maxHeight: .infinity)
             .foregroundStyle(.venti(isChosen ? .onPrimary : .textSecondary))
             .background(.venti(isChosen ? .primary : .surfaceRaised), in: .rect(cornerRadius: VentiRadius.s))
-            .layoutPriority(words.count > 2 ? 1 : 0)
-    }
-
-    /// The cell under a finger at this distance from the strip's start.
-    private func choose(at x: CGFloat, width: CGFloat) {
-        let count = hours.count + (hasDay ? 1 : 0)
-        guard count > 0, width > 0 else { return }
-        let place = min(max(Int(x / width * CGFloat(count)), 0), count - 1)
-        let chosen: Int? = hasDay ? (place == 0 ? nil : place - 1) : place
-        if chosen != hour {
-            hour = chosen
-        }
     }
 
     /// One hour later or earlier, as VoiceOver's swipe asks.

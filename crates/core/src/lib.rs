@@ -52,6 +52,7 @@ mod task;
 mod terrain;
 #[cfg(test)]
 mod testing;
+mod thermal_map;
 mod today;
 mod waypoints;
 mod wind;
@@ -79,6 +80,7 @@ pub use sites::*;
 pub use statistics::*;
 pub use task::*;
 pub use terrain::*;
+pub use thermal_map::*;
 pub use today::*;
 pub use waypoints::*;
 pub use wind::*;

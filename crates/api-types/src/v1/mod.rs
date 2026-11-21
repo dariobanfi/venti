@@ -77,6 +77,7 @@ mod request;
 mod sites;
 mod stations;
 mod text;
+mod thermals;
 
 pub use account::{
     Account, AccountResponse, ChangePasswordRequest, CreateAccountRequest, DeleteAccountRequest,
@@ -134,6 +135,10 @@ pub use request::{
 };
 pub use sites::{SiteLayer, SitesResponse};
 pub use stations::{Station, StationWithLatest, StationsResponse};
+pub use thermals::{
+    THERMAL_GRID_DEG, THERMALS_PATH, ThermalGrid, ThermalKind, ThermalMapDay, ThermalMapResponse,
+    ThermalVerdict,
+};
 
 /// The window of observations returned when a request names no start, in hours.
 pub const DEFAULT_WINDOW_HOURS: i64 = 24;

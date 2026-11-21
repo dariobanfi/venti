@@ -62,7 +62,7 @@ pub enum Flyability {
 impl Flyability {
     /// The verdict as the design language words it. Never "safe", never
     /// "go".
-    fn words(self) -> &'static str {
+    pub(crate) fn words(self) -> &'static str {
         match self {
             Self::Flyable => "Flyable",
             Self::Marginal => "Marginal",
@@ -112,7 +112,7 @@ pub enum Thermals {
 
 impl Thermals {
     /// The kind of day in words, calm ones.
-    fn words(self) -> &'static str {
+    pub(crate) fn words(self) -> &'static str {
         match self {
             Self::Weak => "Weak thermals",
             Self::Local => "Local thermals",

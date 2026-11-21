@@ -50,7 +50,8 @@ use venti_core::{
     LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
     PublicFlightsOrder, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
     ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SitesMap, StagedStorage,
-    StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint, WindMap, WindSpan,
+    StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, ThermalMap, TrackPoint, WindMap,
+    WindSpan,
 };
 use wasm_bindgen::prelude::*;
 
@@ -863,6 +864,32 @@ pub fn site_outlook(
             whole_seconds(now_unix_s),
         )
         .map_err(thrown)?,
+    )
+}
+
+// The thermal map: the kind of day, square by square, over the area the
+// server has forecasts for.
+
+/// The path to `GET` for the thermal map.
+#[wasm_bindgen(js_name = thermalMapPath)]
+pub fn thermal_map_path() -> String {
+    venti_core::thermal_map_path()
+}
+
+/// Reads the server's answer to `thermalMapPath`. `utc_offset_s` is how
+/// far the pilot's clock is ahead of UTC and `now_unix_s` the moment by
+/// Venti's clock: they decide which day is called today, and days before
+/// it are left out.
+#[wasm_bindgen(js_name = thermalMap)]
+pub fn thermal_map(
+    status: u16,
+    body: Vec<u8>,
+    utc_offset_s: i32,
+    now_unix_s: f64,
+) -> Result<Ts<ThermalMap>, JsValue> {
+    to_js(
+        &venti_core::thermal_map(status, body, utc_offset_s, whole_seconds(now_unix_s))
+            .map_err(thrown)?,
     )
 }
 

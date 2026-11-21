@@ -50,6 +50,7 @@ pub async fn run<S: Store>(
                 Err(error) => tracing::warn!("expired sessions could not be removed: {error}"),
             }
             look_at_reports(&*store, retention, now).await;
+            remove_old_fired_alerts(&*store, now).await;
         }
         remove_live_tracks(&*store, retention, now).await;
         remove_old_plans(&*store, retention, now).await;
@@ -74,6 +75,24 @@ async fn remove_live_tracks<S: Store>(store: &S, retention: Retention, now: Time
             retention.live_hours
         ),
         Err(error) => tracing::warn!("ended live tracks could not be removed: {error}"),
+    }
+}
+
+/// Removes what the pilots' alarms fired longer ago than
+/// [`FIRED_KEPT_DAYS`](venti_api_types::v1::FIRED_KEPT_DAYS) days.
+///
+/// The log line says how many, and nothing about whose.
+async fn remove_old_fired_alerts<S: Store>(store: &S, now: Timestamp) {
+    let days = venti_api_types::v1::FIRED_KEPT_DAYS;
+    match store
+        .prune_fired_alerts(now - chrono::Duration::days(days))
+        .await
+    {
+        Ok(0) => {}
+        Ok(fired) => {
+            tracing::info!("removed {fired} fired alarms older than {days} days");
+        }
+        Err(error) => tracing::warn!("old fired alarms could not be removed: {error}"),
     }
 }
 

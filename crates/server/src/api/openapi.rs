@@ -32,13 +32,14 @@ use axum::response::Response;
 use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
     ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
-    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ARCHIVE_MEDIA_TYPE, CSV_MEDIA_TYPE,
-    DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GEOJSON_MEDIA_TYPE,
-    GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH,
-    LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH,
-    PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH,
-    ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH,
-    STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
+    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH, ALERTS_PATH,
+    ARCHIVE_MEDIA_TYPE, CSV_MEDIA_TYPE, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
+    FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
+    JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
+    LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
+    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
+    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH,
+    THERMALS_PATH,
 };
 
 use super::cache;
@@ -224,8 +225,8 @@ fn delete(path: &'static str, summary: &'static str) -> Op {
 #[allow(clippy::too_many_lines)]
 fn operations() -> Vec<Op> {
     use Scope::{
-        AccountRead, FlightsRead, FlightsWrite, GroupsRead, GroupsWrite, KeptSitesRead,
-        KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite,
+        AccountRead, AlertsRead, AlertsWrite, FlightsRead, FlightsWrite, GroupsRead, GroupsWrite,
+        KeptSitesRead, KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite,
     };
     const PAGE: &[&str] = &["after:cursor", "limit"];
     const SINCE: &[&str] = &["since:cursor", "limit"];
@@ -482,6 +483,30 @@ fn operations() -> Vec<Op> {
         delete("/v1/account/kept-sites/{id}", "Forget a kept site")
             .with(KeptSitesWrite)
             .nothing(),
+        get(ALERTS_PATH, "The pilot's alarms")
+            .docs("GET /v1/account/alerts")
+            .with(AlertsRead)
+            .json("AlertsResponse"),
+        post(ALERTS_PATH, "Set an alarm")
+            .docs("POST /v1/account/alerts")
+            .with(AlertsWrite)
+            .takes("AlertRequest")
+            .statuses(&[201])
+            .json("AlertResponse"),
+        put("/v1/account/alerts/{id}", "Change an alarm")
+            .docs("PUT /v1/account/alerts/{id}")
+            .with(AlertsWrite)
+            .takes("AlertRequest")
+            .json("AlertResponse"),
+        delete("/v1/account/alerts/{id}", "Remove an alarm")
+            .docs("DELETE /v1/account/alerts/{id}")
+            .with(AlertsWrite)
+            .nothing(),
+        get(ALERTS_FIRED_PATH, "What the pilot's alarms fired")
+            .docs("GET /v1/account/alerts/fired?since=&limit=")
+            .with(AlertsRead)
+            .query(SINCE)
+            .json("FiredAlertsResponse"),
         // Flights.
         post(
             FLIGHTS_PATH,

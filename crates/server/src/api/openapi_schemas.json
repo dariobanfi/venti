@@ -302,6 +302,125 @@
   "AirspaceType": {
     "type": "string"
   },
+  "Alert": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "rule": {
+        "$ref": "#/components/schemas/AlertRule"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "changed_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "enabled",
+      "rule",
+      "created_at",
+      "changed_at"
+    ]
+  },
+  "AlertHours": {
+    "type": "object",
+    "properties": {
+      "from_hour": {
+        "type": "integer"
+      },
+      "to_hour": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "from_hour",
+      "to_hour"
+    ]
+  },
+  "AlertRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "What the pilot calls the alarm: 1 to 60 characters."
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Left out: true."
+      },
+      "rule": {
+        "$ref": "#/components/schemas/AlertRule"
+      }
+    },
+    "required": [
+      "name",
+      "rule"
+    ]
+  },
+  "AlertResponse": {
+    "type": "object",
+    "properties": {
+      "alert": {
+        "$ref": "#/components/schemas/Alert"
+      }
+    },
+    "required": [
+      "alert"
+    ]
+  },
+  "AlertRule": {
+    "description": "What an alarm waits for, told apart by `kind`: `wind` or `day`. A kind a client does not know is left as it is.",
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/WindAlert"
+      },
+      {
+        "$ref": "#/components/schemas/DayAlert"
+      }
+    ]
+  },
+  "AlertSector": {
+    "type": "object",
+    "properties": {
+      "from_deg": {
+        "type": "integer"
+      },
+      "to_deg": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "from_deg",
+      "to_deg"
+    ]
+  },
+  "AlertsResponse": {
+    "type": "object",
+    "properties": {
+      "alerts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Alert"
+        }
+      }
+    },
+    "required": [
+      "alerts"
+    ]
+  },
   "Attribution": {
     "description": "The credit of one data source an answer draws on. Whoever shows the data shows `text`, linked to `url`, next to it, and `notice` if there is one: the sources' licences require it. An answer's `attributions` has one entry per source it draws on, and only those.",
     "type": "object",
@@ -497,6 +616,48 @@
     "required": [
       "group",
       "invite_code"
+    ]
+  },
+  "DayAlert": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "day"
+        ]
+      },
+      "place": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "site": {
+        "type": "string"
+      },
+      "place_name": {
+        "type": "string"
+      },
+      "days_ahead": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "at_least": {
+        "type": "string",
+        "enum": [
+          "flyable",
+          "local",
+          "cross_country",
+          "big"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "place",
+      "place_name",
+      "days_ahead",
+      "at_least"
     ]
   },
   "DayTime": {},
@@ -712,6 +873,9 @@
       "token_not_found",
       "invalid_kept_site",
       "too_many_kept_sites",
+      "invalid_alert",
+      "too_many_alerts",
+      "alert_not_found",
       "flight_not_found",
       "pilot_not_found",
       "invalid_flight",
@@ -785,6 +949,132 @@
     },
     "required": [
       "id"
+    ]
+  },
+  "FiredAlert": {
+    "type": "object",
+    "properties": {
+      "alert_id": {
+        "type": "string"
+      },
+      "alert_name": {
+        "type": "string"
+      },
+      "fired_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "rule": {
+        "$ref": "#/components/schemas/AlertRule"
+      },
+      "because": {
+        "$ref": "#/components/schemas/FiredBecause"
+      }
+    },
+    "required": [
+      "alert_id",
+      "alert_name",
+      "fired_at",
+      "rule",
+      "because"
+    ]
+  },
+  "FiredAlertsResponse": {
+    "type": "object",
+    "properties": {
+      "fired": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FiredAlert"
+        }
+      },
+      "cursor": {
+        "type": "string",
+        "description": "Send it as `since` with the next request."
+      },
+      "more": {
+        "type": "boolean",
+        "description": "Whether more waits: ask again at once with `cursor`."
+      },
+      "reset": {
+        "type": "boolean",
+        "description": "True when the cursor sent was not this server's: what follows starts from the oldest kept."
+      }
+    },
+    "required": [
+      "fired",
+      "cursor",
+      "more",
+      "reset"
+    ]
+  },
+  "FiredBecause": {
+    "description": "What fired an alarm, told apart by `kind`: a reading of the station, or a run of the thermal map.",
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "wind"
+            ]
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "speed_kmh": {
+            "type": "integer"
+          },
+          "gust_kmh": {
+            "type": "integer"
+          },
+          "direction_deg": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "time",
+          "speed_kmh"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "day"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/ThermalVerdict"
+          },
+          "thermals": {
+            "$ref": "#/components/schemas/ThermalKind"
+          },
+          "model": {
+            "type": "string"
+          },
+          "run": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "kind",
+          "date",
+          "verdict",
+          "model",
+          "run"
+        ]
+      }
     ]
   },
   "Flight": {
@@ -2836,7 +3126,9 @@
       "groups:write",
       "reports:write",
       "kept-sites:read",
-      "kept-sites:write"
+      "kept-sites:write",
+      "alerts:read",
+      "alerts:write"
     ]
   },
   "Session": {
@@ -4425,6 +4717,43 @@
       "private",
       "unlisted",
       "public"
+    ]
+  },
+  "WindAlert": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "wind"
+        ]
+      },
+      "station": {
+        "type": "string"
+      },
+      "station_name": {
+        "type": "string"
+      },
+      "directions": {
+        "$ref": "#/components/schemas/AlertSector"
+      },
+      "min_kmh": {
+        "type": "integer"
+      },
+      "max_kmh": {
+        "type": "integer"
+      },
+      "gusts_max_kmh": {
+        "type": "integer"
+      },
+      "hours": {
+        "$ref": "#/components/schemas/AlertHours"
+      }
+    },
+    "required": [
+      "kind",
+      "station",
+      "station_name"
     ]
   },
   "WindAloft": {

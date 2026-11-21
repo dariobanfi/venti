@@ -433,6 +433,7 @@ impl Core {
     /// holds ([`crate::KeptSitesSync`]).
     pub fn signed_out(&self) -> Result<(), CoreError> {
         self.forget_kept_sync()?;
+        self.forget_alerts()?;
         self.storage.remove(FILE).map_err(storage_error)
     }
 

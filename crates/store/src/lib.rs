@@ -33,6 +33,7 @@
 
 mod account;
 mod airspace;
+mod alert;
 mod batch;
 mod flight;
 mod forecast;
@@ -61,6 +62,9 @@ pub use account::{
     SecretHash, Session, Suspension,
 };
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
+pub use alert::{
+    AddingAlert, Alert, AlertCheck, DAY_ALERT, FiredAlert, FiredAlerts, NewAlert, WIND_ALERT,
+};
 pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, NewFlight,
     OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Room, Saved,
@@ -795,6 +799,78 @@ pub trait Store: Send + Sync + 'static {
         since: i64,
         limit: usize,
     ) -> impl Future<Output = Result<KeptSiteChanges, StoreError>> + Send;
+
+    // --- The alarms a pilot sets ------------------------------------------
+
+    /// The alarms of an account, the oldest first.
+    fn alerts(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Vec<Alert>, StoreError>> + Send;
+
+    /// Adds an alarm to an account, made and changed at `now`, unless the
+    /// account has `most` alarms already.
+    fn add_alert(
+        &self,
+        account_id: &str,
+        new: &NewAlert,
+        now: Timestamp,
+        most: usize,
+    ) -> impl Future<Output = Result<AddingAlert, StoreError>> + Send;
+
+    /// Changes an alarm of an account, changed at `now`, and forgets what
+    /// the server noted of it. `None` if the account has no such alarm.
+    fn change_alert(
+        &self,
+        account_id: &str,
+        new: &NewAlert,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Option<Alert>, StoreError>> + Send;
+
+    /// Removes an alarm of an account. Returns whether the account had it.
+    /// What it fired stays until it is old enough to go.
+    fn remove_alert(
+        &self,
+        account_id: &str,
+        alert_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The alarms that are on and watch one of these stations, of every
+    /// account, by account and then identifier.
+    fn wind_alerts_at(
+        &self,
+        station_ids: &[String],
+    ) -> impl Future<Output = Result<Vec<Alert>, StoreError>> + Send;
+
+    /// The alarms that are on and of a kind, of every account, by account
+    /// and then identifier.
+    fn alerts_of_kind(
+        &self,
+        kind: &str,
+    ) -> impl Future<Output = Result<Vec<Alert>, StoreError>> + Send;
+
+    /// Writes down what a check found: the alarm's new state and what it
+    /// fired, together. Returns whether it was written: not when the alarm
+    /// is gone or was changed after it was read for the check.
+    fn note_alert_check(
+        &self,
+        check: &AlertCheck,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// What an account's alarms fired after number `since`, oldest first,
+    /// at most `limit`.
+    fn fired_alerts(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> impl Future<Output = Result<FiredAlerts, StoreError>> + Send;
+
+    /// Removes what alarms fired before `before`. Returns how many.
+    fn prune_fired_alerts(
+        &self,
+        before: Timestamp,
+    ) -> impl Future<Output = Result<u64, StoreError>> + Send;
 
     // --- Flights ----------------------------------------------------------
 

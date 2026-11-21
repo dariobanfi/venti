@@ -1,0 +1,25 @@
+{
+  "alert": {
+    "id": "0000000000000000000000a001",
+    "name": "Patscherkofel north",
+    "enabled": true,
+    "rule": {
+      "kind": "wind",
+      "station": "geosphere-tawes:11126",
+      "station_name": "Patscherkofel",
+      "directions": {
+        "from_deg": 349,
+        "to_deg": 56
+      },
+      "min_kmh": 10,
+      "max_kmh": 20,
+      "gusts_max_kmh": 30,
+      "hours": {
+        "from_hour": 9,
+        "to_hour": 17
+      }
+    },
+    "created_at": "2026-11-16T19:05:00Z",
+    "changed_at": "2026-11-18T19:05:00Z"
+  }
+}

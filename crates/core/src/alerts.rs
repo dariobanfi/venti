@@ -1,0 +1,1049 @@
+//! The pilot's alarms, for an "Alert me" on a station's page and a
+//! take-off's page, a list under the account, and what fired.
+//!
+//! An alarm lives on the account: the server checks it where the data
+//! arrives and keeps what fired (`docs/api.md`, "Alarms"). Here are the
+//! choices and the words, the check of a draft, the requests and the
+//! readers of the answers, and [`AlertsSync`], which brings the list and
+//! what fired to the device, so that both show without a network. The
+//! core does no I/O: it hands the shell a [`ServerRequest`] and reads the
+//! answer. Signed out there are no alarms.
+//!
+//! A shell makes an [`AlertDraft`] from what the pilot chose, shows
+//! [`alert_line`] as it changes, [`alert_check`] before sending, and sends
+//! [`alert_add_request`] or [`alert_change_request`].
+
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use chrono::{Duration, NaiveTime};
+use serde::{Deserialize, Serialize};
+use venti_api_types::v1::{
+    ALERTS_PATH, Alert, AlertHours, AlertRequest, AlertResponse, AlertRule, AlertSector,
+    AlertsResponse, DayAlert, DayAtLeast, FiredAlert, FiredAlertsRequest, FiredAlertsResponse,
+    FiredBecause, ThermalKind, ThermalVerdict, WindAlert, alert_path, weekday_name,
+};
+use venti_domain::GeoPoint;
+
+use crate::account::{Halt, asked_to_wait, failed, fetched, json_request, settled};
+use crate::server::answer;
+use crate::{Core, CoreError, ServerRequest, SyncStep, SyncSummary};
+
+/// The file the device keeps the account's alarms and what fired in.
+const FILE: &str = "alerts-account.json";
+
+/// How many of what fired the device keeps: the newest.
+const FIRED_HELD: usize = 200;
+
+/// The sixteen points of the compass, short, from the north clockwise.
+const POINTS: [&str; 16] = [
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW",
+    "NNW",
+];
+
+/// The same in words, for a line.
+const POINT_WORDS: [&str; 16] = [
+    "the north",
+    "the north-north-east",
+    "the north-east",
+    "the east-north-east",
+    "the east",
+    "the east-south-east",
+    "the south-east",
+    "the south-south-east",
+    "the south",
+    "the south-south-west",
+    "the south-west",
+    "the west-south-west",
+    "the west",
+    "the west-north-west",
+    "the north-west",
+    "the north-north-west",
+];
+
+/// What an alarm waits for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub enum AlertKind {
+    /// The wind at a station.
+    Wind,
+    /// The kind of day at a place.
+    Day,
+}
+
+/// The least a day is to be, for a day alarm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub enum AlertDayKind {
+    /// Flyable by the air alone.
+    Flyable,
+    /// Flyable, with thermals to stay up in.
+    Local,
+    /// Flyable, a cross-country day or better.
+    CrossCountry,
+    /// Flyable, a big day.
+    Big,
+}
+
+/// An alarm as the pilot sets it, in the choices of the form. What a kind
+/// does not use is left as it is and not sent.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct AlertDraft {
+    /// What the pilot calls it: "Wallberg north".
+    pub name: String,
+    /// Whether it is on.
+    pub enabled: bool,
+    /// Which kind it is.
+    pub kind: AlertKind,
+    /// Wind: the station's identifier, as the station's page has it.
+    pub station_id: String,
+    /// Wind: the station's name.
+    pub station_name: String,
+    /// Wind: the first of the sixteen points the wind may come from, 0 for
+    /// north, 1 for north-north-east, clockwise. `None` with `to_point`
+    /// for any direction.
+    pub from_point: Option<u8>,
+    /// Wind: the last of them, clockwise from `from_point`; the same point
+    /// for one point alone.
+    pub to_point: Option<u8>,
+    /// Wind: the least mean wind, km/h.
+    pub min_kmh: Option<u16>,
+    /// Wind: the most mean wind, km/h.
+    pub max_kmh: Option<u16>,
+    /// Wind: the strongest gust there may be, km/h.
+    pub gusts_max_kmh: Option<u16>,
+    /// Wind: only from this hour, 0 to 23, Central European Time.
+    pub from_hour: Option<u8>,
+    /// Wind: to this hour, 1 to 24.
+    pub to_hour: Option<u8>,
+    /// Day: where, latitude.
+    pub lat: f64,
+    /// Day: where, longitude.
+    pub lon: f64,
+    /// Day: the site, if the place is one.
+    pub site_id: Option<String>,
+    /// Day: the place's name: "Brauneck".
+    pub place_name: String,
+    /// Day: which days, 0 for today to 3.
+    pub days_ahead: Vec<u8>,
+    /// Day: the least the day is to be.
+    pub at_least: AlertDayKind,
+}
+
+/// What is wrong with a draft, for the field it is about.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct AlertFaultView {
+    /// The field, as the server names it: `rule.min_kmh`.
+    pub field: String,
+    /// What is wrong, in words.
+    pub message: String,
+}
+
+/// An alarm in the list.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct AlertView {
+    /// Its identifier, for changing and removing it.
+    pub id: String,
+    /// What the pilot calls it.
+    pub name: String,
+    /// Whether it is on.
+    pub enabled: bool,
+    /// What it waits for, in one line.
+    pub line: String,
+    /// The alarm as a draft, for the form that changes it. `None` for a
+    /// kind this version does not know: it can be removed, not changed.
+    pub draft: Option<AlertDraft>,
+}
+
+/// One thing an alarm fired for, as a line.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct FiredLine {
+    /// The alarm that fired.
+    pub alert_id: String,
+    /// A title: the alarm's name.
+    pub title: String,
+    /// What happened: "Wallberg: 15 km/h from the north at 11:20, as your
+    /// alarm 'Wallberg north' asks".
+    pub line: String,
+    /// When the server found it, seconds since 1970: for the order and
+    /// for a notification's time.
+    pub fired_at_unix_s: i64,
+}
+
+/// What fired, a page of it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct FiredPage {
+    /// What fired, the oldest first.
+    pub lines: Vec<FiredLine>,
+    /// What to pass as `since` next time.
+    pub cursor: String,
+    /// Whether more waits: ask again at once.
+    pub more: bool,
+}
+
+/// The sixteen points of the compass, short, from the north clockwise:
+/// the choices for `from_point` and `to_point`.
+#[uniffi::export]
+pub fn alert_points() -> Vec<String> {
+    POINTS.iter().map(|point| (*point).to_owned()).collect()
+}
+
+fn round_deg(degrees: f64) -> u16 {
+    // 0 to 360, and 360 is 0.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let whole = degrees.rem_euclid(360.0).round() as u16;
+    whole % 360
+}
+
+fn point_of(degrees: f64) -> u8 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let point = ((degrees.rem_euclid(360.0) / 22.5).round() as u8) % 16;
+    point
+}
+
+fn sector(from: u8, to: u8) -> AlertSector {
+    AlertSector {
+        from_deg: round_deg(f64::from(from % 16) * 22.5 - 11.25),
+        to_deg: round_deg(f64::from(to % 16) * 22.5 + 11.25),
+    }
+}
+
+fn at_least(kind: AlertDayKind) -> DayAtLeast {
+    match kind {
+        AlertDayKind::Flyable => DayAtLeast::Flyable,
+        AlertDayKind::Local => DayAtLeast::Local,
+        AlertDayKind::CrossCountry => DayAtLeast::CrossCountry,
+        AlertDayKind::Big => DayAtLeast::Big,
+    }
+}
+
+fn day_kind(least: DayAtLeast) -> AlertDayKind {
+    match least {
+        DayAtLeast::Flyable => AlertDayKind::Flyable,
+        DayAtLeast::Local => AlertDayKind::Local,
+        DayAtLeast::CrossCountry => AlertDayKind::CrossCountry,
+        DayAtLeast::Big => AlertDayKind::Big,
+    }
+}
+
+/// The request a draft makes, or why it makes none.
+fn request_of(draft: &AlertDraft) -> Result<AlertRequest, CoreError> {
+    let invalid = |message: &str| CoreError::Server {
+        message: message.to_owned(),
+    };
+    let rule = match draft.kind {
+        AlertKind::Wind => AlertRule::Wind(WindAlert {
+            station: draft
+                .station_id
+                .parse()
+                .map_err(|_| invalid("Choose a station."))?,
+            station_name: draft.station_name.trim().to_owned(),
+            directions: match (draft.from_point, draft.to_point) {
+                (Some(from), Some(to)) => Some(sector(from, to)),
+                (Some(one), None) | (None, Some(one)) => Some(sector(one, one)),
+                (None, None) => None,
+            },
+            min_kmh: draft.min_kmh,
+            max_kmh: draft.max_kmh,
+            gusts_max_kmh: draft.gusts_max_kmh,
+            hours: match (draft.from_hour, draft.to_hour) {
+                (None, None) => None,
+                (from, to) => Some(AlertHours {
+                    from_hour: from.unwrap_or(0),
+                    to_hour: to.unwrap_or(24),
+                }),
+            },
+        }),
+        AlertKind::Day => AlertRule::Day(DayAlert {
+            place: GeoPoint::new(draft.lat, draft.lon).map_err(|_| invalid("Choose a place."))?,
+            site: draft.site_id.as_deref().and_then(|id| id.parse().ok()),
+            place_name: draft.place_name.trim().to_owned(),
+            days_ahead: draft.days_ahead.clone(),
+            at_least: at_least(draft.at_least),
+        }),
+    };
+    Ok(AlertRequest {
+        name: draft.name.trim().to_owned(),
+        enabled: draft.enabled,
+        rule,
+    })
+}
+
+/// The draft an alarm of the account makes, for the form. `None` for a
+/// kind this version does not know.
+fn draft_of(alert: &Alert) -> Option<AlertDraft> {
+    let mut draft = AlertDraft {
+        name: alert.name.clone(),
+        enabled: alert.enabled,
+        kind: AlertKind::Wind,
+        station_id: String::new(),
+        station_name: String::new(),
+        from_point: None,
+        to_point: None,
+        min_kmh: None,
+        max_kmh: None,
+        gusts_max_kmh: None,
+        from_hour: None,
+        to_hour: None,
+        lat: 0.0,
+        lon: 0.0,
+        site_id: None,
+        place_name: String::new(),
+        days_ahead: Vec::new(),
+        at_least: AlertDayKind::CrossCountry,
+    };
+    match &alert.rule {
+        AlertRule::Wind(wind) => {
+            draft.station_id = wind.station.to_string();
+            draft.station_name.clone_from(&wind.station_name);
+            if let Some(sector) = wind.directions {
+                draft.from_point = Some(point_of(f64::from(sector.from_deg) + 11.25));
+                draft.to_point = Some(point_of(f64::from(sector.to_deg) - 11.25));
+            }
+            draft.min_kmh = wind.min_kmh;
+            draft.max_kmh = wind.max_kmh;
+            draft.gusts_max_kmh = wind.gusts_max_kmh;
+            draft.from_hour = wind.hours.map(|hours| hours.from_hour);
+            draft.to_hour = wind.hours.map(|hours| hours.to_hour);
+        }
+        AlertRule::Day(day) => {
+            draft.kind = AlertKind::Day;
+            draft.lat = day.place.lat();
+            draft.lon = day.place.lon();
+            draft.site_id = day.site.as_ref().map(ToString::to_string);
+            draft.place_name.clone_from(&day.place_name);
+            draft.days_ahead.clone_from(&day.days_ahead);
+            draft.at_least = day_kind(day.at_least);
+        }
+        AlertRule::Other => return None,
+    }
+    Some(draft)
+}
+
+fn sector_words(sector: AlertSector) -> String {
+    let from = point_of(f64::from(sector.from_deg) + 11.25);
+    let to = point_of(f64::from(sector.to_deg) - 11.25);
+    if from == to {
+        format!("from {}", POINTS[usize::from(from)])
+    } else {
+        format!(
+            "from {} to {}",
+            POINTS[usize::from(from)],
+            POINTS[usize::from(to)]
+        )
+    }
+}
+
+fn day_words(days: &[u8]) -> String {
+    let mut days = days.to_vec();
+    days.sort_unstable();
+    let names: Vec<String> = days
+        .iter()
+        .map(|day| match day {
+            0 => "today".to_owned(),
+            1 => "tomorrow".to_owned(),
+            n => format!("in {n} days"),
+        })
+        .collect();
+    match names.as_slice() {
+        [] => "on no day".to_owned(),
+        [one] => one.clone(),
+        [first @ .., last] => format!("{} or {last}", first.join(", ")),
+    }
+}
+
+fn least_words(least: DayAtLeast) -> &'static str {
+    match least {
+        DayAtLeast::Flyable => "A flyable day",
+        DayAtLeast::Local => "A day with local thermals or better",
+        DayAtLeast::CrossCountry => "A cross-country day or better",
+        DayAtLeast::Big => "A big day",
+    }
+}
+
+fn rule_line(rule: &AlertRule) -> String {
+    match rule {
+        AlertRule::Wind(wind) => {
+            let mut parts = vec![format!("Wind at {}", wind.station_name)];
+            if let Some(sector) = wind.directions {
+                parts[0] = format!("{} {}", parts[0], sector_words(sector));
+            }
+            match (wind.min_kmh, wind.max_kmh) {
+                (Some(min), Some(max)) => parts.push(format!("{min} to {max} km/h")),
+                (Some(min), None) => parts.push(format!("at least {min} km/h")),
+                (None, Some(max)) => parts.push(format!("at most {max} km/h")),
+                (None, None) => {}
+            }
+            if let Some(gusts) = wind.gusts_max_kmh {
+                let unit = if parts.len() > 1 { "" } else { " km/h" };
+                parts.push(format!("gusts at most {gusts}{unit}"));
+            }
+            if let Some(hours) = wind.hours {
+                parts.push(format!(
+                    "between {:02}:00 and {:02}:00",
+                    hours.from_hour, hours.to_hour
+                ));
+            }
+            parts.join(", ")
+        }
+        AlertRule::Day(day) => format!(
+            "{} at {}, {}",
+            least_words(day.at_least),
+            day.place_name,
+            day_words(&day.days_ahead)
+        ),
+        AlertRule::Other => "An alarm this version of the app does not know".to_owned(),
+    }
+}
+
+/// What a draft waits for, in one line: "Wind at Wallberg from N to NE,
+/// 10 to 20 km/h, gusts at most 30, between 10:00 and 16:00". For a draft
+/// that makes no alarm, what is missing.
+#[uniffi::export]
+pub fn alert_line(draft: AlertDraft) -> String {
+    match request_of(&draft) {
+        Ok(request) => rule_line(&request.rule),
+        Err(error) => error.to_string(),
+    }
+}
+
+/// Everything that is wrong with a draft, by the rules the server holds
+/// to. Empty when it may be sent.
+#[uniffi::export]
+pub fn alert_check(draft: AlertDraft) -> Vec<AlertFaultView> {
+    let request = match request_of(&draft) {
+        Ok(request) => request,
+        Err(error) => {
+            let field = match draft.kind {
+                AlertKind::Wind => "rule.station",
+                AlertKind::Day => "rule.place",
+            };
+            return vec![AlertFaultView {
+                field: field.to_owned(),
+                message: error.to_string(),
+            }];
+        }
+    };
+    request
+        .check()
+        .into_iter()
+        .map(|fault| AlertFaultView {
+            field: fault.field.to_owned(),
+            message: format!("{}: {}", field_words(fault.field), fault.reason),
+        })
+        .collect()
+}
+
+fn field_words(field: &str) -> &'static str {
+    match field {
+        "name" => "The name",
+        "rule.station_name" => "The station's name",
+        "rule.place_name" => "The place's name",
+        "rule.directions" => "The directions",
+        "rule.min_kmh" => "The least wind",
+        "rule.max_kmh" => "The most wind",
+        "rule.gusts_max_kmh" => "The gusts",
+        "rule.hours" => "The hours",
+        "rule.days_ahead" => "The days",
+        _ => "The alarm",
+    }
+}
+
+/// The request for the account's alarms.
+#[uniffi::export]
+pub fn alerts_request() -> ServerRequest {
+    ServerRequest {
+        method: "GET".to_owned(),
+        path: ALERTS_PATH.to_owned(),
+        body: None,
+        content_type: None,
+        needs_token: true,
+    }
+}
+
+/// The request that sets a new alarm.
+#[uniffi::export]
+pub fn alert_add_request(draft: AlertDraft) -> Result<ServerRequest, CoreError> {
+    json_request("POST", ALERTS_PATH, &request_of(&draft)?, true)
+}
+
+/// The request that changes an alarm, by the identifier the list gives.
+#[uniffi::export]
+pub fn alert_change_request(id: String, draft: AlertDraft) -> Result<ServerRequest, CoreError> {
+    json_request("PUT", &alert_path(&id), &request_of(&draft)?, true)
+}
+
+/// The request that removes an alarm.
+#[uniffi::export]
+pub fn alert_remove_request(id: String) -> ServerRequest {
+    ServerRequest {
+        method: "DELETE".to_owned(),
+        path: alert_path(&id),
+        body: None,
+        content_type: None,
+        needs_token: true,
+    }
+}
+
+fn view(alert: &Alert) -> AlertView {
+    AlertView {
+        id: alert.id.clone(),
+        name: alert.name.clone(),
+        enabled: alert.enabled,
+        line: rule_line(&alert.rule),
+        draft: draft_of(alert),
+    }
+}
+
+/// Reads the answer to [`alerts_request`]: the alarms, the oldest first.
+#[uniffi::export]
+pub fn alerts(status: u16, body: Vec<u8>) -> Result<Vec<AlertView>, CoreError> {
+    let response: AlertsResponse = answer(status, &body)?;
+    Ok(response.alerts.iter().map(view).collect())
+}
+
+/// Reads the answer to [`alert_add_request`] or [`alert_change_request`]:
+/// the alarm as the account has it now.
+#[uniffi::export]
+pub fn alert_saved(status: u16, body: Vec<u8>) -> Result<AlertView, CoreError> {
+    let response: AlertResponse = answer(status, &body)?;
+    Ok(view(&response.alert))
+}
+
+/// The request for what the alarms fired since `since`, the cursor of the
+/// page before; `None` for everything the server keeps.
+#[uniffi::export]
+pub fn alerts_fired_request(since: Option<String>) -> ServerRequest {
+    ServerRequest {
+        method: "GET".to_owned(),
+        path: FiredAlertsRequest {
+            since,
+            limit: Some(100),
+        }
+        .path_and_query(),
+        body: None,
+        content_type: None,
+        needs_token: true,
+    }
+}
+
+fn clock(time: chrono::DateTime<chrono::Utc>, utc_offset_s: i32) -> NaiveTime {
+    (time + Duration::seconds(i64::from(utc_offset_s)))
+        .naive_utc()
+        .time()
+}
+
+fn kind_words(verdict: ThermalVerdict, thermals: Option<ThermalKind>) -> &'static str {
+    if verdict != ThermalVerdict::Flyable {
+        return "a day to look at";
+    }
+    match thermals {
+        Some(ThermalKind::Big) => "a big day",
+        Some(ThermalKind::CrossCountry) => "a cross-country day",
+        Some(ThermalKind::Local) => "a day with local thermals",
+        Some(ThermalKind::Weak) | None => "a flyable day",
+    }
+}
+
+/// One thing an alarm fired for, in words. `utc_offset_s` is how far the
+/// device's clock is ahead of UTC.
+fn fired_line(fired: &FiredAlert, utc_offset_s: i32) -> FiredLine {
+    let line = match (&fired.because, &fired.rule) {
+        (
+            FiredBecause::Wind {
+                time,
+                speed_kmh,
+                direction_deg,
+                gust_kmh,
+            },
+            AlertRule::Wind(rule),
+        ) => {
+            let from = direction_deg.map_or_else(String::new, |deg| {
+                format!(
+                    " from {}",
+                    POINT_WORDS[usize::from(point_of(f64::from(deg)))]
+                )
+            });
+            let gusts = match (rule.gusts_max_kmh, gust_kmh) {
+                (Some(_), Some(gust)) => format!(", gusts {gust},"),
+                _ => String::new(),
+            };
+            format!(
+                "{}: {speed_kmh} km/h{from}{gusts} at {}, as your alarm '{}' asks",
+                rule.station_name,
+                clock(*time, utc_offset_s).format("%H:%M"),
+                fired.alert_name
+            )
+        }
+        (
+            FiredBecause::Day {
+                date,
+                verdict,
+                thermals,
+                run,
+                ..
+            },
+            AlertRule::Day(rule),
+        ) => format!(
+            "{} is {} at {} by the {} run",
+            weekday_name(*date),
+            kind_words(*verdict, *thermals),
+            rule.place_name,
+            clock(*run, utc_offset_s).format("%H:%M")
+        ),
+        _ => format!(
+            "Your alarm '{}' fired for something this version of the app does not know",
+            fired.alert_name
+        ),
+    };
+    FiredLine {
+        alert_id: fired.alert_id.clone(),
+        title: fired.alert_name.clone(),
+        line,
+        fired_at_unix_s: fired.fired_at.timestamp(),
+    }
+}
+
+/// Reads the answer to [`alerts_fired_request`]. `utc_offset_s` is how
+/// far the device's clock is ahead of UTC, for the times in the lines.
+#[uniffi::export]
+pub fn alerts_fired(status: u16, body: Vec<u8>, utc_offset_s: i32) -> Result<FiredPage, CoreError> {
+    let response: FiredAlertsResponse = answer(status, &body)?;
+    Ok(FiredPage {
+        lines: response
+            .fired
+            .iter()
+            .map(|fired| fired_line(fired, utc_offset_s))
+            .collect(),
+        cursor: response.cursor,
+        more: response.more,
+    })
+}
+
+// --- Held on the device ------------------------------------------------------
+
+/// What the device holds of the account's alarms, as stored.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct Held {
+    server: String,
+    handle: String,
+    #[serde(default)]
+    alerts: Vec<Alert>,
+    #[serde(default)]
+    cursor: Option<String>,
+    #[serde(default)]
+    fired: Vec<FiredAlert>,
+}
+
+fn storage_error(error: std::io::Error) -> CoreError {
+    CoreError::Storage {
+        message: format!("Your alarms could not be read or written: {error}."),
+    }
+}
+
+impl Core {
+    /// What the device holds for the account it is signed in to, or
+    /// nothing held yet. `None` signed out.
+    fn held_alerts(&self) -> Result<Option<Held>, CoreError> {
+        let Some((server, handle, _)) = self.signed_in_to()? else {
+            return Ok(None);
+        };
+        let held = self
+            .storage
+            .read(FILE)
+            .map_err(storage_error)?
+            // The app's own writing; damaged, it is fetched again.
+            .and_then(|bytes| serde_json::from_slice::<Held>(&bytes).ok())
+            .filter(|held| held.server == server && held.handle == handle)
+            .unwrap_or(Held {
+                server,
+                handle,
+                ..Held::default()
+            });
+        Ok(Some(held))
+    }
+
+    /// Forgets the account's alarms on this device, at signing out.
+    pub(crate) fn forget_alerts(&self) -> Result<(), CoreError> {
+        self.storage.remove(FILE).map_err(storage_error)
+    }
+
+    fn store_alerts(&self, held: &Held) -> Result<(), CoreError> {
+        let bytes = serde_json::to_vec(held).map_err(|error| CoreError::Storage {
+            message: format!("Your alarms could not be saved: {error}."),
+        })?;
+        self.storage.write(FILE, &bytes).map_err(storage_error)
+    }
+}
+
+#[uniffi::export]
+impl Core {
+    /// The account's alarms as the device last fetched them, the oldest
+    /// first. Empty signed out.
+    pub fn alerts_held(&self) -> Result<Vec<AlertView>, CoreError> {
+        Ok(self
+            .held_alerts()?
+            .map(|held| held.alerts.iter().map(view).collect())
+            .unwrap_or_default())
+    }
+
+    /// What the alarms fired as the device last fetched it, the newest
+    /// first, of the last 30 days by `now_unix_s`. `utc_offset_s` is how
+    /// far the device's clock is ahead of UTC.
+    pub fn alerts_fired_held(
+        &self,
+        now_unix_s: i64,
+        utc_offset_s: i32,
+    ) -> Result<Vec<FiredLine>, CoreError> {
+        let from = now_unix_s - venti_api_types::v1::FIRED_KEPT_DAYS * 86_400;
+        let Some(held) = self.held_alerts()? else {
+            return Ok(Vec::new());
+        };
+        Ok(held
+            .fired
+            .iter()
+            .rev()
+            .filter(|fired| fired.fired_at.timestamp() >= from)
+            .map(|fired| fired_line(fired, utc_offset_s))
+            .collect())
+    }
+
+    /// Starts fetching the account's alarms and what they fired since the
+    /// last run. Run it after signing in, after changing an alarm, and
+    /// from time to time: on Android from the app's periodic check, in a
+    /// browser while the page is open. Each line in the summary's
+    /// `fetched` is one thing an alarm fired that the device had not seen.
+    pub fn alerts_sync(self: Arc<Self>) -> Arc<AlertsSync> {
+        Arc::new(AlertsSync {
+            core: self,
+            progress: Mutex::new(Progress::default()),
+        })
+    }
+}
+
+/// One run of fetching the account's alarms and what they fired.
+#[derive(Debug, uniffi::Object)]
+pub struct AlertsSync {
+    core: Arc<Core>,
+    progress: Mutex<Progress>,
+}
+
+#[derive(Debug, Default)]
+struct Progress {
+    waiting_for: Option<Waiting>,
+    summary: SyncSummary,
+    /// The lines of what fired that this run fetched, for a notification.
+    new: Vec<FiredAlert>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Waiting {
+    List,
+    Fired,
+}
+
+#[uniffi::export]
+impl AlertsSync {
+    /// Begins.
+    pub fn start(&self) -> SyncStep {
+        settled(self.try_start())
+    }
+
+    /// Takes the server's answer to the last request. `retry_after_s` is
+    /// the answer's `Retry-After` header, if it had one.
+    pub fn receive(&self, status: u16, body: Vec<u8>, retry_after_s: Option<u32>) -> SyncStep {
+        settled(self.try_receive(status, &body, retry_after_s))
+    }
+
+    /// What this run fetched that had fired since the run before, as
+    /// lines, the oldest first: what a notification says.
+    pub fn new_lines(&self, utc_offset_s: i32) -> Vec<FiredLine> {
+        self.lock()
+            .new
+            .iter()
+            .map(|fired| fired_line(fired, utc_offset_s))
+            .collect()
+    }
+}
+
+impl AlertsSync {
+    /// [`start`](Self::start) for a host whose storage hands a file over
+    /// only after it was asked for it.
+    pub fn start_when_fetched(&self) -> Result<SyncStep, CoreError> {
+        fetched(self.try_start())
+    }
+
+    /// [`receive`](Self::receive) for such a host.
+    pub fn receive_when_fetched(
+        &self,
+        status: u16,
+        body: &[u8],
+        retry_after_s: Option<u32>,
+    ) -> Result<SyncStep, CoreError> {
+        fetched(self.try_receive(status, body, retry_after_s))
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Progress> {
+        self.progress
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn held(&self) -> Result<Held, Halt> {
+        match self.core.held_alerts().map_err(Halt::Fetch)? {
+            Some(held) => Ok(held),
+            None => Err(failed("This device is not signed in.", true).into()),
+        }
+    }
+
+    fn try_start(&self) -> Result<SyncStep, Halt> {
+        self.held()?;
+        let mut progress = self.lock();
+        *progress = Progress {
+            waiting_for: Some(Waiting::List),
+            ..Progress::default()
+        };
+        Ok(SyncStep::Send {
+            request: alerts_request(),
+        })
+    }
+
+    fn try_receive(
+        &self,
+        status: u16,
+        body: &[u8],
+        retry_after_s: Option<u32>,
+    ) -> Result<SyncStep, Halt> {
+        let mut held = self.held()?;
+        let mut progress = self.lock();
+        let Some(waiting) = progress.waiting_for else {
+            return Ok(failed("Nothing was asked of the server.", false));
+        };
+        if status == 401 {
+            progress.waiting_for = None;
+            self.core.session_ended();
+            return Err(failed("This device is no longer signed in. Sign in again.", true).into());
+        }
+        if status == 429 || status == 503 {
+            progress.waiting_for = None;
+            return Err(failed(&asked_to_wait(retry_after_s), false).into());
+        }
+        let stored = |held: &Held| {
+            self.core
+                .store_alerts(held)
+                .map_err(|error| Halt::from(failed(&error.to_string(), false)))
+        };
+        match waiting {
+            Waiting::List => {
+                let response: AlertsResponse = answer(status, body)
+                    .map_err(|error| Halt::from(failed(&error.to_string(), false)))?;
+                held.alerts = response.alerts;
+                stored(&held)?;
+                progress.waiting_for = Some(Waiting::Fired);
+                Ok(SyncStep::Send {
+                    request: alerts_fired_request(held.cursor.clone()),
+                })
+            }
+            Waiting::Fired => {
+                let response: FiredAlertsResponse = answer(status, body)
+                    .map_err(|error| Halt::from(failed(&error.to_string(), false)))?;
+                if response.reset {
+                    // What follows is everything the server keeps: what
+                    // the device holds is had again.
+                    let seen: Vec<(String, i64)> = held
+                        .fired
+                        .iter()
+                        .map(|fired| (fired.alert_id.clone(), fired.fired_at.timestamp_micros()))
+                        .collect();
+                    held.fired.clear();
+                    for fired in response.fired {
+                        let key = (fired.alert_id.clone(), fired.fired_at.timestamp_micros());
+                        if !seen.contains(&key) {
+                            progress.new.push(fired.clone());
+                        }
+                        held.fired.push(fired);
+                    }
+                } else {
+                    progress.new.extend(response.fired.iter().cloned());
+                    held.fired.extend(response.fired);
+                }
+                let extra = held.fired.len().saturating_sub(FIRED_HELD);
+                held.fired.drain(..extra);
+                held.cursor = Some(response.cursor);
+                stored(&held)?;
+                progress.summary.fetched = u32::try_from(progress.new.len()).unwrap_or(u32::MAX);
+                if response.more {
+                    return Ok(SyncStep::Send {
+                        request: alerts_fired_request(held.cursor.clone()),
+                    });
+                }
+                progress.waiting_for = None;
+                Ok(SyncStep::Finished {
+                    summary: progress.summary,
+                })
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::DateTime;
+
+    use super::*;
+
+    fn wind_draft() -> AlertDraft {
+        AlertDraft {
+            name: "Wallberg north".to_owned(),
+            enabled: true,
+            kind: AlertKind::Wind,
+            station_id: "dwd-10min:00001".to_owned(),
+            station_name: "Wallberg".to_owned(),
+            from_point: Some(0),
+            to_point: Some(2),
+            min_kmh: Some(10),
+            max_kmh: Some(20),
+            gusts_max_kmh: Some(30),
+            from_hour: Some(10),
+            to_hour: Some(16),
+            lat: 0.0,
+            lon: 0.0,
+            site_id: None,
+            place_name: String::new(),
+            days_ahead: Vec::new(),
+            at_least: AlertDayKind::CrossCountry,
+        }
+    }
+
+    fn day_draft() -> AlertDraft {
+        AlertDraft {
+            kind: AlertKind::Day,
+            name: "Brauneck XC".to_owned(),
+            lat: 47.66,
+            lon: 11.52,
+            place_name: "Brauneck".to_owned(),
+            days_ahead: vec![1, 0],
+            ..wind_draft()
+        }
+    }
+
+    #[test]
+    fn a_draft_says_what_it_waits_for() {
+        assert_eq!(
+            alert_line(wind_draft()),
+            "Wind at Wallberg from N to NE, 10 to 20 km/h, gusts at most 30, between 10:00 and 16:00"
+        );
+        let mut any = wind_draft();
+        any.from_point = None;
+        any.to_point = None;
+        any.max_kmh = None;
+        any.gusts_max_kmh = None;
+        any.from_hour = None;
+        any.to_hour = None;
+        assert_eq!(alert_line(any), "Wind at Wallberg, at least 10 km/h");
+        assert_eq!(
+            alert_line(day_draft()),
+            "A cross-country day or better at Brauneck, today or tomorrow"
+        );
+    }
+
+    #[test]
+    fn the_points_make_a_sector_half_a_point_either_side_and_back() {
+        let request = request_of(&wind_draft()).unwrap();
+        let AlertRule::Wind(wind) = &request.rule else {
+            panic!("a wind alarm");
+        };
+        assert_eq!(
+            wind.directions,
+            Some(AlertSector {
+                from_deg: 349,
+                to_deg: 56
+            })
+        );
+        let alert = Alert {
+            id: "a".to_owned(),
+            name: request.name.clone(),
+            enabled: true,
+            rule: request.rule.clone(),
+            created_at: DateTime::from_timestamp(0, 0).unwrap(),
+            changed_at: DateTime::from_timestamp(0, 0).unwrap(),
+        };
+        assert_eq!(draft_of(&alert), Some(wind_draft()));
+    }
+
+    #[test]
+    fn a_check_says_in_words_what_is_wrong() {
+        let mut wrong = wind_draft();
+        wrong.min_kmh = Some(30);
+        let faults = alert_check(wrong);
+        assert_eq!(faults.len(), 1);
+        assert_eq!(faults[0].field, "rule.max_kmh");
+        assert!(
+            faults[0].message.starts_with("The most wind: "),
+            "{faults:?}"
+        );
+        let mut no_station = wind_draft();
+        no_station.station_id = String::new();
+        assert_eq!(alert_check(no_station)[0].message, "Choose a station.");
+        assert_eq!(alert_check(day_draft()), []);
+    }
+
+    #[test]
+    fn what_fired_is_said_in_a_line() {
+        let request = request_of(&wind_draft()).unwrap();
+        let fired = FiredAlert {
+            alert_id: "a".to_owned(),
+            alert_name: "Wallberg north".to_owned(),
+            fired_at: "2026-07-04T09:21:00Z".parse().unwrap(),
+            rule: request.rule,
+            because: FiredBecause::Wind {
+                time: "2026-07-04T09:20:00Z".parse().unwrap(),
+                speed_kmh: 15,
+                gust_kmh: None,
+                direction_deg: Some(5),
+            },
+        };
+        assert_eq!(
+            fired_line(&fired, 7200).line,
+            "Wallberg: 15 km/h from the north at 11:20, as your alarm 'Wallberg north' asks"
+        );
+        let day = request_of(&day_draft()).unwrap();
+        let fired = FiredAlert {
+            alert_id: "b".to_owned(),
+            alert_name: "Brauneck XC".to_owned(),
+            fired_at: "2026-07-02T07:00:00Z".parse().unwrap(),
+            rule: day.rule,
+            because: FiredBecause::Day {
+                date: "2026-07-04".parse().unwrap(),
+                verdict: ThermalVerdict::Flyable,
+                thermals: Some(ThermalKind::CrossCountry),
+                model: venti_domain::ModelId::new("icon-d2").unwrap(),
+                run: "2026-07-02T04:00:00Z".parse().unwrap(),
+            },
+        };
+        assert_eq!(
+            fired_line(&fired, 7200).line,
+            "Saturday is a cross-country day at Brauneck by the 06:00 run"
+        );
+    }
+}

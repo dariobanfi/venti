@@ -22,6 +22,11 @@
 //! | [`KEPT_SITE_CHANGES_PATH`] | GET | [`KeptSiteChangesRequest`] | [`KeptSiteChangesResponse`] |
 //! | [`kept_site_path`] | PUT | [`KeepSiteRequest`] | [`KeptSiteResponse`] |
 //! | [`kept_site_path`] | DELETE | | nothing |
+//! | [`ALERTS_PATH`] | GET | | [`AlertsResponse`] |
+//! | [`ALERTS_PATH`] | POST | [`AlertRequest`] | [`AlertResponse`] |
+//! | [`alert_path`] | PUT | [`AlertRequest`] | [`AlertResponse`] |
+//! | [`alert_path`] | DELETE | | nothing |
+//! | [`ALERTS_FIRED_PATH`] | GET | [`FiredAlertsRequest`] | [`FiredAlertsResponse`] |
 //! | [`FLIGHTS_PATH`] | POST | the flight file | [`UploadResponse`] |
 //! | [`FLIGHTS_PATH`] | GET | [`FlightsRequest`] | [`FlightsResponse`] |
 //! | [`FLIGHT_CHANGES_PATH`] | GET | [`FlightChangesRequest`] | [`FlightChangesResponse`] |
@@ -75,6 +80,7 @@
 
 mod account;
 mod airspace;
+mod alerts;
 mod archive;
 mod attribution;
 mod dumps;
@@ -104,6 +110,14 @@ pub use account::{
     Session, SessionsResponse, SignInRequest, SignInResponse, parse_display_name,
 };
 pub use airspace::{AirspaceLayer, AirspaceResponse};
+pub use alerts::{
+    ALERT_READING_FRESH_MINUTES, ALERT_REST_HOURS, ALERTS_FIRED_PATH, ALERTS_PATH, Alert,
+    AlertFault, AlertHours, AlertReading, AlertRequest, AlertResponse, AlertRule, AlertSector,
+    AlertsResponse, DayAlert, DayAtLeast, FIRED_KEPT_DAYS, FiredAlert, FiredAlertsRequest,
+    FiredAlertsResponse, FiredBecause, MAX_ALERT_KMH, MAX_ALERT_NAME_LENGTH,
+    MAX_ALERT_PLACE_LENGTH, MAX_ALERTS, MAX_DAYS_AHEAD, WindAlert, alert_clock, alert_day,
+    alert_path, weekday_name,
+};
 pub use archive::{
     ACCOUNT_ARCHIVE_PATH, ARCHIVE_FORMAT, ARCHIVE_INDEX_FILE, ARCHIVE_MEDIA_TYPE, ArchiveFile,
     ArchiveFlight, ArchiveIndex, ArchiveLicence, ArchiveReport, ArchiveReports,

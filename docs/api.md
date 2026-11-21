@@ -7,7 +7,7 @@ The server answers a small JSON API that the phone and web apps use: for the liv
 Everything here is version 1. It has four parts:
 
 - **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the hours of its days](#get-v1thermalshoursdatelayerheight) and [the forecast along a route](#get-v1routeweatherdatepoints), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
-- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [the sites a pilot keeps as their own](#the-sites-a-pilot-keeps), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights) with [what changed among them](#get-v1flightspublicchangessincepilotlimit) and [a flight's track as GeoJSON](#get-v1flightsidtrack), which a program of another maker reads as [Following Venti's public flights](#following-ventis-public-flights) says, [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
+- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [the sites a pilot keeps as their own](#the-sites-a-pilot-keeps), [alarms](#alarms), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights) with [what changed among them](#get-v1flightspublicchangessincepilotlimit) and [a flight's track as GeoJSON](#get-v1flightsidtrack), which a program of another maker reads as [Following Venti's public flights](#following-ventis-public-flights) says, [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
 
@@ -218,6 +218,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_cursor`, `invalid_limit` | `after` or `since` is not a value the server gave out; `limit` is not a number from 1 to 100, or from 1 to 5000 for the fixes of a live track |
 | 400 | `invalid_live_track_id` | The identifier sent for a live track is not 26 characters of its alphabet |
 | 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
+| 400 | `invalid_alert` | What a request says about an [alarm](#alarms) cannot be kept. `message` names the field |
 | 400 | `invalid_kept_site` | What a request says about a [site to keep](#the-sites-a-pilot-keeps) cannot be kept: no site's record, another identifier than the path's, or a credit that is another source's or too long. `message` names the field |
 | 400 | `invalid_site`, `site_out_of_area` | What a request says about a [site](#sites-that-ventis-partners-and-pilots-add) cannot be kept; the place is in no region this server serves |
 | 400 | `invalid_report` | A [report](#reports) gives a reason the server does not know, has a text of more than 1,000 characters, or gives the reason `other` and no text |
@@ -240,6 +241,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 403 | `sites_for_partners` | The site is of the partners' layer, and the account is not one whoever runs the server named as a partner. A pilot who finds the site wrong reports it |
 | 400 | `invalid_layers`, `invalid_confirmation` | `layers` or `layer` names a layer of sites the server does not have; a [confirmation](#put-v1sitesidconfirmation) cannot be kept |
 | 404 | `station_not_found` | No station has this identifier |
+| 404 | `alert_not_found` | The account has no [alarm](#alarms) with this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
 | 404 | `session_not_found`, `token_not_found`, `pilot_not_found` | The account has no such session; it has no such [token for a program](#tokens-for-other-programs); no pilot has this handle |
 | 404 | `live_track_not_found` | No live track has this identifier: none ever had, its pilot deleted it, or it ended long enough ago to have been removed. The three cannot be told apart |
@@ -254,6 +256,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 409 | `site_too_close`, `site_changed` | A [site](#sites-that-ventis-partners-and-pilots-add) would stand less than 20 m from another, which the error names in `error.site`; the site was changed since the revision the request names |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
 | 409 | `too_many_kept_sites` | The account keeps as many [sites as its own](#the-sites-a-pilot-keeps) as it may |
+| 409 | `too_many_alerts` | The account has as many [alarms](#alarms) as it may |
 | 409 | `too_many_tokens` | The account holds as many [tokens for programs](#tokens-for-other-programs) as it may |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
 | 410 | `site_gone` | The [site](#sites-that-ventis-partners-and-pilots-add) was removed, or taken down. Its identifier is not used again |
@@ -4612,7 +4615,7 @@ Needs a token, and the password in the body: a token alone is not enough for thi
 }
 ```
 
-Deletes the account with everything that belongs to it: its sessions, its tokens for programs, [the sites it keeps as its own](#the-sites-a-pilot-keeps), its flights and their files, its live tracks with their positions, and what it put into [groups](#groups): the plans it posted and its "I am in" on the plans of others. It leaves every group it is in. A group it kept is kept by the member who has been in it longest, under the name it had; a group it was alone in is deleted. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
+Deletes the account with everything that belongs to it: its sessions, its tokens for programs, [the sites it keeps as its own](#the-sites-a-pilot-keeps), [its alarms](#alarms) and what they fired, its flights and their files, its live tracks with their positions, and what it put into [groups](#groups): the plans it posted and its "I am in" on the plans of others. It leaves every group it is in. A group it kept is kept by the member who has been in it longest, under the name it had; a group it was alone in is deleted. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
 
 To take everything along first, ask for [the archive](#get-v1accountarchive).
 
@@ -4665,6 +4668,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `reports:write` | Sending a report |
 | `kept-sites:read` | [The sites the pilot keeps as their own](#the-sites-a-pilot-keeps): what changed among them since |
 | `kept-sites:write` | Keeping a site as the pilot's own, and forgetting one |
+| `alerts:read` | [The pilot's alarms](#alarms), and what they fired |
+| `alerts:write` | Setting, changing and removing an alarm |
 
 **Which request needs which scope.** A session, which Venti's own apps get by signing in, may do all of it.
 
@@ -4705,6 +4710,11 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `GET /v1/account/kept-sites/changes` | `kept-sites:read` |
 | `PUT /v1/account/kept-sites/{id}` | `kept-sites:write` |
 | `DELETE /v1/account/kept-sites/{id}` | `kept-sites:write` |
+| `GET /v1/account/alerts` | `alerts:read` |
+| `GET /v1/account/alerts/fired` | `alerts:read` |
+| `POST /v1/account/alerts` | `alerts:write` |
+| `PUT /v1/account/alerts/{id}` | `alerts:write` |
+| `DELETE /v1/account/alerts/{id}` | `alerts:write` |
 | `GET /v1/sessions` | the session only |
 | `DELETE /v1/sessions` | the session only |
 | `DELETE /v1/sessions/{id}` | the session only |
@@ -5064,6 +5074,196 @@ Needs a token. Keeps a site as the account's own. The body is the site as the de
 ### `DELETE /v1/account/kept-sites/{id}`
 
 Needs a token. Forgets a site. The answer is `204` with no body, also when the account did not keep the site: what was asked for holds either way. The account's other devices learn of it from `forgotten`.
+
+## Alarms
+
+A pilot sets alarms on the account: "tell me when the wind at the Patscherkofel station is from the north at 10 to 20 km/h", "tell me when a day of the next three is a cross-country day at the Nordkette". An alarm is a fixed rule over data the server has, and the server checks it where the data arrives: a wind alarm against every reading of its station, a day alarm against every run of the [thermal map](#get-v1thermals). What fired is kept on the account, and the pilot's apps fetch it ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)). The server sends nothing by itself yet: no push message, no mail.
+
+- **It is private.** Every request here acts for the account of its token. [Deleting the account](#delete-v1account) removes its alarms and what they fired.
+- **Two kinds**, told apart by `rule.kind`, and more to come: a client keeps a kind it does not know as it is.
+  - `wind`: a station (`station`, as [`GET /v1/stations`](#get-v1stationsbboxwestsoutheastnorth) names it, and its `station_name` for the words), and any of: `directions`, the directions the wind comes from, clockwise from `from_deg` to `to_deg`, both included (349 to 56 is north to north-east, half a point either side); `min_kmh` and `max_kmh`, the mean wind, both included; `gusts_max_kmh`, the strongest gust there may be; `hours`, from `from_hour` o'clock to `to_hour` o'clock, both included. At least the directions or one of the two speeds. A reading fits when it fits every part that is set; a reading that lacks what a part asks about (a gust, a direction) does not fit.
+  - `day`: a place (`place`, a site's `site` if it is one, and its `place_name` for the words), the days to look at, `days_ahead`, 0 for today to 3, and the least the day is to be, `at_least`: `flyable` (the day's verdict in the thermal map is `flyable`), `local`, `cross_country` or `big` (flyable, with thermals at least of that kind).
+- **When a wind alarm fires.** After each run of stations the server takes of each station its newest reading, if it is no older than 60 minutes, and checks the alarms that watch it. An alarm that fired rests: it fires again only for a reading at least 3 hours after the one that fired it. A change to the alarm ends the rest.
+- **When a day alarm fires.** After each run of the thermal map, for each day the alarm looks at, in the cell its place lies in: when the day is at least what the alarm asks and no run said so since the last that said otherwise. A run that says less forgets it; a later one that says so again fires again. A cell without a verdict for the day changes nothing. One run can fire one alarm for several days.
+- **The clock.** The hours of a wind alarm and the "today" of a day alarm are Central European Time, with summer time as the European Union keeps it: Venti's regions lie in it. *To verify* when a region lies beyond it.
+- **Bounds.** At most 20 alarms per account. A name has 1 to 60 characters, a station's or place's name 1 to 80. Speeds are at most 250 km/h. What fired is kept 30 days.
+- **A token for a program** needs `alerts:read` to read and `alerts:write` to set, change and remove ([tokens](#tokens-for-other-programs)).
+
+### `GET /v1/account/alerts`
+
+Needs a token. The account's alarms, the oldest first. The development mode's demo account has one of each kind:
+
+```json
+{
+  "alerts": [
+    {
+      "id": "0000000000000000000000a001",
+      "name": "Patscherkofel north",
+      "enabled": true,
+      "rule": {
+        "kind": "wind",
+        "station": "geosphere-tawes:11126",
+        "station_name": "Patscherkofel",
+        "directions": {
+          "from_deg": 349,
+          "to_deg": 56
+        },
+        "min_kmh": 10,
+        "max_kmh": 20,
+        "gusts_max_kmh": 30,
+        "hours": {
+          "from_hour": 10,
+          "to_hour": 16
+        }
+      },
+      "created_at": "2026-11-16T19:05:00Z",
+      "changed_at": "2026-11-16T19:05:00Z"
+    },
+    {
+      "id": "0000000000000000000000a002",
+      "name": "Nordkette cross-country",
+      "enabled": true,
+      "rule": {
+        "kind": "day",
+        "place": {
+          "lat": 47.3,
+          "lon": 11.4
+        },
+        "place_name": "Nordkette",
+        "days_ahead": [
+          0,
+          1,
+          2
+        ],
+        "at_least": "cross_country"
+      },
+      "created_at": "2026-11-16T19:05:00Z",
+      "changed_at": "2026-11-16T19:05:00Z"
+    }
+  ]
+}
+```
+
+### `POST /v1/account/alerts`
+
+Needs a token. Sets an alarm. The body is `name`, `enabled` (left out: `true`) and `rule`, as [`PUT`](#put-v1accountalertsid) shows. The answer is `201` with the alarm, as `PUT` answers.
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `invalid_alert` | A name that is empty, too long or does not print; a sector from and to the same direction; a least wind above the most; no directions and no speeds; hours that do not run forward; no day, a day beyond 3 or one twice; a kind the server does not know. `message` names the field |
+| 409 | `too_many_alerts` | The account has 20 alarms already |
+
+### `PUT /v1/account/alerts/{id}`
+
+Needs a token. Changes an alarm, by the `id` the list gives: its name, whether it is on, its rule. What the server noted of it is forgotten, so a wind alarm may fire with the next reading and a day alarm fires for what the next run says. A request, to the demo's wind alarm:
+
+```json
+{
+  "name": "Patscherkofel north",
+  "enabled": true,
+  "rule": {
+    "kind": "wind",
+    "station": "geosphere-tawes:11126",
+    "station_name": "Patscherkofel",
+    "directions": {
+      "from_deg": 349,
+      "to_deg": 56
+    },
+    "min_kmh": 10,
+    "max_kmh": 20,
+    "gusts_max_kmh": 30,
+    "hours": {
+      "from_hour": 9,
+      "to_hour": 17
+    }
+  }
+}
+```
+
+The answer:
+
+```json
+{
+  "alert": {
+    "id": "0000000000000000000000a001",
+    "name": "Patscherkofel north",
+    "enabled": true,
+    "rule": {
+      "kind": "wind",
+      "station": "geosphere-tawes:11126",
+      "station_name": "Patscherkofel",
+      "directions": {
+        "from_deg": 349,
+        "to_deg": 56
+      },
+      "min_kmh": 10,
+      "max_kmh": 20,
+      "gusts_max_kmh": 30,
+      "hours": {
+        "from_hour": 9,
+        "to_hour": 17
+      }
+    },
+    "created_at": "2026-11-16T19:05:00Z",
+    "changed_at": "2026-11-18T19:05:00Z"
+  }
+}
+```
+
+The errors of `POST`, and `404` with `alert_not_found` for an alarm the account does not have.
+
+### `DELETE /v1/account/alerts/{id}`
+
+Needs a token. Removes an alarm. The answer is `204` with no body, also when the account did not have it. What it fired stays until it is 30 days old.
+
+### `GET /v1/account/alerts/fired?since=&limit=`
+
+Needs a token. What the account's alarms fired since the device last asked, the oldest first, of the last 30 days.
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `since` | The `cursor` of the answer before | Everything kept |
+| `limit` | How many to return, 1 to 100 | 50 |
+
+Each entry has the alarm (`alert_id`, its `alert_name` and its `rule` as they were), `fired_at`, and `because`: for a wind alarm the reading (`time`, `speed_kmh`, `gust_kmh`, `direction_deg`, whole numbers), for a day alarm the day (`date`, `verdict`, `thermals`, and the `model` and `run` it is read from). The words a pilot reads are the app's: Venti's apps take them from the core. `reset` is `true` when `since` was not a cursor of this server's; the answer then starts from the oldest kept, and a device shows again what it shows. The demo account's one:
+
+```json
+{
+  "fired": [
+    {
+      "alert_id": "0000000000000000000000a001",
+      "alert_name": "Patscherkofel north",
+      "fired_at": "2026-11-18T10:23:00Z",
+      "rule": {
+        "kind": "wind",
+        "station": "geosphere-tawes:11126",
+        "station_name": "Patscherkofel",
+        "directions": {
+          "from_deg": 349,
+          "to_deg": 56
+        },
+        "min_kmh": 10,
+        "max_kmh": 20,
+        "gusts_max_kmh": 30,
+        "hours": {
+          "from_hour": 10,
+          "to_hour": 16
+        }
+      },
+      "because": {
+        "kind": "wind",
+        "time": "2026-11-18T10:20:00Z",
+        "speed_kmh": 15,
+        "gust_kmh": 22,
+        "direction_deg": 10
+      }
+    }
+  ],
+  "cursor": "1794997380000000",
+  "more": false,
+  "reset": false
+}
+```
 
 ## Flights
 

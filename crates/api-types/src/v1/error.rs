@@ -126,6 +126,14 @@ pub enum ErrorCode {
     InvalidKeptSite,
     /// The account keeps as many sites as it may. Forget one first.
     TooManyKeptSites,
+    /// What a request says about an alarm cannot be kept: a name, a
+    /// station, a place or a limit the server does not take. The message
+    /// names the field.
+    InvalidAlert,
+    /// The account has as many alarms as it may. Remove one first.
+    TooManyAlerts,
+    /// The account has no alarm with this identifier.
+    AlertNotFound,
     /// No flight has this address, or it is not the caller's to see.
     FlightNotFound,
     /// No pilot has this handle.

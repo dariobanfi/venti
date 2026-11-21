@@ -336,6 +336,125 @@
       "AirspaceType": {
         "type": "string"
       },
+      "Alert": {
+        "properties": {
+          "changed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/AlertRule"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "enabled",
+          "rule",
+          "created_at",
+          "changed_at"
+        ],
+        "type": "object"
+      },
+      "AlertHours": {
+        "properties": {
+          "from_hour": {
+            "type": "integer"
+          },
+          "to_hour": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_hour",
+          "to_hour"
+        ],
+        "type": "object"
+      },
+      "AlertRequest": {
+        "properties": {
+          "enabled": {
+            "description": "Left out: true.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "What the pilot calls the alarm: 1 to 60 characters.",
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/AlertRule"
+          }
+        },
+        "required": [
+          "name",
+          "rule"
+        ],
+        "type": "object"
+      },
+      "AlertResponse": {
+        "properties": {
+          "alert": {
+            "$ref": "#/components/schemas/Alert"
+          }
+        },
+        "required": [
+          "alert"
+        ],
+        "type": "object"
+      },
+      "AlertRule": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WindAlert"
+          },
+          {
+            "$ref": "#/components/schemas/DayAlert"
+          }
+        ],
+        "description": "What an alarm waits for, told apart by `kind`: `wind` or `day`. A kind a client does not know is left as it is."
+      },
+      "AlertSector": {
+        "properties": {
+          "from_deg": {
+            "type": "integer"
+          },
+          "to_deg": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_deg",
+          "to_deg"
+        ],
+        "type": "object"
+      },
+      "AlertsResponse": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "alerts"
+        ],
+        "type": "object"
+      },
       "Attribution": {
         "description": "The credit of one data source an answer draws on. Whoever shows the data shows `text`, linked to `url`, next to it, and `notice` if there is one: the sources' licences require it. An answer's `attributions` has one entry per source it draws on, and only those.",
         "properties": {
@@ -530,6 +649,48 @@
         "required": [
           "group",
           "invite_code"
+        ],
+        "type": "object"
+      },
+      "DayAlert": {
+        "properties": {
+          "at_least": {
+            "enum": [
+              "flyable",
+              "local",
+              "cross_country",
+              "big"
+            ],
+            "type": "string"
+          },
+          "days_ahead": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "day"
+            ],
+            "type": "string"
+          },
+          "place": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "place_name": {
+            "type": "string"
+          },
+          "site": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "place",
+          "place_name",
+          "days_ahead",
+          "at_least"
         ],
         "type": "object"
       },
@@ -746,6 +907,9 @@
           "token_not_found",
           "invalid_kept_site",
           "too_many_kept_sites",
+          "invalid_alert",
+          "too_many_alerts",
+          "alert_not_found",
           "flight_not_found",
           "pilot_not_found",
           "invalid_flight",
@@ -820,6 +984,132 @@
           "id"
         ],
         "type": "object"
+      },
+      "FiredAlert": {
+        "properties": {
+          "alert_id": {
+            "type": "string"
+          },
+          "alert_name": {
+            "type": "string"
+          },
+          "because": {
+            "$ref": "#/components/schemas/FiredBecause"
+          },
+          "fired_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/AlertRule"
+          }
+        },
+        "required": [
+          "alert_id",
+          "alert_name",
+          "fired_at",
+          "rule",
+          "because"
+        ],
+        "type": "object"
+      },
+      "FiredAlertsResponse": {
+        "properties": {
+          "cursor": {
+            "description": "Send it as `since` with the next request.",
+            "type": "string"
+          },
+          "fired": {
+            "items": {
+              "$ref": "#/components/schemas/FiredAlert"
+            },
+            "type": "array"
+          },
+          "more": {
+            "description": "Whether more waits: ask again at once with `cursor`.",
+            "type": "boolean"
+          },
+          "reset": {
+            "description": "True when the cursor sent was not this server's: what follows starts from the oldest kept.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fired",
+          "cursor",
+          "more",
+          "reset"
+        ],
+        "type": "object"
+      },
+      "FiredBecause": {
+        "anyOf": [
+          {
+            "properties": {
+              "direction_deg": {
+                "type": "integer"
+              },
+              "gust_kmh": {
+                "type": "integer"
+              },
+              "kind": {
+                "enum": [
+                  "wind"
+                ],
+                "type": "string"
+              },
+              "speed_kmh": {
+                "type": "integer"
+              },
+              "time": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "time",
+              "speed_kmh"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "date": {
+                "format": "date",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "day"
+                ],
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "run": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "thermals": {
+                "$ref": "#/components/schemas/ThermalKind"
+              },
+              "verdict": {
+                "$ref": "#/components/schemas/ThermalVerdict"
+              }
+            },
+            "required": [
+              "kind",
+              "date",
+              "verdict",
+              "model",
+              "run"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "What fired an alarm, told apart by `kind`: a reading of the station, or a run of the thermal map."
       },
       "Flight": {
         "description": "A flight as worked out by the server from the uploaded file. `id` is its address for good and is never used for another flight.",
@@ -2870,7 +3160,9 @@
           "groups:write",
           "reports:write",
           "kept-sites:read",
-          "kept-sites:write"
+          "kept-sites:write",
+          "alerts:read",
+          "alerts:write"
         ]
       },
       "Session": {
@@ -4461,6 +4753,43 @@
           "public"
         ]
       },
+      "WindAlert": {
+        "properties": {
+          "directions": {
+            "$ref": "#/components/schemas/AlertSector"
+          },
+          "gusts_max_kmh": {
+            "type": "integer"
+          },
+          "hours": {
+            "$ref": "#/components/schemas/AlertHours"
+          },
+          "kind": {
+            "enum": [
+              "wind"
+            ],
+            "type": "string"
+          },
+          "max_kmh": {
+            "type": "integer"
+          },
+          "min_kmh": {
+            "type": "integer"
+          },
+          "station": {
+            "type": "string"
+          },
+          "station_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "station",
+          "station_name"
+        ],
+        "type": "object"
+      },
       "WindAloft": {
         "properties": {
           "above_ground_m": {
@@ -4535,7 +4864,9 @@
           "groups:write",
           "reports:write",
           "kept-sites:read",
-          "kept-sites:write"
+          "kept-sites:write",
+          "alerts:read",
+          "alerts:write"
         ]
       }
     }
@@ -4620,6 +4951,254 @@
         ],
         "summary": "The account",
         "x-venti-docs": "GET /v1/account"
+      }
+    },
+    "/v1/account/alerts": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `alerts:read`.",
+        "operationId": "get_account_alerts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "alerts:read"
+            ]
+          }
+        ],
+        "summary": "The pilot's alarms",
+        "x-venti-docs": "GET /v1/account/alerts"
+      },
+      "post": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `alerts:write`.",
+        "operationId": "post_account_alerts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "alerts:write"
+            ]
+          }
+        ],
+        "summary": "Set an alarm",
+        "x-venti-docs": "POST /v1/account/alerts"
+      }
+    },
+    "/v1/account/alerts/fired": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `alerts:read`.",
+        "operationId": "get_account_alerts_fired",
+        "parameters": [
+          {
+            "description": "Following changes: the `cursor` of the answer before, as the server gave it. Left out to begin with everything. While an answer says `more`, ask again at once with its `cursor`; `reset` says the cursor was not this server's.",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiredAlertsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "alerts:read"
+            ]
+          }
+        ],
+        "summary": "What the pilot's alarms fired",
+        "x-venti-docs": "GET /v1/account/alerts/fired?since=&limit="
+      }
+    },
+    "/v1/account/alerts/{id}": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `alerts:write`.",
+        "operationId": "delete_account_alerts_id",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "alerts:write"
+            ]
+          }
+        ],
+        "summary": "Remove an alarm",
+        "x-venti-docs": "DELETE /v1/account/alerts/{id}"
+      },
+      "put": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `alerts:write`.",
+        "operationId": "put_account_alerts_id",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "alerts:write"
+            ]
+          }
+        ],
+        "summary": "Change an alarm",
+        "x-venti-docs": "PUT /v1/account/alerts/{id}"
       }
     },
     "/v1/account/archive": {

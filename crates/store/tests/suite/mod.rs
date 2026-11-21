@@ -10,6 +10,7 @@
 
 mod accounts;
 mod airspace;
+mod alerts;
 mod flights;
 mod forecasts;
 mod groups;
@@ -22,6 +23,7 @@ mod takeoffs;
 
 pub(crate) use accounts::*;
 pub(crate) use airspace::*;
+pub(crate) use alerts::*;
 pub(crate) use flights::*;
 pub(crate) use forecasts::*;
 pub(crate) use groups::*;
@@ -111,6 +113,9 @@ macro_rules! store_suite {
             a_forgotten_site_is_told_to_the_other_devices,
             an_account_keeps_so_many_sites_and_no_more,
             kept_sites_are_an_accounts_own_and_go_with_it,
+            an_alarm_is_added_changed_and_removed,
+            alarms_are_found_by_station_and_by_kind_when_on,
+            what_fired_is_numbered_kept_and_pruned,
             tokens_for_programs_are_withdrawn_one_by_one,
             an_account_holds_only_so_many_tokens_for_programs,
             an_account_keeps_only_its_most_recent_sessions,

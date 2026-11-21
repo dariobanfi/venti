@@ -43,6 +43,7 @@
 
 pub mod accounts;
 pub mod adapters;
+pub mod alerts;
 pub mod api;
 pub mod cli;
 pub mod clock;

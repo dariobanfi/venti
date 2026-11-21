@@ -1,4 +1,5 @@
 mod accounts;
+mod alerts;
 mod flights;
 mod groups;
 mod kept_sites;
@@ -64,6 +65,7 @@ struct Inner {
     reports: reports::Reports,
     pilot_sites: pilot_sites::PilotSites,
     kept_sites: kept_sites::KeptSites,
+    alerts: alerts::Alerts,
 }
 
 #[derive(Debug)]
@@ -588,6 +590,7 @@ impl Store for MemoryStore {
         inner.groups.delete_account(account_id);
         inner.reports.delete_account(account_id);
         inner.kept_sites.delete_account(account_id);
+        inner.alerts.delete_account(account_id);
         Ok(())
     }
 
@@ -739,6 +742,70 @@ impl Store for MemoryStore {
         limit: usize,
     ) -> Result<KeptSiteChanges, StoreError> {
         Ok(self.lock().kept_sites.changes(account_id, since, limit))
+    }
+
+    async fn alerts(&self, account_id: &str) -> Result<Vec<crate::Alert>, StoreError> {
+        Ok(self.lock().alerts.of(account_id))
+    }
+
+    async fn add_alert(
+        &self,
+        account_id: &str,
+        new: &crate::NewAlert,
+        now: Timestamp,
+        most: usize,
+    ) -> Result<crate::AddingAlert, StoreError> {
+        let inner = &mut *self.lock();
+        if inner.accounts.flight_change(account_id).is_none() {
+            return Ok(crate::AddingAlert::NoAccount);
+        }
+        Ok(inner.alerts.add(account_id, new, now, most))
+    }
+
+    async fn change_alert(
+        &self,
+        account_id: &str,
+        new: &crate::NewAlert,
+        now: Timestamp,
+    ) -> Result<Option<crate::Alert>, StoreError> {
+        Ok(self.lock().alerts.change(account_id, new, now))
+    }
+
+    async fn remove_alert(&self, account_id: &str, alert_id: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().alerts.remove(account_id, alert_id))
+    }
+
+    async fn wind_alerts_at(
+        &self,
+        station_ids: &[String],
+    ) -> Result<Vec<crate::Alert>, StoreError> {
+        Ok(self.lock().alerts.matching(|alert| {
+            alert
+                .station_id
+                .as_ref()
+                .is_some_and(|station| station_ids.contains(station))
+        }))
+    }
+
+    async fn alerts_of_kind(&self, kind: &str) -> Result<Vec<crate::Alert>, StoreError> {
+        Ok(self.lock().alerts.matching(|alert| alert.kind == kind))
+    }
+
+    async fn note_alert_check(&self, check: &crate::AlertCheck) -> Result<bool, StoreError> {
+        Ok(self.lock().alerts.note(check))
+    }
+
+    async fn fired_alerts(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> Result<crate::FiredAlerts, StoreError> {
+        Ok(self.lock().alerts.fired(account_id, since, limit))
+    }
+
+    async fn prune_fired_alerts(&self, before: Timestamp) -> Result<u64, StoreError> {
+        Ok(self.lock().alerts.prune(before))
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

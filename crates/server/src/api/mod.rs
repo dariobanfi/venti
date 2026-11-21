@@ -63,6 +63,7 @@
 
 mod account;
 mod airspace;
+mod alerts;
 mod archive;
 mod auth;
 mod body;
@@ -592,6 +593,18 @@ impl<S: Store> Api<S> {
             .route(
                 "/v1/account/kept-sites/{*id}",
                 put(kept_sites::keep::<S>).delete(kept_sites::forget::<S>),
+            )
+            .route(
+                venti_api_types::v1::ALERTS_PATH,
+                get(alerts::list::<S>).post(alerts::add::<S>),
+            )
+            .route(
+                venti_api_types::v1::ALERTS_FIRED_PATH,
+                get(alerts::fired::<S>),
+            )
+            .route(
+                "/v1/account/alerts/{id}",
+                put(alerts::change::<S>).delete(alerts::remove::<S>),
             )
             .route(
                 SESSIONS_PATH,

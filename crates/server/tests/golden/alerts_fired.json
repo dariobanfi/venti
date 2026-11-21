@@ -1,0 +1,35 @@
+{
+  "fired": [
+    {
+      "alert_id": "0000000000000000000000a001",
+      "alert_name": "Patscherkofel north",
+      "fired_at": "2026-11-18T10:23:00Z",
+      "rule": {
+        "kind": "wind",
+        "station": "geosphere-tawes:11126",
+        "station_name": "Patscherkofel",
+        "directions": {
+          "from_deg": 349,
+          "to_deg": 56
+        },
+        "min_kmh": 10,
+        "max_kmh": 20,
+        "gusts_max_kmh": 30,
+        "hours": {
+          "from_hour": 10,
+          "to_hour": 16
+        }
+      },
+      "because": {
+        "kind": "wind",
+        "time": "2026-11-18T10:20:00Z",
+        "speed_kmh": 15,
+        "gust_kmh": 22,
+        "direction_deg": 10
+      }
+    }
+  ],
+  "cursor": "1794997380000000",
+  "more": false,
+  "reset": false
+}

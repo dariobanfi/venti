@@ -89,9 +89,10 @@ fn scoped() -> Vec<(Method, String, Scope)> {
     let flight = format!("{FLIGHTS_PATH}/{ID}");
     let kept = format!("{KEPT_SITES_PATH}/venti:{ID}");
     use Scope::{
-        AccountRead, FlightsRead, FlightsWrite, GroupsRead, GroupsWrite, KeptSitesRead,
-        KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite,
+        AccountRead, AlertsRead, AlertsWrite, FlightsRead, FlightsWrite, GroupsRead, GroupsWrite,
+        KeptSitesRead, KeptSitesWrite, LiveWrite, ReportsWrite, SitesWrite,
     };
+    let alert = venti_api_types::v1::alert_path(ID);
     vec![
         (Method::GET, ACCOUNT_PATH.to_owned(), AccountRead),
         (Method::GET, FLIGHTS_PATH.to_owned(), FlightsRead),
@@ -131,6 +132,23 @@ fn scoped() -> Vec<(Method, String, Scope)> {
         ),
         (Method::PUT, kept.clone(), KeptSitesWrite),
         (Method::DELETE, kept, KeptSitesWrite),
+        (
+            Method::GET,
+            venti_api_types::v1::ALERTS_PATH.to_owned(),
+            AlertsRead,
+        ),
+        (
+            Method::GET,
+            venti_api_types::v1::ALERTS_FIRED_PATH.to_owned(),
+            AlertsRead,
+        ),
+        (
+            Method::POST,
+            venti_api_types::v1::ALERTS_PATH.to_owned(),
+            AlertsWrite,
+        ),
+        (Method::PUT, alert.clone(), AlertsWrite),
+        (Method::DELETE, alert, AlertsWrite),
     ]
 }
 
@@ -241,9 +259,11 @@ async fn a_token_opens_what_its_scopes_say_and_nothing_else() {
     let dario = sign_up(&router, "dario").await;
 
     for scope in Scope::ALL {
-        let only = make(&router, &dario.token, &[scope]).await.secret;
+        let only_made = make(&router, &dario.token, &[scope]).await;
+        let only = only_made.secret.clone();
         let others: Vec<Scope> = Scope::ALL.into_iter().filter(|s| *s != scope).collect();
-        let all_but = make(&router, &dario.token, &others).await.secret;
+        let all_but_made = make(&router, &dario.token, &others).await;
+        let all_but = all_but_made.secret.clone();
         let mut asked = 0;
         for (method, path, needs) in scoped() {
             let with = ask(method.clone(), &path).token(&only).send(&router).await;
@@ -268,6 +288,14 @@ async fn a_token_opens_what_its_scopes_say_and_nothing_else() {
             }
         }
         assert!(asked > 0, "no request needs {scope}");
+        // Withdrawn again: an account holds only so many tokens.
+        for made in [only_made, all_but_made] {
+            let withdrawn = ask(Method::DELETE, &account_token_path(&made.token.id))
+                .token(&dario.token)
+                .send(&router)
+                .await;
+            assert_eq!(withdrawn.status, StatusCode::NO_CONTENT);
+        }
     }
 }
 

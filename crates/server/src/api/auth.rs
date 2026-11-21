@@ -346,6 +346,10 @@ needs! {
     ReadKeptSites => KeptSitesRead,
     /// `kept-sites:write`.
     WriteKeptSites => KeptSitesWrite,
+    /// `alerts:read`.
+    ReadAlerts => AlertsRead,
+    /// `alerts:write`.
+    WriteAlerts => AlertsWrite,
 }
 
 /// The address a request came from; see [`crate::accounts::client`].

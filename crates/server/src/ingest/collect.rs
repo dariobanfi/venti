@@ -12,6 +12,7 @@ use venti_sources::{
 use venti_store::{Coverage, ForecastModel, RunRecord, SiteDelivery, Store};
 
 use super::{airspace_summary, forecast_summary, radar_summary, sites_summary, summary};
+use crate::alerts::Watch;
 use crate::clock::Clock;
 use crate::forecast::Forecasts;
 use crate::plan::Job;
@@ -41,6 +42,8 @@ pub struct Collector<S, F, A> {
     /// The radar service, which runs the radar sources and keeps their
     /// frames.
     radar: Option<Arc<dyn Radar>>,
+    /// The alarms pilots set, checked against the readings of each run.
+    alerts: Option<Arc<dyn Watch>>,
 }
 
 impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
@@ -71,7 +74,16 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             forecasts: None,
             thermal_map: None,
             radar: None,
+            alerts: None,
         }
+    }
+
+    /// The same collector, checking the wind alarms against the readings
+    /// of each run of stations once they are stored.
+    #[must_use]
+    pub fn with_alerts(mut self, alerts: Arc<dyn Watch>) -> Self {
+        self.alerts = Some(alerts);
+        self
     }
 
     /// The same collector, with the radar service it runs radar sources
@@ -298,9 +310,13 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         }
 
         let record = self.record(&job.source, started_at, &Outcome::of_observations(report));
-        self.save(&record, &output.stations, &output.observations)
-            .await
-            && healthy
+        let saved = self
+            .save(&record, &output.stations, &output.observations)
+            .await;
+        if saved && let Some(alerts) = &self.alerts {
+            alerts.readings(&output.observations).await;
+        }
+        saved && healthy
     }
 
     /// Runs an airspace source once. The set it delivers replaces the

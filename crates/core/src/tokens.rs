@@ -181,6 +181,8 @@ fn words(scope: Scope) -> Option<(&'static str, &'static str)> {
             "Your take-offs: write",
             "keep a site as your own, and forget one",
         ),
+        Scope::AlertsRead => ("Alarms: read", "your alarms, and what they fired"),
+        Scope::AlertsWrite => ("Alarms: write", "set, change and remove your alarms"),
         Scope::Other => return None,
     })
 }

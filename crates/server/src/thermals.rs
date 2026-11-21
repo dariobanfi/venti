@@ -568,6 +568,8 @@ pub struct ThermalMap {
     fetching: tokio::sync::Mutex<()>,
     /// Where the judged hours are written down, if anywhere.
     keeper: Option<Arc<dyn Keeper>>,
+    /// The alarms pilots set, told of each map made with a new run.
+    alerts: Option<Arc<dyn crate::alerts::Watch>>,
 }
 
 /// Where the map writes down what it judged and reads it back after a
@@ -645,6 +647,7 @@ impl ThermalMap {
             state: Mutex::new(state),
             fetching: tokio::sync::Mutex::new(()),
             keeper: None,
+            alerts: None,
         })
     }
 
@@ -654,6 +657,14 @@ impl ThermalMap {
     #[must_use]
     pub fn with_keeper(mut self, keeper: Arc<dyn Keeper>) -> Self {
         self.keeper = Some(keeper);
+        self
+    }
+
+    /// The same map, telling `alerts` of each map it makes with a new
+    /// run, once the map is served.
+    #[must_use]
+    pub fn with_alerts(mut self, alerts: Arc<dyn crate::alerts::Watch>) -> Self {
+        self.alerts = Some(alerts);
         self
     }
 
@@ -850,6 +861,7 @@ impl ThermalMap {
         }
 
         let now = self.clock.now();
+        let mut made = None;
         let written = {
             let mut state = self.lock();
             let of = &mut state.models[index];
@@ -871,6 +883,7 @@ impl ThermalMap {
                     served.map.days.len(),
                     self.requests_per_map(),
                 );
+                made = Some(served.map.clone());
                 state.served = Some(served);
             }
             self.keeper.as_ref().map(|_| {
@@ -897,6 +910,9 @@ impl ThermalMap {
                     "thermal map: the kept hours of {model} could not be written down: {error}"
                 ),
             }
+        }
+        if let (Some(alerts), Some(map)) = (&self.alerts, made) {
+            alerts.map(map).await;
         }
         true
     }

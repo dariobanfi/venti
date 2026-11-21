@@ -58,6 +58,7 @@ use venti_core::{
     ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
     TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
+use venti_core::{AlertDraft, AlertFaultView, AlertView, FiredLine, FiredPage};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{
     SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteCorrecting,
@@ -737,6 +738,44 @@ impl Core {
         }
     }
 
+    /// Starts fetching the account's alarms and what they fired since the
+    /// last run: after signing in, after changing an alarm, and from time
+    /// to time while the page is open.
+    #[wasm_bindgen(js_name = alertsSync)]
+    pub fn alerts_sync(&self) -> AlertsSync {
+        AlertsSync {
+            sync: Arc::clone(&self.session.core).alerts_sync(),
+            staged: Arc::clone(&self.session.staged),
+        }
+    }
+
+    /// The account's alarms as the browser last fetched them.
+    #[wasm_bindgen(js_name = alertsHeld)]
+    pub fn alerts_held(&self) -> Result<Vec<Ts<AlertView>>, JsValue> {
+        self.session
+            .call(venti_core::Core::alerts_held)
+            .map_err(thrown)?
+            .iter()
+            .map(to_js)
+            .collect()
+    }
+
+    /// What the alarms fired as the browser last fetched it, the newest
+    /// first. `utc_offset_s` is how far the clock is ahead of UTC.
+    #[wasm_bindgen(js_name = alertsFiredHeld)]
+    pub fn alerts_fired_held(
+        &self,
+        now_unix_s: f64,
+        utc_offset_s: i32,
+    ) -> Result<Vec<Ts<FiredLine>>, JsValue> {
+        self.session
+            .call(|core| core.alerts_fired_held(whole_seconds(now_unix_s), utc_offset_s))
+            .map_err(thrown)?
+            .iter()
+            .map(to_js)
+            .collect()
+    }
+
     /// Marks a site as one of the pilot's own and keeps its record in the
     /// browser. `credits` are the credits of the answer the site came
     /// from, and `as_of_unix_s` the date of the source's data by the same
@@ -1096,6 +1135,127 @@ impl KeptSitesSync {
         let step = self.sync.receive_when_fetched(status, body, retry_after_s);
         to_js(&settle(&self.staged, step).map_err(thrown)?)
     }
+}
+
+/// One run of fetching the account's alarms and what they fired.
+#[wasm_bindgen]
+pub struct AlertsSync {
+    sync: Arc<venti_core::AlertsSync>,
+    staged: Arc<StagedStorage>,
+}
+
+#[wasm_bindgen]
+impl AlertsSync {
+    /// Begins.
+    pub fn start(&self) -> Result<Ts<SyncStep>, JsValue> {
+        let step = self.sync.start_when_fetched();
+        to_js(&settle(&self.staged, step).map_err(thrown)?)
+    }
+
+    /// Takes the server's answer to the last request.
+    pub fn receive(
+        &self,
+        status: u16,
+        body: &[u8],
+        retry_after_s: Option<u32>,
+    ) -> Result<Ts<SyncStep>, JsValue> {
+        let step = self.sync.receive_when_fetched(status, body, retry_after_s);
+        to_js(&settle(&self.staged, step).map_err(thrown)?)
+    }
+
+    /// What this run fetched that fired since the run before: what the
+    /// browser's notification says while the page is open.
+    #[wasm_bindgen(js_name = newLines)]
+    pub fn new_lines(&self, utc_offset_s: i32) -> Result<Vec<Ts<FiredLine>>, JsValue> {
+        self.sync
+            .new_lines(utc_offset_s)
+            .iter()
+            .map(to_js)
+            .collect()
+    }
+}
+
+// The pilot's alarms. The core has the choices and the words, checks a
+// draft, says what to send and reads the answers; the page sends.
+
+/// The sixteen points of the compass, short, from the north clockwise.
+#[wasm_bindgen(js_name = alertPoints)]
+pub fn alert_points() -> Vec<String> {
+    venti_core::alert_points()
+}
+
+/// What a draft waits for, in one line.
+#[wasm_bindgen(js_name = alertLine)]
+pub fn alert_line(draft: Ts<AlertDraft>) -> Result<String, JsValue> {
+    Ok(venti_core::alert_line(from_js(&draft)?))
+}
+
+/// Everything that is wrong with a draft. Empty when it may be sent.
+#[wasm_bindgen(js_name = alertCheck)]
+pub fn alert_check(draft: Ts<AlertDraft>) -> Result<Vec<Ts<AlertFaultView>>, JsValue> {
+    venti_core::alert_check(from_js(&draft)?)
+        .iter()
+        .map(to_js)
+        .collect()
+}
+
+/// The request for the account's alarms.
+#[wasm_bindgen(js_name = alertsRequest)]
+pub fn alerts_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::alerts_request())
+}
+
+/// The request that sets a new alarm.
+#[wasm_bindgen(js_name = alertAddRequest)]
+pub fn alert_add_request(draft: Ts<AlertDraft>) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::alert_add_request(from_js(&draft)?).map_err(thrown)?)
+}
+
+/// The request that changes an alarm.
+#[wasm_bindgen(js_name = alertChangeRequest)]
+pub fn alert_change_request(
+    id: String,
+    draft: Ts<AlertDraft>,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::alert_change_request(id, from_js(&draft)?).map_err(thrown)?)
+}
+
+/// The request that removes an alarm.
+#[wasm_bindgen(js_name = alertRemoveRequest)]
+pub fn alert_remove_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::alert_remove_request(id))
+}
+
+/// Reads the answer to `alertsRequest`.
+#[wasm_bindgen(js_name = alertsRead)]
+pub fn alerts_read(status: u16, body: Vec<u8>) -> Result<Vec<Ts<AlertView>>, JsValue> {
+    venti_core::alerts(status, body)
+        .map_err(thrown)?
+        .iter()
+        .map(to_js)
+        .collect()
+}
+
+/// Reads the answer to `alertAddRequest` or `alertChangeRequest`.
+#[wasm_bindgen(js_name = alertSaved)]
+pub fn alert_saved(status: u16, body: Vec<u8>) -> Result<Ts<AlertView>, JsValue> {
+    to_js(&venti_core::alert_saved(status, body).map_err(thrown)?)
+}
+
+/// The request for what the alarms fired since `since`.
+#[wasm_bindgen(js_name = alertsFiredRequest)]
+pub fn alerts_fired_request(since: Option<String>) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::alerts_fired_request(since))
+}
+
+/// Reads the answer to `alertsFiredRequest`.
+#[wasm_bindgen(js_name = alertsFired)]
+pub fn alerts_fired(
+    status: u16,
+    body: Vec<u8>,
+    utc_offset_s: i32,
+) -> Result<Ts<FiredPage>, JsValue> {
+    to_js(&venti_core::alerts_fired(status, body, utc_offset_s).map_err(thrown)?)
 }
 
 // The tokens a pilot gives to other programs, for a screen "Programs with

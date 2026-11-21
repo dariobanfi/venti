@@ -1090,6 +1090,7 @@ async fn add_demo_account(
     add_demo_groups(store, &pilots, now).await?;
     add_demo_sites(store, &pilots, now).await?;
     add_demo_takeoffs(store, password_cost).await?;
+    add_demo_alerts(store, &account.id, now).await?;
 
     let session = Session {
         id: DEMO_SESSION_ID.to_owned(),
@@ -1140,6 +1141,126 @@ async fn add_demo_account(
         if !matches!(saved, LiveSaved::Kept(kept) if kept.created && kept.full == 0) {
             return Err("a demo live track could not be begun".to_owned());
         }
+    }
+    Ok(())
+}
+
+/// The demo account's alarms: a wind alarm on the Patscherkofel station
+/// and a day alarm near Innsbruck, by these identifiers.
+pub const DEMO_ALERTS: [&str; 2] = ["0000000000000000000000a001", "0000000000000000000000a002"];
+
+/// Gives the demo account one alarm of each kind, and makes the wind
+/// alarm have fired once, on the day of `now`, for a made-up reading.
+async fn add_demo_alerts(
+    store: &MemoryStore,
+    account_id: &str,
+    now: Timestamp,
+) -> Result<(), String> {
+    use venti_api_types::v1::{
+        AlertHours, AlertRule, AlertSector, DayAlert, DayAtLeast, FiredAlert, FiredBecause,
+        WindAlert,
+    };
+    use venti_store::{AddingAlert, AlertCheck, NewAlert};
+
+    let wind = WindAlert {
+        station: "geosphere-tawes:11126"
+            .parse()
+            .map_err(|_| "the demo station's identifier is not one")?,
+        station_name: "Patscherkofel".to_owned(),
+        directions: Some(AlertSector {
+            from_deg: 349,
+            to_deg: 56,
+        }),
+        min_kmh: Some(10),
+        max_kmh: Some(20),
+        gusts_max_kmh: Some(30),
+        hours: Some(AlertHours {
+            from_hour: 10,
+            to_hour: 16,
+        }),
+    };
+    let day = DayAlert {
+        place: venti_domain::GeoPoint::new(47.3, 11.4).map_err(|e| e.to_string())?,
+        site: None,
+        place_name: "Nordkette".to_owned(),
+        days_ahead: vec![0, 1, 2],
+        at_least: DayAtLeast::CrossCountry,
+    };
+    let alarms = [
+        (
+            DEMO_ALERTS[0],
+            "Patscherkofel north",
+            AlertRule::Wind(wind.clone()),
+            Some("geosphere-tawes:11126"),
+            venti_store::WIND_ALERT,
+        ),
+        (
+            DEMO_ALERTS[1],
+            "Nordkette cross-country",
+            AlertRule::Day(day),
+            None,
+            venti_store::DAY_ALERT,
+        ),
+    ];
+    let mut wind_alarm = None;
+    for (id, name, rule, station, kind) in alarms {
+        let new = NewAlert {
+            id: id.to_owned(),
+            name: name.to_owned(),
+            enabled: true,
+            kind: kind.to_owned(),
+            station_id: station.map(str::to_owned),
+            rule: serde_json::to_string(&rule).map_err(|e| e.to_string())?,
+        };
+        match store
+            .add_alert(account_id, &new, now - Duration::days(2), usize::MAX)
+            .await
+            .map_err(|e| e.to_string())?
+        {
+            AddingAlert::Added(alert) if wind_alarm.is_none() => wind_alarm = Some(alert),
+            AddingAlert::Added(_) => {}
+            _ => return Err("a demo alarm could not be added".to_owned()),
+        }
+    }
+    let alarm = wind_alarm.ok_or("the demo wind alarm is missing")?;
+    // 11:20 by the alarms' clock on the day of `now`, within its hours.
+    let read_at = now
+        .date_naive()
+        .and_hms_opt(10, 20, 0)
+        .map(|time| time.and_utc())
+        .filter(|read_at| *read_at <= now)
+        .unwrap_or(now - Duration::hours(1));
+    let fired = FiredAlert {
+        alert_id: alarm.id.clone(),
+        alert_name: alarm.name.clone(),
+        fired_at: read_at + Duration::minutes(3),
+        rule: AlertRule::Wind(wind),
+        because: FiredBecause::Wind {
+            time: read_at,
+            speed_kmh: 15,
+            gust_kmh: Some(22),
+            direction_deg: Some(10),
+        },
+    };
+    let check = AlertCheck {
+        account_id: account_id.to_owned(),
+        alert_id: alarm.id,
+        changed_at: alarm.changed_at,
+        state: format!(
+            r#"{{"last":"{}"}}"#,
+            read_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        ),
+        fired: Some((
+            fired.fired_at,
+            serde_json::to_string(&fired).map_err(|e| e.to_string())?,
+        )),
+    };
+    if !store
+        .note_alert_check(&check)
+        .await
+        .map_err(|e| e.to_string())?
+    {
+        return Err("the demo alarm's firing could not be written".to_owned());
     }
     Ok(())
 }

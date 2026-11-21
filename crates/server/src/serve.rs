@@ -98,6 +98,11 @@ pub async fn serve(config: Config) -> Result<(), String> {
         );
     }
 
+    // The alarms pilots set, checked where the data arrives: after each
+    // run of stations, and after each map made with a new run.
+    let checks: Arc<dyn crate::alerts::Watch> =
+        Arc::new(crate::alerts::Checks::new(store.clone(), clock.clone()));
+
     // The thermal map of the forecast source, made with each run of its
     // model that the collector's look sees, and kept in memory.
     let thermal_map = forecasts.as_ref().and_then(|forecasts| {
@@ -107,7 +112,8 @@ pub async fn serve(config: Config) -> Result<(), String> {
             .source
             .clone();
         let map = ThermalMap::for_source(forecasts.clone(), source, clock.clone())?
-            .with_keeper(Arc::new(InStore(store.clone())));
+            .with_keeper(Arc::new(InStore(store.clone())))
+            .with_alerts(checks.clone());
         tracing::info!(
             "thermal map: {} cells of {}, {} requests a run of each",
             map.cells(),
@@ -243,7 +249,8 @@ pub async fn serve(config: Config) -> Result<(), String> {
         archive.clone(),
         clock.clone(),
         Some(LOOKBACK),
-    );
+    )
+    .with_alerts(checks);
     if let Some(forecasts) = forecasts {
         collector = collector.with_forecasts(forecasts);
     }

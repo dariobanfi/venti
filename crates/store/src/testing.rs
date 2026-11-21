@@ -370,6 +370,58 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn alerts(&self, _: &str) -> Result<Vec<crate::Alert>, StoreError> {
+        self.fail().await
+    }
+
+    async fn add_alert(
+        &self,
+        _: &str,
+        _: &crate::NewAlert,
+        _: Timestamp,
+        _: usize,
+    ) -> Result<crate::AddingAlert, StoreError> {
+        self.fail().await
+    }
+
+    async fn change_alert(
+        &self,
+        _: &str,
+        _: &crate::NewAlert,
+        _: Timestamp,
+    ) -> Result<Option<crate::Alert>, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_alert(&self, _: &str, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn wind_alerts_at(&self, _: &[String]) -> Result<Vec<crate::Alert>, StoreError> {
+        self.fail().await
+    }
+
+    async fn alerts_of_kind(&self, _: &str) -> Result<Vec<crate::Alert>, StoreError> {
+        self.fail().await
+    }
+
+    async fn note_alert_check(&self, _: &crate::AlertCheck) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn fired_alerts(
+        &self,
+        _: &str,
+        _: i64,
+        _: usize,
+    ) -> Result<crate::FiredAlerts, StoreError> {
+        self.fail().await
+    }
+
+    async fn prune_fired_alerts(&self, _: Timestamp) -> Result<u64, StoreError> {
+        self.fail().await
+    }
+
     async fn save_flight(&self, _: &NewFlight, _: &Room) -> Result<Saved, StoreError> {
         self.fail().await
     }

@@ -2,6 +2,7 @@
 
 mod accounts;
 mod airspace;
+mod alerts;
 mod flights;
 mod forecasts;
 mod groups;
@@ -811,6 +812,61 @@ impl Store for PgStore {
         limit: usize,
     ) -> Result<KeptSiteChanges, StoreError> {
         kept_sites::changes(&self.client().await?, account_id, since, limit).await
+    }
+
+    async fn alerts(&self, account_id: &str) -> Result<Vec<crate::Alert>, StoreError> {
+        alerts::of(&self.client().await?, account_id).await
+    }
+
+    async fn add_alert(
+        &self,
+        account_id: &str,
+        new: &crate::NewAlert,
+        now: Timestamp,
+        most: usize,
+    ) -> Result<crate::AddingAlert, StoreError> {
+        alerts::add(&mut self.client().await?, account_id, new, now, most).await
+    }
+
+    async fn change_alert(
+        &self,
+        account_id: &str,
+        new: &crate::NewAlert,
+        now: Timestamp,
+    ) -> Result<Option<crate::Alert>, StoreError> {
+        alerts::change(&self.client().await?, account_id, new, now).await
+    }
+
+    async fn remove_alert(&self, account_id: &str, alert_id: &str) -> Result<bool, StoreError> {
+        alerts::remove(&self.client().await?, account_id, alert_id).await
+    }
+
+    async fn wind_alerts_at(
+        &self,
+        station_ids: &[String],
+    ) -> Result<Vec<crate::Alert>, StoreError> {
+        alerts::at_stations(&self.client().await?, station_ids).await
+    }
+
+    async fn alerts_of_kind(&self, kind: &str) -> Result<Vec<crate::Alert>, StoreError> {
+        alerts::of_kind(&self.client().await?, kind).await
+    }
+
+    async fn note_alert_check(&self, check: &crate::AlertCheck) -> Result<bool, StoreError> {
+        alerts::note(&mut self.client().await?, check).await
+    }
+
+    async fn fired_alerts(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> Result<crate::FiredAlerts, StoreError> {
+        alerts::fired(&self.client().await?, account_id, since, limit).await
+    }
+
+    async fn prune_fired_alerts(&self, before: Timestamp) -> Result<u64, StoreError> {
+        alerts::prune(&self.client().await?, before).await
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

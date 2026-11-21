@@ -73,6 +73,7 @@ import fly.venti.app.design.status
 import fly.venti.core.OutlookDay
 import fly.venti.core.SiteOutlook
 import fly.venti.app.R
+import fly.venti.app.today.ThermalLine
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
@@ -208,6 +209,7 @@ private fun SiteHead(site: SiteView, day: OutlookDay?, isForTakingOff: Boolean, 
             Text(SiteWords.inALine(site), color = colours.textSecondary, modifier = Modifier.testTag("site-in-a-line"))
             day?.let { shown ->
                 Text(SiteWords.outlook(shown), color = colours.textSecondary, modifier = Modifier.testTag("site-outlook"))
+                ThermalLine(shown)
             }
         }
         if (actions != null) {

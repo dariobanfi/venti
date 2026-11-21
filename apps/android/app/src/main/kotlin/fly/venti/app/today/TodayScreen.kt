@@ -165,6 +165,7 @@ fun TodayScreen(
             Head(
                 dayLine = dayLine(days, day, isNearPilot = position.place != null && nearPilot),
                 headline = headline(today.state, shown, chosen),
+                thermals = shown.firstOrNull()?.let { outlookDay(it, chosen) }?.thermalWords.orEmpty(),
                 onOpenSettings = onOpenSettings,
                 onOpenAssistant = onOpenAssistant,
             )
@@ -267,11 +268,13 @@ private fun waitingWords(place: TodayPlace): String =
 private fun ordered(places: List<TodayPlace>, day: OutlookDay?): List<TodayPlace> =
     places.sortedWith(
         compareBy<TodayPlace> { place ->
-            when (outlookDay(place, day)?.verdict) {
-                Flyability.FLYABLE -> 0
-                Flyability.MARGINAL -> 1
-                Flyability.NOT_FLYABLE -> 2
-                null -> 3
+            val shown = outlookDay(place, day)
+            // Flyable days first, the better thermals first among them.
+            when (shown?.verdict) {
+                Flyability.FLYABLE -> ThermalScale.rank(shown.thermals)
+                Flyability.MARGINAL -> 4
+                Flyability.NOT_FLYABLE -> 5
+                null -> 6
             }
         }.thenBy { it.distanceM },
     )
@@ -301,7 +304,14 @@ private fun headline(state: TodayState, shown: List<TodayPlace>, day: OutlookDay
  * in every appearance, so what stands on it is in the pack's ink.
  */
 @Composable
-private fun Head(dayLine: String, headline: String, onOpenSettings: () -> Unit, onOpenAssistant: () -> Unit) {
+private fun Head(
+    dayLine: String,
+    headline: String,
+    /** What the best take-off's day is for thermals: "Cross-country day". Empty for none. */
+    thermals: String,
+    onOpenSettings: () -> Unit,
+    onOpenAssistant: () -> Unit,
+) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Box(modifier = Modifier.fillMaxWidth().height(top + VentiSpace.s8 * 3).testTag("today-head")) {
         Image(
@@ -333,6 +343,9 @@ private fun Head(dayLine: String, headline: String, onOpenSettings: () -> Unit, 
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag("today-headline").semantics { heading() },
             )
+            if (thermals.isNotEmpty()) {
+                Text(thermals, style = VentiType.label.text, color = VentiBrand.Ink, modifier = Modifier.testTag("today-thermals"))
+            }
         }
     }
 }
@@ -417,6 +430,7 @@ private fun TakeoffCard(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit
             if (day.why.isNotEmpty()) {
                 Text(day.why, color = colours.textSecondary)
             }
+            ThermalLine(day)
             Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
                 Metric(
                     caption = if (day.windFrom.isEmpty()) "Wind" else "Wind from ${day.windFrom}",
@@ -435,7 +449,12 @@ private fun TakeoffCard(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit
             if (day.hours.isNotEmpty()) {
                 HourStrip(day.hours)
                 Text(
-                    "Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not.",
+                    "Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not." +
+                        if (day.hours.any { it.climbMs != null }) {
+                            " Under it the climb to expect in thermals, in m/s, with a bar that grows with it."
+                        } else {
+                            ""
+                        },
                     style = MaterialTheme.typography.bodySmall,
                     color = colours.textSecondary,
                 )
@@ -469,6 +488,12 @@ private fun TakeoffRow(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit)
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (day != null && day.thermalWords.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+                    ThermalMark(day.climbMs)
+                    Text(day.thermalWords, style = MaterialTheme.typography.labelLarge, color = colours.textSecondary)
+                }
+            }
         }
         day?.let { StatusChip(it.verdict.status, it.status) }
     }
@@ -481,6 +506,7 @@ private fun TakeoffRow(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit)
 @Composable
 private fun HourStrip(hours: List<OutlookHour>) {
     val colours = Venti.colours
+    val showsClimb = hours.any { it.climbMs != null }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         for (hour in hours) {
             Column(
@@ -518,6 +544,25 @@ private fun HourStrip(hours: List<OutlookHour>) {
                     }
                     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 1.dp).height(height).background(colour))
                 }
+                if (showsClimb) {
+                    // The climb to expect in thermals, and a bar that grows with it.
+                    val climb = hour.climbMs
+                    Text(
+                        climb?.let(Format::oneDecimal) ?: "–",
+                        style = MaterialTheme.typography.labelLarge.numbers,
+                        maxLines = 1,
+                    )
+                    Box(modifier = Modifier.fillMaxWidth().height(VentiSpace.s3), contentAlignment = Alignment.BottomCenter) {
+                        if (climb != null) {
+                            val step = ThermalScale.step(climb)
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 1.dp)
+                                    .height(ThermalScale.barHeight(step).dp)
+                                    .background(colours.thermal[step]),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -530,7 +575,13 @@ private fun spoken(hour: OutlookHour): String {
         Flyability.NOT_FLYABLE -> "Not flyable"
     }
     val wind = if (hour.windKmh.isEmpty()) "" else ", wind ${hour.windKmh} kilometres an hour"
-    return if (hour.why.isEmpty()) "$verdict$wind" else "$verdict: ${hour.why}$wind"
+    val climb = hour.climbMs
+    val thermals = when {
+        climb == null -> ""
+        climb > 0 -> ", thermals of ${Format.oneDecimal(climb)} metres a second"
+        else -> ", no thermals to climb in"
+    }
+    return if (hour.why.isEmpty()) "$verdict$wind$thermals" else "$verdict: ${hour.why}$wind$thermals"
 }
 
 /**
@@ -552,7 +603,8 @@ private fun Foot(today: TodayModel) {
         }
         Text(
             "Flyable, marginal and not flyable are what the forecast's wind, gusts, rain and cloud say by fixed " +
-                "limits. They are not advice to fly.",
+                "limits, and the kind of day is what its heat and temperatures say of thermals. They are not " +
+                "advice to fly.",
             style = style,
             color = colour,
         )

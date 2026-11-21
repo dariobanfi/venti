@@ -12,7 +12,8 @@
 //! hour of a weather model, reads its wind at a height between the model's
 //! levels, says what a forecast's hours make of a day for flying, finds the
 //! strongest wind in the model's cells around a place, and marks where the
-//! temperatures at the model's levels stop thermals.
+//! temperatures at the model's levels stop thermals, says what a glide
+//! reaches over the ground and how steep the ground is.
 
 pub mod aloft;
 pub mod analysis;
@@ -26,6 +27,7 @@ pub mod igc;
 pub mod layering;
 pub mod nearby;
 pub mod route_plan;
+pub mod slope;
 mod summary;
 pub mod testing;
 pub mod track;

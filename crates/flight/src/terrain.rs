@@ -301,21 +301,31 @@ impl Terrain {
         step_m: f64,
         count: usize,
     ) -> Vec<Option<f64>> {
+        self.along(from, bearing_deg, step_m).take(count).collect()
+    }
+
+    /// The ground along a straight line, a `step_m` apart from its start
+    /// on, read only as far as it is asked for: [`Terrain::profile`]
+    /// without an end. For a line whose end is found on the way.
+    pub fn along(
+        &self,
+        from: GeoPoint,
+        bearing_deg: f64,
+        step_m: f64,
+    ) -> impl Iterator<Item = Option<f64>> + '_ {
         // Metres to degrees at this latitude: fine for a line this short.
         const METRES_PER_DEGREE: f64 = 111_194.9;
         let (east, north) = bearing_deg.to_radians().sin_cos();
         let across = from.lat().to_radians().cos().max(1e-6);
-        (0..count)
-            .map(|index| {
-                let along = step_m * index as f64;
-                GeoPoint::new(
-                    from.lat() + along * north / METRES_PER_DEGREE,
-                    from.lon() + along * east / (METRES_PER_DEGREE * across),
-                )
-                .ok()
-                .and_then(|place| self.elevation_m(place))
-            })
-            .collect()
+        (0_u32..).map(move |index| {
+            let along = step_m * f64::from(index);
+            GeoPoint::new(
+                from.lat() + along * north / METRES_PER_DEGREE,
+                from.lon() + along * east / (METRES_PER_DEGREE * across),
+            )
+            .ok()
+            .and_then(|place| self.elevation_m(place))
+        })
     }
 }
 

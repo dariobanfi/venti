@@ -2174,6 +2174,39 @@ pub fn route_along(
     ))
 }
 
+// What a glide reaches from a place on the map, and how steep the ground
+// is: the page loads the tiles covering a box around the place into a
+// `Terrain` first, and loads a wider box when the answer is `cutShort`.
+
+/// What a straight glide reaches from a place on the map over the ground
+/// in `terrain`: the area as a closed ring, each direction's distance and
+/// arrival height, and the answer in words. Without a start height the
+/// glide starts on the ground there.
+#[wasm_bindgen(js_name = glideReach)]
+pub fn glide_reach(
+    setting: Ts<venti_core::GlideReachSetting>,
+    terrain: &Terrain,
+) -> Result<Ts<venti_core::GlideReach>, JsValue> {
+    to_js(&venti_core::glide_reach(
+        from_js(&setting)?,
+        terrain.terrain.clone(),
+    ))
+}
+
+/// How steep the ground in `terrain` is at each place, in the order
+/// given, with its class. A place whose ground is not loaded has neither.
+#[wasm_bindgen(js_name = slopeClasses)]
+pub fn slope_classes(
+    points: Vec<Ts<Coordinate>>,
+    terrain: &Terrain,
+) -> Result<Vec<Ts<venti_core::SlopeAt>>, JsValue> {
+    let points = points.iter().map(from_js).collect::<Result<Vec<_>, _>>()?;
+    venti_core::slope_classes(points, terrain.terrain.clone())
+        .iter()
+        .map(to_js)
+        .collect()
+}
+
 // Other pilots' flights: the flights the pilots of the Venti server share
 // with everyone, in one list, a pilot's own page of them, and one of them
 // shown from its file like a flight of the logbook. Nothing of it is kept.

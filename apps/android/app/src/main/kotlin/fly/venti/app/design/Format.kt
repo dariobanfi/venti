@@ -113,6 +113,9 @@ object Format {
             isGroupingUsed = false
         }.format(value)
 
+    /** A change of temperature for every 100 m, with two decimals and a sign: "−0.60". */
+    fun perHundredMetres(celsius: Double): String = signed(celsius, decimals = 2)
+
     /** Metres per second with one decimal and always a sign, except for zero. */
     fun climb(metresPerSecond: Double): String = signed(metresPerSecond, decimals = 1)
 

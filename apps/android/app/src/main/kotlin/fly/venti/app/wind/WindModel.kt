@@ -19,6 +19,10 @@ import fly.venti.core.WindStation
 import fly.venti.core.forecastPath
 import fly.venti.core.serverStatus
 import fly.venti.core.serverStatusPath
+import fly.venti.core.StationDay
+import fly.venti.core.StationDays
+import fly.venti.core.stationDay
+import fly.venti.core.stationDayPath
 import fly.venti.core.stationHistory
 import fly.venti.core.stationHistoryPath
 import fly.venti.core.windMap
@@ -314,6 +318,17 @@ class WindModel(
         val server = url ?: throw IOException("Venti is not connected.")
         val answer = transport(server + stationHistoryPath(station.id))
         return withContext(background) { stationHistory(answer.status.asStatus(), answer.body, now) }
+    }
+
+    /** The span of days a station's page can show, today last, by this phone's clock. */
+    fun stationDays(): StationDays = fly.venti.core.stationDays(now, utcOffsetSeconds())
+
+    /** One past day of a station's readings, by its date as the core names it ("2026-11-18"). */
+    suspend fun day(station: WindStation, date: String): StationDay {
+        val server = url ?: throw IOException("Venti is not connected.")
+        val offset = utcOffsetSeconds()
+        val answer = transport(server + stationDayPath(station.id, date, offset))
+        return withContext(background) { stationDay(answer.status.asStatus(), answer.body, date, offset) }
     }
 
     /** How long to wait before asking again for a forecast the server is still fetching. */

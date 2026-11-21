@@ -64,6 +64,7 @@ import fly.venti.app.sites.SiteActions
 import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
+import fly.venti.app.airspace.AirspaceOverSheet
 import fly.venti.app.forecast.ForecastSheet
 import fly.venti.app.forecast.ThermalMapCard
 import fly.venti.app.forecast.ThermalMapModel
@@ -86,6 +87,7 @@ import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.app.wind.WindSheet
 import fly.venti.core.Bounds
+import fly.venti.core.AirspaceOverPlace
 import fly.venti.core.Coordinate
 import fly.venti.core.SiteView
 import fly.venti.core.WindStation
@@ -156,6 +158,10 @@ fun MapScreen(
     var chosenGlider by remember { mutableStateOf<String?>(null) }
     // A place the pilot pressed on, to show its forecast.
     var pressed by remember { mutableStateOf<Coordinate?>(null) }
+    // What lies over a place tapped where airspace is drawn.
+    var airspaceOver by remember { mutableStateOf<AirspaceOverPlace?>(null) }
+    // The height the maps draw airspace up to: one choice for the maps.
+    var airspaceCeiling by remember { mutableStateOf(preferences?.mapAirspaceCeilingM) }
     val map = remember { OverviewMap() }
     map.onFollowingEnded = { isFollowing = false }
     var region by remember { mutableStateOf<Bounds?>(null) }
@@ -176,6 +182,7 @@ fun MapScreen(
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
     map.onGlider = { id -> chosenGlider = id }
     map.onSquare = { cell -> square = cell }
+    map.onAirspace = { place -> airspaceOver = airspace.over(place) }
     map.onPlan = { id ->
         planOnMap = id
         showsPlans = true
@@ -233,8 +240,8 @@ fun MapScreen(
     // for either.
     val all = airspace.set
     val showsAirspace = region?.let { it.east - it.west < 6 } == true
-    val airspaceInView = remember(region, all) {
-        region?.takeIf { showsAirspace && !hidesAirspace }?.let(airspace::shapes).orEmpty()
+    val airspaceInView = remember(region, all, airspaceCeiling) {
+        region?.takeIf { showsAirspace && !hidesAirspace }?.let { airspace.shapes(it, airspaceCeiling) }.orEmpty()
     }
     val flyingSites = if (hidesSites) emptyList() else sites.sites
     val gliders = if (hidesPilots) emptyList() else live.gliders
@@ -461,6 +468,18 @@ fun MapScreen(
             server = (wind.server as? WindServer.Usable)?.url,
             requests = requests,
             onDismiss = { chosenGlider = null },
+        )
+    }
+
+    airspaceOver?.let { over ->
+        AirspaceOverSheet(
+            over,
+            ceilingM = airspaceCeiling,
+            onCeiling = { ceiling ->
+                airspaceCeiling = ceiling
+                preferences?.mapAirspaceCeilingM = ceiling
+            },
+            onDismiss = { airspaceOver = null },
         )
     }
 

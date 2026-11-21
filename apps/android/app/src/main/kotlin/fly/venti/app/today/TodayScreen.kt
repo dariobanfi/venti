@@ -239,7 +239,11 @@ fun TodayScreen(
  */
 private val HOME = Coordinate(lat = 47.6, lon = 11.75)
 
-/** The days the forecasts reach over, three at most. */
+/**
+ * The days the forecasts reach over, three at most. The core gives four
+ * since 2026-11-21, but at 360 dp with text at 130 % a fourth breaks
+ * "Tomorrow" in two in the switch (tried on 2026-11-21).
+ */
 private fun days(places: List<TodayPlace>): List<OutlookDay> =
     places.mapNotNull { it.outlook?.days }.maxByOrNull { it.size }.orEmpty().take(3)
 

@@ -86,8 +86,11 @@ class ForecastTest {
         assertEquals(listOf("ICON-D2", "ICON-EU"), forecast.models.map { it.name })
         assertEquals(1069.0, checkNotNull(forecast.models[0].cellElevationM), 0.5)
         assertTrue(forecast.credits.single().text.startsWith("Weather data by Open-Meteo.com"))
-        // The recorded answer is one hour of an evening: no day of it has the sun up.
-        assertTrue(ForecastRows.days(forecast.models[0]).isEmpty())
+        // The recorded answer is one hour of a morning, 07:00 UTC on 21
+        // November, with the sun up: one day of one hour.
+        val days = ForecastRows.days(forecast.models[0])
+        assertEquals(listOf("2026-11-21"), days.map { it.date })
+        assertEquals(1, ForecastRows.hours(days.single()).size)
     }
 
     @Test

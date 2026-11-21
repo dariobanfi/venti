@@ -80,6 +80,13 @@ interface Preferences {
     /** Whether the maps show the aerial view, photographs from above. One choice for every map of the app. */
     var mapShowsAerial: Boolean
 
+    /**
+     * The height the maps draw airspace up to, metres (the ceiling of a
+     * step of the core's filter); `null` for all. Not the cockpit's map,
+     * which draws all of it.
+     */
+    var mapAirspaceCeilingM: Double?
+
     /** Whether the maps show the thermal map of thermal.kk7.ch. Off until the pilot switches it on; one choice for every map. */
     var mapShowsThermals: Boolean
 
@@ -195,6 +202,12 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsAerial", false)
         set(value) = store.edit { putBoolean("VentiMapShowsAerial", value) }
 
+    override var mapAirspaceCeilingM: Double?
+        get() = if (store.contains("VentiMapAirspaceCeiling")) store.getFloat("VentiMapAirspaceCeiling", 0f).toDouble() else null
+        set(value) = store.edit {
+            if (value == null) remove("VentiMapAirspaceCeiling") else putFloat("VentiMapAirspaceCeiling", value.toFloat())
+        }
+
     override var mapShowsThermals: Boolean
         get() = store.getBoolean("VentiMapShowsThermals", false)
         set(value) = store.edit { putBoolean("VentiMapShowsThermals", value) }
@@ -259,6 +272,7 @@ class MemoryPreferences : Preferences {
     override var mapHidesSites = false
     override var mapHidesPilots = false
     override var mapShowsAerial = false
+    override var mapAirspaceCeilingM: Double? = null
     override var mapShowsThermals = false
     override var mapShowsForecast = false
     override var watchedFolder = ""

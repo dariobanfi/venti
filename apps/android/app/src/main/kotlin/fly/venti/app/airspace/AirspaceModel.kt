@@ -12,6 +12,7 @@ import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.core.AirspaceFile
 import fly.venti.core.AirspaceImport
+import fly.venti.core.AirspaceOverPlace
 import fly.venti.core.AirspaceSet
 import fly.venti.core.AirspaceShape
 import fly.venti.core.Bounds
@@ -127,8 +128,15 @@ class AirspaceModel(
             return "Airspace: ${Format.list(credits.map { it.provider })}$certified"
         }
 
-    /** The airspaces that reach into a part of the map. */
-    fun shapes(area: Bounds): List<AirspaceShape> = set?.inArea(area).orEmpty()
+    /**
+     * The airspaces that reach into a part of the map, without those that
+     * certainly begin above `ceilingM` (the core's filter by height; `null`
+     * for all).
+     */
+    fun shapes(area: Bounds, ceilingM: Double? = null): List<AirspaceShape> = set?.inAreaBelow(area, ceilingM).orEmpty()
+
+    /** What lies over a place, as the core lists it; `null` without airspace data at all. */
+    fun over(place: Coordinate): AirspaceOverPlace? = set?.overPlace(place)
 
     /**
      * Brings in the airspace files the pilot picked, and says for each what

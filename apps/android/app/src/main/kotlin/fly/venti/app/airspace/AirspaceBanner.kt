@@ -85,22 +85,22 @@ object AirspaceWords {
      * the pilot's and the day it was brought in, or a provider by way of
      * the pilot's server and the day the provider wrote it.
      */
-    fun origin(warning: AirspaceWarning): String {
-        val date = warning.dataUnixS
-        return when (warning.origin) {
-            AirspaceOrigin.FILE ->
-                if (date == null) {
-                    "From your file “${warning.source}”."
-                } else {
-                    "From your file “${warning.source}”, brought in ${Format.day(date)}."
-                }
-            AirspaceOrigin.SERVER ->
-                if (date == null) {
-                    "From ${warning.source}, by way of Venti."
-                } else {
-                    "From ${warning.source}, by way of Venti, as of ${Format.day(date)}."
-                }
-        }
+    fun origin(warning: AirspaceWarning): String = origin(warning.origin, warning.source, warning.dataUnixS)
+
+    /** The same for any airspace, by where it is from, its source and the date of its data. */
+    fun origin(origin: AirspaceOrigin, source: String, date: Long?): String = when (origin) {
+        AirspaceOrigin.FILE ->
+            if (date == null) {
+                "From your file “$source”."
+            } else {
+                "From your file “$source”, brought in ${Format.day(date)}."
+            }
+        AirspaceOrigin.SERVER ->
+            if (date == null) {
+                "From $source, by way of Venti."
+            } else {
+                "From $source, by way of Venti, as of ${Format.day(date)}."
+            }
     }
 
     const val EXPLANATION =

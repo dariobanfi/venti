@@ -73,6 +73,9 @@ class OverviewMap : MapContent {
     /** Told the square of the forecast map that was tapped where nothing else lies under the finger. */
     var onSquare: (ThermalMapCell) -> Unit = {}
 
+    /** A tap where airspace is drawn and nothing else of Venti's lies: the place tapped. */
+    var onAirspace: (Coordinate) -> Unit = {}
+
     private var squares: List<ThermalMapCell> = emptyList()
     private var drawnSquares: List<ThermalMapCell>? = null
 
@@ -568,6 +571,11 @@ class OverviewMap : MapContent {
                     onSquare(square)
                     return true
                 }
+        }
+        // Then airspace drawn under the finger: what lies over the place.
+        if (style.getLayer(AirspaceLayers.HIT) != null && map.queryRenderedFeatures(point, AirspaceLayers.HIT).isNotEmpty()) {
+            onAirspace(Coordinate(lat = place.latitude, lon = place.longitude))
+            return true
         }
         return false
     }

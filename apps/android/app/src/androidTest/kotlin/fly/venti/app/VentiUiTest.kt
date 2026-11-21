@@ -28,6 +28,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performSemanticsAction
@@ -1223,6 +1224,10 @@ class VentiUiTest {
         // Among those who are in, the pilot of this phone is "You".
         assertTrue(exists(hasTestTag("plan-pilot") and hasText("You")))
         assertTrue(exists(hasText("Change the plan")))
+        // One's own plan is changed or deleted, not reported. Another
+        // pilot's would have "Report this plan": the development server's
+        // group has no plan of another pilot to show it on.
+        assertFalse(exists(hasTestTag("plan-report")))
         // Its place is on the map: the forecast for it is a tap away.
         assertTrue(exists(hasTestTag("plan-forecast")))
         letTheMapDraw(1)
@@ -1245,6 +1250,10 @@ class VentiUiTest {
         assertTrue(exists(hasText("New invite code")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-plans-3-group")
+        // A group one keeps is not reported: its keeper renames or deletes
+        // it. A member who does not keep a group has "Report this group";
+        // the development server's demo pilot keeps the one group it has.
+        assertFalse(exists(hasTestTag("group-report")))
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("group")) }
 
@@ -2194,6 +2203,108 @@ class VentiUiTest {
      * with them when it is opened from that badge. The development mode's
      * stations stand fifty kilometres off and more, and the badge says so.
      */
+    /**
+     * A station's page says what its readings tell of the air, and shows a
+     * past day. The development server's clock stands after dark, when
+     * nothing rises from a station: no cloud base then; the temperature
+     * step is there, from Innsbruck in the valley to the Patscherkofel.
+     */
+    private fun lookAtAStationsAirAndDays(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        waitFor(described("Wind stations"))
+        tap(described("Wind stations"))
+        waitFor(described("Innsbruck/Universitaet"))
+        tap(described("Innsbruck/Universitaet"))
+        waitFor(hasTestTag("station-page"))
+        val page = screen.onNode(hasTestTag("station-page"))
+        page.performScrollToNode(hasTestTag("station-air"))
+        waitFor(hasText("Patscherkofel, 8.2 km away and 1673 m higher", substring = true))
+        assertTrue(exists(hasText("Cooler above, as in air at rest")))
+        assertFalse(exists(hasTestTag("station-cloud-base")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-station-1-air")
+        tap(hasText("Done"))
+        waitFor(described("Wind stations"))
+
+        // Another day: the picker opens on today, the server's, and offers
+        // a year back to it; the days after are not offered. Choosing a day
+        // in it is not done here: a touch or a click action on a day of
+        // Material's picker was not delivered in a UI test on the emulator.
+        // What a chosen day shows is tested against the core in
+        // StationDayWordsTest.
+        tap(described("Wind stations"))
+        waitFor(described("Zugspitze"))
+        tap(described("Zugspitze"))
+        waitFor(hasTestTag("station-page"))
+        page.performScrollToNode(hasTestTag("station-day"))
+        assertTrue(exists(hasTestTag("station-day") and hasText("2026-11-18", substring = true)))
+        assertTrue(exists(hasText("last year", substring = true)))
+        tap(hasTestTag("station-day"))
+        waitFor(hasTestTag("station-day-ok"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-station-2-day-picker")
+        tap(hasText("Cancel"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("station-day-ok")) }
+        tap(hasText("Done"))
+    }
+
+    @Test
+    fun aStationSaysWhatItsReadingsTellOfTheAir() = lookAtAStationsAirAndDays("light", dark = false)
+
+    @Test
+    fun aStationsAirInDarkAppearance() = lookAtAStationsAirAndDays("dark", dark = true)
+
+    /**
+     * A tap on the map where airspace is drawn and nothing else of Venti's
+     * lies lists what lies over the place, with the filter by height at
+     * the foot of the sheet. Without a server: no station, site or glider
+     * under the finger; the made-up zone of the pilot's sample file.
+     */
+    private fun lookAtTheAirspaceOverAPlace(prefix: String, dark: Boolean) {
+        launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_AIRSPACE, true) }
+        waitFor(described("Show my position"))
+        val scenario = checkNotNull(app)
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.686, lon = 11.728, zoom = 11.5))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
+        letTheMapDraw(2)
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.686, lon = 11.728)))
+        val sheet = hasTestTag("airspace-over")
+        waitFor(sheet)
+        waitForAll(
+            hasTestTag("airspace-over-words"),
+            hasTestTag("airspace-over-row") and hasAnyDescendant(hasText("SAMPLE ZONE (NOT REAL)")),
+        )
+        screen.onNode(hasTestTag("airspace-over-caveat")).performScrollTo()
+        assertTrue(exists(hasText("not certified", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-airspace-over-1-place")
+
+        // The filter by height: the core's steps, the choice kept for the maps.
+        val steps = isSelectable() and hasAnyAncestor(hasTestTag("airspace-height-filter"))
+        // Pulled up to its full height, the sheet shows the filter at its foot.
+        screen.onNode(sheet).performTouchInput { swipeUp() }
+        screen.onNode(hasTestTag("airspace-height-filter")).performScrollTo()
+        assertTrue(screen.onAllNodes(steps).fetchSemanticsNodes().size == 4)
+        waitFor(steps and hasText("All") and isSelected())
+        tap(steps and hasText("2500 m"))
+        waitFor(steps and hasText("2500 m") and isSelected())
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-airspace-over-2-filter")
+        // Back to all, as the test found it.
+        tap(steps and hasText("All"))
+        waitFor(steps and hasText("All") and isSelected())
+        tap(hasText("Done") and hasAnyAncestor(sheet))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(sheet) }
+    }
+
+    @Test
+    fun aTapOnAirspaceSaysWhatLiesOverThePlace() = lookAtTheAirspaceOverAPlace("light", dark = false)
+
+    @Test
+    fun theAirspaceOverAPlaceInDarkAppearance() = lookAtTheAirspaceOverAPlace("dark", dark = true)
+
     private fun lookAtTheWindOnTheGround(prefix: String, dark: Boolean) {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())

@@ -56,7 +56,10 @@ data class WindSample(
 ) {
     companion object {
         /** A station's readings in the order they were taken. */
-        fun of(history: StationHistory): List<WindSample> = history.readings
+        fun of(history: StationHistory): List<WindSample> = of(history.readings)
+
+        /** Readings in the order they were taken. */
+        fun of(readings: List<fly.venti.core.WindReading>): List<WindSample> = readings
             .map { reading ->
                 WindSample(
                     time = reading.timeUnixS,
@@ -92,7 +95,12 @@ data class WindSample(
  * A finger on either chart reads out that moment in the line above them.
  */
 @Composable
-fun WindHistoryCharts(samples: List<WindSample>, modifier: Modifier = Modifier) {
+fun WindHistoryCharts(
+    samples: List<WindSample>,
+    modifier: Modifier = Modifier,
+    /** The span drawn, seconds since 1970: a whole day for a past one; the samples' own by default. */
+    span: LongRange? = null,
+) {
     // The moment under the finger, while it is down.
     var touched by remember { mutableStateOf<Long?>(null) }
     val marked = touched?.let { WindSample.nearest(it, samples) }
@@ -104,8 +112,8 @@ fun WindHistoryCharts(samples: List<WindSample>, modifier: Modifier = Modifier) 
         labels = MaterialTheme.typography.labelSmall.numbers.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
         measurer = rememberTextMeasurer(),
     )
-    val start = samples.first().time
-    val end = max(samples.last().time, start + 1)
+    val start = span?.first ?: samples.first().time
+    val end = max(span?.last ?: samples.last().time, start + 1)
     val touch = Modifier.pointerInput(samples) {
         val plotWidth = size.width - VALUE_LABELS.toPx()
         fun moment(x: Float) = start + ((x / plotWidth).coerceIn(0f, 1f) * (end - start)).toLong()

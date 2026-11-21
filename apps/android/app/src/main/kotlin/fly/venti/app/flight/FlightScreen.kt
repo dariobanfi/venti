@@ -151,7 +151,10 @@ fun FlightScreen(
                 analysis,
                 airspaceCheck,
                 // The airspace around the flight, for its map.
-                airspace = remember(current.flight, all) { airspace.shapes(current.flight.bounds.grown(0.2)) },
+                // Up to the height the pilot chose for the maps.
+                airspace = remember(current.flight, all) {
+                    airspace.shapes(current.flight.bounds.grown(0.2), preferences?.mapAirspaceCeilingM)
+                },
                 compareSources = compareSources,
                 onSendToLeague = { isSendingToALeague = true },
                 preferences = preferences,

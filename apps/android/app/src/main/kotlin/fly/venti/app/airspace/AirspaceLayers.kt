@@ -35,6 +35,9 @@ object AirspaceLayers {
      */
     private const val NAMES = "airspace-names"
 
+    /** The unseen layer a tap is checked against: airspace drawn under the finger. */
+    const val HIT = "airspace-hit"
+
     /** Below this zoom a country's airspace is a tangle, and is not drawn. */
     private const val MINIMUM_ZOOM = 7f
 
@@ -104,6 +107,12 @@ object AirspaceLayers {
             edge.minZoom = MINIMUM_ZOOM
             style.addLayer(edge)
         }
+        // The whole of every airspace drawn, unseen: what a tap on the map
+        // asks to know whether airspace is drawn under the finger, also
+        // inside an airspace open to a paraglider, which has no wash.
+        val hit = FillLayer(HIT, SOURCE).withProperties(PropertyFactory.fillOpacity(0f))
+        hit.minZoom = MINIMUM_ZOOM
+        style.addLayer(hit)
         style.addSource(GeoJsonSource(NAMES))
         val names = SymbolLayer(NAMES, NAMES).withProperties(
             PropertyFactory.textField(Expression.get(LABEL)),

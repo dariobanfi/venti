@@ -40,7 +40,7 @@ import fly.venti.app.design.SectionHeader
 import fly.venti.core.ReportReason
 import fly.venti.core.ReportReasonChoice
 import fly.venti.core.ReportSubject
-import fly.venti.core.reportForm
+import fly.venti.core.reportFormFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -56,6 +56,10 @@ data class Reported(
         fun pilot(handle: String) = Reported(ReportSubject.Pilot(handle), "Report this pilot")
 
         fun liveTrack(id: String) = Reported(ReportSubject.LiveTrack(id), "Report this track")
+
+        fun group(id: String) = Reported(ReportSubject.Group(id), "Report this group")
+
+        fun plan(groupId: String, id: String) = Reported(ReportSubject.Plan(groupId, id), "Report this plan")
     }
 }
 
@@ -115,7 +119,8 @@ fun ReportSheet(
     requests: CoroutineScope,
     onDismiss: () -> Unit,
 ) {
-    val form = remember { reportForm() }
+    // The reasons and the notice for this kind of thing: a group's and a plan's are their own.
+    val form = remember(reported.subject) { reportFormFor(reported.subject) }
     var reason by remember { mutableStateOf<ReportReason?>(null) }
     var text by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }

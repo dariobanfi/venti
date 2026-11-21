@@ -107,7 +107,10 @@ fun PublicFlightScreen(
                 // Another pilot's flight is not checked against airspace:
                 // that is a help for one's own review.
                 airspaceCheck = null,
-                airspace = remember(shown.flight, all) { airspace.shapes(shown.flight.bounds.grown(0.2)) },
+                // Up to the height the pilot chose for the maps.
+                airspace = remember(shown.flight, all) {
+                    airspace.shapes(shown.flight.bounds.grown(0.2), preferences?.mapAirspaceCeilingM)
+                },
                 compareSources = compareSources,
                 preferences = preferences,
                 terrain = terrain,

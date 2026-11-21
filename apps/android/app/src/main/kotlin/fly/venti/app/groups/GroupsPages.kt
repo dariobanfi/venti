@@ -1,5 +1,6 @@
 package fly.venti.app.groups
 
+import fly.venti.app.community.Reported
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -271,6 +272,8 @@ internal fun GroupPage(
     onRenamed: (String) -> Unit,
     /** Called when the pilot is no longer in the group, or it is gone. */
     onGone: () -> Unit,
+    /** Opens the form to report the group. */
+    onReport: (Reported) -> Unit,
 ) {
     var detail by remember(id) { mutableStateOf<GroupDetail?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
@@ -358,6 +361,17 @@ internal fun GroupPage(
                     row {
                         ActionRow("Delete the group", MaterialTheme.colorScheme.error, enabled = !isWorking) {
                             asking = GroupWords.Asking.Delete
+                        }
+                    }
+                }
+                // A group that should not be there, to whoever runs the
+                // server. Not for its keeper, who named it and can rename
+                // or delete it.
+                if (!isKeptByMe) {
+                    row {
+                        val report = Reported.group(id)
+                        ActionRow(report.title, MaterialTheme.colorScheme.primary, Modifier.testTag("group-report"), enabled = !isWorking) {
+                            onReport(report)
                         }
                     }
                 }

@@ -1,5 +1,7 @@
 package fly.venti.app.groups
 
+import fly.venti.app.community.Reported
+import fly.venti.app.community.ReportSheet
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import fly.venti.app.wind.WindModel
@@ -121,6 +123,8 @@ fun PlansSheet(
     startAt: String? = null,
 ) {
     var path by remember { mutableStateOf(listOfNotNull<Page>(Page.Board, startAt?.let { Page.Plan(it) })) }
+    // A group or a plan being reported, with its form open.
+    var reporting by remember { mutableStateOf<Reported?>(null) }
     val page = path.last()
     val open: (Page) -> Unit = { next -> path = path + next }
     val back: () -> Unit = { if (path.size > 1) path = path.dropLast(1) }
@@ -191,6 +195,7 @@ fun PlansSheet(
                         onEdit = { open(Page.Form(editing = page.id)) },
                         onGone = back,
                         onForecast = wind?.let { { place -> open(Page.Forecast(place)) } },
+                        onReport = { reporting = it },
                     )
                     is Page.Form -> PlanForm(page.editing?.let(groups::plan), groups, requests, waypoints, onSaved = back)
                     is Page.Forecast -> Unit
@@ -201,10 +206,17 @@ fun PlansSheet(
                         requests,
                         onRenamed = { name -> path = path.dropLast(1) + Page.Group(page.id, name) },
                         onGone = back,
+                        onReport = { reporting = it },
                     )
                 }
             }
         }
+    }
+
+    // A group or a plan reported to whoever runs the server they are on:
+    // the server of the pilot's account.
+    reporting?.let { reported ->
+        ReportSheet(reported, account, account.account?.server, requests, onDismiss = { reporting = null })
     }
 }
 
@@ -348,6 +360,8 @@ private fun PlanPage(
     onGone: () -> Unit,
     /** Opens the forecast for the plan's place, where Venti can be asked. */
     onForecast: ((ForecastPlace) -> Unit)?,
+    /** Opens the form to report the plan. */
+    onReport: (Reported) -> Unit,
 ) {
     val plan = groups.plan(id)
     var isWorking by remember { mutableStateOf(false) }
@@ -436,6 +450,18 @@ private fun PlanPage(
                             ActionRow("Delete the plan", MaterialTheme.colorScheme.error, enabled = !isWorking) {
                                 isConfirmingDelete = true
                             }
+                        }
+                    }
+                }
+            }
+            // Another pilot's plan that should not be there, to whoever runs
+            // the server. Not one's own: that one the pilot changes or deletes.
+            if (!plan.isMine) {
+                val report = Reported.plan(plan.groupId, plan.id)
+                Group(Modifier.padding(top = 16.dp)) {
+                    row {
+                        ActionRow(report.title, MaterialTheme.colorScheme.primary, Modifier.testTag("plan-report"), enabled = !isWorking) {
+                            onReport(report)
                         }
                     }
                 }

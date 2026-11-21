@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +47,13 @@ import fly.venti.app.design.SectionHeader
 import fly.venti.app.pilotMessage
 import fly.venti.core.CoreException
 import fly.venti.core.Credit
+import fly.venti.core.StationAir
+import fly.venti.core.StationDay
+import fly.venti.core.StationDays
 import fly.venti.core.StationHistory
+import fly.venti.core.TemperatureStep
+import fly.venti.core.stationAir
+import fly.venti.core.stationDate
 import fly.venti.core.WindStation
 import kotlinx.coroutines.CancellationException
 
@@ -70,6 +81,25 @@ fun StationPage(
 ) {
     var history by remember(station.id) { mutableStateOf<History>(History.Loading) }
     var attempt by remember(station.id) { mutableIntStateOf(0) }
+    // What the core reads of the air from this station and the others on the map.
+    val air = remember(station, wind.stations) { stationAir(station, wind.stations) }
+    // The day chosen, by its date: `null` for the last 24 hours.
+    var date by remember(station.id) { mutableStateOf<String?>(null) }
+    var day by remember(station.id) { mutableStateOf<Day>(Day.Loading) }
+    val days = remember(station.id) { wind.stationDays() }
+
+    var dayAttempt by remember(station.id) { mutableIntStateOf(0) }
+    LaunchedEffect(station.id, date, dayAttempt) {
+        val chosen = date ?: return@LaunchedEffect
+        day = Day.Loading
+        day = try {
+            Day.Ready(wind.day(station, chosen))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Day.Failed(if (error is CoreException) error.pilotMessage else "The day could not be loaded. ${error.pilotMessage}")
+        }
+    }
 
     LaunchedEffect(station.id, attempt) {
         history = History.Loading
@@ -115,11 +145,27 @@ fun StationPage(
                 Now(station)
                 SectionFooter(ageText(station, wind.now))
             }
+            if (air.cloudBase != null || air.temperatureStep != null) {
+                item { Air(air) }
+            }
             item {
-                SectionHeader("Last 24 hours")
-                Group {
+                // The last 24 hours, or a day the pilot chose, back as far as
+                // the server keeps a station's readings.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // A day chosen is named as the app names days once the core has read it.
+                    val shown = (day as? Day.Ready)?.day?.takeIf { it.date == date }?.let { Format.day(it.startUnixS) }
+                    SectionHeader(if (date == null) "Last 24 hours" else shown ?: date.orEmpty(), Modifier.weight(1f))
+                    // Today is the last 24 hours again.
+                    DayChoice(days, date ?: days.lastDate, onChoose = { chosen -> date = chosen.takeIf { it != days.lastDate } })
+                }
+                SectionFooter(days.note)
+                Group(Modifier.padding(top = 8.dp)) {
                     row {
-                        Box(Modifier.fillMaxWidth().padding(16.dp)) {
+                        Box(Modifier.fillMaxWidth().padding(16.dp).testTag("station-chart")) {
+                            if (date != null) {
+                                DayChart(day, onTryAgain = { dayAttempt += 1 })
+                                return@Box
+                            }
                             when (val current = history) {
                                 History.Loading -> CircularProgressIndicator(
                                     Modifier.align(Alignment.Center).padding(vertical = 44.dp),
@@ -164,6 +210,141 @@ fun StationPage(
                 item { Source(credit) }
             }
         }
+    }
+}
+
+/** One chosen day of the station's readings. */
+private sealed interface Day {
+    data object Loading : Day
+
+    data class Ready(val day: StationDay) : Day
+
+    data class Failed(val message: String) : Day
+}
+
+/** A chosen day's chart over the whole day, or the core's words where it has no readings. */
+@Composable
+private fun DayChart(day: Day, onTryAgain: () -> Unit) {
+    when (day) {
+        Day.Loading -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(Modifier.padding(vertical = 44.dp))
+        }
+        is Day.Failed -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(day.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = onTryAgain) { Text("Try again") }
+        }
+        is Day.Ready -> {
+            val samples = remember(day.day) { WindSample.of(day.day.readings) }
+            val empty = day.day.emptyWords
+            if (empty != null || samples.size < 2) {
+                Text(
+                    empty ?: "Venti has no history for this station yet.",
+                    modifier = Modifier.testTag("station-day-empty"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                WindHistoryCharts(samples, span = day.day.startUnixS..day.day.endUnixS)
+            }
+        }
+    }
+}
+
+/**
+ * The button that chooses a day: Material's date picker, limited to the
+ * days the core names. Dates pass as the core writes them; the picker's
+ * own moment (midnight UTC of the day) is named by the core as well.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DayChoice(days: StationDays, shown: String, onChoose: (String) -> Unit) {
+    var isOpen by remember { mutableStateOf(false) }
+    TextButton(onClick = { isOpen = true }, modifier = Modifier.testTag("station-day")) {
+        Icon(painterResource(R.drawable.ic_calendar_month), contentDescription = null)
+        Text(shown, modifier = Modifier.padding(start = 8.dp))
+    }
+    if (!isOpen) return
+    val picker = rememberDatePickerState(
+        initialSelectedDateMillis = StationDayWords.millis(shown),
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                StationDayWords.date(utcTimeMillis).let { it >= days.firstDate && it <= days.lastDate }
+
+            override fun isSelectableYear(year: Int): Boolean =
+                year.toString() >= days.firstDate.take(4) && year.toString() <= days.lastDate.take(4)
+        },
+    )
+    DatePickerDialog(
+        onDismissRequest = { isOpen = false },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    isOpen = false
+                    picker.selectedDateMillis?.let { onChoose(StationDayWords.date(it)) }
+                },
+                modifier = Modifier.testTag("station-day-ok"),
+            ) { Text("Show") }
+        },
+        dismissButton = { TextButton(onClick = { isOpen = false }) { Text("Cancel") } },
+    ) {
+        DatePicker(picker)
+    }
+}
+
+/** A date picker's moments and the core's dates, one into the other. */
+object StationDayWords {
+    /** The date a picker means by its moment, midnight UTC of the day, as the core names it. */
+    fun date(utcMillis: Long): String = stationDate(utcMillis / 1000, 0)
+
+    /** The picker's moment for a date the core named. */
+    fun millis(date: String): Long =
+        java.time.LocalDate.parse(date).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+}
+
+/**
+ * What the core reads of the air from this station's readings: the cloud
+ * base, as a reading with its words and its note, and the temperature step
+ * to a station much higher or lower nearby, with what it is said for.
+ */
+@Composable
+private fun Air(air: StationAir) {
+    SectionHeader("The air")
+    Group(Modifier.testTag("station-air")) {
+        air.cloudBase?.let { base ->
+            row {
+                Column(Modifier.fillMaxWidth().padding(16.dp).testTag("station-cloud-base")) {
+                    Metric(base.words, Format.metres(base.baseM), unit = "m")
+                    Text(
+                        base.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        }
+        air.temperatureStep?.let { step ->
+            row {
+                Column(
+                    Modifier.fillMaxWidth().padding(16.dp).testTag("station-temperature-step"),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(StationAirWords.between(step), style = MaterialTheme.typography.bodyLarge)
+                    Text(step.words, style = MaterialTheme.typography.titleMedium)
+                    Text(step.rule, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(step.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+/** The words around the core's numbers for the temperature step. */
+object StationAirWords {
+    /** "Patscherkofel, 8.2 km away and 1673 m higher: −0.60 °C per 100 m". */
+    fun between(step: TemperatureStep): String {
+        val way = if (step.higherByM >= 0) "higher" else "lower"
+        return "${step.otherName}, ${Format.kilometres(step.distanceM)} km away and " +
+            "${Format.metres(kotlin.math.abs(step.higherByM))} m $way: ${Format.perHundredMetres(step.per100mC)} °C per 100 m"
     }
 }
 

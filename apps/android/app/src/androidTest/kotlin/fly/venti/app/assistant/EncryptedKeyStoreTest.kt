@@ -20,14 +20,14 @@ class EncryptedKeyStoreTest {
 
     @Test
     fun aKeyIsReadBackUntilItIsRemovedAndIsNotWrittenDownAsItIs() {
-        val keys = EncryptedKeyStore(context)
+        val keys = EncryptedKeyStore.anthropic(context)
         keys.remove()
         assertNull(keys.read())
 
         assertTrue(keys.save("sk-ant-a-key-for-the-test"))
 
         // Another reader, as after the app has been closed and opened.
-        assertEquals("sk-ant-a-key-for-the-test", EncryptedKeyStore(context).read())
+        assertEquals("sk-ant-a-key-for-the-test", EncryptedKeyStore.anthropic(context).read())
         val written = context.getSharedPreferences("venti-assistant", Context.MODE_PRIVATE).all.values
         assertEquals(1, written.size)
         assertFalse(written.joinToString().contains("a-key-for-the-test"))
@@ -38,6 +38,28 @@ class EncryptedKeyStoreTest {
 
         keys.remove()
         assertNull(keys.read())
-        assertNull(EncryptedKeyStore(context).read())
+        assertNull(EncryptedKeyStore.anthropic(context).read())
+    }
+
+    @Test
+    fun theKeyForAnotherServiceIsKeptApartFromAnthropics() {
+        val anthropic = EncryptedKeyStore.anthropic(context)
+        val other = EncryptedKeyStore.otherService(context)
+        assertTrue(anthropic.save("a-made-up-anthropic-key"))
+        assertTrue(other.save("a-made-up-other-key"))
+
+        // Each is read back on its own, and neither is written down as it is.
+        assertEquals("a-made-up-anthropic-key", EncryptedKeyStore.anthropic(context).read())
+        assertEquals("a-made-up-other-key", EncryptedKeyStore.otherService(context).read())
+        val written = context.getSharedPreferences("venti-assistant-other", Context.MODE_PRIVATE).all.values
+        assertEquals(1, written.size)
+        assertFalse(written.joinToString().contains("made-up"))
+
+        // Removing one leaves the other alone.
+        other.remove()
+        assertNull(other.read())
+        assertEquals("a-made-up-anthropic-key", anthropic.read())
+        anthropic.remove()
+        assertNull(anthropic.read())
     }
 }

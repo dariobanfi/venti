@@ -69,6 +69,78 @@ class AssistantChatTest {
     }
 
     @Test
+    fun theAssistantCanRunAtAnotherService() = runBlocking {
+        val logbook = makeLogbook()
+        val seen = CopyOnWriteArrayList<AssistantRequest>()
+        val kept = FixedKey(null)
+        val preferences = MemoryPreferences()
+        val chat = AssistantChat(
+            logbook::makeAssistant,
+            FixedKey(null),
+            preferences,
+            scope,
+            transport = { request ->
+                seen += request
+                HttpAnswer(200, OTHER_REPLY.toByteArray())
+            },
+            makeAssistantAt = logbook::makeAssistantAt,
+            otherKeys = kept,
+        )
+        assertFalse(chat.hasKey)
+        assertEquals(AssistantService.ANTHROPIC, chat.service)
+
+        // An address a key must not be sent to is refused in the core's
+        // words, and nothing is kept.
+        assertFalse(chat.useOtherService("http://api.example.org/v1", "some-model", "sk-other"))
+        assertTrue(chat.problem.orEmpty(), chat.problem.orEmpty().contains("encrypted connection"))
+        assertNull(kept.read())
+        chat.problem = null
+        // So is a service without a key typed or kept.
+        assertFalse(chat.useOtherService("api.example.org/v1", "some-model", " "))
+        assertEquals(AssistantService.ANTHROPIC, chat.service)
+        chat.problem = null
+
+        assertTrue(chat.useOtherService("api.example.org/v1/", " some-model ", " sk-other "))
+        assertEquals(AssistantService.OTHER, chat.service)
+        assertEquals("https://api.example.org/v1", chat.otherAddress)
+        assertEquals("some-model", chat.otherModel)
+        assertEquals("sk-other", kept.read())
+        assertTrue(chat.hasKey)
+        assertEquals("api.example.org", AssistantChat.host(chat.otherAddress))
+
+        // A question goes to that service, in its format, with its key.
+        chat.ask("How many flights?").join()
+        assertNull(chat.problem)
+        assertEquals("Two flights.", chat.entries.last().text)
+        assertEquals(1, seen.size)
+        assertEquals("https://api.example.org/v1/chat/completions", seen[0].url)
+        assertTrue(seen[0].headers.contains(HttpHeader("authorization", "Bearer sk-other")))
+        assertFalse(seen[0].body.contains("sk-other"))
+
+        // The choice is kept for the next start, without the key.
+        val again = AssistantChat(
+            logbook::makeAssistant, FixedKey(null), preferences, scope,
+            makeAssistantAt = logbook::makeAssistantAt, otherKeys = kept,
+        )
+        assertEquals(AssistantService.OTHER, again.service)
+        assertEquals("some-model", again.otherModel)
+        assertTrue(again.hasKey)
+        assertFalse(preferences.assistantAddress.orEmpty().contains("sk-other"))
+
+        // Back to Anthropic, where there is no key; the other service's
+        // stays kept for changing back, until it is removed.
+        chat.useAnthropic()
+        assertEquals(AssistantService.ANTHROPIC, chat.service)
+        assertFalse(chat.hasKey)
+        assertTrue(chat.hasOtherKey)
+        assertTrue(chat.useOtherService(chat.otherAddress, chat.otherModel, ""))
+        assertEquals(AssistantService.OTHER, chat.service)
+        chat.removeKey()
+        assertNull(kept.read())
+        assertEquals(AssistantService.ANTHROPIC, chat.service)
+    }
+
+    @Test
     fun theKeyGoesToTheProviderInAHeaderAndTheLogbookInTheBody() = runBlocking {
         val seen = CopyOnWriteArrayList<AssistantRequest>()
         val chat = makeChat(
@@ -329,5 +401,11 @@ class AssistantChatTest {
         }
         assertEquals("Line one\nline two", runs("Line one\nline two").joinToString("") { it.text })
         assertTrue(runs("").isEmpty())
+    }
+
+    private companion object {
+        /** A made-up answer in the chat completions format. */
+        const val OTHER_REPLY =
+            """{"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "Two flights."}}]}"""
     }
 }

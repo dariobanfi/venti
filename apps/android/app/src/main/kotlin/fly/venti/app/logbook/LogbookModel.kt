@@ -214,6 +214,12 @@ class LogbookModel(
     /** A new conversation with the assistant, which answers from this logbook. */
     fun makeAssistant(model: String): Assistant = core.assistant(model)
 
+    /**
+     * The same at another service than Anthropic, by its address and its own
+     * name for a model. Throws when the address is not one a key may be sent to.
+     */
+    fun makeAssistantAt(address: String, model: String): Assistant = core.assistantAt(address, model)
+
     /** The pilot's task, which the core keeps beside the logbook: one at a time. */
     fun makeTasks(now: () -> Long = { System.currentTimeMillis() / 1000 }): TaskModel = TaskModel(core, now, background)
 

@@ -1,5 +1,6 @@
 package fly.venti.app.assistant
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -74,6 +76,8 @@ import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
+import app.venti.design.VentiSize
+import app.venti.design.VentiSpace
 import fly.venti.core.TranscriptEntry
 import fly.venti.core.assistantModels
 
@@ -91,6 +95,9 @@ fun AssistantScreen(
     /** Back to the Today tab, where the assistant opens from. */
     onBack: () -> Unit,
 ) {
+    // The form for another service, a page over the assistant's own.
+    var isSettingService by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = isSettingService) { isSettingService = false }
     Scaffold(
         modifier = Modifier
             .padding(bottom = bars.calculateBottomPadding())
@@ -99,15 +106,15 @@ fun AssistantScreen(
             .imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text("Assistant") },
+                title = { Text(if (isSettingService) "Another service" else "Assistant") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { if (isSettingService) isSettingService = false else onBack() }) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
                     }
                 },
                 actions = {
-                    if (chat.hasKey) {
-                        Options(chat)
+                    if (chat.hasKey && !isSettingService) {
+                        Options(chat, onOtherService = { isSettingService = true })
                     }
                 },
             )
@@ -115,7 +122,11 @@ fun AssistantScreen(
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            if (chat.hasKey) Conversation(chat, hasWind) else KeyEntry(chat)
+            when {
+                isSettingService -> OtherServiceForm(chat, onDone = { isSettingService = false })
+                chat.hasKey -> Conversation(chat, hasWind)
+                else -> KeyEntry(chat, onOtherService = { isSettingService = true })
+            }
         }
     }
 
@@ -129,16 +140,37 @@ fun AssistantScreen(
     }
 }
 
-/** The menu in the corner: which model, a new conversation, removing the key. */
+/**
+ * The menu in the corner: which model at Anthropic, or which model answers
+ * at another service and the way back; another service, a new
+ * conversation, removing the key.
+ */
 @Composable
-private fun Options(chat: AssistantChat) {
+private fun Options(chat: AssistantChat, onOtherService: () -> Unit) {
     var isShowing by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { isShowing = true }) {
             Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "Assistant options")
         }
         DropdownMenu(expanded = isShowing, onDismissRequest = { isShowing = false }) {
-            for (model in assistantModels()) {
+            if (chat.service == AssistantService.OTHER) {
+                // Which model answers, and where.
+                Text(
+                    "${chat.otherModel} at ${AssistantChat.host(chat.otherAddress)}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
+                )
+                DropdownMenuItem(
+                    text = { Text("Use Anthropic again") },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = null) },
+                    onClick = {
+                        isShowing = false
+                        chat.useAnthropic()
+                    },
+                )
+            }
+            for (model in if (chat.service == AssistantService.ANTHROPIC) assistantModels() else emptyList()) {
                 DropdownMenuItem(
                     text = {
                         Column {
@@ -165,6 +197,14 @@ private fun Options(chat: AssistantChat) {
                 )
             }
             HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text("Another service") },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_link), contentDescription = null) },
+                onClick = {
+                    isShowing = false
+                    onOtherService()
+                },
+            )
             DropdownMenuItem(
                 text = { Text("New conversation") },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_edit_square), contentDescription = null) },
@@ -363,7 +403,7 @@ private const val WIND_QUESTION = "How is the wind on the Zugspitze right now?"
  * means.
  */
 @Composable
-private fun KeyEntry(chat: AssistantChat) {
+private fun KeyEntry(chat: AssistantChat, onOtherService: () -> Unit) {
     val links = LocalUriHandler.current
     var key by remember { mutableStateOf("") }
 
@@ -412,6 +452,109 @@ private fun KeyEntry(chat: AssistantChat) {
             Text("Get a key from Anthropic")
             Spacer(Modifier.width(6.dp))
             Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, Modifier.size(18.dp))
+        }
+        TextButton(onClick = onOtherService, modifier = Modifier.testTag("assistant-other-service")) {
+            Text("Use another service instead")
+            Spacer(Modifier.width(VentiSpace.s1))
+            Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, Modifier.size(VentiSize.icon))
+        }
+        SectionFooter("OpenAI, OpenRouter and others, or a model you run yourself.")
+    }
+}
+
+/**
+ * Where the pilot sets another service than Anthropic for the assistant:
+ * its address, its name for a model, and a key.
+ */
+@Composable
+private fun OtherServiceForm(chat: AssistantChat, onDone: () -> Unit) {
+    var address by rememberSaveable { mutableStateOf(chat.otherAddress) }
+    var model by rememberSaveable { mutableStateOf(chat.otherModel) }
+    // The key is never kept by the screen beyond its field.
+    var key by remember { mutableStateOf("") }
+    var problem by remember { mutableStateOf<String?>(null) }
+    val plain = KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s5)
+            .testTag("assistant-service-form"),
+    ) {
+        Text(
+            "The assistant can run at any service that speaks the chat completions format: OpenAI, " +
+                "OpenRouter and others, or a model you run on a computer of your own. You need the address " +
+                "of its API, its name for the model, and a key for your account there.",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(horizontal = VentiSpace.s1, vertical = VentiSpace.s2),
+        )
+        SectionHeader("The service")
+        OutlinedTextField(
+            value = address,
+            onValueChange = { address = it },
+            label = { Text("Address") },
+            placeholder = { Text("https://api.example.org/v1") },
+            singleLine = true,
+            keyboardOptions = plain.copy(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth().testTag("assistant-service-address"),
+        )
+        Spacer(Modifier.height(VentiSpace.s2))
+        OutlinedTextField(
+            value = model,
+            onValueChange = { model = it },
+            label = { Text("Model") },
+            singleLine = true,
+            keyboardOptions = plain,
+            modifier = Modifier.fillMaxWidth().testTag("assistant-service-model"),
+        )
+        Spacer(Modifier.height(VentiSpace.s2))
+        OutlinedTextField(
+            value = key,
+            onValueChange = { key = it },
+            label = { Text(if (chat.hasOtherKey) "API key (one is kept)" else "API key") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+            modifier = Modifier.fillMaxWidth().testTag("assistant-service-key"),
+        )
+        problem?.let { words ->
+            Row(
+                modifier = Modifier.padding(horizontal = VentiSpace.s1, vertical = VentiSpace.s2).testTag("assistant-service-problem"),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Icon(
+                    painterResource(R.drawable.venti_danger),
+                    contentDescription = null,
+                    modifier = Modifier.size(VentiSize.icon),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.width(VentiSpace.s1))
+                Text(words, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        SectionFooter(
+            "Your key and your questions, with what the assistant looks up to answer them, go from this " +
+                "phone to that address and nowhere else. The key is kept encrypted on this phone and sent over " +
+                "an encrypted connection only; without encryption only a computer on your own network is " +
+                "reached. Venti has not been tried with every service: if one answers oddly, tell the project.",
+        )
+        Spacer(Modifier.height(VentiSpace.s3))
+        Button(
+            onClick = {
+                if (chat.useOtherService(address, model, key)) {
+                    key = ""
+                    onDone()
+                } else {
+                    // Said here, beside the fields, not in an alert.
+                    problem = chat.problem
+                    chat.problem = null
+                }
+            },
+            enabled = address.isNotBlank() && model.isNotBlank(),
+            modifier = Modifier.testTag("assistant-service-use"),
+        ) {
+            Text("Use this service")
         }
     }
 }

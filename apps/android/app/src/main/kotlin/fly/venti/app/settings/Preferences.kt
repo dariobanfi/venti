@@ -23,8 +23,17 @@ interface Preferences {
     /** The Bluetooth address of the vario used last, to reconnect to it. */
     var rememberedVario: String?
 
-    /** The model the assistant uses. */
+    /** The model the assistant uses at Anthropic. */
     var assistantModel: String?
+
+    /** Where the assistant runs: "anthropic", or "other" for the service at [assistantAddress]. */
+    var assistantService: String?
+
+    /** The address of the other service the assistant runs at, as the core made it. */
+    var assistantAddress: String?
+
+    /** That service's own name for the model. */
+    var assistantOtherModel: String?
 
     /** The address of the Venti server that live wind comes from. */
     var server: String
@@ -114,6 +123,18 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getString(ASSISTANT_MODEL, null)
         set(value) = store.edit { putString(ASSISTANT_MODEL, value) }
 
+    override var assistantService: String?
+        get() = store.getString(ASSISTANT_SERVICE, null)
+        set(value) = store.edit { putString(ASSISTANT_SERVICE, value) }
+
+    override var assistantAddress: String?
+        get() = store.getString(ASSISTANT_ADDRESS, null)
+        set(value) = store.edit { putString(ASSISTANT_ADDRESS, value) }
+
+    override var assistantOtherModel: String?
+        get() = store.getString(ASSISTANT_OTHER_MODEL, null)
+        set(value) = store.edit { putString(ASSISTANT_OTHER_MODEL, value) }
+
     override var server: String
         get() = store.getString(SERVER, null).orEmpty()
         set(value) = store.edit { putString(SERVER, value) }
@@ -197,6 +218,9 @@ class StoredPreferences(context: Context) : Preferences {
         const val VARIO_MUTED = "VentiVarioMuted"
         const val VARIO = "VentiVarioIdentifier"
         const val ASSISTANT_MODEL = "VentiAssistantModel"
+        const val ASSISTANT_SERVICE = "VentiAssistantService"
+        const val ASSISTANT_ADDRESS = "VentiAssistantAddress"
+        const val ASSISTANT_OTHER_MODEL = "VentiAssistantOtherModel"
         const val SERVER = "VentiServerAddress"
         const val TRIM_SPEED = "VentiGliderTrimSpeed"
         const val GLIDE_RATIO = "VentiGliderGlideRatio"
@@ -217,6 +241,9 @@ class MemoryPreferences : Preferences {
     override var varioMuted = false
     override var rememberedVario: String? = null
     override var assistantModel: String? = null
+    override var assistantService: String? = null
+    override var assistantAddress: String? = null
+    override var assistantOtherModel: String? = null
     override var server = ""
     override var trimSpeed = Preferences.DEFAULT_TRIM_SPEED
     override var glideRatio = Preferences.DEFAULT_GLIDE_RATIO

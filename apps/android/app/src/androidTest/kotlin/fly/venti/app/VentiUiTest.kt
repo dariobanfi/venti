@@ -233,7 +233,11 @@ class VentiUiTest {
             up()
         }
         waitFor(described("Show flight totals"))
-        assertTrue(exists(described("In the air")))
+        // The profile is drawn over the ground the flight was flown over,
+        // from the region that comes with the app, and the moment says how
+        // high over it the glider was.
+        waitFor(described("Over ground"))
+        assertFalse(exists(described("In the air")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-4-flight-moment")
 
@@ -254,7 +258,7 @@ class VentiUiTest {
         keepScreenshot("$prefix-5b-flight-thermals")
         tap(hasTestTag("thermal-row"))
         waitFor(described("Show flight totals"))
-        assertTrue(exists(described("In the air")))
+        assertTrue(exists(described("Over ground")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-5c-flight-thermal-marked")
         tap(described("Show flight totals"))
@@ -555,6 +559,25 @@ class VentiUiTest {
         keepScreenshot("$prefix-assistant-4-key")
         screen.onNode(hasSetTextAction()).performTextInput("a-key-for-the-test")
         tap(hasText("Save key"))
+        waitFor(question)
+
+        // Another service, by its address: one without encryption is
+        // refused in the core's words, beside the fields. Nothing is sent.
+        tap(described("Assistant options"))
+        waitFor(hasText("Another service"))
+        tap(hasText("Another service"))
+        waitFor(hasTestTag("assistant-service-form"))
+        screen.onNode(hasTestTag("assistant-service-address")).performTextInput("http://api.example.org/v1")
+        screen.onNode(hasTestTag("assistant-service-model")).performTextInput("some-model")
+        screen.onNode(hasTestTag("assistant-service-key")).performTextInput("a-made-up-key")
+        // The button lies below the keyboard: scrolled to first.
+        screen.onNode(hasTestTag("assistant-service-use")).performScrollTo().performClick()
+        waitFor(hasTestTag("assistant-service-problem"))
+        screen.onNode(hasTestTag("assistant-service-problem")).performScrollTo()
+        assertTrue(exists(hasText("encrypted connection", substring = true) and hasAnyAncestor(hasTestTag("assistant-service-problem"))))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-assistant-5-another-service")
+        tap(described("Back"))
         waitFor(question)
     }
 

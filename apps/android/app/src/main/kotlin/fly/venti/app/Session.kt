@@ -81,6 +81,8 @@ sealed interface Session {
         val leagues: Leagues,
         /** Maps for flying without a network. */
         val maps: OfflineMapsModel,
+        /** The ground: under the glider in the cockpit, and under a flight for its profile. */
+        val terrain: TerrainModel,
         /** The take-offs around, and what the forecast says of each. */
         val today: TodayModel,
         /** The kind of day, square by square, for the map's "Forecast" layer. */
@@ -173,8 +175,12 @@ sealed interface Session {
                     scriptedAssistant -> FixedKey("scripted")
                     // A test never reads or replaces the pilot's own key.
                     isUnderTest -> FixedKey(null)
-                    else -> EncryptedKeyStore(app)
+                    else -> EncryptedKeyStore.anthropic(app)
                 },
+                // The key for another service, kept apart from Anthropic's.
+                // A test types a made-up one.
+                otherKeys = if (isUnderTest) FixedKey(null) else EncryptedKeyStore.otherService(app),
+                makeAssistantAt = logbook::makeAssistantAt,
                 preferences = preferences,
                 scope = scope,
                 transport = if (scriptedAssistant) ScriptedProvider::answer else AssistantHttp::send,
@@ -295,7 +301,7 @@ sealed interface Session {
             )
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, tasks,
-                leagues, maps, today, thermalMap, WatchedFolder(app, preferences, logbook), preferences, files, scope,
+                leagues, maps, ground, today, thermalMap, WatchedFolder(app, preferences, logbook), preferences, files, scope,
             )
         }
     }

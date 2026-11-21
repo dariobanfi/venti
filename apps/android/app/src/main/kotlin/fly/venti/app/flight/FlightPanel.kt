@@ -53,7 +53,9 @@ import fly.venti.app.design.Format
 import fly.venti.app.design.Metric
 import fly.venti.core.FlightView
 import fly.venti.core.FlightScore
+import fly.venti.core.GroundUnderFlight
 import fly.venti.core.TrackPoint
+import kotlin.math.max
 
 /**
  * The panel under the flight map, as the design language's flight screen
@@ -87,6 +89,8 @@ fun FlightPanel(
     onShowComparison: () -> Unit = {},
     /** Hands the flight to a league. Absent for a flight that is not the pilot's own. */
     onSendToLeague: (() -> Unit)? = null,
+    /** The ground under the flight, where the phone has it. */
+    ground: List<GroundUnderFlight> = emptyList(),
 ) {
     val colours = Venti.colours
     Column(
@@ -102,7 +106,7 @@ fun FlightPanel(
     ) {
         Header(flight, score, cursor, onCursor, isPlaying, onPlaying, onDetails)
         val moment = cursor?.let { flight.track.getOrNull(it) }
-        if (moment != null) Moment(flight, moment) else Totals(flight)
+        if (moment != null) Moment(flight, moment, ground) else Totals(flight)
         if (compared != null) {
             Beside(compared, moment, cursor != null, onShowComparison)
         }
@@ -122,6 +126,7 @@ fun FlightPanel(
                     },
                     modifier = Modifier.fillMaxWidth().height(CHART_HEIGHT),
                     compared = compared,
+                    ground = ground,
                 )
                 ClimbLegend()
             }
@@ -223,11 +228,18 @@ private fun Totals(flight: FlightView) {
 }
 
 @Composable
-private fun Moment(flight: FlightView, point: TrackPoint) {
+private fun Moment(flight: FlightView, point: TrackPoint, ground: List<GroundUnderFlight>) {
     val seconds = point.seconds.toLong()
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Metric("Time", Format.time(flight.startUnixS + seconds), Modifier.weight(1f))
-        Metric("In the air", Format.hoursMinutes(seconds), Modifier.weight(1f), unit = "h")
+        // How high over the ground the glider was, where the ground is
+        // known; else how long it had been in the air.
+        val above = GroundAtMoment.heightAbove(point.seconds, ground)
+        if (above != null) {
+            Metric("Over ground", Format.metres(max(above, 0.0)), Modifier.weight(1f), unit = "m")
+        } else {
+            Metric("In the air", Format.hoursMinutes(seconds), Modifier.weight(1f), unit = "h")
+        }
         Metric("Altitude", Format.metres(point.altitudeM), Modifier.weight(1f), unit = "m")
         Metric("Climb", Format.climb(point.climbMs), Modifier.weight(1f), unit = "m/s")
     }

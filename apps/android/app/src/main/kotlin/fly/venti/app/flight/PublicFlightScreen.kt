@@ -1,5 +1,6 @@
 package fly.venti.app.flight
 
+import fly.venti.app.terrain.TerrainModel
 import fly.venti.app.settings.Preferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -76,6 +77,8 @@ fun PublicFlightScreen(
     onBack: () -> Unit,
     /** Where the choice of the aerial view is kept. */
     preferences: Preferences? = null,
+    /** Where the ground under the flight comes from, for its profile. */
+    terrain: TerrainModel? = null,
 ) {
     val context = LocalContext.current
     var isShowingMenu by remember { mutableStateOf(false) }
@@ -107,6 +110,7 @@ fun PublicFlightScreen(
                 airspace = remember(shown.flight, all) { airspace.shapes(shown.flight.bounds.grown(0.2)) },
                 compareSources = compareSources,
                 preferences = preferences,
+                terrain = terrain,
             )
             failure != null -> Failure(failure, Modifier.align(Alignment.Center))
             else -> CircularProgressIndicator(Modifier.align(Alignment.Center))

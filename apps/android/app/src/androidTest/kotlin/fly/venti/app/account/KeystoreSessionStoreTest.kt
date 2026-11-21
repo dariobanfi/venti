@@ -45,7 +45,7 @@ class KeystoreSessionStoreTest {
 
     @Test
     fun signingOutLeavesTheAssistantsKeyAlone() {
-        val keys = EncryptedKeyStore(context)
+        val keys = EncryptedKeyStore.anthropic(context)
         val session = KeystoreSessionStore(context)
         assertTrue(keys.save("a-made-up-key-of-the-test"))
         assertTrue(session.save("a-made-up-token-of-the-test"))

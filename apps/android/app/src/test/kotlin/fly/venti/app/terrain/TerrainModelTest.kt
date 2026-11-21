@@ -9,7 +9,11 @@ import fly.venti.app.fly.FlightSensors
 import fly.venti.app.fly.SilentTone
 import fly.venti.app.map.MapStyle
 import fly.venti.app.settings.MemoryPreferences
+import fly.venti.app.flight.AltitudeAxis
+import fly.venti.app.flight.GroundAtMoment
 import fly.venti.core.Coordinate
+import fly.venti.core.GroundUnderFlight
+import fly.venti.core.flightFromFile
 import fly.venti.core.FlightSession
 import fly.venti.core.Replay
 import java.util.concurrent.CopyOnWriteArrayList
@@ -202,6 +206,100 @@ class TerrainModelTest {
         override fun start(session: FlightSession, onProblem: (String) -> Unit) = Unit
 
         override fun stop() = Unit
+    }
+
+    @Test
+    fun theGroundUnderAFlightIsReadForItsProfile() = runBlocking {
+        val model = TerrainModel(source = { TerrainModel.Source.Archive(archive) }, folder = null, transport = { HttpAnswer(500, ByteArray(0)) })
+        val flight = flightFromFile(TestSupport.sampleFlight)
+
+        val ground = model.ground(flight)
+
+        // At 240 moments, from the take-off on the Wallberg at 1,620 m to
+        // the valley floor.
+        assertEquals(240, ground.size)
+        assertEquals(1620.0, ground.first().elevationM, 10.0)
+        assertTrue(ground.last().elevationM < 800)
+        // The archive was read into the cockpit's terrain, once.
+        assertTrue(model.terrain.tileCount() > 0u)
+
+        // The chart makes room for the lowest ground, and the panel reads
+        // the height over the ground at any moment of the track.
+        assertTrue(AltitudeAxis.range(flight, ground = ground).start <= 700)
+        assertEquals(700.0, AltitudeAxis.range(flight).start, 100.0)
+        val middle = flight.track[flight.track.size / 2]
+        assertTrue(checkNotNull(GroundAtMoment.heightAbove(middle.seconds, ground)) > 500)
+        assertNull(GroundAtMoment.heightAbove(middle.seconds, emptyList()))
+        // Where the ground was read at two moments far apart only, a moment
+        // between them has none, and the moments themselves have theirs.
+        val sparse = listOf(ground.first(), ground.last())
+        assertNotNull(GroundAtMoment.heightAbove(0u, sparse))
+
+        // Without a source there is no ground, and nothing is asked.
+        val none = Server { error("Nothing is fetched without a source") }
+        val nothing = TerrainModel(source = { TerrainModel.Source.Nowhere }, folder = null, transport = none.transport).ground(flight)
+        assertTrue(nothing.isEmpty())
+        assertTrue(none.asked.isEmpty())
+    }
+
+    @Test
+    fun theGroundUnderAFlightIsAskedOfTheServerTileByTile() = runBlocking {
+        val server = Server { HttpAnswer(200, aTile()) }
+        val model = TerrainModel(
+            source = { TerrainModel.Source.Server("https://tiles.example.org/{z}/{x}/{y}.webp") },
+            folder = null,
+            transport = server.transport,
+        )
+        val flight = flightFromFile(TestSupport.sampleFlight)
+
+        model.ground(flight)
+
+        // The tiles that cover the flight, each once, and none into the
+        // cockpit's terrain: the flight's ground is let go again.
+        assertTrue(server.asked.isNotEmpty())
+        assertEquals(server.asked.size, server.asked.toSet().size)
+        assertTrue(server.asked.all { it.startsWith("https://tiles.example.org/12/") })
+        assertEquals(0u, model.terrain.tileCount())
+
+        // Without a network the first tile goes unanswered and no more are asked.
+        val offline = Server { throw IOException("no network") }
+        val ground = TerrainModel(
+            source = { TerrainModel.Source.Server("https://tiles.example.org/{z}/{x}/{y}.webp") },
+            folder = null,
+            transport = offline.transport,
+        ).ground(flight)
+        assertEquals(1, offline.asked.size)
+        assertTrue(ground.isEmpty())
+    }
+
+    /** The ground read every `step` seconds from `from` on; the glider is as many metres over it as seconds have passed. */
+    private fun every(step: Int, moments: Int, from: Int = 0): List<GroundUnderFlight> =
+        List(moments) { index ->
+            val seconds = from + index * step
+            GroundUnderFlight(seconds = seconds.toUInt(), elevationM = 800.0, heightAboveM = seconds.toDouble())
+        }
+
+    @Test
+    fun theHeightOverTheGroundAtAMomentIsThatOfTheNearestMomentTheGroundWasReadAt() {
+        val ground = every(10, 7)
+        assertEquals(0.0, GroundAtMoment.heightAbove(0u, ground))
+        assertEquals(10.0, GroundAtMoment.heightAbove(14u, ground))
+        assertEquals(20.0, GroundAtMoment.heightAbove(16u, ground))
+        assertEquals(60.0, GroundAtMoment.heightAbove(60u, ground))
+        // Half-way between two, the later one.
+        assertEquals(20.0, GroundAtMoment.heightAbove(15u, ground))
+
+        // Not where the ground was not read: further off than the moments lie apart.
+        val holed = every(10, 20) + every(10, 20, 600)
+        assertEquals(190.0, GroundAtMoment.heightAbove(190u, holed))
+        assertNull(GroundAtMoment.heightAbove(400u, holed))
+        assertEquals(600.0, GroundAtMoment.heightAbove(600u, holed))
+        // Nor before the first moment or after the last.
+        assertNull(GroundAtMoment.heightAbove(300u, every(10, 4)))
+        assertNull(GroundAtMoment.heightAbove(0u, every(10, 4, 500)))
+        // One moment read: there, and for a second around it.
+        assertEquals(50.0, GroundAtMoment.heightAbove(51u, every(10, 1, 50)))
+        assertNull(GroundAtMoment.heightAbove(52u, every(10, 1, 50)))
     }
 
     @Test

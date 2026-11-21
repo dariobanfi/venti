@@ -20,16 +20,27 @@ interface KeyStore {
 
 /**
  * The key on a phone: encrypted under a key in Android's keystore, in the
- * app's own storage. [SealedStore] says how.
+ * app's own storage. [SealedStore] says how. The key for Anthropic and the
+ * key for another service are two secrets, each with a file and a key of
+ * its own, so that removing one leaves the other alone.
  */
-class EncryptedKeyStore(context: Context) : KeyStore {
-    private val sealed = SealedStore(context, file = "venti-assistant", alias = "fly.venti.assistant", entry = "anthropic")
-
+class EncryptedKeyStore private constructor(private val sealed: SealedStore) : KeyStore {
     override fun read(): String? = sealed.read()
 
     override fun save(key: String): Boolean = sealed.save(key)
 
     override fun remove() = sealed.remove()
+
+    companion object {
+        /** The key for Anthropic. */
+        fun anthropic(context: Context) =
+            EncryptedKeyStore(SealedStore(context, file = "venti-assistant", alias = "fly.venti.assistant", entry = "anthropic"))
+
+        /** The key for the other service the pilot set by its address. */
+        fun otherService(context: Context) = EncryptedKeyStore(
+            SealedStore(context, file = "venti-assistant-other", alias = "fly.venti.assistant.other", entry = "other"),
+        )
+    }
 }
 
 /** A key that is simply there, or not. Tests use it. */

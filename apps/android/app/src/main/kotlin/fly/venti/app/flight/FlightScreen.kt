@@ -62,6 +62,8 @@ import fly.venti.app.wind.grown
 import fly.venti.core.AirspaceShape
 import fly.venti.core.FlightAirspace
 import kotlinx.coroutines.CancellationException
+import fly.venti.app.terrain.TerrainModel
+import fly.venti.core.GroundUnderFlight
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -98,6 +100,8 @@ fun FlightScreen(
     onBack: () -> Unit,
     /** Where the choice of the aerial view is kept. */
     preferences: Preferences? = null,
+    /** Where the ground under the flight comes from, for its profile. */
+    terrain: TerrainModel? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -151,6 +155,7 @@ fun FlightScreen(
                 compareSources = compareSources,
                 onSendToLeague = { isSendingToALeague = true },
                 preferences = preferences,
+                terrain = terrain,
             )
         }
         TopButtons(
@@ -344,8 +349,24 @@ internal fun FlightDetail(
     onSendToLeague: (() -> Unit)? = null,
     /** Where the choice of the aerial view is kept; `null` for none. */
     preferences: Preferences? = null,
+    /** Where the ground under the flight comes from, for its profile; `null` for none. */
+    terrain: TerrainModel? = null,
 ) {
     var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
+    // The ground under the flight, for its profile: fetched once per
+    // flight, and drawn when it is there.
+    var ground by remember(flight.id) { mutableStateOf<List<GroundUnderFlight>>(emptyList()) }
+    LaunchedEffect(flight.id, terrain) {
+        if (terrain == null) return@LaunchedEffect
+        ground = try {
+            terrain.ground(flight)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Without the ground the profile is still drawn in full.
+            emptyList()
+        }
+    }
     // A second flight laid beside this one, and the sheets that choose it and show the two.
     var compared by remember(flight.id) { mutableStateOf<ComparedFlight?>(null) }
     var isChoosingCompared by remember { mutableStateOf(false) }
@@ -417,6 +438,7 @@ internal fun FlightDetail(
             compared = compared,
             onShowComparison = { isShowingComparison = true },
             onSendToLeague = onSendToLeague,
+            ground = ground,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()

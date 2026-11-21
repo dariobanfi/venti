@@ -10,8 +10,10 @@ import fly.venti.app.settings.Preferences
 import fly.venti.core.Assistant
 import fly.venti.core.AssistantRequest
 import fly.venti.core.AssistantStep
+import fly.venti.core.CoreException
 import fly.venti.core.TranscriptEntry
 import fly.venti.core.assistantModels
+import fly.venti.core.assistantServiceAddress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -23,6 +25,15 @@ import java.io.IOException
 
 /** Sends a request to the provider and returns its answer. */
 typealias AssistantTransport = suspend (AssistantRequest) -> HttpAnswer
+
+/** Where the assistant's model runs. */
+enum class AssistantService(val stored: String) {
+    /** Anthropic, with one of its models. */
+    ANTHROPIC("anthropic"),
+
+    /** Another service the pilot set by its address. */
+    OTHER("other"),
+}
 
 /**
  * One conversation with the assistant, as the screen sees it.
@@ -52,6 +63,16 @@ class AssistantChat(
     private val server: () -> String? = { null },
     /** The current time in seconds since 1970, by the server's clock where it is known. */
     private val now: () -> Long = { System.currentTimeMillis() / 1000 },
+    /**
+     * A conversation at another service than Anthropic, from its address
+     * and its name for a model. Throws when the address is not one a key
+     * may be sent to.
+     */
+    private val makeAssistantAt: (address: String, model: String) -> Assistant = { _, _ ->
+        throw IllegalStateException("No other service can be used here.")
+    },
+    /** Where the key for another service is kept. */
+    private val otherKeys: KeyStore = FixedKey(null),
 ) {
     var entries: List<TranscriptEntry> by mutableStateOf(emptyList())
         private set
@@ -62,14 +83,41 @@ class AssistantChat(
 
     var problem: String? by mutableStateOf(null)
 
-    var hasKey: Boolean by mutableStateOf(keys.read() != null)
-        private set
-
-    /** The model in use. */
+    /** The model in use at Anthropic. */
     var model: String by mutableStateOf(preferences.assistantModel ?: assistantModels().firstOrNull()?.id.orEmpty())
         private set
 
-    private var assistant = makeAssistant(model)
+    /** The other service's address and its name for the model, as the pilot last set them. Empty until then. */
+    var otherAddress: String by mutableStateOf(preferences.assistantAddress.orEmpty())
+        private set
+    var otherModel: String by mutableStateOf(preferences.assistantOtherModel.orEmpty())
+        private set
+
+    private var assistant: Assistant
+
+    /** Where the model runs. */
+    var service: AssistantService by mutableStateOf(AssistantService.ANTHROPIC)
+        private set
+
+    init {
+        // The other service is used only if it is still set up whole.
+        val other = if (preferences.assistantService == AssistantService.OTHER.stored) otherAssistant() else null
+        assistant = other ?: makeAssistant(model)
+        if (other != null) service = AssistantService.OTHER
+    }
+
+    var hasKey: Boolean by mutableStateOf(key() != null)
+        private set
+
+    /** Whether a key for the other service is kept. */
+    val hasOtherKey: Boolean get() = otherKeys.read() != null
+
+    /** The key for the service in use. */
+    private fun key(): String? = if (service == AssistantService.ANTHROPIC) keys.read() else otherKeys.read()
+
+    /** A conversation at the other service as last set, or `null` if it is not set up whole. */
+    private fun otherAssistant(): Assistant? =
+        if (otherAddress.isEmpty()) null else runCatching { makeAssistantAt(otherAddress, otherModel) }.getOrNull()
 
     val isWorking: Boolean get() = pending != null
 
@@ -79,7 +127,7 @@ class AssistantChat(
      */
     fun ask(question: String): Job {
         val asked = question.trim()
-        val key = keys.read()
+        val key = key()
         if (asked.isEmpty() || pending != null || key == null) return Job().apply { complete() }
         pending = asked
         return scope.launch {
@@ -149,15 +197,71 @@ class AssistantChat(
         }
     }
 
+    /** Removes the key of the service in use. Without its key another service is no longer used. */
     fun removeKey() {
-        keys.remove()
-        hasKey = false
+        if (service == AssistantService.OTHER) {
+            otherKeys.remove()
+            useAnthropic()
+        } else {
+            keys.remove()
+            hasKey = false
+            startAgain()
+        }
+    }
+
+    /**
+     * Runs the assistant at another service than Anthropic: any that speaks
+     * the chat completions format. The core says whether the address is one
+     * a key may be sent to. A key typed now replaces the one kept for that
+     * service; with none typed, the kept one stays. Returns whether it is
+     * set up; if not, `problem` says why.
+     */
+    fun useOtherService(address: String, model: String, key: String): Boolean {
+        val typed = key.trim()
+        val named = model.trim()
+        try {
+            val made = assistantServiceAddress(address)
+            val other = makeAssistantAt(made, named)
+            if (typed.isNotEmpty() && !otherKeys.save(typed)) {
+                problem = "The key could not be stored on this phone."
+                return false
+            }
+            if (otherKeys.read() == null) {
+                problem = "The service needs a key. A model you run yourself may take any text as one."
+                return false
+            }
+            preferences.assistantService = AssistantService.OTHER.stored
+            preferences.assistantAddress = made
+            preferences.assistantOtherModel = named
+            service = AssistantService.OTHER
+            otherAddress = made
+            otherModel = named
+            assistant = other
+            entries = emptyList()
+            hasKey = true
+            return true
+        } catch (error: CoreException) {
+            problem = error.pilotMessage
+            return false
+        }
+    }
+
+    /** Goes back to Anthropic. The other service's address and key stay kept, for changing back. */
+    fun useAnthropic() {
+        service = AssistantService.ANTHROPIC
+        preferences.assistantService = AssistantService.ANTHROPIC.stored
+        hasKey = keys.read() != null
         startAgain()
     }
 
     /** Forgets the conversation. */
     fun startAgain() {
-        assistant = makeAssistant(model)
+        assistant = (if (service == AssistantService.OTHER) otherAssistant() else null) ?: makeAssistant(model)
         entries = emptyList()
+    }
+
+    companion object {
+        /** The name of the computer an address points to: "api.example.org". */
+        fun host(address: String): String = runCatching { java.net.URI(address).host }.getOrNull() ?: address
     }
 }

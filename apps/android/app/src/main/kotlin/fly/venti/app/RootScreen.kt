@@ -430,6 +430,7 @@ private fun Sections(
                         compareSources = CompareSources(logbook, session.community),
                         onBack = { navigation.back() },
                         preferences = session.preferences,
+                        terrain = session.terrain,
                     )
                 }
                 LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
@@ -478,6 +479,7 @@ private fun Sections(
                                 onPilot = { navigation.open(LeagueRoute.Pilot(flight.handle, flight.pilot)) },
                                 onBack = { navigation.back() },
                                 preferences = session.preferences,
+                                terrain = session.terrain,
                             )
                         }
                     }

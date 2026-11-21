@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -31,13 +32,15 @@ import fly.venti.app.design.Axis
 import fly.venti.app.design.Format
 import fly.venti.app.design.numbers
 import fly.venti.core.FlightView
+import fly.venti.core.GroundUnderFlight
 import fly.venti.core.TrackPoint
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 
 /**
- * The flight's altitude over time. Touching or dragging along it sets the
+ * The flight's altitude over time, over the ground it was flown over where
+ * the phone has that. Touching or dragging along it sets the
  * cursor, which stays where the finger left it.
  *
  * Android has no chart of its own; this one is drawn here, with altitudes
@@ -51,6 +54,8 @@ fun AltitudeChart(
     modifier: Modifier = Modifier,
     /** A second flight laid beside this one: a thinner line of its own colour. */
     compared: ComparedFlight? = null,
+    /** The ground under the flight, in order of time. Empty without it. */
+    ground: List<GroundUnderFlight> = emptyList(),
 ) {
     val otherColour = CompareColours.onScreen
     val accent = MaterialTheme.colorScheme.primary
@@ -60,7 +65,7 @@ fun AltitudeChart(
     val labels = MaterialTheme.typography.labelSmall.numbers.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val measurer = rememberTextMeasurer()
 
-    val range = remember(flight, compared) { AltitudeAxis.range(flight, compared?.flight) }
+    val range = remember(flight, compared, ground) { AltitudeAxis.range(flight, compared?.flight, ground) }
     val duration = max(flight.durationS, 1L).toDouble()
     val marked = cursor?.let { flight.track.getOrNull(it) }
     val setCursor by rememberUpdatedState(onCursor)
@@ -132,6 +137,21 @@ fun AltitudeChart(
             drawPath(line, accent, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
 
+        // The ground under the glider, over the foot of the flight's own
+        // shape: the room between the two is the height over it.
+        if (ground.size >= 2) {
+            val earth = Path()
+            ground.forEachIndexed { index, moment ->
+                val height = moment.elevationM.coerceIn(range.start, range.endInclusive)
+                val at = Offset(x(moment.seconds.toDouble()), y(height))
+                if (index == 0) earth.moveTo(at.x, at.y) else earth.lineTo(at.x, at.y)
+            }
+            earth.lineTo(x(ground.last().seconds.toDouble()), plot.bottom)
+            earth.lineTo(x(ground.first().seconds.toDouble()), plot.bottom)
+            earth.close()
+            drawPath(earth, GroundColour)
+        }
+
         // The other flight on this flight's time, cut at the chart's edges.
         if (compared != null && compared.flight.profile.size >= 2) {
             val offset = compared.comparison.offsetS.toDouble()
@@ -166,13 +186,26 @@ private val ALTITUDE_LABELS: Dp = 52.dp
 /** The room kept for the times along the bottom. */
 private val TIME_LABELS: Dp = 18.dp
 
+/**
+ * The ground: the colour of earth, solid enough to cover the foot of the
+ * flight's own shape. The design pack has no token for it yet; this is the
+ * iPhone's value (`AltitudeChart.groundColor`) until the owner gives one.
+ */
+internal val GroundColour = Color(red = 0.55f, green = 0.48f, blue = 0.4f, alpha = 0.85f)
+
 object AltitudeAxis {
     /**
-     * The vertical extent of the chart: the flight's altitudes widened to
-     * whole hundreds of metres, and never flat.
+     * The vertical extent of the chart: the flight's altitudes, with the
+     * ground under it the lowest ground too, widened to whole hundreds of
+     * metres, and never flat.
      */
-    fun range(flight: FlightView, other: FlightView? = null): ClosedFloatingPointRange<Double> {
-        val low = floor(minOf(flight.minAltitudeM, other?.minAltitudeM ?: flight.minAltitudeM) / 100) * 100
+    fun range(
+        flight: FlightView,
+        other: FlightView? = null,
+        ground: List<GroundUnderFlight> = emptyList(),
+    ): ClosedFloatingPointRange<Double> {
+        val lowest = minOf(flight.minAltitudeM, ground.minOfOrNull { it.elevationM } ?: flight.minAltitudeM)
+        val low = floor(minOf(lowest, other?.minAltitudeM ?: lowest) / 100) * 100
         val high = ceil(maxOf(flight.maxAltitudeM, other?.maxAltitudeM ?: flight.maxAltitudeM) / 100) * 100
         return low..max(high, low + 100)
     }
@@ -196,5 +229,30 @@ object TrackSearch {
             return low - 1
         }
         return low
+    }
+}
+
+object GroundAtMoment {
+    /**
+     * The height over the ground at a moment of the flight: that of the
+     * moment the ground was read at nearest to it. The ground is read at a
+     * few hundred moments, the track has thousands. `null` where the
+     * nearest lies further off than those moments lie apart: there the
+     * phone has no ground.
+     */
+    fun heightAbove(seconds: UInt, ground: List<GroundUnderFlight>): Double? {
+        if (ground.isEmpty()) return null
+        // In order of time: the first that is not earlier, by halving.
+        var low = 0
+        var high = ground.lastIndex
+        while (low < high) {
+            val middle = (low + high) / 2
+            if (ground[middle].seconds < seconds) low = middle + 1 else high = middle
+        }
+        fun gap(moment: GroundUnderFlight) = kotlin.math.abs(moment.seconds.toLong() - seconds.toLong())
+        var nearest = ground[low]
+        if (low > 0 && gap(ground[low - 1]) < gap(nearest)) nearest = ground[low - 1]
+        val apart = max(1L, (ground.last().seconds.toLong() - ground.first().seconds.toLong()) / max(ground.size - 1, 1))
+        return if (gap(nearest) <= apart) nearest.heightAboveM else null
     }
 }

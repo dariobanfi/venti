@@ -2,7 +2,10 @@ package fly.venti.app.terrain
 
 import fly.venti.app.Http
 import fly.venti.app.HttpAnswer
+import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
+import fly.venti.core.FlightView
+import fly.venti.core.GroundUnderFlight
 import fly.venti.core.Terrain
 import fly.venti.core.TerrainTile
 import kotlinx.coroutines.CancellationException
@@ -89,15 +92,10 @@ class TerrainModel(
             // Asking may copy the app's region out of the app: not here.
             when (val from = withContext(background) { source() }) {
                 Source.Nowhere -> Unit
-                is Source.Archive -> if (archiveRead != from.file) {
-                    archiveRead = from.file
-                    withContext(background) {
-                        runCatching { terrain.addArchive(from.file.readBytes()) }
-                    }
-                }
+                is Source.Archive -> readArchive(from.file)
                 is Source.Server -> {
                     for (tile in terrain.tilesWanted(around.lat, around.lon)) {
-                        val came = withContext(background) { bring(tile, from.template) }
+                        val came = withContext(background) { bring(tile, from.template, terrain) }
                         // No answer at all: without a network the other
                         // tiles would not come either. The next load asks.
                         if (came == Came.NO_ANSWER) break
@@ -110,13 +108,62 @@ class TerrainModel(
         }
     }
 
+    /**
+     * The ground under a flight's track, for its profile: the tiles under
+     * the flight are brought, from the phone's store or the tile server,
+     * read, and let go again. Empty where there is no ground to be had.
+     * Which moments and what heights are the core's (`groundUnder`).
+     */
+    suspend fun ground(under: FlightView): List<GroundUnderFlight> {
+        val area = under.bounds
+        return when (val from = withContext(background) { source() }) {
+            // The region that comes with the app is small: it is read
+            // once, into the terrain the cockpit uses too.
+            is Source.Archive -> {
+                readArchive(from.file)
+                groundOn(terrain, under, area)
+            }
+            // A terrain of its own, which goes when the flight is closed:
+            // the cockpit's holds the ground around the glider and no more.
+            is Source.Server, Source.Nowhere -> Terrain().use { own ->
+                for (file in archives) {
+                    runCatching { own.openArchive(file.path) }
+                }
+                if (from is Source.Server) {
+                    if (archives.isNotEmpty()) withContext(background) { own.readCovering(area) }
+                    for (tile in own.tilesCovering(area)) {
+                        // Without a network the other tiles would not come either.
+                        if (withContext(background) { bring(tile, from.template, own) } == Came.NO_ANSWER) break
+                    }
+                }
+                groundOn(own, under, area)
+            }
+        }
+    }
+
+    /** What kept regions have under the flight, then the ground under its track. */
+    private suspend fun groundOn(heights: Terrain, flight: FlightView, area: Bounds): List<GroundUnderFlight> =
+        withContext(background) {
+            if (archives.isNotEmpty()) heights.readCovering(area)
+            heights.groundUnder(flight.track, PLACES_UNDER_A_FLIGHT)
+        }
+
+    /** Reads the archive that came with the app into the terrain, once. */
+    private suspend fun readArchive(file: File) {
+        if (archiveRead == file) return
+        archiveRead = file
+        withContext(background) {
+            runCatching { terrain.addArchive(file.readBytes()) }
+        }
+    }
+
     /** What became of the wish for one tile. */
     private enum class Came { YES, REFUSED, NO_ANSWER }
 
     /** One tile: from the phone's store, else from the server and into the store. */
-    private suspend fun bring(tile: TerrainTile, template: String): Came {
+    private suspend fun bring(tile: TerrainTile, template: String, into: Terrain): Came {
         val kept = folder?.resolve("${tile.z}-${tile.x}-${tile.y}.webp")
-        if (kept != null && kept.isFile && take(tile, runCatching { kept.readBytes() }.getOrNull())) {
+        if (kept != null && kept.isFile && take(tile, runCatching { kept.readBytes() }.getOrNull(), into)) {
             return Came.YES
         }
         val answer = try {
@@ -126,7 +173,7 @@ class TerrainModel(
         } catch (_: Exception) {
             return Came.NO_ANSWER
         }
-        if (answer.status != HTTP_OK || !take(tile, answer.body)) return Came.REFUSED
+        if (answer.status != HTTP_OK || !take(tile, answer.body, into)) return Came.REFUSED
         if (kept != null) {
             // Written beside and moved into place: a tile cut short by the
             // app's end is not taken for a whole one the next time.
@@ -141,11 +188,14 @@ class TerrainModel(
     }
 
     /** Hands a tile's bytes to the core; `false` when they are no elevation tile. */
-    private fun take(tile: TerrainTile, image: ByteArray?): Boolean =
-        image != null && runCatching { terrain.addTile(tile.z, tile.x, tile.y, image) }.isSuccess
+    private fun take(tile: TerrainTile, image: ByteArray?, into: Terrain): Boolean =
+        image != null && runCatching { into.addTile(tile.z, tile.x, tile.y, image) }.isSuccess
 
     companion object {
         private const val HTTP_OK = 200
+
+        /** At how many moments of a flight the ground is read for its profile, as on the iPhone. */
+        const val PLACES_UNDER_A_FLIGHT: UInt = 240u
 
         /** How long a tile may take to arrive. */
         const val ANSWER_WITHIN_MILLISECONDS = 20_000

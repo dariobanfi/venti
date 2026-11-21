@@ -2631,6 +2631,18 @@ pub fn public_flights_path(
     .map_err(thrown)
 }
 
+/// The path and query to `GET` for one page of the public flights that
+/// began at a site, of any layer: those that took off within 500 m of it.
+/// The answer is read by `publicFlights`.
+#[wasm_bindgen(js_name = publicFlightsAtSitePath)]
+pub fn public_flights_at_site_path(
+    site_id: String,
+    order: Ts<PublicFlightsOrder>,
+    after: Option<String>,
+) -> Result<String, JsValue> {
+    venti_core::public_flights_at_site_path(site_id, from_js(&order)?, after).map_err(thrown)
+}
+
 /// The part of the map whose flights count as flown from a place: the
 /// square around it, a kilometre and a half to each side.
 #[wasm_bindgen(js_name = flownFromHere)]

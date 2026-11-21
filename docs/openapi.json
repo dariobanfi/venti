@@ -1335,6 +1335,9 @@
           "takeoff": {
             "$ref": "#/components/schemas/FlightPlace"
           },
+          "takeoff_site": {
+            "$ref": "#/components/schemas/FlightSite"
+          },
           "track_length_m": {
             "type": "number"
           },
@@ -1453,6 +1456,22 @@
           "closed",
           "distance_m",
           "points"
+        ],
+        "type": "object"
+      },
+      "FlightSite": {
+        "description": "The site a flight took off from: the standing take-off within 500 m of its take-off, a partner's before a place from pilots before a source's, and of one layer the nearest. Looked up with every answer.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
         ],
         "type": "object"
       },
@@ -6571,6 +6590,15 @@
             "required": false,
             "schema": {
               "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A site's identifier, of any layer: the flights that took off within 500 m of it.",
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },

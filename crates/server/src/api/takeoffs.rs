@@ -45,13 +45,16 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use serde::Deserialize;
 use venti_api_types::v1::{
-    CANDIDATE_CELL_DEG, CANDIDATE_CLEAR_OF_SITES_M, CANDIDATE_MIN_PILOTS, ErrorCode, FlightTerms,
-    MAX_CANDIDATE_BOX_DEG, MAX_SITE_CANDIDATES, SITE_BEST_FLIGHTS, SITE_FLIGHTS_WITHIN_M,
-    SiteBestFlight, SiteCandidate, SiteCandidatesResponse, SiteFlightsResponse, parse_bbox,
+    self, CANDIDATE_CELL_DEG, CANDIDATE_CLEAR_OF_SITES_M, CANDIDATE_MIN_PILOTS, ErrorCode,
+    FlightSite, FlightTerms, MAX_CANDIDATE_BOX_DEG, MAX_SITE_CANDIDATES, SITE_BEST_FLIGHTS,
+    SITE_FLIGHTS_WITHIN_M, SiteBestFlight, SiteCandidate, SiteCandidatesResponse,
+    SiteFlightsResponse, TAKEOFF_SITE_WITHIN_M, parse_bbox,
 };
-use venti_domain::{BoundingBox, Site, SiteId, SiteUse, SourceId};
+use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SiteUse, SourceId};
 use venti_sources::Kind;
-use venti_store::{CandidateRule, FlightsFrom, Store, Visibility, solar_day};
+use venti_store::{CandidateRule, Flight, FlightsFrom, Near, Store, Visibility, solar_day};
+
+use crate::pilot_sites::Layer;
 
 use super::budget::Reader;
 use super::cache::Keeper;
@@ -61,6 +64,39 @@ use super::{Api, cache, wire};
 
 const BBOX_HELP: &str =
     "give bbox as west,south,east,north in degrees, for example bbox=11.6,47.55,12.0,47.85";
+
+/// The site a flight took off from, of the standing sites near where it
+/// took off ([`TAKEOFF_SITE_WITHIN_M`]): of those that are take-offs and
+/// have a name, a partner's (`venti`) before a place from pilots
+/// (`venti-pilots`) before a source's (OpenStreetMap's), and of one
+/// layer the nearest; of two as near, the smaller identifier.
+fn takeoff_site(takeoff: GeoPoint, near: &[Site]) -> Option<FlightSite> {
+    let layer = |site: &Site| match Layer::of(&site.id) {
+        Some(Layer::Partners) => 0,
+        Some(Layer::Pilots) => 1,
+        None => 2,
+    };
+    near.iter()
+        .filter(|site| is_a_takeoff(site))
+        .filter_map(|site| {
+            let name = site.name.as_deref().map(str::trim)?;
+            (!name.is_empty()).then_some((site, name))
+        })
+        .min_by(|(a, _), (b, _)| {
+            layer(a)
+                .cmp(&layer(b))
+                .then(
+                    a.position
+                        .distance_m(takeoff)
+                        .total_cmp(&b.position.distance_m(takeoff)),
+                )
+                .then_with(|| a.id.cmp(&b.id))
+        })
+        .map(|(site, name)| FlightSite {
+            id: site.id.clone(),
+            name: name.to_owned(),
+        })
+}
 
 /// Whether a site is one to take off from, by its own record: on foot or
 /// on a tow line, or it names no use at all. A landing field and a
@@ -74,6 +110,59 @@ fn is_a_takeoff(site: &Site) -> bool {
 }
 
 impl<S: Store> Api<S> {
+    /// Flights as an answer shows them, each with the site it took off
+    /// from ([`takeoff_site`]). The sites are looked up for the whole
+    /// page in one question to the store, as they stand now.
+    pub(crate) async fn shown_flights(
+        &self,
+        flights: &[Flight],
+    ) -> Result<Vec<v1::Flight>, ApiError> {
+        let mut shown = wire::flights(flights)?;
+        let takeoffs: Vec<(usize, GeoPoint)> = flights
+            .iter()
+            .enumerate()
+            .filter_map(|(at, flight)| Some((at, flight.derived.takeoff?.position)))
+            .collect();
+        if takeoffs.is_empty() {
+            return Ok(shown);
+        }
+        let places: Vec<GeoPoint> = takeoffs.iter().map(|&(_, place)| place).collect();
+        let near = self
+            .store
+            .sites_near(&self.site_sources(), &places, TAKEOFF_SITE_WITHIN_M)
+            .await?;
+        for ((at, place), sites) in takeoffs.into_iter().zip(near) {
+            shown[at].takeoff_site = takeoff_site(place, &sites);
+        }
+        Ok(shown)
+    }
+
+    /// One flight as an answer shows it: [`Api::shown_flights`].
+    pub(crate) async fn shown_flight(&self, flight: &Flight) -> Result<v1::Flight, ApiError> {
+        self.shown_flights(std::slice::from_ref(flight))
+            .await?
+            .pop()
+            .ok_or_else(ApiError::internal)
+    }
+
+    /// Where the public flights that began at a site took off, for a list
+    /// asked for by `site`: within [`SITE_FLIGHTS_WITHIN_M`] of it, as
+    /// `GET /v1/sites/{id}/flights` counts them. `None` for a site that
+    /// is no take-off, from which no flight began.
+    pub(crate) async fn began_at_site(&self, id: &str) -> Result<Option<Near>, ApiError> {
+        let id: SiteId = id.parse().map_err(|_| {
+            ApiError::missing(
+                ErrorCode::SiteNotFound,
+                "there is no site with this identifier",
+            )
+        })?;
+        let site = self.site_of_any_layer(&id).await?;
+        Ok(is_a_takeoff(&site).then_some(Near {
+            place: site.position,
+            within_m: SITE_FLIGHTS_WITHIN_M,
+        }))
+    }
+
     /// The sources this server serves flying sites of.
     pub(super) fn site_sources(&self) -> Vec<SourceId> {
         self.sources
@@ -270,6 +359,62 @@ mod tests {
     use venti_store::{CANDIDATE_STEPS_PER_DEGREE, CELLS_PER_DEGREE};
 
     use super::*;
+
+    fn site(id: &str, name: Option<&str>, lat: f64, uses: &[&str]) -> Site {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "name": name,
+            "position": {"lat": lat, "lon": 11.0},
+            "uses": uses,
+        }))
+        .unwrap()
+    }
+
+    /// Of the take-offs near a flight's, a partner's comes before a place
+    /// from pilots, which comes before a source's; of one layer the
+    /// nearest. A landing field and a site without a name are none.
+    #[test]
+    fn a_flight_takes_off_from_the_partners_site_before_the_nearer_others() {
+        let takeoff = GeoPoint::new(47.0, 11.0).unwrap();
+        let osm = site("osm:node/1", Some("Musterkogel"), 47.0, &["takeoff"]);
+        let pilots_far = site("venti-pilots:b", Some("Musterkogel Ost"), 47.003, &[]);
+        let pilots_near = site(
+            "venti-pilots:a",
+            Some("Musterkogel West"),
+            47.001,
+            &["takeoff"],
+        );
+        let partners = site("venti:c", Some("Musterkogel Nord"), 47.004, &["towing"]);
+        let landing = site("venti:d", Some("Landeplatz"), 47.0, &["landing"]);
+        let nameless = site("venti:e", None, 47.0, &["takeoff"]);
+        let named = |sites: &[Site]| takeoff_site(takeoff, sites).map(|site| site.name);
+
+        let all = [
+            osm.clone(),
+            pilots_far.clone(),
+            pilots_near.clone(),
+            partners,
+            landing.clone(),
+            nameless.clone(),
+        ];
+        assert_eq!(named(&all).as_deref(), Some("Musterkogel Nord"));
+        assert_eq!(
+            named(&all[..3]).as_deref(),
+            Some("Musterkogel West"),
+            "of one layer the nearest"
+        );
+        assert_eq!(
+            named(&[osm.clone(), landing.clone()]).as_deref(),
+            Some("Musterkogel")
+        );
+        assert_eq!(named(&[landing, nameless]), None);
+        assert_eq!(
+            takeoff_site(takeoff, &[osm])
+                .map(|site| site.id.to_string())
+                .as_deref(),
+            Some("osm:node/1")
+        );
+    }
 
     /// The answer says the grid and the rounding in the API's words; the
     /// store works with its own. They are the same numbers.

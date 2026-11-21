@@ -31,6 +31,7 @@ use venti_api_types::v1::{
     SignInResponse, UpdateFlightRequest, UploadResponse, Visibility,
 };
 
+use crate::live::one_line;
 use crate::logbook::LogbookError;
 use crate::server::{answer, code, refusal};
 use crate::{Core, CoreError};
@@ -340,6 +341,20 @@ struct Remote {
     /// Its address there.
     id: String,
     visibility: Visibility,
+    /// The name of the site it took off from, as the server said last.
+    /// Missing from a record an earlier build stored, and for a flight the
+    /// server names no site for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    takeoff_name: Option<String>,
+}
+
+/// The name of the site a flight of the server took off from, on one line.
+fn takeoff_name(flight: &api::Flight) -> Option<String> {
+    flight
+        .takeoff_site
+        .as_ref()
+        .map(|site| one_line(&site.name, 60))
+        .filter(|name| !name.is_empty())
 }
 
 #[uniffi::export]
@@ -757,6 +772,7 @@ impl Core {
         let remote = Remote {
             id: response.flight.id.to_string(),
             visibility: response.flight.visibility,
+            takeoff_name: takeoff_name(&response.flight),
         };
         let now = sharing(&stored.server, &remote).ok_or_else(|| CoreError::Server {
             message: "The server's answer could not be read. The app may be older than the server."
@@ -777,6 +793,22 @@ impl Core {
 }
 
 impl Core {
+    /// The names of the sites the server says the logbook's flights took
+    /// off from, by the flight's identity. Empty when signed out.
+    pub(crate) fn server_takeoff_names(&self) -> BTreeMap<String, String> {
+        self.stored_account()
+            .ok()
+            .flatten()
+            .map(|stored| {
+                stored
+                    .flights
+                    .into_iter()
+                    .filter_map(|(identity, remote)| Some((identity, remote.takeoff_name?)))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn stored_account(&self) -> Result<Option<Stored>, CoreError> {
         self.read_account().map_err(storage_error)
     }
@@ -1105,11 +1137,13 @@ impl FlightSync {
                             .to_fetch
                             .push_back((flight.identity.clone(), flight.id.to_string()));
                     }
+                    let takeoff_name = takeoff_name(&flight);
                     stored.flights.insert(
                         flight.identity,
                         Remote {
                             id: flight.id.to_string(),
                             visibility: flight.visibility,
+                            takeoff_name,
                         },
                     );
                 }
@@ -1156,6 +1190,7 @@ impl FlightSync {
                         Remote {
                             id: response.flight.id.to_string(),
                             visibility: response.flight.visibility,
+                            takeoff_name: takeoff_name(&response.flight),
                         },
                     );
                     progress.summary.sent += 1;

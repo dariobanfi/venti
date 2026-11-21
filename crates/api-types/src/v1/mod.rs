@@ -143,10 +143,11 @@ pub use dumps::{
 pub use error::{ErrorBody, ErrorCode, ErrorResponse, ErrorSite};
 pub use flights::{
     DEFAULT_PAGE_SIZE, DeletedFlight, FLIGHT_TERMS_UNDECIDED, Flight, FlightChangesResponse,
-    FlightId, FlightIdError, FlightPlace, FlightResponse, FlightScore, FlightTerms, FlightTrack,
-    FlightsResponse, MAX_FLIGHT_FILE_BYTES, MAX_PAGE_SIZE, MAX_TRACK_POINTS, Pilot, PilotResponse,
-    PublicFlightChangesResponse, RANKING_COUNTED, RankedPilot, RankingResponse, RouteKind,
-    TrackLine, TrackProperties, UpdateFlightRequest, UploadResponse, Visibility, WithdrawnFlight,
+    FlightId, FlightIdError, FlightPlace, FlightResponse, FlightScore, FlightSite, FlightTerms,
+    FlightTrack, FlightsResponse, MAX_FLIGHT_FILE_BYTES, MAX_PAGE_SIZE, MAX_TRACK_POINTS, Pilot,
+    PilotResponse, PublicFlightChangesResponse, RANKING_COUNTED, RankedPilot, RankingResponse,
+    RouteKind, TAKEOFF_SITE_WITHIN_M, TrackLine, TrackProperties, UpdateFlightRequest,
+    UploadResponse, Visibility, WithdrawnFlight,
 };
 pub use forecast::{ForecastLayer, ForecastNearby, ForecastResponse, NearbyHour, NearbyStrongest};
 pub use groups::{

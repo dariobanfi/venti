@@ -155,6 +155,7 @@ macro_rules! store_suite {
             the_public_changes_are_told_page_by_page_and_of_a_pilot,
             suspending_and_deleting_an_account_withdraws_flights,
             the_public_flights_that_began_at_a_place_are_counted,
+            sites_near_take_offs_and_flights_near_a_site,
             a_place_several_pilots_took_off_at_is_a_candidate,
             candidates_come_by_pilots_and_a_cell_counts_alone,
             a_live_track_begins_with_its_first_fixes,

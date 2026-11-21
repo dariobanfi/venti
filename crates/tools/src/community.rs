@@ -1147,6 +1147,12 @@ fn flight_fields(flight: &Flight, now: DateTime<Utc>, whole: bool) -> Map<String
         if whole {
             place.insert("time_utc".to_owned(), json!(day_time(takeoff.time)));
         }
+        if let Some(site) = &flight.takeoff_site {
+            place.insert(
+                "site".to_owned(),
+                json!({"id": site.id.to_string(), "name": source_text(&site.name, MAX_NAME_CHARS)}),
+            );
+        }
         fields.insert("takeoff".to_owned(), Value::Object(place));
     }
     if whole {

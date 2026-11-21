@@ -606,6 +606,7 @@ fn operations() -> Vec<Op> {
                 "bbox",
                 "from:time",
                 "to:time",
+                "site",
                 "sort",
                 "after:cursor",
                 "limit",
@@ -818,6 +819,10 @@ fn query_parameter(spec: &str) -> Value {
             json!({"type": "integer", "minimum": 1, "maximum": 5000}),
         ),
         "pilot" => ("A pilot's handle.", json!({"type": "string"})),
+        "site" => (
+            "A site's identifier, of any layer: the flights that took off within 500 m of it.",
+            json!({"type": "string"}),
+        ),
         "sort" => (
             "The order of the list.",
             json!({"type": "string", "enum": ["newest", "score"]}),

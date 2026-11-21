@@ -443,6 +443,12 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         Answer(200),
     ),
     (
+        "public_flights_at_site.json",
+        "get",
+        "/v1/flights/public",
+        Answer(200),
+    ),
+    (
         "site_candidates.json",
         "get",
         "/v1/sites/candidates",

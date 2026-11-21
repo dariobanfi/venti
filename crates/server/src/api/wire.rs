@@ -117,6 +117,8 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
         airtime_s: derived.airtime_s,
         takeoff: derived.takeoff.as_ref().map(place),
         landing: derived.landing.as_ref().map(place),
+        // Looked up for a page at once: `Api::shown_flights`.
+        takeoff_site: None,
         track_length_m: derived.track_length_m,
         max_altitude_m: derived.max_altitude_m,
         max_climb_ms: derived.max_climb_ms,

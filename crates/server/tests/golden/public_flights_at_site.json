@@ -1,0 +1,63 @@
+{
+  "flights": [
+    {
+      "id": "hwj4105bnzcgcavngacrzjt3s4",
+      "identity": "de3747a79142a8c1469a911e47dbd029",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-07-11T10:30:00Z",
+      "airtime_s": 1506,
+      "takeoff": {
+        "time": "2026-07-11T10:30:00Z",
+        "position": {
+          "lat": 47.3,
+          "lon": 10.9003
+        },
+        "altitude_m": 1620
+      },
+      "landing": {
+        "time": "2026-07-11T10:55:06Z",
+        "position": {
+          "lat": 47.3262,
+          "lon": 10.86115
+        },
+        "altitude_m": 1236
+      },
+      "takeoff_site": {
+        "id": "venti:0000000000000000000000s001",
+        "name": "Musterkogel West"
+      },
+      "track_length_m": 15923.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11472.1,
+        "points": 11.47
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.3,
+          10.9003
+        ],
+        [
+          47.3055,
+          10.89346
+        ]
+      ],
+      "file_bytes": 58980,
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
+    }
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}

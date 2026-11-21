@@ -95,7 +95,7 @@ impl<S: Store> Api<S> {
             return Err(no_such_flight());
         }
         Ok(FlightResponse {
-            flight: wire::flight(&flight)?,
+            flight: self.shown_flight(&flight).await?,
             terms: terms_of(&flight),
         })
     }
@@ -391,7 +391,7 @@ pub(crate) async fn upload<S: Store>(
         StatusCode::OK
     };
     let answer = UploadResponse {
-        flight: wire::flight(&flight)?,
+        flight: api.shown_flight(&flight).await?,
         created,
     };
     Ok(cache::private_json(status, &answer))
@@ -466,7 +466,7 @@ pub(crate) async fn list<S: Store>(
         )
         .await?;
     let answer = FlightsResponse {
-        flights: wire::flights(&flights)?,
+        flights: api.shown_flights(&flights).await?,
         next,
         // The account's own flights: nothing to say to their pilot.
         terms: None,
@@ -515,7 +515,7 @@ pub(crate) async fn changes<S: Store>(
 
     let answer = FlightChangesResponse {
         cursor: changes.last().unwrap_or(since).to_string(),
-        flights: wire::flights(&changes.flights)?,
+        flights: api.shown_flights(&changes.flights).await?,
         deleted: changes
             .deleted
             .iter()
@@ -542,7 +542,7 @@ pub(crate) async fn show<S: Store>(
 ) -> Result<Response, ApiError> {
     let flight = api.visible_flight(&id, &viewer).await?;
     let answer = FlightResponse {
-        flight: wire::flight(&flight)?,
+        flight: api.shown_flight(&flight).await?,
         terms: terms_of(&flight),
     };
     Ok(if viewer.is_signed() {
@@ -705,7 +705,7 @@ pub(crate) async fn update<S: Store>(
         }
     };
     let answer = FlightResponse {
-        flight: wire::flight(&flight)?,
+        flight: api.shown_flight(&flight).await?,
         terms: terms_of(&flight),
     };
     Ok(cache::private_json(StatusCode::OK, &answer))

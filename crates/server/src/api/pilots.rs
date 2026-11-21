@@ -84,7 +84,7 @@ pub(crate) async fn show<S: Store>(
     }
     let answer = PilotResponse {
         pilot: wire::pilot(&account.handle, &account.display_name)?,
-        flights: wire::flights(&flights)?,
+        flights: api.shown_flights(&flights).await?,
         next,
         terms: Some(FlightTerms::current()),
     };

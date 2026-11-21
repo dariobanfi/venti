@@ -5,8 +5,9 @@
 use chrono::{NaiveDate, TimeZone, Utc};
 use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SiteUse, SourceId, Timestamp};
 use venti_store::{
-    Account, CandidateRule, NewPilotSite, Place, Score, ScoreKind, SiteAct, SiteDelivery,
-    SiteRevising, SiteVia, SiteWrite, Store, TakeoffCandidate, Visibility,
+    Account, CandidateRule, Near, NewPilotSite, Place, PublicFlights, PublicOrder, Score,
+    ScoreKind, SiteAct, SiteDelivery, SiteRevising, SiteVia, SiteWrite, Store, TakeoffCandidate,
+    Visibility,
 };
 
 use super::accounts::{create, id};
@@ -121,6 +122,83 @@ async fn offered(
 }
 
 // --- Behaviours ----------------------------------------------------------
+
+pub(crate) async fn sites_near_take_offs_and_flights_near_a_site(store: &impl Store) {
+    let here = GeoPoint::new(47.6642, 11.7967).unwrap();
+    // 400 m north, and 2 km north.
+    let near = site("osm-free-flying:node/1", 47.6678, 11.7967);
+    let far = site("osm-free-flying:node/2", 47.6822, 11.7967);
+    deliver(store, at(8, 0), &[near.clone(), far.clone()]).await;
+    let osm = source(OSM);
+    let elsewhere = GeoPoint::new(46.0, 8.0).unwrap();
+
+    let found = store
+        .sites_near(std::slice::from_ref(&osm), &[here, elsewhere, here], 500.0)
+        .await
+        .unwrap();
+    assert_eq!(
+        found,
+        vec![vec![near.clone()], Vec::new(), vec![near.clone()]]
+    );
+    // A source that is not asked for has no site near anything.
+    let none = store.sites_near(&[], &[here], 500.0).await.unwrap();
+    assert_eq!(none, vec![Vec::<Site>::new()]);
+    assert!(
+        store
+            .sites_near(&[osm], &[], 500.0)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    // The public flights that took off within 500 m of the near site.
+    let pilot = create(store, "lena").await;
+    flown(
+        store,
+        &pilot,
+        1,
+        moment(2026, 7, 1, 10, 0),
+        (47.6642, 11.7967, 1600),
+        Some(10.0),
+        Visibility::Public,
+    )
+    .await;
+    flown(
+        store,
+        &pilot,
+        2,
+        moment(2026, 7, 2, 10, 0),
+        (47.6822, 11.7967, 1600),
+        Some(12.0),
+        Visibility::Public,
+    )
+    .await;
+    flown(
+        store,
+        &pilot,
+        3,
+        moment(2026, 7, 3, 10, 0),
+        (47.6660, 11.7967, 1600),
+        None,
+        Visibility::Private,
+    )
+    .await;
+    let at_site = PublicFlights {
+        near: Some(Near {
+            place: near.position,
+            within_m: 500.0,
+        }),
+        ..PublicFlights::default()
+    };
+    let listed = store
+        .public_flights(&at_site, &PublicOrder::Newest(None), 10)
+        .await
+        .unwrap();
+    let ids: Vec<&str> = listed.iter().map(|flight| flight.id.as_str()).collect();
+    assert_eq!(ids, [id("lena1").as_str()]);
+    let ranked = store.ranking(&at_site, 3, 10).await.unwrap();
+    assert_eq!(ranked.len(), 1);
+}
 
 pub(crate) async fn the_public_flights_that_began_at_a_place_are_counted(store: &impl Store) {
     let here = GeoPoint::new(47.6642, 11.7967).unwrap();

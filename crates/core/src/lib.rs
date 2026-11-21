@@ -357,8 +357,10 @@ pub struct LogbookEntry {
     pub outline: Vec<Coordinate>,
     /// How the flight scores as a cross-country flight.
     pub score: Option<EntryScore>,
-    /// Where the flight began, if the pilot has a waypoint there: the name
-    /// of a take-off within a kilometre, or of any waypoint close by.
+    /// Where the flight began: the name of the pilot's own take-off
+    /// waypoint within a kilometre, or of any waypoint close by, or else
+    /// of the site the server says the flight took off from, once the
+    /// logbook was synced with it.
     pub takeoff_name: Option<String>,
 }
 
@@ -446,6 +448,7 @@ impl Core {
             totals: Totals::default(),
             years: Vec::new(),
         };
+        let from_server = self.server_takeoff_names();
         for (id, summary) in self.logbook.flights() {
             let year = DateTime::from_timestamp(summary.start_unix_s, 0)
                 .map_or(1970, |start| start.year());
@@ -469,7 +472,8 @@ impl Core {
             let takeoff_name = summary
                 .outline
                 .first()
-                .and_then(|&[lat, lon]| self.place_name(Coordinate { lat, lon }));
+                .and_then(|&[lat, lon]| self.place_name(Coordinate { lat, lon }))
+                .or_else(|| from_server.get(&id).cloned());
             section.flights.push(LogbookEntry {
                 id,
                 start_unix_s: summary.start_unix_s,

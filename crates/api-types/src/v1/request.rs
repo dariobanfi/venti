@@ -612,6 +612,11 @@ pub struct PublicFlightsRequest {
     /// Only flights that started before this moment. A day is asked for
     /// with its first moment as `from` and the next day's as `to`.
     pub to: Option<Timestamp>,
+    /// Only flights that began at this site: those that took off within
+    /// [`SITE_FLIGHTS_WITHIN_M`](super::SITE_FLIGHTS_WITHIN_M) of it, the
+    /// flights `GET /v1/sites/{id}/flights` counts. A site that is no
+    /// take-off has none.
+    pub site: Option<SiteId>,
     /// The order. `None` leaves it to the server, which lists the newest
     /// first.
     pub sort: Option<FlightSort>,
@@ -637,6 +642,7 @@ impl PublicFlightsRequest {
             [
                 ("from", self.from.map(format_time)),
                 ("to", self.to.map(format_time)),
+                ("site", self.site.as_ref().map(ToString::to_string)),
                 ("sort", self.sort.map(|sort| sort.as_str().to_owned())),
                 ("after", self.after.clone()),
                 ("limit", self.limit.map(|limit| limit.to_string())),

@@ -1000,6 +1000,32 @@ impl Store for MemoryStore {
             .began_at(place, within_m, best, &inner.accounts))
     }
 
+    async fn sites_near(
+        &self,
+        sources: &[SourceId],
+        places: &[GeoPoint],
+        within_m: f64,
+    ) -> Result<Vec<Vec<Site>>, StoreError> {
+        let inner = self.lock();
+        let sites: Vec<&Site> = inner
+            .sites
+            .iter()
+            .filter(|(source, _)| sources.contains(source))
+            .flat_map(|(_, stored)| stored.sites.values())
+            .chain(inner.pilot_sites.standing())
+            .collect();
+        Ok(places
+            .iter()
+            .map(|&place| {
+                sites
+                    .iter()
+                    .filter(|site| site.position.distance_m(place) <= within_m)
+                    .map(|&site| site.clone())
+                    .collect()
+            })
+            .collect())
+    }
+
     async fn takeoff_candidates(
         &self,
         sources: &[SourceId],

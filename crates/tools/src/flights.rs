@@ -154,6 +154,7 @@ impl Asked {
                 .to
                 .and_then(|day| day.checked_add_days(Days::new(1)))
                 .and_then(midnight),
+            site: None,
             sort: self.best.then_some(FlightSort::Score),
             after: None,
             // The server's box has corners the circle has not: ask for more

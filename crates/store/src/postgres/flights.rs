@@ -11,11 +11,13 @@ use tokio_postgres::types::ToSql;
 use tokio_postgres::{IsolationLevel, Row};
 use venti_domain::{GeoPoint, Timestamp};
 
+use super::takeoffs::distance;
 use super::{corrupt, db_error};
 use crate::flight::{
     Kept, PublicEffect, Room, Saved, cut, cut_public, may_be_set, next_change, next_public_change,
     ranked_order,
 };
+use crate::takeoff::around;
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
     Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Score, ScoreKind, StoreError,
@@ -553,12 +555,26 @@ pub(super) async fn public(
     rows.iter().map(flight_from).collect()
 }
 
-/// The edges of the box a list of public flights is asked for in: west,
-/// south, east, north.
-fn edges_of(which: &PublicFlights) -> Option<[f64; 4]> {
-    which
-        .area
-        .map(|area| [area.west(), area.south(), area.east(), area.north()])
+/// The numbers of the places a list of public flights is asked for.
+struct Edges {
+    /// The box: west, south, east, north.
+    area: Option<[f64; 4]>,
+    /// The box around the place near which flights took off, the place's
+    /// latitude and longitude, and how far from it.
+    near: Option<[f64; 7]>,
+}
+
+fn edges_of(which: &PublicFlights) -> Edges {
+    Edges {
+        area: which
+            .area
+            .map(|area| [area.west(), area.south(), area.east(), area.north()]),
+        near: which.near.map(|near| {
+            let (lat, lon) = (near.place.lat(), near.place.lon());
+            let [west, south, east, north] = around(lat, lon, near.within_m);
+            [west, south, east, north, lat, lon, near.within_m]
+        }),
+    }
 }
 
 /// The conditions that make a flight `f` one of the public flights `which`
@@ -568,7 +584,7 @@ fn edges_of(which: &PublicFlights) -> Option<[f64; 4]> {
 /// `which` says.
 fn public_conditions<'a>(
     which: &'a PublicFlights,
-    edges: &'a Option<[f64; 4]>,
+    edges: &'a Edges,
     parameters: &mut Vec<&'a (dyn ToSql + Sync)>,
 ) -> Vec<String> {
     let mut conditions = vec!["f.visibility = 'public'".to_owned()];
@@ -584,7 +600,7 @@ fn public_conditions<'a>(
         parameters.push(before);
         conditions.push(format!("f.started_at < ${}", parameters.len()));
     }
-    if let Some([west, south, east, north]) = edges {
+    if let Some([west, south, east, north]) = &edges.area {
         let w = parameters.len() + 1;
         let (s, e, n) = (w + 1, w + 2, w + 3);
         parameters.extend([west as &(dyn ToSql + Sync), south, east, north]);
@@ -594,6 +610,26 @@ fn public_conditions<'a>(
             "f.takeoff && ST_MakeEnvelope(${w}, ${s}, ${e}, ${n}, 4326)
              AND f.takeoff_lon BETWEEN ${w} AND ${e}
              AND f.takeoff_lat BETWEEN ${s} AND ${n}"
+        ));
+    }
+    if let Some([west, south, east, north, lat, lon, within_m]) = &edges.near {
+        let w = parameters.len() + 1;
+        let (s, e, n, la, lo, m) = (w + 1, w + 2, w + 3, w + 4, w + 5, w + 6);
+        parameters.extend([
+            west as &(dyn ToSql + Sync),
+            south,
+            east,
+            north,
+            lat,
+            lon,
+            within_m,
+        ]);
+        // The box lets the index find the candidates; the distance is the
+        // one `Store::flights_from` measures.
+        conditions.push(format!(
+            "f.takeoff && ST_MakeEnvelope(${w}, ${s}, ${e}, ${n}, 4326)
+             AND {} <= ${m}::float8",
+            distance(&format!("${la}"), &format!("${lo}"))
         ));
     }
     conditions

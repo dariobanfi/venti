@@ -107,11 +107,16 @@ impl PilotSites {
 
     /// Where every standing site of either layer is.
     pub(super) fn standing_positions(&self) -> impl Iterator<Item = GeoPoint> {
+        self.standing().map(|site| site.position)
+    }
+
+    /// Every standing site of either layer, as it stands.
+    pub(super) fn standing(&self) -> impl Iterator<Item = &Site> {
         self.sites
             .values()
             .filter(|entry| entry.removed_at.is_none())
             .filter_map(|entry| entry.revisions.last())
-            .map(|stored| stored.record.position)
+            .map(|stored| &stored.record)
     }
 
     pub(super) fn add(

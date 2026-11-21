@@ -378,6 +378,19 @@ pub struct PublicFlights {
     pub from: Option<Timestamp>,
     /// Only flights that started before this moment.
     pub before: Option<Timestamp>,
+    /// Only flights that took off within some metres of a place, that
+    /// far included: the flights that began at a site, as
+    /// [`crate::Store::flights_from`] counts them.
+    pub near: Option<Near>,
+}
+
+/// A place and how far from it a flight may have taken off.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Near {
+    /// The place.
+    pub place: GeoPoint,
+    /// Metres from it, that far included.
+    pub within_m: f64,
 }
 
 impl PublicFlights {
@@ -391,7 +404,14 @@ impl PublicFlights {
                 .takeoff
                 .is_some_and(|takeoff| area.contains(takeoff.position))
         });
+        let near = self.near.is_none_or(|near| {
+            flight
+                .derived
+                .takeoff
+                .is_some_and(|takeoff| takeoff.position.distance_m(near.place) <= near.within_m)
+        });
         in_area
+            && near
             && self
                 .pilot
                 .as_ref()

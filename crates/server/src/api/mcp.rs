@@ -453,6 +453,7 @@ impl<S: Store> Api<S> {
                     area: call.bbox,
                     from: call.from,
                     before: call.to,
+                    near: None,
                 };
                 let sort = if call.best {
                     FlightSort::Score

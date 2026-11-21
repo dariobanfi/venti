@@ -145,11 +145,14 @@ pub struct TaskStatus {
     pub clock_from_unix_s: Option<i64>,
     /// How long the speed section took, seconds, once it is flown.
     pub speed_section_time_s: Option<i64>,
-    /// The speed made along the speed section since the clock started,
-    /// metres per second: the part of its shortest way flown, over the
-    /// time on the clock. Once the section is flown, its length over its
-    /// time. `None` before the start and for the first minute after it,
-    /// when a few metres make a speed of nothing.
+    /// The speed made along the speed section since the pilot crossed
+    /// the start, metres per second: the part of its shortest way flown,
+    /// over the time since the crossing. Once the section is flown, its
+    /// length over the time from the crossing to its end. Not over the
+    /// time on the clock, which in a race runs from the gate: a pilot who
+    /// crossed late did not fly slowly while waiting. `None` before the
+    /// start and for the first minute after the crossing, when a few
+    /// metres make a speed of nothing.
     pub speed_section_average_ms: Option<f64>,
     /// When the goal was reached.
     pub goal_unix_s: Option<i64>,
@@ -485,7 +488,13 @@ impl TaskFlight {
             }
         });
 
-        let speed_section_average_ms = self.clock_from.and_then(|from| {
+        // The average is the speed the pilot made since crossing the
+        // start. In a race the clock runs from the gate, which may have
+        // opened long before the crossing: over the clock's time the
+        // average would count the wait as flying slowly, and so would an
+        // arrival worked out from it.
+        let crossed = start.and_then(|start| self.reached[start]);
+        let speed_section_average_ms = self.clock_from.zip(crossed).and_then(|(_, from)| {
             let length = self.measured.speed_section_m?;
             let (flown_m, elapsed_s) = match end_reached {
                 Some(end) => (length, end - from),
@@ -649,8 +658,18 @@ mod tests {
         assert!(part > 0.1 && part < 0.4, "{part}");
         assert!(on_task.to_end_of_speed_m.unwrap() < on_task.to_goal_m);
         // The clock runs from the gate, and the glider crossed a minute
-        // after it at 15 m/s: the average is a little under that.
+        // after it at 15 m/s. The average is made from the crossing, so the
+        // minute of waiting costs it nothing: the part of the shortest way
+        // flown over the time since the crossing.
+        let crossed = *crossed;
+        let flown_m =
+            flight.measured().speed_section_m.unwrap() - on_task.to_end_of_speed_m.unwrap();
         let average = on_task.speed_section_average_ms.unwrap();
+        assert!(
+            (average - flown_m / (clock - crossed) as f64).abs() < 1e-9,
+            "{average}"
+        );
+        assert!(average > flown_m / (clock - at(11, 0, 0)) as f64);
         assert!(average > 10.0 && average < 15.0, "{average}");
 
         // To EAST, then to goal from the north-east.
@@ -688,9 +707,12 @@ mod tests {
         assert_eq!(end.speed_section_part, Some(1.0));
         assert_eq!(end.speed_section_time_s, Some(done));
         let length = flight.measured().speed_section_m.unwrap();
-        assert_eq!(end.speed_section_average_ms, Some(length / done as f64));
-        // The time runs from the gate, not from the crossing.
+        // The time runs from the gate, not from the crossing; the
+        // average from the crossing.
         assert_eq!(end.reached_unix_s[4].unwrap() - at(11, 0, 0), done);
+        let flown_s = end.reached_unix_s[4].unwrap() - crossed;
+        assert_eq!(end.speed_section_average_ms, Some(length / flown_s as f64));
+        assert!(flown_s < done);
         assert!(end.goal_unix_s.unwrap() > end.reached_unix_s[4].unwrap());
         assert_eq!(flight.next_index(), None);
     }

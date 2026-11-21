@@ -69,7 +69,7 @@ pub use alert::{
 };
 pub use cable::{CableLayer, CableSet};
 pub use flight::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, NewFlight,
+    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, Near, NewFlight,
     OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Room, Saved,
     Score, ScoreKey, ScoreKind, Visibility, VisibilityChange, WithdrawnFlight,
 };
@@ -1083,6 +1083,21 @@ pub trait Store: Send + Sync + 'static {
         within_m: f64,
         best: usize,
     ) -> impl Future<Output = Result<FlightsFrom, StoreError>> + Send;
+
+    /// The standing sites within `within_m` metres of each of `places`,
+    /// that far included: those of the sets of `sources`, and those of
+    /// both layers of the server's own. One list for each place, in the
+    /// order of `places`; the sites of a list in no particular order.
+    /// A site that pilots removed is in none.
+    ///
+    /// One question for all the places: a page of flights asks it for
+    /// where each of them took off.
+    fn sites_near(
+        &self,
+        sources: &[SourceId],
+        places: &[GeoPoint],
+        within_m: f64,
+    ) -> impl Future<Output = Result<Vec<Vec<Site>>, StoreError>> + Send;
 
     /// The places where pilots take off and no site stands: the cells of
     /// a fixed grid ([`CELLS_PER_DEGREE`]) that `area` touches, in which

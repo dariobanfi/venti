@@ -36,7 +36,7 @@ use super::cache::Keeper;
 use super::error::ApiError;
 use super::flights::{page_key, page_token};
 use super::log::Sparse;
-use super::{Api, body, cache, wire};
+use super::{Api, body, cache};
 
 impl<S: Store> Api<S> {
     /// Counts a read of public flights as data for the address that asks
@@ -77,6 +77,7 @@ pub(crate) struct Params {
     bbox: Option<String>,
     from: Option<String>,
     to: Option<String>,
+    site: Option<String>,
     sort: Option<String>,
     after: Option<String>,
     limit: Option<String>,
@@ -152,6 +153,7 @@ pub(super) fn which(
         area,
         from,
         before: to,
+        near: None,
     })
 }
 
@@ -170,7 +172,7 @@ pub(crate) async fn list<S: Store>(
 ) -> Result<Response, ApiError> {
     api.count_public_read(&reader)?;
     let limit = body::page_size(params.limit.as_deref())?;
-    let which = PublicFlights {
+    let mut which = PublicFlights {
         pilot: api.pilot_asked_for(params.pilot.as_deref()).await?,
         ..which(
             params.bbox.as_deref(),
@@ -186,6 +188,20 @@ pub(crate) async fn list<S: Store>(
                 ApiError::bad_request(ErrorCode::InvalidSort, error.to_string())
             })?,
     };
+    if let Some(site) = params.site.as_deref() {
+        match api.began_at_site(site).await? {
+            Some(near) => which.near = Some(near),
+            // No flight begins at a site that is no take-off.
+            None => {
+                let answer = FlightsResponse {
+                    flights: Vec::new(),
+                    next: None,
+                    terms: Some(FlightTerms::current()),
+                };
+                return Ok(cache::shared_json(&headers, &answer, Keeper::Anyone));
+            }
+        }
+    }
     let answer = api
         .public_flights_page(&which, sort, params.after.as_deref(), limit)
         .await?;
@@ -231,7 +247,7 @@ impl<S: Store> Api<S> {
             FlightSort::Score => last.score_key().as_ref().map(score_token),
         });
         Ok(FlightsResponse {
-            flights: wire::flights(&flights)?,
+            flights: self.shown_flights(&flights).await?,
             next,
             terms: Some(FlightTerms::current()),
         })
@@ -301,7 +317,7 @@ pub(crate) async fn changes<S: Store>(
 
     let answer = PublicFlightChangesResponse {
         cursor: changes.last().unwrap_or(since).to_string(),
-        flights: wire::flights(&changes.flights)?,
+        flights: api.shown_flights(&changes.flights).await?,
         withdrawn: changes
             .withdrawn
             .iter()

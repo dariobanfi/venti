@@ -1274,6 +1274,9 @@
       "landing": {
         "$ref": "#/components/schemas/FlightPlace"
       },
+      "takeoff_site": {
+        "$ref": "#/components/schemas/FlightSite"
+      },
       "track_length_m": {
         "type": "number"
       },
@@ -1363,6 +1366,22 @@
       "cursor",
       "more",
       "reset"
+    ]
+  },
+  "FlightSite": {
+    "description": "The site a flight took off from: the standing take-off within 500 m of its take-off, a partner's before a place from pilots before a source's, and of one layer the nearest. Looked up with every answer.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name"
     ]
   },
   "FlightPlace": {

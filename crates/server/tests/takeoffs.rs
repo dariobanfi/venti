@@ -315,3 +315,46 @@ async fn candidates_are_asked_for_in_a_box_of_a_bounded_size() {
     let written = ask(Method::POST, SITE_CANDIDATES_PATH).send(&router).await;
     assert_eq!(written.status, StatusCode::METHOD_NOT_ALLOWED);
 }
+
+/// The public list asked for by `site`: the flights that began at the
+/// site, each with the site it took off from.
+#[tokio::test]
+async fn the_public_list_of_a_site_names_where_each_flight_took_off() {
+    let router = recorded().await;
+    let [kogel, _, wiese, _] = DEMO_SITES;
+    let said = flights_at(&router, kogel).await;
+
+    let path = format!("{PUBLIC_FLIGHTS_PATH}?site={kogel}");
+    let listed: FlightsResponse = get(&router, &path).await.ok(StatusCode::OK);
+    assert_eq!(listed.flights.len() as u32, said.flights);
+    for flight in &listed.flights {
+        let site = flight.takeoff_site.as_ref().unwrap();
+        assert_eq!(site.id.to_string(), kogel);
+    }
+    let mut shown = listed.clone();
+    shown.flights.truncate(1);
+    for flight in &mut shown.flights {
+        flight.outline.truncate(2);
+    }
+    assert_golden(&golden("public_flights_at_site.json"), &shown);
+
+    // A landing field is no take-off: nothing began there.
+    let path = format!("{PUBLIC_FLIGHTS_PATH}?site={wiese}");
+    let none: FlightsResponse = get(&router, &path).await.ok(StatusCode::OK);
+    assert!(none.flights.is_empty());
+
+    // A site the server does not have.
+    let path = format!("{PUBLIC_FLIGHTS_PATH}?site=venti:0000000000000000000000s999");
+    let answer = get(&router, &path).await;
+    assert_eq!(answer.status, StatusCode::NOT_FOUND);
+
+    // Everyone's list names the site of those flights too, and of no
+    // flight that began far from every site.
+    let all: FlightsResponse = get(&router, PUBLIC_FLIGHTS_PATH).await.ok(StatusCode::OK);
+    let named = all
+        .flights
+        .iter()
+        .filter(|flight| flight.takeoff_site.is_some())
+        .count();
+    assert_eq!(named as u32, said.flights);
+}

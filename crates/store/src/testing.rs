@@ -544,6 +544,15 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn sites_near(
+        &self,
+        _: &[SourceId],
+        _: &[GeoPoint],
+        _: f64,
+    ) -> Result<Vec<Vec<Site>>, StoreError> {
+        self.fail().await
+    }
+
     async fn takeoff_candidates(
         &self,
         _: &[SourceId],

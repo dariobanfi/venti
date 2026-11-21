@@ -4,7 +4,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-use venti_domain::{GeoPoint, Timestamp};
+use venti_domain::{GeoPoint, SiteId, Timestamp};
 
 use super::Handle;
 
@@ -144,6 +144,17 @@ pub struct Flight {
     /// air or never shows the glider flying.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub landing: Option<FlightPlace>,
+    /// The site the glider took off from: the standing take-off nearest
+    /// to [`Flight::takeoff`] within [`TAKEOFF_SITE_WITHIN_M`], of any
+    /// layer the server serves, a partner's before a place from pilots
+    /// before a source's. Left out when no such site stands, and for a
+    /// recording that never shows the glider flying.
+    ///
+    /// The server looks it up with every answer, so it is the site and
+    /// its name as they stand now: a site that is renamed or removed is
+    /// so here too.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub takeoff_site: Option<FlightSite>,
     /// Distance along the track, metres.
     pub track_length_m: f64,
     /// Highest satellite altitude, metres above mean sea level.
@@ -231,6 +242,21 @@ impl FlightTerms {
             decided: false,
         }
     }
+}
+
+/// How far from a flight's take-off a site may stand to be the site the
+/// flight took off from, in metres: as far as a site's flights reach
+/// ([`SITE_FLIGHTS_WITHIN_M`](super::SITE_FLIGHTS_WITHIN_M)).
+pub const TAKEOFF_SITE_WITHIN_M: f64 = super::SITE_FLIGHTS_WITHIN_M;
+
+/// The site a flight took off from, by its identifier and its name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlightSite {
+    /// The site's identifier, as `GET /v1/sites/{id}` reads it.
+    pub id: SiteId,
+    /// The site's name as it stands. Text from a source or from pilots:
+    /// show it as text and never as markup.
+    pub name: String,
 }
 
 /// A moment at one end of a flight.
@@ -562,6 +588,7 @@ mod tests {
             airtime_s: 60,
             takeoff: None,
             landing: None,
+            takeoff_site: None,
             track_length_m: 600.0,
             max_altitude_m: 1620,
             max_climb_ms: 0.0,

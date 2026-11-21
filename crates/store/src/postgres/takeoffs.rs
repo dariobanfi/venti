@@ -12,7 +12,7 @@
 use deadpool_postgres::Client;
 use tokio_postgres::IsolationLevel;
 use tokio_postgres::types::ToSql;
-use venti_domain::{BoundingBox, GeoPoint, SourceId};
+use venti_domain::{BoundingBox, GeoPoint, Site, SourceId};
 
 use super::flights::{FLIGHT_COLUMNS, FLIGHT_FROM, flight_from};
 use super::{corrupt, db_error};
@@ -24,17 +24,22 @@ use crate::{CELLS_PER_DEGREE, CandidateRule, FlightsFrom, StoreError, TakeoffCan
 const DAY: &str = "((f.started_at AT TIME ZONE 'UTC')
     + make_interval(secs => floor(f.takeoff_lon * 240::float8)))::date";
 
-/// How far a flight `f` took off from the place whose latitude is `$5`
-/// and whose longitude is `$6`, in metres: the distance on the FAI sphere
+/// How far a flight `f` took off from a place, in metres: the distance on the FAI sphere
 /// as `GeoPoint::distance_m` works it out, step for step. The two are the
 /// same formula on the same numbers; they could differ in the last digit
 /// where the database's sine is not the one Rust was built with, which
 /// decides nothing but for a flight that began at the stated distance to
 /// a hundred-millionth of a millimetre.
-const DISTANCE: &str = "2 * 6371000::float8 * asin(least(1::float8, sqrt(
-    power(sin((radians(f.takeoff_lat) - radians($5::float8)) / 2), 2)
-    + cos(radians($5::float8)) * cos(radians(f.takeoff_lat))
-      * power(sin(radians(f.takeoff_lon - $6::float8) / 2), 2))))";
+///
+/// The place is in the parameters `lat` and `lon`, as `$5` and `$6`.
+pub(super) fn distance(lat: &str, lon: &str) -> String {
+    format!(
+        "2 * 6371000::float8 * asin(least(1::float8, sqrt(
+    power(sin((radians(f.takeoff_lat) - radians({lat}::float8)) / 2), 2)
+    + cos(radians({lat}::float8)) * cos(radians(f.takeoff_lat))
+      * power(sin(radians(f.takeoff_lon - {lon}::float8) / 2), 2))))"
+    )
+}
 
 /// The public flights that took off inside the box `$1` to `$4` and
 /// within `$7` metres of the place.
@@ -42,7 +47,8 @@ fn near() -> String {
     format!(
         "f.visibility = 'public'
          AND f.takeoff && ST_MakeEnvelope($1, $2, $3, $4, 4326)
-         AND {DISTANCE} <= $7"
+         AND {} <= $7",
+        distance("$5", "$6")
     )
 }
 
@@ -246,6 +252,69 @@ async fn sites_in(
             GeoPoint::new(row.get("lat"), row.get("lon")).map_err(|e| corrupt("site position", e))
         })
         .collect()
+}
+
+pub(super) async fn sites_near(
+    client: &Client,
+    sources: &[SourceId],
+    places: &[GeoPoint],
+    within_m: f64,
+) -> Result<Vec<Vec<Site>>, StoreError> {
+    let mut found = vec![Vec::new(); places.len()];
+    // Nothing is nearer than nothing.
+    if places.is_empty() || within_m.is_nan() || within_m < 0.0 {
+        return Ok(found);
+    }
+    let mut edges: [Vec<f64>; 4] = Default::default();
+    for place in places {
+        for (edge, value) in edges
+            .iter_mut()
+            .zip(around(place.lat(), place.lon(), within_m))
+        {
+            edge.push(value);
+        }
+    }
+    // A box around each place, and the standing sites inside it, which
+    // the two indexes find; the exact distance is measured below.
+    let statement = client
+        .prepare_cached(
+            "SELECT p.place, t.record
+             FROM unnest($1::float8[], $2::float8[], $3::float8[], $4::float8[])
+                  WITH ORDINALITY AS p (west, south, east, north, place)
+             JOIN sites t
+               ON t.source = ANY($5::text[])
+              AND ST_SetSRID(ST_MakePoint(t.lon, t.lat), 4326)
+                  && ST_MakeEnvelope(p.west, p.south, p.east, p.north, 4326)
+             UNION ALL
+             SELECT p.place, s.record
+             FROM unnest($1::float8[], $2::float8[], $3::float8[], $4::float8[])
+                  WITH ORDINALITY AS p (west, south, east, north, place)
+             JOIN pilot_sites s
+               ON s.removed_at IS NULL
+              AND ST_SetSRID(ST_MakePoint(s.lon, s.lat), 4326)
+                  && ST_MakeEnvelope(p.west, p.south, p.east, p.north, 4326)",
+        )
+        .await
+        .map_err(db_error)?;
+    let names: Vec<&str> = sources.iter().map(SourceId::as_str).collect();
+    let [west, south, east, north] = &edges;
+    let rows = client
+        .query(&statement, &[west, south, east, north, &names])
+        .await
+        .map_err(db_error)?;
+    for row in &rows {
+        let place: i64 = row.get("place");
+        let at = usize::try_from(place - 1)
+            .ok()
+            .filter(|at| *at < places.len())
+            .ok_or_else(|| corrupt("place of a site", "not one that was asked about"))?;
+        let site: Site =
+            serde_json::from_str(row.get("record")).map_err(|e| corrupt("site record", e))?;
+        if site.position.distance_m(places[at]) <= within_m {
+            found[at].push(site);
+        }
+    }
+    Ok(found)
 }
 
 pub(super) async fn candidates(

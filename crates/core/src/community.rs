@@ -56,6 +56,14 @@ pub struct PublicFlight {
     pub airtime_s: i64,
     /// Where it took off, if the recording shows a take-off.
     pub takeoff: Option<Coordinate>,
+    /// The name of the site it took off from, on one line: the server's
+    /// take-off nearest to where it took off, within 500 m. Absent when no
+    /// site stands there; show `takeoff` then.
+    #[uniffi(default = None)]
+    pub takeoff_name: Option<String>,
+    /// The identifier of that site, to open its page.
+    #[uniffi(default = None)]
+    pub takeoff_site_id: Option<String>,
     /// Distance along the track, metres.
     pub track_length_m: f64,
     /// The highest altitude, metres.
@@ -112,6 +120,7 @@ pub fn public_flights_path(
         bbox,
         from,
         to,
+        site: None,
         sort: match order {
             // The server's own order: nothing to say.
             PublicFlightsOrder::Newest => None,
@@ -208,7 +217,37 @@ pub fn public_flights_near_path(lat: f64, lon: f64, radius_m: f64) -> Result<Str
     )
 }
 
-/// Reads the server's answer to [`public_flights_path`].
+/// The path and query to `GET` for the public flights that began at a
+/// site: those that took off within 500 m of it, as the site's page counts
+/// them, in `order`. A site that is no take-off has none. `after` is the
+/// `next` of the page before. The answer is read by [`public_flights`].
+///
+/// # Errors
+///
+/// An identifier that is not a site's.
+#[uniffi::export]
+pub fn public_flights_at_site_path(
+    site_id: String,
+    order: PublicFlightsOrder,
+    after: Option<String>,
+) -> Result<String, CoreError> {
+    let site = site_id.parse().map_err(|_| CoreError::Server {
+        message: "This is not a site the app knows.".to_owned(),
+    })?;
+    Ok(PublicFlightsRequest {
+        site: Some(site),
+        sort: match order {
+            PublicFlightsOrder::Newest => None,
+            PublicFlightsOrder::Best => Some(FlightSort::Score),
+        },
+        after: after.filter(|after| !after.is_empty()),
+        ..PublicFlightsRequest::default()
+    }
+    .path_and_query())
+}
+
+/// Reads the server's answer to [`public_flights_path`] and to
+/// [`public_flights_at_site_path`].
 #[uniffi::export]
 pub fn public_flights(status: u16, body: Vec<u8>) -> Result<PublicFlights, CoreError> {
     let response: FlightsResponse = answer(status, &body)?;
@@ -277,6 +316,12 @@ fn row(flight: &Flight) -> PublicFlight {
             lat: takeoff.position.lat(),
             lon: takeoff.position.lon(),
         }),
+        takeoff_name: flight
+            .takeoff_site
+            .as_ref()
+            .map(|site| one_line(&site.name, 60))
+            .filter(|name| !name.is_empty()),
+        takeoff_site_id: flight.takeoff_site.as_ref().map(|site| site.id.to_string()),
         track_length_m: flight.track_length_m,
         max_altitude_m: f64::from(flight.max_altitude_m),
         max_climb_ms: flight.max_climb_ms,
@@ -664,6 +709,33 @@ mod tests {
         assert!((wide[3] - wide[1] - 2.0 * 50_000.0 / 111_320.0).abs() < 1e-6);
         assert!(public_flights_near_path(f64::NAN, 11.8, 1500.0).is_err());
         assert!(public_flights_near_path(89.9, 11.8, 1500.0).is_err());
+    }
+
+    #[test]
+    fn a_row_names_the_site_its_flight_took_off_from() {
+        let page = public_flights(200, golden("public_flights_at_site.json")).unwrap();
+        let row = &page.flights[0];
+        assert_eq!(row.takeoff_name.as_deref(), Some("Musterkogel West"));
+        assert_eq!(
+            row.takeoff_site_id.as_deref(),
+            Some("venti:0000000000000000000000s001")
+        );
+        // Without a site, nothing: the shell shows where it took off.
+        let page = public_flights(200, golden("public_flights.json")).unwrap();
+        assert!(page.flights.iter().all(|row| row.takeoff_name.is_none()));
+        assert_eq!(
+            public_flights_at_site_path(
+                "venti:0000000000000000000000s001".to_owned(),
+                PublicFlightsOrder::Best,
+                None
+            )
+            .unwrap(),
+            "/v1/flights/public?site=venti:0000000000000000000000s001&sort=score"
+        );
+        assert!(
+            public_flights_at_site_path("no site".to_owned(), PublicFlightsOrder::Newest, None)
+                .is_err()
+        );
     }
 
     #[test]

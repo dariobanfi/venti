@@ -1001,6 +1001,15 @@ impl Store for PgStore {
         takeoffs::began_at(&mut self.client().await?, place, within_m, best).await
     }
 
+    async fn sites_near(
+        &self,
+        sources: &[SourceId],
+        places: &[GeoPoint],
+        within_m: f64,
+    ) -> Result<Vec<Vec<Site>>, StoreError> {
+        takeoffs::sites_near(&self.client().await?, sources, places, within_m).await
+    }
+
     async fn takeoff_candidates(
         &self,
         sources: &[SourceId],

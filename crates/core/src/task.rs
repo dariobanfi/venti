@@ -362,7 +362,14 @@ pub struct TaskReadings {
     /// Whether a wind was known for the altitudes needed. Without one,
     /// still air is assumed, and the screen should say so.
     pub wind_known: bool,
+    /// What the screen says while no wind is known: "In still air: the
+    /// wind is not known yet." Absent once a wind is known.
+    #[uniffi(default = None)]
+    pub still_air_words: Option<String>,
 }
+
+/// What the competition page says while it assumes still air.
+const STILL_AIR_WORDS: &str = "In still air: the wind is not known yet.";
 
 /// Below this speed, metres per second, no time of arrival is given.
 const WALKING_PACE_MS: f64 = 1.0;
@@ -981,6 +988,7 @@ impl TaskFlown {
                 .speed_section_average_ms
                 .map(|speed| format!("{:.1} km/h", speed * 3.6)),
             wind_known: wind.is_some(),
+            still_air_words: wind.is_none().then(|| STILL_AIR_WORDS.to_owned()),
         })
     }
 
@@ -1474,6 +1482,10 @@ mod tests {
         assert!((goal.glide_needed.unwrap() - goal.distance_m / 1_700.0).abs() < 1e-9);
         assert_eq!(waiting.speed_section_average_ms, None);
         assert!(!waiting.wind_known);
+        assert_eq!(
+            waiting.still_air_words.as_deref(),
+            Some("In still air: the wind is not known yet.")
+        );
         // A headwind on the way out costs height.
         let windy = flown
             .readings(
@@ -1489,6 +1501,7 @@ mod tests {
             )
             .unwrap();
         assert!(windy.wind_known);
+        assert_eq!(windy.still_air_words, None);
         assert!(windy.goal.unwrap().altitude_needed_m.unwrap() > needed + 50.0);
         // While circling the speed over the ground says nothing about
         // when the glider arrives.

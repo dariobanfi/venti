@@ -557,6 +557,84 @@ mod tests {
     }
 
     #[test]
+    fn what_lies_over_a_place_carries_the_hours_and_marks_the_server_passed_on() {
+        use chrono::{NaiveTime, Weekday};
+        use venti_domain::{DayTime, OperatingHours};
+
+        // The recorded answer, with the danger area given what openAIP's
+        // records can carry: a mark, hours by weekday and a note on them.
+        let hours: Vec<OperatingHours> = [Weekday::Mon, Weekday::Tue, Weekday::Wed]
+            .into_iter()
+            .map(|day| OperatingHours {
+                day,
+                start: DayTime::Clock(NaiveTime::from_hms_opt(7, 0, 0).unwrap()),
+                end: DayTime::Sunset,
+                by_notam: false,
+                except_public_holidays: true,
+                remarks: None,
+            })
+            .collect();
+        let mut answer: serde_json::Value = serde_json::from_slice(&recorded()).unwrap();
+        let danger = &mut answer["layers"][0]["airspaces"][0];
+        assert_eq!(danger["name"], "LOD22 (HOCHFILZEN)");
+        danger["activity"]["by_notam"] = true.into();
+        danger["activity"]["hours"] = serde_json::to_value(&hours).unwrap();
+        danger["activity"]["hours_remarks"] = "Firing, see NOTAM".into();
+        danger["remarks"] = "  Military shooting range  ".into();
+
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        keep(&core, serde_json::to_vec(&answer).unwrap(), NOW + 3600);
+        let over = core.airspace().unwrap().over_place(crate::Coordinate {
+            lat: PLACE.0,
+            lon: PLACE.1,
+        });
+
+        // Both begin at the ground: the lower ceiling first.
+        assert_eq!(over.words, "2 airspaces over this place");
+        let names: Vec<&str> = over.airspaces.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["LOR8 (HOCHFILZEN)", "LOD22 (HOCHFILZEN)"]);
+        // The server says its airspace is whole here.
+        assert!(over.covered);
+
+        let restricted = &over.airspaces[0];
+        assert_eq!(
+            (
+                restricted.kind.as_str(),
+                restricted.lower.as_str(),
+                restricted.upper.as_str()
+            ),
+            ("Restricted area", "GND", "FL 125")
+        );
+        assert_eq!(restricted.policy_words, "Avoid");
+        assert_eq!(
+            (restricted.published_use.as_deref(), restricted.hours.len()),
+            (None, 0)
+        );
+        // From the server, by its provider's name, with the date the
+        // provider wrote it.
+        assert_eq!(restricted.origin, AirspaceOrigin::Server);
+        assert_eq!(restricted.source, "openAIP");
+        assert_eq!(restricted.data_unix_s, Some(NOW));
+
+        let danger = &over.airspaces[1];
+        assert_eq!(
+            danger.published_use.as_deref(),
+            Some("Active by NOTAM, has published hours")
+        );
+        assert_eq!(
+            danger.hours,
+            ["Mon to Wed 07:00 to sunset, not on public holidays"]
+        );
+        assert_eq!(danger.hours_remarks.as_deref(), Some("Firing, see NOTAM"));
+        assert_eq!(danger.remarks.as_deref(), Some("Military shooting range"));
+        // As published, and said so: nothing goes by the hours.
+        let note = over.hours_note.unwrap();
+        assert!(note.contains("UTC or local time"), "{note}");
+        assert!(note.contains("counts as active at any time"), "{note}");
+    }
+
+    #[test]
     fn a_warning_says_that_its_airspace_is_from_the_server_and_how_old_it_is() {
         let folder = TempFolder::new();
         let core = core(&folder);

@@ -8,10 +8,10 @@
 //! The wire format is `venti-api-types`, the same crate the server builds
 //! its answers from.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use venti_api_types::v1::{
     Attribution, HEALTH_PATH, HealthResponse, ObservationsRequest, ObservationsResponse, Reading,
-    RegistrationMode, StationWithLatest, StationsRequest, StationsResponse,
+    RegistrationMode, StationWithLatest, StationsRequest, StationsResponse, format_day, parse_day,
 };
 use venti_domain::{BoundingBox, StationId};
 
@@ -27,6 +27,13 @@ const OLD_AFTER_MIN: i64 = 60;
 /// worth an arrow: a station reporting it is drawn as calm.
 const CALM_BELOW_MS: f64 = 0.5;
 
+/// How many days before today a station's past days are offered. Ours: a
+/// year, which a server that keeps observations for its default of
+/// thirteen whole months always holds. A server set to keep less, and a
+/// station the server has collected for less than a year, answer an older
+/// day with no readings, which the day then says in words.
+const STATION_DAYS_BACK: i64 = 365;
+
 /// How strong the wind is, in four bands of its mean speed.
 ///
 /// A magnitude, not a verdict: whether 25 km/h is too much depends on the
@@ -34,7 +41,10 @@ const CALM_BELOW_MS: f64 = 0.5;
 /// one number. The shells give each band one step of a single hue, light
 /// to dark.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum WindBand {
     /// Below 10 km/h.
@@ -60,7 +70,10 @@ pub fn wind_band(speed_ms: f64) -> WindBand {
 
 /// What a station is drawn as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(tag = "kind", rename_all = "camelCase"))]
 pub enum WindSymbol {
     /// An arrow in the band's colour, pointing where the wind blows.
@@ -78,7 +91,10 @@ pub enum WindSymbol {
 /// every platform, so that a pilot who looks at the phone and then at the
 /// browser sees the same wind.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct WindMark {
     /// What to draw.
@@ -135,7 +151,10 @@ fn wind_mark(latest: Option<&WindReading>, is_old: bool) -> WindMark {
 
 /// One reading of a station, in the units the API uses.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct WindReading {
     /// End of the measuring interval, seconds since 1970-01-01 UTC.
@@ -148,11 +167,16 @@ pub struct WindReading {
     pub direction_deg: Option<f64>,
     /// Air temperature, degrees Celsius.
     pub temperature_c: Option<f64>,
+    /// Relative humidity, percent.
+    pub humidity_pct: Option<f64>,
 }
 
 /// One station on the wind map.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct WindStation {
     /// The station's identifier, to ask for its history.
@@ -353,6 +377,158 @@ pub fn station_history(
     })
 }
 
+/// The days of a station's past that a day picker offers: from a year
+/// back to today.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct StationDays {
+    /// The earliest day offered, as [`station_day_path`] takes a day:
+    /// "2025-11-21".
+    pub first_date: String,
+    /// The latest day offered, which is today: "2026-11-21".
+    pub last_date: String,
+    /// A moment inside the earliest day, its noon, seconds since
+    /// 1970-01-01 UTC: for a picker that is bounded by moments.
+    pub first_unix_s: i64,
+    /// A moment inside the latest day, its noon.
+    pub last_unix_s: i64,
+    /// What to say beside the picker: how far back it reaches, and that a
+    /// day may have no readings.
+    pub note: String,
+}
+
+/// One day of a station's readings, chosen by the pilot.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct StationDay {
+    /// The day, as it was asked for: "2026-11-18".
+    pub date: String,
+    /// When the day begins, seconds since 1970-01-01 UTC: where its chart
+    /// starts.
+    pub start_unix_s: i64,
+    /// When it ends, 24 hours later: where its chart ends.
+    pub end_unix_s: i64,
+    /// The station's identifier.
+    pub station_id: String,
+    /// The station's name, as a [`WindStation`] has it.
+    pub station_name: String,
+    /// Its readings of the day, oldest first.
+    pub readings: Vec<WindReading>,
+    /// Whose data they are.
+    pub credits: Vec<Credit>,
+    /// What to say in place of a chart when the day has no readings.
+    /// `None` when it has some.
+    pub empty_words: Option<String>,
+}
+
+/// The day a moment falls on, as [`station_day_path`] takes a day:
+/// "2026-11-18". `utc_offset_s` is how far the pilot's clock is ahead of
+/// UTC at that moment, in seconds. For a day picker that hands out a
+/// moment and not a date.
+#[uniffi::export]
+pub fn station_date(at_unix_s: i64, utc_offset_s: i32) -> String {
+    format_day(local_day(at_unix_s, utc_offset_s))
+}
+
+/// The days of a station's past to offer in a day picker. `now_unix_s` is
+/// the current time by the server's clock (see [`ServerStatus`]) and
+/// `utc_offset_s` how far the pilot's clock is ahead of UTC, in seconds:
+/// today is that clock's day.
+#[uniffi::export]
+pub fn station_days(now_unix_s: i64, utc_offset_s: i32) -> StationDays {
+    let today = local_day(now_unix_s, utc_offset_s);
+    let first = today - Duration::days(STATION_DAYS_BACK);
+    let noon = |day: NaiveDate| (day_start(day, utc_offset_s) + Duration::hours(12)).timestamp();
+    StationDays {
+        first_date: format_day(first),
+        last_date: format_day(today),
+        first_unix_s: noon(first),
+        last_unix_s: noon(today),
+        note: "A station's readings are shown for the last year. A day on which the station \
+               was silent, or which the server did not collect, has none."
+            .to_owned(),
+    }
+}
+
+/// The path and query to `GET` for one day of a station's readings.
+///
+/// `date` names the day as a calendar date, "2026-11-18": the text a web
+/// page's date field holds and [`station_date`] makes from a moment.
+/// `utc_offset_s` is how far the pilot's clock was ahead of UTC on that
+/// day, in seconds: the day runs from that clock's midnight for 24 hours.
+/// On the two days a year the clocks change that is an hour off at one
+/// end.
+///
+/// Which days to offer is [`station_days`]'s to say. This asks for any
+/// day; the server answers one it does not hold with no readings.
+#[uniffi::export]
+pub fn station_day_path(
+    station_id: String,
+    date: String,
+    utc_offset_s: i32,
+) -> Result<String, CoreError> {
+    let station: StationId = station_id.parse().map_err(|_| unreadable("this station"))?;
+    let day = parse_day(&date).map_err(|_| unreadable("this day"))?;
+    let start = day_start(day, utc_offset_s);
+    Ok(ObservationsRequest {
+        station,
+        from: Some(start),
+        to: Some(start + Duration::days(1)),
+    }
+    .path_and_query())
+}
+
+/// Reads the server's answer to [`station_day_path`], which was asked
+/// with the same `date` and `utc_offset_s`.
+#[uniffi::export]
+pub fn station_day(
+    status: u16,
+    body: Vec<u8>,
+    date: String,
+    utc_offset_s: i32,
+) -> Result<StationDay, CoreError> {
+    let response: ObservationsResponse = answer(status, &body)?;
+    let day = parse_day(&date).map_err(|_| unreadable("this day"))?;
+    let start = day_start(day, utc_offset_s);
+    let end = start + Duration::days(1);
+    let readings: Vec<WindReading> = response
+        .observations
+        .iter()
+        // An answer to another question than this day's is not drawn as
+        // this day.
+        .filter(|observation| (start..=end).contains(&observation.time))
+        .map(reading)
+        .collect();
+    Ok(StationDay {
+        date: format_day(day),
+        start_unix_s: start.timestamp(),
+        end_unix_s: end.timestamp(),
+        station_id: response.station.id.to_string(),
+        station_name: readable_name(&response.station.name),
+        empty_words: readings
+            .is_empty()
+            .then(|| "The server has no readings of this station for this day.".to_owned()),
+        readings,
+        credits: response.attributions.iter().map(credit).collect(),
+    })
+}
+
+/// The calendar day a moment falls on by a clock that is `utc_offset_s`
+/// ahead of UTC.
+fn local_day(at_unix_s: i64, utc_offset_s: i32) -> NaiveDate {
+    let at: DateTime<Utc> = DateTime::from_timestamp(at_unix_s, 0).unwrap_or_default();
+    (at + Duration::seconds(i64::from(utc_offset_s))).date_naive()
+}
+
+/// The moment a calendar day begins by a clock that is `utc_offset_s`
+/// ahead of UTC.
+fn day_start(day: NaiveDate, utc_offset_s: i32) -> DateTime<Utc> {
+    day.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc()
+        - Duration::seconds(i64::from(utc_offset_s))
+}
+
 fn unreadable(what: &str) -> CoreError {
     CoreError::Server {
         message: format!("The app could not ask the server about {what}."),
@@ -366,6 +542,7 @@ fn reading(reading: &Reading) -> WindReading {
         gust_ms: reading.wind_gust_ms,
         direction_deg: reading.wind_direction_deg,
         temperature_c: reading.temperature_c,
+        humidity_pct: reading.humidity_pct,
     }
 }
 
@@ -527,6 +704,7 @@ mod tests {
             gust_ms: None,
             direction_deg,
             temperature_c: None,
+            humidity_pct: None,
         };
         // Too weak for a direction, or without one: calm, with its speed.
         let still = wind_mark(Some(&reading(Some(0.4), Some(90.0))), false);
@@ -615,6 +793,159 @@ mod tests {
     }
 
     #[test]
+    fn a_reading_carries_the_temperature_and_the_humidity_the_station_sent() {
+        let body = r#"{
+            "stations": [{
+                "id": "dwd-10min:05792", "source": "dwd-10min", "name": "Zugspitze",
+                "position": {"lat": 47.421, "lon": 10.9848}, "elevation_m": 2956.0,
+                "latest": {"time": "2026-11-18T18:20:00Z", "wind_speed_ms": 14.9,
+                           "temperature_c": -7.1, "humidity_pct": 91.8, "pressure_hpa": 693.4}
+            }],
+            "truncated": false, "attributions": []
+        }"#;
+        let map = wind_map(200, body.as_bytes().to_vec(), NOW).unwrap();
+        let latest = map.stations[0].latest.unwrap();
+        assert_eq!(latest.temperature_c, Some(-7.1));
+        assert_eq!(latest.humidity_pct, Some(91.8));
+        // A station that sends none has none.
+        let map = wind_map(200, STATIONS.as_bytes().to_vec(), NOW).unwrap();
+        assert_eq!(map.stations[0].latest.unwrap().humidity_pct, None);
+    }
+
+    #[test]
+    fn a_day_picker_is_offered_the_last_year_by_the_pilots_clock() {
+        // 19:05 UTC on 18 November is 20:05 on a clock an hour ahead.
+        let days = station_days(NOW, 3600);
+        assert_eq!(days.last_date, "2026-11-18");
+        assert_eq!(days.first_date, "2025-11-18");
+        // Noon of each day by that clock, which is 11:00 UTC: a moment
+        // inside the day for a picker that is bounded by moments.
+        assert_eq!(days.last_unix_s, NOW - (8 * 3600 + 5 * 60));
+        assert_eq!(days.last_unix_s - days.first_unix_s, 365 * 86_400);
+        assert_eq!(station_date(days.first_unix_s, 3600), days.first_date);
+        assert_eq!(station_date(days.last_unix_s, 3600), days.last_date);
+        assert!(days.note.contains("last year"), "{}", days.note);
+
+        // Five hours ahead it is already the 19th; ten hours behind, and at
+        // Greenwich, still the 18th.
+        assert_eq!(station_days(NOW, 5 * 3600).last_date, "2026-11-19");
+        assert_eq!(station_days(NOW, -10 * 3600).last_date, "2026-11-18");
+        assert_eq!(station_date(NOW, 5 * 3600), "2026-11-19");
+        assert_eq!(station_date(NOW, 0), "2026-11-18");
+        // Half an hour after midnight UTC, clocks behind UTC have the day
+        // before.
+        assert_eq!(station_date(NOW + 5 * 3600 + 25 * 60, -3600), "2026-11-18");
+    }
+
+    #[test]
+    fn a_day_of_a_station_is_asked_for_from_midnight_to_midnight_by_the_pilots_clock() {
+        let path = |date: &str, utc_offset_s| {
+            station_day_path("dwd-10min:05792".to_owned(), date.to_owned(), utc_offset_s)
+        };
+        assert_eq!(
+            path("2026-11-17", 3600).unwrap(),
+            "/v1/stations/dwd-10min:05792/observations\
+             ?from=2026-11-16T23:00:00Z&to=2026-11-17T23:00:00Z"
+        );
+        // In summer the same clock is two hours ahead.
+        assert_eq!(
+            path("2026-07-04", 7200).unwrap(),
+            "/v1/stations/dwd-10min:05792/observations\
+             ?from=2026-07-03T22:00:00Z&to=2026-07-04T22:00:00Z"
+        );
+        assert_eq!(
+            path("2026-11-17", -5 * 3600).unwrap(),
+            "/v1/stations/dwd-10min:05792/observations\
+             ?from=2026-11-17T05:00:00Z&to=2026-11-18T05:00:00Z"
+        );
+
+        // Only a date as a date field writes it, and only a station.
+        for not_a_day in ["17.11.2026", "2026-11-31", "2026-1-5", "yesterday", ""] {
+            let error = path(not_a_day, 3600).unwrap_err();
+            assert!(error.to_string().contains("this day"), "{error}");
+        }
+        assert!(
+            station_day_path("not an id".to_owned(), "2026-11-17".to_owned(), 0)
+                .unwrap_err()
+                .to_string()
+                .contains("this station")
+        );
+    }
+
+    #[test]
+    fn a_day_of_a_station_is_read_with_where_its_chart_begins_and_ends() {
+        let body = r#"{
+            "station": {"id": "geosphere-tawes:11121", "source": "geosphere-tawes",
+                        "name": "INNSBRUCK-FLUGHAFEN",
+                        "position": {"lat": 47.26, "lon": 11.357}, "elevation_m": 578.0},
+            "observations": [
+                {"time": "2026-11-16T22:50:00Z", "wind_speed_ms": 1.0},
+                {"time": "2026-11-16T23:00:00Z", "wind_speed_ms": 1.5, "temperature_c": 2.1,
+                 "humidity_pct": 88.0},
+                {"time": "2026-11-17T12:00:00Z", "wind_speed_ms": 4.0, "wind_gust_ms": 7.5,
+                 "wind_direction_deg": 250.0, "temperature_c": 9.4, "humidity_pct": 52.0},
+                {"time": "2026-11-17T23:00:00Z", "wind_speed_ms": 2.0}
+            ],
+            "attributions": [
+                {"source": "geosphere-tawes", "provider": "GeoSphere Austria",
+                 "licence": "CC BY 4.0", "text": "Quelle: GeoSphere Austria",
+                 "url": "https://www.geosphere.at/"}
+            ]
+        }"#;
+        let day =
+            station_day(200, body.as_bytes().to_vec(), "2026-11-17".to_owned(), 3600).unwrap();
+
+        assert_eq!(day.date, "2026-11-17");
+        // Midnight to midnight on a clock an hour ahead of UTC.
+        assert_eq!(day.end_unix_s - day.start_unix_s, 86_400);
+        assert_eq!(station_date(day.start_unix_s, 3600), "2026-11-17");
+        assert_eq!(station_date(day.start_unix_s - 1, 3600), "2026-11-16");
+        assert_eq!(
+            (day.station_id.as_str(), day.station_name.as_str()),
+            ("geosphere-tawes:11121", "Innsbruck-Flughafen")
+        );
+        // Both midnights belong to the day's chart; a reading from before
+        // it, which this day was not asked for, does not.
+        assert_eq!(day.readings.len(), 3);
+        assert_eq!(day.readings[0].time_unix_s, day.start_unix_s);
+        assert_eq!(day.readings[2].time_unix_s, day.end_unix_s);
+        assert_eq!(day.readings[1].gust_ms, Some(7.5));
+        assert_eq!(day.readings[1].humidity_pct, Some(52.0));
+        assert_eq!(day.empty_words, None);
+        assert_eq!(day.credits[0].text, "Quelle: GeoSphere Austria");
+
+        // A day the server holds nothing of is said in words, not drawn as
+        // an empty chart.
+        let silent = r#"{
+            "station": {"id": "geosphere-tawes:11121", "source": "geosphere-tawes",
+                        "name": "INNSBRUCK-FLUGHAFEN",
+                        "position": {"lat": 47.26, "lon": 11.357}},
+            "observations": [],
+            "attributions": []
+        }"#;
+        let day = station_day(
+            200,
+            silent.as_bytes().to_vec(),
+            "2025-11-18".to_owned(),
+            3600,
+        )
+        .unwrap();
+        assert_eq!(day.date, "2025-11-18");
+        assert!(day.readings.is_empty());
+        assert_eq!(
+            day.empty_words.as_deref(),
+            Some("The server has no readings of this station for this day.")
+        );
+
+        // The server's refusal and a date that is none are errors in words.
+        let refused = r#"{"error": {"code": "invalid_range", "message": "x"}}"#;
+        let error =
+            station_day(400, refused.as_bytes().to_vec(), "2026-11-17".to_owned(), 0).unwrap_err();
+        assert!(error.to_string().contains("invalid_range"), "{error}");
+        assert!(station_day(200, body.as_bytes().to_vec(), "17.11.".to_owned(), 0).is_err());
+    }
+
+    #[test]
     fn the_servers_clock_and_late_providers_are_read() {
         assert_eq!(server_status_path(), "/v1/health");
         let body = r#"{
@@ -691,6 +1022,24 @@ mod tests {
         assert!(history.readings.len() > 1);
         assert_eq!(history.station.latest, history.readings.last().copied());
         assert_eq!(history.credits.len(), 1);
+
+        // The same answer read as the day it was recorded on, by UTC.
+        let day = station_day(
+            200,
+            golden("observations.json"),
+            station_date(status.time_unix_s, 0),
+            0,
+        )
+        .unwrap();
+        assert_eq!(day.readings, history.readings);
+        assert_eq!(day.station_id, history.station.id);
+        assert_eq!(day.empty_words, None);
+        // The recorded stations send what a cloud base is worked out from.
+        assert!(
+            day.readings.iter().all(|reading| {
+                reading.temperature_c.is_some() && reading.humidity_pct.is_some()
+            })
+        );
 
         let refused = wind_map(400, golden("error_missing_bbox.json"), NOW).unwrap_err();
         assert!(refused.to_string().contains("invalid_bbox"));

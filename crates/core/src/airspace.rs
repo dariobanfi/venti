@@ -321,35 +321,30 @@ impl AirspaceSet {
     }
 
     /// The airspaces that touch an area, for a map. Ask when the map has
-    /// moved, not for every frame.
+    /// moved, not for every frame. A map with the filter by height asks
+    /// [`AirspaceSet::in_area_below`], which gives the same without a
+    /// height.
     pub fn in_area(&self, area: Bounds) -> Vec<AirspaceShape> {
-        let Ok(area) = BoundingBox::new(
-            area.south.clamp(-90.0, 90.0),
-            area.west.clamp(-180.0, 180.0),
-            area.north.clamp(-90.0, 90.0),
-            area.east.clamp(-180.0, 180.0),
-        ) else {
-            return Vec::new();
-        };
-        self.index
-            .in_box(&area, None)
-            .into_iter()
-            .map(|airspace| AirspaceShape {
-                id: airspace.id.to_string(),
-                name: airspace.name.clone(),
-                kind: kind_in_words(airspace),
-                lower: limit_in_words(&airspace.lower),
-                upper: limit_in_words(&airspace.upper),
-                policy: policy_view(self.policy.policy_for(airspace)),
-                outline: ring(airspace.geometry.exterior()),
-                holes: airspace
-                    .geometry
-                    .holes()
-                    .iter()
-                    .map(|hole| ring(hole))
-                    .collect(),
-            })
-            .collect()
+        self.in_area_below(area, None)
+    }
+}
+
+/// One airspace of a set as a map draws it.
+pub(crate) fn shape(set: &AirspaceSet, airspace: &Airspace) -> AirspaceShape {
+    AirspaceShape {
+        id: airspace.id.to_string(),
+        name: airspace.name.clone(),
+        kind: kind_in_words(airspace),
+        lower: limit_in_words(&airspace.lower),
+        upper: limit_in_words(&airspace.upper),
+        policy: policy_view(set.policy.policy_for(airspace)),
+        outline: ring(airspace.geometry.exterior()),
+        holes: airspace
+            .geometry
+            .holes()
+            .iter()
+            .map(|hole| ring(hole))
+            .collect(),
     }
 }
 
@@ -1109,7 +1104,7 @@ fn view(set: &AirspaceSet, warning: &Warning<'_>) -> AirspaceWarning {
 }
 
 /// An airspace's name as the cockpit says it.
-fn name_in_words(airspace: &Airspace) -> String {
+pub(crate) fn name_in_words(airspace: &Airspace) -> String {
     if airspace.name.trim().is_empty() {
         "Unnamed airspace".to_owned()
     } else {

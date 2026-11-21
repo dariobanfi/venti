@@ -43,15 +43,16 @@ use std::sync::Arc;
 use serde::Serialize;
 use tsify::{Ts, Tsify};
 use venti_core::{
-    AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
-    FlightAirspace, FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView,
-    FlightVisibility, ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade,
-    ImportedFlight, KeptAirspace, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
-    LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
-    PublicFlightsOrder, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
-    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SitesMap,
-    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, Tendencies, TerrainTile,
-    ThermalMap, TrackPoint, WindMap, WindSpan,
+    AccountView, AirspaceFetch, AirspaceFile, AirspaceHeightFilter, AirspaceImport,
+    AirspaceOverPlace, AirspaceShape, Bounds, Coordinate, CoreError, FlightAirspace,
+    FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView, FlightVisibility,
+    ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
+    KeptAirspace, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics, LogbookView,
+    PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder,
+    Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus,
+    SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SitesMap, StagedStorage, StationAir,
+    StationDay, StationDays, StationHistory, Storage, SyncStep, SyncSummary, Tendencies,
+    TerrainTile, ThermalMap, TrackPoint, WindMap, WindSpan, WindStation,
 };
 use wasm_bindgen::prelude::*;
 
@@ -499,7 +500,9 @@ impl Core {
 
     /// The airspaces that touch a box of the map, from what is kept from
     /// the server and from the pilot's files. Ask when the map has moved,
-    /// not for every frame.
+    /// not for every frame. `ceiling_m` is the height of the map's filter,
+    /// one of `airspaceHeightFilter`'s steps: airspace that certainly
+    /// begins above it is left out. Without it, everything.
     #[wasm_bindgen(js_name = airspaceIn)]
     pub fn airspace_in(
         &self,
@@ -507,6 +510,7 @@ impl Core {
         west: f64,
         north: f64,
         east: f64,
+        ceiling_m: Option<f64>,
     ) -> Result<Vec<Ts<AirspaceShape>>, JsValue> {
         let area = Bounds {
             south,
@@ -518,9 +522,21 @@ impl Core {
         // calls only look it up.
         let shapes = self
             .session
-            .call(|core| Ok(core.airspace()?.in_area(area)))
+            .call(|core| Ok(core.airspace()?.in_area_below(area, ceiling_m)))
             .map_err(thrown)?;
         shapes.iter().map(to_js).collect()
+    }
+
+    /// What lies over a place: every airspace whose outline contains it,
+    /// from the lowest floor up, with what to say with the list. For the
+    /// sheet a click on the map opens.
+    #[wasm_bindgen(js_name = airspaceOver)]
+    pub fn airspace_over(&self, lat: f64, lon: f64) -> Result<Ts<AirspaceOverPlace>, JsValue> {
+        let over = self
+            .session
+            .call(|core| Ok(core.airspace()?.over_place(Coordinate { lat, lon })))
+            .map_err(thrown)?;
+        to_js(&over)
     }
 
     // Groups of pilots and the plans their members make for a flying day,
@@ -830,6 +846,70 @@ pub fn station_history(
     now_unix_s: f64,
 ) -> Result<Ts<StationHistory>, JsValue> {
     to_js(&venti_core::station_history(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+/// The days of a station's past to offer in a day picker: the first and
+/// the last as a date field writes them. `now_unix_s` is the current time
+/// by the server's clock and `utc_offset_s` how far the pilot's clock is
+/// ahead of UTC.
+#[wasm_bindgen(js_name = stationDays)]
+pub fn station_days(now_unix_s: f64, utc_offset_s: i32) -> Result<Ts<StationDays>, JsValue> {
+    to_js(&venti_core::station_days(
+        whole_seconds(now_unix_s),
+        utc_offset_s,
+    ))
+}
+
+/// The day a moment falls on, as `stationDayPath` takes a day.
+#[wasm_bindgen(js_name = stationDate)]
+pub fn station_date(at_unix_s: f64, utc_offset_s: i32) -> String {
+    venti_core::station_date(whole_seconds(at_unix_s), utc_offset_s)
+}
+
+/// The path and query to `GET` for one day of a station's readings. `date`
+/// is the day as a date field writes it, "2026-11-18"; `utc_offset_s` how
+/// far the pilot's clock was ahead of UTC on that day.
+#[wasm_bindgen(js_name = stationDayPath)]
+pub fn station_day_path(
+    station_id: String,
+    date: String,
+    utc_offset_s: i32,
+) -> Result<String, JsValue> {
+    venti_core::station_day_path(station_id, date, utc_offset_s).map_err(thrown)
+}
+
+/// Reads the server's answer to `stationDayPath`, asked with the same
+/// `date` and `utc_offset_s`.
+#[wasm_bindgen(js_name = stationDay)]
+pub fn station_day(
+    status: u16,
+    body: Vec<u8>,
+    date: String,
+    utc_offset_s: i32,
+) -> Result<Ts<StationDay>, JsValue> {
+    to_js(&venti_core::station_day(status, body, date, utc_offset_s).map_err(thrown)?)
+}
+
+/// What a station's newest reading says about the air: a cloud base over
+/// it, and the temperature step to a station higher up or lower down among
+/// `stations`, the stations of the wind map.
+#[wasm_bindgen(js_name = stationAir)]
+pub fn station_air(
+    station: Ts<WindStation>,
+    stations: Vec<Ts<WindStation>>,
+) -> Result<Ts<StationAir>, JsValue> {
+    let stations = stations
+        .iter()
+        .map(from_js)
+        .collect::<Result<Vec<_>, _>>()?;
+    to_js(&venti_core::station_air(from_js(&station)?, stations))
+}
+
+/// The steps of the map's filter of airspace by height, and what to say
+/// with them.
+#[wasm_bindgen(js_name = airspaceHeightFilter)]
+pub fn airspace_height_filter() -> Result<Ts<AirspaceHeightFilter>, JsValue> {
+    to_js(&venti_core::airspace_height_filter())
 }
 
 /// The path and query to `GET` from the server for the airspace around a

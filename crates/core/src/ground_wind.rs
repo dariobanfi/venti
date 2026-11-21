@@ -343,6 +343,7 @@ mod tests {
                 gust_ms: gusts.map(|gusts| gusts / 3.6),
                 direction_deg: Some(315.0),
                 temperature_c: None,
+                humidity_pct: None,
             }),
             age_min: Some(age_min),
             is_old: age_min > 60,

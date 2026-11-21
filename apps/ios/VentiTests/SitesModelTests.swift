@@ -119,7 +119,9 @@ final class SitesModelTests: XCTestCase {
     }
 
     func testAStationNearASiteIsDescribedFromTheSite() {
-        let reading = WindReading(timeUnixS: 1_000, speedMs: 4, gustMs: nil, directionDeg: 280, temperatureC: nil)
+        let reading = WindReading(
+            timeUnixS: 1_000, speedMs: 4, gustMs: nil, directionDeg: 280, temperatureC: nil, humidityPct: nil
+        )
         let summit = WindStation(
             id: "s", name: "Summit", source: "test", position: Coordinate(lat: 47.67, lon: 11.80),
             elevationM: 1_700, latest: reading, ageMin: 10, isOld: false,

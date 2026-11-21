@@ -300,6 +300,20 @@ What follows from the rule, and is tested on a grid of positions around two airs
 - *The way out through the floor.* In an airspace the words name the nearest edge over the ground. That the floor is 30 m below, for a glider that has climbed into a terminal area, is in the numbers (`floor_m`, `ceiling_m`, `altitude_m`) and not in the words.
 - *The pilot's wishes.* The 5 km are the owner's setting in XCTrack, `Config::proximity_reach_m` here; nothing stores a pilot's choice.
 
+## What lies over a place, and the filter by height
+
+Both are made in the core (`crates/core/src/airspace_over.rs`) from the set the maps and the cockpit use. Both are for a map, and neither changes a warning.
+
+**Over a place.** `AirspaceSet::over_place(place)` lists every airspace whose outline contains a place, at whatever height: `index.at` without a pilot. The order is the one the assistant's `airspace_at` has (`venti_tools::airspace::floor_order`): the ground first, then by the published height of the floor, whatever it is measured from, and of two that begin together the lower ceiling first. It is an order of published figures, not of true heights: a floor "1000 ft AGL" stands before one at 1500 m above sea level wherever the ground is.
+
+Each airspace comes with its name as a warning says it, what it is in words, its floor and ceiling as published, a second floor and a ceiling that may be raised where the record has them, how the warning table treats it (`policy`, and "Avoid", "Caution" or "Free") with the table's own sentence why, and where it is from and of what date, as a warning says that. What the record says about use is passed on as published and not evaluated (rule 12): the marks in the assistant's words ("Active by NOTAM, activated on request, has published hours"), the hours by day of the week with a line for each run of days ("Mon to Fri 08:00 to sunset, not on public holidays"), the source's note on its hours, the period of a temporary area and the remarks. Whether openAIP's hours are UTC or local time its schema does not say (*to verify*, see the adapter's notes in `venti-sources-openaip`); wherever the answer shows hours or marks it says so in `hours_note`, and that the app does not go by them.
+
+With the list always goes `caveat`: the first two of the assistant's caveats, word for word, that the data is not certified and no clearance and that nothing says what is active today. `covered` says whether the set can speak for the place (rule 15), and `cover_note` what to say when it cannot. An empty list is "No airspace over this place in the app's data" in the one case and "No airspace data for this place" in the other.
+
+**The filter by height.** `AirspaceSet::in_area_below(area, ceiling_m)` is `in_box` with a band from below everything up to a height of interest. An airspace is left out only when its floor certainly lies above that height: a floor above ground is placed as if the ground lay 500 m below the sea, as rule 7 has it where the ground is not known, so it is not left out for the ground's sake, and a flight level at the lowest of its range (rule 5: FL 100 at 2573 m). Without a height it gives everything, which is what `in_area` gives. `airspace_height_filter()` has the steps a shell offers, "All heights" and up to 4500 m, 3500 m and 2500 m, and a line that says what the filter does. The three heights are ours, round figures for where flying ends on the highest days in the Alps, on most days there and in the foothills, and the owner's to decide.
+
+The filter takes airspace off a map and nothing else. The warnings, the reading of the airspace that matters next and the list over a place go by every airspace.
+
 ## Feeding the engine from the cockpit
 
 The cockpit has everything a sample needs in `LiveState`, the flight computer's output: `position`, `altitude_m`, `pressure_altitude_m`, `ground_speed_ms`, `course_deg` and `average_climb_ms`. The ground elevation comes from the terrain model once there is one; until then pass `None`. Build the index once, when the airspace is loaded, and keep the engine for the flight.
@@ -409,6 +423,7 @@ The reading of the airspace that matters next is not in the table: it was measur
 - **Airways in OpenAir files** (`DY`).
 - **Drawing.** The crate gives a map the airspaces in a box and a side view its stretches; nothing here draws.
 - **Settings for the pilot.** Margins, look-ahead, the reading's reach and the table are `Config`; nothing stores a pilot's choices.
+- **The list over a place and the filter by height on a screen.** Both are made in the core ([above](#what-lies-over-a-place-and-the-filter-by-height)); no app shows them yet.
 - **The reading on a screen.** The airspace that matters next is made in the core and is in the cockpit's view; the iPhone and Android do not show it yet. Where it is to stand is proposed in [design.md](design.md#the-cockpit).
 - **Bundles.** The region bundle of [architecture.md](architecture.md#api-and-offline-sync) does not exist. The server's airspace endpoint stands in for it: since 2026-11-19 the three apps fetch the airspace around the pilot from it, and the two phones keep it on the device for the cockpit.
 - **Coverage by country.** The server's answer says which box its set is whole in and which countries it holds, but not where inside the box those countries end. For the first region every country in the box is fetched except Liechtenstein, which has no file. An OpenAir file says nothing of the kind at all.

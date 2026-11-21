@@ -36,9 +36,18 @@ use venti_domain::ForecastHour;
 
 /// How fast rising air cools while no cloud forms in it, °C per metre.
 const DRY_LAPSE_C_PER_M: f64 = 0.0098;
-/// How high above the ground rising air condenses, metres for every
-/// degree between the temperature and the dew point there.
-const CONDENSATION_M_PER_C: f64 = 125.0;
+/// How high above where it was measured rising air condenses, metres for
+/// every degree between the temperature and the dew point there.
+pub const CONDENSATION_M_PER_C: f64 = 125.0;
+/// The two figures of the Magnus formula for the pressure of water vapour
+/// over water, `6.112 · exp(A · t / (B + t))` hPa at `t` °C, as the World
+/// Meteorological Organization's guide to instruments gives them for
+/// -45 °C to 60 °C. To verify against the guide (WMO-No. 8, annex 4.B).
+const MAGNUS_A: f64 = 17.62;
+const MAGNUS_B_C: f64 = 243.12;
+/// The temperatures the formula is given for, °C.
+const MAGNUS_FROM_C: f64 = -45.0;
+const MAGNUS_TO_C: f64 = 60.0;
 /// Gravity, m/s².
 const GRAVITY_MS2: f64 = 9.81;
 /// The heat a kilogram of air takes to warm by one degree, J/(kg·K).
@@ -50,6 +59,33 @@ const GAS_CONSTANT_J_KG_K: f64 = 287.05;
 pub const GLIDER_SINK_MS: f64 = 1.0;
 /// The temperature at the ground is the model's for 2 m above it.
 const SCREEN_HEIGHT_M: f64 = 2.0;
+
+/// The dew point of air, °C, from its temperature and its relative
+/// humidity in percent: the temperature to which it would have to cool to
+/// be saturated. By the Magnus formula, over water also below freezing,
+/// which is how humidity is reported.
+///
+/// `None` where the formula is not given (a temperature outside -45 °C to
+/// 60 °C) and for a humidity that is no humidity: zero, below it, or not a
+/// number. A humidity above 100 is read as 100; sensors in cloud report
+/// such.
+pub fn dew_point_c(temperature_c: f64, humidity_pct: f64) -> Option<f64> {
+    let in_range = (MAGNUS_FROM_C..=MAGNUS_TO_C).contains(&temperature_c);
+    if !in_range || humidity_pct.is_nan() || humidity_pct <= 0.0 {
+        return None;
+    }
+    let moist = (humidity_pct.min(100.0) / 100.0).ln()
+        + MAGNUS_A * temperature_c / (MAGNUS_B_C + temperature_c);
+    Some(MAGNUS_B_C * moist / (MAGNUS_A - moist))
+}
+
+/// How far above where it was measured air condenses when it is lifted,
+/// metres: [`CONDENSATION_M_PER_C`] for every degree between its
+/// temperature and its dew point (Espy's rule). Zero for air that is
+/// saturated already.
+pub fn condensation_above_m(temperature_c: f64, dew_point_c: f64) -> f64 {
+    CONDENSATION_M_PER_C * (temperature_c - dew_point_c).max(0.0)
+}
 
 /// What an hour of a forecast says about thermals over the model's cell.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -146,7 +182,7 @@ pub fn convection(hour: &ForecastHour, ground_m: f64) -> Option<Convection> {
     // where the rule says rising air condenses, if thermals get that far.
     let condensation = hour
         .dew_point_c
-        .map(|dew| foot + CONDENSATION_M_PER_C * (warmth - dew).max(0.0));
+        .map(|dew| foot + condensation_above_m(warmth, dew));
     let cloud_base_m = hour
         .convective_cloud_base_m
         .filter(|base| *base > foot)
@@ -257,6 +293,41 @@ mod tests {
         // The strongest wind in that layer is the one at 1500 m; the wind
         // at 3100 m blows above the thermals.
         assert_eq!(thermals.wind_ms, Some(4.0));
+    }
+
+    #[test]
+    fn the_dew_point_follows_from_temperature_and_humidity() {
+        let near = |found: Option<f64>, expected: f64| {
+            let found = found.unwrap();
+            assert!((found - expected).abs() < 0.05, "{found} is not {expected}");
+        };
+        // Figures of the psychrometric tables: 20 °C at half saturation
+        // has its dew point at 9.3 °C, 30 °C at 30 % at 10.5 °C.
+        near(dew_point_c(20.0, 50.0), 9.3);
+        near(dew_point_c(30.0, 30.0), 10.5);
+        // Below freezing too, over water as humidity is reported.
+        near(dew_point_c(-5.0, 60.0), -11.6);
+        // Saturated air is at its dew point, and a sensor in cloud that
+        // reports more than 100 % says the same.
+        near(dew_point_c(12.0, 100.0), 12.0);
+        near(dew_point_c(12.0, 103.0), 12.0);
+
+        // No humidity, and a temperature the formula is not given for.
+        assert_eq!(dew_point_c(20.0, 0.0), None);
+        assert_eq!(dew_point_c(20.0, -4.0), None);
+        assert_eq!(dew_point_c(20.0, f64::NAN), None);
+        assert_eq!(dew_point_c(f64::NAN, 50.0), None);
+        assert_eq!(dew_point_c(-60.0, 50.0), None);
+        assert_eq!(dew_point_c(75.0, 50.0), None);
+    }
+
+    #[test]
+    fn lifted_air_condenses_125_metres_up_for_every_degree_of_spread() {
+        assert_eq!(condensation_above_m(24.0, 16.0), 1000.0);
+        assert_eq!(condensation_above_m(10.0, 10.0), 0.0);
+        // A dew point above the temperature is saturated air, not a base
+        // below the ground.
+        assert_eq!(condensation_above_m(10.0, 10.4), 0.0);
     }
 
     #[test]

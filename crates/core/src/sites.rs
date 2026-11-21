@@ -674,6 +674,7 @@ mod tests {
                     gust_ms: None,
                     direction_deg: from,
                     temperature_c: None,
+                    humidity_pct: None,
                 }),
                 age_min: Some(10),
                 is_old,

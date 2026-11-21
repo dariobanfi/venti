@@ -13,6 +13,7 @@ export function reading(given: Partial<WindReading> = {}): WindReading {
 		gustMs: 8,
 		directionDeg: 270,
 		temperatureC: 4,
+		humidityPct: undefined,
 		...given
 	};
 }

@@ -20,8 +20,8 @@ use serde_json::{Map, Value, json};
 use venti_airspace::{Policy, PolicyTable, horizontal};
 use venti_api_types::v1::{AirspaceLayer, AirspaceRequest, AirspaceResponse};
 use venti_domain::{
-    Airspace, AirspaceClass, AirspaceType, BoundingBox, GeoPoint, HeightUnit, VerticalLimit,
-    VerticalReference,
+    Activity, Airspace, AirspaceClass, AirspaceType, BoundingBox, GeoPoint, HeightUnit,
+    VerticalLimit, VerticalReference,
 };
 
 use crate::wind::{
@@ -245,9 +245,48 @@ pub fn airspace_at(
 }
 
 /// Where an airspace's floor sorts among those over a place: the ground
-/// first, then by the published height, whatever it is measured from.
-fn floor_order(airspace: &Airspace) -> f64 {
+/// first, then by the published height, whatever it is measured from. The
+/// app's own list of what lies over a place is in this order too.
+pub fn floor_order(airspace: &Airspace) -> f64 {
     airspace.lower.metres().unwrap_or(f64::INFINITY)
+}
+
+/// How the app treats an airspace for a paraglider, and why in a sentence
+/// a pilot can be shown: by the first rule of the table that fits it. An
+/// airspace no rule fits is one to avoid.
+pub fn verdict(airspace: &Airspace, table: &PolicyTable) -> (Policy, &'static str) {
+    match table.rule_for(airspace) {
+        Some(rule) => (rule.policy, rule.reason),
+        None => (
+            Policy::Avoid,
+            "The app has no rule for this airspace; when in doubt, it warns.",
+        ),
+    }
+}
+
+/// A policy in the warning table's own word.
+pub fn policy_word(policy: Policy) -> &'static str {
+    match policy {
+        Policy::Avoid => "avoid",
+        Policy::Caution => "caution",
+        Policy::Free => "free",
+    }
+}
+
+/// What a source publishes about when an airspace is in use, each mark in
+/// a few words. Published background and not the state of today: nothing
+/// evaluates it.
+pub fn published_use(activity: &Activity) -> Vec<&'static str> {
+    [
+        (activity.by_notam, "active by NOTAM"),
+        (activity.on_request, "activated on request"),
+        (activity.on_demand, "activated on demand"),
+        (activity.special_agreement, "used under a special agreement"),
+        (!activity.hours.is_empty(), "has published hours"),
+    ]
+    .into_iter()
+    .filter_map(|(set, words)| set.then_some(words))
+    .collect()
 }
 
 /// One airspace: what it is, where it starts and ends, and what it means
@@ -277,32 +316,11 @@ fn described(airspace: &Airspace, table: &PolicyTable) -> Map<String, Value> {
         );
     }
 
-    let (policy, reason) = match table.rule_for(airspace) {
-        Some(rule) => (rule.policy, rule.reason),
-        None => (
-            Policy::Avoid,
-            "The app has no rule for this airspace; when in doubt, it warns.",
-        ),
-    };
-    let policy = match policy {
-        Policy::Avoid => "avoid",
-        Policy::Caution => "caution",
-        Policy::Free => "free",
-    };
-    entry.insert("for_a_paraglider".to_owned(), json!(policy));
+    let (policy, reason) = verdict(airspace, table);
+    entry.insert("for_a_paraglider".to_owned(), json!(policy_word(policy)));
     entry.insert("why".to_owned(), json!(reason));
 
-    let activity = &airspace.activity;
-    let published: Vec<&str> = [
-        (activity.by_notam, "active by NOTAM"),
-        (activity.on_request, "activated on request"),
-        (activity.on_demand, "activated on demand"),
-        (activity.special_agreement, "used under a special agreement"),
-        (!activity.hours.is_empty(), "has published hours"),
-    ]
-    .into_iter()
-    .filter_map(|(set, words)| set.then_some(words))
-    .collect();
+    let published = published_use(&airspace.activity);
     if !published.is_empty() {
         entry.insert("published_use".to_owned(), json!(published.join(", ")));
     }

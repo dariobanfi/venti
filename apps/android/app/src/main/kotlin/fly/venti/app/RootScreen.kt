@@ -20,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +36,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.account.AccountScreen
+import fly.venti.app.alerts.AlertsEntry
+import fly.venti.app.alerts.AlertsScreen
+import fly.venti.app.alerts.LocalAlerts
 import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
 import fly.venti.app.community.LeagueScreen
@@ -86,6 +90,10 @@ fun RootScreen(
     incoming: List<Uri>,
     /** Called once they have been imported. */
     onImported: () -> Unit,
+    /** Whether a notification of what an alarm fired opened the app: "Alerts" comes to the front. */
+    opensAlerts: Boolean = false,
+    /** Called once it has. */
+    onAlertsOpened: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -93,6 +101,13 @@ fun RootScreen(
     var notice by remember { mutableStateOf<ImportNotice?>(null) }
     val logbook = session.logbook
     val fly = session.fly
+
+    LaunchedEffect(opensAlerts) {
+        if (opensAlerts) {
+            navigation.showAlerts()
+            onAlertsOpened()
+        }
+    }
 
     // Flight files opened from a file manager, mail or another app.
     LaunchedEffect(incoming) {
@@ -215,7 +230,12 @@ fun RootScreen(
         )
         }
     } else {
-        Sections(session, navigation, onNotice = { notice = it })
+        // "Alert me" on a station's page and a take-off's page, wherever
+        // they open; signed out it leads to the account.
+        val alerts = remember(session) { AlertsEntry(session.alerts, onSignIn = { navigation.showAccount() }) }
+        CompositionLocalProvider(LocalAlerts provides alerts) {
+            Sections(session, navigation, onNotice = { notice = it })
+        }
     }
 
     ImportNoticeDialog(notice) { notice = null }
@@ -324,8 +344,20 @@ private fun Sections(
                     SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
                     SettingsRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
                     SettingsRoute.Account -> kept.SaveableStateProvider("account") {
-                        AccountScreen(session.account, session.wind, session.scope, onBack = { navigation.back() })
+                        AccountScreen(
+                            session.account,
+                            session.wind,
+                            session.scope,
+                            onAlerts = { navigation.settingsRoute = SettingsRoute.Alerts },
+                            onBack = { navigation.back() },
+                        )
                     }
+                    SettingsRoute.Alerts -> AlertsScreen(
+                        session.alerts,
+                        session.scope,
+                        onSignIn = { navigation.settingsRoute = SettingsRoute.Account },
+                        onBack = { navigation.back() },
+                    )
                     null -> kept.SaveableStateProvider("settings") {
                         SettingsScreen(
                             session.preferences,

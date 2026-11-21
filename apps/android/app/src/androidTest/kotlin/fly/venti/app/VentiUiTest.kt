@@ -1348,6 +1348,102 @@ class VentiUiTest {
     @Test
     fun theAccountInDarkAppearance() = signInAndShareAFlight("dark", dark = true)
 
+    /** Signs in as the development server's demo pilot, from the map, and stays on the account's page. */
+    private fun signInAsTheDemoPilot() {
+        openTheAccount()
+        screen.onNode(hasTestTag("account-handle")).performTextInput("demo")
+        screen.onNode(hasTestTag("account-password")).performTextInput("demo-pilot-password")
+        tap(hasTestTag("account-submit"))
+        waitFor(hasText("@demo"))
+        waitFor(hasText("Sync now"))
+    }
+
+    /**
+     * The pilot's alarms: under the account the demo pilot's two, and what
+     * the wind alarm fired; then a wind alarm made from a station's page,
+     * whose fault the core names at its field until a direction is chosen,
+     * and which the list then shows. Once more in the dark appearance, the
+     * list and an alarm's form.
+     */
+    @Test
+    fun thePilotSetsAnAlarmAndSeesWhatFired() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        TestDevice.allowNotifications()
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        signInAsTheDemoPilot()
+        screen.onNode(hasTestTag("account-alerts")).performScrollTo()
+        tap(hasTestTag("account-alerts"))
+        waitFor(hasTestTag("alerts-page"))
+        waitForAll(
+            hasTestTag("alert-row") and hasText("Patscherkofel north"),
+            hasTestTag("alert-row") and hasText("Nordkette cross-country"),
+        )
+        assertTrue(exists(hasText("A cross-country day or better at Nordkette", substring = true)))
+        waitFor(hasText("Patscherkofel: 15 km/h from the north", substring = true))
+        assertTrue(exists(hasTestTag("alerts-fired-title")))
+        letTheMapDraw(1)
+        keepScreenshot("light-alerts-1-list")
+
+        // A wind alarm from a station's page, its name filled in.
+        tap(described("Back"))
+        waitFor(hasTestTag("account-alerts"))
+        tap(described("Back"))
+        waitFor(tab("Map"))
+        tap(tab("Map"))
+        waitFor(described("Wind stations"))
+        tap(described("Wind stations"))
+        waitFor(described("Zugspitze"))
+        tap(described("Zugspitze"))
+        waitFor(hasTestTag("station-page"))
+        screen.onNode(hasTestTag("station-page")).performScrollToNode(hasTestTag("station-alert-me"))
+        tap(hasTestTag("station-alert-me"))
+        waitFor(hasTestTag("alert-form"))
+        assertTrue(exists(hasTestTag("alert-name") and hasText("Zugspitze")))
+        // Nothing chosen: the core says what is missing, at the directions.
+        screen.onNode(hasTestTag("alert-save")).performScrollTo().performClick()
+        waitFor(hasTestTag("alert-fault") and hasText("The directions:", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("light-alerts-2-form-fault")
+        tapChip("alert-from-N")
+        tapChip("alert-to-NE")
+        screen.onNode(hasTestTag("alert-min-more")).performScrollTo().performClick()
+        waitFor(hasTestTag("alert-line") and hasText("Wind at Zugspitze from N to NE, at least 10 km/h"))
+        assertFalse(exists(hasTestTag("alert-fault")))
+        screen.onNode(hasTestTag("alert-line")).performScrollTo()
+        letTheMapDraw(1)
+        keepScreenshot("light-alerts-3-form")
+        screen.onNode(hasTestTag("alert-save")).performScrollTo().performClick()
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("alert-form")) }
+        tap(hasText("Done"))
+        waitFor(described("Wind stations"))
+
+        // The list has it.
+        openFromToday("Settings")
+        screen.onNode(hasTestTag("account-link")).performScrollTo()
+        tap(hasTestTag("account-link"))
+        screen.onNode(hasTestTag("account-alerts")).performScrollTo()
+        tap(hasTestTag("account-alerts"))
+        waitFor(hasTestTag("alert-row") and hasText("Wind at Zugspitze from N to NE, at least 10 km/h"))
+        letTheMapDraw(1)
+        keepScreenshot("light-alerts-4-list-with-the-new-alarm")
+        app?.close()
+
+        // Dark: the list, and an alarm's form opened from it.
+        launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
+        signInAsTheDemoPilot()
+        screen.onNode(hasTestTag("account-alerts")).performScrollTo()
+        tap(hasTestTag("account-alerts"))
+        waitFor(hasText("Patscherkofel: 15 km/h from the north", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("dark-alerts-1-list")
+        tap(hasTestTag("alert-row") and hasText("Patscherkofel north"))
+        waitFor(hasTestTag("alert-form"))
+        waitFor(hasTestTag("alert-line") and hasText("Wind at Patscherkofel from N to NE, 10 to 20 km/h", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("dark-alerts-2-form")
+    }
+
     /**
      * A new account, made on the server and deleted again: both ask more
      * of the phone's own networking than reading does, a body sent with a
@@ -1757,7 +1853,8 @@ class VentiUiTest {
             TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.664083, lon = 11.7967)))
             waitFor(hasTestTag("other-line") and hasText("Paraglider at 2,140 m", substring = true))
             assertTrue(exists(hasTestTag("other-kind") and hasText("Paraglider")))
-            assertTrue(exists(hasTestTag("other-age")))
+            // The line ends with the position's age; it is not said again under it.
+            assertFalse(exists(hasTestTag("other-age")))
             assertTrue(exists(hasTestTag("other-credit")))
             letTheMapDraw(1)
             keepScreenshot("$prefix-others-2-sheet")

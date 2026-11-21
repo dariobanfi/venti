@@ -29,6 +29,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
+import fly.venti.app.alerts.AlertNotifications
 import fly.venti.app.design.VentiTheme
 import fly.venti.app.map.MapSetup
 import fly.venti.app.map.MapStyle
@@ -37,6 +38,9 @@ import fly.venti.app.map.MapStyle
 class MainActivity : ComponentActivity() {
     /** Flight files another app has handed over and that are yet to be imported. */
     private var incoming: List<Uri> by mutableStateOf(emptyList())
+
+    /** Whether a notification of what an alarm fired opened the app, and "Alerts" is yet to be shown. */
+    private var opensAlerts: Boolean by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val options = LaunchOptions.from(intent)
@@ -63,12 +67,19 @@ class MainActivity : ComponentActivity() {
 
         if (savedInstanceState == null) {
             incoming = flightFiles(intent)
+            opensAlerts = intent.getBooleanExtra(AlertNotifications.OPENS_WHAT_FIRED, false)
         }
 
         setContent {
             VentiTheme(dark = options.forcedDark ?: isSystemInDarkTheme()) {
                 when (session) {
-                    is Session.Ready -> RootScreen(session, incoming, onImported = { incoming = emptyList() })
+                    is Session.Ready -> RootScreen(
+                        session,
+                        incoming,
+                        onImported = { incoming = emptyList() },
+                        opensAlerts = opensAlerts,
+                        onAlertsOpened = { opensAlerts = false },
+                    )
                     is Session.Failed -> DataFailure(session.message)
                 }
             }
@@ -80,6 +91,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         incoming = flightFiles(intent)
+        opensAlerts = intent.getBooleanExtra(AlertNotifications.OPENS_WHAT_FIRED, false)
     }
 
     /** The files an intent brings: one opened with Venti, or one or more shared to it. */

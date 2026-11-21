@@ -84,6 +84,7 @@ Nothing they produce is committed: no generated Kotlin, no compiled core, no sec
 | `.../terrain/` | The ground: elevation tiles around the glider, fetched, kept and handed to the core. |
 | `.../live/` | Who is in the air: asking the server, the gliders' pictures, the list, a glider's page, following its flight. |
 | `.../account/` | Signing in, the sync, sharing a flight with a link, the session token in Android's keystore. |
+| `.../alerts/` | The pilot's alarms: "Alert me" on a station's and a take-off's page (through `LocalAlerts`), the form, "Alerts" under the account with what fired, the notifications and the periodic check (WorkManager, `AlertsCheck`). The sync itself runs in `AccountModel`. |
 | `.../task/` | Bringing a task in, its screen with the sketch and the turnpoints, planning a route from waypoints. |
 | `.../assistant/` | The chat screen, sending requests, where the key is kept. |
 | `.../settings/` | The settings tab and the credits. |

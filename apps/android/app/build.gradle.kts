@@ -95,6 +95,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.maplibre)
+    implementation(libs.androidx.work)
     // The generated bridge calls the core through JNA. On a phone that is
     // the Android archive, with JNA's own native library for each ABI.
     implementation(libs.jna) { artifact { type = "aar" } }

@@ -12,6 +12,9 @@ import android.content.Intent
 import android.os.Build
 import android.text.format.DateFormat
 import fly.venti.app.account.AccountModel
+import fly.venti.app.alerts.AlertNotifications
+import fly.venti.app.alerts.AlertsCheck
+import fly.venti.app.alerts.AlertsModel
 import fly.venti.app.account.KeystoreSessionStore
 import fly.venti.app.account.MemorySessionStore
 import fly.venti.app.airspace.AirspaceModel
@@ -79,6 +82,8 @@ sealed interface Session {
         val community: CommunityModel,
         val account: AccountModel,
         val groups: GroupsModel,
+        /** The pilot's alarms and what they fired. */
+        val alerts: AlertsModel,
         /** Adding and correcting the sites that pilots make. */
         val siteEdit: SiteEditModel,
         val tasks: TaskModel,
@@ -253,6 +258,18 @@ sealed interface Session {
             // The pilot's groups and their plans for a flying day, asked
             // of the account's server and kept nowhere.
             val groups = logbook.makeGroups(account)
+            // The pilot's alarms, on the account too: what a fetch finds
+            // new becomes a notification, whether the app or its periodic
+            // check fetched it, and the list is read again. The check is
+            // asked for once a fetch has run signed in, and stopped when the
+            // app starts signed out. A test asks for no periodic check.
+            val alerts = logbook.makeAlerts(account)
+            account.onAlertsFetched = { new ->
+                AlertNotifications.show(app, new)
+                if (!isUnderTest) AlertsCheck.schedule(app)
+                scope.launch { alerts.read() }
+            }
+            if (!isUnderTest && !account.isSignedIn) AlertsCheck.cancel(app)
             // The sites that pilots make are sent to the app's Venti, where
             // that server takes them.
             val siteEdit = logbook.makeSiteEdit(account)
@@ -321,7 +338,7 @@ sealed interface Session {
                 if (isUnderTest) MemoryUploadPasswordStore() else KeystoreUploadPasswordStore(app),
             )
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, siteEdit, tasks,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, alerts, siteEdit, tasks,
                 leagues, maps, ground, today, keptSites, thermalMap, radar, WatchedFolder(app, preferences, logbook), preferences, files, scope,
             )
         }

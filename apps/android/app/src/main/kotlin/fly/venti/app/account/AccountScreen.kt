@@ -52,6 +52,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.venti.design.VentiSpace
 import fly.venti.app.R
+import fly.venti.app.alerts.AlertWords
 import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
@@ -80,6 +81,8 @@ fun AccountScreen(
     wind: WindModel,
     /** Where requests run, so that one carries on when the pilot leaves the screen. */
     scope: CoroutineScope,
+    /** Opens "Alerts", the pilot's alarms. */
+    onAlerts: () -> Unit,
     onBack: () -> Unit,
 ) {
     // What the server says of the account now, asked when its page opens:
@@ -117,7 +120,7 @@ fun AccountScreen(
         ) {
             val signedIn = account.account
             if (signedIn != null) {
-                SignedIn(signedIn, account, scope, onTokens = { showsTokens = true })
+                SignedIn(signedIn, account, scope, onTokens = { showsTokens = true }, onAlerts = onAlerts)
             } else {
                 SignInForm(account, (wind.server as? WindServer.Usable)?.url, scope)
             }
@@ -270,7 +273,13 @@ private fun SignInForm(
 
 /** The account, and how the logbook and the server stand. */
 @Composable
-private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: CoroutineScope, onTokens: () -> Unit) {
+private fun SignedIn(
+    signedIn: AccountView,
+    account: AccountModel,
+    scope: CoroutineScope,
+    onTokens: () -> Unit,
+    onAlerts: () -> Unit,
+) {
     var isConfirmingSignOut by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
 
@@ -337,6 +346,15 @@ private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: Corout
         Group {
             row {
                 LinkRow(tokenForm().title, R.drawable.ic_chevron_right, Modifier.testTag("account-tokens"), onClick = onTokens)
+            }
+            row {
+                LinkRow(
+                    AlertWords.TITLE,
+                    R.drawable.ic_chevron_right,
+                    Modifier.testTag("account-alerts"),
+                    leading = R.drawable.ic_notifications,
+                    onClick = onAlerts,
+                )
             }
         }
     }

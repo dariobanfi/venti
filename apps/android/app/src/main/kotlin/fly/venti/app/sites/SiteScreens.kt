@@ -78,6 +78,9 @@ import fly.venti.app.design.status
 import fly.venti.core.OutlookDay
 import fly.venti.core.SiteOutlook
 import fly.venti.app.R
+import fly.venti.app.alerts.AlertMeRow
+import fly.venti.app.alerts.AlertsModel
+import fly.venti.app.alerts.LocalAlerts
 import fly.venti.app.today.AirChart
 import fly.venti.app.today.NearbyLine
 import fly.venti.app.today.ThermalLine
@@ -862,6 +865,8 @@ private fun SitePage(
                 }
             }
             item {
+                // The forecast, and for a take-off an alarm for its kind of day.
+                val alerts = LocalAlerts.current.takeIf { isForTakingOff }
                 Group {
                     row {
                         LinkRow(
@@ -871,6 +876,13 @@ private fun SitePage(
                             leading = R.drawable.venti_forecast,
                             onClick = onForecast,
                         )
+                    }
+                    if (alerts != null) {
+                        row {
+                            AlertMeRow(alerts, "site-alert-me") {
+                                AlertsModel.dayDraft(site.id, site.name, site.position.lat, site.position.lon)
+                            }
+                        }
                     }
                 }
             }

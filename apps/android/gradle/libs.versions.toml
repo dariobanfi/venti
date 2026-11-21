@@ -1,7 +1,7 @@
 # Every version the Android app builds with, in one place.
 #
 # Each library's licence was read in its published POM on 2026-11-19. What
-# ships inside the app is Apache-2.0 or BSD: AndroidX and Compose, Kotlin and
+# ships inside the app is Apache-2.0 or BSD: AndroidX and Compose (WorkManager among them), Kotlin and
 # its libraries, JNA (Apache-2.0 or LGPL; taken under Apache-2.0) and MapLibre
 # Native (BSD-2-Clause) with OkHttp, Gson and Timber behind it (Apache-2.0).
 # JUnit 4 is EPL-1.0 and Hamcrest BSD-3-Clause; they run the tests and are
@@ -16,6 +16,7 @@ core = "1.19.1"
 serialization-json = "1.13.0"
 maplibre = "13.7.1"
 jna = "5.19.1"
+work = "2.11.0"
 junit = "4.13.2"
 test-core = "1.7.0"
 test-runner = "1.7.0"
@@ -32,6 +33,7 @@ compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization-json" }
 maplibre = { module = "org.maplibre.gl:android-sdk-opengl", version.ref = "maplibre" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+androidx-work = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "test-core" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "test-runner" }

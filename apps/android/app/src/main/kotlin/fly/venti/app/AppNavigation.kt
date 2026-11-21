@@ -69,6 +69,9 @@ enum class SettingsRoute {
 
     /** Maps for flying without a network. */
     OfflineMaps,
+
+    /** The pilot's alarms and what they fired: a page of the account. */
+    Alerts,
 }
 
 /** A screen reached from the Fly tab. */
@@ -170,6 +173,12 @@ class AppNavigation {
         settingsRoute = SettingsRoute.Account
     }
 
+    /** Opens the pilot's alarms and what they fired: from a notification of what fired. */
+    fun showAlerts() {
+        showSettings()
+        settingsRoute = SettingsRoute.Alerts
+    }
+
     fun show(flight: String) {
         tab = AppTab.Logbook
         logbookPath.clear()
@@ -208,7 +217,8 @@ class AppNavigation {
             true
         }
         tab == AppTab.Today && todayRoute == TodayRoute.Settings && settingsRoute != null -> {
-            settingsRoute = null
+            // The alarms are a page of the account: back leads there.
+            settingsRoute = if (settingsRoute == SettingsRoute.Alerts) SettingsRoute.Account else null
             true
         }
         tab == AppTab.Today && todayRoute != null -> {

@@ -385,13 +385,8 @@ private fun OtherAircraftPage(aircraft: OtherAircraftView, credit: Credit?) {
         aircraft.name?.let { name ->
             Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("other-name"))
         }
+        // The core's line, which ends with how old the position is.
         Text(aircraft.line, style = MaterialTheme.typography.bodyLarge.numbers, modifier = Modifier.testTag("other-line"))
-        Text(
-            aircraft.ageWords,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag("other-age"),
-        )
         if (credit != null) {
             Group(Modifier.padding(top = 16.dp)) {
                 row {

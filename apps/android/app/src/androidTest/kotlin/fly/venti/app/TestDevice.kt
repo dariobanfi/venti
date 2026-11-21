@@ -52,6 +52,14 @@ object TestDevice {
     }
 
     /**
+     * Lets the app show notifications without asking, as saving the first
+     * alarm would ask in a dialog of Android's own that a test cannot answer.
+     */
+    fun allowNotifications() {
+        shell("pm grant ${instrumentation.targetContext.packageName} android.permission.POST_NOTIFICATIONS")
+    }
+
+    /**
      * Lets the app run for so long, and the map draw: the map draws on its
      * own thread and tells nobody when it is done.
      *

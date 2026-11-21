@@ -9,6 +9,7 @@ import fly.venti.app.pilotMessage
 import fly.venti.core.AccountView
 import fly.venti.core.Core
 import fly.venti.core.CoreException
+import fly.venti.core.FiredLine
 import fly.venti.core.FlightSharing
 import fly.venti.core.FlightVisibility
 import fly.venti.core.ReportReason
@@ -21,7 +22,10 @@ import fly.venti.core.reportSent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.TimeZone
 
 /**
  * Sends one request, with these headers and this body, waits so many
@@ -88,6 +92,17 @@ class AccountModel(
      * grown or shrunk, and it says anew where it is kept.
      */
     var onKeptSitesChanged: () -> Unit = {}
+
+    /**
+     * Called after the account's alarms and what they fired were fetched,
+     * with what had fired since the run before, in the core's lines: the
+     * screens read the list again, and each new line becomes a
+     * notification.
+     */
+    var onAlertsFetched: (List<FiredLine>) -> Unit = {}
+
+    /** One run of fetching the alarms at a time, or two would both call the same line new. */
+    private val alertsRun = Mutex()
 
     private var lastAutomaticSync: Long? = null
 
@@ -267,6 +282,31 @@ class AccountModel(
         onLogbookChanged()
         // The pilot's own take-offs follow the account wherever the logbook does.
         runKeptSitesSync(reportsProblems)
+        // And so does what the pilot's alarms fired.
+        runAlertsSync()
+    }
+
+    /**
+     * Fetches the account's alarms and what they fired since the last run,
+     * if the pilot is signed in: after an alarm was saved, and from the
+     * app's periodic check. Returns what is new, the core's lines, the
+     * oldest first. It is quiet: the list says what the phone last had.
+     */
+    suspend fun syncAlerts(): List<FiredLine> = if (isSignedIn) runAlertsSync() else emptyList()
+
+    private suspend fun runAlertsSync(): List<FiredLine> {
+        val server = account?.server?.takeIf { isSignedIn } ?: return emptyList()
+        val new = alertsRun.withLock {
+            val run = core.alertsSync()
+            val end = toItsEnd(server, reportsProblems = false, { run.start() }, run::receive)
+            if (end is SyncStep.Finished) {
+                withContext(background) { run.newLines(utcOffsetSeconds(clock())) }
+            } else {
+                emptyList()
+            }
+        }
+        onAlertsFetched(new)
+        return new
     }
 
     /**
@@ -463,6 +503,9 @@ class AccountModel(
     private val HttpAnswer.status16: UShort get() = status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()
 
     companion object {
+        /** How far this phone's clock is ahead of UTC at `millis`, in seconds: for the core's times of day. */
+        fun utcOffsetSeconds(millis: Long): Int = TimeZone.getDefault().getOffset(millis) / 1000
+
         /** How long a request may take: a flight's file is sent in one. */
         const val ANSWER_WITHIN_MILLISECONDS = 120_000
 

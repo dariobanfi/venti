@@ -38,6 +38,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import fly.venti.app.R
+import fly.venti.app.alerts.AlertMeRow
+import fly.venti.app.alerts.AlertsModel
+import fly.venti.app.alerts.LocalAlerts
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
@@ -191,7 +194,9 @@ fun StationPage(
                 }
             }
             item {
-                // What the weather models say about the same place.
+                // What the weather models say about the same place, and an
+                // alarm for this station's wind.
+                val alerts = LocalAlerts.current
                 Group(Modifier.padding(top = 24.dp)) {
                     row {
                         LinkRow(
@@ -201,6 +206,11 @@ fun StationPage(
                             leading = R.drawable.venti_forecast,
                             onClick = onForecast,
                         )
+                    }
+                    if (alerts != null) {
+                        row {
+                            AlertMeRow(alerts, "station-alert-me") { AlertsModel.windDraft(station.id, station.name) }
+                        }
                     }
                 }
             }

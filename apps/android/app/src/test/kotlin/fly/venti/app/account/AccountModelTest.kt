@@ -124,10 +124,12 @@ class AccountModelTest {
         assertEquals(1u, account.account?.flightsOnServer)
         assertFalse(account.isWorking)
 
-        // And after the logbook the pilot's own take-offs are asked for.
-        assertEquals(listOf("POST", "GET", "POST", "GET"), server.methods())
+        // And after the logbook the pilot's own take-offs are asked for,
+        // and then the pilot's alarms.
+        assertEquals(listOf("POST", "GET", "POST", "GET", "GET"), server.methods())
         assertEquals("$KEPT_SITES/changes", server.sent[3].path)
         assertEquals("Bearer $TOKEN", server.sent[3].headers["Authorization"])
+        assertEquals("/v1/account/alerts", server.sent[4].path)
         assertTrue(server.sent.all { it.url.startsWith("$SERVER/v1/") })
         // The password goes with the sign-in, with what to call this
         // phone, and the token does not; after that the token goes with

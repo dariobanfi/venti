@@ -280,6 +280,10 @@ class LogbookModel(
         account.onKeptSitesChanged = kept::synced
     }
 
+    /** The pilot's alarms, on the account, with the phone's copy of them. */
+    fun makeAlerts(account: AccountModel, clock: () -> Long = System::currentTimeMillis): fly.venti.app.alerts.AlertsModel =
+        fly.venti.app.alerts.AlertsModel(core, account, clock, background)
+
     /**
      * The pilot's groups and their plans for a flying day, on the
      * account's server: asked for and not kept.

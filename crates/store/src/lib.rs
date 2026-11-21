@@ -81,8 +81,8 @@ pub use pilot_site::{
 };
 pub use postgres::PgStore;
 pub use report::{
-    NewReport, Report, ReportClosing, ReportClosure, ReportKey, ReportListing, ReportSaved,
-    ReportSubject,
+    NewReport, Report, ReportAbout, ReportClosing, ReportClosure, ReportKey, ReportListing,
+    ReportSaved, ReportSubject,
 };
 pub use site::{SiteDelivery, SiteLayer, SiteSet};
 

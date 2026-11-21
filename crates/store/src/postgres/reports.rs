@@ -9,8 +9,8 @@ use venti_domain::Timestamp;
 use super::{corrupt, db_error};
 use crate::report::{ReportedWords, check, check_note};
 use crate::{
-    NewReport, Report, ReportClosing, ReportClosure, ReportKey, ReportListing, ReportSaved,
-    ReportSubject, StoreError,
+    NewReport, Report, ReportAbout, ReportClosing, ReportClosure, ReportKey, ReportListing,
+    ReportSaved, ReportSubject, StoreError,
 };
 
 /// The index that holds an account to one open report about a group,
@@ -24,16 +24,29 @@ fn report_from(row: &Row) -> Result<Report, StoreError> {
         name: row.get("reported_name"),
         place: row.get("reported_place"),
         note: row.get("reported_note"),
+        site_revision: row
+            .get::<_, Option<i32>>("site_revision")
+            .map(|revision| {
+                u32::try_from(revision).map_err(|_| corrupt("revision of a reported site", kind))
+            })
+            .transpose()?,
     };
+    // A report about a site has no second account; every other has one,
+    // which the database holds it to.
+    let about = row
+        .get::<_, Option<String>>("about_account_id")
+        .map(|account_id| ReportAbout {
+            account_id,
+            handle: row.get("about_handle"),
+            name: row.get("about_name"),
+        });
     let closed_at: Option<Timestamp> = row.get("closed_at");
     let closing_note: Option<String> = row.get("closing_note");
     Ok(Report {
         id: row.get("id"),
         created_at: row.get("created_at"),
         reporter_handle: row.get("reporter_handle"),
-        about_account_id: row.get("about_account_id"),
-        about_handle: row.get("about_handle"),
-        about_name: row.get("about_name"),
+        about,
         subject: ReportSubject::from_parts(kind, subject_id, words)
             .ok_or_else(|| corrupt("kind of report", kind))?,
         reason: row.get("reason"),
@@ -44,8 +57,64 @@ fn report_from(row: &Row) -> Result<Report, StoreError> {
     })
 }
 
+/// Stores a report about a site that pilots made: one account, the
+/// reporter's, and the index of `0015_reports_about_sites.sql` holds the
+/// reporter to one open report per site.
+async fn save_about_site(
+    client: &Client,
+    new: &NewReport,
+    revision: u32,
+) -> Result<ReportSaved, StoreError> {
+    let revision = i32::try_from(revision)
+        .map_err(|_| StoreError::Invalid("a revision beyond what a site has".to_owned()))?;
+    let statement = client
+        .prepare_cached(
+            "INSERT INTO reports
+                 (id, created_at, reporter_id, kind, subject_id, reason, reporter_text,
+                  site_revision)
+             SELECT $1, $2, reporter.id, 'site', $4, $5, $6, $7
+             FROM accounts reporter
+             WHERE reporter.id = $3
+             ON CONFLICT (reporter_id, subject_id)
+                 WHERE closed_at IS NULL AND kind = 'site' DO NOTHING",
+        )
+        .await
+        .map_err(db_error)?;
+    let stored = client
+        .execute(
+            &statement,
+            &[
+                &new.id,
+                &new.created_at,
+                &new.reporter_id,
+                &new.subject.id(),
+                &new.reason,
+                &new.text,
+                &revision,
+            ],
+        )
+        .await
+        .map_err(db_error)?;
+    if stored > 0 {
+        return Ok(ReportSaved::Stored);
+    }
+    // Nothing was stored: the reporter is missing, or the report is open.
+    let reporter = client
+        .query_opt("SELECT 1 FROM accounts WHERE id = $1", &[&new.reporter_id])
+        .await
+        .map_err(db_error)?;
+    Ok(if reporter.is_some() {
+        ReportSaved::AlreadyOpen
+    } else {
+        ReportSaved::NoSuchAccount
+    })
+}
+
 pub(super) async fn save(client: &Client, new: &NewReport) -> Result<ReportSaved, StoreError> {
     check(new)?;
+    if let ReportSubject::Site { revision, .. } = &new.subject {
+        return save_about_site(client, new, *revision).await;
+    }
     // One statement: the report is stored if both accounts are there and
     // its reporter has no open report about the same subject. Of two calls
     // that race, the unique index lets one through.
@@ -138,10 +207,11 @@ pub(super) async fn list(
         "SELECT r.id, r.created_at, reporter.handle AS reporter_handle, r.about_account_id,
                 about.handle AS about_handle, about.display_name AS about_name,
                 r.kind, r.subject_id, r.group_id, r.reported_name, r.reported_place,
-                r.reported_note, r.reason, r.reporter_text, r.closed_at, r.closing_note
+                r.reported_note, r.site_revision, r.reason, r.reporter_text, r.closed_at,
+                r.closing_note
          FROM reports r
          JOIN accounts reporter ON reporter.id = r.reporter_id
-         JOIN accounts about ON about.id = r.about_account_id
+         LEFT JOIN accounts about ON about.id = r.about_account_id
          WHERE true {only} {page}
          ORDER BY r.created_at, r.id
          LIMIT $1"

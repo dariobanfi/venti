@@ -22,7 +22,9 @@
 //! yet, and until they are no pilot but the owner should give a site to a
 //! public server. Reading the layer is never off.
 
-use venti_api_types::v1::{Attribution, VENTI_SITES_SOURCE};
+use venti_api_types::v1::{
+    Attribution, VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL, VENTI_SITES_SOURCE,
+};
 use venti_domain::{BoundingBox, GeoPoint, SourceId};
 use venti_store::Account;
 
@@ -48,11 +50,12 @@ pub struct Licence {
 
 /// The licence of the layer: CC0 1.0, the owner's decision of 2026-11-21
 /// ("CC0, public domain"; the decision log in `docs/architecture.md`).
-/// The one place that names it.
+/// Its name and address are constants of the wire types, where the apps'
+/// core reads them too; nothing else names the licence.
 pub const LICENCE: Licence = Licence {
     provider: "Venti contributors",
-    name: "CC0 1.0",
-    url: "https://creativecommons.org/publicdomain/zero/1.0/",
+    name: VENTI_SITES_LICENCE,
+    url: VENTI_SITES_LICENCE_URL,
     credit: "Venti contributors",
     notice: "Added by pilots and not verified. A site on the map is not permission to fly there.",
 };

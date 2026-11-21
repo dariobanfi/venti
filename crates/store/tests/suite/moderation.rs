@@ -9,8 +9,8 @@ use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
     Account, Flight, KeeperAct, Listing, LiveBatch, LiveFix, LiveKept, LiveRoom, LiveSaved,
     LiveVisibility, NewFlight, NewReport, PlanChange, PlanDetails, PlanRemoval, PublicFlights,
-    PublicOrder, Report, ReportClosing, ReportClosure, ReportListing, ReportSaved, ReportSubject,
-    Room, Saved, Store, StoreError, Suspension, Visibility, VisibilityChange,
+    PublicOrder, Report, ReportAbout, ReportClosing, ReportClosure, ReportListing, ReportSaved,
+    ReportSubject, Room, Saved, Store, StoreError, Suspension, Visibility, VisibilityChange,
 };
 
 use super::accounts::{create, id};
@@ -155,7 +155,7 @@ pub(crate) fn report(
         id: id(name),
         created_at: made_at,
         reporter_id: reporter.id.clone(),
-        about_account_id: about.id.clone(),
+        about_account_id: Some(about.id.clone()),
         subject,
         reason: "offensive".to_owned(),
         text: Some(format!("What {} says about it", reporter.handle)),
@@ -636,9 +636,11 @@ pub(crate) async fn a_report_is_kept_once_for_whoever_runs_the_server(store: &im
             id: first.id.clone(),
             created_at: at(12, 0),
             reporter_handle: "dario".to_owned(),
-            about_account_id: anna.id.clone(),
-            about_handle: "anna".to_owned(),
-            about_name: "Pilot anna".to_owned(),
+            about: Some(ReportAbout {
+                account_id: anna.id.clone(),
+                handle: "anna".to_owned(),
+                name: "Pilot anna".to_owned(),
+            }),
             subject: ReportSubject::Flight(id("anna1")),
             reason: "not_a_flight".to_owned(),
             text: first.text.clone(),
@@ -832,7 +834,7 @@ pub(crate) async fn a_report_goes_with_either_of_its_accounts(store: &impl Store
     // A report names the accounts as they are now.
     let reports = store.reports(ReportListing::All, None, 10).await.unwrap();
     assert_eq!(reports[0].reporter_handle, "bernd");
-    assert_eq!(reports[0].about_handle, "anna");
+    assert_eq!(reports[0].about.as_ref().unwrap().handle, "anna");
 
     store.delete_account(&anna.id).await.unwrap();
     assert!(names(store, ReportListing::All).await.is_empty());
@@ -920,9 +922,11 @@ pub(crate) async fn a_report_about_a_group_or_a_plan_keeps_its_words(store: &imp
             id: id("r1"),
             created_at: at(13, 0),
             reporter_handle: "bernd".to_owned(),
-            about_account_id: dario.id.clone(),
-            about_handle: "dario".to_owned(),
-            about_name: "Pilot dario".to_owned(),
+            about: Some(ReportAbout {
+                account_id: dario.id.clone(),
+                handle: "dario".to_owned(),
+                name: "Pilot dario".to_owned(),
+            }),
             subject: group.clone(),
             reason: "offensive".to_owned(),
             text: Some("What bernd says about it".to_owned()),
@@ -930,7 +934,7 @@ pub(crate) async fn a_report_about_a_group_or_a_plan_keeps_its_words(store: &imp
         }
     );
     assert_eq!(reports[1].subject, plan);
-    assert_eq!(reports[1].about_handle, "anna");
+    assert_eq!(reports[1].about.as_ref().unwrap().handle, "anna");
     assert_eq!(reports[1].reporter_handle, "dario");
     assert_eq!(reports[2].subject, noteless);
     assert_eq!(reports[2].text, None);
@@ -1052,7 +1056,7 @@ pub(crate) async fn one_open_report_about_a_group_whoever_keeps_it(store: &impl 
     let reports = store.reports(ReportListing::All, None, 10).await.unwrap();
     assert_eq!(reports.len(), 1);
     assert_eq!(reports[0].subject, group_named("g1", "Group g1"));
-    assert_eq!(reports[0].about_handle, "dario");
+    assert_eq!(reports[0].about.as_ref().unwrap().handle, "dario");
 
     // Someone else's report about the group is another report, and so is
     // the keeper's own. A plan and a flight with the same letters are
@@ -1154,4 +1158,97 @@ pub(crate) async fn one_open_report_about_a_group_whoever_keeps_it(store: &impl 
         .count();
     assert_eq!((stored, already), (1, 3), "{results:?}");
     assert_eq!(names(store, ReportListing::Open).await.len(), 8);
+}
+
+// --- Reports about a site that pilots made -----------------------------------
+
+pub(crate) async fn a_report_about_a_site_names_no_second_account(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    // A site is named by its identifier, which refers to nothing here:
+    // the report is kept whatever becomes of the site.
+    let site = |name: &str, revision: u32| ReportSubject::Site {
+        id: format!("venti:{}", id(name)),
+        revision,
+    };
+    let about_site =
+        |name: &str, reporter: &Account, subject: ReportSubject, minute: u32| NewReport {
+            about_account_id: None,
+            ..report(name, reporter, reporter, subject, at(13, minute))
+        };
+
+    stored(store, &about_site("r1", &dario, site("s1", 1), 0)).await;
+    stored(store, &about_site("r2", &anna, site("s1", 2), 10)).await;
+    stored(store, &about_site("r3", &dario, site("s2", 1), 20)).await;
+    // One open report per reporter and site, whichever revision each is
+    // about.
+    let again = about_site("r4", &dario, site("s1", 3), 30);
+    assert_eq!(
+        store.save_report(&again).await.unwrap(),
+        ReportSaved::AlreadyOpen
+    );
+
+    let reports = store.reports(ReportListing::Open, None, 10).await.unwrap();
+    assert_eq!(reports.len(), 3);
+    assert_eq!(
+        reports[0],
+        Report {
+            id: id("r1"),
+            created_at: at(13, 0),
+            reporter_handle: "dario".to_owned(),
+            about: None,
+            subject: site("s1", 1),
+            reason: "offensive".to_owned(),
+            text: Some("What dario says about it".to_owned()),
+            closed: None,
+        }
+    );
+    assert_eq!(reports[1].subject, site("s1", 2));
+    assert_eq!(reports[1].reporter_handle, "anna");
+    assert_eq!(reports[2].subject, site("s2", 1));
+
+    // A site is nobody's, and nothing else is: neither store keeps a
+    // report that says otherwise.
+    let somebodys = NewReport {
+        about_account_id: Some(anna.id.clone()),
+        ..about_site("r5", &bernd, site("s1", 1), 40)
+    };
+    let nobodys = NewReport {
+        about_account_id: None,
+        ..about_flight("r6", &bernd, &anna, 1, at(13, 50))
+    };
+    let unnumbered = about_site("r7", &bernd, site("s1", 0), 55);
+    for wrong in [somebodys, nobodys, unnumbered] {
+        let refused = store.save_report(&wrong).await;
+        assert!(
+            matches!(refused, Err(StoreError::Invalid(_))),
+            "{refused:?}"
+        );
+    }
+    // A reporter who is not there reports nothing.
+    let mut ghost = about_site("r8", &bernd, site("s1", 1), 56);
+    ghost.reporter_id = id("ghost");
+    assert_eq!(
+        store.save_report(&ghost).await.unwrap(),
+        ReportSaved::NoSuchAccount
+    );
+
+    // Once the report is closed its reporter may report the site again.
+    let closing = store.close_report(&id("r1"), "corrected", at(14, 0)).await;
+    assert_eq!(closing.unwrap(), ReportClosing::Closed);
+    stored(store, &again).await;
+    assert_eq!(names(store, ReportListing::Open).await, ["r2", "r3", "r4"]);
+    assert_eq!(
+        names(store, ReportListing::All).await,
+        ["r1", "r2", "r3", "r4"]
+    );
+
+    // An account that goes takes the reports it made, as always. No
+    // other account's going touches a report about a site: whoever added
+    // the site is not named by it.
+    store.delete_account(&bernd.id).await.unwrap();
+    assert_eq!(names(store, ReportListing::Open).await, ["r2", "r3", "r4"]);
+    store.delete_account(&anna.id).await.unwrap();
+    assert_eq!(names(store, ReportListing::Open).await, ["r3", "r4"]);
 }

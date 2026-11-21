@@ -8,28 +8,6 @@ use venti_domain::{Site, SiteId, SourceId, Timestamp};
 use crate::run::fetch_all;
 use crate::{Archive, Failure, Fetch, Fetched, PlanCtx, Request, RunOptions, SiteSource, Skipped};
 
-/// Lowest and highest site heights accepted, in metres.
-const ELEVATION_LIMITS: (f64, f64) = (-500.0, 9000.0);
-
-/// The longest name a site may carry, in characters. The longest in the
-/// first region's data of 2026 has 68.
-const MAX_NAME_CHARS: usize = 200;
-
-/// The most wind sectors a site may carry: more than the sixteen points of
-/// a compass named one by one is a damaged record.
-const MAX_SECTORS: usize = 16;
-
-/// The longest web address a site may carry, in characters. OpenStreetMap
-/// keeps no value longer than 255.
-const MAX_WEBSITE_CHARS: usize = 500;
-
-/// The longest description a site may carry, in characters.
-const MAX_DESCRIPTION_CHARS: usize = 1000;
-
-/// The longest word about a fee or a time without flying a site may
-/// carry, in characters.
-const MAX_REMARK_CHARS: usize = 100;
-
 /// Something about a site that the pipeline refused to pass on.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SiteRejection {
@@ -185,151 +163,19 @@ pub async fn run_sites(
 ///
 /// Every site record passes this, whoever it is from: a source's adapter
 /// has its records cleaned by it, and the server refuses a record a pilot
-/// sends if this would remove anything of it.
+/// sends if this would remove anything of it. The check and its numbers
+/// are the record's own ([`Site::check`]), so that an app can say before
+/// sending what the server would refuse.
 pub fn check_site(site: &mut Site) -> Vec<SiteRejection> {
-    let mut rejections = Vec::new();
-    let mut reject = |field: &str, reason: String| {
-        rejections.push(SiteRejection {
-            site: site.id.to_string(),
-            field: field.to_owned(),
-            reason,
-        });
-    };
-
-    site.uses.sort_unstable();
-    site.uses.dedup();
-
-    if let Some(name) = &site.name {
-        let length = name.chars().count();
-        if name.trim().is_empty() {
-            site.name = None;
-        } else if length > MAX_NAME_CHARS || name.chars().any(char::is_control) {
-            reject(
-                "name",
-                format!("{length} characters, or one that does not print"),
-            );
-            site.name = None;
-        }
-    }
-
-    if let Some(value) = site.elevation_m {
-        let (low, high) = ELEVATION_LIMITS;
-        if !value.is_finite() || !(low..=high).contains(&value) {
-            reject("elevation_m", format!("{value} is outside {low}..={high}"));
-            site.elevation_m = None;
-        }
-    }
-
-    let on_the_compass = |deg: f64| deg.is_finite() && (0.0..=360.0).contains(&deg);
-    let sectors_fit = site.wind_directions.len() <= MAX_SECTORS
-        && site
-            .wind_directions
-            .iter()
-            .all(|sector| on_the_compass(sector.from_deg) && on_the_compass(sector.to_deg));
-    if !sectors_fit {
-        reject(
-            "wind_directions",
-            "a direction outside 0..=360, or more sectors than a compass has points".to_owned(),
-        );
-        site.wind_directions.clear();
-    }
-
-    if site
-        .url
-        .as_ref()
-        .is_some_and(|url| !url.starts_with("https://") || url.chars().any(char::is_whitespace))
-    {
-        reject("url", "not an https address".to_owned());
-        site.url = None;
-    }
-
-    if site
-        .website
-        .as_ref()
-        .is_some_and(|website| !is_web_address(website))
-    {
-        reject("website", "not an http or https address".to_owned());
-        site.website = None;
-    }
-
-    // What somebody wrote about the site: it is shown as written, so what
-    // does not print is removed with the whole text, and nothing is cut.
-    let unfit = |text: &str, longest: usize, lines: bool| {
-        let length = text.chars().count();
-        let prints = |c: char| !c.is_control() || (lines && c == '\n');
-        (length > longest || !text.chars().all(prints))
-            .then(|| format!("{length} characters, or one that does not print"))
-    };
-    if let Some(reason) = site
-        .description
-        .as_ref()
-        .and_then(|text| unfit(text, MAX_DESCRIPTION_CHARS, true))
-    {
-        reject("description", reason);
-        site.description = None;
-    }
-    if let Some(reason) = site
-        .fee
-        .as_ref()
-        .and_then(|text| unfit(text, MAX_REMARK_CHARS, false))
-    {
-        reject("fee", reason);
-        site.fee = None;
-    }
-    if let Some(reason) = site
-        .no_flight_time
-        .as_ref()
-        .and_then(|text| unfit(text, MAX_REMARK_CHARS, false))
-    {
-        reject("no_flight_time", reason);
-        site.no_flight_time = None;
-    }
-    for text in [
-        &mut site.description,
-        &mut site.fee,
-        &mut site.no_flight_time,
-    ] {
-        if text.as_ref().is_some_and(|text| text.trim().is_empty()) {
-            *text = None;
-        }
-    }
-
-    rejections
-}
-
-/// Whether a text is the address of a web page: `http://` or `https://`,
-/// then a host of letters, digits, dots and hyphens with a dot in it and,
-/// if it names one, a port, then nothing or a path that begins with `/`,
-/// `?` or `#`. No blanks, nothing that does not print, no name and
-/// password before the host. An address a browser would also open is
-/// refused where it is not of this plain form; that costs a site its link
-/// and nothing else.
-fn is_web_address(text: &str) -> bool {
-    let Some(rest) = text
-        .strip_prefix("https://")
-        .or_else(|| text.strip_prefix("http://"))
-    else {
-        return false;
-    };
-    if text.chars().count() > MAX_WEBSITE_CHARS
-        || text.chars().any(|c| c.is_whitespace() || c.is_control())
-    {
-        return false;
-    }
-    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let (host, port) = match rest[..end].split_once(':') {
-        Some((host, port)) => (host, Some(port)),
-        None => (&rest[..end], None),
-    };
-    let label = |label: &str| {
-        !label.is_empty()
-            && !label.starts_with('-')
-            && !label.ends_with('-')
-            && label.chars().all(|c| c.is_alphanumeric() || c == '-')
-    };
-    host.contains('.')
-        && host.split('.').all(label)
-        && port.is_none_or(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+    let id = site.id.to_string();
+    site.check()
+        .into_iter()
+        .map(|fault| SiteRejection {
+            site: id.clone(),
+            field: fault.field.to_owned(),
+            reason: fault.reason,
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -337,6 +183,10 @@ mod tests {
     use venti_domain::{GeoPoint, SiteUse, WindSector};
 
     use super::*;
+
+    fn is_web_address(text: &str) -> bool {
+        Site::is_web_address(text)
+    }
 
     fn site() -> Site {
         Site {

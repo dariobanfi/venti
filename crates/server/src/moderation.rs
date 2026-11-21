@@ -1181,7 +1181,11 @@ async fn described(
     gone_before: NaiveDate,
     report: &Report,
 ) -> Result<String, venti_store::StoreError> {
-    let about = who(&report.about_handle, &report.about_name);
+    // Every report but one about a site names an account.
+    let about = report.about.as_ref().map_or_else(
+        || "nobody".to_owned(),
+        |about| who(&about.handle, &about.name),
+    );
     let link = |path: String| site.public_url.map(|url| format!("{url}{path}"));
     // What a report about a group or a plan kept of it, and what it is
     // now: lines of their own under the first.
@@ -1238,9 +1242,45 @@ async fn described(
                 address.and_then(link),
             )
         }
+        ReportSubject::Site { id, revision } => {
+            // Nothing of the site is kept with the report: its revisions
+            // are, and `site` shows them.
+            let now = match id.parse::<SiteId>() {
+                Ok(site_id) => match store.pilot_site(&site_id).await? {
+                    Some(seen) if seen.taken_down => "taken down".to_owned(),
+                    Some(seen) if !seen.stands() => {
+                        format!("removed, at revision {}", seen.revision)
+                    }
+                    Some(seen) => format!(
+                        "at revision {}, called {}",
+                        seen.revision,
+                        seen.site
+                            .name
+                            .as_deref()
+                            .map_or_else(|| "nothing".to_owned(), quoted)
+                    ),
+                    None => "gone".to_owned(),
+                },
+                Err(_) => "gone".to_owned(),
+            };
+            labelled(&mut kept, "Now:", &now);
+            labelled(
+                &mut kept,
+                "Read it:",
+                &format!("venti-server site {}", on_one_line(id)),
+            );
+            (
+                format!(
+                    "site {}, revision {revision}; made by pilots and nobody's",
+                    on_one_line(id)
+                ),
+                None,
+            )
+        }
         ReportSubject::Pilot => {
+            let handle = report.about.as_ref().map_or("", |about| &about.handle);
             let suspended = store
-                .account(&report.about_handle)
+                .account(handle)
                 .await?
                 .is_some_and(|account| account.publishing_suspended_at.is_some());
             let now = if suspended {

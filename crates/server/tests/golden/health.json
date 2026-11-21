@@ -4,6 +4,7 @@
   "time": "2026-11-18T19:05:00Z",
   "forecasts": "available",
   "registration": "open",
+  "sites_from_pilots": "open",
   "thermal_map": {
     "source": "open-meteo",
     "computed_at": "2026-11-21T09:30:00Z",

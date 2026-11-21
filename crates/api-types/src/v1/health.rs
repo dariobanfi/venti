@@ -22,6 +22,12 @@ pub struct HealthResponse {
     /// the field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registration: Option<RegistrationMode>,
+    /// Whether the server takes flying sites from pilots: whether a
+    /// signed-in pilot can add a site and correct one. An app offers
+    /// neither where this is not `open`. Left out by a server older than
+    /// the sites that pilots make, which takes none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sites_from_pilots: Option<SitesFromPilots>,
     /// Whether the server sees the addresses of those who ask it. For
     /// whoever runs the server; an app has no use for it. Left out while
     /// too few requests have arrived to tell, and by an older server.
@@ -91,6 +97,26 @@ pub enum ForecastsHealth {
     /// or none of its regions names one. `GET /v1/forecast` answers with
     /// [`ErrorCode::NoForecasts`](super::ErrorCode::NoForecasts).
     NotConfigured,
+    /// A state this version of the client does not know.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Whether a server takes flying sites from pilots.
+///
+/// Reading the sites that pilots made is never off: this is about adding
+/// and correcting them. An account whose publishing is suspended writes
+/// none on a server that takes them; that is the account's and is not
+/// said here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SitesFromPilots {
+    /// A signed-in pilot can add a site and correct one, inside the
+    /// regions the server serves.
+    Open,
+    /// The server takes none: every write answers
+    /// [`ErrorCode::SitesClosed`](super::ErrorCode::SitesClosed).
+    Closed,
     /// A state this version of the client does not know.
     #[serde(other)]
     Unknown,

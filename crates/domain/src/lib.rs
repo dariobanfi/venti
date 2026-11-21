@@ -43,7 +43,7 @@ pub use radar::{
     RADAR_DRY, RADAR_MAX_SIDE, RADAR_STEP_DEG, RADAR_UNSEEN, RAIN_STEPS_MM_H, RadarFrame,
     RadarGrid, rain_step,
 };
-pub use site::{Site, SiteOutline, SiteOutlineError, SiteUse, WindSector};
+pub use site::{Site, SiteFault, SiteOutline, SiteOutlineError, SiteUse, WindSector};
 pub use station::Station;
 
 /// A point in time, always UTC.

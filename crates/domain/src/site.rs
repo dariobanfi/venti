@@ -225,11 +225,202 @@ impl WindSector {
     }
 }
 
+/// Something of a site record that cannot be right: what [`Site::check`]
+/// removed, and what whoever takes a record from a pilot refuses it for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SiteFault {
+    /// The field of the record, by its name on the wire.
+    pub field: &'static str,
+    /// Why, for whoever debugs a client or reads a run's report. It
+    /// repeats nothing of a text.
+    pub reason: String,
+}
+
 impl Site {
+    /// Lowest and highest site heights accepted, in metres.
+    pub const ELEVATION_LIMITS_M: (f64, f64) = (-500.0, 9000.0);
+
+    /// The longest name a site may carry, in characters. The longest in
+    /// the first region's data of 2026 has 68.
+    pub const MAX_NAME_CHARS: usize = 200;
+
+    /// The most wind sectors a site may carry: more than the sixteen
+    /// points of a compass named one by one is a damaged record.
+    pub const MAX_SECTORS: usize = 16;
+
+    /// The longest web address a site may carry, in characters.
+    /// OpenStreetMap keeps no value longer than 255.
+    pub const MAX_WEBSITE_CHARS: usize = 500;
+
+    /// The longest description a site may carry, in characters.
+    pub const MAX_DESCRIPTION_CHARS: usize = 1000;
+
+    /// The longest word about a fee or a time without flying a site may
+    /// carry, in characters.
+    pub const MAX_REMARK_CHARS: usize = 100;
+
+    /// Whether a text is a web address a site may carry as its
+    /// `website`: `http://` or `https://`, a plain host with a dot in it,
+    /// then nothing or a path, and no blank anywhere.
+    pub fn is_web_address(text: &str) -> bool {
+        is_web_address(text)
+    }
+
     /// Whether the site has this use.
     pub fn is(&self, used_for: SiteUse) -> bool {
         self.uses.contains(&used_for)
     }
+
+    /// Removes from the record what cannot be right, and puts its uses in
+    /// order. Returns what was removed.
+    ///
+    /// Every site record passes this, whoever it is from: a source's
+    /// records are cleaned by it, a record a pilot sends is refused if
+    /// this would remove anything of it, and an app asks it before
+    /// sending. It is here, below everything, so that the three read the
+    /// same numbers.
+    pub fn check(&mut self) -> Vec<SiteFault> {
+        let mut faults = Vec::new();
+        let mut fault = |field: &'static str, reason: String| {
+            faults.push(SiteFault { field, reason });
+        };
+
+        self.uses.sort_unstable();
+        self.uses.dedup();
+
+        if let Some(name) = &self.name {
+            let length = name.chars().count();
+            if name.trim().is_empty() {
+                self.name = None;
+            } else if length > Self::MAX_NAME_CHARS || name.chars().any(char::is_control) {
+                fault(
+                    "name",
+                    format!("{length} characters, or one that does not print"),
+                );
+                self.name = None;
+            }
+        }
+
+        if let Some(value) = self.elevation_m {
+            let (low, high) = Self::ELEVATION_LIMITS_M;
+            if !value.is_finite() || !(low..=high).contains(&value) {
+                fault("elevation_m", format!("{value} is outside {low}..={high}"));
+                self.elevation_m = None;
+            }
+        }
+
+        let on_the_compass = |deg: f64| deg.is_finite() && (0.0..=360.0).contains(&deg);
+        let sectors_fit = self.wind_directions.len() <= Self::MAX_SECTORS
+            && self
+                .wind_directions
+                .iter()
+                .all(|sector| on_the_compass(sector.from_deg) && on_the_compass(sector.to_deg));
+        if !sectors_fit {
+            fault(
+                "wind_directions",
+                "a direction outside 0..=360, or more sectors than a compass has points".to_owned(),
+            );
+            self.wind_directions.clear();
+        }
+
+        if self
+            .url
+            .as_ref()
+            .is_some_and(|url| !url.starts_with("https://") || url.chars().any(char::is_whitespace))
+        {
+            fault("url", "not an https address".to_owned());
+            self.url = None;
+        }
+
+        if self
+            .website
+            .as_ref()
+            .is_some_and(|website| !is_web_address(website))
+        {
+            fault("website", "not an http or https address".to_owned());
+            self.website = None;
+        }
+
+        // What somebody wrote about the site: it is shown as written, so
+        // what does not print is removed with the whole text, and nothing
+        // is cut.
+        let unfit = |text: &str, longest: usize, lines: bool| {
+            let length = text.chars().count();
+            let prints = |c: char| !c.is_control() || (lines && c == '\n');
+            (length > longest || !text.chars().all(prints))
+                .then(|| format!("{length} characters, or one that does not print"))
+        };
+        if let Some(reason) = self
+            .description
+            .as_ref()
+            .and_then(|text| unfit(text, Self::MAX_DESCRIPTION_CHARS, true))
+        {
+            fault("description", reason);
+            self.description = None;
+        }
+        if let Some(reason) = self
+            .fee
+            .as_ref()
+            .and_then(|text| unfit(text, Self::MAX_REMARK_CHARS, false))
+        {
+            fault("fee", reason);
+            self.fee = None;
+        }
+        if let Some(reason) = self
+            .no_flight_time
+            .as_ref()
+            .and_then(|text| unfit(text, Self::MAX_REMARK_CHARS, false))
+        {
+            fault("no_flight_time", reason);
+            self.no_flight_time = None;
+        }
+        for text in [
+            &mut self.description,
+            &mut self.fee,
+            &mut self.no_flight_time,
+        ] {
+            if text.as_ref().is_some_and(|text| text.trim().is_empty()) {
+                *text = None;
+            }
+        }
+
+        faults
+    }
+}
+
+/// Whether a text is the address of a web page: `http://` or `https://`,
+/// then a host of letters, digits, dots and hyphens with a dot in it and,
+/// if it names one, a port, then nothing or a path that begins with `/`,
+/// `?` or `#`. No blanks, nothing that does not print, no name and
+/// password before the host. An address a browser would also open is
+/// refused where it is not of this plain form; that costs a site its link
+/// and nothing else.
+pub(crate) fn is_web_address(text: &str) -> bool {
+    let Some(rest) = text
+        .strip_prefix("https://")
+        .or_else(|| text.strip_prefix("http://"))
+    else {
+        return false;
+    };
+    if text.chars().count() > Site::MAX_WEBSITE_CHARS
+        || text.chars().any(|c| c.is_whitespace() || c.is_control())
+    {
+        return false;
+    }
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let (host, port) = match rest[..end].split_once(':') {
+        Some((host, port)) => (host, Some(port)),
+        None => (&rest[..end], None),
+    };
+    let label = |label: &str| {
+        !label.is_empty()
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label.chars().all(|c| c.is_alphanumeric() || c == '-')
+    };
+    host.contains('.')
+        && host.split('.').all(label)
+        && port.is_none_or(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
 }
 
 #[cfg(test)]

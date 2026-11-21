@@ -11,7 +11,8 @@
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use venti_api_types::v1::{
     Attribution, HEALTH_PATH, HealthResponse, ObservationsRequest, ObservationsResponse, Reading,
-    RegistrationMode, StationWithLatest, StationsRequest, StationsResponse, format_day, parse_day,
+    RegistrationMode, SitesFromPilots, StationWithLatest, StationsRequest, StationsResponse,
+    format_day, parse_day,
 };
 use venti_domain::{BoundingBox, StationId};
 
@@ -292,6 +293,14 @@ pub struct ServerStatus {
     /// does not know. Such a server may ask for an invite code, so a form
     /// for a new account then offers the field for one.
     pub registration: Option<Registration>,
+    /// Whether the server takes flying sites from pilots: whether to
+    /// offer "Add a site" and "Correct this site" at all. `false` when
+    /// the server says it takes none, when it does not say, as one older
+    /// than the question, and when it says something this version does
+    /// not know. A record a shell builds without it takes none.
+    #[uniffi(default = false)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub takes_sites_from_pilots: bool,
 }
 
 /// The path to `GET` to learn how the server is doing.
@@ -319,6 +328,7 @@ pub fn server_status(status: u16, body: Vec<u8>) -> Result<ServerStatus, CoreErr
             Some(RegistrationMode::Closed) => Some(Registration::Closed),
             Some(RegistrationMode::Unknown) | None => None,
         },
+        takes_sites_from_pilots: response.sites_from_pilots == Some(SitesFromPilots::Open),
     })
 }
 
@@ -994,6 +1004,28 @@ mod tests {
         // A rule a later server may have: taken as "does not say", which
         // leaves the field for an invite code on the form.
         assert_eq!(says("by_email"), None);
+    }
+
+    #[test]
+    fn whether_the_server_takes_sites_from_pilots_is_read_and_silence_is_no() {
+        let says = |fact: &str| {
+            let body = format!(
+                r#"{{"status": "ok", "version": "0.1.0", "time": "2026-11-18T19:05:00Z",
+                    {fact} "sources": []}}"#
+            );
+            server_status(200, body.into_bytes())
+                .unwrap()
+                .takes_sites_from_pilots
+        };
+        assert!(says(r#""sites_from_pilots": "open","#));
+        assert!(!says(r#""sites_from_pilots": "closed","#));
+        // A server older than the question, and an answer a later server
+        // may give: the entry is left out.
+        assert!(!says(""));
+        assert!(!says(r#""sites_from_pilots": "members_only","#));
+        // The development mode's answer, as the server's tests keep it.
+        let status = server_status(200, golden("health.json")).unwrap();
+        assert!(status.takes_sites_from_pilots);
     }
 
     /// The server's own recorded answers, which its tests keep current.

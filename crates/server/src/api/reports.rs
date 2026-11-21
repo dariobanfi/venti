@@ -1,6 +1,6 @@
 //! Reports: a signed-in pilot tells whoever runs the server that a flight,
-//! a pilot's page, a live track, a group or a plan of a group should not
-//! be there.
+//! a pilot's page, a live track, a group, a plan of a group or a site that
+//! pilots made should not be there, or not as it is.
 //!
 //! A report is stored and nothing else happens: no flight is hidden, no
 //! account is touched, no group is changed, nobody is told. Whoever runs
@@ -18,6 +18,10 @@
 //! **A group's name and a plan's words are kept with the report**, as the
 //! reporter saw them at that moment: both can be changed or be gone before
 //! anyone reads the report. Nothing else of a group or a plan is.
+//!
+//! **A report about a site names no account**: a site that pilots made is
+//! nobody's and outlives whoever added it. It names the revision it is
+//! about and copies nothing: every revision of a site is kept.
 //!
 //! **Nothing of a report reaches the log.** What is reported is named in
 //! the body, which is never logged, and not in the path: the identifier of
@@ -89,7 +93,7 @@ pub(crate) async fn create<S: Store>(
         ));
     }
 
-    // What is reported, as the reporter may see it. Each of the five is
+    // What is reported, as the reporter may see it. Each of the six is
     // found as the endpoint that shows it finds it, and what that endpoint
     // would not show is not there to report. A group and a plan are shown
     // to the members of the group and to nobody else.
@@ -98,17 +102,17 @@ pub(crate) async fn create<S: Store>(
             let viewer = Viewer::allowed(&signed);
             let flight = api.visible_flight(id, &viewer).await?;
             let subject = venti_store::ReportSubject::Flight(flight.id);
-            (flight.account_id, subject, flights::no_such_flight())
+            (Some(flight.account_id), subject, flights::no_such_flight())
         }
         ReportSubject::Pilot(handle) => {
             let account = api.pilot_with_a_page(handle).await?;
             let subject = venti_store::ReportSubject::Pilot;
-            (account.id, subject, pilots::no_such_pilot())
+            (Some(account.id), subject, pilots::no_such_pilot())
         }
         ReportSubject::LiveTrack(id) => {
             let track = api.live_track(id, now).await?;
             let subject = venti_store::ReportSubject::LiveTrack(track.id);
-            (track.account_id, subject, live::no_such_track())
+            (Some(track.account_id), subject, live::no_such_track())
         }
         ReportSubject::Group(id) => {
             // The report is about the group as its keeper keeps it, and
@@ -118,7 +122,11 @@ pub(crate) async fn create<S: Store>(
                 id: group.id,
                 name: group.name,
             };
-            (group.keeper.account_id, subject, groups::no_such_group())
+            (
+                Some(group.keeper.account_id),
+                subject,
+                groups::no_such_group(),
+            )
         }
         ReportSubject::Plan(named) => {
             // Of a plan the report takes the words along, and nothing of
@@ -132,7 +140,24 @@ pub(crate) async fn create<S: Store>(
                 place: plan.details.place,
                 note: plan.details.note,
             };
-            (plan.author.account_id, subject, groups::no_such_plan())
+            (
+                Some(plan.author.account_id),
+                subject,
+                groups::no_such_plan(),
+            )
+        }
+        ReportSubject::Site(named) => {
+            // A site that pilots made is nobody's: the report names no
+            // account, and nothing the site says is copied, because every
+            // revision of it is kept where the sites are.
+            let (id, revision) = api.reported_site(&named.id, named.revision).await?;
+            let subject = venti_store::ReportSubject::Site {
+                id: id.to_string(),
+                revision,
+            };
+            // Only the reporter's own account can be gone.
+            let gone = ApiError::unauthorized("the account this session belonged to is gone");
+            (None, subject, gone)
         }
     };
 

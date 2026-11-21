@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
-use venti_api_types::v1::{ErrorCode, ErrorResponse, Scope};
+use venti_api_types::v1::{ErrorCode, ErrorResponse, ErrorSite, Scope};
 use venti_store::StoreError;
 
 use super::log::Sparse;
@@ -19,6 +19,8 @@ pub(crate) struct ApiError {
     retry_after: Option<u64>,
     /// The scope the request's token lacks, where that is the error.
     scope: Option<Scope>,
+    /// The site the error names, for the one code that names one.
+    site: Option<ErrorSite>,
 }
 
 impl ApiError {
@@ -30,6 +32,7 @@ impl ApiError {
             // A server that cannot answer now usually can in half a minute.
             retry_after: (status == StatusCode::SERVICE_UNAVAILABLE).then_some(30),
             scope: None,
+            site: None,
         }
     }
 
@@ -37,6 +40,12 @@ impl ApiError {
     /// again makes sense.
     pub(crate) fn retry_after(mut self, seconds: u64) -> Self {
         self.retry_after = Some(seconds.max(1));
+        self
+    }
+
+    /// The same error, naming a site in its body.
+    pub(crate) fn naming(mut self, site: ErrorSite) -> Self {
+        self.site = Some(site);
         self
     }
 
@@ -139,6 +148,7 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let mut body = ErrorResponse::new(self.code, self.message);
         body.error.scope = self.scope;
+        body.error.site = self.site;
         let body = Json(body);
         let mut response = (self.status, body).into_response();
         let headers = response.headers_mut();

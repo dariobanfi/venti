@@ -6,8 +6,8 @@ use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponse, Response};
 use chrono::Duration;
 use venti_api_types::v1::{
-    ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, RegistrationMode, SourceHealth,
-    ThermalMapHealth, ThermalMapModelHealth,
+    ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, RegistrationMode, SitesFromPilots,
+    SourceHealth, ThermalMapHealth, ThermalMapModelHealth,
 };
 use venti_domain::{SourceId, Timestamp};
 use venti_sources::Kind;
@@ -105,6 +105,11 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
             Registration::Open => RegistrationMode::Open,
             Registration::Invite => RegistrationMode::Invite,
             Registration::Closed => RegistrationMode::Closed,
+        }),
+        sites_from_pilots: Some(if api.pilot_sites.accepts() {
+            SitesFromPilots::Open
+        } else {
+            SitesFromPilots::Closed
         }),
         client_addresses: api.clients.verdict(now),
         // The map is made in memory, so its state is read from the map and

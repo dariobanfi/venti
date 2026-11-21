@@ -171,6 +171,7 @@ macro_rules! store_suite {
             whoever_runs_the_server_removes_a_group_with_its_plans,
             a_report_about_a_group_or_a_plan_keeps_its_words,
             one_open_report_about_a_group_whoever_keeps_it,
+            a_report_about_a_site_names_no_second_account,
         );
     };
     (@tests $make:path; $($name:ident),* $(,)?) => {

@@ -1,6 +1,6 @@
 //! Reporting: how a pilot tells whoever runs the server that a flight, a
-//! pilot's page, a live track, a group or a plan of a group should not be
-//! there.
+//! pilot's page, a live track, a group, a plan of a group or a site that
+//! pilots made should not be there, or not as it is.
 //!
 //! A report goes to the operator and to nobody else. The server does
 //! nothing by itself when one arrives, the pilot who is reported is not
@@ -9,13 +9,17 @@
 //!
 //! The form is the subject's: a group and a plan are words and no flight,
 //! so their forms leave the reason about a flight out and say what the
-//! operator is given to read. A shell asks for the form with what is
-//! reported ([`report_form_for`]) and shows what it gets.
+//! operator is given to read. A site that pilots made is nobody's, and
+//! its form has the reasons of a site: that it is at the wrong place or
+//! says something dangerous, and that it is no flying site. A shell asks
+//! for the form with what is reported ([`report_form_for`]) and shows
+//! what it gets.
 
 use venti_api_types::v1::{
     self as api, GroupId, MAX_REPORT_TEXT_LENGTH, PlanId, ReportRequest, ReportResponse,
-    parse_report_text,
+    VENTI_SITES_SOURCE, parse_report_text,
 };
+use venti_domain::SiteId;
 
 use crate::account::json_request;
 use crate::server::{answer, code};
@@ -64,6 +68,21 @@ pub enum ReportSubject {
         /// The plan's identifier.
         id: String,
     },
+    /// A site that pilots made on Venti, as it stands. What is reported
+    /// is what it says: its place, its name and its texts. A site of
+    /// another source is not reported: it is corrected at its source.
+    Site {
+        /// The site's identifier.
+        id: String,
+    },
+    /// One revision of such a site, from its history: for words that
+    /// stood there once and can still be read.
+    SiteRevision {
+        /// The site's identifier.
+        id: String,
+        /// The revision's number.
+        revision: u32,
+    },
 }
 
 /// Why something is reported. The list is the server's and is short on
@@ -87,6 +106,11 @@ pub enum ReportReason {
     Spam,
     /// Anything else. The report then has to say what.
     Other,
+    /// A site is at the wrong place, or says something wrong that can
+    /// hurt a pilot. Only the form for a site offers it.
+    WrongOrDangerous,
+    /// The place is no flying site. Only the form for a site offers it.
+    NotASite,
 }
 
 /// A reason as a form offers it.
@@ -125,12 +149,14 @@ enum Reported {
     Group,
     /// A plan of a group: its place and its note.
     Plan,
+    /// A site that pilots made: its place, its name and its texts.
+    Site,
 }
 
 /// What a reason is called in a form and what it means there. `None` for
 /// a reason that a report about this kind of thing cannot give.
 fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'static str)> {
-    use Reported::{Group, Plan, Shared};
+    use Reported::{Group, Plan, Shared, Site};
     Some(match (reason, reported) {
         (ReportReason::Offensive, Shared) => (
             "Insulting or threatening",
@@ -144,6 +170,28 @@ fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'s
             "Insulting or threatening",
             "The plan's place or note insults, threatens or harasses.",
         ),
+        (ReportReason::WrongOrDangerous, Site) => (
+            "Wrong place or dangerous",
+            "The site is not where it is marked, or says something wrong that can hurt a pilot: a wind direction, a height, a landing that is none.",
+        ),
+        (ReportReason::NotASite, Site) => (
+            "Not a flying site",
+            "Nobody takes off or lands here, or nobody may.",
+        ),
+        // The reasons of a site are about a site.
+        (ReportReason::WrongOrDangerous | ReportReason::NotASite, Shared | Group | Plan) => {
+            return None;
+        }
+        (ReportReason::Offensive, Site) => (
+            "Insulting or threatening",
+            "The site's name or one of its texts insults, threatens or harasses.",
+        ),
+        (ReportReason::Privacy, Site) => (
+            "Shows something private",
+            "A text of the site says something about a person who did not agree to it: a name, where someone lives.",
+        ),
+        // A site is nobody's account and no flight.
+        (ReportReason::Impersonation | ReportReason::NotAFlight, Site) => return None,
         (ReportReason::Impersonation, Shared) => (
             "Pretends to be someone else",
             "The account passes itself off as another person or as an organisation.",
@@ -182,8 +230,11 @@ fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'s
     })
 }
 
-/// Every reason, in the order the server lists them.
-const REASONS: [ReportReason; 6] = [
+/// Every reason, in the order the server lists them: the two of a site
+/// first, as its form lists them, then the rest.
+const REASONS: [ReportReason; 8] = [
+    ReportReason::WrongOrDangerous,
+    ReportReason::NotASite,
     ReportReason::Offensive,
     ReportReason::Impersonation,
     ReportReason::Privacy,
@@ -214,6 +265,9 @@ fn form(reported: Reported) -> ReportForm {
         Reported::Plan => {
             "Whoever runs Venti reads the report, with the plan's place and note as they are now, and sees that it came from you. Nobody in the group is told, and no answer comes back."
         }
+        Reported::Site => {
+            "Whoever runs Venti reads the report, with the site and its history, and sees that it came from you. The pilots who added or changed the site are not told, and no answer comes back. If you know what is right, correcting the site yourself is quicker."
+        }
     };
     ReportForm {
         reasons,
@@ -243,6 +297,7 @@ pub fn report_form_for(subject: ReportSubject) -> ReportForm {
         | ReportSubject::LiveTrack { .. } => Reported::Shared,
         ReportSubject::Group { .. } => Reported::Group,
         ReportSubject::Plan { .. } => Reported::Plan,
+        ReportSubject::Site { .. } | ReportSubject::SiteRevision { .. } => Reported::Site,
     })
 }
 
@@ -276,6 +331,15 @@ pub fn report_request(
             group: group_id,
             id,
         }),
+        ReportSubject::Site { id } => {
+            api::ReportSubject::Site(api::ReportedSite { id, revision: None })
+        }
+        ReportSubject::SiteRevision { id, revision } => {
+            api::ReportSubject::Site(api::ReportedSite {
+                id,
+                revision: Some(revision),
+            })
+        }
     };
     // The server's list of subjects, read to its end: a kind it gains has
     // to be given words here before the core builds again.
@@ -286,6 +350,15 @@ pub fn report_request(
         api::ReportSubject::Group(id) => id.parse::<GroupId>().is_ok(),
         api::ReportSubject::Plan(plan) => {
             plan.group.parse::<GroupId>().is_ok() && plan.id.parse::<PlanId>().is_ok()
+        }
+        // Only a site that pilots made is reported, as it stands or at a
+        // revision it has had.
+        api::ReportSubject::Site(site) => {
+            site.revision != Some(0)
+                && site
+                    .id
+                    .parse::<SiteId>()
+                    .is_ok_and(|id| id.source().as_str() == VENTI_SITES_SOURCE)
         }
     };
     if !names_something {
@@ -300,12 +373,21 @@ pub fn report_request(
         ReportReason::NotAFlight => api::ReportReason::NotAFlight,
         ReportReason::Spam => api::ReportReason::Spam,
         ReportReason::Other => api::ReportReason::Other,
+        ReportReason::WrongOrDangerous => api::ReportReason::WrongOrDangerous,
+        ReportReason::NotASite => api::ReportReason::NotASite,
     };
-    // The form for a group or a plan does not offer the reason about a
-    // flight, and the server would refuse it.
+    // A form offers the reasons of its subject, and the server would
+    // refuse any other.
     if !subject.reasons().contains(&reason) {
+        let message = match reason {
+            api::ReportReason::NotAFlight => "This reason is about a flight. Choose another.",
+            api::ReportReason::WrongOrDangerous | api::ReportReason::NotASite => {
+                "This reason is about a flying site. Choose another."
+            }
+            _ => "This reason does not fit what you report. Choose another.",
+        };
         return Err(CoreError::Server {
-            message: "This reason is about a flight. Choose another.".to_owned(),
+            message: message.to_owned(),
         });
     }
     json_request(
@@ -336,6 +418,12 @@ pub fn report_sent(status: u16, body: Vec<u8>) -> Result<String, CoreError> {
         (_, Some("flight_not_found")) => Some("This flight is no longer there."),
         (_, Some("pilot_not_found")) => Some("This pilot is no longer there."),
         (_, Some("live_track_not_found")) => Some("This track is no longer there."),
+        (_, Some("site_not_found" | "site_gone")) => Some("This site is no longer there."),
+        (_, Some("site_revision_not_found")) => Some("The site has no such revision."),
+        // A site of a source, which the form is not offered for.
+        (_, Some("invalid_report")) => Some(
+            "This cannot be reported here. A site of another source is corrected at its source.",
+        ),
         (429, _) => Some("You have sent many reports today. Try again tomorrow."),
         // The core put the request together, so a server that cannot read
         // it knows fewer kinds of subject than the app: it is from before
@@ -764,6 +852,144 @@ mod tests {
             .unwrap();
             let body: serde_json::Value = serde_json::from_slice(&request.body.unwrap()).unwrap();
             assert_eq!(body["reason"], theirs.name().unwrap());
+        }
+    }
+
+    const SITE: &str = "venti:0000000000000000000000s001";
+
+    #[test]
+    fn a_site_that_pilots_made_is_reported_with_the_reasons_of_a_site() {
+        let site = || ReportSubject::Site {
+            id: SITE.to_owned(),
+        };
+        let revision = ReportSubject::SiteRevision {
+            id: SITE.to_owned(),
+            revision: 2,
+        };
+        // The example of the server's documentation, word for word.
+        let request = report_request(
+            site(),
+            ReportReason::WrongOrDangerous,
+            "The take-off is on the other side of the ridge.".to_owned(),
+        )
+        .unwrap();
+        assert_eq!(request.path, "/v1/reports");
+        assert!(request.needs_token);
+        let body: serde_json::Value = serde_json::from_slice(&request.body.unwrap()).unwrap();
+        assert_eq!(body, golden("report_site_request.json"));
+        let request = report_request(revision.clone(), ReportReason::Offensive, String::new());
+        let body: serde_json::Value =
+            serde_json::from_slice(&request.unwrap().body.unwrap()).unwrap();
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "subject": { "site": { "id": SITE, "revision": 2 } },
+                "reason": "offensive"
+            })
+        );
+
+        // The form: the two reasons of a site first, then those about a
+        // text; nothing about an account or a flight.
+        let form = report_form_for(site());
+        assert_eq!(form, report_form_for(revision));
+        let listed: Vec<_> = form.reasons.iter().map(|choice| choice.reason).collect();
+        assert_eq!(
+            listed,
+            [
+                ReportReason::WrongOrDangerous,
+                ReportReason::NotASite,
+                ReportReason::Offensive,
+                ReportReason::Privacy,
+                ReportReason::Spam,
+                ReportReason::Other,
+            ]
+        );
+        let titles: Vec<&str> = form.reasons.iter().map(|c| c.title.as_str()).collect();
+        assert_eq!(
+            titles,
+            [
+                "Wrong place or dangerous",
+                "Not a flying site",
+                "Insulting or threatening",
+                "Shows something private",
+                "Advertising",
+                "Something else",
+            ]
+        );
+        assert_eq!(
+            form.notice,
+            "Whoever runs Venti reads the report, with the site and its history, and sees that it came from you. The pilots who added or changed the site are not told, and no answer comes back. If you know what is right, correcting the site yourself is quicker."
+        );
+        // Each sends the name the server's list has at the same place.
+        let theirs = api::ReportSubject::Site(api::ReportedSite {
+            id: SITE.to_owned(),
+            revision: None,
+        });
+        assert_eq!(form.reasons.len(), theirs.reasons().len());
+        for (choice, reason) in form.reasons.iter().zip(theirs.reasons()) {
+            let text = if choice.reason == ReportReason::Other {
+                "why"
+            } else {
+                ""
+            };
+            let request = report_request(site(), choice.reason, text.to_owned()).unwrap();
+            let body: serde_json::Value = serde_json::from_slice(&request.body.unwrap()).unwrap();
+            assert_eq!(body["reason"], reason.name().unwrap());
+        }
+
+        // The reasons of a site are no reasons about anything else, and
+        // the others' own are none of a site's.
+        assert_eq!(
+            words(report_request(
+                a_group(),
+                ReportReason::NotASite,
+                String::new()
+            )),
+            "This reason is about a flying site. Choose another."
+        );
+        assert_eq!(
+            words(report_request(
+                site(),
+                ReportReason::NotAFlight,
+                String::new()
+            )),
+            "This reason is about a flight. Choose another."
+        );
+        assert_eq!(
+            words(report_request(
+                site(),
+                ReportReason::Impersonation,
+                String::new()
+            )),
+            "This reason does not fit what you report. Choose another."
+        );
+        // The forms that were there offer what they offered.
+        assert_eq!(report_form().reasons.len(), 6);
+        assert_eq!(report_form_for(a_group()).reasons.len(), 5);
+        // A source's site, what is no identifier, and a revision before
+        // the first name nothing to report.
+        for nothing in [
+            ReportSubject::Site {
+                id: "osm-free-flying:node/5964676196".to_owned(),
+            },
+            ReportSubject::Site { id: String::new() },
+            ReportSubject::SiteRevision {
+                id: SITE.to_owned(),
+                revision: 0,
+            },
+        ] {
+            assert_eq!(
+                words(report_request(nothing, ReportReason::Spam, String::new())),
+                "There is nothing here to report."
+            );
+        }
+        // A site that is gone by the time the report arrives.
+        for (status, code) in [(404, "site_not_found"), (410, "site_gone")] {
+            let body = format!(r#"{{"error":{{"code":"{code}","message":"x"}}}}"#);
+            assert_eq!(
+                words(report_sent(status, body.into_bytes())),
+                "This site is no longer there."
+            );
         }
     }
 }

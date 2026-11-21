@@ -198,7 +198,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 404 | `not_found` | The path is not part of the API. For the hours of the thermal map: the map has no such day, and `message` lists the days it has |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
-| 409 | `site_too_close`, `site_changed` | A [site](#sites-that-pilots-make) would stand less than 20 m from another; the site was changed since the revision the request names |
+| 409 | `site_too_close`, `site_changed` | A [site](#sites-that-pilots-make) would stand less than 20 m from another, which the error names in `error.site`; the site was changed since the revision the request names |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
 | 409 | `too_many_tokens` | The account holds as many [tokens for programs](#tokens-for-other-programs) as it may |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
@@ -231,6 +231,7 @@ How the server and each of its data sources are doing.
   "time": "2026-11-18T19:05:00Z",
   "forecasts": "available",
   "registration": "open",
+  "sites_from_pilots": "open",
   "thermal_map": {
     "source": "open-meteo",
     "computed_at": "2026-11-21T09:30:00Z",
@@ -368,6 +369,7 @@ How the server and each of its data sources are doing.
 | `client_addresses` | For whoever runs the server; an app ignores it. `seen` when requests arrive from addresses of their own. `hidden` when, in the last hour, twenty or more requests and at least a tenth of all came from one private address and from no other private one: a proxy or a container network is hiding the visitors, and the server counts them as one ([deploy/README.md](../deploy/README.md#the-visitors-address)). Left out while fewer than twenty requests have arrived |
 | `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server that was not told where its forecast service is. Such a server answers `/v1/forecast` with `501` and asks nobody else. Left out by a server older than forecasts, which has none |
 | `registration` | Who may create an account here: `open` (anyone), `invite` (whoever has an invite code, which `POST /v1/accounts` then needs) or `closed` (nobody; existing accounts sign in as before). An app shows the field for the invite code, or says that the server takes no new accounts, by this. Left out by a server older than this field, which may ask for a code: an app that reads nothing here offers the field. The development mode says `open` |
+| `sites_from_pilots` | Whether the server takes [sites from pilots](#sites-that-pilots-make): `open` (a signed-in pilot can add a site and correct one, inside the regions the server serves) or `closed` (every write is `403` with `sites_closed`). An app offers "add a site" and "correct this site" only where this says `open`, so that nobody fills in a form to be refused. Reading the sites that pilots made is never off, and an account whose publishing is suspended is refused on an open server too: that is the account's, and is not said here. Left out by a server older than this field (before 2026-11-21), which takes none or does not say: an app that reads nothing here offers neither. The development mode says `open` |
 | `thermal_map` | For whoever runs the server; an app asks for the map itself ([`GET /v1/thermals`](#get-v1thermals)). Where the server's thermal map stands. Left out by a server that makes none, which is one without forecasts, and by an older server |
 | `thermal_map.source` | The forecast source the map is made from |
 | `thermal_map.computed_at` | When the server worked out the map it serves. Left out while it has none: after a first start, until the finest model's part was fetched whole, which is some minutes on a warm forecast service and a look or two longer on one that has just started. `/v1/thermals` answers `503` until then |
@@ -1024,7 +1026,7 @@ Since 2026-11-21 the server keeps flying sites that pilots add themselves, besid
 - **Every change is a revision that is kept.** A revision holds the whole record as it stood from then on, who made it, when, through what it came in (`session`: a sign-in of the pilot's own; `token`: a [token the pilot gave to another program](#tokens-for-other-programs); `operator`: whoever runs the server), and a line saying why. Nothing is overwritten. A change is undone by a revision that restores an earlier one and names it; removing a site is a revision too.
 - **The licence: CC0 1.0.** What pilots give as sites is given under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), by the owner's decision of 2026-11-21. Every answer that carries a site of the layer says so in `attributions`: source `venti`, provider "Venti contributors". The licence asks for no credit; the entry's `notice` is to be shown wherever a site of the layer is: "Added by pilots and not verified. A site on the map is not permission to fly there."
 - **Who may write.** Any signed-in pilot adds a site, and any signed-in pilot corrects, removes or restores any site of the layer, unless whoever runs the server has suspended the account's publishing (`403`, `publishing_suspended`). An account adds at most 20 sites a day and writes at most 100 revisions a day (`429`, `rate_limited`).
-- **Only where the server is told to take them.** A server takes sites from pilots when its configuration says `sites_from_pilots = true`; otherwise every write is `403` with `sites_closed`. It is off unless set, because the terms under which a pilot gives a site, which say that it is given under CC0 1.0 and stays when the account goes, are not written yet. The development mode takes them. Reading is never off.
+- **Only where the server is told to take them.** A server takes sites from pilots when its configuration says `sites_from_pilots = true`; otherwise every write is `403` with `sites_closed`. [`GET /v1/health`](#get-v1health) says which in `sites_from_pilots`, before anything is sent. It is off unless set, because the terms under which a pilot gives a site, which say that it is given under CC0 1.0 and stays when the account goes, are not written yet. The development mode takes them. Reading is never off.
 - **A pilot's name on a site.** A site and each revision name the pilot who made them by handle and display name, to everyone. When an account is deleted, its sites and revisions stay and lose that name.
 - **Not permission to fly.** A site of this layer is what a pilot entered, checked by nobody.
 
@@ -1583,8 +1585,30 @@ The answer is `201` with the site as [`GET /v1/sites/{id}`](#get-v1sitesid) answ
 | 400 | `site_out_of_area` | The place is in no region this server serves |
 | 403 | `sites_closed` | This server takes no sites from pilots |
 | 403 | `publishing_suspended` | Whoever runs the server has suspended the account's publishing |
-| 409 | `site_too_close` | A site of the layer stands less than 20 m from the place. `message` names it: if it is the same place, correct that one |
+| 409 | `site_too_close` | A site of the layer stands less than 20 m from the place. The error names it in `site`: if it is the same place, correct that one |
 | 429 | `rate_limited` | The account has added 20 sites today |
+
+**The site that stands there** is named in the error, for an app to say which one and to open it for correcting. It is the one error whose body has more than a code and a message. Asked to add a site a few metres from the first of the development mode's:
+
+```json
+{
+  "error": {
+    "code": "site_too_close",
+    "message": "the site venti:0000000000000000000000s001 stands less than 20 m from this place; if it is the same place, correct that one",
+    "site": {
+      "id": "venti:0000000000000000000000s001",
+      "name": "Musterkogel West"
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `error.site.id` | The identifier of the site that stands less than 20 m from the place |
+| `error.site.name` | Its name as it is now. A pilot's text: show it as a name. Left out for a site without one |
+
+`site` is there with `site_too_close` from every request that can answer it (adding, changing, restoring), and with no other code. A server from before 2026-11-21 names the site in `message` only.
 
 ### `PUT /v1/sites/{id}`
 
@@ -4967,7 +4991,7 @@ Need a token, and take no body. `PUT` says that the asker is in on the plan; `DE
 
 ## Reports
 
-A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track, and in a group the pilot is in, the group's name or one of its plans. That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, no group is changed, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
+A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track, in a group the pilot is in, the group's name or one of its plans, and a [site that pilots made](#sites-that-pilots-make). That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, no group is changed, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
 
 What a client has to know:
 
@@ -4980,7 +5004,8 @@ What a client has to know:
 - **A group and a plan are reported by a member of the group**, any member: the keeper has no say in it and is not told. What is reported of a [group](#groups) is its name, and of a [plan](#plans-for-a-flying-day) its place and its note: the text that other people read. To an account that is not in the group, a report about it or about a plan of it is answered `404` with `group_not_found`, in status, in every header and in every byte the answer for an identifier that no group has; it holds for a pilot who was never in the group, for one who left and for one who was removed.
 - **A report about a group or a plan takes the words along.** A name, a place and a note can be changed or deleted a moment after they were reported, so the server keeps, with the report, the group's name or the plan's place and note as they stood when the report was made. Nothing else is copied: not who is in the group, and of a plan neither its day, its time, its position nor who was in on it. The copy is kept as long as the report and goes with it. It is the one place where words of a plan outlast the two days a plan is kept, and the one place where they are in a backup. Say so where the report is written.
 - **A report is about an account as well**: the pilot of a flight, a page or a live track, the author of a plan, and for a group the member who keeps it at that moment. A report is removed when that account or the reporter's is deleted.
-- **A server from before 2026-11-21 knows three kinds of subject.** The list of subjects is closed: a server that is sent a kind it does not know cannot read the request and answers `400` with `invalid_request`, and stores nothing. A client that gets this answer to a report about a group or a plan is talking to an older server.
+- **A report about a site is about nobody's account.** A site that pilots made is nobody's: any pilot corrects it, and it stays when the account that added it goes. Such a report names the site and one revision of it, the one the request names or the one the site stands at, and no pilot; it is removed with its reporter's account and with no other. Nothing the site says is copied into it: every revision of a site is kept, and whoever runs the server reads the words there. Only a site of the layer `venti` is reported: a site of a source the server collects is that source's record and is corrected there (`400` with `invalid_report`). A site that a pilot removed can still be reported, because its history can still be read; one that whoever runs the server took down shows nothing and answers `410` with `site_gone`. One open report per account and site, whichever revision each names. Anyone signed in may report a site, as anyone may read it.
+- **A server from before 2026-11-21 knows three kinds of subject, or five.** The list of subjects is closed: a server that is sent a kind it does not know cannot read the request and answers `400` with `invalid_request`, and stores nothing. A client that gets this answer to a report about a group, a plan or a site is talking to an older server.
 
 ### `POST /v1/reports`
 
@@ -5007,12 +5032,13 @@ The body of that request:
 
 | Field | Meaning |
 |---|---|
-| `subject` | What is reported: an object with exactly one of the five members below |
+| `subject` | What is reported: an object with exactly one of the six members below |
 | `subject.flight` | A flight, by its address: the `id` of the flight, which is the end of its share link |
 | `subject.pilot` | A pilot's page, by the pilot's handle, in upper or lower case |
 | `subject.live_track` | A live track, by its identifier, which is the end of its link |
 | `subject.group` | A group the reporter is in, by its `id` |
 | `subject.plan` | A plan of a group the reporter is in: an object with `group`, the group's `id`, and `id`, the plan's. A plan is named with its group here as in every path about a plan, and the `plan` of every answer carries both |
+| `subject.site` | A site that pilots made: an object with `id`, the site's identifier (`venti:` and 26 characters), and, if the report is about one revision of it, `revision`, that revision's number. Without `revision` the report is about the site as it stands, and the server notes the revision it stands at |
 | `reason` | Why; one of the values below |
 | `text` | What the reporter wants to add, in their own words: at most 1,000 characters. May be left out, except with the reason `other` |
 
@@ -5041,6 +5067,20 @@ A report about a group, and one about a plan. The first is sent by `jonas`, the 
 }
 ```
 
+A report about a site that pilots made, as it stands. With `"revision": 2` beside `id` it is about that revision:
+
+```json
+{
+  "subject": {
+    "site": {
+      "id": "venti:0000000000000000000000s001"
+    }
+  },
+  "reason": "wrong_or_dangerous",
+  "text": "The take-off is on the other side of the ridge."
+}
+```
+
 | `reason` | Meaning |
 |---|---|
 | `offensive` | A name, a glider's name or another text that insults, threatens or harasses |
@@ -5049,8 +5089,10 @@ A report about a group, and one about a plan. The first is sent by `jonas`, the 
 | `not_a_flight` | The flight was not flown as it is shown: a track that is made up or altered, or not this pilot's own. Not a reason for a group or a plan |
 | `spam` | Advertising, or something that has nothing to do with flying |
 | `other` | Anything else. The report must then say what, in `text` |
+| `wrong_or_dangerous` | A site is at the wrong place, or says something wrong that can hurt a pilot: a wind direction, a height, a landing that is none. A reason for a site only |
+| `not_a_site` | The place is no flying site: nobody takes off or lands there, or nobody may. A reason for a site only |
 
-The list is short on purpose and is the server's: a reason that is not on it is refused, so a client offers these six and no field for another. For a group or a plan it offers five: `not_a_flight` is about a flight, and the server refuses it for words. There is no reason for "flew through airspace": a report is about what should not be shown, not about how someone flew. `venti_api_types::v1::ReportReason::ALL` is the list in the order a form shows it, and `ReportSubject::reasons` the part of it that a report about one kind of subject can give.
+The list is short on purpose and is the server's: a reason that is not on it is refused, so a client offers the first six for a flight, a page or a live track and no field for another. For a group or a plan it offers five: `not_a_flight` is about a flight, and the server refuses it for words. For a site it offers six, in this order: `wrong_or_dangerous`, `not_a_site`, `offensive`, `privacy`, `spam`, `other`; a site is nobody's account and no flight, so `impersonation` and `not_a_flight` are refused for it, and the two reasons of a site are refused for everything else. There is no reason for "flew through airspace": a report is about what should not be shown, not about how someone flew. `venti_api_types::v1::ReportSubject::reasons` is the list a report about one kind of subject can give, in the order a form shows it.
 
 **The text** is cleaned before it is kept and never refused for what stands in it: line breaks stay, every other control character goes, and so do the characters that hide text or turn its direction round; white space at both ends goes. What is left is counted, and more than 1,000 characters is refused. `venti_api_types::v1::parse_report_text` does the same on the device, for a client that wants to count while the pilot types. The text is read by whoever runs the server and by nobody else.
 
@@ -5070,7 +5112,7 @@ The answer carries `Cache-Control: no-store`, like every answer to a request wit
 
 | Status | Code | When |
 |---|---|---|
-| 400 | `invalid_report` | `reason` is not one of the six, or is `not_a_flight` for a group or a plan; `text` has more than 1,000 characters after cleaning; or `reason` is `other` and nothing is left of `text`. `message` says which, and repeats nothing that was sent. Whether the reason fits is decided by the kind of subject alone, before anything is looked up |
+| 400 | `invalid_report` | `reason` is not one the kind of subject takes: not one of the six, `not_a_flight` for a group or a plan, a reason of a site for anything else, or `impersonation` or `not_a_flight` for a site; `subject.site` is a site of a source and not one that pilots made; `text` has more than 1,000 characters after cleaning; or `reason` is `other` and nothing is left of `text`. `message` says which, and repeats nothing that was sent. Whether the reason fits is decided by the kind of subject alone, before anything is looked up |
 | 400 | `invalid_request` | The body is not JSON of this shape: no `subject`, two subjects in one, a kind of subject the server does not know, a plan without its group, no `reason` |
 | 401 | `unauthorized` | No valid token |
 | 404 | `flight_not_found` | `subject.flight` is no flight the reporter may see: nobody's address, text that is no address, or another pilot's private flight. The answer is the one `GET /v1/flights/{id}` gives the reporter |
@@ -5078,6 +5120,8 @@ The answer carries `Cache-Control: no-store`, like every answer to a request wit
 | 404 | `live_track_not_found` | `subject.live_track` leads to no live track: none ever, deleted, or removed for its age |
 | 404 | `group_not_found` | `subject.group`, or the `group` of `subject.plan`, is no group the reporter is in: nobody's identifier, text that is no identifier, or a group the reporter is not, or no longer, a member of. The answer is the one `GET /v1/groups/{id}` gives the reporter, and it is given whatever `subject.plan.id` says |
 | 404 | `plan_not_found` | The reporter is in the group, and it has no plan with this identifier: none ever, deleted, gone with its author, a plan of another group, or one whose day lies further back than plans are kept |
+| 404 | `site_not_found`, `site_revision_not_found` | `subject.site.id` is no site that pilots made here; the site has no revision with the number in `subject.site.revision` |
+| 410 | `site_gone` | Whoever runs the server took the site down: nothing of it is shown, and there is nothing to report |
 | 413 | `payload_too_large` | The body is larger than 16 kB |
 | 415 | `unsupported_media_type` | The request does not say `Content-Type: application/json`. Such a request is not counted |
 | 429 | `rate_limited` | The account has sent 20 reports within a day. `Retry-After` says when the day is over, in seconds; asking again in between does not put it off |

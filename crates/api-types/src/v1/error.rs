@@ -21,6 +21,21 @@ pub struct ErrorBody {
     /// and its token lacks. Absent with every other code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<Scope>,
+    /// With [`ErrorCode::SiteTooClose`]: the site that stands at the
+    /// place already, for an app to name it and to open it for
+    /// correcting. Left out with every other code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub site: Option<ErrorSite>,
+}
+
+/// A site an error names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ErrorSite {
+    /// Its identifier.
+    pub id: venti_domain::SiteId,
+    /// Its name, if it has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// Why a request failed, as a stable code.
@@ -187,12 +202,13 @@ pub enum ErrorCode {
     /// The site has no revision with this number.
     SiteRevisionNotFound,
     /// Another site that pilots made stands within a few metres of the
-    /// place. Correct that one instead; the message names it.
+    /// place. Correct that one instead; the error's `site` names it.
     SiteTooClose,
     /// The site was changed since the revision the request names. Read it
     /// again and make the change from what it says now.
     SiteChanged,
-    /// This server takes no sites from pilots.
+    /// This server takes no sites from pilots; `sites_from_pilots` in the
+    /// health answer says the same before anything is sent.
     SitesClosed,
     /// The server hands out no map file under this path: no region with
     /// this identifier, not in this version, or no file of this name. A
@@ -232,6 +248,7 @@ impl ErrorResponse {
                 code,
                 message: message.into(),
                 scope: None,
+                site: None,
             },
         }
     }

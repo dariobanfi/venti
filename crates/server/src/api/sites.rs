@@ -28,12 +28,12 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use venti_api_types::v1::{
-    AddSiteRequest, ChangeSiteRequest, ErrorCode, Handle, MAX_SITES, RemoveSiteRequest,
+    AddSiteRequest, ChangeSiteRequest, ErrorCode, ErrorSite, Handle, MAX_SITES, RemoveSiteRequest,
     RestoreSiteRequest, SiteChangesResponse, SiteDraft, SiteHistoryResponse, SiteLayer, SitePilot,
     SiteRecord, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding, SiteVia, SitesResponse,
     parse_bbox, parse_site_comment,
 };
-use venti_domain::{BoundingBox, Site, SiteId, SiteUse, SourceId, Timestamp};
+use venti_domain::{BoundingBox, Site, SiteId, SourceId, Timestamp};
 use venti_sources::Kind;
 use venti_store::{NewPilotSite, PilotSite, RevisionKind, SiteAct, SiteRevising, SiteWrite, Store};
 
@@ -146,6 +146,44 @@ impl<S: Store> Api<S> {
 
 // --- The sites that pilots make ---------------------------------------------
 
+impl<S: Store> Api<S> {
+    /// The site that pilots made a report is about, with the number of
+    /// the revision it is about: the one named, or the one the site
+    /// stands at. Found as the site's own addresses find it: a site of a
+    /// source is not reported here, one that was taken down shows nothing
+    /// and is gone, and one that pilots removed is still there with its
+    /// history.
+    pub(crate) async fn reported_site(
+        &self,
+        id: &str,
+        revision: Option<u32>,
+    ) -> Result<(SiteId, u32), ApiError> {
+        let id: SiteId = id.parse().map_err(|_| no_such_site())?;
+        if id.source().as_str() != pilot_sites::SOURCE {
+            return Err(ApiError::bad_request(
+                ErrorCode::InvalidReport,
+                "a site of a source is its source's record and is corrected there; only a \
+                 site that pilots made on this server is reported here",
+            ));
+        }
+        if !is_made_here(&id) {
+            return Err(no_such_site());
+        }
+        let site = self.store.pilot_site(&id).await?.ok_or_else(no_such_site)?;
+        if site.taken_down {
+            return Err(gone());
+        }
+        let revision = revision.unwrap_or(site.revision);
+        if revision == 0 || revision > site.revision {
+            return Err(ApiError::missing(
+                ErrorCode::SiteRevisionNotFound,
+                "the site has no revision with this number",
+            ));
+        }
+        Ok((id, revision))
+    }
+}
+
 /// What the handlers keep between requests: the settings, and how much
 /// each account has used of what is counted over a day.
 #[derive(Debug)]
@@ -172,6 +210,12 @@ impl PilotSites {
             added: Throttle::new("accounts that added sites", a_day, watched_keys),
             revised: Throttle::new("accounts that revised sites", a_day, watched_keys),
         }
+    }
+
+    /// Whether the server takes sites from pilots at all: what the health
+    /// answer says before an app offers to add one.
+    pub(crate) fn accepts(&self) -> bool {
+        self.settings.accept
     }
 
     /// Lets a write through or says why not: the one place every write of
@@ -483,20 +527,12 @@ impl<S: Store> Api<S> {
     /// cleaned, held to the checks every site record passes, with a name
     /// and a use, at a place inside a region this server serves.
     fn site_from(&self, draft: SiteDraft, id: SiteId) -> Result<Site, ApiError> {
-        let mut site = draft.into_site(id);
-        if site.name.is_none() {
-            return Err(invalid("name must not be empty"));
-        }
-        if site.uses.is_empty() || site.uses.contains(&SiteUse::Other) {
-            return Err(invalid(
-                "uses must name at least one of takeoff, landing, towing, training",
-            ));
-        }
-        // What the check would remove is what is wrong with the record.
-        // Its words name the field and repeat nothing of the text.
-        if let Some(rejected) = venti_sources::check_site(&mut site).first() {
-            return Err(invalid(format!("{}: {}", rejected.field, rejected.reason)));
-        }
+        // What a site from a pilot has to be is said where an app reads
+        // it too. The words name the field and repeat nothing of the text.
+        let site = draft.record(id).map_err(|faults| match faults.first() {
+            Some(fault) => invalid(format!("{}: {}", fault.field, fault.reason)),
+            None => invalid("the site cannot be kept"),
+        })?;
         if !self.pilot_sites.settings.serves(site.position) {
             return Err(ApiError::bad_request(
                 ErrorCode::SiteOutOfArea,
@@ -508,7 +544,23 @@ impl<S: Store> Api<S> {
 
     /// Writes a revision and answers what became of it.
     async fn revise(&self, revising: SiteRevising) -> Result<PilotSite, ApiError> {
-        written(self.store.revise_pilot_site(&revising, APART_M).await?)
+        let write = self.store.revise_pilot_site(&revising, APART_M).await?;
+        self.written(write).await
+    }
+
+    /// What a write came to, as the API says it. A site that stands too
+    /// close is named in the error, with the name it has now.
+    async fn written(&self, write: SiteWrite) -> Result<PilotSite, ApiError> {
+        let SiteWrite::TooClose(other) = &write else {
+            return written(write);
+        };
+        let other = other.clone();
+        let name = self
+            .store
+            .pilot_site(&other)
+            .await?
+            .and_then(|site| site.site.name);
+        written(write).map_err(|error| error.naming(ErrorSite { id: other, name }))
     }
 }
 
@@ -516,6 +568,7 @@ impl<S: Store> Api<S> {
 fn written(write: SiteWrite) -> Result<PilotSite, ApiError> {
     match write {
         SiteWrite::Written(site) | SiteWrite::Same(site) => Ok(*site),
+        // `site` in the error names the other one: `Api::written` adds it.
         SiteWrite::TooClose(other) => Err(ApiError::new(
             StatusCode::CONFLICT,
             ErrorCode::SiteTooClose,
@@ -574,7 +627,8 @@ pub(crate) async fn add<S: Store>(
         via: signed.site_via(),
         comment: comment(request.comment.as_deref())?,
     };
-    let site = written(api.store.add_pilot_site(&new, APART_M).await?)?;
+    let write = api.store.add_pilot_site(&new, APART_M).await?;
+    let site = api.written(write).await?;
     Ok(cache::private_json(StatusCode::CREATED, &answer(site)?))
 }
 

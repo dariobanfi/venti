@@ -263,6 +263,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "report_request.json",
         "report_group_request.json",
         "report_plan_request.json",
+        "report_site_request.json",
         "report.json",
         "flight_taken_down.json",
         "account_suspended.json",
@@ -291,6 +292,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "token_create_request.json",
         "token_created.json",
         "error_insufficient_scope.json",
+        "site_too_close.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(

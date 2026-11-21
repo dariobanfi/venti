@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use venti_domain::{
-    BoundingBox, GeoPoint, Site, SiteId, SiteOutline, SiteUse, SourceId, Timestamp, WindSector,
+    BoundingBox, GeoPoint, Site, SiteFault, SiteId, SiteOutline, SiteUse, SourceId, Timestamp,
+    WindSector,
 };
 
 use super::{Attribution, Handle, text};
@@ -9,6 +10,15 @@ use super::{Attribution, Handle, text};
 /// community's own sites, beside the layers of the sources Venti collects.
 /// Every such site's identifier is `venti:` and 26 characters.
 pub const VENTI_SITES_SOURCE: &str = "venti";
+
+/// The licence every site of that layer is given under, by its name. The
+/// owner's decision of 2026-11-21 (the decision log in
+/// `docs/architecture.md`). The one place that names it: the server's
+/// credit and what an app says before a pilot gives a site read it here.
+pub const VENTI_SITES_LICENCE: &str = "CC0 1.0";
+
+/// The address of that licence's text.
+pub const VENTI_SITES_LICENCE_URL: &str = "https://creativecommons.org/publicdomain/zero/1.0/";
 
 /// The longest line a revision may carry that says why it was made, in
 /// characters.
@@ -324,6 +334,41 @@ impl SiteDraft {
             guest_guidelines: self.guest_guidelines,
             no_flight_time: one_line(self.no_flight_time),
             outline: self.outline,
+        }
+    }
+
+    /// The record a draft makes under an identifier, if a server keeps
+    /// it: cleaned as [`SiteDraft::into_site`] cleans it, with a name and
+    /// a use of the four a pilot can say, and with nothing that the check
+    /// every site record passes would remove ([`Site::check`]). Else
+    /// everything that is wrong with it, the field by its name on the
+    /// wire, in the order of the record.
+    ///
+    /// The one place that says what a site from a pilot has to be: the
+    /// server refuses with the first fault, and an app asks before
+    /// sending and puts each fault into words. Where the place has to be
+    /// is the server's to say and not part of this.
+    pub fn record(self, id: SiteId) -> Result<Site, Vec<SiteFault>> {
+        let mut site = self.into_site(id);
+        let mut faults = Vec::new();
+        if site.name.is_none() {
+            faults.push(SiteFault {
+                field: "name",
+                reason: "must not be empty".to_owned(),
+            });
+        }
+        if site.uses.is_empty() || site.uses.contains(&SiteUse::Other) {
+            faults.push(SiteFault {
+                field: "uses",
+                reason: "must name at least one of takeoff, landing, towing, training".to_owned(),
+            });
+        }
+        // What the check would remove is what is wrong with the record.
+        faults.extend(site.check());
+        if faults.is_empty() {
+            Ok(site)
+        } else {
+            Err(faults)
         }
     }
 

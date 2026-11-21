@@ -7,8 +7,8 @@ use venti_domain::Timestamp;
 use super::accounts::Accounts;
 use crate::report::{check, check_note, is_the_same_report};
 use crate::{
-    NewReport, Report, ReportClosing, ReportClosure, ReportKey, ReportListing, ReportSaved,
-    StoreError,
+    NewReport, Report, ReportAbout, ReportClosing, ReportClosure, ReportKey, ReportListing,
+    ReportSaved, StoreError,
 };
 
 #[derive(Debug, Default)]
@@ -24,17 +24,25 @@ struct Entry {
 }
 
 impl Reports {
-    /// A stored report with its two accounts as they are now.
+    /// A stored report with its accounts as they are now.
     fn read(entry: &Entry, accounts: &Accounts) -> Option<Report> {
         let reporter = accounts.by_id(&entry.new.reporter_id)?;
-        let about = accounts.by_id(&entry.new.about_account_id)?;
+        let about = match &entry.new.about_account_id {
+            Some(id) => {
+                let about = accounts.by_id(id)?;
+                Some(ReportAbout {
+                    account_id: about.id.clone(),
+                    handle: about.handle.clone(),
+                    name: about.display_name.clone(),
+                })
+            }
+            None => None,
+        };
         Some(Report {
             id: entry.new.id.clone(),
             created_at: entry.new.created_at,
             reporter_handle: reporter.handle.clone(),
-            about_account_id: about.id.clone(),
-            about_handle: about.handle.clone(),
-            about_name: about.display_name.clone(),
+            about,
             subject: entry.new.subject.clone(),
             reason: entry.new.reason.clone(),
             text: entry.new.text.clone(),
@@ -48,9 +56,12 @@ impl Reports {
         accounts: &Accounts,
     ) -> Result<ReportSaved, StoreError> {
         check(new)?;
-        let both_there = accounts.by_id(&new.reporter_id).is_some()
-            && accounts.by_id(&new.about_account_id).is_some();
-        if !both_there {
+        let all_there = accounts.by_id(&new.reporter_id).is_some()
+            && new
+                .about_account_id
+                .as_ref()
+                .is_none_or(|about| accounts.by_id(about).is_some());
+        if !all_there {
             return Ok(ReportSaved::NoSuchAccount);
         }
         let already_open = self
@@ -126,7 +137,8 @@ impl Reports {
     /// Removes the reports an account made and the reports about it.
     pub(super) fn delete_account(&mut self, account_id: &str) {
         self.reports.retain(|_, entry| {
-            entry.new.reporter_id != account_id && entry.new.about_account_id != account_id
+            entry.new.reporter_id != account_id
+                && entry.new.about_account_id.as_deref() != Some(account_id)
         });
     }
 }

@@ -1,10 +1,13 @@
 //! Reports: what a pilot tells whoever runs the server about a flight, a
-//! pilot's page, a live track, a group or a plan that should not be there.
+//! pilot's page, a live track, a group, a plan or a site that pilots made
+//! that should not be there, or not as it is.
 //!
 //! A report is kept for the operator and for nobody else. Nothing reads it
 //! back to a pilot: not to the one who wrote it, and not to the one it is
 //! about, who must never learn from the server who reported them. It names
-//! two accounts and goes when either of them goes.
+//! two accounts and goes when either of them goes. A report about a site
+//! names one, its reporter: a site that pilots made is nobody's, and it
+//! outlives the account that added it.
 //!
 //! A flight, a page and a live track are named by a report and looked at
 //! where they are. A group's name and a plan's words can be changed or be
@@ -20,9 +23,10 @@ use crate::StoreError;
 /// texts, which the database does not take. The API lets none through.
 pub(crate) fn check(new: &NewReport) -> Result<(), StoreError> {
     let (group, words) = match &new.subject {
-        ReportSubject::Flight(_) | ReportSubject::Pilot | ReportSubject::LiveTrack(_) => {
-            ("", ["", ""])
-        }
+        ReportSubject::Flight(_)
+        | ReportSubject::Pilot
+        | ReportSubject::LiveTrack(_)
+        | ReportSubject::Site { .. } => ("", ["", ""]),
         ReportSubject::Group { name, .. } => ("", [name.as_str(), ""]),
         ReportSubject::Plan {
             group_id,
@@ -37,7 +41,7 @@ pub(crate) fn check(new: &NewReport) -> Result<(), StoreError> {
     let texts = [
         new.id.as_str(),
         &new.reporter_id,
-        &new.about_account_id,
+        new.about_account_id.as_deref().unwrap_or_default(),
         new.subject.id(),
         group,
         words[0],
@@ -48,6 +52,18 @@ pub(crate) fn check(new: &NewReport) -> Result<(), StoreError> {
     if texts.iter().any(|text| text.contains('\0')) {
         return Err(StoreError::Invalid(
             "a report with a zero byte in it".to_owned(),
+        ));
+    }
+    // A site is nobody's, and everything else is somebody's.
+    if matches!(new.subject, ReportSubject::Site { .. }) == new.about_account_id.is_some() {
+        return Err(StoreError::Invalid(
+            "a report about a site names no second account, and every other report names one"
+                .to_owned(),
+        ));
+    }
+    if matches!(new.subject, ReportSubject::Site { revision: 0, .. }) {
+        return Err(StoreError::Invalid(
+            "a report about revision 0 of a site; the first is 1".to_owned(),
         ));
     }
     Ok(())
@@ -111,6 +127,16 @@ pub enum ReportSubject {
         /// Its note as it stood then, if it had one.
         note: Option<String>,
     },
+    /// A site that pilots made. The report has no other account: such a
+    /// site is nobody's. Nothing of what the site says is kept with the
+    /// report: every revision of a site is kept where the sites are.
+    Site {
+        /// The site's identifier, as text.
+        id: String,
+        /// The number of the revision the report is about: the one its
+        /// reporter named, or the one the site stood at.
+        revision: u32,
+    },
 }
 
 /// What a report kept of a group or a plan, as the database holds it
@@ -125,6 +151,8 @@ pub(crate) struct ReportedWords {
     pub(crate) place: Option<String>,
     /// A reported plan's note.
     pub(crate) note: Option<String>,
+    /// The revision a report about a site is about.
+    pub(crate) site_revision: Option<u32>,
 }
 
 impl ReportSubject {
@@ -136,6 +164,7 @@ impl ReportSubject {
             Self::LiveTrack(_) => "live_track",
             Self::Group { .. } => "group",
             Self::Plan { .. } => "plan",
+            Self::Site { .. } => "site",
         }
     }
 
@@ -146,13 +175,15 @@ impl ReportSubject {
             Self::Flight(id)
             | Self::LiveTrack(id)
             | Self::Group { id, .. }
-            | Self::Plan { id, .. } => id,
+            | Self::Plan { id, .. }
+            | Self::Site { id, .. } => id,
             Self::Pilot => "",
         }
     }
 
     /// Whether two subjects are the same thing, whatever words each was
-    /// reported with: a group that was renamed is still that group.
+    /// reported with: a group that was renamed is still that group, and a
+    /// site is that site at every revision.
     pub fn is_the_thing(&self, other: &Self) -> bool {
         self.kind() == other.kind() && self.id() == other.id()
     }
@@ -176,6 +207,11 @@ impl ReportSubject {
                 name: None,
                 place: Some(place.clone()),
                 note: note.clone(),
+                site_revision: None,
+            },
+            Self::Site { revision, .. } => ReportedWords {
+                site_revision: Some(*revision),
+                ..ReportedWords::default()
             },
         }
     }
@@ -198,6 +234,10 @@ impl ReportSubject {
                 place: words.place?,
                 note: words.note,
             }),
+            "site" => Some(Self::Site {
+                id: id.to_owned(),
+                revision: words.site_revision?,
+            }),
             _ => None,
         }
     }
@@ -213,8 +253,9 @@ pub struct NewReport {
     /// The account that reports.
     pub reporter_id: String,
     /// The account whose flight, page, live track or plan is reported; for
-    /// a group, the account that keeps it.
-    pub about_account_id: String,
+    /// a group, the account that keeps it. `None` for a site that pilots
+    /// made, and for nothing else.
+    pub about_account_id: Option<String>,
     /// What is reported.
     pub subject: ReportSubject,
     /// Why, as one of the names the API takes. The store keeps the name
@@ -234,7 +275,7 @@ pub enum ReportSaved {
     /// Nothing was stored: the operator reads it once. A group is the same
     /// subject whoever keeps it and whatever it is called by now.
     AlreadyOpen,
-    /// One of the two accounts it names is not there. Nothing was stored.
+    /// An account it names is not there. Nothing was stored.
     NoSuchAccount,
 }
 
@@ -247,14 +288,10 @@ pub struct Report {
     pub created_at: Timestamp,
     /// The handle of the account that reported.
     pub reporter_handle: String,
-    /// The identifier of the account that is reported: whose flight, page,
-    /// live track or plan it is, or who kept the group when it was
-    /// reported.
-    pub about_account_id: String,
-    /// That account's handle.
-    pub about_handle: String,
-    /// That account's display name.
-    pub about_name: String,
+    /// The account that is reported: whose flight, page, live track or
+    /// plan it is, or who kept the group when it was reported. `None` for
+    /// a report about a site that pilots made, which is nobody's.
+    pub about: Option<ReportAbout>,
     /// What is reported.
     pub subject: ReportSubject,
     /// Why.
@@ -263,6 +300,17 @@ pub struct Report {
     pub text: Option<String>,
     /// When and with what note the report was closed, if it was.
     pub closed: Option<ReportClosure>,
+}
+
+/// The account a report is about, as it is now.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReportAbout {
+    /// The account's identifier.
+    pub account_id: String,
+    /// Its handle.
+    pub handle: String,
+    /// Its display name.
+    pub name: String,
 }
 
 /// How a report was closed.
@@ -334,6 +382,10 @@ mod tests {
             group("g", "Mustergruppe"),
             plan("p", "Musterberg", None),
             plan("p", "Musterberg", Some("Bring a radio.")),
+            ReportSubject::Site {
+                id: "venti:s".to_owned(),
+                revision: 3,
+            },
         ] {
             let read = ReportSubject::from_parts(subject.kind(), subject.id(), subject.words());
             assert_eq!(read.as_ref(), Some(&subject));
@@ -348,7 +400,9 @@ mod tests {
             ..nothing()
         };
         assert_eq!(ReportSubject::from_parts("plan", "p", no_group), None);
+        // A site without the revision it was reported at is none either.
         assert_eq!(ReportSubject::from_parts("site", "s", nothing()), None);
+        assert_eq!(ReportSubject::from_parts("page", "s", nothing()), None);
     }
 
     #[test]
@@ -365,7 +419,7 @@ mod tests {
             id: "r".to_owned(),
             created_at: chrono::DateTime::from_timestamp(1_795_000_000, 0).unwrap(),
             reporter_id: reporter.to_owned(),
-            about_account_id: about.to_owned(),
+            about_account_id: Some(about.to_owned()).filter(|about| !about.is_empty()),
             subject,
             reason: "spam".to_owned(),
             text: None,
@@ -402,5 +456,25 @@ mod tests {
             );
         }
         assert_eq!(check(&first), Ok(()));
+
+        // A site is nobody's and is one thing at every revision; nothing
+        // else is without an account.
+        let site = |revision| ReportSubject::Site {
+            id: "venti:s".to_owned(),
+            revision,
+        };
+        assert!(site(1).is_the_thing(&site(4)));
+        assert_eq!(check(&report("dario", "", site(1))), Ok(()));
+        assert!(is_the_same_report(
+            &report("dario", "", site(1)),
+            &report("dario", "", site(4))
+        ));
+        for wrong in [
+            report("dario", "anna", site(1)),
+            report("dario", "", flight()),
+            report("dario", "", site(0)),
+        ] {
+            assert!(matches!(check(&wrong), Err(StoreError::Invalid(_))));
+        }
     }
 }

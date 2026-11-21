@@ -50,7 +50,8 @@ use venti_core::{
     KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
     LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
     PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
-    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SiteView,
+    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteDraftFault, SiteDraftView, SiteForm,
+    SiteHistory, SiteInTheWay, SiteOutlook, SitePage, SiteStatistics, SiteView, SiteWritten,
     SitesFilter, SitesFilterChoices, SitesFiltered, SitesMap, StagedStorage, StationAir,
     StationDay, StationDays, StationHistory, Storage, SyncStep, SyncSummary, Tendencies,
     TerrainTile, ThermalHoursLayer, ThermalMap, ThermalMapHourSquare, ThermalMapHoursView,
@@ -1064,6 +1065,164 @@ pub fn filter_sites(
     to_js(&venti_core::filter_sites(sites, from_js(&filter)?))
 }
 
+// Adding and correcting a site of Venti's own layer. The core holds the
+// rules: what a site has to be, what the form says, and what each answer
+// of the server means to a pilot.
+
+/// What a form for a site shows: its fields with their titles and helps,
+/// the choices, the limits as the server has them, and the words around
+/// the act of giving.
+#[wasm_bindgen(js_name = siteForm)]
+pub fn site_form() -> Result<Ts<SiteForm>, JsValue> {
+    to_js(&venti_core::site_form())
+}
+
+/// A draft for a new site at a place, with nothing said yet.
+#[wasm_bindgen(js_name = siteDraftNew)]
+pub fn site_draft_new(place: Ts<Coordinate>) -> Result<Ts<SiteDraftView>, JsValue> {
+    to_js(&venti_core::site_draft_new(from_js(&place)?))
+}
+
+/// A draft that corrects a site of Venti's own layer: everything the
+/// site says, and the revision it stands at. Refuses a source's site.
+#[wasm_bindgen(js_name = siteDraftOf)]
+pub fn site_draft_of(site: Ts<SiteView>) -> Result<Ts<SiteDraftView>, JsValue> {
+    to_js(&venti_core::site_draft_of(from_js(&site)?).map_err(thrown)?)
+}
+
+/// The draft with the site at another place. An outline goes with the
+/// old place.
+#[wasm_bindgen(js_name = siteDraftMoved)]
+pub fn site_draft_moved(
+    draft: Ts<SiteDraftView>,
+    place: Ts<Coordinate>,
+) -> Result<Ts<SiteDraftView>, JsValue> {
+    to_js(&venti_core::site_draft_moved(
+        from_js(&draft)?,
+        from_js(&place)?,
+    ))
+}
+
+/// What is wrong with a draft, field by field, by the server's own check.
+/// Empty when it can be sent.
+#[wasm_bindgen(js_name = siteDraftCheck)]
+pub fn site_draft_check(
+    draft: Ts<SiteDraftView>,
+    comment: String,
+) -> Result<Vec<Ts<SiteDraftFault>>, JsValue> {
+    venti_core::site_draft_check(from_js(&draft)?, comment)
+        .iter()
+        .map(to_js)
+        .collect()
+}
+
+/// The compass points a draft has ticked, in words: "SW to NW".
+#[wasm_bindgen(js_name = siteDraftWindInWords)]
+pub fn site_draft_wind_in_words(wind_from_deg: Vec<f64>) -> String {
+    venti_core::site_draft_wind_in_words(wind_from_deg)
+}
+
+/// The request that adds a site, for a signed-in pilot.
+#[wasm_bindgen(js_name = siteAddRequest)]
+pub fn site_add_request(
+    draft: Ts<SiteDraftView>,
+    comment: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::site_add_request(from_js(&draft)?, comment).map_err(thrown)?)
+}
+
+/// The request that corrects a site, made from the revision the draft
+/// names.
+#[wasm_bindgen(js_name = siteChangeRequest)]
+pub fn site_change_request(
+    draft: Ts<SiteDraftView>,
+    comment: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::site_change_request(from_js(&draft)?, comment).map_err(thrown)?)
+}
+
+/// The request that removes a site, as a new revision. Its history stays.
+#[wasm_bindgen(js_name = siteRemoveRequest)]
+pub fn site_remove_request(id: String, comment: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::site_remove_request(id, comment).map_err(thrown)?)
+}
+
+/// The request that puts a site back to what one of its revisions said:
+/// how a change is undone, and how a removed site comes back.
+#[wasm_bindgen(js_name = siteRestoreRequest)]
+pub fn site_restore_request(
+    id: String,
+    revision: u32,
+    comment: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::site_restore_request(id, revision, comment).map_err(thrown)?)
+}
+
+/// The path to `GET` for one site by its identifier.
+#[wasm_bindgen(js_name = sitePath)]
+pub fn site_path(id: String) -> Result<String, JsValue> {
+    venti_core::site_path(id).map_err(thrown)
+}
+
+/// The path to `GET` for a page of a site's history, after revision
+/// `after` or from the first.
+#[wasm_bindgen(js_name = siteHistoryPath)]
+pub fn site_history_path(id: String, after: Option<u32>) -> Result<String, JsValue> {
+    venti_core::site_history_path(id, after).map_err(thrown)
+}
+
+/// Reads the server's answer to `sitePath`: one site as it stands.
+#[wasm_bindgen(js_name = sitePage)]
+pub fn site_page(status: u16, body: Vec<u8>) -> Result<Ts<SitePage>, JsValue> {
+    to_js(&venti_core::site_page(status, body).map_err(thrown)?)
+}
+
+/// Reads the server's answer to `siteAddRequest`, `siteChangeRequest`
+/// and `siteRestoreRequest`: the site as it stands now, and what became
+/// of the request in a line. A refusal is thrown in words for the pilot.
+#[wasm_bindgen(js_name = siteWritten)]
+pub fn site_written(status: u16, body: Vec<u8>) -> Result<Ts<SiteWritten>, JsValue> {
+    to_js(&venti_core::site_written(status, body).map_err(thrown)?)
+}
+
+/// Reads the server's answer to `siteRemoveRequest` and says in a line
+/// what became of it.
+#[wasm_bindgen(js_name = siteRemoved)]
+pub fn site_removed(status: u16, body: Vec<u8>) -> Result<String, JsValue> {
+    venti_core::site_removed(status, body).map_err(thrown)
+}
+
+/// The site that stands in the way, from the answer to a request that
+/// was refused because another site stands at the place. Nothing for
+/// every other answer.
+#[wasm_bindgen(js_name = siteInTheWay)]
+pub fn site_in_the_way(status: u16, body: Vec<u8>) -> Result<Option<Ts<SiteInTheWay>>, JsValue> {
+    venti_core::site_in_the_way(status, body)
+        .as_ref()
+        .map(to_js)
+        .transpose()
+}
+
+/// Reads the server's answer to `siteHistoryPath`: a page of a site's
+/// revisions, each in words, with what it changed.
+#[wasm_bindgen(js_name = siteHistory)]
+pub fn site_history(status: u16, body: Vec<u8>) -> Result<Ts<SiteHistory>, JsValue> {
+    to_js(&venti_core::site_history(status, body).map_err(thrown)?)
+}
+
+/// What differs between a site as one revision said it and as another
+/// did, a line per field.
+#[wasm_bindgen(js_name = siteChangesBetween)]
+pub fn site_changes_between(
+    before: Ts<SiteView>,
+    after: Ts<SiteView>,
+) -> Result<Vec<String>, JsValue> {
+    Ok(venti_core::site_changes_between(
+        from_js(&before)?,
+        from_js(&after)?,
+    ))
+}
+
 /// The part of the map Today asks the server's sites for: a box that holds
 /// every place within reach of the pilot's. Asked for with `sitesPath`,
 /// read with `sitesMap`, handed to `Core.todayTakeoffs`.
@@ -1584,15 +1743,16 @@ pub fn report_form() -> Result<Ts<ReportForm>, JsValue> {
 
 /// The form for a report about `subject`: the reasons a report about such
 /// a thing can give, each with what it means there, and what the pilot is
-/// told before sending one. A group and a plan have forms of their own.
+/// told before sending one. A group, a plan and a site that pilots made
+/// have forms of their own.
 #[wasm_bindgen(js_name = reportFormFor)]
 pub fn report_form_for(subject: Ts<ReportSubject>) -> Result<Ts<ReportForm>, JsValue> {
     to_js(&venti_core::report_form_for(from_js(&subject)?))
 }
 
 /// The request that tells whoever runs the server that a flight, a
-/// pilot's page, a live track, a group or a plan of a group should not be
-/// there. `text` is what the pilot wrote, and may be empty except with
+/// pilot's page, a live track, a group, a plan of a group or a site that
+/// pilots made should not be there, or not as it is. `text` is what the pilot wrote, and may be empty except with
 /// the reason "other".
 #[wasm_bindgen(js_name = reportRequest)]
 pub fn report_request(

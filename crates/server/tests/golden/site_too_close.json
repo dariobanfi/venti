@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "site_too_close",
+    "message": "the site venti:0000000000000000000000s001 stands less than 20 m from this place; if it is the same place, correct that one",
+    "site": {
+      "id": "venti:0000000000000000000000s001",
+      "name": "Musterkogel West"
+    }
+  }
+}

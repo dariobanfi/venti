@@ -494,10 +494,10 @@ fn area(south: f64, west: f64, north: f64, east: f64) -> Result<BoundingBox, Cor
 
 /// What to say wherever a site of Venti's own layer is shown as more than
 /// a mark.
-const BY_PILOTS_NOTE: &str = "Added by pilots on Venti and not verified. A site on the map is \
+pub(crate) const BY_PILOTS_NOTE: &str = "Added by pilots on Venti and not verified. A site on the map is \
                               not permission to fly there.";
 
-fn author(pilot: &SitePilot) -> SiteAuthor {
+pub(crate) fn author(pilot: &SitePilot) -> SiteAuthor {
     SiteAuthor {
         handle: pilot.handle.as_str().to_owned(),
         name: pilot.display_name.clone(),
@@ -505,7 +505,7 @@ fn author(pilot: &SitePilot) -> SiteAuthor {
 }
 
 /// "Max Mustermann (@demo)"; the handle alone for a pilot without a name.
-fn author_in_words(author: &SiteAuthor) -> String {
+pub(crate) fn author_in_words(author: &SiteAuthor) -> String {
     match author.name.trim() {
         "" => format!("@{}", author.handle),
         name => format!("{name} (@{})", author.handle),
@@ -642,7 +642,7 @@ fn fee_in_words(fee: &str) -> String {
     }
 }
 
-fn kind(used_for: SiteUse) -> SiteKind {
+pub(crate) fn kind(used_for: SiteUse) -> SiteKind {
     match used_for {
         SiteUse::Takeoff => SiteKind::Takeoff,
         SiteUse::Landing => SiteKind::Landing,
@@ -654,7 +654,7 @@ fn kind(used_for: SiteUse) -> SiteKind {
 
 /// "Take-off", "Take-off and landing", "Take-off, landing and training
 /// slope"; "Flying site" when the source does not say.
-fn uses_in_words(uses: &[SiteKind]) -> String {
+pub(crate) fn uses_in_words(uses: &[SiteKind]) -> String {
     let words: Vec<&str> = uses
         .iter()
         .filter_map(|kind| match kind {
@@ -678,7 +678,7 @@ fn uses_in_words(uses: &[SiteKind]) -> String {
 
 /// "S to SW", "N, NE": each span by its ends, a single direction by its
 /// name. Nothing is widened or merged: it is what the source says.
-fn wind_in_words(sectors: &[WindSector]) -> String {
+pub(crate) fn wind_in_words(sectors: &[WindSector]) -> String {
     sectors
         .iter()
         .map(|sector| {

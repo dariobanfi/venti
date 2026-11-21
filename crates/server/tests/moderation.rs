@@ -21,10 +21,10 @@ use venti_api_types::v1::{
     LivePositionsRequest, LivePositionsResponse, LiveTracksResponse, LiveVisibility,
     MAX_REPORT_TEXT_LENGTH, PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH, PilotResponse, Plan,
     PlanBoardResponse, PlanRequest, PlanResponse, PlansResponse, REPORTS_PATH, ReportReason,
-    ReportRequest, ReportResponse, ReportSubject, ReportedPlan, SESSIONS_PATH, SignInResponse,
-    UpdateFlightRequest, UpdateGroupRequest, Visibility, flight_file_path, flight_path,
-    group_member_path, group_path, group_plans_path, plan_in_path, plan_path, share_image_path,
-    share_path,
+    ReportRequest, ReportResponse, ReportSubject, ReportedPlan, ReportedSite, SESSIONS_PATH,
+    SignInResponse, UpdateFlightRequest, UpdateGroupRequest, Visibility, flight_file_path,
+    flight_path, group_member_path, group_path, group_plans_path, plan_in_path, plan_path,
+    share_image_path, share_path,
 };
 use venti_domain::{GeoPoint, SiteId, SiteUse, WindSector};
 use venti_server::accounts::Limits;
@@ -33,7 +33,8 @@ use venti_server::api::{Api, Cors, Settings};
 use venti_server::clock::Clock;
 use venti_server::dev::{
     DEMO_GROUP, DEMO_GROUP_CODE, DEMO_GROUP_NAME, DEMO_HANDLE, DEMO_LIVE_FLYING, DEMO_LIVE_LINK,
-    DEMO_OTHER_GROUP, DEMO_OTHER_PLAN, DEMO_PASSWORD, DEMO_PILOTS, DEMO_PLANS, DEMO_TOKEN,
+    DEMO_OTHER_GROUP, DEMO_OTHER_PLAN, DEMO_PASSWORD, DEMO_PILOTS, DEMO_PLANS, DEMO_SITES,
+    DEMO_TOKEN,
 };
 use venti_server::live;
 use venti_server::moderation::{Action, Outcome, Site, perform};
@@ -252,7 +253,7 @@ async fn a_pilot_reports_a_flight_a_page_and_a_live_track() {
         .find(|report| report.reason == "not_a_flight")
         .unwrap();
     assert_eq!(first.reporter_handle, DEMO_HANDLE);
-    assert_eq!(first.about_handle, mara);
+    assert_eq!(first.about.as_ref().unwrap().handle, mara);
     assert_eq!(
         first.subject,
         venti_store::ReportSubject::Flight(flight.id.to_string())
@@ -269,7 +270,7 @@ async fn a_pilot_reports_a_flight_a_page_and_a_live_track() {
     assert!(
         maras
             .iter()
-            .all(|report| report.about_handle == DEMO_HANDLE)
+            .all(|report| report.about.as_ref().unwrap().handle == DEMO_HANDLE)
     );
     assert_eq!(public_flights(&router).await.len(), 5);
     assert_eq!(gliders_on_the_map(&router).await.len(), 2);
@@ -779,7 +780,7 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
             id: "0000000000000000000000rep1".to_owned(),
             created_at: made_at - Duration::hours(26),
             reporter_id: demo.clone(),
-            about_account_id: mara.clone(),
+            about_account_id: Some(mara.clone()),
             subject: venti_store::ReportSubject::Flight(flight.to_string()),
             reason: "not_a_flight".to_owned(),
             text: Some("I flew there that day.\nThis is my track, not hers.".to_owned()),
@@ -788,7 +789,7 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
             id: "0000000000000000000000rep2".to_owned(),
             created_at: made_at - Duration::hours(3),
             reporter_id: jonas,
-            about_account_id: mara,
+            about_account_id: Some(mara),
             subject: venti_store::ReportSubject::Pilot,
             reason: "impersonation".to_owned(),
             text: None,
@@ -797,7 +798,7 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
             id: "0000000000000000000000rep3".to_owned(),
             created_at: made_at - Duration::minutes(10),
             reporter_id: account("mara").await,
-            about_account_id: demo.clone(),
+            about_account_id: Some(demo.clone()),
             subject: venti_store::ReportSubject::LiveTrack(DEMO_LIVE_FLYING.to_owned()),
             reason: "other".to_owned(),
             text: Some("Nobody is flying there. It is night.".to_owned()),
@@ -806,7 +807,7 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
             id: "0000000000000000000000rep4".to_owned(),
             created_at: made_at - Duration::minutes(6),
             reporter_id: account("jonas").await,
-            about_account_id: demo.clone(),
+            about_account_id: Some(demo.clone()),
             subject: venti_store::ReportSubject::Group {
                 id: DEMO_GROUP.to_owned(),
                 name: DEMO_GROUP_NAME.to_owned(),
@@ -818,7 +819,7 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
             id: "0000000000000000000000rep5".to_owned(),
             created_at: made_at - Duration::minutes(2),
             reporter_id: demo,
-            about_account_id: account("mara").await,
+            about_account_id: Some(account("mara").await),
             subject: venti_store::ReportSubject::Plan {
                 id: plan.id.clone(),
                 group_id: plan.group_id.clone(),
@@ -1535,7 +1536,7 @@ async fn a_member_reports_a_group_and_a_plan_of_it() {
             .unwrap_or_else(|| panic!("no report of {reporter} about a {kind}"))
     };
     let about_the_group = of(jonas, "group");
-    assert_eq!(about_the_group.about_handle, DEMO_HANDLE);
+    assert_eq!(about_the_group.about.as_ref().unwrap().handle, DEMO_HANDLE);
     assert_eq!(
         about_the_group.subject,
         venti_store::ReportSubject::Group {
@@ -1549,7 +1550,7 @@ async fn a_member_reports_a_group_and_a_plan_of_it() {
         .find(|report| report.subject.id() == DEMO_PLANS[1])
         .unwrap();
     assert_eq!(about_the_plan.reporter_handle, DEMO_HANDLE);
-    assert_eq!(about_the_plan.about_handle, mara);
+    assert_eq!(about_the_plan.about.as_ref().unwrap().handle, mara);
     assert_eq!(
         about_the_plan.subject,
         venti_store::ReportSubject::Plan {
@@ -2135,7 +2136,7 @@ async fn the_reports_say_what_was_reported_also_when_it_is_changed_or_gone() {
             id: format!("0000000000000000000000bad{number}"),
             created_at: Clock::now(&clock),
             reporter_id: account("dario").await,
-            about_account_id: account("anna").await,
+            about_account_id: Some(account("anna").await),
             subject,
             reason: "other".to_owned(),
             text: None,
@@ -3026,4 +3027,165 @@ fn only_the_operators_commands_ask_the_store_as_nobody() {
         }
     }
     assert_eq!(commands, 1, "the commands are in one file");
+}
+
+// --- Reports about a site that pilots made -----------------------------------
+
+fn about_site(id: &str, revision: Option<u32>, reason: ReportReason) -> ReportRequest {
+    ReportRequest {
+        subject: ReportSubject::Site(ReportedSite {
+            id: id.to_owned(),
+            revision,
+        }),
+        reason,
+        text: None,
+    }
+}
+
+#[tokio::test]
+async fn a_pilot_reports_a_site_that_pilots_made_and_one_revision_of_it() {
+    let (router, store) = recorded_with_its_store().await;
+    let clock = TestClock::new();
+    let petra = sign_up(&router, "petra").await.token;
+    let [first, second, _, removed] = DEMO_SITES;
+
+    // The site as it stands: the example of the documentation. The demo
+    // account added it; the report names nobody.
+    let request = ReportRequest {
+        text: Some("The take-off is on the other side of the ridge.".to_owned()),
+        ..about_site(first, None, ReportReason::WrongOrDangerous)
+    };
+    assert_golden(&golden("report_site_request.json"), &request);
+    let answer = report(&router, &petra, &request).await;
+    assert!(answer.ok::<ReportResponse>(StatusCode::CREATED).created);
+    answer.is_private();
+    // One revision of another site, by its number; and a site that a
+    // pilot removed, whose history is still there to read.
+    let revision = about_site(second, Some(2), ReportReason::Offensive);
+    let created: ReportResponse = report(&router, &petra, &revision)
+        .await
+        .ok(StatusCode::CREATED);
+    assert!(created.created);
+    let gone = about_site(removed, None, ReportReason::NotASite);
+    report(&router, DEMO_TOKEN, &gone)
+        .await
+        .ok::<ReportResponse>(StatusCode::CREATED);
+    // The same site again is the same report, whichever revision it names.
+    let again = about_site(first, Some(1), ReportReason::Spam);
+    let known: ReportResponse = report(&router, &petra, &again).await.ok(StatusCode::OK);
+    assert!(!known.created);
+
+    // What waits for whoever runs the server: the site and the revision
+    // it stood at or the one that was named, and no account but the
+    // reporter's.
+    let reports = store.reports(ReportListing::Open, None, 10).await.unwrap();
+    assert_eq!(reports.len(), 3);
+    assert!(reports.iter().all(|report| report.about.is_none()));
+    // The three were made in the same moment: found by what they are about.
+    let kept = |id: &str| {
+        reports
+            .iter()
+            .find(|report| report.subject.id() == id)
+            .unwrap_or_else(|| panic!("no report about {id}"))
+    };
+    assert_eq!(
+        kept(first).subject,
+        venti_store::ReportSubject::Site {
+            id: first.to_owned(),
+            revision: 2,
+        }
+    );
+    assert_eq!(kept(first).reason, "wrong_or_dangerous");
+    assert_eq!(
+        kept(first).text.as_deref(),
+        Some("The take-off is on the other side of the ridge.")
+    );
+    assert_eq!(
+        kept(second).subject,
+        venti_store::ReportSubject::Site {
+            id: second.to_owned(),
+            revision: 2,
+        }
+    );
+    assert_eq!(kept(removed).reason, "not_a_site");
+    let listed = operator(&store, &clock, Action::Reports { all: false }).await;
+    assert!(listed.found);
+    let block = listed
+        .said
+        .split("\n\n")
+        .find(|block| block.contains(first))
+        .expect("the report about the first site");
+    assert!(
+        block.contains(&format!(
+            "site {first}, revision 2; made by pilots and nobody's"
+        )),
+        "{block}"
+    );
+    assert!(block.contains("at revision 2, called"), "{block}");
+    assert!(
+        block.contains(&format!("venti-server site {first}")),
+        "{block}"
+    );
+    assert!(block.contains("Reported by:"), "{block}");
+    assert!(
+        listed.said.contains("removed, at revision"),
+        "{}",
+        listed.said
+    );
+
+    // A site has the reasons of a site: the one about an account and the
+    // one about a flight are none of them. The refusal is the same
+    // whether there is such a site or not.
+    for id in [first, "venti:99999999999999999999999999"] {
+        let wrong = about_site(id, None, ReportReason::NotAFlight);
+        let said = report(&router, &petra, &wrong)
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidReport);
+        assert_eq!(
+            said,
+            "reason must be one of wrong_or_dangerous, not_a_site, offensive, privacy, spam, \
+             other"
+        );
+    }
+    // And the reasons of a site are no reasons about anything else.
+    let wrong = ReportRequest {
+        reason: ReportReason::NotASite,
+        ..about(ReportSubject::Pilot("mara".to_owned()))
+    };
+    report(&router, &petra, &wrong)
+        .await
+        .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidReport);
+
+    // What is not a site that pilots made is not reported here.
+    let spam = |id: &str, revision| about_site(id, revision, ReportReason::Spam);
+    let of_a_source = spam("osm-free-flying:way/1080986173", None);
+    report(&router, &petra, &of_a_source)
+        .await
+        .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidReport);
+    for nothing in ["venti:99999999999999999999999999", "venti:x", "nothing"] {
+        report(&router, &petra, &spam(nothing, None))
+            .await
+            .error(StatusCode::NOT_FOUND, ErrorCode::SiteNotFound);
+    }
+    for revision in [0, 9] {
+        report(&router, DEMO_TOKEN, &spam(second, Some(revision)))
+            .await
+            .error(StatusCode::NOT_FOUND, ErrorCode::SiteRevisionNotFound);
+    }
+    let all = store.reports(ReportListing::All, None, 10).await.unwrap();
+    assert_eq!(all.len(), 3, "nothing of that was kept");
+
+    // A site whoever runs the server took down shows nothing, and is gone
+    // for a report as for a reader.
+    let taken_down = Action::RemoveSite {
+        site: second.to_owned(),
+        comment: Some("Made up, for a test.".to_owned()),
+    };
+    assert!(operator(&store, &clock, taken_down).await.found);
+    report(&router, DEMO_TOKEN, &spam(second, None))
+        .await
+        .error(StatusCode::GONE, ErrorCode::SiteGone);
+    // The report that was made about it stays, and says what became of it.
+    let listed = operator(&store, &clock, Action::Reports { all: false }).await;
+    assert!(listed.said.contains("taken down"), "{}", listed.said);
 }

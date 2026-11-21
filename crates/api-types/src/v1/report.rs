@@ -1,6 +1,6 @@
 //! Reports: how a signed-in pilot tells whoever runs the server that a
-//! flight, a pilot's page, a live track, a group or a plan of a group
-//! should not be there.
+//! flight, a pilot's page, a live track, a group, a plan of a group or a
+//! site that pilots made should not be there, or not as it is.
 //!
 //! A report is read by the operator and by nobody else. The server does
 //! nothing by itself when one arrives, and it never tells the pilot who
@@ -14,7 +14,7 @@ use super::text;
 /// The most characters the text of a report may have.
 pub const MAX_REPORT_TEXT_LENGTH: usize = 1000;
 
-/// What a report is about. Exactly one of the five.
+/// What a report is about. Exactly one of the six.
 ///
 /// The list is closed, and a subject travels one way only, from a client
 /// to the server: no answer carries one. A server that is sent a kind of
@@ -38,6 +38,23 @@ pub enum ReportSubject {
     /// A plan of a group the reporter is in. What is reported is its
     /// place and its note.
     Plan(ReportedPlan),
+    /// A site that pilots made on Venti, as it stands or as one of its
+    /// revisions said it. What is reported is what the record says: its
+    /// place, its name and its texts. A site of a source the server
+    /// collects is not reported here: it is corrected at its source.
+    Site(ReportedSite),
+}
+
+/// A site that pilots made, as a report names it.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ReportedSite {
+    /// The site's identifier: `venti:` and 26 characters.
+    pub id: String,
+    /// The number of the revision the report is about. Left out, the
+    /// report is about the site as it stands, and the server notes the
+    /// revision it stood at.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<u32>,
 }
 
 /// A plan, as a report names it: by its identifier and its group's, which
@@ -56,11 +73,13 @@ impl ReportSubject {
     /// order a form lists them. A server refuses any other.
     ///
     /// A group and a plan are words and no flight, so
-    /// [`ReportReason::NotAFlight`] is not among theirs.
+    /// [`ReportReason::NotAFlight`] is not among theirs. A site has two
+    /// reasons of its own, and is nobody's account and no flight.
     pub fn reasons(&self) -> &'static [ReportReason] {
         match self {
             Self::Flight(_) | Self::Pilot(_) | Self::LiveTrack(_) => &ReportReason::ALL,
             Self::Group(_) | Self::Plan(_) => &ReportReason::ABOUT_WORDS,
+            Self::Site(_) => &ReportReason::ABOUT_A_SITE,
         }
     }
 }
@@ -88,6 +107,13 @@ pub enum ReportReason {
     Spam,
     /// Anything else. The report must then say what, in its text.
     Other,
+    /// A site is at the wrong place, or says something that is wrong in a
+    /// way that can hurt a pilot: a wind direction, a height, a landing
+    /// that is none. Only a report about a site gives it.
+    WrongOrDangerous,
+    /// The place is no flying site: nobody takes off or lands there, or
+    /// nobody may. Only a report about a site gives it.
+    NotASite,
     /// A reason this version does not know. A server refuses it; a client
     /// does not send it.
     #[serde(other)]
@@ -95,9 +121,10 @@ pub enum ReportReason {
 }
 
 impl ReportReason {
-    /// The reasons a report can give, in the order a form lists them.
-    /// Which of them a report about one kind of subject can give is said
-    /// by [`ReportSubject::reasons`].
+    /// The reasons a report about a flight, a pilot's page or a live
+    /// track can give, in the order a form lists them. Which reasons a
+    /// report about one kind of subject can give is said by
+    /// [`ReportSubject::reasons`].
     pub const ALL: [Self; 6] = [
         Self::Offensive,
         Self::Impersonation,
@@ -117,6 +144,18 @@ impl ReportReason {
         Self::Other,
     ];
 
+    /// The reasons a report about a site that pilots made can give: the
+    /// two of its own first, then those about a text, without the one
+    /// about an account and the one about a flight.
+    pub const ABOUT_A_SITE: [Self; 6] = [
+        Self::WrongOrDangerous,
+        Self::NotASite,
+        Self::Offensive,
+        Self::Privacy,
+        Self::Spam,
+        Self::Other,
+    ];
+
     /// The reason's name on the wire; `None` for a reason nobody knows.
     pub fn name(self) -> Option<&'static str> {
         match self {
@@ -126,6 +165,8 @@ impl ReportReason {
             Self::NotAFlight => Some("not_a_flight"),
             Self::Spam => Some("spam"),
             Self::Other => Some("other"),
+            Self::WrongOrDangerous => Some("wrong_or_dangerous"),
+            Self::NotASite => Some("not_a_site"),
             Self::Unknown => None,
         }
     }
@@ -276,6 +317,52 @@ mod tests {
             r#"{"subject":{"group":"a","plan":{"group":"a","id":"b"}},"reason":"spam"}"#,
         ] {
             assert!(serde_json::from_str::<ReportRequest>(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_site_is_reported_by_its_identifier_with_or_without_a_revision() {
+        let site = ReportRequest {
+            subject: ReportSubject::Site(ReportedSite {
+                id: "venti:55555555555555555555555555".to_owned(),
+                revision: None,
+            }),
+            reason: ReportReason::WrongOrDangerous,
+            text: Some("The take-off is on the other side of the ridge.".to_owned()),
+        };
+        let json = serde_json::to_value(&site).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "subject": { "site": { "id": "venti:55555555555555555555555555" } },
+                "reason": "wrong_or_dangerous",
+                "text": "The take-off is on the other side of the ridge."
+            })
+        );
+        assert_eq!(serde_json::from_value::<ReportRequest>(json).unwrap(), site);
+        let revision: ReportRequest = serde_json::from_str(
+            r#"{"subject":{"site":{"id":"venti:55555555555555555555555555","revision":2}},
+                "reason":"not_a_site"}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            revision.subject,
+            ReportSubject::Site(ReportedSite {
+                revision: Some(2),
+                ..
+            })
+        ));
+        assert_eq!(revision.reason, ReportReason::NotASite);
+        // A site is nobody's account and no flight, and has two reasons
+        // of its own that nothing else is reported for.
+        let reasons = revision.subject.reasons();
+        assert_eq!(reasons, ReportReason::ABOUT_A_SITE);
+        assert!(!reasons.contains(&ReportReason::Impersonation));
+        assert!(!reasons.contains(&ReportReason::NotAFlight));
+        for own in [ReportReason::WrongOrDangerous, ReportReason::NotASite] {
+            assert!(own.name().is_some());
+            assert!(!ReportReason::ALL.contains(&own));
+            assert!(!ReportReason::ABOUT_WORDS.contains(&own));
         }
     }
 

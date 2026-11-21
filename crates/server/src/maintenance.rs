@@ -373,7 +373,7 @@ mod tests {
                 id: format!("{name:0>26}"),
                 created_at: now - days(180),
                 reporter_id: account("dario").id,
-                about_account_id: account("anna").id,
+                about_account_id: Some(account("anna").id),
                 subject: ReportSubject::Flight(format!("{name:0>26}")),
                 reason: "spam".to_owned(),
                 text: None,

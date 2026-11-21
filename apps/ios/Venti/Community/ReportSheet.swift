@@ -14,6 +14,8 @@ struct Reported: Identifiable {
         case .liveTrack(let id): "track \(id)"
         case .group(let id): "group \(id)"
         case .plan(_, let id): "plan \(id)"
+        case .site(let id): "site \(id)"
+        case .siteRevision(let id, let revision): "site \(id) revision \(revision)"
         }
     }
 

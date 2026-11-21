@@ -171,7 +171,10 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         .await
         .unwrap();
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
-    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+    assert_eq!(
+        versions,
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    );
 }
 
 #[tokio::test]
@@ -834,7 +837,7 @@ async fn a_database_from_before_groups_could_be_reported_is_upgraded_in_place() 
         id: id.to_owned(),
         created_at: now,
         reporter_id: dario.id.clone(),
-        about_account_id: anna.id.clone(),
+        about_account_id: Some(anna.id.clone()),
         subject,
         reason: "spam".to_owned(),
         text: None,

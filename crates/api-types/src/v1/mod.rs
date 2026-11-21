@@ -93,7 +93,7 @@ pub use account::{
 };
 pub use airspace::{AirspaceLayer, AirspaceResponse};
 pub use attribution::Attribution;
-pub use error::{ErrorBody, ErrorCode, ErrorResponse};
+pub use error::{ErrorBody, ErrorCode, ErrorResponse, ErrorSite};
 pub use flights::{
     DEFAULT_PAGE_SIZE, DeletedFlight, Flight, FlightChangesResponse, FlightId, FlightIdError,
     FlightPlace, FlightResponse, FlightScore, FlightsResponse, MAX_FLIGHT_FILE_BYTES,
@@ -111,7 +111,7 @@ pub use groups::{
 };
 pub use health::{
     ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, RadarHealth,
-    RegistrationMode, SourceHealth, ThermalMapHealth, ThermalMapModelHealth,
+    RegistrationMode, SitesFromPilots, SourceHealth, ThermalMapHealth, ThermalMapModelHealth,
 };
 pub use live::{
     LIVE_LISTED_MINUTES, LiveFix, LivePositionsRequest, LivePositionsResponse, LiveTrack,
@@ -129,7 +129,7 @@ pub use radar::{
 };
 pub use report::{
     MAX_REPORT_TEXT_LENGTH, ReportReason, ReportRequest, ReportResponse, ReportSubject,
-    ReportTextError, ReportedPlan, parse_report_text,
+    ReportTextError, ReportedPlan, ReportedSite, parse_report_text,
 };
 pub use request::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
@@ -149,7 +149,7 @@ pub use sites::{
     AddSiteRequest, ChangeSiteRequest, MAX_SITE_COMMENT_LENGTH, RemoveSiteRequest,
     RestoreSiteRequest, SiteChangesResponse, SiteDraft, SiteHistoryResponse, SiteLayer, SitePilot,
     SiteRecord, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding, SiteVia, SitesResponse,
-    VENTI_SITES_SOURCE, parse_site_comment,
+    VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL, VENTI_SITES_SOURCE, parse_site_comment,
 };
 pub use stations::{Station, StationWithLatest, StationsResponse};
 pub use thermals::{

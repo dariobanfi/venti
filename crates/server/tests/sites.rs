@@ -468,10 +468,11 @@ async fn a_run_that_fails_keeps_the_last_set_and_health_says_so() {
 
 mod of_pilots {
     use axum::http::Method;
+    use venti_api_types::v1::ErrorResponse;
     use venti_api_types::v1::{
         AddSiteRequest, ChangeSiteRequest, RemoveSiteRequest, RestoreSiteRequest,
         SiteChangesResponse, SiteDraft, SiteHistoryResponse, SiteResponse, SiteRevisionKind,
-        SiteVia,
+        SiteVia, SitesFromPilots,
     };
     use venti_domain::{SiteId, WindSector};
     use venti_server::{dev, pilot_sites};
@@ -742,13 +743,40 @@ mod of_pilots {
             site: draft("Beispielkopf", 47.40005, 11.2),
             comment: None,
         };
-        let message = ask(Method::POST, "/v1/sites")
+        let refused = ask(Method::POST, "/v1/sites")
             .token(&other)
             .json(&again)
             .send(&router)
-            .await
-            .error(StatusCode::CONFLICT, ErrorCode::SiteTooClose);
+            .await;
+        let message = refused.error(StatusCode::CONFLICT, ErrorCode::SiteTooClose);
         assert!(message.contains(&id.to_string()), "{message}");
+        // The error names it for a program too: its identifier and the
+        // name it has now.
+        let error: ErrorResponse = refused.json();
+        let named = error.error.site.expect("the other site");
+        assert_eq!(named.id, id);
+        assert_eq!(named.name.as_deref(), Some("Beispielkopf Süd"));
+        // The example of the documentation: a few metres from the first
+        // of the made-up sites.
+        let beside = AddSiteRequest {
+            site: draft("Musterkogel", 47.30005, 10.9),
+            comment: None,
+        };
+        let refused = ask(Method::POST, "/v1/sites")
+            .token(&other)
+            .json(&beside)
+            .send(&router)
+            .await;
+        refused.error(StatusCode::CONFLICT, ErrorCode::SiteTooClose);
+        let error: ErrorResponse = refused.json();
+        assert_golden(&golden("site_too_close.json"), &error);
+        assert_eq!(
+            error.error.site.map(|site| site.id.to_string()).as_deref(),
+            Some(dev::DEMO_SITES[0])
+        );
+        // No other error names a site.
+        let other_error: serde_json::Value = get(&router, &site_path("venti:x")).await.json();
+        assert!(other_error["error"].get("site").is_none(), "{other_error}");
 
         // What cannot be kept is refused, with the field's name.
         let mut nameless = draft(" \u{200b} ", 47.5, 11.3);
@@ -982,6 +1010,19 @@ mod of_pilots {
             .send(&router)
             .await
             .error(StatusCode::FORBIDDEN, ErrorCode::SitesClosed);
+        // The health answer says so before anybody is refused, and says
+        // the opposite on a server that takes sites.
+        let health: HealthResponse = get(&router, "/v1/health").await.json();
+        assert_eq!(health.sites_from_pilots, Some(SitesFromPilots::Closed));
+        let (open, _) = recorded_with_its_store().await;
+        let health: HealthResponse = get(&open, "/v1/health").await.json();
+        assert_eq!(health.sites_from_pilots, Some(SitesFromPilots::Open));
+        // A server from before this said nothing, which reads as nothing.
+        let old: HealthResponse = serde_json::from_str(
+            r#"{"status":"ok","version":"0","time":"2026-11-21T10:00:00Z","sources":[]}"#,
+        )
+        .unwrap();
+        assert_eq!(old.sites_from_pilots, None);
         // Reading is never off.
         let changes: SiteChangesResponse = get(&router, "/v1/sites/changes").await.json();
         assert_eq!((changes.sites.len(), changes.cursor.as_str()), (0, "0"));

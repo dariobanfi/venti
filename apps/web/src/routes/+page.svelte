@@ -129,10 +129,21 @@
 			chosenHourSquare = undefined;
 		}
 	});
+	/**
+	 * The day whose square can be open: the day on the map, and while the
+	 * hours of another day are asked for with the day as a whole shown, that
+	 * day, so that a square stays open when the pilot goes through its days.
+	 */
+	const squareDay = $derived.by(() => {
+		if (thermalDay) return thermalDay;
+		if (!showForecast || thermals?.asked?.layer !== 'thermals') return undefined;
+		const awaited = thermals.hoursAsking && !thermals.view;
+		return awaited && typeof thermals.chosenHour !== 'number' ? thermals.day : undefined;
+	});
 	/** The square the pilot chose, by its corner: the same square on another day. */
 	let chosenSquare = $state.raw<{ south: number; west: number }>();
 	const square = $derived(
-		thermalDay?.cells.find(
+		squareDay?.cells.find(
 			(cell) =>
 				isDrawn(cell) && cell.south === chosenSquare?.south && cell.west === chosenSquare?.west
 		)
@@ -474,6 +485,9 @@
 				onheight={(heightM) => thermals.chooseHeight(heightM)}
 				onhour={(hour) => (thermals.chosenHour = hour)}
 				onretryhours={() => void thermals.loadHours()}
+				compact={!wide.current}
+				keyOpen={thermals.keyOpen}
+				onkey={(open) => (thermals.keyOpen = open)}
 			>
 				{#if chosenHere && chosenHourSquare}
 					<div class="chosen-square">
@@ -509,6 +523,7 @@
 							</button>
 						</header>
 						<ThermalSquare
+							{thermals}
 							map={thermals.map}
 							day={thermals.day}
 							cell={square}
@@ -581,22 +596,23 @@
 				{/if}
 			</MapPanel>
 		{/if}
-		{#if !wide.current && thermals?.map && thermalDay}
+		{#if !wide.current && thermals?.map && squareDay}
 			<!-- A square of the thermal map, on a narrow screen: a sheet of half
 			     the screen, the square staying in view above it. -->
 			<MapPanel
 				shown={square ? `${square.south},${square.west}` : undefined}
-				title={thermalDay.name}
+				title={squareDay.name}
 				wide={false}
 				half
 				onclose={() => (chosenSquare = undefined)}
 			>
 				{#if square}
 					<ThermalSquare
+						{thermals}
 						map={thermals.map}
-						day={thermalDay}
+						day={squareDay}
 						cell={square}
-						onforecast={() => square && thermalDay && squareForecast(square, thermalDay)}
+						onforecast={() => square && squareDay && squareForecast(square, squareDay)}
 						named={false}
 					/>
 				{/if}
@@ -869,8 +885,10 @@
 	.forecast-card {
 		align-self: stretch;
 		max-width: 26rem;
-		/* At most two fifths of the screen; the rest scrolls inside. */
-		max-height: 40dvh;
+		/* At most two fifths of the screen. The card is short until the pilot
+		   unfolds its key and notes; what is then too much scrolls inside. */
+		--forecast-card-height: 40dvh;
+		max-height: var(--forecast-card-height);
 		overflow-y: auto;
 		padding: var(--space-3);
 		border-radius: var(--radius-card);

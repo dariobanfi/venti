@@ -6,18 +6,24 @@
 	with "Try again".
 
 	Where the server has the hours of its days, a row of the layers above
-	the days ("Thermals", "Wind", "Gusts", "Cloud", "Rain"), the height of
-	the wind beside it, and under the days the line of hours. The key, the
-	model and the notes are then the layer's. On "Thermals" the line opens
-	at "Day", the day as a whole as before.
+	the days ("Thermals", "Wind", "Gusts", "Cloud", "Rain"), under the days
+	the line of hours, and under it the layer and the hour in words with the
+	height of the wind beside them. The key, the model and the notes are
+	then the layer's. On "Thermals" the line opens at "Day", the day as a
+	whole as before.
+
+	On a narrow screen the card lies over the map, so it is short
+	(`compact`): the key, the model's run and the notes stand behind "Key
+	and notes", folded until the pilot asks for them.
 
 	A square on the map cannot be reached with the keys, so the card says
 	where the same reading is found for a take-off.
 -->
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { type Snippet, tick } from 'svelte';
 	import type { ThermalMap, ThermalMapDay, ThermalMapHoursView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
+	import Icon from '#lib/design/Icon.svelte';
 	import { keyColor, NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import HourStrip from './HourStrip.svelte';
@@ -48,6 +54,14 @@
 		/** Shows an hour by its number, or the day as a whole. */
 		onhour?: (hour: number | 'day') => void;
 		onretryhours?: () => void;
+		/**
+		 * Whether the card lies over the map, on a narrow screen: the key, the
+		 * run and the notes then stand behind "Key and notes".
+		 */
+		compact?: boolean;
+		/** Whether the pilot unfolded them, and what is called when the pilot folds or unfolds them. */
+		keyOpen?: boolean;
+		onkey?: (open: boolean) => void;
 		/** What stands under the key: on a wide screen, the square chosen. */
 		children?: Snippet;
 	}
@@ -70,6 +84,9 @@
 		onheight,
 		onhour,
 		onretryhours,
+		compact = false,
+		keyOpen = false,
+		onkey,
 		children
 	}: Props = $props();
 
@@ -83,6 +100,30 @@
 	const dayCell = $derived(view?.layer === 'thermals' ? 1 : 0);
 	/** Whether the key and the run are the hour's rather than the day's. */
 	const hourly = $derived(view !== undefined && hour !== undefined && choice !== undefined);
+	/** The layer and the hour shown, in words: "Wind at 2000 m, 13:00". Nothing for the day. */
+	const said = $derived(
+		view && hour !== undefined && view.hours[hour]
+			? `${view.title}, ${view.hours[hour].label}`
+			: undefined
+	);
+	/** Whether the layer chosen has heights to choose from: the wind. */
+	const withHeights = $derived(Boolean(choice?.hasLevels) && (map?.levels.length ?? 0) > 0);
+
+	/** "Key and notes" with what it unfolds, on a narrow screen. */
+	let folded = $state<HTMLDivElement>();
+
+	/**
+	 * Unfolds the key and the notes, or folds them away. The card scrolls
+	 * inside itself where it is at its height, so what the pilot asked for
+	 * is brought to its head: "Key and notes" first, the key under it.
+	 */
+	async function fold() {
+		const open = !keyOpen;
+		onkey?.(open);
+		if (!open) return;
+		await tick();
+		folded?.scrollIntoView({ block: 'start', inline: 'nearest' });
+	}
 
 	const text = format();
 
@@ -102,39 +143,74 @@
 	}
 </script>
 
+<!-- The key of what the map shows, the model and its run, and the notes. -->
+{#snippet key(map: ThermalMap, day: ThermalMapDay)}
+	<h3 class="label" id="thermal-map-key">Key</h3>
+	<ul class="key" aria-labelledby="thermal-map-key">
+		{#if hourly && choice}
+			{#each choice.legend as entry (entry.step)}
+				<li>
+					<span class="swatch" style:background={keyColor(entry)} aria-hidden="true"></span>
+					{entry.words}
+				</li>
+			{/each}
+		{:else}
+			{#each map.legend as entry (entry.words)}
+				<li>
+					<span class="swatch" style:background={swatch(entry.scaleStep)} aria-hidden="true"></span>
+					{entry.words}
+				</li>
+			{/each}
+		{/if}
+	</ul>
+	{#if hourly && view}
+		<p class="caption numeric">{runLine(view, text)}</p>
+		{#if choice?.note}<p class="caption">{choice.note}</p>{/if}
+		{#if day.note}<p class="caption">{day.note}</p>{/if}
+		{#if !view.whole && view.note}<p class="caption">{view.note}</p>{/if}
+	{:else}
+		<p class="caption numeric">{runLine(day, text)}</p>
+		{#if day.note}
+			<p class="caption">{day.note}</p>
+		{/if}
+	{/if}
+{/snippet}
+
+<!-- What the pilot has to be told about the map as it stands: never folded away. -->
+{#snippet states()}
+	{#if !inView}
+		<p class="caption">{WORDS.noneHere}</p>
+	{/if}
+	{#if problem && !asking}
+		<p class="caption" role="status">
+			{problem}
+			<button class="again" type="button" onclick={onretry}>Try again</button>
+		</p>
+	{/if}
+{/snippet}
+
+<!-- A square cannot be reached with the keys; a take-off can. -->
+{#snippet today()}
+	<p class="caption">
+		The same reading for each take-off near you is in the list of <a href="/today/">Today</a>.
+	</p>
+{/snippet}
+
 <section class="thermal-map" aria-labelledby="thermal-map-title">
 	<h2 id="thermal-map-title" class="visually-hidden">Forecast map</h2>
 	{#if map && day}
 		{#if map.layers.length > 0}
-			<div class="layers">
-				<div class="chips" role="group" aria-label="Layer">
-					{#each map.layers as one (one.layer)}
-						<button
-							class="chip"
-							type="button"
-							aria-pressed={one.layer === choice?.layer}
-							onclick={() => onlayer?.(one.layer)}
-						>
-							{one.name}
-						</button>
-					{/each}
-				</div>
-				{#if choice?.hasLevels && map.levels.length > 0}
-					<label class="level">
-						<span class="visually-hidden">Height</span>
-						<select
-							value={String(heightM ?? '')}
-							onchange={(event) => {
-								const picked = event.currentTarget.value;
-								onheight?.(picked === '' ? undefined : Number(picked));
-							}}
-						>
-							{#each map.levels as level (level.name)}
-								<option value={String(level.heightM ?? '')}>{level.name}</option>
-							{/each}
-						</select>
-					</label>
-				{/if}
+			<div class="chips" role="group" aria-label="Layer">
+				{#each map.layers as one (one.layer)}
+					<button
+						class="chip"
+						type="button"
+						aria-pressed={one.layer === choice?.layer}
+						onclick={() => onlayer?.(one.layer)}
+					>
+						{one.name}
+					</button>
+				{/each}
 			</div>
 		{/if}
 		{#if names.length > 1}
@@ -148,9 +224,6 @@
 					value={hour === undefined ? 0 : hour + dayCell}
 					onchange={(index) => onhour?.(index < dayCell ? 'day' : index - dayCell)}
 				/>
-				{#if hour !== undefined && view.hours[hour]}
-					<p class="title">{view.title}, {view.hours[hour].label}</p>
-				{/if}
 			{:else if hoursAsking}
 				<p class="waiting" role="status">{WORDS.askingHours}</p>
 			{:else if hoursProblem}
@@ -159,50 +232,47 @@
 					<button class="again" type="button" onclick={onretryhours}>Try again</button>
 				</p>
 			{/if}
-		{/if}
-		<h3 class="label" id="thermal-map-key">Key</h3>
-		<ul class="key" aria-labelledby="thermal-map-key">
-			{#if hourly && choice}
-				{#each choice.legend as entry (entry.step)}
-					<li>
-						<span class="swatch" style:background={keyColor(entry)} aria-hidden="true"></span>
-						{entry.words}
-					</li>
-				{/each}
-			{:else}
-				{#each map.legend as entry (entry.words)}
-					<li>
-						<span class="swatch" style:background={swatch(entry.scaleStep)} aria-hidden="true"
-						></span>
-						{entry.words}
-					</li>
-				{/each}
+			<!-- The layer and the hour in words, and at their side the height of
+			     the wind, which stays in its place while its hours are asked for. -->
+			{#if said || withHeights}
+				<div class="said">
+					{#if said}<p class="title">{said}</p>{/if}
+					{#if withHeights}
+						<label class="level">
+							<span class="visually-hidden">Height</span>
+							<select
+								value={String(heightM ?? '')}
+								onchange={(event) => {
+									const picked = event.currentTarget.value;
+									onheight?.(picked === '' ? undefined : Number(picked));
+								}}
+							>
+								{#each map.levels as level (level.name)}
+									<option value={String(level.heightM ?? '')}>{level.name}</option>
+								{/each}
+							</select>
+						</label>
+					{/if}
+				</div>
 			{/if}
-		</ul>
-		{#if hourly && view}
-			<p class="caption numeric">{runLine(view, text)}</p>
-			{#if choice?.note}<p class="caption">{choice.note}</p>{/if}
-			{#if day.note}<p class="caption">{day.note}</p>{/if}
-			{#if !view.whole && view.note}<p class="caption">{view.note}</p>{/if}
+		{/if}
+		{#if compact}
+			{@render states()}
+			<div class="folded" class:open={keyOpen} bind:this={folded}>
+				<button class="fold" type="button" aria-expanded={keyOpen} onclick={fold}>
+					Key and notes
+					<span class="turn" class:up={keyOpen} aria-hidden="true"><Icon name="forward" /></span>
+				</button>
+				{#if keyOpen}
+					{@render key(map, day)}
+					{@render today()}
+				{/if}
+			</div>
 		{:else}
-			<p class="caption numeric">{runLine(day, text)}</p>
-			{#if day.note}
-				<p class="caption">{day.note}</p>
-			{/if}
+			{@render key(map, day)}
+			{@render states()}
+			{@render today()}
 		{/if}
-		{#if !inView}
-			<p class="caption">{WORDS.noneHere}</p>
-		{/if}
-		{#if problem && !asking}
-			<p class="caption" role="status">
-				{problem}
-				<button class="again" type="button" onclick={onretry}>Try again</button>
-			</p>
-		{/if}
-		<!-- A square cannot be reached with the keys; a take-off can. -->
-		<p class="caption">
-			The same reading for each take-off near you is in the list of <a href="/today/">Today</a>.
-		</p>
 		{@render children?.()}
 	{:else if asking}
 		<p class="waiting" role="status">{WORDS.asking}</p>
@@ -221,14 +291,8 @@
 		gap: var(--space-2);
 	}
 
-	.layers {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		min-width: 0;
-	}
-
-	/* The pack's chips, one of them on; the row scrolls sideways where it does not fit. */
+	/* The pack's chips, one of them on; the row scrolls sideways across the
+	   card where it does not fit. */
 	.chips {
 		display: flex;
 		gap: var(--space-2);
@@ -256,6 +320,20 @@
 		box-shadow: none;
 	}
 
+	/* The words on the left, the height's menu on the right, on one line;
+	   where the words are too long for it they break, and the menu stays. */
+	.said {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+
+	.level {
+		flex: none;
+		margin-left: auto;
+	}
+
 	.level select {
 		min-height: 2.25rem;
 		padding: 0 var(--space-2);
@@ -268,9 +346,53 @@
 	}
 
 	.title {
+		flex: 1;
+		min-width: 0;
 		margin: 0;
 		font-size: var(--subheadline);
 		font-weight: 600;
+	}
+
+	/* "Key and notes" and what it unfolds, on a narrow screen. Brought to
+	   the card's head when unfolded, with less above it than the gap to the
+	   line before, so that nothing of that line shows over it. */
+	.folded {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		scroll-margin-top: var(--space-1);
+	}
+
+	/* Unfolded it is as high as the card may be (the map tab says how high)
+	   less that and the card's padding under it, so that the card can show it
+	   from its first line with nothing cut above. */
+	.folded.open {
+		min-height: calc(var(--forecast-card-height, 0px) - var(--space-1) - var(--space-3));
+	}
+
+	/* A row to press, as high as a finger needs; it reaches into the gaps
+	   above and below it, so that the folded card ends close under its words. */
+	.fold {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+		min-height: var(--target);
+		margin: calc(var(--space-2) * -1) 0;
+		color: var(--link);
+		font-size: var(--subheadline);
+		font-weight: 600;
+		text-align: left;
+	}
+
+	/* The pack's forward chevron, turned to point down, and up once unfolded. */
+	.turn {
+		display: grid;
+		transform: rotate(90deg);
+	}
+
+	.turn.up {
+		transform: rotate(-90deg);
 	}
 
 	.label {

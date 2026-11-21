@@ -1,9 +1,10 @@
 <!--
-	One square of the thermal map, chosen on the map: the day's name, the
-	status as icon, word and colour, the kind of day with its mark in the
-	square's colour on the map and the thermals in a line, the height it was
-	judged at, the day's and the map's notes and the credits. The words are
-	the core's.
+	One square of the thermal map, chosen on the map: the square's days side
+	by side, as the sheet of an hour has them, the day's name, the status as
+	icon, word and colour, the kind of day with its mark in the square's
+	colour on the map and the thermals in a line, the height it was judged
+	at, the day's and the map's notes and the credits. The words are the
+	core's.
 -->
 <script lang="ts">
 	import type { ThermalMap, ThermalMapCell, ThermalMapDay } from '#lib/core/index.ts';
@@ -11,9 +12,13 @@
 	import { THERMAL_ON_MAP } from '#lib/design/palette.ts';
 	import StatusChip from '#lib/today/StatusChip.svelte';
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
+	import SquareDays from './SquareDays.svelte';
+	import type { ThermalMapModel } from './thermal-map.svelte';
 	import { judgedAt, runLine } from './thermal-map';
 
 	interface Props {
+		/** Asked for the square's other days, and told which day to show. */
+		thermals: ThermalMapModel;
 		map: ThermalMap;
 		day: ThermalMapDay;
 		cell: ThermalMapCell;
@@ -25,12 +30,19 @@
 		onforecast?: () => void;
 	}
 
-	let { map, day, cell, named = true, withRun = true, onforecast }: Props = $props();
+	let { thermals, map, day, cell, named = true, withRun = true, onforecast }: Props = $props();
 
 	const text = format();
+
+	// The square's middle, which is the same on every day: its days are asked
+	// for once, not again with each day shown.
+	const lat = $derived((cell.south + cell.north) / 2);
+	const lon = $derived((cell.west + cell.east) / 2);
+	const place = $derived({ lat, lon });
 </script>
 
 <div class="square">
+	<SquareDays {thermals} {place} />
 	{#if named}
 		<h3>{day.name}</h3>
 	{/if}

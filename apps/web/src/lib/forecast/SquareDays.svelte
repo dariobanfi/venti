@@ -2,21 +2,33 @@
 	A square's days side by side, as the core gives them (`thermalMapStrip`):
 	each day's name, and under it the square's kind of day as a mark in the
 	map's colour and its status in words. The day the map shows is marked;
-	a click on another day shows that day on the map.
+	a click on another day shows that day on the map. A square's sheet has
+	it at its head, for the day as a whole and for an hour alike.
 -->
 <script lang="ts">
-	import type { ThermalStripDay } from '#lib/core/index.ts';
+	import type { Coordinate, ThermalStripDay } from '#lib/core/index.ts';
 	import { NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
 	import ThermalMark from '#lib/today/ThermalMark.svelte';
+	import type { ThermalMapModel } from './thermal-map.svelte';
 
 	interface Props {
-		days: readonly ThermalStripDay[];
-		/** The day the map shows, by its date. */
-		chosen: string | undefined;
-		onday: (date: string) => void;
+		thermals: ThermalMapModel;
+		/** A place in the square. */
+		place: Coordinate;
 	}
 
-	let { days, chosen, onday }: Props = $props();
+	let { thermals, place }: Props = $props();
+
+	let days = $state.raw<ThermalStripDay[]>([]);
+
+	// The days of the place, again with every map.
+	$effect(() => {
+		void thermals.map;
+		const at = place;
+		void thermals.strip(at).then((read) => {
+			if (at === place) days = read;
+		});
+	});
 
 	/** The mark's colour: the square's step of the thermal scale, the veil on a day not flyable. */
 	function color(day: ThermalStripDay): string | undefined {
@@ -33,8 +45,8 @@
 			<button
 				class="day"
 				type="button"
-				aria-pressed={day.date === chosen}
-				onclick={() => onday(day.date)}
+				aria-pressed={day.date === thermals.day?.date}
+				onclick={() => thermals.chooseDay(day.date)}
 			>
 				<span class="name">{day.name}</span>
 				<span class="reading">

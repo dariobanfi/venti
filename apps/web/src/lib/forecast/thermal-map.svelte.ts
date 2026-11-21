@@ -79,6 +79,13 @@ export class ThermalMapModel {
 	/** What the map draws of the hour shown. */
 	shapes = $state.raw<HourShapes>();
 
+	/**
+	 * Whether the pilot unfolded the card's key, run and notes, which a
+	 * narrow screen folds away: folded when the app opens, then as the pilot
+	 * left them for as long as the page is open. The browser does not keep it.
+	 */
+	keyOpen = $state(false);
+
 	#core: Core;
 	#clock: () => number;
 	#triedMs: number | undefined;

@@ -7,7 +7,7 @@
 	square is drawn opens it too: "Dry" or "Mostly clear" is a reading.
 -->
 <script lang="ts">
-	import type { ThermalMapHourSquare, ThermalStripDay } from '#lib/core/index.ts';
+	import type { ThermalMapHourSquare } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import StatusChip from '#lib/today/StatusChip.svelte';
 	import WindGlyph from '#lib/wind/WindGlyph.svelte';
@@ -29,7 +29,6 @@
 	const text = format();
 
 	let square = $state.raw<ThermalMapHourSquare>();
-	let days = $state.raw<ThermalStripDay[]>([]);
 
 	// The square's words, again whenever the hour, the layer or the day changes.
 	$effect(() => {
@@ -41,20 +40,11 @@
 		});
 	});
 
-	// The days of the place, again with every map.
-	$effect(() => {
-		void thermals.map;
-		const at = place;
-		void thermals.strip(at).then((read) => {
-			if (at === place) days = read;
-		});
-	});
-
 	const choice = $derived(thermals.map?.layers.find((one) => one.layer === thermals.view?.layer));
 </script>
 
 <div class="square">
-	<SquareDays {days} chosen={thermals.day?.date} onday={(date) => thermals.chooseDay(date)} />
+	<SquareDays {thermals} {place} />
 	{#if square}
 		<div class="reading">
 			{#if square.wind}

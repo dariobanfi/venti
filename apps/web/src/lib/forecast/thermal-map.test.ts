@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ThermalMap, ThermalMapCell, ThermalMapDay } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import { keyColor, NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
 import style from '../../../../../map/style.json';
 import { hourFill, layerAbove, thermalLayer } from './thermal-layer';
+import { ThermalMapModel } from './thermal-map.svelte';
 import {
 	creditLine,
 	dayOf,
@@ -273,5 +274,52 @@ describe('the hours of a day, layer by layer', () => {
 		expect(fill[5]).toBe(NOT_FLYABLE_ON_MAP);
 		expect(keyColor({ scale: 'thermal', scaleStep: 3 })).toBe(THERMAL_ON_MAP[2]);
 		expect(keyColor({ scale: 'vario', scaleStep: 4 })).toMatch(/^#/);
+	});
+});
+
+describe('the card’s key and notes, which a narrow screen folds away', () => {
+	/** A map of two days, and a core that has it and nothing else to say. */
+	const MAP: ThermalMap = {
+		days: [DAY, { ...DAY, date: '2026-07-13', name: 'Tomorrow' }],
+		legend: [],
+		layers: [],
+		levels: [],
+		model: 'ICON-D2',
+		runUnixS: 0,
+		computedUnixS: 0,
+		note: '',
+		credits: []
+	};
+	const core = { thermalMap: async () => MAP } as unknown as ConstructorParameters<
+		typeof ThermalMapModel
+	>[0];
+
+	// The model reads the layer the pilot left from the browser's storage,
+	// of which this process has none.
+	beforeAll(() => vi.stubGlobal('localStorage', undefined));
+	afterAll(() => vi.unstubAllGlobals());
+
+	it('are folded when the app opens', () => {
+		expect(new ThermalMapModel(core).keyOpen).toBe(false);
+	});
+
+	it('stay as the pilot left them over another day and another map', async () => {
+		const model = new ThermalMapModel(core);
+		await model.load();
+		model.keyOpen = true;
+		model.chooseDay(MAP.days[1].date);
+		expect(model.day?.date).toBe(MAP.days[1].date);
+		await model.load();
+		expect(model.keyOpen).toBe(true);
+		// Folded again, they stay folded.
+		model.keyOpen = false;
+		model.chooseDay(MAP.days[0].date);
+		expect(model.keyOpen).toBe(false);
+	});
+
+	it('are folded again in another visit: the browser keeps nothing of it', () => {
+		const model = new ThermalMapModel(core);
+		model.keyOpen = true;
+		expect(new ThermalMapModel(core).keyOpen).toBe(false);
 	});
 });

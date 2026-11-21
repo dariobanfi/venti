@@ -106,6 +106,25 @@ async function zoom(page: Page, mapDrawn: () => Promise<void>, steps: number) {
 	await canvas.blur();
 }
 
+/**
+ * Moves the map's view up or down with the arrow keys, a hundred pixels a
+ * press, and waits for it to be drawn.
+ */
+async function pan(
+	page: Page,
+	mapDrawn: () => Promise<void>,
+	key: 'ArrowUp' | 'ArrowDown',
+	presses: number
+) {
+	const canvas = page.locator('canvas.maplibregl-canvas');
+	await canvas.focus();
+	for (let press = 0; press < presses; press += 1) {
+		await page.keyboard.press(key);
+		await mapDrawn();
+	}
+	await canvas.blur();
+}
+
 /** Steps the line of hours to an hour by its label, with the keyboard. */
 async function toHour(page: Page, label: string) {
 	const hours = card(page).getByRole('slider', { name: 'Hour' });
@@ -128,6 +147,34 @@ const forecastChip = (page: Page) =>
 
 /** The card of the layer: a pane beside the map on a wide screen, a card at its foot on a phone. */
 const card = (page: Page) => page.getByRole('region', { name: 'Forecast map' });
+
+/** What folds the card's key, run and notes away on a phone, where the card lies over the map. */
+const keyAndNotes = (page: Page) => card(page).getByRole('button', { name: 'Key and notes' });
+
+/**
+ * Unfolds the card's key, run and notes on a phone, which opens with them
+ * folded away. A wide screen shows them beside the map and has nothing to unfold.
+ */
+async function unfoldTheKey(page: Page, wide: boolean) {
+	if (wide) {
+		await expect(keyAndNotes(page)).toBeHidden();
+		return;
+	}
+	await expect(keyAndNotes(page)).toHaveAttribute('aria-expanded', 'false');
+	await expect(card(page).getByRole('list', { name: 'Key' })).toBeHidden();
+	await keyAndNotes(page).click();
+	await expect(keyAndNotes(page)).toHaveAttribute('aria-expanded', 'true');
+	// One tap, and the whole key stands in the card.
+	await expect(card(page).getByRole('list', { name: 'Key' })).toBeInViewport({ ratio: 1 });
+}
+
+/** Folds them away again, as the card opens. */
+async function foldTheKey(page: Page, wide: boolean) {
+	if (wide) return;
+	await keyAndNotes(page).click();
+	await expect(keyAndNotes(page)).toHaveAttribute('aria-expanded', 'false');
+	await expect(card(page).getByRole('list', { name: 'Key' })).toBeHidden();
+}
 
 test('the forecast layer shows every kind of day, day by day, and what a square says', async ({
 	context,
@@ -155,9 +202,15 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	await expect(card(page)).toBeHidden();
 	await forecastChip(page).click();
 	await expect(forecastChip(page)).toHaveAttribute('aria-pressed', 'true');
+	const days = card(page).getByRole('radiogroup', { name: 'Day' }).getByRole('radio');
+	await expect(days).toHaveCount(4);
+	await expect(days.first()).toBeChecked();
+	await mapDrawn();
+	await keep('112-map-forecast');
 
 	// The key is the core's: the kinds of day from the best down, then the
-	// day that is not flyable.
+	// day that is not flyable. On a phone it is one tap away.
+	await unfoldTheKey(page, wide);
 	const key = card(page).getByRole('list', { name: 'Key' });
 	await expect(key.getByRole('listitem')).toHaveText([
 		'Big day',
@@ -170,11 +223,8 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	// A square cannot be reached with the keys; a take-off can.
 	await expect(card(page).getByRole('link', { name: 'Today' })).toBeVisible();
 	await expect(page.getByText(/^Forecast: Open-Meteo/)).toBeVisible();
-	const days = card(page).getByRole('radiogroup', { name: 'Day' }).getByRole('radio');
-	await expect(days).toHaveCount(4);
-	await expect(days.first()).toBeChecked();
-	await mapDrawn();
-	await keep('112-map-forecast');
+	if (!wide) await keep('130-map-forecast-key-and-notes');
+	await foldTheKey(page, wide);
 
 	// The next day, a step weaker everywhere. Days are chosen by their place:
 	// which one is today hangs on the browser's time zone too.
@@ -199,8 +249,25 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	await expect(square).toContainText(/Judged at the model’s ground, \d+ m/);
 	await expect(square).toContainText(/Flyable|Marginal|Not flyable/);
 	await expect(square).toContainText(/m\/s|None to climb in|Not flyable/);
+	// The square's days side by side at the head, as the sheet of an hour has
+	// them: the day the map shows is marked.
+	const strip = square.getByRole('group', { name: 'This square, day by day' }).getByRole('button');
+	await expect(strip).toHaveCount(4);
+	await expect(strip.nth(1)).toHaveAttribute('aria-pressed', 'true');
 	await mapDrawn();
 	await keep('114-map-forecast-square');
+
+	// Another day from the strip: the map shows it, and the square stays open
+	// with that day's reading. Then back to the second day.
+	await strip.nth(2).click();
+	await expect(strip.nth(2)).toHaveAttribute('aria-pressed', 'true');
+	await expect(days.nth(2)).toBeChecked();
+	await expect(square).toContainText(/Judged at the model’s ground, \d+ m/);
+	await expect(square).toContainText('ICON-EU');
+	await strip.nth(1).click();
+	await expect(strip.nth(1)).toHaveAttribute('aria-pressed', 'true');
+	await expect(days.nth(1)).toBeChecked();
+	await expect(square).toContainText('ICON-D2');
 
 	// The hours behind the day's verdict: the forecast for the square's middle,
 	// open on the day the map shows, the second, of the model the map read it
@@ -261,6 +328,7 @@ test('the forecast layer reads the development server’s November map, and says
 	// Asked again, it has the recorded map: a day not flyable, then weak thermals.
 	refusing = false;
 	await card(page).getByRole('button', { name: 'Try again' }).click();
+	await unfoldTheKey(page, wide);
 	await expect(card(page).getByRole('list', { name: 'Key' })).toBeVisible();
 	await expect(card(page)).toContainText('ICON-D2, run of Sat, 21 Nov at 07:00');
 	const days = card(page).getByRole('radiogroup', { name: 'Day' });
@@ -291,10 +359,12 @@ test('the forecast layer reads the development server’s November map, and says
 			.click();
 	}
 
-	// Kept on as the pilot left it.
+	// Kept on as the pilot left it. The key is folded away again on a phone:
+	// that is kept while the page is open, not by the browser.
 	await page.reload();
 	await mapTabDrawn(page, mapDrawn);
 	await expect(forecastChip(page)).toHaveAttribute('aria-pressed', 'true');
+	await unfoldTheKey(page, wide);
 	await expect(card(page).getByRole('list', { name: 'Key' })).toBeVisible();
 });
 
@@ -309,8 +379,13 @@ test('the forecast layer shows each layer hour by hour, and what a square says i
 	await madeUpMap(page);
 	const low = await squareWhereGround(false, 1000);
 	await forecastAt(context, page, mapDrawn, low);
-	// Out to where a few squares and their arrows are in view.
-	await zoom(page, mapDrawn, -2);
+	// Out to where a field of squares and their arrows is in view: a square
+	// of the made-up map is a tenth of a degree, and a phone is narrow.
+	const out = wide ? -2 : -3;
+	await zoom(page, mapDrawn, out);
+	// On a phone the card lies over the map's middle, where the pilot stands:
+	// the view goes south, so that the field stands in what the card leaves free.
+	if (!wide) await pan(page, mapDrawn, 'ArrowDown', 2);
 
 	// The layers above the days; "Thermals" first, and on it the line of
 	// hours opens at the day as a whole.
@@ -328,6 +403,9 @@ test('the forecast layer shows each layer hour by hour, and what a square says i
 	await expect(hours).toHaveAttribute('aria-valuetext', /^\d\d:00$/);
 	await mapDrawn();
 	console.log(`A step of an hour took ${Date.now() - started} ms to draw.`);
+	// Midday, where the made-up day has the most to see.
+	await toHour(page, '13:00');
+	await mapDrawn();
 	await keep('120-map-forecast-thermals-hour');
 
 	// The wind at the ground: arrows, opened at the hour the core names.
@@ -336,8 +414,17 @@ test('the forecast layer shows each layer hour by hour, and what a square says i
 	await expect(hours).toHaveAttribute('aria-valuetext', /^\d\d:00$/);
 	const height = card(page).getByRole('combobox', { name: 'Height' });
 	await expect(height).toHaveValue('');
-	// Midday, where the made-up day has the most to see.
 	await toHour(page, '13:00');
+	// The layer and the hour in words, and the height's menu at their side
+	// on the same line, clear of the row of layers.
+	const words = card(page).getByText('Wind at the ground, 13:00');
+	const wordsBox = (await words.boundingBox())!;
+	const heightBox = (await height.boundingBox())!;
+	expect(heightBox.x).toBeGreaterThanOrEqual(wordsBox.x + wordsBox.width);
+	expect(heightBox.y).toBeLessThan(wordsBox.y + wordsBox.height);
+	expect(heightBox.y + heightBox.height).toBeGreaterThan(wordsBox.y);
+	const chipsBox = (await card(page).getByRole('group', { name: 'Layer' }).boundingBox())!;
+	expect(heightBox.y).toBeGreaterThan(chipsBox.y + chipsBox.height);
 	await mapDrawn();
 	await keep('121-map-forecast-wind');
 
@@ -360,11 +447,44 @@ test('the forecast layer shows each layer hour by hour, and what a square says i
 		await keep(name);
 	}
 
+	// The key of each layer. A wide screen has it beside the map, in the
+	// screenshots above; on a phone it is unfolded once and stays unfolded
+	// from layer to layer, and when the layer is switched off and on.
+	if (!wide) {
+		await unfoldTheKey(page, wide);
+		for (const [layer, name] of [
+			['Thermals', '131-map-forecast-key-thermals'],
+			['Wind', '132-map-forecast-key-wind'],
+			['Gusts', '133-map-forecast-key-gusts'],
+			['Cloud', '134-map-forecast-key-cloud'],
+			['Rain', '135-map-forecast-key-rain']
+		] as const) {
+			await layerChip(page, layer).click();
+			await expect(layerChip(page, layer)).toHaveAttribute('aria-pressed', 'true');
+			await toHour(page, '13:00');
+			await expect(keyAndNotes(page)).toHaveAttribute('aria-expanded', 'true');
+			const key = card(page).getByRole('list', { name: 'Key' });
+			await expect(key.getByRole('listitem').first()).toBeVisible();
+			// Folded and unfolded again, for the picture: the card as a tap on
+			// "Key and notes" leaves it, with the key at its head.
+			await foldTheKey(page, wide);
+			await unfoldTheKey(page, wide);
+			await mapDrawn();
+			await keep(name);
+		}
+		await forecastChip(page).click();
+		await expect(card(page)).toBeHidden();
+		await forecastChip(page).click();
+		await expect(keyAndNotes(page)).toHaveAttribute('aria-expanded', 'true');
+		await foldTheKey(page, wide);
+	}
+
 	// A square in an hour: its days side by side, the hour and the layer in
 	// the core's words.
 	await layerChip(page, 'Wind').click();
 	await height.selectOption({ label: 'Ground' });
-	await zoom(page, mapDrawn, 2);
+	if (!wide) await pan(page, mapDrawn, 'ArrowUp', 2);
+	await zoom(page, mapDrawn, -out);
 	await clickTheMiddle(page, wide);
 	const square = wide ? card(page) : page.getByRole('dialog');
 	const days = square.getByRole('group', { name: 'This square, day by day' }).getByRole('button');
@@ -414,7 +534,8 @@ test('while the hours are asked for the card says so, and when they cannot be ha
 	context,
 	page,
 	mapDrawn,
-	keep
+	keep,
+	wide
 }) => {
 	await madeUpMap(page);
 	// The hours of the wind are slow at first, then refused.
@@ -442,8 +563,9 @@ test('while the hours are asked for the card says so, and when they cannot be ha
 	answer = 'refused';
 	release();
 	await expect(card(page).getByRole('button', { name: 'Try again' })).toBeVisible();
-	// The day's squares stand under the day's key.
-	await expect(card(page).getByRole('list', { name: 'Key' })).toContainText('Big day');
 	await mapDrawn();
 	await keep('129-map-forecast-hours-refused');
+	// The day's squares stand under the day's key.
+	await unfoldTheKey(page, wide);
+	await expect(card(page).getByRole('list', { name: 'Key' })).toContainText('Big day');
 });

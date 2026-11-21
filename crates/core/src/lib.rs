@@ -39,6 +39,7 @@ mod forecast;
 mod ground_wind;
 mod groups;
 mod kept_airspace;
+mod kept_sites;
 mod leagues;
 mod live;
 mod logbook;
@@ -46,6 +47,7 @@ mod maps;
 mod report;
 mod route_plan;
 mod server;
+mod site_filter;
 mod sites;
 mod station_air;
 mod statistics;
@@ -76,11 +78,13 @@ pub use forecast::*;
 pub use ground_wind::*;
 pub use groups::*;
 pub use kept_airspace::*;
+pub use kept_sites::*;
 pub use leagues::*;
 pub use live::*;
 pub use maps::*;
 pub use report::*;
 pub use route_plan::*;
+pub use site_filter::*;
 pub use sites::*;
 pub use station_air::*;
 pub use statistics::*;
@@ -370,8 +374,8 @@ pub struct LogbookView {
 #[derive(Debug, uniffi::Object)]
 pub struct Core {
     logbook: Logbook,
-    /// Where the core keeps what is not a flight: the pilot's waypoints
-    /// and airspace files.
+    /// Where the core keeps what is not a flight: the pilot's waypoints,
+    /// airspace files and own sites.
     storage: Arc<dyn Storage>,
     /// The airspace of the pilot's files, once it has been asked for.
     airspace: Mutex<Option<Arc<AirspaceSet>>>,

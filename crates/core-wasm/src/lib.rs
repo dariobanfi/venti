@@ -44,16 +44,18 @@ use serde::Serialize;
 use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceHeightFilter, AirspaceImport,
-    AirspaceOverPlace, AirspaceShape, Bounds, Coordinate, CoreError, FlightAirspace,
+    AirspaceOverPlace, AirspaceShape, Bounds, Coordinate, CoreError, Credit, FlightAirspace,
     FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView, FlightVisibility,
     ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
-    KeptAirspace, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics, LogbookView,
-    PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder,
-    Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus,
-    SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SitesMap, StagedStorage, StationAir,
+    KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
+    LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
+    PublicFlightsOrder, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
+    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SiteView,
+    SitesFilter, SitesFilterChoices, SitesFiltered, SitesMap, StagedStorage, StationAir,
     StationDay, StationDays, StationHistory, Storage, SyncStep, SyncSummary, Tendencies,
     TerrainTile, ThermalHoursLayer, ThermalMap, ThermalMapHourSquare, ThermalMapHoursView,
-    ThermalMapShapes, ThermalStripDay, TrackPoint, WindMap, WindSpan, WindStation,
+    ThermalMapShapes, ThermalStripDay, TodayOrder, TodayStanding, TodayTakeoffs, TrackPoint,
+    WindMap, WindSpan, WindStation,
 };
 use wasm_bindgen::prelude::*;
 
@@ -540,6 +542,78 @@ impl Core {
         to_js(&over)
     }
 
+    // The pilot's own flying sites, kept in the browser, and the take-offs
+    // of Today, which begin with them. Nothing of it goes to the server.
+
+    /// Marks a site as one of the pilot's own and keeps its record in the
+    /// browser. `credits` are the credits of the answer the site came
+    /// from, and `as_of_unix_s` the date of the source's data by the same
+    /// answer: the source's credit and the date are kept with the site.
+    /// Keeping a site that is kept already takes its record anew.
+    #[wasm_bindgen(js_name = keepSite)]
+    pub fn keep_site(
+        &self,
+        site: Ts<SiteView>,
+        credits: Vec<Ts<Credit>>,
+        as_of_unix_s: Option<f64>,
+    ) -> Result<(), JsValue> {
+        let site = from_js(&site)?;
+        let credits = credits.iter().map(from_js).collect::<Result<Vec<_>, _>>()?;
+        self.session
+            .call(|core| core.keep_site(site, credits, as_of_unix_s.map(whole_seconds)))
+            .map_err(thrown)
+    }
+
+    /// Unmarks a site: it is no longer one of the pilot's own.
+    #[wasm_bindgen(js_name = forgetSite)]
+    pub fn forget_site(&self, id: String) -> Result<(), JsValue> {
+        self.session
+            .call(|core| core.forget_site(id))
+            .map_err(thrown)
+    }
+
+    /// Whether a site is one of the pilot's own, for the button on its
+    /// page.
+    #[wasm_bindgen(js_name = isSiteKept)]
+    pub fn is_site_kept(&self, id: String) -> Result<bool, JsValue> {
+        self.session
+            .call(|core| core.is_site_kept(id))
+            .map_err(thrown)
+    }
+
+    /// The pilot's own sites, from the browser's store alone. With a place
+    /// given, the nearest first, each with its distance and direction from
+    /// there; without, by name.
+    #[wasm_bindgen(js_name = keptSites)]
+    pub fn kept_sites(&self, from: Option<Ts<Coordinate>>) -> Result<Ts<KeptSites>, JsValue> {
+        let from = from.as_ref().map(from_js).transpose()?;
+        let kept = self
+            .session
+            .call(|core| core.kept_sites(from))
+            .map_err(thrown)?;
+        to_js(&kept)
+    }
+
+    /// The take-offs Today lists: the pilot's own first, however far away,
+    /// then those around `place`. `near` is what `sitesMap` read of the
+    /// server's answer for `todayArea` around the place; without it the
+    /// list is the pilot's own. A kept site the answer holds is refreshed
+    /// from it, so there may be changes to store afterwards.
+    #[wasm_bindgen(js_name = todayTakeoffs)]
+    pub fn today_takeoffs(
+        &self,
+        place: Option<Ts<Coordinate>>,
+        near: Option<Ts<SitesMap>>,
+    ) -> Result<Ts<TodayTakeoffs>, JsValue> {
+        let place = place.as_ref().map(from_js).transpose()?;
+        let near = near.as_ref().map(from_js).transpose()?;
+        let today = self
+            .session
+            .call(|core| core.today_takeoffs(place, near))
+            .map_err(thrown)?;
+        to_js(&today)
+    }
+
     // Groups of pilots and the plans their members make for a flying day,
     // on the Venti server. The core says what to send and reads the answer;
     // the page sends it with the session token. Nothing of it is kept.
@@ -921,8 +995,9 @@ pub fn server_airspace_path(lat: f64, lon: f64) -> Result<String, JsValue> {
 }
 
 // Flying sites from the Venti server: take-offs, landings, winch sites and
-// training slopes for the map. Like the wind, they are asked for and read,
-// and nothing of them is kept among the core's files.
+// training slopes for the map. Like the wind, they are asked for and read.
+// Nothing of them is kept among the core's files but the sites the pilot
+// marks as their own, through `Core.keepSite`.
 
 /// The path and query to `GET` for the flying sites of a box.
 #[wasm_bindgen(js_name = sitesPath)]
@@ -969,6 +1044,44 @@ pub fn site_outlook(
         )
         .map_err(thrown)?,
     )
+}
+
+/// The choices of the filter of sites, and what to say with them.
+#[wasm_bindgen(js_name = sitesFilterChoices)]
+pub fn sites_filter_choices() -> Result<Ts<SitesFilterChoices>, JsValue> {
+    to_js(&venti_core::sites_filter_choices())
+}
+
+/// The sites a filter leaves of those handed in: the ones that are what
+/// was asked for, the take-offs whose source does not say and that are
+/// shown apart, and the words for both.
+#[wasm_bindgen(js_name = filterSites)]
+pub fn filter_sites(
+    sites: Vec<Ts<SiteView>>,
+    filter: Ts<SitesFilter>,
+) -> Result<Ts<SitesFiltered>, JsValue> {
+    let sites = sites.iter().map(from_js).collect::<Result<Vec<_>, _>>()?;
+    to_js(&venti_core::filter_sites(sites, from_js(&filter)?))
+}
+
+/// The part of the map Today asks the server's sites for: a box that holds
+/// every place within reach of the pilot's. Asked for with `sitesPath`,
+/// read with `sitesMap`, handed to `Core.todayTakeoffs`.
+#[wasm_bindgen(js_name = todayArea)]
+pub fn today_area(lat: f64, lon: f64) -> Result<Ts<Bounds>, JsValue> {
+    to_js(&venti_core::today_area(lat, lon).map_err(thrown)?)
+}
+
+/// Today's take-offs in the order to list them on a day, the pilot's own
+/// first, with the one that looks best. Each take-off is handed in with
+/// what its forecast says of the day shown.
+#[wasm_bindgen(js_name = todayOrder)]
+pub fn today_order(takeoffs: Vec<Ts<TodayStanding>>) -> Result<Ts<TodayOrder>, JsValue> {
+    let takeoffs = takeoffs
+        .iter()
+        .map(from_js)
+        .collect::<Result<Vec<_>, _>>()?;
+    to_js(&venti_core::today_order(takeoffs))
 }
 
 // The thermal map: the kind of day, square by square, over the area the
@@ -1711,6 +1824,63 @@ mod tests {
             "the flight's file is removed from the store"
         );
         assert!(open(&store).core.logbook().years.is_empty());
+    }
+
+    #[test]
+    fn a_page_keeps_the_pilots_sites_across_reloads() {
+        // A site as the server answers it, read by the core.
+        let answer = br#"{"layers": [{"source": "osm-free-flying",
+            "fetched_at": "2026-11-18T19:05:00Z", "as_of": "2026-11-18T19:05:00Z", "covers": [],
+            "sites": [{"id": "osm-free-flying:way/1080986173",
+                "name": "Fluggel\u00e4nde J\u00e4gerkamp/Nagelspitz",
+                "position": {"lat": 47.6791413, "lon": 11.9051032}, "elevation_m": 1560.0,
+                "uses": ["takeoff"]}]}],
+            "attributions": [{"source": "osm-free-flying",
+                "provider": "OpenStreetMap contributors", "licence": "ODbL 1.0",
+                "text": "\u00a9 OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/copyright"}]}"#;
+        let map = venti_core::sites_map(47.5, 11.5, 48.0, 12.5, 200, answer.to_vec()).unwrap();
+        let site = map.sites[0].clone();
+
+        let mut store = Store::new();
+        let session = open(&store);
+        session
+            .call(|core| core.keep_site(site.clone(), map.credits.clone(), map.as_of_unix_s))
+            .unwrap();
+        commit(&session.staged, &mut store);
+        assert!(store.contains_key("sites-kept/osm-free-flying.json"));
+
+        // After a reload the file is in the store and not in memory: the
+        // call fails for want of it, the page fetches it and calls again.
+        let reopened = open(&store);
+        let error = reopened.call(|core| core.kept_sites(None)).unwrap_err();
+        assert_eq!(CoreErrorKind::of(&error), CoreErrorKind::Storage);
+        assert_eq!(fetch(&reopened.staged, &store, usize::MAX), 1);
+        let kept = reopened.call(|core| core.kept_sites(None)).unwrap();
+        assert_eq!(kept.sites[0].site, site);
+        assert_eq!(kept.credits, map.credits);
+
+        // Today begins with it, also with no answer from the server; the
+        // file is out of memory again after each call that succeeded.
+        reopened
+            .call(|core| core.today_takeoffs(None, None))
+            .unwrap_err();
+        assert_eq!(fetch(&reopened.staged, &store, usize::MAX), 1);
+        let today = reopened
+            .call(|core| core.today_takeoffs(None, None))
+            .unwrap();
+        assert!(today.takeoffs[0].is_kept);
+        assert!(reopened.staged.take_staged().is_empty());
+
+        reopened
+            .call(|core| core.forget_site(site.id.clone()))
+            .unwrap_err();
+        assert_eq!(fetch(&reopened.staged, &store, usize::MAX), 1);
+        reopened
+            .call(|core| core.forget_site(site.id.clone()))
+            .unwrap();
+        commit(&reopened.staged, &mut store);
+        assert!(!store.contains_key("sites-kept/osm-free-flying.json"));
     }
 
     #[test]

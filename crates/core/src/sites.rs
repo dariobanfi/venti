@@ -10,6 +10,10 @@
 //! permission to fly there, a site missing from it may well exist, and
 //! most have no name and no wind directions. The views say what the source
 //! says and nothing more.
+//!
+//! Beside this module: the filter of the sites, by use, wind and height
+//! (`site_filter`), and the sites a pilot keeps as their own, with which
+//! Today begins (`kept_sites`).
 
 use venti_api_types::v1::{SitesRequest, SitesResponse};
 use venti_domain::{BoundingBox, GeoPoint, Site, SiteUse, WindSector};
@@ -21,7 +25,10 @@ use crate::{Coordinate, CoreError, Credit, WindStation};
 
 /// What a site is used for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum SiteKind {
     /// Taking off on foot.
@@ -155,9 +162,14 @@ pub fn stations_near(
     near
 }
 
-/// One flying site as a map and a sheet show it.
+/// One flying site as a map and a sheet show it. A shell hands it back to
+/// have sites filtered ([`crate::filter_sites`]) and to keep one as the
+/// pilot's own ([`crate::Core::keep_site`]).
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SiteView {
     /// Its identifier.
@@ -196,9 +208,13 @@ pub struct SiteView {
     pub url: Option<String>,
 }
 
-/// The sites in a part of the map.
+/// The sites in a part of the map. A shell hands it back for Today's
+/// take-offs ([`crate::Core::today_takeoffs`]).
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SitesMap {
     /// The sites, from every source, each source's own.
@@ -365,7 +381,8 @@ fn area(south: f64, west: f64, north: f64, east: f64) -> Result<BoundingBox, Cor
     })
 }
 
-fn site_view(site: &Site) -> SiteView {
+/// A site of the canonical record as a map and a sheet show it.
+pub(crate) fn site_view(site: &Site) -> SiteView {
     let uses: Vec<SiteKind> = site.uses.iter().copied().map(kind).collect();
     let kind_in_words = uses_in_words(&uses);
     let name = site

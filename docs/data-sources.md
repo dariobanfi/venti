@@ -605,6 +605,33 @@ What follows: the layer is useful where it has data and must never be shown as c
 
 *Not read from OpenStreetMap, and why:* `website`, `operator`, `description`, `fee`, `opening_hours`, `wind_speed`, `direction:ideal`, `free_flying:guest-guidelines` are there for some sites and would make a site page; the record has no place for them yet. `free_flying:orientation`, an undocumented spelling on two elements, is not read.
 
+**What the recording holds, and what a site's page would need** (counted on 2026-11-21 over `crates/sources-osm/tests/fixtures/overpass_alps.json`). The recorded answer keeps, of an element's tags, only those the adapter reads; 89 other keys were removed when it was recorded (`tests/fixtures/NOTICE.txt` names `operator`, `phone`, `email` and `website` among them), and none of the eight above is in the file. So how many sites carry a website, a description, a fee, opening hours or the guests' rules cannot be counted from what the repository holds, and the record gains no place for them until a recording shows that they are there often enough to be worth a line on a site's page. On the 502 sites the recording has these keys:
+
+| Key | Sites | |
+|---|---|---|
+| `sport` | 456 | |
+| `name` | 396 | read |
+| `free_flying:site` | 382 | read: the deprecated key for the use |
+| `free_flying:paragliding` | 205 | read |
+| `free_flying:official` | 111 | read |
+| `free_flying:site_orientation` | 101 | read: the deprecated key for the wind |
+| `free_flying:hanggliding` | 77 | read |
+| `ele` | 76 | read |
+| `direction` | 50 | read |
+| `free_flying:takeoff` | 20 | read |
+| `free_flying:tandem` | 15 (12 `yes`) | not carried |
+| `free_flying:school` | 13 (9 `yes`) | not carried |
+| `free_flying:club` | 12 | not carried |
+| `free_flying:landing` | 6 | read |
+| `free_flying:repair` | 1 | not carried |
+| `website`, `operator`, `description`, `fee`, `opening_hours`, `wind_speed`, `direction:ideal`, `free_flying:guest-guidelines` | 0 | removed when it was recorded |
+
+The four that are held and not carried mark a business or a club by the scheme's page (a school, paid tandem flights, a club, a repair shop; *to verify* on the page, read through a summary on 2026-11-21) and are each on fewer than one site in thirty: no line of a site's page.
+
+*For a new recording:* send the adapter's own query as before and keep, beside the tags kept now, `website`, `contact:website`, `description`, `fee`, `opening_hours`, `free_flying:guest-guidelines`, `wind_speed` and `direction:ideal`; then count them, and give the record a place for those that are on enough sites. `operator` is **for the owner** first: the scheme's page describes it as who looks after a site, "for example the local club", and the notice of the recording says that it is often a person, which is why it was removed; `phone` and `email` stay out either way. A tag's text is its mapper's and would be shown as written, never interpreted: the page says of `opening_hours` on a site that it is when the site may be used and reached, not when it can be flown (*to verify* on the page), and nothing would be worked out from it.
+
+**Areas.** 209 of the 517 elements are areas, among them 91 of the 252 take-offs and 82 of the 142 landings. The adapter asks for `out tags center`, so the answer has, for an area, the centre Overpass computes and no outline; the record's position is that centre. A landing field drawn as an area needs the outline, and that is a different request: by the page on Overpass QL an `out` statement takes one of `geom`, `bb` and `center`, where `geom` adds the coordinates of an area's nodes and `center` "only the centre of the above mentioned bounding box", which "is not guaranteed to lie inside the polygon" ([wiki](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL), read through a summary on 2026-11-21; *to verify* on the page and against an instance, also whether an answer asked with `geom` still carries a centre). With `out tags geom` the adapter would take the outline as sent and work the centre out from its bounds, which is what Overpass's centre is, so that no site moves; the size of the answer is to be measured again against the manifest's 4 MB. The request has not been changed and nothing was asked of any instance for this: a landing stays a pin.
+
 ### Thermal maps
 
 | Source | Provides | Licence | Status |

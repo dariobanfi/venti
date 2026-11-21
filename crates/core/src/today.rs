@@ -48,7 +48,10 @@ const WRONG_WAY_KMH: (f64, f64) = (8.0, 15.0);
 const WINDS_UP_TO_M: f64 = 5000.0;
 /// How a take-off looks for flying, by a forecast.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, uniffi::Enum)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum Flyability {
     /// Nothing in the forecast speaks against it.
@@ -97,7 +100,10 @@ impl From<Flyability> for Verdict {
 /// are our own. An estimate of the air over a grid cell, never a promise
 /// of a climb.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, uniffi::Enum)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum Thermals {
     /// None a paraglider climbs in, or none that reach above the take-off.

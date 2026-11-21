@@ -208,8 +208,13 @@ pub struct WindStation {
 }
 
 /// Whose data is shown. The licences require this credit next to the data.
+/// A shell hands it back with a site the pilot keeps, so that the credit is
+/// kept with it.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct Credit {
     /// The data source it belongs to.

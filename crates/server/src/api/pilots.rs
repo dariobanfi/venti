@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
-use venti_api_types::v1::{ErrorCode, Handle, PilotResponse};
+use venti_api_types::v1::{ErrorCode, FlightTerms, Handle, PilotResponse};
 use venti_store::{Account, Listing, Store};
 
 use super::cache::Keeper;
@@ -86,6 +86,7 @@ pub(crate) async fn show<S: Store>(
         pilot: wire::pilot(&account.handle, &account.display_name)?,
         flights: wire::flights(&flights)?,
         next,
+        terms: Some(FlightTerms::current()),
     };
     // Checked before every reuse: a flight made private leaves this list
     // at once.

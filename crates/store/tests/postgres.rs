@@ -173,7 +173,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
     assert_eq!(
         versions,
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
     );
 }
 
@@ -535,6 +535,116 @@ fn public_flights_question(conditions: &str, order: &str) -> String {
 }
 
 #[tokio::test]
+async fn public_flights_from_before_get_a_moment_and_a_number() {
+    let Some(url) = fresh_schema("upgrade_from_15").await else {
+        return;
+    };
+    // A database as the server left it before a flight had a life as
+    // public data: two public flights, one shared by link, one private.
+    let old = look(&url).await;
+    for migration in [
+        include_str!("../migrations/0001_stations_observations_runs.sql"),
+        include_str!("../migrations/0002_accounts_sessions_flights.sql"),
+        include_str!("../migrations/0003_airspace.sql"),
+        include_str!("../migrations/0004_airspace_coverage.sql"),
+        include_str!("../migrations/0005_sites.sql"),
+        include_str!("../migrations/0006_forecast_models.sql"),
+        include_str!("../migrations/0007_live_tracks.sql"),
+        include_str!("../migrations/0008_public_flights.sql"),
+        include_str!("../migrations/0009_reports_and_takedowns.sql"),
+        include_str!("../migrations/0010_groups_and_plans.sql"),
+        include_str!("../migrations/0011_thermal_map_parts.sql"),
+        include_str!("../migrations/0012_reports_about_groups.sql"),
+        include_str!("../migrations/0013_pilot_sites.sql"),
+        include_str!("../migrations/0014_access_tokens.sql"),
+        include_str!("../migrations/0015_reports_about_sites.sql"),
+    ] {
+        old.batch_execute(migration).await.unwrap();
+    }
+    old.batch_execute(
+        "CREATE TABLE schema_migrations (
+             version    integer PRIMARY KEY,
+             name       text NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+         );
+         INSERT INTO schema_migrations (version, name)
+             SELECT n, 'migration ' || n FROM generate_series(1, 15) AS n;
+         INSERT INTO accounts (id, handle, display_name, created_at, flight_change)
+             VALUES ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00', 9);
+         INSERT INTO flights
+             (id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
+              analysis_version, started_at, airtime_s, takeoff_at, takeoff_lat, takeoff_lon,
+              takeoff_altitude_m, track_length_m, max_altitude_m, max_climb_ms, outline, profile)
+         SELECT '0000000000000000000flight' || n, '000000000000000000000dario',
+                lpad(n::text, 32, '0'),
+                (ARRAY['public', 'unlisted', 'public', 'private'])[n],
+                -- The third was uploaded before the first.
+                timestamptz '2026-11-18 12:00+00' - n * interval '1 hour', n,
+                '\\x1f8b'::bytea, 60000, 1, '2026-08-15 10:30+00', 1752,
+                '2026-08-15 10:30+00', 47.6642, 11.7967, 1620, 18402.3, 2117, 2.4,
+                '{47.6642,11.7967}', '{0,1620}'
+         FROM generate_series(1, 4) AS n;",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+
+    let flight = |n: u8| {
+        let store = &store;
+        async move {
+            let id = format!("0000000000000000000flight{n}");
+            store.flight(&id).await.unwrap().unwrap()
+        }
+    };
+    // A public flight is public since its upload, the earliest it can
+    // have been: the table kept nothing nearer to the moment.
+    let (first, by_link, third, private) = (
+        flight(1).await,
+        flight(2).await,
+        flight(3).await,
+        flight(4).await,
+    );
+    assert_eq!(first.published_at, Some(first.uploaded_at));
+    assert_eq!(third.published_at, Some(third.uploaded_at));
+    for other in [&by_link, &private] {
+        assert_eq!((other.published_at, other.public_change), (None, None));
+    }
+    // Their numbers are in the order of their uploads, and the count
+    // stands at the larger.
+    let (third_change, first_change) = (third.public_change.unwrap(), first.public_change.unwrap());
+    assert_eq!(first_change, third_change + 1);
+    let changes = store.public_flight_changes(None, 0, 10).await.unwrap();
+    let listed: Vec<&str> = changes.flights.iter().map(|f| f.id.as_str()).collect();
+    assert_eq!(
+        listed,
+        ["0000000000000000000flight3", "0000000000000000000flight1"]
+    );
+    assert!(changes.withdrawn.is_empty());
+    assert_eq!(changes.latest, first_change);
+
+    // From here the count goes on: a withdrawal takes a larger number.
+    let now = chrono::Utc::now() + chrono::Duration::minutes(1);
+    store
+        .set_visibility(
+            "000000000000000000000dario",
+            &first.id,
+            venti_store::Visibility::Private,
+            now,
+        )
+        .await
+        .unwrap();
+    let changes = store
+        .public_flight_changes(None, first_change, 10)
+        .await
+        .unwrap();
+    assert!(changes.flights.is_empty());
+    assert_eq!(changes.withdrawn.len(), 1);
+    assert_eq!(changes.withdrawn[0].id, first.id);
+    assert!(changes.withdrawn[0].change > first_change);
+}
+
+#[tokio::test]
 async fn the_questions_about_public_flights_use_their_indexes() {
     let Some(url) = fresh_schema("public_flight_indexes").await else {
         return;
@@ -553,7 +663,8 @@ async fn the_questions_about_public_flights_use_their_indexes() {
                  (id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
                   analysis_version, started_at, airtime_s, takeoff_at, takeoff_lat, takeoff_lon,
                   takeoff_altitude_m, track_length_m, max_altitude_m, max_climb_ms, score_kind,
-                  score_closed, score_distance_m, score_points, outline, profile)
+                  score_closed, score_distance_m, score_points, outline, profile,
+                  published_at, public_change)
              SELECT lpad(n::text, 26, '0'), '000000000000000000000pilot', lpad(n::text, 32, '0'),
                     CASE WHEN n % 4 = 0 THEN 'private' ELSE 'public' END,
                     '2026-11-18 19:05+00', n, ''::bytea, 60000, 1,
@@ -561,7 +672,9 @@ async fn the_questions_about_public_flights_use_their_indexes() {
                     timestamptz '2025-01-01 09:00+00' + n * interval '53 minutes',
                     46.5 + (n % 200) * 0.01, 9.5 + (n % 173) * 0.04, 1500,
                     20000, 2400, 2.5, 'free_flight', false,
-                    (n % 997) * 100.0, (n % 997) / 10.0, '{}', '{}'
+                    (n % 997) * 100.0, (n % 997) / 10.0, '{}', '{}',
+                    CASE WHEN n % 4 = 0 THEN NULL ELSE timestamptz '2026-11-18 19:05+00' END,
+                    CASE WHEN n % 4 = 0 THEN NULL ELSE n END
              FROM generate_series(1, 20000) AS n;
              ANALYZE accounts;
              ANALYZE flights;",

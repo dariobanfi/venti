@@ -177,7 +177,7 @@ fn is_mostly_positions(file: &[u8], fixes: usize) -> bool {
 /// encoding their maker liked. A file that is not UTF-8 is read as Latin-1,
 /// in which every byte is a character: nothing is refused for a name, and
 /// the lines that hold positions are ASCII in either reading.
-fn text_of(file: &[u8]) -> std::borrow::Cow<'_, str> {
+pub(super) fn text_of(file: &[u8]) -> std::borrow::Cow<'_, str> {
     match std::str::from_utf8(file) {
         Ok(text) => text.into(),
         Err(_) => file.iter().map(|&byte| char::from(byte)).collect(),
@@ -189,7 +189,7 @@ fn text_of(file: &[u8]) -> std::borrow::Cow<'_, str> {
 /// Sub-millimetre digits mean nothing, and without them the same file
 /// gives the same answer on any machine, whatever its maths library does
 /// in the last bit.
-fn round(value: f64, scale: f64) -> f64 {
+pub(super) fn round(value: f64, scale: f64) -> f64 {
     (value * scale).round() / scale
 }
 

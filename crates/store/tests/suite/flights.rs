@@ -3,8 +3,8 @@
 use chrono::Duration;
 use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
-    Account, Derived, Flight, Kept, Listing, NewFlight, Place, PublicFlights, PublicOrder, Room,
-    Saved, Score, ScoreKind, Store, StoreError, Visibility, VisibilityChange,
+    Account, Derived, Flight, Kept, Listing, NewFlight, Place, PublicFlightChanges, PublicFlights,
+    PublicOrder, Room, Saved, Score, ScoreKind, Store, StoreError, Visibility, VisibilityChange,
 };
 
 use super::accounts::{create, id};
@@ -71,6 +71,8 @@ fn stored(new: &NewFlight, account: &Account, change: i64) -> Flight {
         derived: new.derived.clone(),
         change,
         taken_down_at: None,
+        published_at: None,
+        public_change: None,
     }
 }
 
@@ -948,8 +950,8 @@ pub(crate) async fn what_is_not_public_is_in_no_list_of_public_flights(store: &i
     let around = area(47.6, 11.7, 47.7, 11.9);
     let which = [
         everywhere(),
-        around,
-        the_day,
+        around.clone(),
+        the_day.clone(),
         PublicFlights {
             area: around.area,
             ..the_day
@@ -1089,7 +1091,7 @@ pub(crate) async fn public_flights_are_found_by_when_they_started(store: &impl S
     // Together with a box, and page by page.
     let here = PublicFlights {
         area: area(47.6, 11.7, 47.8, 11.9).area,
-        ..the_18th
+        ..the_18th.clone()
     };
     assert_eq!(public(store, &here, &NEWEST).await, ["dario3", "dario2"]);
     let first = store.public_flights(&here, &NEWEST, 1).await.unwrap();
@@ -1302,4 +1304,397 @@ pub(crate) async fn pilots_are_ranked_by_the_sum_of_their_best_public_flights(st
             place("dario", 80.0, &["dario4", "dario1", "dario3"], 3),
         ]
     );
+}
+
+// --- Public flights as data ------------------------------------------------
+
+/// Sets who may see a stored flight at `now`.
+async fn set(
+    store: &impl Store,
+    new: &NewFlight,
+    visibility: Visibility,
+    now: Timestamp,
+) -> Flight {
+    store
+        .set_visibility(&new.account_id, &new.id, visibility, now)
+        .await
+        .unwrap()
+        .flight()
+        .expect("the flight is stored")
+}
+
+/// What changed for the public since a number: the flights and the
+/// withdrawn ones, each by its short address, in the order of the changes.
+async fn told(
+    store: &impl Store,
+    account: Option<&Account>,
+    since: i64,
+) -> (Vec<String>, Vec<String>, PublicFlightChanges) {
+    let changes = store
+        .public_flight_changes(account.map(|account| account.id.as_str()), since, 100)
+        .await
+        .unwrap();
+    let withdrawn = changes
+        .withdrawn
+        .iter()
+        .map(|withdrawn| withdrawn.id.trim_start_matches('0').to_owned())
+        .collect();
+    (short(&changes.flights), withdrawn, changes)
+}
+
+pub(crate) async fn a_flight_has_the_moment_it_became_public(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let flight = new_flight(&dario, 1, at(10, 0));
+    let saved = save(store, &flight).await;
+    assert_eq!((saved.published_at, saved.public_change), (None, None));
+
+    // Shared by link, it is not public and has no such moment.
+    let unlisted = set(store, &flight, Visibility::Unlisted, at(20, 30)).await;
+    assert_eq!(
+        (unlisted.published_at, unlisted.public_change),
+        (None, None)
+    );
+
+    let public = set(store, &flight, Visibility::Public, at(21, 0)).await;
+    assert_eq!(public.published_at, Some(at(21, 0)));
+    assert_eq!(public.public_change, Some(micros(at(21, 0))));
+    assert_eq!(
+        store.flight(&flight.id).await.unwrap(),
+        Some(public.clone())
+    );
+    // Asking for what it is already changes nothing.
+    assert_eq!(
+        set(store, &flight, Visibility::Public, at(21, 5)).await,
+        public
+    );
+
+    // Withdrawn, the moment is gone; public again, it is the second time's.
+    let private = set(store, &flight, Visibility::Private, at(21, 10)).await;
+    assert_eq!((private.published_at, private.public_change), (None, None));
+    let again = set(store, &flight, Visibility::Public, at(21, 20)).await;
+    assert_eq!(again.published_at, Some(at(21, 20)));
+    assert_eq!(again.public_change, Some(micros(at(21, 20))));
+
+    // The public count is one for all accounts and never goes back: a
+    // second pilot who publishes at an earlier time by the clock still
+    // gets a larger number.
+    let anna = create(store, "anna").await;
+    let annas = new_flight(&anna, 1, at(9, 0));
+    save(store, &annas).await;
+    let annas = set(store, &annas, Visibility::Public, at(21, 15)).await;
+    assert_eq!(annas.public_change, Some(micros(at(21, 20)) + 1));
+
+    // Taken down, a flight is public no more.
+    let down = store
+        .take_down_flight(&flight.id, at(22, 0))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((down.published_at, down.public_change), (None, None));
+    assert_eq!(down.visibility, Visibility::Private);
+}
+
+pub(crate) async fn public_flights_are_found_by_their_pilot(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    publish(store, &new_flight(&dario, 1, at(10, 0))).await;
+    publish(store, &new_flight(&dario, 2, at(12, 0))).await;
+    publish(store, &new_flight(&anna, 1, at(11, 0))).await;
+    share(
+        store,
+        &new_flight(&anna, 2, at(13, 0)),
+        Visibility::Unlisted,
+    )
+    .await;
+    save(store, &new_flight(&dario, 3, at(14, 0))).await;
+
+    let of = |account: &Account| PublicFlights {
+        pilot: Some(account.id.clone()),
+        ..PublicFlights::default()
+    };
+    assert_eq!(
+        public(store, &everywhere(), &NEWEST).await,
+        ["dario2", "anna1", "dario1"]
+    );
+    assert_eq!(
+        public(store, &of(&dario), &NEWEST).await,
+        ["dario2", "dario1"]
+    );
+    assert_eq!(public(store, &of(&anna), &NEWEST).await, ["anna1"]);
+    // By points too, and together with a time and a place.
+    assert_eq!(
+        public(store, &of(&dario), &PublicOrder::Best(None))
+            .await
+            .len(),
+        2
+    );
+    let late = PublicFlights {
+        from: Some(at(11, 30)),
+        ..of(&dario)
+    };
+    assert_eq!(public(store, &late, &NEWEST).await, ["dario2"]);
+    let here = PublicFlights {
+        area: area(47.6, 11.7, 47.7, 11.9).area,
+        ..of(&anna)
+    };
+    assert_eq!(public(store, &here, &NEWEST).await, ["anna1"]);
+    let elsewhere = PublicFlights {
+        area: area(0.0, 0.0, 1.0, 1.0).area,
+        ..of(&anna)
+    };
+    assert!(public(store, &elsewhere, &NEWEST).await.is_empty());
+    // An account nobody has flies nothing.
+    let nobody = PublicFlights {
+        pilot: Some(id("nobody")),
+        ..PublicFlights::default()
+    };
+    assert!(public(store, &nobody, &NEWEST).await.is_empty());
+    // The ranking counts the same flights.
+    let ranked = store.ranking(&of(&anna), 3, 10).await.unwrap();
+    assert_eq!(ranked.len(), 1);
+    assert_eq!(ranked[0].pilot_handle, "anna");
+}
+
+pub(crate) async fn what_changed_for_the_public_is_told_with_withdrawals(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let nothing = told(store, None, 0).await;
+    assert_eq!((nothing.0.len(), nothing.1.len()), (0, 0));
+    assert_eq!((nothing.2.latest, nothing.2.more), (0, false));
+
+    let d1 = new_flight(&dario, 1, at(10, 0));
+    let d2 = new_flight(&dario, 2, at(11, 0));
+    let d3 = new_flight(&dario, 3, at(12, 0));
+    let a1 = new_flight(&anna, 1, at(10, 30));
+    let a2 = new_flight(&anna, 2, at(11, 30));
+    for flight in [&d1, &d2, &d3, &a1, &a2] {
+        save(store, flight).await;
+    }
+    // Stored flights are private: nothing for the public yet.
+    assert_eq!(told(store, None, 0).await.2.latest, 0);
+
+    set(store, &d1, Visibility::Public, at(21, 0)).await;
+    set(store, &a1, Visibility::Public, at(21, 1)).await;
+    set(store, &d2, Visibility::Public, at(21, 2)).await;
+    // Shared by link only: never public, in neither list.
+    set(store, &a2, Visibility::Unlisted, at(21, 3)).await;
+    let (flights, withdrawn, changes) = told(store, None, 0).await;
+    assert_eq!(flights, ["dario1", "anna1", "dario2"]);
+    assert!(withdrawn.is_empty());
+    assert_eq!(changes.latest, micros(at(21, 2)));
+    assert_eq!(changes.last(), Some(micros(at(21, 2))));
+    assert!(
+        changes
+            .flights
+            .iter()
+            .all(|flight| flight.visibility == Visibility::Public)
+    );
+    let seen = changes.latest;
+    let nothing_new = told(store, None, seen).await;
+    assert!(nothing_new.0.is_empty() && nothing_new.1.is_empty());
+    assert_eq!(nothing_new.2.last(), None);
+
+    // Each way a flight stops being public withdraws it: made private,
+    // made unlisted, taken down, deleted.
+    set(store, &d1, Visibility::Private, at(22, 0)).await;
+    set(store, &a1, Visibility::Unlisted, at(22, 1)).await;
+    set(store, &d3, Visibility::Public, at(22, 2)).await;
+    store.take_down_flight(&d2.id, at(22, 3)).await.unwrap();
+    assert!(
+        store
+            .delete_flight(&dario.id, &d3.id, at(22, 4))
+            .await
+            .unwrap()
+    );
+    // What was never public is withdrawn from nothing.
+    set(store, &a2, Visibility::Private, at(22, 5)).await;
+    assert!(
+        store
+            .delete_flight(&anna.id, &a2.id, at(22, 6))
+            .await
+            .unwrap()
+    );
+
+    let (flights, withdrawn, changes) = told(store, None, seen).await;
+    assert!(flights.is_empty(), "{flights:?}");
+    assert_eq!(withdrawn, ["dario1", "anna1", "dario2", "dario3"]);
+    let times: Vec<_> = changes.withdrawn.iter().map(|w| w.withdrawn_at).collect();
+    assert_eq!(
+        times,
+        [at(22, 0), at(22, 1), at(22, 3), at(22, 4)].map(Some)
+    );
+    assert_eq!(changes.latest, micros(at(22, 4)));
+    // From the beginning, a flight is in one list and never in both, and
+    // the lists hold what a copy needs to end up with nothing.
+    let (flights, withdrawn, _) = told(store, None, 0).await;
+    assert!(flights.is_empty(), "{flights:?}");
+    assert_eq!(withdrawn, ["dario1", "anna1", "dario2", "dario3"]);
+    assert!(public(store, &everywhere(), &NEWEST).await.is_empty());
+
+    // Public again, a flight is a flight again and withdrawn no more; the
+    // one that was deleted and uploaded again stays withdrawn while it is
+    // private.
+    let seen = changes.latest;
+    set(store, &a1, Visibility::Public, at(23, 0)).await;
+    save(store, &d3).await;
+    let (flights, withdrawn, _) = told(store, None, seen).await;
+    assert_eq!(flights, ["anna1"]);
+    assert!(withdrawn.is_empty());
+    let (flights, withdrawn, _) = told(store, None, 0).await;
+    assert_eq!(flights, ["anna1"]);
+    assert_eq!(withdrawn, ["dario1", "dario2", "dario3"]);
+
+    // Worked out again, a public flight has changed for the public; a
+    // private one has not.
+    let seen = micros(at(23, 0));
+    assert!(
+        store
+            .set_derived(&a1.id, &derived(at(10, 31)), at(23, 10))
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .set_derived(&d1.id, &derived(at(10, 1)), at(23, 11))
+            .await
+            .unwrap()
+    );
+    let (flights, withdrawn, changes) = told(store, None, seen).await;
+    assert_eq!(flights, ["anna1"]);
+    assert!(withdrawn.is_empty());
+    assert_eq!(changes.flights[0].derived.start, at(10, 31));
+    assert_eq!(changes.flights[0].public_change, Some(micros(at(23, 10))));
+    // It is public since the same moment as before.
+    assert_eq!(changes.flights[0].published_at, Some(at(23, 0)));
+    assert_eq!(changes.latest, micros(at(23, 10)));
+}
+
+pub(crate) async fn the_public_changes_are_told_page_by_page_and_of_a_pilot(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let d1 = new_flight(&dario, 1, at(10, 0));
+    let d2 = new_flight(&dario, 2, at(11, 0));
+    let a1 = new_flight(&anna, 1, at(10, 30));
+    let a2 = new_flight(&anna, 2, at(11, 30));
+    for flight in [&d1, &d2, &a1, &a2] {
+        save(store, flight).await;
+    }
+    set(store, &d1, Visibility::Public, at(21, 0)).await;
+    set(store, &a1, Visibility::Public, at(21, 1)).await;
+    set(store, &d2, Visibility::Public, at(21, 2)).await;
+    set(store, &a2, Visibility::Public, at(21, 3)).await;
+    set(store, &d1, Visibility::Private, at(21, 4)).await;
+    set(store, &a1, Visibility::Unlisted, at(21, 5)).await;
+
+    // The changes in order: d2, a2 published, d1 and a1 withdrawn.
+    let mut since = 0;
+    let mut pages = Vec::new();
+    loop {
+        let page = store.public_flight_changes(None, since, 1).await.unwrap();
+        let one: Vec<String> = short(&page.flights)
+            .into_iter()
+            .chain(
+                page.withdrawn
+                    .iter()
+                    .map(|w| format!("-{}", w.id.trim_start_matches('0'))),
+            )
+            .collect();
+        assert_eq!(one.len(), 1, "{one:?}");
+        assert_eq!(page.latest, micros(at(21, 5)));
+        since = page.last().unwrap();
+        pages.extend(one);
+        if !page.more {
+            break;
+        }
+    }
+    assert_eq!(pages, ["dario2", "anna2", "-dario1", "-anna1"]);
+    let page = store.public_flight_changes(None, 0, 3).await.unwrap();
+    assert_eq!(short(&page.flights), ["dario2", "anna2"]);
+    assert_eq!(page.withdrawn.len(), 1);
+    assert!(page.more);
+    let none = store.public_flight_changes(None, 0, 0).await.unwrap();
+    assert!(none.flights.is_empty() && none.withdrawn.is_empty() && none.more);
+
+    // Of one pilot: that pilot's flights and withdrawals, by the same
+    // numbers.
+    let (flights, withdrawn, changes) = told(store, Some(&dario), 0).await;
+    assert_eq!(
+        (flights, withdrawn),
+        (vec!["dario2".to_owned()], vec!["dario1".to_owned()])
+    );
+    assert_eq!(changes.latest, micros(at(21, 5)));
+    let (flights, withdrawn, _) = told(store, Some(&anna), micros(at(21, 3))).await;
+    assert!(flights.is_empty());
+    assert_eq!(withdrawn, ["anna1"]);
+    let nobody = store
+        .public_flight_changes(Some(&id("nobody")), 0, 100)
+        .await
+        .unwrap();
+    assert!(nobody.flights.is_empty() && nobody.withdrawn.is_empty());
+}
+
+pub(crate) async fn suspending_and_deleting_an_account_withdraws_flights(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let d1 = new_flight(&dario, 1, at(10, 0));
+    let d2 = new_flight(&dario, 2, at(11, 0));
+    let d3 = new_flight(&dario, 3, at(12, 0));
+    let a1 = new_flight(&anna, 1, at(10, 30));
+    let a2 = new_flight(&anna, 2, at(11, 30));
+    let a3 = new_flight(&anna, 3, at(12, 30));
+    for flight in [&d1, &d2, &d3, &a1, &a2, &a3] {
+        save(store, flight).await;
+    }
+    set(store, &d2, Visibility::Public, at(21, 0)).await;
+    set(store, &d1, Visibility::Public, at(21, 1)).await;
+    set(store, &a1, Visibility::Public, at(21, 2)).await;
+    set(store, &a2, Visibility::Public, at(21, 3)).await;
+    set(store, &a3, Visibility::Public, at(21, 4)).await;
+    set(store, &a3, Visibility::Private, at(21, 5)).await;
+    let seen = micros(at(21, 5));
+
+    // Suspended, an account's public flights become unlisted: each is
+    // withdrawn, in the order of the addresses.
+    store
+        .suspend_publishing(&dario.id, at(22, 0))
+        .await
+        .unwrap()
+        .unwrap();
+    let (flights, withdrawn, changes) = told(store, None, seen).await;
+    assert!(flights.is_empty());
+    assert_eq!(withdrawn, ["dario1", "dario2"]);
+    assert_eq!(changes.withdrawn[0].change, micros(at(22, 0)));
+    assert_eq!(changes.withdrawn[1].change, micros(at(22, 0)) + 1);
+    assert_eq!(changes.withdrawn[0].withdrawn_at, Some(at(22, 0)));
+    let unlisted = store.flight(&d1.id).await.unwrap().unwrap();
+    assert_eq!(unlisted.visibility, Visibility::Unlisted);
+    assert_eq!(
+        (unlisted.published_at, unlisted.public_change),
+        (None, None)
+    );
+    let seen = changes.latest;
+    assert_eq!(seen, micros(at(22, 0)) + 1);
+
+    // Deleted, an account takes its flights with it: the public ones are
+    // withdrawn, and nothing says when or whose they were.
+    store.delete_account(&anna.id).await.unwrap();
+    let (flights, withdrawn, changes) = told(store, None, seen).await;
+    assert!(flights.is_empty());
+    assert_eq!(withdrawn, ["anna1", "anna2"]);
+    assert_eq!(changes.withdrawn[0].change, seen + 1);
+    assert_eq!(changes.withdrawn[1].change, seen + 2);
+    assert_eq!(changes.withdrawn[0].withdrawn_at, None);
+    assert_eq!(changes.latest, seen + 2);
+    // Asked for by the account that is gone, nothing is listed: not what
+    // went with it, and not what it withdrew before.
+    let (flights, withdrawn, _) = told(store, Some(&anna), 0).await;
+    assert!(flights.is_empty() && withdrawn.is_empty());
+    // Asked for of everyone, all of it is there, the earlier withdrawal
+    // too.
+    let (_, withdrawn, _) = told(store, None, 0).await;
+    assert_eq!(withdrawn, ["anna3", "dario1", "dario2", "anna1", "anna2"]);
+    // The count goes on from there.
+    store.resume_publishing(&dario.id).await.unwrap();
+    let back = set(store, &d1, Visibility::Public, at(22, 30)).await;
+    assert_eq!(back.public_change, Some(micros(at(22, 30))));
 }

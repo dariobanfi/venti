@@ -478,10 +478,12 @@ async fn a_server_with_nothing_public_answers_like_a_server_with_nothing() {
     }
     let nothing: FlightsResponse = get(&router, PUBLIC_FLIGHTS_PATH).await.ok(StatusCode::OK);
     assert!(nothing.flights.is_empty() && nothing.next.is_none());
-    assert_eq!(
-        get(&router, PUBLIC_FLIGHTS_PATH).await.text(),
-        r#"{"flights":[]}"#
-    );
+    // No flight, no cursor: the terms such a list is given under, and
+    // nothing else.
+    let text = get(&router, PUBLIC_FLIGHTS_PATH).await;
+    let text = text.text();
+    assert!(text.starts_with(r#"{"flights":[],"terms":{"#), "{text}");
+    assert!(!text.contains("next"), "{text}");
 }
 
 #[tokio::test]

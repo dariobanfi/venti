@@ -688,6 +688,8 @@ pub(crate) mod tests {
             uploaded_at: start,
             file_bytes: 64_000,
             taken_down_at: None,
+            published_at: None,
+            public_change: None,
             derived: Derived {
                 version: 1,
                 start,

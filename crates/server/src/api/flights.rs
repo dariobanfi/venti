@@ -13,21 +13,21 @@ use futures::StreamExt;
 use serde::Deserialize;
 use tokio::sync::{Semaphore, SemaphorePermit};
 use venti_api_types::v1::{
-    DeletedFlight, ErrorCode, FlightChangesResponse, FlightId, FlightResponse, FlightsResponse,
-    MAX_FLIGHT_FILE_BYTES, UpdateFlightRequest, UploadResponse,
+    DeletedFlight, ErrorCode, FlightChangesResponse, FlightId, FlightResponse, FlightTerms,
+    FlightsResponse, MAX_FLIGHT_FILE_BYTES, UpdateFlightRequest, UploadResponse,
 };
 use venti_store::{
     Flight, FlightKey, Kept, Listing, Room, Saved, Store, Visibility, VisibilityChange,
 };
 
-use super::auth::{May, ReadFlights, Viewer, Viewing, WriteFlights};
+use super::auth::{Client, May, ReadFlights, Viewer, Viewing, WriteFlights};
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::log::Sparse;
 use super::{Api, body, cache, wire};
 use crate::accounts::throttle::{Counted, Refused};
 use crate::flights::analyser::Failure;
-use crate::flights::{new_flight, unpack};
+use crate::flights::{new_flight, track as track_of, unpack};
 
 /// The answer for a flight that does not exist and for one the caller may
 /// not see. They must not differ in anything.
@@ -80,6 +80,15 @@ impl<S: Store> Api<S> {
         let may_see =
             flight.visibility != Visibility::Private || viewer.owns(&flight.account_id)?;
         may_see.then_some(flight).ok_or_else(no_such_flight)
+    }
+}
+
+/// Under what a flight is given to whoever reads it: said for a flight
+/// that others than its pilot can read, and left out for a private one.
+fn terms_of(flight: &Flight) -> Option<FlightTerms> {
+    match flight.visibility {
+        Visibility::Public | Visibility::Unlisted => Some(FlightTerms::current()),
+        Visibility::Private => None,
     }
 }
 
@@ -441,6 +450,8 @@ pub(crate) async fn list<S: Store>(
     let answer = FlightsResponse {
         flights: wire::flights(&flights)?,
         next,
+        // The account's own flights: nothing to say to their pilot.
+        terms: None,
     };
     Ok(cache::private_json(StatusCode::OK, &answer))
 }
@@ -514,6 +525,7 @@ pub(crate) async fn show<S: Store>(
     let flight = api.visible_flight(&id, &viewer).await?;
     let answer = FlightResponse {
         flight: wire::flight(&flight)?,
+        terms: terms_of(&flight),
     };
     Ok(if viewer.is_signed() {
         // Asked with a token: made for that account, kept by nobody.
@@ -576,6 +588,60 @@ pub(crate) async fn file<S: Store>(
     Ok(response)
 }
 
+/// `GET /v1/flights/{id}/track`: the flight's track as GeoJSON, for
+/// whoever may see the flight. See [`crate::flights::track`].
+///
+/// Open to anyone for a flight that is not private, so it is counted for
+/// the address that asks, as the lists of public flights are: the track
+/// is read from the file for every answer.
+pub(crate) async fn track<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    Viewing(viewer, ..): Viewing<ReadFlights>,
+    Client(client): Client,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    api.count_public_flight_read(client)?;
+    let flight = api.visible_flight(&id, &viewer).await?;
+    let address: FlightId = flight.id.parse().map_err(|_| ApiError::internal())?;
+    // The flight can be deleted between the two questions.
+    let packed = api
+        .store
+        .flight_file(&flight.id)
+        .await?
+        .ok_or_else(no_such_flight)?;
+    let derived = flight.derived.clone();
+    let terms = terms_of(&flight);
+    // Unpacking, reading and writing a long flight is work: off the
+    // threads that answer.
+    let body = tokio::task::spawn_blocking(move || {
+        let file = unpack(&packed)?;
+        let mut track = track_of::track(address, &file, &derived)?;
+        track.terms = terms;
+        serde_json::to_vec(&track).ok()
+    })
+    .await
+    .ok()
+    .flatten()
+    .ok_or_else(|| {
+        static GATE: Sparse = Sparse::new();
+        GATE.error(format_args!(
+            "the stored file of flight {} gives no track",
+            flight.id
+        ));
+        ApiError::internal()
+    })?;
+
+    const GEO_JSON: &str = "application/geo+json";
+    let mut response = if viewer.is_signed() {
+        cache::private(body.into_response())
+    } else {
+        cache::shared(&headers, GEO_JSON, body, keeper(&flight))
+    };
+    cache::set(&mut response, header::CONTENT_TYPE, GEO_JSON);
+    Ok(response)
+}
+
 /// `PATCH /v1/flights/{id}`: changes who may see a flight.
 pub(crate) async fn update<S: Store>(
     State(api): State<Arc<Api<S>>>,
@@ -622,6 +688,7 @@ pub(crate) async fn update<S: Store>(
     };
     let answer = FlightResponse {
         flight: wire::flight(&flight)?,
+        terms: terms_of(&flight),
     };
     Ok(cache::private_json(StatusCode::OK, &answer))
 }

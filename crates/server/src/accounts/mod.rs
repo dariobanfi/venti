@@ -127,6 +127,23 @@ pub struct Limits {
     pub forecast_fetches_per_network: u32,
     /// The window for both.
     pub forecast_window: Duration,
+    /// Reads of public flights as data that one address may make within
+    /// [`public_flight_window`](Self::public_flight_window): a page of
+    /// everyone's public flights, a page of what changed among them, and
+    /// a flight's track. They are open to anyone without a token, and a
+    /// track is worked out from its file for every answer that is not
+    /// kept.
+    ///
+    /// Six hundred an hour is one every six seconds: a program that
+    /// follows the changes once a minute uses a tenth of it, a copy of
+    /// 60,000 flights' records is read within an hour at a hundred a
+    /// page, and a pilot who browses never comes near. An estimate, and
+    /// the owner's to set.
+    pub public_flight_reads_per_address: u32,
+    /// The same, from one IPv6 /48 network.
+    pub public_flight_reads_per_network: u32,
+    /// The window for both.
+    pub public_flight_window: Duration,
     /// How many keys (addresses, handles, accounts) each of the tables
     /// that count attempts watches at most. A key costs about 110 bytes
     /// (measured 2026-11-19), so each full table is 11 MB, and the server
@@ -169,6 +186,9 @@ impl Default for Limits {
             forecast_fetches_per_address: 12,
             forecast_fetches_per_network: 48,
             forecast_window: Duration::hours(1),
+            public_flight_reads_per_address: 600,
+            public_flight_reads_per_network: 2400,
+            public_flight_window: Duration::hours(1),
             watched_keys: 100_000,
             sessions_per_account: 50,
             // More than a year: a pilot who does not fly all winter must
@@ -198,6 +218,8 @@ impl Limits {
             connector_requests_per_network: u32::MAX,
             forecast_fetches_per_address: u32::MAX,
             forecast_fetches_per_network: u32::MAX,
+            public_flight_reads_per_address: u32::MAX,
+            public_flight_reads_per_network: u32::MAX,
             ..Self::default()
         }
     }

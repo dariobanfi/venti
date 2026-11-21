@@ -7,7 +7,7 @@ The server answers a small JSON API that the phone and web apps use: for the liv
 Everything here is version 1. It has four parts:
 
 - **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals) and [the hours of its days](#get-v1thermalshoursdatelayerheight), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
-- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [the sites a pilot keeps as their own](#the-sites-a-pilot-keeps), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
+- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [the sites a pilot keeps as their own](#the-sites-a-pilot-keeps), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights) with [what changed among them](#get-v1flightspublicchangessincepilotlimit) and [a flight's track as GeoJSON](#get-v1flightsidtrack), which a program of another maker reads as [Following Venti's public flights](#following-ventis-public-flights) says, [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
 
@@ -46,7 +46,7 @@ curl http://127.0.0.1:8080/v1/flights \
   -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
 ```
 
-Two further pilots are there as well, so that [the list of everyone's public flights](#public-flights) holds the flights of several. Their names are made up, as "Max Mustermann" is. Each signs in with the demo account's password; neither has a token that always works, and neither has a live track.
+Two further pilots are there as well, so that [the list of everyone's public flights](#public-flights) holds the flights of several. One flight of the first of them was public and is shared by link now, so that [what changed among the public flights](#get-v1flightspublicchangessincepilotlimit) holds five flights and one that was withdrawn. Their names are made up, as "Max Mustermann" is. Each signs in with the demo account's password; neither has a token that always works, and neither has a live track.
 
 | Handle | Display name | Flights |
 |---|---|---|
@@ -3032,7 +3032,7 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `GET /v1/account` | `account:read` |
 | `GET /v1/flights` | `flights:read` |
 | `GET /v1/flights/changes` | `flights:read` |
-| `GET /v1/flights/{id}`, `GET /v1/flights/{id}/igc` | Nothing for a flight that is public or shared by link. `flights:read` for the pilot's own private flight |
+| `GET /v1/flights/{id}`, `GET /v1/flights/{id}/igc`, `GET /v1/flights/{id}/track` | Nothing for a flight that is public or shared by link. `flights:read` for the pilot's own private flight |
 | `POST /v1/flights` | `flights:write` |
 | `PATCH /v1/flights/{id}` | `flights:write` |
 | `DELETE /v1/flights/{id}` | `flights:write` |
@@ -3439,6 +3439,19 @@ To everyone but its pilot, a private flight does not exist: the answer is the on
 
 The pilot chooses, with two exceptions that whoever runs the server can make by hand: a single flight can be [taken down](#what-whoever-runs-the-server-can-do), which makes it private until they release it, and an account's publishing can be suspended, which leaves `unlisted` as the most it can share with. The flight and the account say so to their pilot (`taken_down_at`, `publishing_suspended_at`), and to nobody else.
 
+**Since when a flight is public** is its `published_at`: the moment its pilot made it public, there while it is public and left out otherwise. A flight that was withdrawn and made public again has the moment of the second time. For a flight that was public before the server kept this (2026-11-21), it is the moment of the upload, which is the earliest it can have been. A flight that stops being public (made private or unlisted, taken down, deleted, or gone with its account) is **withdrawn**, and [the changes among the public flights](#get-v1flightspublicchangessincepilotlimit) say so to whoever kept a copy.
+
+**Under what a flight is given.** Every answer that holds a flight someone other than its pilot may read carries `terms`: the list of public flights, what changed among them, a pilot's page, the ranking, and one flight and its track when the flight is public or shared by link.
+
+```json
+"terms": {
+  "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+  "decided": false
+}
+```
+
+`text` is the statement in words. `licence` names a licence when the flights are given under one; it is left out today, which means that nothing but reading is granted. `decided` is `false`: **under what terms others may reuse a public flight is not decided yet** ([data-platform.md](data-platform.md#for-the-owner)), and the statement above is the one that holds until it is. It is said in one place in the server, so a program reads it from the answer and never keeps its own copy of the words. The flight file itself (`/igc`) is the pilot's file as it was uploaded and carries nothing of this; the same terms apply to it.
+
 **Caching.** An answer to a request that carried a token is made for that account: `Cache-Control: no-store`, no `ETag`. An answer about a public or unlisted flight to a request without a token carries an `ETag` and `Cache-Control: public, no-cache` or `private, no-cache`: it may be kept, and must be checked with `If-None-Match` before every reuse, which is how a flight that was made private disappears at once.
 
 ### `POST /v1/flights`
@@ -3594,7 +3607,8 @@ Needs a token. What happened to the account's flights since the device last aske
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
     },
     {
       "id": "7cf5ytrw45b0aeb5tcr8wet2km",
@@ -3768,7 +3782,12 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
       ]
     ],
     "file_bytes": 68008,
-    "analysis_version": 1
+    "analysis_version": 1,
+    "published_at": "2026-11-18T19:05:00Z"
+  },
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
   }
 }
 ```
@@ -3798,6 +3817,81 @@ A client must expect values of `kind` it does not know.
 ### `GET /v1/flights/{id}/igc`
 
 The flight file, byte for byte as it was uploaded, to whoever may see the flight. The answer has `Content-Type: application/octet-stream` and a `Content-Disposition` that names the file `venti-<date>-<start of id>.igc`.
+
+### `GET /v1/flights/{id}/track`
+
+The flight's track as data, for a program that does not read flight files: a GeoJSON Feature ([RFC 7946](https://www.rfc-editor.org/rfc/rfc7946)) whose geometry is a LineString, with `Content-Type: application/geo+json`. To whoever may see the flight, as its record and its file: anyone for a public or unlisted flight, the pilot (a session, or a token with `flights:read`) for a private one, and `404` with `flight_not_found` otherwise. The flight's summary as JSON is [`GET /v1/flights/{id}`](#get-v1flightsid), at the same lasting address.
+
+```bash
+curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg/track
+```
+
+The answer for the demo account's public flight, cut here to its first three positions of 1,835:
+
+```json
+{
+  "type": "Feature",
+  "id": "5t1eshypdtvrq7rxw39a18vsrg",
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [
+      [
+        11.7967,
+        47.6642,
+        1620.0
+      ],
+      [
+        11.796617,
+        47.664267,
+        1619.0
+      ],
+      [
+        11.796517,
+        47.66435,
+        1618.0
+      ]
+    ]
+  },
+  "properties": {
+    "start": "2026-08-15T10:30:00Z",
+    "times_s": [
+      0,
+      1,
+      2
+    ],
+    "pressure_altitudes_m": [
+      1585,
+      1584,
+      1583
+    ],
+    "fixes": 1835,
+    "every": 1,
+    "takeoff_s": 0,
+    "landing_s": 1752
+  },
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `geometry.coordinates` | One position per fix of the recording, in its order: **longitude, latitude** in degrees (WGS 84), rounded to six decimals, which keeps all a flight file has, and the satellite altitude in metres as the file gives it |
+| `properties.start` | The time of the first position |
+| `properties.times_s` | For each position, the seconds from `start` to its fix. The list is as long as `coordinates` |
+| `properties.pressure_altitudes_m` | For each position, the pressure altitude in metres as the file gives it. Left out for a recording without a pressure sensor |
+| `properties.fixes`, `properties.every` | How many fixes the recording holds, and every how many of them is a position here: `1` when the line holds every fix |
+| `properties.takeoff_s`, `properties.landing_s` | The seconds from `start` to the take-off and the landing that the server's analysis found, the ones the flight's record has as `takeoff` and `landing`. Left out where the record has none |
+| `id` | The flight's address |
+| `terms` | [Under what the track is given](#flights). A member of the server's own, which the format allows; left out for a private flight |
+
+**Everything the recording has, judged by nobody.** The line holds every fix the file has, those before the take-off and after the landing too, and no fix is smoothed or moved. The times and heights are lists beside the line and not a fourth number in each position, because the format's positions hold longitude, latitude and height and nothing more.
+
+**The bound.** A line holds at most 50,000 positions. A recording with more, which is one of more than thirteen hours at a fix a second, is thinned evenly: every second fix, or every third, and so on, as `every` says, and its last fix always. The bound is there so that the answer's size does not depend on the largest file somebody can make (a file may hold 100,000 fixes). The full recording is always the file.
+
+The track is read from the file for every answer, so this request is counted for the address that asks, [as the lists of public flights are](#how-often-an-address-may-read).
 
 ### `PATCH /v1/flights/{id}`
 
@@ -3844,18 +3938,19 @@ curl http://127.0.0.1:8080/v1/pilots/demo
 }
 ```
 
-Each entry of `flights` is a flight as `GET /v1/flights/{id}` shows it. `after`, `limit` and `next` work as for `GET /v1/flights`.
+Each entry of `flights` is a flight as `GET /v1/flights/{id}` shows it. `after`, `limit` and `next` work as for `GET /v1/flights`. The answer carries [`terms`](#flights), under what the flights are given. A program that wants a pilot's flights as data, narrowed to a place or a time or followed as they change, asks [the list of public flights](#public-flights) with `pilot`.
 
 A pilot has a page once they have made a flight public. A handle nobody has gives `404` with `pilot_not_found`, and so does the handle of a pilot who shares nothing publicly: an account that keeps to itself cannot be found here, and the two answers cannot be told apart. A pilot whose only public flight was taken down, and one whose publishing is suspended, shares nothing publicly and has no page either.
 
 ## Public flights
 
-### `GET /v1/flights/public?bbox=&from=&to=&sort=&after=&limit=`
+### `GET /v1/flights/public?pilot=&bbox=&from=&to=&sort=&after=&limit=`
 
 Everyone's public flights in one list: what pilots flew, the newest first. Anyone may ask, without a token, and the answer is the same for everyone. The list holds the flights their pilots made `public` and no others. A flight that is private or unlisted is in no page of it, whatever is asked for, and that includes the asker's own: a pilot's own flights are at [`GET /v1/flights`](#get-v1flightsafterlimit). A flight that was [taken down](#what-whoever-runs-the-server-can-do) is private, and the flights of an account whose publishing is suspended are unlisted at most: neither is here.
 
 | Parameter | Meaning | Default |
 |---|---|---|
+| `pilot` | A handle: only that pilot's public flights. A pilot who has made no flight public is answered as a handle nobody has, `404` with `pilot_not_found`, as [the pilot's page](#pilots) is | Flights of every pilot |
 | `bbox` | `west,south,east,north` in degrees, as for [stations](#get-v1stationsbboxwestsoutheastnorth): only flights that **took off** inside the box, edges included. Where a flight went afterwards does not count. A flight whose recording never shows the glider flying has no take-off and is in no box | Flights from anywhere |
 | `from` | An RFC 3339 time: only flights that started at this moment or later | No bound |
 | `to` | An RFC 3339 time: only flights that started **before** this moment. It must be later than `from` | No bound |
@@ -3863,7 +3958,17 @@ Everyone's public flights in one list: what pilots flew, the newest first. Anyon
 | `limit` | How many flights to return, 1 to 100 | 50 |
 | `after` | The `next` of the answer before, with every other parameter as it was | The top of the list |
 
-Every parameter narrows the list or orders it. They can all be used together: the best flights of a day in a part of the map are `bbox`, `from`, `to` and `sort=score`.
+Every parameter narrows the list or orders it. They can all be used together: the best flights of a day in a part of the map are `bbox`, `from`, `to` and `sort=score`, and one pilot's flights from one valley in one season are `pilot`, `bbox`, `from` and `to`.
+
+**The place of a flight** is where it took off, the one place the server keeps in a form it can search by. Where a flight landed is in its record and cannot be asked for; where it went is its [track](#get-v1flightsidtrack).
+
+**By what changed, oldest change first,** the same flights are listed by [`GET /v1/flights/public/changes`](#get-v1flightspublicchangessincepilotlimit), which is the order for a program that keeps a copy.
+
+The answer carries [`terms`](#flights), under what its flights are given.
+
+#### How often an address may read
+
+Three requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), and [a flight's track](#get-v1flightsidtrack). An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. A token does not change the count: it is the address's. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
 
 **A day** is asked for with its first moment as `from` and the first moment of the next day as `to`. The server knows no time zone: a client that means the pilots' own day writes its offset into both times (`2026-08-15T00:00:00+02:00`, with the `+` written as `%2B` in a URL). The best flights of 15 August 2026, by UTC:
 
@@ -3922,7 +4027,8 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
     },
     {
       "id": "rnwkdftnzbzv3jpcc5v1ajq97w",
@@ -3964,9 +4070,14 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
         ]
       ],
       "file_bytes": 55650,
-      "analysis_version": 1
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
     }
-  ]
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
 }
 ```
 
@@ -4029,7 +4140,8 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
     },
     {
       "id": "fbyw03atd9qdt5bfe177ra1k94",
@@ -4079,10 +4191,15 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
     }
   ],
-  "next": "1786881900000000_fbyw03atd9qdt5bfe177ra1k94"
+  "next": "1786881900000000_fbyw03atd9qdt5bfe177ra1k94",
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
 }
 ```
 
@@ -4111,6 +4228,151 @@ What a row of a list needs is in every flight: `id`, the flight's address, under
 | 400 | `invalid_sort` | `sort` is not `newest` or `score` |
 | 400 | `invalid_limit` | `limit` is not a number from 1 to 100 |
 | 400 | `invalid_cursor` | `after` is not a `next` the server gave out for this order: a `next` of `sort=newest` is none for `sort=score`, and the other way round |
+
+### `GET /v1/flights/public/changes?since=&pilot=&limit=`
+
+What changed in what the public sees of flights since a program last asked: of everyone's public flights, or with `pilot` of one pilot's. Anyone may ask, without a token. It is for a program that keeps a copy of public flights and wants it to stay true: a flight that its pilot withdrew is named here, so that the copy removes it.
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `since` | The `cursor` of the answer before | Everything, from the beginning |
+| `pilot` | A handle: only the changes to that pilot's flights. `404` with `pilot_not_found` when the pilot has no public flight, as [the pilot's page](#pilots) answers | The changes to everyone's |
+| `limit` | How many changes to return, 1 to 100 | 50 |
+
+The development mode has six changes. The first four, read with `limit=4`, end at the cursor `1795028700000003`; what came after them:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003'
+```
+
+```json
+{
+  "flights": [
+    {
+      "id": "nfmvgygyr34epnfbcekb04nwqc",
+      "identity": "e721900dacb914a34358110db513e503",
+      "pilot": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-09-06T13:00:00Z",
+      "airtime_s": 1752,
+      "takeoff": {
+        "time": "2026-09-06T13:00:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "landing": {
+        "time": "2026-09-06T13:29:12Z",
+        "position": {
+          "lat": 47.692167,
+          "lon": 11.767483
+        },
+        "altitude_m": 786
+      },
+      "track_length_m": 18402.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11975.7,
+        "points": 11.98
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 68008,
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
+    }
+  ],
+  "withdrawn": [
+    {
+      "id_sha256": "f6caf4f4a5a7e862f2a3d419b0df6818653264eb9c2e8914cdb4376313d203b1",
+      "withdrawn_at": "2026-11-18T19:05:00Z"
+    }
+  ],
+  "cursor": "1795028700000006",
+  "more": false,
+  "reset": false,
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `flights` | Flights that became public, or changed while public (the server worked their numbers out again), each once and as it is now, the oldest change first |
+| `withdrawn` | Flights that are public no more: made private or shared by link only by their pilot, taken down, deleted, or gone with their pilot's account. Each is named by `id_sha256`, the SHA-256 of the 26 characters of its `id` as 64 lower-case hexadecimal characters, with `withdrawn_at`, which is left out for a flight that went with its account |
+| `cursor` | Pass this as `since` next time. It is text; treat it as opaque |
+| `more` | Whether more changes are waiting. Ask again with `cursor` at once |
+| `reset` | `true` when the server did not know the request's `since`, for example after it was restored from a backup, and started again from the beginning. Whoever keeps a copy then replaces it with what the answers from here on hold |
+| `terms` | [Under what the flights are given](#flights) |
+
+A flight is in one of the two lists and never in both: one that was withdrawn and made public again is in `flights`. A flight that was never public is in neither, and that includes every flight shared by link.
+
+**Why a hash and not the address.** A flight that is shared by link is read by whoever has its address. A list of the addresses of withdrawn flights would hand everyone the links to flights whose pilots had just taken them off the public list. Whoever kept a flight has its address and finds it by the hash; whoever did not learns nothing from it.
+
+The same change numbers count for everyone's flights and for one pilot's, so a cursor from one way of asking is a valid place in the other. The request is counted for the address that asks, [as the list is](#how-often-an-address-may-read).
+
+## Following Venti's public flights
+
+This part is for the maker of a program that is not one of Venti's apps: a site that shows flights from a valley, a club's page, a research script. It needs nothing but HTTP and JSON, no account and no token, and can be read without the rest of this document. The server of the examples is the [development mode](#try-it); every answer below is described in full under its own heading.
+
+**What you may do with what you read is not settled.** Every answer carries `terms`, and today they say: the flights are their pilots', they are shown here for reading, and reusing a flight needs its pilot's leave until Venti's terms say otherwise. `"decided": false` marks this as a holding statement. Read `terms` from the answers and act on it as it stands on the day; do not keep your own copy of the wording. Whatever the terms become, one rule will not change: **a flight its pilot has withdrawn is removed from every copy.** A track is a record of where a person was.
+
+**1. Ask for what is public.** Everything, a page at a time:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/flights/public/changes'
+```
+
+Store each flight of `flights` under its `id`. Remember `cursor`. While `more` is `true`, ask again at once with `?since=<cursor>`.
+
+To follow one pilot, add `pilot=<handle>`. To read a part of the map or a span of time once, without keeping a copy true, use the list: [`GET /v1/flights/public`](#get-v1flightspublicpilotbboxfromtosortafterlimit) with `bbox`, `from`, `to` and `pilot`, and follow its `next`. The changes cannot be narrowed to a place or a time; a program that wants only a valley follows everything and keeps what took off inside its box (`takeoff.position`).
+
+**2. Read a flight.** Its record is in the list already and at its own address; its track is GeoJSON; its file is the IGC file as the pilot uploaded it:
+
+```bash
+curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
+curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg/track
+curl -O -J http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg/igc
+```
+
+A flight's `id` is its address for good: it is never used for another flight. `published_at` says since when it is public.
+
+**3. Ask again, as often as you need to be right.** With the cursor you remembered:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003'
+```
+
+- Every flight of `flights` replaces the one you hold under its `id`, or is new.
+- Every entry of `withdrawn` names a flight to **remove**, with everything you derived from it: compare `id_sha256` with the SHA-256 of each `id` you hold (`printf %s "$id" | shasum -a 256`). Keep that hash beside each flight and the comparison is a lookup. An entry for a flight you never held is not for you.
+- `reset: true` means your cursor was not this server's: drop what you hold and keep what the answers from here on give you.
+- When you follow one pilot and the answer becomes `404` with `pilot_not_found`, the pilot has no public flight any more, or no account: remove everything of theirs.
+
+Once a day is enough for most uses; once a minute is the most that makes sense. How long a copy may lag behind a withdrawal is part of the terms that are not written yet: until they are, ask at least once a day.
+
+**4. Stay within the bound.** An address may make [600 such reads an hour](#how-often-an-address-may-read): pages of the list, pages of the changes and tracks together. A `429` carries `Retry-After`; wait that long. Send `If-None-Match` with the `ETag` of an answer you kept and an unchanged one costs a `304` without a body. A page in a browser on another site cannot call the server at all yet: it answers only the origins it was told to.
+
+**What is not there:** a file of all public flights, and a call from the server when something changes. Neither is planned before the terms are decided.
 
 ## Ranking
 
@@ -4193,7 +4455,8 @@ curl 'http://127.0.0.1:8080/v1/ranking?from=2026-08-01T00:00:00Z&to=2026-09-01T0
             ]
           ],
           "file_bytes": 68008,
-          "analysis_version": 1
+          "analysis_version": 1,
+          "published_at": "2026-11-18T19:05:00Z"
         },
         {
           "id": "rnwkdftnzbzv3jpcc5v1ajq97w",
@@ -4235,7 +4498,8 @@ curl 'http://127.0.0.1:8080/v1/ranking?from=2026-08-01T00:00:00Z&to=2026-09-01T0
             ]
           ],
           "file_bytes": 55650,
-          "analysis_version": 1
+          "analysis_version": 1,
+          "published_at": "2026-11-18T19:05:00Z"
         }
       ]
     },
@@ -4295,11 +4559,16 @@ curl 'http://127.0.0.1:8080/v1/ranking?from=2026-08-01T00:00:00Z&to=2026-09-01T0
             ]
           ],
           "file_bytes": 68008,
-          "analysis_version": 1
+          "analysis_version": 1,
+          "published_at": "2026-11-18T19:05:00Z"
         }
       ]
     }
-  ]
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
 }
 ```
 

@@ -230,6 +230,14 @@ pub struct Flight {
     /// done that. A flight that is taken down is private, and stays so
     /// whatever its pilot asks for, until it is released.
     pub taken_down_at: Option<Timestamp>,
+    /// Since when the flight is public, without a break; `None` while it
+    /// is not. A flight that is withdrawn and made public again has the
+    /// moment of the second time.
+    pub published_at: Option<Timestamp>,
+    /// The number of the last change to what the public sees of the
+    /// flight, in the one count all accounts share; `None` while it is not
+    /// public. See [`PublicFlightChanges`].
+    pub public_change: Option<i64>,
 }
 
 /// What became of a call that sets who may see a flight.
@@ -358,8 +366,10 @@ impl Flight {
 /// Which of everyone's public flights a list holds.
 ///
 /// Whatever is set here, a flight that is not public is never among them.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct PublicFlights {
+    /// Only flights of this account.
+    pub pilot: Option<String>,
     /// Only flights that took off inside this box, edges included. A
     /// flight whose recording never shows the glider flying took off
     /// nowhere and is in no box.
@@ -382,6 +392,10 @@ impl PublicFlights {
                 .is_some_and(|takeoff| area.contains(takeoff.position))
         });
         in_area
+            && self
+                .pilot
+                .as_ref()
+                .is_none_or(|pilot| *pilot == flight.account_id)
             && self.from.is_none_or(|from| start >= from)
             && self.before.is_none_or(|before| start < before)
     }
@@ -496,26 +510,139 @@ pub(crate) fn cut(
     deleted: &mut Vec<DeletedFlight>,
     limit: usize,
 ) -> bool {
-    let mut numbers: Vec<i64> = flights
+    cut_by(
+        flights,
+        |flight| flight.change,
+        deleted,
+        |deleted| deleted.change,
+        limit,
+    )
+}
+
+/// The same for the changes to what the public sees: flights by their
+/// public change number, and the withdrawals.
+pub(crate) fn cut_public(
+    flights: &mut Vec<Flight>,
+    withdrawn: &mut Vec<WithdrawnFlight>,
+    limit: usize,
+) -> bool {
+    cut_by(
+        flights,
+        |flight| flight.public_change.unwrap_or(i64::MAX),
+        withdrawn,
+        |withdrawn| withdrawn.change,
+        limit,
+    )
+}
+
+fn cut_by<A, B>(
+    one: &mut Vec<A>,
+    number_of_one: impl Fn(&A) -> i64,
+    other: &mut Vec<B>,
+    number_of_other: impl Fn(&B) -> i64,
+    limit: usize,
+) -> bool {
+    let mut numbers: Vec<i64> = one
         .iter()
-        .map(|flight| flight.change)
-        .chain(deleted.iter().map(|deleted| deleted.change))
+        .map(&number_of_one)
+        .chain(other.iter().map(&number_of_other))
         .collect();
     if numbers.len() <= limit {
         return false;
     }
     numbers.sort_unstable();
-    // Change numbers of one account are unique, so this keeps exactly
+    // Change numbers of one count are unique, so this keeps exactly
     // `limit` changes.
     match limit.checked_sub(1).map(|last| numbers[last]) {
         Some(last_kept) => {
-            flights.retain(|flight| flight.change <= last_kept);
-            deleted.retain(|deleted| deleted.change <= last_kept);
+            one.retain(|change| number_of_one(change) <= last_kept);
+            other.retain(|change| number_of_other(change) <= last_kept);
         }
         None => {
-            flights.clear();
-            deleted.clear();
+            one.clear();
+            other.clear();
         }
     }
     true
+}
+
+/// A flight that was public and is not: made private or unlisted, taken
+/// down, deleted, or gone with its account. Nothing of the flight is here
+/// but its address.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WithdrawnFlight {
+    /// The address the flight has or had.
+    pub id: String,
+    /// The number the withdrawal took among the public changes.
+    pub change: i64,
+    /// When it was withdrawn. `None` for a flight that went with its
+    /// account: the store is not told when an account goes.
+    pub withdrawn_at: Option<Timestamp>,
+}
+
+/// What changed in what the public sees of flights after some number.
+///
+/// Whatever makes a flight public, changes a public flight (its values
+/// worked out again) or takes one from the public gets a number that is
+/// larger than every number used before, in one count for all accounts.
+/// Numbers have gaps. Whoever keeps a copy of the public flights remembers
+/// the largest number seen and asks for what came after it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PublicFlightChanges {
+    /// Flights that became public or changed while public, each as it is
+    /// now, by public change number.
+    pub flights: Vec<Flight>,
+    /// Flights that are public no more, by change number.
+    pub withdrawn: Vec<WithdrawnFlight>,
+    /// Whether changes beyond the limit of the request are waiting.
+    pub more: bool,
+    /// The largest number the count has used, zero if it has used none.
+    pub latest: i64,
+}
+
+impl PublicFlightChanges {
+    /// The largest change number among the changes listed here.
+    pub fn last(&self) -> Option<i64> {
+        let flights = self
+            .flights
+            .iter()
+            .filter_map(|flight| flight.public_change);
+        let withdrawn = self.withdrawn.iter().map(|withdrawn| withdrawn.change);
+        flights.chain(withdrawn).max()
+    }
+}
+
+/// What a change of a flight's visibility is to the public.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PublicEffect {
+    /// Nothing: the flight was not public and is not.
+    Nothing,
+    /// The flight became public.
+    Published,
+    /// The flight is public no more.
+    Withdrawn,
+}
+
+impl PublicEffect {
+    /// What it is to the public that a flight which `was` visible so `is`
+    /// now visible so. Both stores ask this, so that they publish and
+    /// withdraw alike.
+    pub(crate) fn of(was: Visibility, is: Visibility) -> Self {
+        match (was == Visibility::Public, is == Visibility::Public) {
+            (false, true) => Self::Published,
+            (true, false) => Self::Withdrawn,
+            (false, false) | (true, true) => Self::Nothing,
+        }
+    }
+}
+
+/// The next number of the count of public changes whose latest is
+/// `latest`. With the time of the change it follows the clock, as an
+/// account's own numbers do ([`next_change`]); without, which is the case
+/// only when an account goes, it is the one after the latest.
+pub(crate) fn next_public_change(latest: i64, now: Option<Timestamp>) -> i64 {
+    match now {
+        Some(now) => next_change(latest, now),
+        None => latest.saturating_add(1),
+    }
 }

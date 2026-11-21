@@ -7,30 +7,90 @@
 //! stranger does not see, their own included. A flight that is private or
 //! shared by link is in no page, behind no filter and after no cursor; the
 //! answer has no count from which one could be told.
+//!
+//! Beside the list, what changed in it: the flights that became public or
+//! changed while public, and those that are public no more, so that
+//! whoever keeps a copy of public flights can keep it true.
+//!
+//! Both are open to anyone without a token, and bounded by the address
+//! that asks ([`Api::count_public_flight_read`]). Every answer says under
+//! what its flights are given ([`FlightTerms`]).
 
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use axum::extract::{Query, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use venti_api_types::v1::{
-    ErrorCode, FlightId, FlightSort, FlightsResponse, parse_bbox, parse_time,
+    ErrorCode, FlightId, FlightSort, FlightTerms, FlightsResponse, PublicFlightChangesResponse,
+    WithdrawnFlight, parse_bbox, parse_time,
 };
 use venti_domain::Timestamp;
 use venti_store::{PublicFlights, PublicOrder, ScoreKey, Store, Visibility};
 
+use super::auth::Client;
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::flights::{page_key, page_token};
 use super::log::Sparse;
 use super::{Api, body, cache, wire};
+use crate::accounts::client::counting_keys;
+
+impl<S: Store> Api<S> {
+    /// Counts a read of public flights as data for the address that asks,
+    /// and refuses it when the address has made as many as one may in the
+    /// time: a page of everyone's public flights, a page of what changed
+    /// among them, a flight's track.
+    ///
+    /// These are open to anyone, and without a bound one address could
+    /// take every public flight as fast as the database hands them out.
+    /// Counted as the forecasts an address makes the server fetch are: by
+    /// address, and by network for IPv6.
+    pub(crate) fn count_public_flight_read(&self, client: IpAddr) -> Result<(), ApiError> {
+        let address = counting_keys(client);
+        let by_address = address.counted(
+            self.limits.public_flight_reads_per_address,
+            self.limits.public_flight_reads_per_network,
+        );
+        self.public_flight_reads
+            .attempt(&by_address, self.clock.now())
+            .map_err(|refused| {
+                ApiError::rate_limited(
+                    refused,
+                    "this address has read public flights as often as one address may in an \
+                     hour",
+                )
+            })
+    }
+
+    /// The account whose public flights a request's `pilot` means: the
+    /// pilot with this handle, if they have a page.
+    async fn pilot_asked_for(&self, pilot: Option<&str>) -> Result<Option<String>, ApiError> {
+        match pilot {
+            None => Ok(None),
+            Some(handle) => Ok(Some(self.pilot_with_a_page(handle).await?.id)),
+        }
+    }
+}
+
+/// How a list of withdrawn flights names a flight: by the SHA-256 of its
+/// address, in hexadecimal. See [`WithdrawnFlight`].
+fn address_hash(id: &str) -> String {
+    Sha256::digest(id.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
 
 const BBOX_HELP: &str =
     "give bbox as west,south,east,north in degrees, for example bbox=11.6,47.55,12.0,47.85";
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Params {
+    pilot: Option<String>,
     bbox: Option<String>,
     from: Option<String>,
     to: Option<String>,
@@ -105,6 +165,7 @@ pub(super) fn which(
         ));
     }
     Ok(PublicFlights {
+        pilot: None,
         area,
         from,
         before: to,
@@ -115,17 +176,25 @@ pub(super) fn which(
 ///
 /// Like a pilot's page, the answer may be kept and is checked before every
 /// reuse: a flight that is made private leaves the list at once.
+///
+/// With `pilot`, the public flights of that pilot only. A pilot who has
+/// made no flight public is a pilot nobody has, as on the pilot's page.
 pub(crate) async fn list<S: Store>(
     State(api): State<Arc<Api<S>>>,
+    Client(client): Client,
     Query(params): Query<Params>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    api.count_public_flight_read(client)?;
     let limit = body::page_size(params.limit.as_deref())?;
-    let which = which(
-        params.bbox.as_deref(),
-        params.from.as_deref(),
-        params.to.as_deref(),
-    )?;
+    let which = PublicFlights {
+        pilot: api.pilot_asked_for(params.pilot.as_deref()).await?,
+        ..which(
+            params.bbox.as_deref(),
+            params.from.as_deref(),
+            params.to.as_deref(),
+        )?
+    };
     let sort = match params.sort.as_deref() {
         None => FlightSort::default(),
         Some(text) => text
@@ -164,6 +233,86 @@ pub(crate) async fn list<S: Store>(
     let answer = FlightsResponse {
         flights: wire::flights(&flights)?,
         next,
+        terms: Some(FlightTerms::current()),
+    };
+    Ok(cache::shared_json(&headers, &answer, Keeper::Anyone))
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct ChangesParams {
+    since: Option<String>,
+    pilot: Option<String>,
+    limit: Option<String>,
+}
+
+/// `GET /v1/flights/public/changes`: what changed in what the public sees
+/// of flights since a program last asked, of everyone's or of one
+/// pilot's.
+///
+/// A flight that became public or changed while public is in `flights`,
+/// as it is now. A flight that is public no more is in `withdrawn`, by
+/// the hash of its address: whoever kept it removes it. A flight that was
+/// never public is in neither.
+pub(crate) async fn changes<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    Client(client): Client,
+    Query(params): Query<ChangesParams>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    api.count_public_flight_read(client)?;
+    let limit = body::page_size(params.limit.as_deref())?;
+    let asked: i64 = match params.since.as_deref() {
+        None => 0,
+        Some(text) => text
+            .parse()
+            .ok()
+            .filter(|since| *since >= 0)
+            .ok_or_else(|| {
+                ApiError::bad_request(
+                    ErrorCode::InvalidCursor,
+                    "since must be the cursor of an earlier answer",
+                )
+            })?,
+    };
+    // A pilot without a public flight has no page, here as everywhere:
+    // whoever followed that pilot removes what they kept of them.
+    let pilot = api.pilot_asked_for(params.pilot.as_deref()).await?;
+    let pilot = pilot.as_deref();
+
+    let mut changes = api.store.public_flight_changes(pilot, asked, limit).await?;
+    // A cursor from beyond the latest change was not given out by this
+    // database as it is now. Start again from the beginning, and say so.
+    let reset = asked > changes.latest;
+    let since = if reset { 0 } else { asked };
+    if reset {
+        changes = api.store.public_flight_changes(pilot, 0, limit).await?;
+    }
+    // As in the list: the store hands out public flights only, and a
+    // mistake there would show a flight to everyone.
+    if changes
+        .flights
+        .iter()
+        .any(|flight| flight.visibility != Visibility::Public)
+    {
+        static GATE: Sparse = Sparse::new();
+        GATE.error("the store listed a flight that is not public among the public changes");
+        return Err(ApiError::internal());
+    }
+
+    let answer = PublicFlightChangesResponse {
+        cursor: changes.last().unwrap_or(since).to_string(),
+        flights: wire::flights(&changes.flights)?,
+        withdrawn: changes
+            .withdrawn
+            .iter()
+            .map(|withdrawn| WithdrawnFlight {
+                id_sha256: address_hash(&withdrawn.id),
+                withdrawn_at: withdrawn.withdrawn_at,
+            })
+            .collect(),
+        more: changes.more,
+        reset,
+        terms: FlightTerms::current(),
     };
     Ok(cache::shared_json(&headers, &answer, Keeper::Anyone))
 }
@@ -171,6 +320,18 @@ pub(crate) async fn list<S: Store>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_withdrawn_flight_is_named_by_the_hash_of_its_address() {
+        // SHA-256 of the 26 ASCII characters, as any program computes it:
+        // `printf 0123456789abcdefghjkmnpqrs | shasum -a 256`.
+        let hash = address_hash("0123456789abcdefghjkmnpqrs");
+        assert_eq!(hash.len(), 64);
+        assert_eq!(
+            hash,
+            "6aab299c78d0b17077bd60f9ea95ff9c4dc6a4dfa7b3b308d01c7c187cba3709"
+        );
+    }
 
     #[test]
     fn a_token_for_a_list_by_points_names_the_last_flight_and_reads_back() {

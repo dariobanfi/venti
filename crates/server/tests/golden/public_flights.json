@@ -48,7 +48,8 @@
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
     },
     {
       "id": "fbyw03atd9qdt5bfe177ra1k94",
@@ -98,8 +99,13 @@
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1
+      "analysis_version": 1,
+      "published_at": "2026-11-18T19:05:00Z"
     }
   ],
-  "next": "1786881900000000_fbyw03atd9qdt5bfe177ra1k94"
+  "next": "1786881900000000_fbyw03atd9qdt5bfe177ra1k94",
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
 }

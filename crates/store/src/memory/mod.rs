@@ -22,11 +22,11 @@ use crate::{
     GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
     LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
     NewPlan, NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
-    PlanRemoval, PlanRoom, PlanSaving, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report,
-    ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session,
-    SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
-    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
-    airspace, batch, forecast, site,
+    PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights, PublicOrder, Ranked,
+    RemovedGroup, Report, ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord,
+    SecretHash, Session, SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite,
+    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
+    VisibilityChange, airspace, batch, forecast, site,
 };
 use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
@@ -729,6 +729,18 @@ impl Store for MemoryStore {
         Ok(inner
             .flights
             .changes(account_id, since, limit, &inner.accounts))
+    }
+
+    async fn public_flight_changes(
+        &self,
+        account_id: Option<&str>,
+        since: i64,
+        limit: usize,
+    ) -> Result<PublicFlightChanges, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .flights
+            .public_changes(account_id, since, limit, &inner.accounts))
     }
 
     async fn set_visibility(

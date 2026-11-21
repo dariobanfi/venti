@@ -574,6 +574,51 @@ impl PublicFlightsRequest {
     }
 }
 
+impl PublicFlightsRequest {
+    /// The same list, of one pilot's flights only: the path and query
+    /// string to GET.
+    pub fn path_and_query_of(&self, pilot: &Handle) -> String {
+        let all = self.path_and_query();
+        let separator = if all.contains('?') { '&' } else { '?' };
+        format!("{all}{separator}pilot={pilot}")
+    }
+}
+
+/// Path of what changed in what the public sees of flights.
+pub const PUBLIC_FLIGHT_CHANGES_PATH: &str = "/v1/flights/public/changes";
+
+/// A request for what changed among everyone's public flights, or among
+/// one pilot's.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PublicFlightChangesRequest {
+    /// The `cursor` of the answer before. `None` asks for everything.
+    pub since: Option<String>,
+    /// Only the changes to this pilot's flights.
+    pub pilot: Option<Handle>,
+    /// How many changes to return, at most
+    /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE).
+    pub limit: Option<usize>,
+}
+
+impl PublicFlightChangesRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        with_query(
+            PUBLIC_FLIGHT_CHANGES_PATH.to_owned(),
+            [
+                ("since", self.since.clone()),
+                ("pilot", self.pilot.as_ref().map(ToString::to_string)),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
+    }
+}
+
+/// Path of a flight's track as GeoJSON.
+pub fn flight_track_path(flight: &FlightId) -> String {
+    format!("{FLIGHTS_PATH}/{flight}/track")
+}
+
 /// Path of the ranking of pilots by their best public flights.
 pub const RANKING_PATH: &str = "/v1/ranking";
 

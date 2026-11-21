@@ -1,0 +1,45 @@
+{
+  "type": "Feature",
+  "id": "5t1eshypdtvrq7rxw39a18vsrg",
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [
+      [
+        11.7967,
+        47.6642,
+        1620.0
+      ],
+      [
+        11.796617,
+        47.664267,
+        1619.0
+      ],
+      [
+        11.796517,
+        47.66435,
+        1618.0
+      ]
+    ]
+  },
+  "properties": {
+    "start": "2026-08-15T10:30:00Z",
+    "times_s": [
+      0,
+      1,
+      2
+    ],
+    "pressure_altitudes_m": [
+      1585,
+      1584,
+      1583
+    ],
+    "fixes": 1835,
+    "every": 1,
+    "takeoff_s": 0,
+    "landing_s": 1752
+  },
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}

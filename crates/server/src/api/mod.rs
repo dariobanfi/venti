@@ -103,8 +103,8 @@ use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
     Attribution, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH,
     HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
-    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH,
-    SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
+    PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH,
+    SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -247,6 +247,8 @@ pub struct Api<S> {
     connector_requests: Throttle,
     /// Forecasts that had to be fetched, by client address.
     forecast_fetches: Throttle,
+    /// Reads of public flights as data, by client address.
+    public_flight_reads: Throttle,
     /// Where requests come from, to notice a setup that hides it.
     clients: clients::ClientWatch,
     /// Where forecasts come from, on a server that was told where its
@@ -342,6 +344,11 @@ impl<S: Store> Api<S> {
             forecast_fetches: Throttle::new(
                 "addresses that asked for forecasts of new places",
                 limits.forecast_window,
+                limits.watched_keys,
+            ),
+            public_flight_reads: Throttle::new(
+                "addresses that read public flights as data",
+                limits.public_flight_window,
                 limits.watched_keys,
             ),
             clients: clients::ClientWatch::default(),
@@ -530,6 +537,7 @@ impl<S: Store> Api<S> {
             .route(FLIGHTS_PATH, get(flights::list::<S>))
             .route(FLIGHT_CHANGES_PATH, get(flights::changes::<S>))
             .route(PUBLIC_FLIGHTS_PATH, get(feed::list::<S>))
+            .route(PUBLIC_FLIGHT_CHANGES_PATH, get(feed::changes::<S>))
             .route(RANKING_PATH, get(ranking::list::<S>))
             .route(
                 "/v1/flights/{id}",
@@ -538,6 +546,7 @@ impl<S: Store> Api<S> {
                     .delete(flights::delete::<S>),
             )
             .route("/v1/flights/{id}/igc", get(flights::file::<S>))
+            .route("/v1/flights/{id}/track", get(flights::track::<S>))
             .route("/v1/pilots/{handle}", get(pilots::show::<S>))
             .route(LIVE_PATH, get(live::list::<S>))
             .route(REPORTS_PATH, post(reports::create::<S>))

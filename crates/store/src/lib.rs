@@ -61,8 +61,8 @@ pub use account::{
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, NewFlight,
-    OutdatedFlight, Place, PublicFlights, PublicOrder, Ranked, Room, Saved, Score, ScoreKey,
-    ScoreKind, Visibility, VisibilityChange,
+    OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Room, Saved,
+    Score, ScoreKey, ScoreKind, Visibility, VisibilityChange, WithdrawnFlight,
 };
 pub use forecast::{ForecastModel, ThermalPart};
 pub use group::{
@@ -789,6 +789,32 @@ pub trait Store: Send + Sync + 'static {
         since: i64,
         limit: usize,
     ) -> impl Future<Output = Result<FlightChanges, StoreError>> + Send;
+
+    /// What changed in what the public sees of flights after the number
+    /// `since`, oldest change first, at most `limit` changes: the flights
+    /// that became public or changed while public, each once and as it is
+    /// now, and the flights that are public no more. See
+    /// [`PublicFlightChanges`]. With `account_id`, the changes to that
+    /// account's flights only.
+    ///
+    /// A flight is in one of the two lists and never in both. One that is
+    /// private or unlisted is never among the flights, and one that was
+    /// never public is in neither list. The answer is taken at one moment:
+    /// no change is missed between two calls when the second passes the
+    /// largest number of the first.
+    ///
+    /// A flight is withdrawn by whatever takes it from the public:
+    /// [`Store::set_visibility`], [`Store::take_down_flight`],
+    /// [`Store::suspend_publishing`], [`Store::delete_flight`] and
+    /// [`Store::delete_account`]. A withdrawal outlives the flight and the
+    /// account; of an account that is gone it is listed only when no
+    /// account is asked for.
+    fn public_flight_changes(
+        &self,
+        account_id: Option<&str>,
+        since: i64,
+        limit: usize,
+    ) -> impl Future<Output = Result<PublicFlightChanges, StoreError>> + Send;
 
     /// Sets who may see a flight of an account, and says what became of
     /// it; see [`VisibilityChange`]. Setting what is already set changes

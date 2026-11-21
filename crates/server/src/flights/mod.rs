@@ -5,6 +5,8 @@
 //! - [`share`] is the page a link to a flight shows, [`picture`] the image
 //!   that goes with it.
 //! - [`refresh`] works stored flights out again after the analysis changed.
+//! - [`track`] is a flight's recording as a GeoJSON line, for programs
+//!   that do not read flight files.
 //!
 //! A flight file is kept byte for byte as it was uploaded: a recorder's
 //! signature covers every byte, and a league will only accept the file it
@@ -16,6 +18,7 @@ pub mod derive;
 pub mod picture;
 pub mod refresh;
 pub mod share;
+pub mod track;
 
 use std::io::{Read, Write};
 

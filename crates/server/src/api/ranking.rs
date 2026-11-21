@@ -12,7 +12,7 @@ use axum::extract::{Query, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use serde::Deserialize;
-use venti_api_types::v1::{RANKING_COUNTED, RankedPilot, RankingResponse};
+use venti_api_types::v1::{FlightTerms, RANKING_COUNTED, RankedPilot, RankingResponse};
 use venti_store::{Ranked, Store, Visibility};
 
 use super::cache::Keeper;
@@ -76,6 +76,7 @@ pub(crate) async fn list<S: Store>(
     let answer = RankingResponse {
         counted: u32::try_from(RANKING_COUNTED).unwrap_or(u32::MAX),
         pilots: ranked.iter().map(pilot).collect::<Result<_, _>>()?,
+        terms: Some(FlightTerms::current()),
     };
     Ok(cache::shared_json(&headers, &answer, Keeper::Anyone))
 }

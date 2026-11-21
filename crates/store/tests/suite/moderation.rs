@@ -207,6 +207,8 @@ pub(crate) async fn a_flight_taken_down_is_private_until_it_is_released(store: &
         visibility: Visibility::Private,
         taken_down_at: Some(at(14, 0)),
         change: micros(at(14, 0)),
+        published_at: None,
+        public_change: None,
         ..public.clone()
     };
     assert_eq!(down, Some(expected.clone()));
@@ -415,11 +417,15 @@ pub(crate) async fn an_account_whose_publishing_is_suspended_publishes_nothing(s
     let first_now = Flight {
         visibility: Visibility::Unlisted,
         change: micros(at(14, 0)),
+        published_at: None,
+        public_change: None,
         ..first.clone()
     };
     let third_now = Flight {
         visibility: Visibility::Unlisted,
         change: micros(at(14, 0)) + 1,
+        published_at: None,
+        public_change: None,
         ..third.clone()
     };
     assert_eq!(read(store, &first).await, first_now);

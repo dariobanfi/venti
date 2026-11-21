@@ -5,10 +5,14 @@ use std::collections::BTreeMap;
 use venti_domain::Timestamp;
 
 use super::accounts::Accounts;
-use crate::flight::{Kept, Room, Saved, cut, may_be_set, ranked_order, score_order};
+use crate::flight::{
+    Kept, PublicEffect, Room, Saved, cut, cut_public, may_be_set, next_public_change, ranked_order,
+    score_order,
+};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    PublicFlights, PublicOrder, Ranked, ScoreKey, StoreError, Visibility, VisibilityChange,
+    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, ScoreKey, StoreError, Visibility,
+    VisibilityChange, WithdrawnFlight,
 };
 
 #[derive(Debug, Default)]
@@ -21,6 +25,63 @@ pub(super) struct Flights {
     /// were deleted, with the moment they had been taken down at: a
     /// flight that comes back under its address comes back taken down.
     deleted_taken_down: BTreeMap<(String, String), Timestamp>,
+    /// What the public sees of flights: the count of its changes, and the
+    /// flights that are public no more.
+    public: Public,
+}
+
+/// The count of changes to what the public sees of flights, and the
+/// flights that were public and are not.
+#[derive(Debug, Default)]
+struct Public {
+    /// The largest number in use.
+    latest: i64,
+    /// By the flight's address, each with the account it was of while
+    /// that account is there.
+    withdrawn: BTreeMap<String, (Option<String>, WithdrawnFlight)>,
+}
+
+impl Public {
+    /// Takes the next number.
+    fn take(&mut self, now: Option<Timestamp>) -> i64 {
+        self.latest = next_public_change(self.latest, now);
+        self.latest
+    }
+
+    /// Makes a flight public from `now` on.
+    fn publish(&mut self, flight: &mut Flight, now: Timestamp) {
+        flight.visibility = Visibility::Public;
+        flight.published_at = Some(now);
+        flight.public_change = Some(self.take(Some(now)));
+        self.withdrawn.remove(&flight.id);
+    }
+
+    /// Takes a public flight from the public and makes it visible as
+    /// `visibility` says. `now` is missing when the flight goes with its
+    /// account, which is then not kept either.
+    fn withdraw(&mut self, flight: &mut Flight, visibility: Visibility, now: Option<Timestamp>) {
+        flight.visibility = visibility;
+        flight.published_at = None;
+        flight.public_change = None;
+        let withdrawn = WithdrawnFlight {
+            id: flight.id.clone(),
+            change: self.take(now),
+            withdrawn_at: now,
+        };
+        let account = now.map(|_| flight.account_id.clone());
+        self.withdrawn
+            .insert(flight.id.clone(), (account, withdrawn));
+    }
+
+    /// Sets who may see a flight at `now`, and keeps what the public sees
+    /// in step.
+    fn set(&mut self, flight: &mut Flight, visibility: Visibility, now: Timestamp) {
+        match PublicEffect::of(flight.visibility, visibility) {
+            PublicEffect::Published => self.publish(flight, now),
+            PublicEffect::Withdrawn => self.withdraw(flight, visibility, Some(now)),
+            PublicEffect::Nothing => flight.visibility = visibility,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -84,6 +145,8 @@ impl Flights {
                 // Deleting a flight and uploading it again does not undo
                 // that it was taken down.
                 taken_down_at: self.deleted_taken_down.remove(&place),
+                published_at: None,
+                public_change: None,
             },
             file: new.file.clone(),
         };
@@ -241,6 +304,46 @@ impl Flights {
         }
     }
 
+    pub(super) fn public_changes(
+        &self,
+        account_id: Option<&str>,
+        since: i64,
+        limit: usize,
+        accounts: &Accounts,
+    ) -> PublicFlightChanges {
+        let of_account = |owner: Option<&str>| account_id.is_none_or(|id| owner == Some(id));
+        let mut flights: Vec<Flight> = self
+            .flights
+            .values()
+            .filter(|entry| entry.flight.visibility == Visibility::Public)
+            .filter(|entry| {
+                entry
+                    .flight
+                    .public_change
+                    .is_some_and(|change| change > since)
+            })
+            .filter(|entry| of_account(Some(&entry.flight.account_id)))
+            .map(|entry| Self::read(entry, accounts))
+            .collect();
+        flights.sort_by_key(|flight| flight.public_change);
+        let mut withdrawn: Vec<WithdrawnFlight> = self
+            .public
+            .withdrawn
+            .values()
+            .filter(|(owner, withdrawn)| withdrawn.change > since && of_account(owner.as_deref()))
+            .map(|(_, withdrawn)| withdrawn.clone())
+            .collect();
+        withdrawn.sort_by_key(|withdrawn| withdrawn.change);
+
+        let more = cut_public(&mut flights, &mut withdrawn, limit);
+        PublicFlightChanges {
+            flights,
+            withdrawn,
+            more,
+            latest: self.public.latest,
+        }
+    }
+
     pub(super) fn set_visibility(
         &mut self,
         account_id: &str,
@@ -265,7 +368,7 @@ impl Flights {
             let Some(change) = accounts.next_flight_change(account_id, now) else {
                 return VisibilityChange::NoSuchFlight;
             };
-            entry.flight.visibility = visibility;
+            self.public.set(&mut entry.flight, visibility, now);
             entry.flight.change = change;
         }
         VisibilityChange::Set(Box::new(Self::read(entry, accounts)))
@@ -281,7 +384,7 @@ impl Flights {
         let entry = self.flights.get_mut(id)?;
         if entry.flight.taken_down_at.is_none() {
             let change = accounts.next_flight_change(&entry.flight.account_id, now)?;
-            entry.flight.visibility = Visibility::Private;
+            self.public.set(&mut entry.flight, Visibility::Private, now);
             entry.flight.taken_down_at = Some(now);
             entry.flight.change = change;
         }
@@ -324,7 +427,8 @@ impl Flights {
             let Some(change) = accounts.next_flight_change(account_id, now) else {
                 break;
             };
-            entry.flight.visibility = Visibility::Unlisted;
+            self.public
+                .set(&mut entry.flight, Visibility::Unlisted, now);
             entry.flight.change = change;
             unlisted += 1;
         }
@@ -348,7 +452,10 @@ impl Flights {
         let Some(change) = accounts.next_flight_change(account_id, now) else {
             return false;
         };
-        let entry = self.flights.remove(id).expect("the flight was found above");
+        let mut entry = self.flights.remove(id).expect("the flight was found above");
+        // A public flight that is deleted is withdrawn; what it is
+        // withdrawn to no longer matters.
+        self.public.set(&mut entry.flight, Visibility::Private, now);
         let deleted = DeletedFlight {
             id: id.to_owned(),
             identity: entry.flight.identity,
@@ -363,7 +470,24 @@ impl Flights {
     }
 
     /// Removes everything that belongs to an account.
+    ///
+    /// Its public flights are withdrawn, in the order of their addresses,
+    /// and every withdrawal of the account forgets whose it was.
     pub(super) fn delete_account(&mut self, account_id: &str) {
+        // The map is sorted by address.
+        for entry in self.flights.values_mut() {
+            let public = entry.flight.account_id == account_id
+                && entry.flight.visibility == Visibility::Public;
+            if public {
+                self.public
+                    .withdraw(&mut entry.flight, Visibility::Private, None);
+            }
+        }
+        for (owner, _) in self.public.withdrawn.values_mut() {
+            if owner.as_deref() == Some(account_id) {
+                *owner = None;
+            }
+        }
         self.flights
             .retain(|_, entry| entry.flight.account_id != account_id);
         self.deleted.retain(|(account, _), _| account != account_id);
@@ -408,6 +532,10 @@ impl Flights {
         };
         entry.flight.derived = derived.clone();
         entry.flight.change = change;
+        // What the public sees of a public flight has changed with it.
+        if entry.flight.visibility == Visibility::Public {
+            entry.flight.public_change = Some(self.public.take(Some(now)));
+        }
         true
     }
 }

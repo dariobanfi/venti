@@ -5,7 +5,7 @@ use deadpool_postgres::Client;
 use tokio_postgres::Row;
 use venti_domain::Timestamp;
 
-use super::{db_error, groups};
+use super::{db_error, flights, groups};
 use crate::flight::next_change;
 use crate::{
     AccessToken, Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES,
@@ -183,6 +183,29 @@ async fn delete_once(client: &mut Client, account_id: &str) -> Result<(), tokio_
         // Everything else that belongs to the account names it and goes
         // with it, its places in groups and what it put into them
         // included.
+        //
+        // Its public flights are withdrawn first, in the order of their
+        // addresses, so that whoever copied them learns that they are
+        // gone. The account's row is locked before the count of public
+        // changes, as by everything else that takes a number from it.
+        tx.execute(
+            "SELECT 1 FROM accounts WHERE id = $1 FOR UPDATE",
+            &[&account_id],
+        )
+        .await?;
+        let public = tx
+            .query(
+                "SELECT id FROM flights
+                 WHERE account_id = $1 AND visibility = 'public' ORDER BY id",
+                &[&account_id],
+            )
+            .await?;
+        if !public.is_empty() {
+            let ids: Vec<String> = public.iter().map(|row| row.get(0)).collect();
+            let count = i64::try_from(ids.len()).unwrap_or(i64::MAX);
+            let number = flights::take_public_changes(&tx, count, None).await?;
+            flights::record_withdrawals(&tx, &ids, None, number, None).await?;
+        }
         tx.execute("DELETE FROM accounts WHERE id = $1", &[&account_id])
             .await?;
     }
@@ -222,18 +245,34 @@ pub(super) async fn suspend_publishing(
     // Each public flight becomes unlisted as a change of its own, in the
     // order of the flights' addresses.
     let first = next_change(latest, now);
-    let flights = tx
-        .execute(
+    let unlisted = tx
+        .query(
             "WITH public AS (
                  SELECT id, row_number() OVER (ORDER BY id) AS place
                  FROM flights WHERE account_id = $1 AND visibility = 'public'
              )
-             UPDATE flights f SET visibility = 'unlisted', change = $2 + public.place - 1
-             FROM public WHERE f.id = public.id",
+             UPDATE flights f
+             SET visibility = 'unlisted', change = $2 + public.place - 1,
+                 published_at = NULL, public_change = NULL
+             FROM public WHERE f.id = public.id
+             RETURNING f.id",
             &[&account_id, &first],
         )
         .await
         .map_err(db_error)?;
+    let flights = unlisted.len() as u64;
+    if flights > 0 {
+        // Each of them is withdrawn from the public, in the same order.
+        let mut ids: Vec<String> = unlisted.iter().map(|row| row.get(0)).collect();
+        ids.sort_unstable();
+        let count = i64::try_from(ids.len()).unwrap_or(i64::MAX);
+        let number = flights::take_public_changes(&tx, count, Some(now))
+            .await
+            .map_err(db_error)?;
+        flights::record_withdrawals(&tx, &ids, Some(account_id), number, Some(now))
+            .await
+            .map_err(db_error)?;
+    }
     if flights > 0 {
         let last = first.saturating_add(i64::try_from(flights - 1).unwrap_or(i64::MAX));
         tx.execute(

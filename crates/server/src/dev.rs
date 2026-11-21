@@ -60,9 +60,9 @@ use venti_flight::igc::{self, IgcFile};
 use venti_flight::testing::synthetic_flight;
 use venti_regions::RegionPack;
 use venti_store::{
-    AccessToken, Account, AccountCreation, GroupCreation, GroupJoining, LiveBatch, LiveFix,
-    LiveRoom, LiveSaved, LiveVisibility, MemoryStore, NewAccount, NewGroup, NewPlan, PlanChange,
-    PlanDetails, PlanRoom, PlanSaving, Room, SecretHash, Session, Store, Visibility,
+    AccessToken, Account, AccountCreation, GroupCreation, GroupJoining, Listing, LiveBatch,
+    LiveFix, LiveRoom, LiveSaved, LiveVisibility, MemoryStore, NewAccount, NewGroup, NewPlan,
+    PlanChange, PlanDetails, PlanRoom, PlanSaving, Room, SecretHash, Session, Store, Visibility,
 };
 
 use crate::accounts::client::TrustedProxies;
@@ -790,7 +790,8 @@ pub const DEMO_PILOTS: [DemoPilot; 2] = [
 /// With the demo account's public flight that makes five public flights of
 /// three pilots: two on 15 August 2026, two on the 16th and one on 6
 /// September. One flight of each further pilot is not public, and must
-/// show in no list.
+/// show in no list. The first one's was public and is shared by link now
+/// ([`withdraw_a_flight`]).
 fn further_flights() -> [Vec<(Vec<u8>, Visibility)>; 2] {
     let minutes = Duration::minutes;
     [
@@ -868,6 +869,32 @@ async fn add_pilot(
     Ok(())
 }
 
+/// Makes the flight a pilot shares by link one that was public before: so
+/// that what changed among the public flights
+/// (`GET /v1/flights/public/changes`) holds a flight that was withdrawn,
+/// for a client that keeps a copy to try removing one.
+async fn withdraw_a_flight(
+    store: &MemoryStore,
+    pilot: &Account,
+    now: Timestamp,
+) -> Result<(), String> {
+    let flights = store
+        .flights_of(&pilot.id, Listing::All, None, 10)
+        .await
+        .map_err(|e| e.to_string())?;
+    let by_link = flights
+        .iter()
+        .find(|flight| flight.visibility == Visibility::Unlisted)
+        .ok_or("the development mode has no flight shared by link to withdraw")?;
+    for visibility in [Visibility::Public, Visibility::Unlisted] {
+        store
+            .set_visibility(&pilot.id, &by_link.id, visibility, now)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Puts the demo account, its session, its flights and its live tracks
 /// into the store, the two further pilots with their flights, and the
 /// groups the three are in.
@@ -896,6 +923,7 @@ async fn add_demo_account(
         add_pilot(store, &further, flights, password_cost).await?;
         pilots.push(further);
     }
+    withdraw_a_flight(store, &pilots[1], now).await?;
     add_demo_groups(store, &pilots, now).await?;
     add_demo_sites(store, &pilots, now).await?;
 

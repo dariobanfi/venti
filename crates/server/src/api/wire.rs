@@ -128,6 +128,7 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
         file_bytes: flight.file_bytes,
         analysis_version: derived.version,
         taken_down_at: flight.taken_down_at,
+        published_at: flight.published_at,
     })
 }
 

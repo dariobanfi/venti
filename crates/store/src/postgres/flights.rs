@@ -12,11 +12,14 @@ use tokio_postgres::{IsolationLevel, Row};
 use venti_domain::{GeoPoint, Timestamp};
 
 use super::{corrupt, db_error};
-use crate::flight::{Kept, Room, Saved, cut, may_be_set, next_change, ranked_order};
+use crate::flight::{
+    Kept, PublicEffect, Room, Saved, cut, cut_public, may_be_set, next_change, next_public_change,
+    ranked_order,
+};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    Place, PublicFlights, PublicOrder, Ranked, Score, ScoreKind, StoreError, Visibility,
-    VisibilityChange,
+    Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Score, ScoreKind, StoreError,
+    Visibility, VisibilityChange, WithdrawnFlight,
 };
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
@@ -27,7 +30,7 @@ const FLIGHT_COLUMNS: &str = "
     f.landing_at, f.landing_lat, f.landing_lon, f.landing_altitude_m,
     f.track_length_m, f.max_altitude_m, f.max_climb_ms,
     f.score_kind, f.score_closed, f.score_distance_m, f.score_points,
-    f.glider, f.outline, f.profile, f.taken_down_at";
+    f.glider, f.outline, f.profile, f.taken_down_at, f.published_at, f.public_change";
 
 const FLIGHT_FROM: &str = "FROM flights f JOIN accounts a ON a.id = f.account_id";
 
@@ -116,6 +119,8 @@ fn flight_from(row: &Row) -> Result<Flight, StoreError> {
         },
         change: row.get("change"),
         taken_down_at: row.get("taken_down_at"),
+        published_at: row.get("published_at"),
+        public_change: row.get("public_change"),
     })
 }
 
@@ -228,6 +233,75 @@ async fn take_change(
     .await
     .map_err(db_error)?;
     Ok(change)
+}
+
+/// Takes the next `count` numbers of the count of changes to what the
+/// public sees of flights, and returns the first of them.
+///
+/// The count's one row stays locked for the rest of the transaction, so
+/// the numbers are committed in the order in which they were taken. Every
+/// caller holds its account's row locked already: the two locks are always
+/// taken in that order.
+///
+/// `now` is missing only when an account goes; see
+/// [`next_public_change`].
+pub(super) async fn take_public_changes(
+    tx: &Transaction<'_>,
+    count: i64,
+    now: Option<Timestamp>,
+) -> Result<i64, tokio_postgres::Error> {
+    let latest: i64 = tx
+        .query_one("SELECT latest FROM flight_public_change FOR UPDATE", &[])
+        .await?
+        .get(0);
+    let first = next_public_change(latest, now);
+    let last = first.saturating_add(count.saturating_sub(1));
+    tx.execute("UPDATE flight_public_change SET latest = $1", &[&last])
+        .await?;
+    Ok(first)
+}
+
+/// Records that flights are public no more: the flight with the n-th of
+/// `ids` takes the number `first` + n − 1. A flight that was withdrawn
+/// before has one row, which is brought up to date.
+///
+/// `account_id` is missing when the flights go with their account.
+pub(super) async fn record_withdrawals(
+    tx: &Transaction<'_>,
+    ids: &[String],
+    account_id: Option<&str>,
+    first: i64,
+    now: Option<Timestamp>,
+) -> Result<(), tokio_postgres::Error> {
+    tx.execute(
+        "INSERT INTO flight_withdrawals (flight_id, account_id, change, withdrawn_at)
+         SELECT listed.id, $2, $3 + listed.place - 1, $4
+         FROM unnest($1::text[]) WITH ORDINALITY AS listed (id, place)
+         ON CONFLICT (flight_id) DO UPDATE
+         SET account_id = EXCLUDED.account_id,
+             change = EXCLUDED.change,
+             withdrawn_at = EXCLUDED.withdrawn_at",
+        &[&ids, &account_id, &first, &now],
+    )
+    .await?;
+    Ok(())
+}
+
+/// Takes one flight of an account from the public: a number, and the
+/// record. The caller changes the flight's row.
+async fn withdraw(tx: &Transaction<'_>, flight: &Flight, now: Timestamp) -> Result<(), StoreError> {
+    let number = take_public_changes(tx, 1, Some(now))
+        .await
+        .map_err(db_error)?;
+    record_withdrawals(
+        tx,
+        std::slice::from_ref(&flight.id),
+        Some(&flight.account_id),
+        number,
+        Some(now),
+    )
+    .await
+    .map_err(db_error)
 }
 
 async fn one(
@@ -498,6 +572,10 @@ fn public_conditions<'a>(
     parameters: &mut Vec<&'a (dyn ToSql + Sync)>,
 ) -> Vec<String> {
     let mut conditions = vec!["f.visibility = 'public'".to_owned()];
+    if let Some(pilot) = &which.pilot {
+        parameters.push(pilot);
+        conditions.push(format!("f.account_id = ${}", parameters.len()));
+    }
     if let Some(from) = &which.from {
         parameters.push(from);
         conditions.push(format!("f.started_at >= ${}", parameters.len()));
@@ -680,6 +758,78 @@ pub(super) async fn changes(
     })
 }
 
+pub(super) async fn public_changes(
+    client: &mut Client,
+    account_id: Option<&str>,
+    since: i64,
+    limit: usize,
+) -> Result<PublicFlightChanges, StoreError> {
+    // Both lists and the latest number from one moment, as in [`changes`].
+    let tx = client
+        .build_transaction()
+        .isolation_level(IsolationLevel::RepeatableRead)
+        .read_only(true)
+        .start()
+        .await
+        .map_err(db_error)?;
+    // One more than the limit of each, to know whether more are waiting.
+    let more_than_limit = i64::try_from(limit).map_or(i64::MAX, |limit| limit.saturating_add(1));
+    let mut parameters: Vec<&(dyn ToSql + Sync)> = vec![&since, &more_than_limit];
+    if let Some(account_id) = &account_id {
+        parameters.push(account_id);
+    }
+
+    // The condition on visibility is in the query as text, spelled as in
+    // the partial indexes on `public_change`.
+    let of_account = |column: &str| match account_id {
+        Some(_) => format!("AND {column} = $3"),
+        None => String::new(),
+    };
+    let query = format!(
+        "SELECT {FLIGHT_COLUMNS} {FLIGHT_FROM}
+         WHERE f.visibility = 'public' AND f.public_change > $1 {}
+         ORDER BY f.public_change
+         LIMIT $2",
+        of_account("f.account_id")
+    );
+    let statement = tx.prepare_cached(&query).await.map_err(db_error)?;
+    let rows = tx.query(&statement, &parameters).await.map_err(db_error)?;
+    let mut flights: Vec<Flight> = rows.iter().map(flight_from).collect::<Result<_, _>>()?;
+
+    let query = format!(
+        "SELECT flight_id, change, withdrawn_at FROM flight_withdrawals
+         WHERE change > $1 {}
+         ORDER BY change
+         LIMIT $2",
+        of_account("account_id")
+    );
+    let statement = tx.prepare_cached(&query).await.map_err(db_error)?;
+    let rows = tx.query(&statement, &parameters).await.map_err(db_error)?;
+    let mut withdrawn: Vec<WithdrawnFlight> = rows
+        .iter()
+        .map(|row| WithdrawnFlight {
+            id: row.get("flight_id"),
+            change: row.get("change"),
+            withdrawn_at: row.get("withdrawn_at"),
+        })
+        .collect();
+
+    let latest = tx
+        .query_opt("SELECT latest FROM flight_public_change", &[])
+        .await
+        .map_err(db_error)?
+        .map_or(0, |row| row.get(0));
+    tx.commit().await.map_err(db_error)?;
+
+    let more = cut_public(&mut flights, &mut withdrawn, limit);
+    Ok(PublicFlightChanges {
+        flights,
+        withdrawn,
+        more,
+        latest,
+    })
+}
+
 pub(super) async fn set_visibility(
     client: &mut Client,
     account_id: &str,
@@ -707,9 +857,39 @@ pub(super) async fn set_visibility(
     }
 
     let change = take_change(&tx, account_id, account.latest, now).await?;
+    // What the public sees of the flight, in the same transaction: a
+    // flight that becomes public gets its moment and a number, one that
+    // stops being public loses both and is recorded as withdrawn.
+    let (published_at, public_change) = match PublicEffect::of(flight.visibility, visibility) {
+        PublicEffect::Published => {
+            let number = take_public_changes(&tx, 1, Some(now))
+                .await
+                .map_err(db_error)?;
+            tx.execute(
+                "DELETE FROM flight_withdrawals WHERE flight_id = $1",
+                &[&id],
+            )
+            .await
+            .map_err(db_error)?;
+            (Some(now), Some(number))
+        }
+        PublicEffect::Withdrawn => {
+            withdraw(&tx, &flight, now).await?;
+            (None, None)
+        }
+        PublicEffect::Nothing => (None, None),
+    };
     tx.execute(
-        "UPDATE flights SET visibility = $2, change = $3 WHERE id = $1",
-        &[&id, &visibility.as_str(), &change],
+        "UPDATE flights
+         SET visibility = $2, change = $3, published_at = $4, public_change = $5
+         WHERE id = $1",
+        &[
+            &id,
+            &visibility.as_str(),
+            &change,
+            &published_at,
+            &public_change,
+        ],
     )
     .await
     .map_err(db_error)?;
@@ -759,8 +939,13 @@ pub(super) async fn take_down(
         return Ok(Some(flight));
     }
     let change = take_change(&tx, &flight.account_id, latest, now).await?;
+    if flight.visibility == Visibility::Public {
+        withdraw(&tx, &flight, now).await?;
+    }
     tx.execute(
-        "UPDATE flights SET visibility = 'private', taken_down_at = $2, change = $3
+        "UPDATE flights
+         SET visibility = 'private', taken_down_at = $2, change = $3,
+             published_at = NULL, public_change = NULL
          WHERE id = $1",
         &[&id, &now, &change],
     )
@@ -808,7 +993,7 @@ pub(super) async fn delete(
     let removed = tx
         .query_opt(
             "DELETE FROM flights WHERE id = $1 AND account_id = $2
-             RETURNING identity, taken_down_at",
+             RETURNING identity, taken_down_at, visibility = 'public'",
             &[&id, &account_id],
         )
         .await
@@ -816,6 +1001,15 @@ pub(super) async fn delete(
     let Some(removed) = removed else {
         return Ok(false);
     };
+    // A public flight that is deleted is withdrawn.
+    if removed.get::<_, bool>(2) {
+        let number = take_public_changes(&tx, 1, Some(now))
+            .await
+            .map_err(db_error)?;
+        record_withdrawals(&tx, &[id.to_owned()], Some(account_id), number, Some(now))
+            .await
+            .map_err(db_error)?;
+    }
     let identity: &str = removed.get(0);
     // Kept with the deletion, so that the flight comes back taken down if
     // its file is uploaded again.
@@ -901,6 +1095,27 @@ pub(super) async fn set_derived(
         return Ok(false);
     };
     let change = take_change(&tx, account_id, latest, now).await?;
+    // Read under the account's lock: what the public sees of a public
+    // flight changes with its values.
+    let public = tx
+        .query_opt(
+            "SELECT visibility = 'public' FROM flights WHERE id = $1",
+            &[&id],
+        )
+        .await
+        .map_err(db_error)?
+        .is_some_and(|row| row.get(0));
+    if public {
+        let number = take_public_changes(&tx, 1, Some(now))
+            .await
+            .map_err(db_error)?;
+        tx.execute(
+            "UPDATE flights SET public_change = $2 WHERE id = $1",
+            &[&id, &number],
+        )
+        .await
+        .map_err(db_error)?;
+    }
 
     let values = DerivedValues::of(derived);
     let (takeoff, landing) = (&values.takeoff, &values.landing);

@@ -179,6 +179,58 @@ pub struct Flight {
     /// choice of who sees it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub taken_down_at: Option<Timestamp>,
+    /// Since when the flight is public, without a break. Left out while
+    /// it is not public.
+    ///
+    /// A flight that was withdrawn and made public again has the moment
+    /// of the second time. For a flight that was public before the server
+    /// kept this (2026-11-21) it is the moment of the upload: the earliest
+    /// it can have been.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<Timestamp>,
+}
+
+/// Under what a flight that is not the asker's own is given: the one
+/// statement every answer with such flights carries.
+///
+/// **Not decided.** Under what terms others may reuse a flight a pilot
+/// made public is the owner's decision still to come
+/// (`docs/data-platform.md`, "For the owner", 5). Until then the statement
+/// says the least: the flights are their pilots', and reuse needs the
+/// pilot's leave. [`FlightTerms::current`] is the one place that says it;
+/// when the decision is made, it changes there and nowhere else.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlightTerms {
+    /// The statement, in words for a person.
+    pub text: String,
+    /// The licence the flights are given under, by its name, for example
+    /// `CC BY 4.0`. Left out while there is none: then nothing but
+    /// reading is granted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub licence: Option<String>,
+    /// Whether Venti's terms have settled the question. `false` means the
+    /// statement is a holding one and will change; a program that keeps
+    /// flights should read it again with every answer.
+    pub decided: bool,
+}
+
+/// The statement of [`FlightTerms`] while the terms are not decided.
+pub const FLIGHT_TERMS_UNDECIDED: &str = "These flights are their pilots'. They are shown here \
+     for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs \
+     its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn \
+     is to be removed from every copy.";
+
+impl FlightTerms {
+    /// What flights are given under today. TO DECIDE (the owner): the
+    /// terms under which a public flight may be reused; this is the
+    /// holding statement until then.
+    pub fn current() -> Self {
+        Self {
+            text: FLIGHT_TERMS_UNDECIDED.to_owned(),
+            licence: None,
+            decided: false,
+        }
+    }
 }
 
 /// A moment at one end of a flight.
@@ -228,6 +280,10 @@ pub enum RouteKind {
 pub struct FlightResponse {
     /// The flight.
     pub flight: Flight,
+    /// Under what the flight is given, when it is public or shared by
+    /// link. Left out for a private flight, which only its pilot reads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms: Option<FlightTerms>,
 }
 
 /// The answer of `POST /v1/flights`.
@@ -250,6 +306,10 @@ pub struct FlightsResponse {
     /// Pass this as `after` to get the next page. Left out on the last one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<String>,
+    /// Under what the flights are given, in a list of everyone's public
+    /// flights. Left out of the list of the account's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms: Option<FlightTerms>,
 }
 
 /// How many of a pilot's flights count in a ranking: the best three.
@@ -266,6 +326,9 @@ pub struct RankingResponse {
     /// The pilots, the one with the most points first, and by handle among
     /// pilots with the same points.
     pub pilots: Vec<RankedPilot>,
+    /// Under what the flights are given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms: Option<FlightTerms>,
 }
 
 /// A pilot's place in a ranking.
@@ -328,6 +391,118 @@ pub struct PilotResponse {
     /// Pass this as `after` to get the next page. Left out on the last one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<String>,
+    /// Under what the flights are given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms: Option<FlightTerms>,
+}
+
+/// The answer of `GET /v1/flights/public/changes`: what changed in what
+/// the public sees of flights since a program last asked.
+///
+/// Whoever keeps a copy of public flights follows this: it stores every
+/// flight of `flights` over the one it has, removes every flight that
+/// `withdrawn` names, and remembers `cursor`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PublicFlightChangesResponse {
+    /// Flights that became public, or changed while public, each as it is
+    /// now.
+    pub flights: Vec<Flight>,
+    /// Flights that are public no more.
+    pub withdrawn: Vec<WithdrawnFlight>,
+    /// Pass this as `since` next time.
+    pub cursor: String,
+    /// Whether more changes are waiting. Ask again with `cursor` at once.
+    pub more: bool,
+    /// `true` when the server did not recognise the request's `since`, for
+    /// example after it was restored from a backup, and therefore started
+    /// again from the beginning. Whoever keeps a copy then replaces it
+    /// with what the answers from here on hold.
+    pub reset: bool,
+    /// Under what the flights are given.
+    pub terms: FlightTerms,
+}
+
+/// A flight that was public and is not: its pilot made it private or
+/// shared it by link only, or deleted it or the account, or whoever runs
+/// the server took it down.
+///
+/// It is named by the SHA-256 of its address and not by the address: a
+/// flight that is now shared by link is read by whoever has its address,
+/// and this list is not to hand that address to everyone. Whoever holds
+/// the flight holds its address and finds it by the hash.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WithdrawnFlight {
+    /// The SHA-256 of the flight's `id`, as 64 lower-case hexadecimal
+    /// characters: of the 26 characters of the address, as ASCII.
+    pub id_sha256: String,
+    /// When it was withdrawn. Left out for a flight that went with its
+    /// pilot's account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub withdrawn_at: Option<Timestamp>,
+}
+
+/// The most points a track holds: [`FlightTrack`].
+pub const MAX_TRACK_POINTS: usize = 50_000;
+
+/// The answer of `GET /v1/flights/{id}/track`: the flight's track as a
+/// GeoJSON Feature (RFC 7946) whose geometry is a LineString.
+///
+/// The media type is `application/geo+json`. `terms` is a member of the
+/// server's own, which the format allows beside its own.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FlightTrack {
+    /// `Feature`.
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// The flight's address.
+    pub id: FlightId,
+    /// The line.
+    pub geometry: TrackLine,
+    /// What belongs to the line.
+    pub properties: TrackProperties,
+    /// Under what the track is given, when the flight is public or shared
+    /// by link. Left out for a private flight, which only its pilot reads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms: Option<FlightTerms>,
+}
+
+/// The line of a [`FlightTrack`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TrackLine {
+    /// `LineString`.
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// One position per fix, in the order of the recording: longitude and
+    /// latitude in degrees (WGS 84), and the satellite altitude in metres
+    /// as the file gives it.
+    pub coordinates: Vec<[f64; 3]>,
+}
+
+/// What belongs to the line of a [`FlightTrack`]. The lists have one
+/// entry per position of the line.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TrackProperties {
+    /// The time of the first position.
+    pub start: Timestamp,
+    /// For each position, the seconds from `start` to its fix.
+    pub times_s: Vec<i64>,
+    /// For each position, the pressure altitude in metres as the file
+    /// gives it. Left out for a recording without a pressure sensor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pressure_altitudes_m: Option<Vec<i32>>,
+    /// How many fixes the recording holds.
+    pub fixes: usize,
+    /// Every how many fixes a position was taken: 1 when the line holds
+    /// every fix, more for a recording of more than
+    /// [`MAX_TRACK_POINTS`] fixes. The last fix is always there.
+    pub every: usize,
+    /// The seconds from `start` to the take-off the analysis found. Left
+    /// out when the recording never shows the glider flying.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub takeoff_s: Option<i64>,
+    /// The seconds from `start` to the landing the analysis found.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub landing_s: Option<i64>,
 }
 
 #[cfg(test)]
@@ -396,12 +571,20 @@ mod tests {
             file_bytes: 2300,
             analysis_version: 1,
             taken_down_at: None,
+            published_at: None,
         };
 
         let json = serde_json::to_value(&flight).unwrap();
         let object = json.as_object().unwrap();
 
-        for absent in ["takeoff", "landing", "score", "glider", "taken_down_at"] {
+        for absent in [
+            "takeoff",
+            "landing",
+            "score",
+            "glider",
+            "taken_down_at",
+            "published_at",
+        ] {
             assert!(!object.contains_key(absent), "{absent}");
         }
         assert_eq!(json["outline"][0][0], 47.6642);

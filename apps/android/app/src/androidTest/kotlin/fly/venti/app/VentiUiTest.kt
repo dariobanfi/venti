@@ -258,10 +258,24 @@ class VentiUiTest {
 
         // The totals lead to the statistics.
         tap(hasTestTag("logbook-totals"))
-        waitFor(hasText("Your bests"))
-        assertTrue(exists(hasText("Longest flight")))
+        waitFor(hasText("Last twelve months"))
         letTheMapDraw(1)
         keepScreenshot("$prefix-6b-statistics")
+        // Further down: the years side by side, the months of the year,
+        // a typical flight, the kinds of flight, and the bests.
+        val list = screen.onNode(hasTestTag("statistics"))
+        list.performScrollToNode(hasTestTag("statistics-seasons"))
+        assertTrue(exists(hasText("Years")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-6c-statistics-years")
+        list.performScrollToNode(hasTestTag("statistics-route"))
+        assertTrue(exists(hasText("A typical flight")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-6d-statistics-typical-and-kinds")
+        list.performScrollToNode(hasText("Longest flight"))
+        assertTrue(exists(hasText("Your bests")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-6e-statistics-bests")
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
 

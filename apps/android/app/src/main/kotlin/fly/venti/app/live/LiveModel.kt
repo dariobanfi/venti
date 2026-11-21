@@ -29,7 +29,7 @@ import kotlin.coroutines.coroutineContext
 
 /**
  * Who is in the air: the gliders whose pilots show their flight to
- * everyone, from the Venti server the pilot has set, for the part of the
+ * everyone, from Venti, for the part of the
  * map in view.
  *
  * What to ask the server and how to read its answer is the core's. This
@@ -82,7 +82,7 @@ class LiveModel(
     var followProblem: String? by mutableStateOf(null)
         private set
 
-    /** The server to ask, without a slash at its end. The app sets this to the one in the settings. */
+    /** The server to ask, without a slash at its end: the app's (`AppServer`), or a test's. */
     var server: () -> String? = { null }
 
     /** The area last asked for, and from which server. */

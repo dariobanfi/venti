@@ -342,9 +342,10 @@ class AirspaceModel(
         /** What stands under the server's airspace: what the app does with a server, or would. */
         fun serverNote(usesServer: Boolean, hasServer: Boolean, hasKept: Boolean): String = when {
             !usesServer -> "Switched off: only your own files are used."
+            // Only a test is without Venti; the app always has it.
             !hasServer ->
-                "With Venti connected in the settings, the app fetches the airspace around you by itself " +
-                    "and keeps it on this phone, so the cockpit warns without a network."
+                "The app fetches the airspace around you from Venti by itself and keeps it on this phone, " +
+                    "so the cockpit warns without a network."
             !hasKept ->
                 "Fetched the next time the map is open or a flight starts with a network, for about 200 km " +
                     "around you, and kept on this phone."

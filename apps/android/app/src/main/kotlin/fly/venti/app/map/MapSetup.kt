@@ -145,7 +145,7 @@ object MapSetup {
     }
 
     /**
-     * Venti's address as the pilot has set it, without a slash at its end:
+     * Venti's address, the app's, without a slash at its end:
      * what the style asks of Venti is asked of it. The app sets this to the
      * one the wind and the sites are asked of.
      */

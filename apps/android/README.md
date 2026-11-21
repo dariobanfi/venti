@@ -34,7 +34,7 @@ Then, in `apps/android`:
 
 Gradle builds the Rust core and its Kotlin interface by itself.
 
-For live wind, flying sites and an account the app needs a Venti server. Start one over recorded data with `cargo run -p venti-server -- dev` in the repository, and in the app's Settings, "Venti server", give `http://10.0.2.2:8080` on an emulator, or the computer's address in your network on a phone.
+The app talks to the Venti it was built for: `-Pventi.server=https://…` builds it for another address. A debug build without it talks to `http://10.0.2.2:8088`, Venti on the computer as an emulator reaches it; a release build needs the address.
 
 ## More
 

@@ -33,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -68,7 +69,9 @@ import fly.venti.app.airspace.AirspaceOverSheet
 import fly.venti.app.forecast.ForecastSheet
 import fly.venti.app.forecast.ThermalMapCard
 import fly.venti.app.forecast.ThermalMapModel
+import fly.venti.app.forecast.ThermalHourSheet
 import fly.venti.app.forecast.ThermalSquareSheet
+import fly.venti.core.ThermalHoursLayer
 import fly.venti.core.ThermalMapCell
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.height
@@ -142,6 +145,8 @@ fun MapScreen(
     var forecast by remember { mutableStateOf(preferences?.mapShowsForecast == true) }
     // A square of it the pilot tapped: its sheet shows over the map.
     var square by remember { mutableStateOf<ThermalMapCell?>(null) }
+    // A square of the forecast map by the hour, tapped.
+    var hourSquare by remember { mutableStateOf<Pair<Coordinate, UInt?>?>(null) }
     val asking = rememberCoroutineScope()
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
@@ -182,6 +187,10 @@ fun MapScreen(
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
     map.onGlider = { id -> chosenGlider = id }
     map.onSquare = { cell -> square = cell }
+    map.onHourSquare = { place, cell ->
+        // Only where the map's grid reaches: the core finds the square.
+        if (thermalMap?.hours?.square(cell, place.lat, place.lon) != null) hourSquare = place to cell
+    }
     map.onAirspace = { place -> airspaceOver = airspace.over(place) }
     map.onPlan = { id ->
         planOnMap = id
@@ -262,9 +271,27 @@ fun MapScreen(
         MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
         thermalMap?.creditLine?.takeIf { showsForecast },
     )
+    // The forecast map by the hour: the layer and the level as the pilot
+    // left them, the hour not.
+    val hours = thermalMap?.hours
+    LaunchedEffect(hours) {
+        if (hours != null && preferences != null) {
+            hours.layer = preferences.mapForecastLayer
+                ?.let { name -> ThermalHoursLayer.entries.firstOrNull { it.name == name } }
+                ?: ThermalHoursLayer.THERMALS
+            hours.heightM = preferences.mapForecastHeightM
+        }
+    }
+    var hoursAttempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(showsForecast, thermalMap?.map, thermalMap?.day?.date, hours?.layer, hours?.heightM, hoursAttempt) {
+        if (showsForecast) thermalMap?.showHours()
+    }
+    val byTheHour = showsForecast && hours?.isOn == true
+    val hourShapes = if (byTheHour) hours?.shapes else null
+    val hourLegend = thermalMap?.map?.layers?.firstOrNull { it.layer == hours?.layer }?.legend.orEmpty()
     // The squares of the day the pilot looks at; a day's squares are one
-    // list from the core, handed over whole.
-    val squares = if (showsForecast) thermalMap?.day?.cells.orEmpty() else emptyList()
+    // list from the core, handed over whole. Not while an hour is shown.
+    val squares = if (showsForecast && !byTheHour) thermalMap?.day?.cells.orEmpty() else emptyList()
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
@@ -275,6 +302,7 @@ fun MapScreen(
                 map.showAerial(aerial)
                 map.showThermals(thermals && offersThermals)
                 map.showForecast(squares)
+                map.showHours(hourShapes, hourLegend, byTheHour)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins)
                 map.follow(isFollowing)
             },
@@ -339,6 +367,16 @@ fun MapScreen(
                     onChoose = thermalMap::choose,
                     onTryAgain = { asking.launch { thermalMap.load() } },
                     modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
+                    hours = thermalMap.hours,
+                    onLayer = { layer ->
+                        thermalMap.hours.layer = layer
+                        preferences?.mapForecastLayer = layer.name
+                    },
+                    onLevel = { height ->
+                        thermalMap.hours.heightM = height
+                        preferences?.mapForecastHeightM = height
+                    },
+                    onTryAgainHours = { hoursAttempt += 1 },
                 )
             }
             if (credits.isNotEmpty()) {
@@ -493,6 +531,10 @@ fun MapScreen(
     if (shownSquare != null && forecastMap != null && forecastDay != null && showsForecast) {
         ThermalSquareSheet(forecastMap, forecastDay, shownSquare, wind, onDismiss = { square = null })
     }
+    val shownHourSquare = hourSquare
+    if (shownHourSquare != null && thermalMap != null && forecastMap != null && forecastDay != null && showsForecast) {
+        ThermalHourSheet(thermalMap, shownHourSquare.first, shownHourSquare.second, wind, onDismiss = { hourSquare = null })
+    }
 
     if (showsPlans) {
         PlansSheet(
@@ -569,9 +611,9 @@ private fun Credits(lines: List<String>, modifier: Modifier = Modifier) {
                     line,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    // Two providers' names do not fit one line of a phone.
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    // Never cut: the licences ask that each credit can be
+                    // read, and four providers' names take three lines of
+                    // a narrow phone.
                 )
             }
         }

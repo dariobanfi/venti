@@ -73,7 +73,7 @@ object MapStyle {
     val APP_DOMAIN: String? = null
 
     /**
-     * `server` is Venti's address as the pilot has set it, without a slash
+     * `server` is Venti's address, the app's, without a slash
      * at its end, and `appDomain` the app's own domain. A tile address that
      * names one of them is given it; one that names a placeholder without a
      * value is left out, with the layers that draw from it.

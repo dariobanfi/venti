@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The flying sites for the map, from the Venti server the pilot has set:
+ * The flying sites for the map, from Venti:
  * take-offs, landings, winch sites and training slopes.
  *
  * What to ask the server and how to read its answer is the core's. This
@@ -65,7 +65,7 @@ class SitesModel(
     var problem: String? by mutableStateOf(null)
         private set
 
-    /** The server to ask, without a slash at its end. The app sets this to the one in the settings. */
+    /** The server to ask, without a slash at its end: the app's (`AppServer`), or a test's. */
     var server: () -> String? = { null }
 
     /** The area the sites were asked for, from which server, and when. */

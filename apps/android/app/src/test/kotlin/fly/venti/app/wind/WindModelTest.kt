@@ -3,7 +3,6 @@ package fly.venti.app.wind
 import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
 import fly.venti.app.design.Format
-import fly.venti.app.settings.MemoryPreferences
 import fly.venti.core.Bounds
 import fly.venti.core.serverStatus
 import fly.venti.core.serverStatusPath
@@ -94,9 +93,8 @@ class WindModelTest {
         server: Server,
         clock: Clock = Clock(server.clock * 1000),
         scope: CoroutineScope = still,
-        preferences: MemoryPreferences = MemoryPreferences(),
         address: String = "wind.example.org/",
-    ) = WindModel(preferences, address, scope, transport = server::answer, clock = { clock.now })
+    ) = WindModel(address, scope, transport = server::answer, clock = { clock.now })
 
     @Test
     fun theMapGetsItsStationsAndWhoseDataTheyAre() = runBlocking {
@@ -112,8 +110,12 @@ class WindModelTest {
         assertTrue("Zugspitze" in names)
         // A name the provider writes in capitals is shown in ordinary case.
         assertTrue("Patscherkofel" in names)
-        assertEquals(listOf("Deutscher Wetterdienst", "GeoSphere Austria"), wind.credits.map { it.provider })
-        assertEquals("Wind: Deutscher Wetterdienst and GeoSphere Austria", wind.creditLine)
+        val providers = listOf("Aviation Weather Center", "Deutscher Wetterdienst", "GeoSphere Austria", "Autonome Provinz Bozen - Südtirol")
+        assertEquals(providers, wind.credits.map { it.provider })
+        assertEquals(
+            "Wind: Aviation Weather Center, Deutscher Wetterdienst, GeoSphere Austria and Autonome Provinz Bozen - Südtirol",
+            wind.creditLine,
+        )
 
         // First the server's clock, then the stations of the box in view
         // and a quarter more on every side.
@@ -154,7 +156,6 @@ class WindModelTest {
         assertTrue(wind.stations.isEmpty())
         assertNull(wind.notice)
         assertNull(wind.creditLine)
-        assertTrue(wind.addressNote.startsWith("Venti's address."))
     }
 
     @Test
@@ -202,7 +203,6 @@ class WindModelTest {
         wind.load()
         assertTrue(checkNotNull(wind.problem).startsWith("Venti could not be reached for the wind."))
         assertEquals(wind.problem, wind.notice)
-        assertEquals(wind.problem, wind.addressNote)
         assertEquals(before, wind.stations)
 
         clock.pass(minutes = 11)
@@ -260,31 +260,6 @@ class WindModelTest {
     }
 
     @Test
-    fun aNewAddressIsRememberedAndDropsWhatTheOldServerSaid() = runBlocking {
-        val server = Server()
-        val preferences = MemoryPreferences()
-        val wind = model(server, preferences = preferences)
-        wind.show(alps)
-        wind.load()
-        assertTrue(wind.stations.isNotEmpty())
-
-        wind.use("https://other.example.org")
-        assertEquals("https://other.example.org", preferences.server)
-        assertEquals(WindServer.Usable("https://other.example.org"), wind.server)
-        assertTrue(wind.stations.isEmpty())
-        assertTrue(wind.credits.isEmpty())
-        assertNull(wind.problem)
-        assertEquals(
-            "The map shows the wind stations Venti collects, and the assistant can look them up.",
-            wind.addressNote,
-        )
-
-        wind.use("")
-        assertEquals("", preferences.server)
-        assertEquals(WindServer.None, wind.server)
-    }
-
-    @Test
     fun addressesAreReadTheWayPeopleWriteThem() {
         assertEquals(WindServer.None, WindServer.read(""))
         assertEquals(WindServer.None, WindServer.read("   "))
@@ -324,8 +299,9 @@ class WindModelTest {
             assertEquals(elsewhere, WindServer.NeedsEncryption, WindServer.read(elsewhere))
         }
 
+        // An address the app was built with that it may not ask is no server to it.
         val wind = model(Server(), address = "http://wind.example.org")
-        assertTrue(wind.addressNote.startsWith("A server on the internet is asked over https only."))
+        assertEquals(WindServer.NeedsEncryption, wind.server)
     }
 
     private suspend fun waitUntil(isTrue: () -> Boolean) {

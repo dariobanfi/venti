@@ -147,7 +147,8 @@ private fun SignInForm(
 
     if (server == null) {
         Text(
-            "Set Venti's address in the settings first.",
+            // Only a test is without Venti; the app always has it.
+            "Venti could not be reached.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),

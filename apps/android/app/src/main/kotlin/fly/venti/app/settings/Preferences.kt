@@ -35,8 +35,6 @@ interface Preferences {
     /** That service's own name for the model. */
     var assistantOtherModel: String?
 
-    /** The address of the Venti server that live wind comes from. */
-    var server: String
 
     /** The glider's speed with the brakes up, km/h. */
     var trimSpeed: Double
@@ -86,6 +84,12 @@ interface Preferences {
      * which draws all of it.
      */
     var mapAirspaceCeilingM: Double?
+
+    /** The forecast map's layer by the hour, by the core's name of it ("WIND"); `null` for the thermals. */
+    var mapForecastLayer: String?
+
+    /** The height of its wind, metres above the sea; `null` for the ground. */
+    var mapForecastHeightM: Int?
 
     /** Whether the maps show the thermal map of thermal.kk7.ch. Off until the pilot switches it on; one choice for every map. */
     var mapShowsThermals: Boolean
@@ -142,9 +146,6 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getString(ASSISTANT_OTHER_MODEL, null)
         set(value) = store.edit { putString(ASSISTANT_OTHER_MODEL, value) }
 
-    override var server: String
-        get() = store.getString(SERVER, null).orEmpty()
-        set(value) = store.edit { putString(SERVER, value) }
 
     override var trimSpeed: Double
         get() = store.getFloat(TRIM_SPEED, Preferences.DEFAULT_TRIM_SPEED.toFloat()).toDouble()
@@ -202,6 +203,16 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsAerial", false)
         set(value) = store.edit { putBoolean("VentiMapShowsAerial", value) }
 
+    override var mapForecastLayer: String?
+        get() = store.getString("VentiMapForecastLayer", null)
+        set(value) = store.edit { putString("VentiMapForecastLayer", value) }
+
+    override var mapForecastHeightM: Int?
+        get() = if (store.contains("VentiMapForecastHeight")) store.getInt("VentiMapForecastHeight", 0) else null
+        set(value) = store.edit {
+            if (value == null) remove("VentiMapForecastHeight") else putInt("VentiMapForecastHeight", value)
+        }
+
     override var mapAirspaceCeilingM: Double?
         get() = if (store.contains("VentiMapAirspaceCeiling")) store.getFloat("VentiMapAirspaceCeiling", 0f).toDouble() else null
         set(value) = store.edit {
@@ -234,7 +245,6 @@ class StoredPreferences(context: Context) : Preferences {
         const val ASSISTANT_SERVICE = "VentiAssistantService"
         const val ASSISTANT_ADDRESS = "VentiAssistantAddress"
         const val ASSISTANT_OTHER_MODEL = "VentiAssistantOtherModel"
-        const val SERVER = "VentiServerAddress"
         const val TRIM_SPEED = "VentiGliderTrimSpeed"
         const val GLIDE_RATIO = "VentiGliderGlideRatio"
         const val AIRSPACE_WITHOUT_SERVER = "VentiAirspaceWithoutServer"
@@ -257,7 +267,6 @@ class MemoryPreferences : Preferences {
     override var assistantService: String? = null
     override var assistantAddress: String? = null
     override var assistantOtherModel: String? = null
-    override var server = ""
     override var trimSpeed = Preferences.DEFAULT_TRIM_SPEED
     override var glideRatio = Preferences.DEFAULT_GLIDE_RATIO
     override var airspaceWithoutServer = false
@@ -273,6 +282,8 @@ class MemoryPreferences : Preferences {
     override var mapHidesPilots = false
     override var mapShowsAerial = false
     override var mapAirspaceCeilingM: Double? = null
+    override var mapForecastLayer: String? = null
+    override var mapForecastHeightM: Int? = null
     override var mapShowsThermals = false
     override var mapShowsForecast = false
     override var watchedFolder = ""

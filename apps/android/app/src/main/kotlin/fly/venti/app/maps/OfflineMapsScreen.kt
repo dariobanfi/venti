@@ -54,7 +54,8 @@ import kotlinx.coroutines.launch
 object OfflineMapsWords {
     const val TITLE = "Offline maps"
     const val ROW = "Offline map"
-    const val NO_SERVER = "Maps for flying without a network come from Venti. They are not there without its address under Settings."
+    /** Only a test is without Venti; the app always has it. */
+    const val NO_SERVER = "Maps for flying without a network come from Venti, which could not be reached."
     const val ASKING = "Asking Venti which maps it has."
     const val NONE = "Venti has no maps to download."
     const val CHECKING = "Checking the download"

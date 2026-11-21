@@ -7,7 +7,6 @@ import fly.venti.app.Http
 import fly.venti.app.HttpAnswer
 import fly.venti.app.design.Format
 import fly.venti.app.pilotMessage
-import fly.venti.app.settings.Preferences
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.CoreException
@@ -88,16 +87,15 @@ sealed interface WindServer {
 }
 
 /**
- * Live wind for the map, from the Venti server the pilot has set.
+ * Live wind for the map, from Venti.
  *
  * What to ask the server and how to read its answers is the core's. This
  * class sends the requests, keeps the newest answer for the part of the map
  * in view, and asks again every minute while the map is on screen.
  */
 class WindModel(
-    /** Where the address is kept. Without it the address is not remembered: a test's is given. */
-    private val remembered: Preferences?,
-    address: String = remembered?.server.orEmpty(),
+    /** Venti's address: the app's server ([fly.venti.app.AppServer]), or a test's. */
+    address: String,
     /** Where requests wait for the map to come to rest. */
     private val scope: CoroutineScope,
     private val transport: WindTransport = { url -> Http.get(url) },
@@ -128,9 +126,8 @@ class WindModel(
     var lateProviders: List<String> by mutableStateOf(emptyList())
         private set
 
-    /** The server's address as the pilot wrote it. Empty for none. */
-    var address: String by mutableStateOf(address)
-        private set
+    /** Venti's address. Empty only in a test that names no server. */
+    val address: String = address
 
     /** The part of the map in view. */
     private var wanted: Bounds? = null
@@ -162,21 +159,6 @@ class WindModel(
      */
     val creditLine: String?
         get() = if (credits.isEmpty()) null else "Wind: ${Format.list(credits.map { it.provider })}"
-
-    /** What the address field in the settings means, and whether what is in it is usable. */
-    val addressNote: String
-        get() = when (server) {
-            WindServer.None ->
-                "Venti's address. The map shows the wind stations it collects, the assistant " +
-                    "can look them up, and with an account your flights are kept there and can be shared. " +
-                    "Without one, everything stays on this phone and the map has no wind."
-            WindServer.Unusable -> "This is not an address the app can use. It should look like wind.example.org."
-            WindServer.NeedsEncryption ->
-                "A server on the internet is asked over https only. An address that starts with " +
-                    "http:// works for a server on your own network."
-            is WindServer.Usable ->
-                problem ?: "The map shows the wind stations Venti collects, and the assistant can look them up."
-        }
 
     /**
      * The current time by the server's clock, in seconds since 1970, which
@@ -355,21 +337,6 @@ class WindModel(
         val body = answer.body
         val status = answer.status.asStatus()
         return withContext(background) { readForecast(status, body, utcOffsetSeconds()) }
-    }
-
-    /** Changes the server, and drops everything learned from the old one. */
-    fun use(address: String) {
-        if (address == this.address) return
-        this.address = address
-        remembered?.server = address
-        waiting?.cancel()
-        stations = emptyList()
-        credits = emptyList()
-        isTruncated = false
-        problem = null
-        lateProviders = emptyList()
-        answered = null
-        serverClock = null
     }
 
     private fun Int.asStatus(): UShort = coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()

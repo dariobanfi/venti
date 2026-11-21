@@ -9,6 +9,10 @@ plugins {
 /** The Android ABIs the Rust core is built for; see gradle.properties. */
 val coreAbis: Provider<List<String>> = providers.gradleProperty("venti.abis").map { it.split(',') }
 
+/** The address of Venti the app is built for: `-Pventi.server=https://…`. */
+val ventiServer: String? = providers.gradleProperty("venti.server").orNull?.trimEnd('/')
+
+
 android {
     namespace = "fly.venti.app"
     compileSdk = 37
@@ -35,10 +39,19 @@ android {
     }
 
     buildTypes {
+        // The app talks to the one Venti, at the address it was built with
+        // (-Pventi.server=https://…); the pilot sets none. A debug build
+        // without it talks to the owner's own Venti on the build machine,
+        // as an emulator reaches it. A release build needs it: there is no
+        // public address yet. When there is one, it is the default here.
+        debug {
+            buildConfigField("String", "VENTI_SERVER", "\"${ventiServer ?: "http://10.0.2.2:8088"}\"")
+        }
         release {
             // No shrinking yet: the generated bridge reaches the core by
             // reflection, and nobody has checked a shrunk build on a phone.
             isMinifyEnabled = false
+            buildConfigField("String", "VENTI_SERVER", "\"${ventiServer.orEmpty()}\"")
         }
     }
 
@@ -479,5 +492,15 @@ tasks.withType<Test>().configureEach {
     doFirst {
         systemProperty("jna.library.path", host.get())
         systemProperty("venti.assets", assets.get())
+    }
+}
+
+// A release build without Venti's address would be an app that talks to
+// nothing: it does not build.
+tasks.matching { it.name.startsWith("assembleRelease") || it.name.startsWith("bundleRelease") }.configureEach {
+    doFirst {
+        if (ventiServer.isNullOrEmpty()) {
+            throw GradleException("A release build needs Venti's address: build it with -Pventi.server=https://….")
+        }
     }
 }

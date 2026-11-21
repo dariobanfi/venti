@@ -53,7 +53,7 @@ class WindMarkTest {
         assertEquals("54/93", summit.label)
 
         // 0.2 m/s: too weak for a direction.
-        val calm = station("Innsbruck").mark
+        val calm = station("Innsbruck/Universitaet").mark
         assertEquals(WindSymbol.Calm, calm.symbol)
         assertEquals("1/5", calm.label)
 
@@ -133,7 +133,7 @@ class WindMarkTest {
         assertTrue(StationWords.spoken(old, old.mark, detail).startsWith("No current reading."))
 
         // Too weak for a direction: none is spoken. And one is one.
-        val calm = station("Innsbruck")
+        val calm = station("Innsbruck/Universitaet")
         assertEquals(
             "Wind 1 kilometre per hour, gusts 5",
             StationWords.spoken(calm, calm.mark, StationWords.detail(calm, recordedAt)),

@@ -51,9 +51,6 @@ sealed interface TodayState {
 
     data object Loaded : TodayState
 
-    /** No Venti to ask: its address is not set. */
-    data object NoServer : TodayState
-
     data class Failed(val message: String) : TodayState
 }
 
@@ -86,7 +83,7 @@ class TodayModel(
     var credits: List<Credit> by mutableStateOf(emptyList())
         private set
 
-    /** The server to ask, without a slash at its end. The app sets this to the one in the settings. */
+    /** The server to ask, without a slash at its end: the app's (`AppServer`), or a test's. */
     var server: () -> String? = { null }
 
     /**
@@ -136,7 +133,9 @@ class TodayModel(
             places = emptyList()
             credits = emptyList()
             asked = null
-            state = TodayState.NoServer
+            // The app always has Venti; only a test can be without one, and
+            // that reads as Venti not reached.
+            state = TodayState.Failed(UNREACHABLE)
             return
         }
         if (places.isEmpty() || asked?.server != server) {
@@ -173,7 +172,7 @@ class TodayModel(
                 if (error is CoreException) {
                     error.pilotMessage
                 } else {
-                    "Venti could not be reached for today's forecast. ${error.pilotMessage}"
+                    "$UNREACHABLE ${error.pilotMessage}"
                 },
             )
         }
@@ -270,3 +269,6 @@ class TodayModel(
         }
     }
 }
+
+/** Said when Venti does not answer, before what the phone says of why. */
+private const val UNREACHABLE = "Venti could not be reached for today's forecast."

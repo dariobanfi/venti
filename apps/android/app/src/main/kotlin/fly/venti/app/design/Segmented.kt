@@ -29,6 +29,12 @@ fun SegmentedPills(
     names: List<String>,
     chosen: Int,
     modifier: Modifier = Modifier,
+    /**
+     * Each segment as wide as its word needs, in proportion, instead of an
+     * equal share: for four days, where "Tomorrow" would break in a
+     * quarter of a narrow card.
+     */
+    fitToWords: Boolean = false,
     onChoose: (Int) -> Unit,
 ) {
     val colours = Venti.colours
@@ -43,7 +49,7 @@ fun SegmentedPills(
             val isChosen = index == chosen
             Box(
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(if (fitToWords) name.length.coerceAtLeast(MIN_LETTERS).toFloat() else 1f)
                     .heightIn(min = VentiSize.touch - VentiSpace.s2)
                     .background(if (isChosen) colours.primary else colours.surfaceRaised, PillShape)
                     .selectable(selected = isChosen, role = Role.Tab, onClick = { onChoose(index) }),
@@ -60,3 +66,6 @@ fun SegmentedPills(
         }
     }
 }
+
+/** The least share a segment fitted to its word takes, in letters: room for its padding. */
+private const val MIN_LETTERS = 4

@@ -4,7 +4,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import app.venti.design.VentiLight
 import fly.venti.core.Flyability
+import fly.venti.app.map.MapSetup
 import fly.venti.core.ThermalMapCell
+import fly.venti.core.ThermalMapKey
+import fly.venti.core.ThermalMapScale
+import fly.venti.core.ThermalMapShapes
+import org.maplibre.android.style.layers.Property
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.FillLayer
@@ -46,8 +51,8 @@ object ThermalMapLayer {
      */
     const val OPACITY_REGION = 0.5f
     const val OPACITY_VALLEY = 0.3f
-    private const val REGION_ZOOM = 8f
-    private const val VALLEY_ZOOM = 12f
+    const val REGION_ZOOM = 8f
+    const val VALLEY_ZOOM = 12f
 
     /**
      * The first layers of the base map that lie over the squares: the
@@ -132,4 +137,116 @@ object ThermalMapLayer {
     fun show(cells: List<ThermalMapCell>, style: Style) {
         style.getSourceAs<GeoJsonSource>(SOURCE)?.setGeoJson(features(cells))
     }
+}
+
+/**
+ * The forecast map by the hour: one source of squares, filled by each
+ * square's `step` through the colour its line of the key names (the
+ * core's `ThermalMapKey`: a scale of the pack and its step), and one of
+ * arrows, the wind stations' dart turned where the wind blows, smaller
+ * and without the stations' numbers' place, so that they are not taken
+ * for stations. The squares lie where the days' squares lie; the arrows
+ * under the stations, which stay above.
+ */
+object ThermalHoursLayers {
+    const val SQUARES = "forecast-hours-squares"
+    const val ARROWS = "forecast-hours-arrows"
+
+    /** A square's place in the core's grid, and its step of the key. */
+    const val CELL = "cell"
+    const val STEP = "step"
+
+    /** How large the arrows are against a station's: smaller, so that they are not taken for one. */
+    private const val ARROW_SIZE = 0.62f
+
+    /** The zoom from which the arrows' labels have room beside the squares. */
+    private const val LABELS_FROM_ZOOM = 9f
+
+    /** The colour a line of the key names, from the light theme: the map is light in both appearances. */
+    fun colour(key: ThermalMapKey): Color {
+        val step = key.scaleStep.toInt() - 1
+        fun of(scale: List<Color>) = scale[step.coerceIn(0, scale.lastIndex)]
+        return when (key.scale) {
+            ThermalMapScale.THERMAL -> of(VentiLight.thermal)
+            ThermalMapScale.WIND -> of(VentiLight.wind)
+            ThermalMapScale.VARIO -> of(VentiLight.vario)
+            ThermalMapScale.VEIL -> ThermalMapLayer.VEIL
+        }
+    }
+
+    /** Adds the squares' source and layer, empty, where the days' squares lie. */
+    fun addSquares(style: Style) {
+        style.addSource(GeoJsonSource(SQUARES))
+        val layer = FillLayer(SQUARES, SQUARES).withProperties(
+            PropertyFactory.fillColor(Expression.color(Color.Transparent.toArgb())),
+            PropertyFactory.fillOpacity(
+                Expression.interpolate(
+                    Expression.linear(),
+                    Expression.zoom(),
+                    Expression.stop(ThermalMapLayer.REGION_ZOOM, ThermalMapLayer.OPACITY_REGION),
+                    Expression.stop(ThermalMapLayer.VALLEY_ZOOM, ThermalMapLayer.OPACITY_VALLEY),
+                ),
+            ),
+            PropertyFactory.fillAntialias(false),
+        )
+        val days = style.getLayer(ThermalMapLayer.LAYER)
+        if (days != null) style.addLayerAbove(layer, days.id) else style.addLayer(layer)
+    }
+
+    /**
+     * Adds the arrows' source and layer, empty: call it before the wind
+     * stations' layer, which then lies above. The pictures are the
+     * stations' ("wind-arrow-…", "wind-calm"), added with them.
+     */
+    fun addArrows(style: Style) {
+        style.addSource(GeoJsonSource(ARROWS))
+        style.addLayer(
+            SymbolLayer(ARROWS, ARROWS).withProperties(
+                PropertyFactory.iconImage(
+                    Expression.switchCase(
+                        Expression.eq(Expression.get("symbol"), Expression.literal("calm")),
+                        Expression.literal("wind-calm"),
+                        Expression.concat(Expression.literal("wind-arrow-"), Expression.get("band")),
+                    ),
+                ),
+                PropertyFactory.iconRotate(Expression.get("heading")),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconSize(ARROW_SIZE),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.textField(
+                    Expression.step(Expression.zoom(), Expression.literal(""), Expression.stop(LABELS_FROM_ZOOM, Expression.get("label"))),
+                ),
+                PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+                PropertyFactory.textSize(10f),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                PropertyFactory.textOffset(arrayOf(0f, 0.9f)),
+                PropertyFactory.textColor(MapSetup.ink),
+                PropertyFactory.textHaloColor(MapSetup.halo),
+                PropertyFactory.textHaloWidth(1.4f),
+                PropertyFactory.textOptional(true),
+            ),
+        )
+    }
+
+    /**
+     * Hands the two sources an hour's texts, and the squares' layer the
+     * colours of the chosen layer's key; empty to take them away.
+     */
+    fun show(shapes: ThermalMapShapes?, legend: List<ThermalMapKey>, style: Style) {
+        style.getSourceAs<GeoJsonSource>(SQUARES)?.setGeoJson(shapes?.squares ?: EMPTY)
+        style.getSourceAs<GeoJsonSource>(ARROWS)?.setGeoJson(shapes?.arrows ?: EMPTY)
+        val layer = style.getLayerAs<FillLayer>(SQUARES) ?: return
+        val stops = legend.map { key -> Expression.stop(key.step.toInt(), Expression.color(colour(key).toArgb())) }
+        layer.setProperties(
+            PropertyFactory.fillColor(
+                if (stops.isEmpty()) {
+                    Expression.color(Color.Transparent.toArgb())
+                } else {
+                    Expression.match(Expression.get(STEP), Expression.color(Color.Transparent.toArgb()), *stops.toTypedArray())
+                },
+            ),
+        )
+    }
+
+    private const val EMPTY = """{"type":"FeatureCollection","features":[]}"""
 }

@@ -171,19 +171,6 @@ fun SettingsScreen(
             )
 
             SectionHeader("Venti")
-            OutlinedTextField(
-                value = wind.address,
-                onValueChange = wind::use,
-                label = { Text("Server address") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.None,
-                    autoCorrectEnabled = false,
-                    keyboardType = KeyboardType.Uri,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
             Group {
                 row {
                     // The account is optional and belongs to the server.
@@ -207,7 +194,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            SectionFooter(wind.addressNote)
+            SectionFooter(SettingsWords.VENTI)
 
             SectionHeader("About")
             Group {
@@ -274,4 +261,12 @@ private fun StepperRow(title: String, value: String, onLess: () -> Unit, onMore:
             Icon(painterResource(R.drawable.ic_add), contentDescription = "More: $title")
         }
     }
+}
+
+/** What the settings say that is not the core's to say. */
+object SettingsWords {
+    /** Under the account and the maps: what Venti is for the app. */
+    const val VENTI =
+        "The map's wind, sites and forecast come from Venti, and the assistant can look them up. " +
+            "With an account your flights are kept there and can be shared; without one, your flights stay on this phone."
 }

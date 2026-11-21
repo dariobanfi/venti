@@ -45,7 +45,6 @@ class StationDayWordsTest {
     fun aChosenDayIsAskedOfTheServerAndReadByTheCore() = runBlocking {
         val asked = mutableListOf<String>()
         val wind = WindModel(
-            remembered = null,
             address = "http://127.0.0.1:8080",
             scope = CoroutineScope(Job().apply { cancel() }),
             transport = { url ->

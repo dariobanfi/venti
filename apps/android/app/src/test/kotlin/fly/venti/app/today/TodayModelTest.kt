@@ -88,12 +88,12 @@ class TodayModelTest {
     }
 
     @Test
-    fun withoutVentiTheScreenSaysSo() = runBlocking {
+    fun withoutVentiTheScreenSaysItCouldNotBeReached() = runBlocking {
         val today = model(answer = ::recordedServer)
         today.server = { null }
         today.load(tegernsee)
 
-        assertEquals(TodayState.NoServer, today.state)
+        assertEquals(TodayState.Failed("Venti could not be reached for today's forecast."), today.state)
         assertTrue(today.places.isEmpty())
     }
 

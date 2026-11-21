@@ -65,7 +65,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun AirspaceScreen(
     airspace: AirspaceModel,
-    /** Whether a Venti server is set in the settings. */
+    /** Whether there is Venti to ask: always in the app, not in a test that names none. */
     hasServer: Boolean,
     onBack: () -> Unit,
 ) {

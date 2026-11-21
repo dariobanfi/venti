@@ -164,9 +164,9 @@ sealed interface Session {
                 scope.launch { logbook.adopt(interrupted) }
             }
             val wind = WindModel(
-                remembered = preferences,
-                // A test never asks the server the pilot has set.
-                address = if (isUnderTest) server.orEmpty() else preferences.server,
+                // The one Venti, at the address the app was built with. A
+                // test names its own, or none.
+                address = if (isUnderTest) server.orEmpty() else AppServer.address,
                 scope = scope,
             )
             val chat = AssistantChat(

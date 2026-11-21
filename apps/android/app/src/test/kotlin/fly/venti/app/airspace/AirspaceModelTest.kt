@@ -355,7 +355,7 @@ class AirspaceModelTest {
         assertEquals(AirspaceCover.NONE, unchecked.cover)
         assertTrue(unchecked.crossings.isEmpty())
         assertEquals(FlightAirspaceWords.NOT_CHECKED, FlightAirspaceWords.summary(unchecked))
-        assertTrue(FlightAirspaceWords.caveat(AirspaceCover.NONE).startsWith("Add an airspace file"))
+        assertTrue(FlightAirspaceWords.caveat(AirspaceCover.NONE).startsWith("The app has no airspace here."))
 
         // With the sample zone: the flight clips it, twelve minutes in.
         logbook.makeAirspace(now = { today }).importFiles(listOf(zone))
@@ -391,7 +391,8 @@ class AirspaceModelTest {
         val off = AirspaceModel.serverNote(usesServer = false, hasServer = true, hasKept = false)
         assertEquals("Switched off: only your own files are used.", off)
         val noServer = AirspaceModel.serverNote(usesServer = true, hasServer = false, hasKept = false)
-        assertTrue(noServer, noServer.startsWith("With Venti connected in the settings"))
+        // Only a test is without Venti: nothing tells the pilot to set an address.
+        assertTrue(noServer, noServer.startsWith("The app fetches the airspace around you from Venti"))
         val notYet = AirspaceModel.serverNote(usesServer = true, hasServer = true, hasKept = false)
         assertTrue(notYet, notYet.startsWith("Fetched the next time the map is open"))
         val kept = AirspaceModel.serverNote(usesServer = true, hasServer = true, hasKept = true)

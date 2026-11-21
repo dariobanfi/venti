@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  A pilot may run a Venti server at home and give its address with http://.
+  Venti is one server, at the address the app was built with, asked over
+  https. Two things need requests without encryption all the same: a debug
+  build, which talks to the owner's own Venti on the build machine
+  (http://10.0.2.2:8088 from an emulator) and in its UI tests to servers on
+  the same machine; and the assistant at another service, which may be a
+  model the pilot runs on a computer of their own network, at http://.
   Android can allow requests without encryption for hosts named here or for
   all hosts, but not for "the local network": this file knows names, not
-  ranges of addresses, and a home server's name is not known in advance.
+  ranges of addresses.
 
   So Android allows them, and the app itself draws the line: Http.mayBeAsked
   sends a request without encryption only to this device, a name without a

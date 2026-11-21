@@ -13,7 +13,10 @@ import fly.venti.core.CoreException
 import fly.venti.core.ThermalMap
 import fly.venti.core.ThermalMapCell
 import fly.venti.core.ThermalMapDay
+import fly.venti.app.HttpAnswer
+import fly.venti.core.ThermalStripDay
 import fly.venti.core.thermalMap
+import fly.venti.core.thermalMapStrip
 import fly.venti.core.thermalMapPath
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -38,7 +41,7 @@ sealed interface ThermalMapState {
 
 /**
  * The kind of day, square by square, for the map tab's "Forecast" layer,
- * from the Venti server the pilot has set.
+ * from Venti.
  *
  * What to ask the server and how to read its answer are the core's
  * (`thermalMapPath`, `thermalMap`): which day is today, the colour step of
@@ -60,6 +63,12 @@ class ThermalMapModel(
     var map: ThermalMap? by mutableStateOf(null)
         private set
 
+    /** The server's answer the map was read from: a tapped square's days are read from it again. */
+    private var answer: HttpAnswer? = null
+
+    /** The map by the hour: the layer, the level and the hour the pilot looks at. */
+    val hours = ThermalHoursModel(transport, background)
+
     /** Whether the server is being asked. */
     var isAsking: Boolean by mutableStateOf(false)
         private set
@@ -72,7 +81,7 @@ class ThermalMapModel(
     var chosenDate: String? by mutableStateOf(null)
         private set
 
-    /** The server to ask, without a slash at its end. The app sets this to the one in the settings. */
+    /** The server to ask, without a slash at its end: the app's (`AppServer`), or a test's. */
     var server: () -> String? = { null }
 
     /** The time by the server's clock, seconds since 1970: it decides which day is today. The app sets this. */
@@ -171,6 +180,7 @@ class ThermalMapModel(
             // The pilot may have changed the server while this was under way.
             if (server != this.server()) return@withLock
             map = read
+            this.answer = answer
             fetched = Fetched(server, at)
             problem = null
         } catch (error: CancellationException) {
@@ -186,7 +196,34 @@ class ThermalMapModel(
         }
     }
 
+    /**
+     * Shows the layer of hours the pilot chose for the day looked at: from
+     * what was kept, or from the server.
+     */
+    suspend fun showHours() {
+        val map = map ?: return
+        val day = day ?: return
+        val server = server() ?: return
+        val now = clock()
+        hours.show(map, day.date, server, now, utcOffsetSeconds(now))
+    }
+
+    /** A square's days side by side, for a place, as the core reads them from the map's answer. */
+    suspend fun strip(lat: Double, lon: Double): List<ThermalStripDay> {
+        val answer = answer ?: return emptyList()
+        val now = clock()
+        return try {
+            withContext(background) {
+                thermalMapStrip(answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(), answer.body, utcOffsetSeconds(now), now, lat, lon)
+            }
+        } catch (error: CoreException) {
+            emptyList()
+        }
+    }
+
     private fun forget() {
+        hours.close()
+        answer = null
         map = null
         fetched = null
         tried = null
@@ -218,6 +255,15 @@ class ThermalMapModel(
  */
 object ThermalMapWords {
     const val ASKING = "Asking Venti for the forecast map"
+
+    /** Said where the hours will stand while a layer of a day is asked for. */
+    const val ASKING_HOURS = "Asking Venti for the hours"
+
+    /** The first cell of the hours on "Thermals": the day as a whole. */
+    const val DAY = "Day"
+
+    /** What TalkBack calls the line of hours. */
+    const val HOUR = "Hour"
     const val UNREACHABLE = "Venti could not be reached for the forecast map."
     const val NO_DAYS = "The forecast map has no days from today on."
     const val NONE_HERE = "The forecast map has no squares for this part of the map."

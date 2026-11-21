@@ -50,7 +50,6 @@ class ForecastTest {
     private fun refusal(code: String) = """{"error": {"code": "$code", "message": "x"}}""".toByteArray()
 
     private fun model(asked: MutableList<String> = mutableListOf(), answer: (String) -> HttpAnswer) = WindModel(
-        remembered = null,
         address = BASE,
         scope = CoroutineScope(Job().apply { cancel() }),
         transport = { url ->

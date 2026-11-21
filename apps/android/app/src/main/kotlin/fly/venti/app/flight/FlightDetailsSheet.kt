@@ -250,8 +250,8 @@ object FlightAirspaceWords {
             "flight, and without knowing what was active. A help for your own review, nothing more."
         return when (cover) {
             AirspaceCover.NONE ->
-                "Add an airspace file or connect Venti in the settings, and the flight is checked " +
-                    "against what the app then has."
+                "The app has no airspace here. Open the map over this place with a network, or add an " +
+                    "airspace file, and the flight is checked against what the app then has."
             AirspaceCover.PARTLY ->
                 "Part of this flight lies where the app has no airspace; of that part nothing is known. $limits"
             AirspaceCover.WHOLE -> limits

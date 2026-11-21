@@ -8,6 +8,7 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.view.HapticFeedbackConstants
 import fly.venti.app.airspace.AirspaceLayers
+import fly.venti.app.forecast.ThermalHoursLayers
 import fly.venti.app.forecast.ThermalMapLayer
 import fly.venti.app.live.GliderFeature
 import fly.venti.app.live.LiveSymbols
@@ -21,6 +22,8 @@ import fly.venti.core.Coordinate
 import fly.venti.core.LiveGlider
 import fly.venti.core.SiteView
 import fly.venti.core.ThermalMapCell
+import fly.venti.core.ThermalMapKey
+import fly.venti.core.ThermalMapShapes
 import fly.venti.core.TrailPointView
 import fly.venti.core.WindStation
 import org.maplibre.android.camera.CameraPosition
@@ -72,6 +75,19 @@ class OverviewMap : MapContent {
 
     /** Told the square of the forecast map that was tapped where nothing else lies under the finger. */
     var onSquare: (ThermalMapCell) -> Unit = {}
+
+    /**
+     * A tap while a layer of hours is on, where nothing else of Venti's
+     * lies: the place tapped, and the cell of the square drawn under the
+     * finger if there is one (the core finds it from the place otherwise).
+     */
+    var onHourSquare: (place: Coordinate, cell: UInt?) -> Unit = { _, _ -> }
+
+    /** The hour's shapes drawn, and the key they are drawn with; compared by identity. */
+    private var hourShapes: ThermalMapShapes? = null
+    private var hourLegend: List<ThermalMapKey> = emptyList()
+    private var drawnHourShapes: ThermalMapShapes? = null
+    private var hoursOn = false
 
     /** A tap where airspace is drawn and nothing else of Venti's lies: the place tapped. */
     var onAirspace: (Coordinate) -> Unit = {}
@@ -147,6 +163,7 @@ class OverviewMap : MapContent {
         // The forecast's squares lie under the base map's names, and under
         // everything this map draws.
         ThermalMapLayer.add(style)
+        ThermalHoursLayers.addSquares(style)
         // What this map draws on top of the base map: airspace lowest,
         // the flights over it, then the flying sites, the wind above them,
         // and other pilots above everything.
@@ -155,6 +172,8 @@ class OverviewMap : MapContent {
         addFollowed(style)
         addSites(style, view)
         addPlans(style)
+        // The forecast's arrows under the stations' arrows.
+        ThermalHoursLayers.addArrows(style)
         addWind(style, view)
         addGliders(style, view)
         draw()
@@ -165,6 +184,8 @@ class OverviewMap : MapContent {
         drawFollowed()
         drawAirspace()
         drawSquares()
+        drawnHourShapes = null
+        drawHours()
         if (isFollowing) {
             startFollowing()
         }
@@ -211,6 +232,26 @@ class OverviewMap : MapContent {
      * while the layer is off. A day's squares are one list from the core,
      * swapped whole when the day changes: nothing is drawn square by square.
      */
+    /**
+     * The forecast map by the hour: the hour's squares and arrows with the
+     * chosen layer's key, or `null` to take them away. `on` says whether a
+     * layer of hours is the one looked at, so that a tap anywhere opens
+     * its square.
+     */
+    fun showHours(shapes: ThermalMapShapes?, legend: List<ThermalMapKey>, on: Boolean) {
+        hourShapes = shapes
+        hourLegend = legend
+        hoursOn = on
+        drawHours()
+    }
+
+    private fun drawHours() {
+        val style = style ?: return
+        if (hourShapes === drawnHourShapes) return
+        drawnHourShapes = hourShapes
+        ThermalHoursLayers.show(hourShapes, hourLegend, style)
+    }
+
     fun showForecast(cells: List<ThermalMapCell>) {
         squares = cells
         drawSquares()
@@ -559,6 +600,14 @@ class OverviewMap : MapContent {
         }
         nearest(SITES, SiteFeature.ID)?.let { id ->
             onSite(id)
+            return true
+        }
+        // While a layer of hours is on: its square under the finger, or the
+        // place, whose square the core finds.
+        if (hoursOn) {
+            val cell = map.queryRenderedFeatures(point, ThermalHoursLayers.SQUARES).firstOrNull()
+                ?.getNumberProperty(ThermalHoursLayers.CELL)?.toLong()?.toUInt()
+            onHourSquare(Coordinate(lat = place.latitude, lon = place.longitude), cell)
             return true
         }
         // Nothing else of Venti's under the finger: the square under its middle.

@@ -89,7 +89,7 @@ import fly.venti.core.assistantModels
 @Composable
 fun AssistantScreen(
     chat: AssistantChat,
-    /** Whether a Venti server is set: the assistant can then look up live wind. */
+    /** Whether there is Venti to ask, for live wind: always in the app, not in a test that names none. */
     hasWind: Boolean,
     bars: PaddingValues,
     /** Back to the Today tab, where the assistant opens from. */
@@ -376,7 +376,8 @@ private fun Suggestions(hasWind: Boolean, ask: (String) -> Unit) {
                 "The assistant reads your logbook to answer, and the wind stations of Venti. " +
                     "It cannot see forecasts, airspace or other pilots yet."
             } else {
-                "The assistant reads your logbook to answer. It cannot see weather, airspace or other pilots yet."
+                // Only a test is without Venti; the app always has it.
+                "The assistant reads your logbook to answer. Venti, which it asks for the wind, could not be reached."
             },
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

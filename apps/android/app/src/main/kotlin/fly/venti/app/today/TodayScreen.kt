@@ -171,12 +171,6 @@ fun TodayScreen(
                 verticalArrangement = Arrangement.spacedBy(VentiSpace.s4),
             ) {
                 when (val state = today.state) {
-                    TodayState.NoServer -> Explained(
-                        title = "Venti is not connected",
-                        words = "The forecast and the take-offs come from Venti. Set its address in the settings.",
-                        action = "Open the settings",
-                        act = onOpenSettings,
-                    )
                     is TodayState.Failed -> Explained(
                         title = "The forecast could not be read",
                         words = state.message,
@@ -289,7 +283,6 @@ private fun dayLine(days: List<OutlookDay>, day: Int, isNearPilot: Boolean): Str
 
 /** The day in a line: the best take-off's. Before there is one, what the screen is waiting for. */
 private fun headline(state: TodayState, shown: List<TodayPlace>, day: OutlookDay?): String = when (state) {
-    TodayState.NoServer -> "No forecast yet"
     is TodayState.Failed -> "No forecast"
     TodayState.Idle, TodayState.Loading -> "Reading the forecast"
     TodayState.Loaded -> when {

@@ -311,7 +311,7 @@ pub fn sites_filter_choices() -> SitesFilterChoices {
 pub(crate) const PILOTS_LAYER: &str = "Places from pilots";
 
 /// What the switch shows.
-pub(crate) const PILOTS_LAYER_ABOUT: &str = "Places pilots say they take off from. Not official     and not checked by anyone: a place on the map is not permission to fly there.";
+pub(crate) const PILOTS_LAYER_ABOUT: &str = "Places pilots say they take off from. Not official and not checked by anyone: a place on the map is not permission to fly there.";
 
 /// The path and query to `GET` for the flying sites of a box, as a filter
 /// asks for them: with the places from pilots where the filter has them

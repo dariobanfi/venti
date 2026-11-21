@@ -38,6 +38,14 @@ struct Reported: Identifiable {
     static func plan(groupId: String, id: String) -> Reported {
         Reported(subject: .plan(groupId: groupId, id: id), title: "Report this plan")
     }
+
+    static func site(_ id: String) -> Reported {
+        Reported(subject: .site(id: id), title: "Report this site")
+    }
+
+    static func siteRevision(_ id: String, revision: UInt32) -> Reported {
+        Reported(subject: .siteRevision(id: id, revision: revision), title: "Report this revision")
+    }
 }
 
 /// The form for telling whoever runs the server that a flight, a pilot's

@@ -275,12 +275,37 @@ private struct SiteRow: View {
 /// one of the pilot's own take-offs, which Today begins with, and as a
 /// waypoint.
 struct SiteScreen: View {
-    let site: SiteView
+    /// The site as the page was opened with it.
+    private let given: SiteView
     /// The credits and the date of the answer the site came from, where
     /// that is not the map's: Today's, or the pilot's own list's. The core
     /// keeps them with a site the pilot keeps.
     var credits: [Credit]?
     var asOfUnixS: Int64?
+
+    /// The site as Venti has it since the page was opened: a site that
+    /// pilots made is read again, and written anew when it is corrected
+    /// or put back.
+    @State private var written: SiteView?
+    /// The core's line about what was last done with the site: added,
+    /// saved, removed.
+    @State private var said: String?
+    /// Whether the site was removed from the map on this page.
+    @State private var isRemoved = false
+
+    /// - Parameter said: the core's line about the site, where the page
+    ///   opens on a site just added.
+    init(site: SiteView, credits: [Credit]? = nil, asOfUnixS: Int64? = nil, said: String? = nil) {
+        given = site
+        self.credits = credits
+        self.asOfUnixS = asOfUnixS
+        _said = State(initialValue: said)
+    }
+
+    /// The site the page shows.
+    private var site: SiteView {
+        written ?? given
+    }
 
     @Environment(SitesModel.self) private var sites
     @Environment(WindModel.self) private var wind
@@ -290,6 +315,7 @@ struct SiteScreen: View {
     @Environment(AppNavigation.self) private var navigation
     @Environment(FlySession.self) private var fly
     @Environment(KeptSitesModel.self) private var own
+    @Environment(AccountModel.self) private var account
 
     /// Whether the site is one of the pilot's own, as the core says.
     @State private var isOwn = false
@@ -319,6 +345,12 @@ struct SiteScreen: View {
                 head
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
+            }
+            if let said {
+                Section {
+                    Label(said, systemImage: isRemoved ? "trash" : "checkmark.circle")
+                        .accessibilityIdentifier("site-said")
+                }
             }
             Section {
                 LabeledContent("Where", value: Format.place(lat: site.position.lat, lon: site.position.lon))
@@ -454,6 +486,22 @@ struct SiteScreen: View {
                     }
                 }
             }
+            // A site that pilots made on Venti: who added it and when it
+            // was last changed, and what a pilot can do with it.
+            if let by = site.byPilots {
+                SiteByPilotsSection(
+                    site: site, by: by, isRemoved: isRemoved,
+                    onWritten: { answer in
+                        written = answer.site
+                        said = answer.words
+                        isRemoved = false
+                    },
+                    onRemoved: { words in
+                        said = words
+                        isRemoved = true
+                    }
+                )
+            }
             Section {
                 if let address = site.url, let link = URL(string: address) {
                     Link("See or correct it at the source", destination: link)
@@ -489,6 +537,16 @@ struct SiteScreen: View {
             if own.list == nil {
                 await own.load(from: nil)
             }
+        }
+        // A site that pilots made is read again as it stands now: the map's
+        // answer may be an hour old, and another pilot may have changed
+        // the site since.
+        .task(id: given.id) {
+            guard given.byPilots != nil,
+                  let page = try? await SiteEditing(account: account, wind: wind).page(given.id),
+                  page.canBeCorrected
+            else { return }
+            written = page.site
         }
         // What the forecast says about flying from here.
         .task(id: site.id) {

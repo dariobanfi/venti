@@ -46,6 +46,9 @@ struct MapScreen: View {
     @State private var gliderFromList: String?
     /// A place the pilot pressed on, to show its forecast.
     @State private var pressed: ChosenPlace?
+    /// How high that sheet stands: at half height first, and whole once
+    /// a site is added from it.
+    @State private var pressedDetent = PresentationDetent.medium
     /// The part of the map in view, as the map last reported it.
     @State private var region: Bounds?
     /// The date of the forecast map's day the pilot chose; the first day
@@ -120,9 +123,10 @@ struct MapScreen: View {
                 },
                 // A long press: the forecast for the place under the
                 // finger, where there is a server to ask.
-                onPlace: { place in
+                onPlace: { place, isOnASite in
                     if wind.server != nil {
-                        pressed = ChosenPlace(place: place)
+                        pressedDetent = .medium
+                        pressed = ChosenPlace(place: place, isOnASite: isOnASite)
                     }
                 },
                 source: maps.browsingSource(at: nil),
@@ -374,19 +378,14 @@ struct MapScreen: View {
             }
         }
         .sheet(item: $pressed) { chosen in
-            NavigationStack {
-                ForecastScreen(place: chosen.place, title: Format.place(lat: chosen.place.lat, lon: chosen.place.lon))
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") {
-                                pressed = nil
-                            }
-                        }
-                    }
+            // The forecast for the place, and from its bar "Add a site
+            // here", where Venti takes sites from pilots.
+            PressedPlaceSheet(place: chosen.place, isOnASite: chosen.isOnASite, detent: $pressedDetent) {
+                pressed = nil
             }
             // At half height first, like a site's and a station's page:
             // the place that was pressed stays in view above it.
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium, .large], selection: $pressedDetent)
         }
         // A sheet of the map that sends the pilot to another tab, a site's
         // "Start flight" for one, closes behind them.
@@ -817,6 +816,8 @@ struct ChosenSite: Identifiable {
 /// A place pressed on the map, for a sheet.
 struct ChosenPlace: Identifiable {
     let place: Coordinate
+    /// Whether a site's sign lay under the finger.
+    var isOnASite = false
     var id: String { "\(place.lat),\(place.lon)" }
 }
 

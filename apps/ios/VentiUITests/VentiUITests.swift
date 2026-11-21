@@ -2990,3 +2990,242 @@ final class VentiUITests: XCTestCase {
         }
     }
 }
+
+/// Adding and correcting a flying site, against the development server
+/// with an account the test makes.
+extension VentiUITests {
+    /// Makes an account on the development server, over its own API, and
+    /// returns what it signs in with. The password is made up here, for
+    /// this run's server, which is stopped when the run ends.
+    private func makeAccount(on server: String) async throws -> (handle: String, password: String) {
+        let handle = "sites\(Int.random(in: 100_000...999_999))"
+        let password = "made-up-\(UUID().uuidString.lowercased())"
+        var request = URLRequest(url: try XCTUnwrap(URL(string: server + "/v1/accounts")))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: ["handle": handle, "display_name": "Site Tester", "password": password]
+        )
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        XCTAssertTrue((200..<300).contains(status), "The development server made no account: \(status)")
+        return (handle, password)
+    }
+
+    /// Signs in under Settings, Account, and comes back to the map.
+    private func signIn(_ account: (handle: String, password: String), in app: XCUIApplication) {
+        openTab("Settings", in: app)
+        let link = element("account-link", in: app)
+        for _ in 0..<4 where !(link.exists && link.isHittable) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap()
+        let handle = app.textFields["Handle"]
+        XCTAssertTrue(handle.waitForExistence(timeout: 15))
+        handle.tap()
+        handle.typeText(account.handle)
+        let password = app.secureTextFields["Password"]
+        password.tap()
+        password.typeText(account.password)
+        element("account-submit", in: app).tap()
+        XCTAssertTrue(labelled(containing: "@\(account.handle)", in: app).waitForExistence(timeout: 30))
+        // The iPhone offers to keep the password. Not in a test.
+        for asking in [app, XCUIApplication(bundleIdentifier: "com.apple.springboard")] {
+            let notNow = asking.buttons["Not Now"]
+            if notNow.waitForExistence(timeout: 3) {
+                notNow.tap()
+                break
+            }
+        }
+        openTab("Map", in: app)
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 30))
+        sleep(3)
+    }
+
+    /// A long press on the map, so far from its middle, and "Add a site
+    /// here" in what it opens.
+    private func pressTheMap(dx: CGFloat, dy: CGFloat, in app: XCUIApplication) -> XCUIElement {
+        element("overview-map", in: app)
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: dx, dy: dy))
+            .press(forDuration: 1.2)
+        let entry = element("add-site-here", in: app)
+        XCTAssertTrue(entry.waitForExistence(timeout: 20))
+        return entry
+    }
+
+    /// Brings an element of a list into the screen by swiping the list.
+    private func bring(_ identifier: String, into app: XCUIApplication, down: Bool = false) -> XCUIElement {
+        let wanted = element(identifier, in: app)
+        for _ in 0..<8 where !isOnScreen(wanted, in: app) {
+            if down {
+                app.swipeDown()
+            } else {
+                app.swipeUp()
+            }
+            usleep(500_000)
+        }
+        XCTAssertTrue(wanted.waitForExistence(timeout: 10), identifier)
+        return wanted
+    }
+
+    /// The first of the form's choices of one kind: "Take-off" among the uses.
+    private func firstChoice(_ kind: String, in app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", kind + "-")).firstMatch
+    }
+
+    /// A pilot adds a take-off beside the made-up "Musterkogel West",
+    /// finds it on the map, corrects its height, reads the two revisions,
+    /// undoes the correction and removes the site; and is refused a site
+    /// on top of "Musterkogel West", with the offer to open that one.
+    func testAPilotAddsCorrectsAndRemovesASite() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let account = try await makeAccount(on: server)
+        // "Musterkogel West" in the map's middle, so close that a finger's
+        // width is a few metres: at zoom 19 a point is a tenth of a metre.
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.3,10.9,19", "--all-sites"])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(account, in: app)
+
+        // Some 27 m north-west of it: a place of its own.
+        let entry = pressTheMap(dx: -140, dy: -230, in: app)
+        sleep(2)
+        keepScreenshot("site-edit-1-entry-on-the-map")
+        entry.tap()
+
+        let name = element("site-name", in: app)
+        XCTAssertTrue(name.waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("site-edit-2-form-empty")
+
+        // Sent empty: the core's faults at their fields, and nothing sent.
+        bring("site-send", into: app).tap()
+        XCTAssertTrue(element("site-fault", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("site-edit-3-form-with-a-fault")
+
+        name.tap()
+        name.typeText("Testkogel\n")
+        firstChoice("site-use", in: app).tap()
+        let height = bring("site-height", into: app)
+        height.tap()
+        height.typeText("1500\n")
+        let wind = firstChoice("site-wind", in: app)
+        if wind.exists, isOnScreen(wind, in: app) {
+            wind.tap()
+        }
+        let send = bring("site-send", into: app)
+        XCTAssertTrue(element("site-giving", in: app).exists)
+        XCTAssertTrue(element("site-licence", in: app).exists)
+        keepScreenshot("site-edit-4-giving-and-send")
+        send.tap()
+
+        // The core's line, on the new site's page.
+        let said = element("site-said", in: app)
+        XCTAssertTrue(said.waitForExistence(timeout: 30))
+        XCTAssertTrue(said.label.contains("Added"), said.label)
+        sleep(2)
+        keepScreenshot("site-edit-5-new-site-page")
+        app.buttons["Done"].firstMatch.tap()
+        sleep(3)
+        keepScreenshot("site-edit-6-on-the-map")
+
+        // On the map: in the list of what the map shows.
+        app.buttons["Flying sites"].tap()
+        let row = labelled(containing: "Testkogel", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        row.tap()
+
+        // Correct its height.
+        bring("site-correct", into: app).tap()
+        let corrected = bring("site-height", into: app)
+        XCTAssertTrue(corrected.waitForExistence(timeout: 15))
+        corrected.tap()
+        corrected.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6) + "1520\n")
+        let why = bring("site-comment", into: app)
+        why.tap()
+        why.typeText("measured again\n")
+        bring("site-send", into: app).tap()
+        let saved = bring("site-said", into: app, down: true)
+        XCTAssertTrue(saved.label.contains("revision 2"), saved.label)
+        keepScreenshot("site-edit-7-corrected")
+
+        // Two revisions, the change in words; then undone.
+        bring("site-history", into: app).tap()
+        let change = element("site-revision-change", in: app)
+        XCTAssertTrue(change.waitForExistence(timeout: 20))
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "site-revision").count, 2)
+        XCTAssertTrue(labelled(containing: "1500 m → 1520 m", in: app).exists)
+        XCTAssertTrue(labelled(containing: "measured again", in: app).exists)
+        sleep(1)
+        keepScreenshot("site-edit-8-history")
+        element("site-undo", in: app).tap()
+        let putBack = app.alerts.buttons["Put back"]
+        XCTAssertTrue(putBack.waitForExistence(timeout: 10))
+        putBack.tap()
+        XCTAssertTrue(element("site-history-said", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "site-revision").count, 3)
+        keepScreenshot("site-edit-9-undone")
+        app.navigationBars["History"].buttons.firstMatch.tap()
+
+        // Remove it.
+        bring("site-remove", into: app).tap()
+        let remove = app.alerts.buttons["Remove this site"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 10))
+        remove.tap()
+        sleep(2)
+        let removed = bring("site-said", into: app, down: true)
+        XCTAssertTrue(removed.label.contains("Removed"), removed.label)
+        keepScreenshot("site-edit-10-removed")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["Done"].firstMatch.tap()
+        sleep(2)
+
+        // On top of "Musterkogel West": some ten metres south of it, under
+        // its sign. The server refuses, and the core names the site.
+        pressTheMap(dx: 0, dy: 100, in: app).tap()
+        let second = element("site-name", in: app)
+        XCTAssertTrue(second.waitForExistence(timeout: 15))
+        second.tap()
+        second.typeText("Too close\n")
+        firstChoice("site-use", in: app).tap()
+        bring("site-send", into: app).tap()
+        let inTheWay = element("site-in-the-way", in: app)
+        XCTAssertTrue(inTheWay.waitForExistence(timeout: 30))
+        XCTAssertEqual(inTheWay.label, "Open Musterkogel West")
+        XCTAssertTrue(element("site-problem", in: app).label.contains("Musterkogel West"))
+        _ = bring("site-in-the-way", into: app)
+        keepScreenshot("site-edit-11-too-close")
+        inTheWay.tap()
+        XCTAssertTrue(app.staticTexts["Musterkogel West"].waitForExistence(timeout: 20))
+        sleep(2)
+        keepScreenshot("site-edit-12-the-site-in-the-way")
+    }
+
+    /// The form in the dark.
+    func testTheSiteFormInTheDark() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let account = try await makeAccount(on: server)
+        let app = launch(
+            bundledMap: true, dark: true, extra: ["--server", server, "--map-at", "47.3,10.9,19", "--all-sites"]
+        )
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(account, in: app)
+        pressTheMap(dx: -140, dy: -230, in: app).tap()
+        let name = element("site-name", in: app)
+        XCTAssertTrue(name.waitForExistence(timeout: 15))
+        name.tap()
+        name.typeText("Testkogel\n")
+        firstChoice("site-use", in: app).tap()
+        sleep(1)
+        keepScreenshot("site-edit-form-dark-1")
+        _ = bring("site-send", into: app)
+        keepScreenshot("site-edit-form-dark-2-giving")
+    }
+}

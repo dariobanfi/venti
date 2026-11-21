@@ -32,6 +32,9 @@ final class WindModel {
     private(set) var problem: String?
     /// The providers the server has not heard from lately.
     private(set) var lateProviders: [String] = []
+    /// Whether this Venti takes sites from pilots, as its status says:
+    /// false until it has said so, and for one that takes none.
+    private(set) var takesSitesFromPilots = false
 
     /// Venti's address: the one the app was built with (`VentiServer`).
     let address: String
@@ -118,6 +121,7 @@ final class WindModel {
                 let state = try serverStatus(status: status, body: body)
                 clock = (TimeInterval(state.timeUnixS) - Date().timeIntervalSince1970, Date())
                 lateProviders = state.lateProviders
+                takesSitesFromPilots = state.takesSitesFromPilots
             }
             let path = try windMapPath(south: area.south, west: area.west, north: area.north, east: area.east)
             let (status, body) = try await get(path, from: server)
@@ -155,6 +159,7 @@ final class WindModel {
            let state = try? serverStatus(status: status, body: body)
         {
             clock = (TimeInterval(state.timeUnixS) - Date().timeIntervalSince1970, Date())
+            takesSitesFromPilots = state.takesSitesFromPilots
         }
         return now
     }

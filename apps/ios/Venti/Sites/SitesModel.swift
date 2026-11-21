@@ -54,6 +54,9 @@ final class SitesModel {
     @ObservationIgnored var server: () -> URL? = { nil }
 
     @ObservationIgnored private let transport: Transport
+    /// Fetches around the system's cache: for asking again after a pilot
+    /// wrote a site, when the answer kept is known to be old.
+    @ObservationIgnored private let fresh: Transport
     /// The area the sites were asked for, from which server, and when.
     @ObservationIgnored private var answered: (area: Bounds, server: URL, at: Date)?
     @ObservationIgnored private var waiting: Task<Void, Never>?
@@ -63,8 +66,12 @@ final class SitesModel {
     /// - Parameter store: where the filter is kept as the pilot left it:
     ///   the app's preferences. Without one, as in a unit test, it starts
     ///   asking nothing and is kept nowhere.
-    init(transport: @escaping Transport = WindModel.fetch, store: UserDefaults? = nil) {
+    init(
+        transport: @escaping Transport = WindModel.fetch, fresh: @escaping Transport = SiteEditing.fresh,
+        store: UserDefaults? = nil
+    ) {
         self.transport = transport
+        self.fresh = fresh
         self.store = store
         let choice = store.map(SitesChoice.init(keptIn:)) ?? SitesChoice()
         self.choice = choice
@@ -137,6 +144,10 @@ final class SitesModel {
 
     /// Asks the server for the sites of an area.
     func load(_ area: Bounds, from server: URL) async {
+        await load(area, from: server, with: transport)
+    }
+
+    private func load(_ area: Bounds, from server: URL, with transport: Transport) async {
         do {
             let path = try sitesPath(south: area.south, west: area.west, north: area.north, east: area.east)
             guard let url = URL(string: server.absoluteString + path) else { return }
@@ -164,6 +175,14 @@ final class SitesModel {
                 ? error.words
                 : "The server could not be reached for flying sites. \(error.localizedDescription)"
         }
+    }
+
+    /// Asks again for the area last asked for, whatever the age of its
+    /// answer: a pilot added, corrected or removed a site.
+    func refresh() async {
+        guard let answered else { return }
+        waiting?.cancel()
+        await load(answered.area, from: answered.server, with: fresh)
     }
 
     private func forget() {

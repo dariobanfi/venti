@@ -39,8 +39,8 @@ struct OverviewMap: UIViewRepresentable {
     /// Called with a plan's identifier when the pilot taps its mark.
     var onPlan: (String) -> Void = { _ in }
     /// Called with the place under the finger after a long press on the
-    /// map.
-    var onPlace: (Coordinate) -> Void = { _ in }
+    /// map, and whether a site's sign lies under it.
+    var onPlace: (Coordinate, Bool) -> Void = { _, _ in }
     /// What the map is drawn from. Read when the map is made; the screen
     /// makes the map anew when it changes.
     var source: MapStyle.Source = .standard
@@ -143,7 +143,7 @@ struct OverviewMap: UIViewRepresentable {
         var onPlan: (String) -> Void = { _ in }
         private var plans: [GroupsModel.Pin] = []
         private var drawnPlans: [GroupsModel.Pin]?
-        var onPlace: (Coordinate) -> Void = { _ in }
+        var onPlace: (Coordinate, Bool) -> Void = { _, _ in }
         var onSquare: (Int) -> Void = { _ in }
         var onAirspace: (Coordinate) -> Void = { _ in }
         var onHourPlace: (Coordinate) -> Void = { _ in }
@@ -357,9 +357,14 @@ struct OverviewMap: UIViewRepresentable {
         /// soon as the press is long enough.
         @objc func pressed(_ recognizer: UILongPressGestureRecognizer) {
             guard recognizer.state == .began, let map = recognizer.view as? MLNMapView else { return }
-            let place = map.convert(recognizer.location(in: map), toCoordinateFrom: map)
+            let point = recognizer.location(in: map)
+            let place = map.convert(point, toCoordinateFrom: map)
+            // Whether a site's sign lies under the finger, as a tap would
+            // find it: no site is added on top of one.
+            let reach = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
+            let isOnASite = !map.visibleFeatures(in: reach, styleLayerIdentifiers: [Self.sites]).isEmpty
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            onPlace(Coordinate(lat: place.latitude, lon: place.longitude))
+            onPlace(Coordinate(lat: place.latitude, lon: place.longitude), isOnASite)
         }
 
         /// A tap on a station's arrow opens the station. A finger is wider

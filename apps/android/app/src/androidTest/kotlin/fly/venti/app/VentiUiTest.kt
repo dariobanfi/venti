@@ -1684,6 +1684,9 @@ class VentiUiTest {
         // One site: what its source says, and what that is worth. Kept as
         // a waypoint, the cockpit can navigate to it.
         tap(described(takeoff))
+        // Under the head and the picture of the day's air.
+        waitFor(hasTestTag("site-page"))
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasText("Add to my waypoints"))
         waitFor(hasText("Add to my waypoints"))
         assertTrue(exists(hasText("Marked as an official site")))
         tap(hasText("Add to my waypoints"))
@@ -1860,7 +1863,10 @@ class VentiUiTest {
         waitFor(hasTestTag("thermal-line"))
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("today-7-site-on-a-big-day")
-        // The air over the take-off through the day, as a picture.
+        // The air over the take-off through the day, as a picture: the
+        // sheet pulled up to its full height first.
+        screen.onNode(hasTestTag("site-page")).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
         screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("air-chart"))
         waitFor(hasTestTag("air-chart") and saying("m/s to a cloud base of"))
         TestDevice.letTheAppRun(screen, 1)

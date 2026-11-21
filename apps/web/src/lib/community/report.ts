@@ -28,6 +28,16 @@ export function reportedTrack(id: string): Reported {
 	return { subject: { kind: 'liveTrack', id }, title: 'Report this track' };
 }
 
+/** A group the pilot is in, by its identifier. */
+export function reportedGroup(id: string): Reported {
+	return { subject: { kind: 'group', id }, title: 'Report this group' };
+}
+
+/** A plan in a group the pilot is in. */
+export function reportedPlan(groupId: string, id: string): Reported {
+	return { subject: { kind: 'plan', groupId, id }, title: 'Report this plan' };
+}
+
 /**
  * How many characters the pilot's words have, when that is more than a
  * report has room for; nothing while they fit. This is only what the form

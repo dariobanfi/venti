@@ -57,7 +57,8 @@ export class AccountModel {
 	#onSynced: () => Promise<void>;
 	#lastSyncAt: number | undefined;
 	/** What a report can say, once the core was asked. */
-	#reportForm: Promise<ReportForm> | undefined;
+	/** The report forms asked for, one for each kind of subject. */
+	#reportForms = new Map<ReportSubject['kind'], Promise<ReportForm>>();
 
 	private constructor(
 		core: CoreClient,
@@ -125,13 +126,18 @@ export class AccountModel {
 	}
 
 	/**
-	 * What a report can say: the server's reasons, how long the pilot's own
-	 * words may be, and what happens to a report. The core's, and the same
-	 * every time, so it is asked for once.
+	 * What a report about such a thing as `subject` can say: the reasons,
+	 * how long the pilot's own words may be, and what happens to a report.
+	 * The core's, the same for every subject of a kind, so it is asked for
+	 * once for each kind: a flight's and a group's differ.
 	 */
-	reportForm(): Promise<ReportForm> {
-		this.#reportForm ??= this.#core.reportForm();
-		return this.#reportForm;
+	reportForm(subject: ReportSubject): Promise<ReportForm> {
+		let form = this.#reportForms.get(subject.kind);
+		if (!form) {
+			form = this.#core.reportForm(subject);
+			this.#reportForms.set(subject.kind, form);
+		}
+		return form;
 	}
 
 	/**

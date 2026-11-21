@@ -46,6 +46,16 @@ export const test = base.extend<Fixtures>({
 	context: async ({ context }, use) => {
 		await serveBundledMap(context);
 		await use(context);
+		// A routed request may still be on its way when the test ends: let go
+		// of every route without waiting for it, so that its handler's
+		// "Test ended" is not the test's failure.
+		await context.unrouteAll({ behavior: 'ignoreErrors' });
+	},
+
+	// The same for the routes a test sets on its page.
+	page: async ({ page }, use) => {
+		await use(page);
+		await page.unrouteAll({ behavior: 'ignoreErrors' });
 	},
 
 	wide: async ({ viewport }, use) => {

@@ -314,8 +314,8 @@ export class CoreClient {
 	}
 
 	/** What a report can say, and what the pilot is told before sending one. */
-	reportForm() {
-		return this.#call('reportForm', undefined);
+	reportForm(subject: ReportSubject) {
+		return this.#call('reportForm', subject);
 	}
 
 	/**

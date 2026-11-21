@@ -282,6 +282,8 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 	const whoIsIn = page.getByRole('list', { name: 'Who is in' }).getByRole('listitem');
 	// Whoever posts a plan is in from the start, and can step out again.
 	await expect(whoIsIn).toHaveText(['You']);
+	// One's own is not reported.
+	await expect(page.getByRole('button', { name: 'Report this plan' })).toBeHidden();
 	await keep('79-plan');
 	await page.getByRole('button', { name: 'I am out' }).click();
 	await expect(whoIsIn).toHaveText(['Nobody yet']);
@@ -336,6 +338,8 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 	await expect(
 		page.getByText('Removing a member ends the invite code, which they know.')
 	).toBeVisible();
+	// One's own is not reported.
+	await expect(page.getByRole('button', { name: 'Report this group' })).toBeHidden();
 	await keep('80-group');
 
 	// Renaming says who will see the name.
@@ -584,4 +588,47 @@ test('a board of several days, and a plan that says where its place is', async (
 		.getByRole('button', { name: 'Leave the group' })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Groups' })).toBeVisible();
+});
+
+test('a member reports a group someone else keeps, and another member’s plan', async ({
+	page,
+	keep,
+	problems
+}) => {
+	// The development mode's plans are for 18 to 20 November 2026.
+	await page.clock.setFixedTime(new Date('2026-11-18T11:00:00Z'));
+	await signUp(page, 'Test Pilot');
+	await page.goto('/plans/groups/');
+	await join(page, MUSTERGRUPPE.code);
+	await expect(page.getByRole('status')).toHaveText('You are in Mustergruppe now.');
+
+	// The group, from beside "Leave the group": the reasons of a group, not of a flight.
+	await page.getByRole('link', { name: /^Mustergruppe/ }).click();
+	await page.getByRole('button', { name: 'Report this group' }).click();
+	const groupForm = page.getByRole('dialog', { name: 'Report this group' });
+	await expect(groupForm.getByRole('radio')).toHaveCount(5);
+	await expect(groupForm.getByRole('radio', { name: 'Not a real flight' })).toHaveCount(0);
+	await expect(groupForm).toContainText('sees that it came from you');
+	await groupForm.getByRole('radio').first().check();
+	await keep('84-group-report');
+	await groupForm.getByRole('button', { name: 'Send report' }).click();
+	await expect(groupForm.getByRole('status')).toHaveText('Sent. Whoever runs Venti will read it.');
+	await groupForm.getByRole('button', { name: 'Done' }).click();
+	await expect(groupForm).toBeHidden();
+
+	// Another member's plan, from its page.
+	await openBoard(page);
+	await plansOf(page, 'Today')
+		.filter({ hasText: 'Musterberg, Startplatz Ost' })
+		.getByRole('link')
+		.click();
+	await expect(metric(page, 'Posted by')).toHaveText('Demo Pilot');
+	await page.getByRole('button', { name: 'Report this plan' }).click();
+	const planForm = page.getByRole('dialog', { name: 'Report this plan' });
+	await expect(planForm.getByRole('radio')).toHaveCount(5);
+	await planForm.getByRole('radio').first().check();
+	await keep('85-plan-report');
+	await planForm.getByRole('button', { name: 'Send report' }).click();
+	await expect(planForm.getByRole('status')).toHaveText('Sent. Whoever runs Venti will read it.');
+	expect(problems).toEqual([]);
 });

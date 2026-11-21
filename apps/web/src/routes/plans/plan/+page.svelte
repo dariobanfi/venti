@@ -14,6 +14,8 @@
 	import { page } from '$app/state';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { plansHref } from '#lib/app/routes.ts';
+	import { reportedPlan } from '#lib/community/report.ts';
+	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import type { PlanView } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import { format } from '#lib/design/format.ts';
@@ -41,6 +43,8 @@
 	let confirmingDelete = $state(false);
 	/** Whether the forecast for the plan's place is open. */
 	let forecasting = $state(false);
+	/** Whether the form that reports the plan to whoever runs the server is open. */
+	let reporting = $state(false);
 	const asked = question({ about: 'deletePlan' });
 
 	/** Does one thing on the server and says what went wrong, if anything. */
@@ -192,10 +196,25 @@
 						</div>
 					</section>
 				{/if}
+				{#if !plan.isMine}
+					<!-- Another pilot's plan can be reported to whoever runs the server. -->
+					<section class="group" aria-label="Reporting the plan">
+						<div class="group-card">
+							<button class="group-row" type="button" onclick={() => (reporting = true)}>
+								Report this plan
+							</button>
+						</div>
+					</section>
+				{/if}
 				{#if problem}
 					<p class="group-note refusal" role="alert">{problem}</p>
 				{/if}
 
+				<ReportSheet
+					open={reporting}
+					{...reportedPlan(plan.groupId, plan.id)}
+					onclose={() => (reporting = false)}
+				/>
 				<PlanForm open={editing} {groups} editing={plan} onclose={() => (editing = false)} />
 				<ConfirmDialog
 					open={confirmingDelete}

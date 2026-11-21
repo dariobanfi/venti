@@ -15,6 +15,8 @@
 	import { page } from '$app/state';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { groupsHref } from '#lib/app/routes.ts';
+	import { reportedGroup } from '#lib/community/report.ts';
+	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import type { GroupDetail, GroupMember } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Icon from '#lib/design/Icon.svelte';
@@ -40,6 +42,8 @@
 	let asked = $state.raw<Asking>({ about: 'newCode' });
 	let confirming = $state(false);
 	let renaming = $state(false);
+	/** Whether the form that reports the group to whoever runs the server is open. */
+	let reporting = $state(false);
 	/** Why the new name was not taken, in words. */
 	let refusal = $state.raw<string>();
 	/** A new invite code, to show once. */
@@ -244,6 +248,17 @@
 								Delete the group
 							</button>
 						{/if}
+						<!-- A group someone else keeps can be reported to whoever runs the server. -->
+						{#if !kept}
+							<button
+								class="group-row"
+								type="button"
+								disabled={working}
+								onclick={() => (reporting = true)}
+							>
+								Report this group
+							</button>
+						{/if}
 					</div>
 					<p class="group-note">
 						{#if kept}
@@ -262,6 +277,9 @@
 			{/if}
 		{/snippet}
 	</WithAccount>
+	{#if id}
+		<ReportSheet open={reporting} {...reportedGroup(id)} onclose={() => (reporting = false)} />
+	{/if}
 </div>
 
 <ConfirmDialog

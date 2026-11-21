@@ -205,7 +205,8 @@ export interface Calls {
 	flightSharing: { given: string; answer: FlightSharing | undefined };
 	shareFlight: { given: { id: string; visibility: FlightVisibility }; answer: FlightSharing };
 	/** What a report can say, and what the pilot is told before sending one. */
-	reportForm: { given: undefined; answer: ReportForm };
+	/** The form for a report about such a thing as the subject given. */
+	reportForm: { given: ReportSubject; answer: ReportForm };
 	/**
 	 * Reports a flight, a pilot's page or a live track to whoever runs the
 	 * server, from the pilot's account. The answer is what became of it, in
@@ -364,7 +365,7 @@ export async function answer<Name extends CallName>(
 		sync: () => account.sync(),
 		flightSharing: (id) => account.sharing(id),
 		shareFlight: ({ id, visibility }) => account.share(id, visibility),
-		reportForm: () => account.reportForm(),
+		reportForm: (subject) => account.reportForm(subject),
 		report: ({ subject, reason, text }) => account.report(subject, reason, text),
 		planBoard: (fromDay) => groups.board(fromDay),
 		makeGroup: (name) => groups.make(name),

@@ -19,7 +19,7 @@ import {
 	type AccountView,
 	type FlightSharing,
 	type FlightVisibility,
-	reportForm,
+	reportFormFor,
 	type ReportForm,
 	type ReportReason,
 	reportRequest,
@@ -246,12 +246,13 @@ export class AccountSource {
 	}
 
 	/**
-	 * What a report can say: the server's reasons with a line about each,
-	 * how long the pilot's own words may be, and what happens to a report.
-	 * All of it is the core's.
+	 * What a report about such a thing as `subject` can say: the reasons
+	 * with a line about each, how long the pilot's own words may be, and
+	 * what happens to a report. A flight's and a group's differ. All of it
+	 * is the core's.
 	 */
-	reportForm(): ReportForm {
-		return reportForm();
+	reportForm(subject: ReportSubject): ReportForm {
+		return reportFormFor(subject);
 	}
 
 	/**

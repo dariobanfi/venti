@@ -579,7 +579,7 @@ describe('reporting what another pilot shares', () => {
 		browser = new Browser();
 		const { account } = await browser.tab();
 
-		const form = account.reportForm();
+		const form = account.reportForm({ kind: 'flight', id: 'x' });
 
 		expect(form.reasons.map((choice) => choice.reason)).toEqual([
 			'offensive',
@@ -593,6 +593,22 @@ describe('reporting what another pilot shares', () => {
 		expect(form.textAtMost).toBe(1000);
 		// A report is not anonymous to whoever runs the server, and says so.
 		expect(form.notice).toContain('sees that it came from you');
+	});
+
+	it('offers a group and a plan reasons of their own', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+
+		const flight = account.reportForm({ kind: 'flight', id: 'x' });
+		const group = account.reportForm({ kind: 'group', id: 'g' });
+		const plan = account.reportForm({ kind: 'plan', groupId: 'g', id: 'p' });
+
+		expect(group.reasons).toHaveLength(5);
+		expect(plan.reasons).toHaveLength(5);
+		expect(group.reasons.map((choice) => choice.reason)).not.toContain('notAFlight');
+		expect(group.reasons.every((choice) => choice.title && choice.explanation)).toBe(true);
+		expect(group.notice).not.toEqual('');
+		expect(group.reasons).not.toEqual(flight.reasons);
 	});
 
 	it('goes to the server from the pilot’s account, as the server’s own example writes it', async () => {

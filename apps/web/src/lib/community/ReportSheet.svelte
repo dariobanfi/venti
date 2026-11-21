@@ -1,6 +1,7 @@
 <!--
-	The form for telling whoever runs the server that a flight, a pilot's page
-	or a live track should not be there.
+	The form for telling whoever runs the server that a flight, a pilot's page,
+	a live track, a group or a plan should not be there. Each kind of thing
+	has the core's form for it: a group's reasons are not a flight's.
 
 	A report goes to the operator and nobody else, with the name of the
 	account it comes from: the form says so before anything is sent. The
@@ -52,7 +53,8 @@
 		words = '';
 		problem = undefined;
 		outcome = undefined;
-		void account?.reportForm().then(
+		form = undefined;
+		void account?.reportForm(subject).then(
 			(known) => (form = known),
 			(error) => (problem = error instanceof Error ? error.message : String(error))
 		);

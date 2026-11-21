@@ -44,7 +44,7 @@
 	 * keyboard and the scroll where they are, and the list follows it.
 	 */
 	function ask(next: Asked) {
-		void goto(everyoneHref(queryOf(next)), { replace: true, reset: false });
+		void goto(everyoneHref(queryOf(next)), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
 	const ORDERS = ['Newest', 'Best'] as const;

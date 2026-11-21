@@ -38,7 +38,7 @@
 		// The newest season needs no name: the address of the page alone is
 		// this year's ranking next year too.
 		const named = season === ranking.seasons[0] ? '' : season;
-		void goto(rankingHref(named), { replace: true, reset: false });
+		void goto(rankingHref(named), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
 	/** A wide screen has a table; a phone, the list of cards. */

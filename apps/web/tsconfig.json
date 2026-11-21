@@ -1,10 +1,19 @@
 {
-	"extends": "$app/tsconfig",
+	"extends": "./.svelte-kit/tsconfig.json",
 	"compilerOptions": {
 		"strict": true,
+		"allowImportingTsExtensions": true,
 		"noImplicitOverride": true,
 		"noFallthroughCasesInSwitch": true
 	},
-	"include": ["src", "e2e", "*.ts"],
+	"include": [
+		".svelte-kit/ambient.d.ts",
+		".svelte-kit/env.d.ts",
+		".svelte-kit/non-ambient.d.ts",
+		".svelte-kit/types/**/$types.d.ts",
+		"src",
+		"e2e",
+		"*.ts"
+	],
 	"exclude": ["src/lib/core/pkg/*.js"]
 }

@@ -35,10 +35,7 @@ type Directives = NonNullable<
  */
 function announcerStyleHash(): `sha256-${string}` {
 	const kit = createRequire(import.meta.url).resolve('@sveltejs/kit/package.json');
-	const root = readFileSync(
-		new URL('./src/runtime/components/root.svelte', `file://${kit}`),
-		'utf8'
-	);
+	const root = readFileSync(new URL('./src/core/sync/write_root.js', `file://${kit}`), 'utf8');
 	const style = /id="svelte-announcer"[^>]*?\sstyle="([^"]+)"/.exec(root)?.[1];
 	if (!style) {
 		throw new Error(

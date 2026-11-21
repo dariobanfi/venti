@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Runs the web app's checks in a container, for a machine where `npm ci`
-# cannot install the pinned packages (the owner's Mac: see AGENTS.md beside
+# Runs the web app's checks in a container, for a machine that cannot run
+# them all itself: on the owner's Mac the browser Playwright downloads is
+# not allowed to start, and the core cannot be built there while the Rust
+# mirror lacks the wasm-bindgen tool Cargo.lock names (see AGENTS.md beside
 # this folder). Needs Docker.
+#
+# Capped at VENTI_CHECKS_CPUS processors (6) and 4 browser workers, so that the Mac's other work goes on.
 #
 #     scripts/checks-in-a-container.sh        licences, formatting, types, unit tests
 #     scripts/checks-in-a-container.sh e2e    the same, then the browser tests
@@ -31,6 +35,7 @@ if [ "${1:-}" = "e2e" ]; then
 fi
 
 started=$SECONDS
+cpus="${VENTI_CHECKS_CPUS:-6}"
 
 # The site, built from the checkout as the deployment builds it.
 docker build -f deploy/web.Dockerfile --target site -t venti-web-site:local .
@@ -43,7 +48,7 @@ read_only=(
   -v "$root/apps/ios/Venti/Resources:/build/apps/ios/Venti/Resources:ro"
 )
 
-docker run --rm "${read_only[@]}" venti-web-site:local \
+docker run --rm --cpus "$cpus" "${read_only[@]}" venti-web-site:local \
   sh -c 'npm run licences && npm run format:check && npm run check && npm test'
 
 if ! $e2e; then
@@ -108,15 +113,21 @@ for url in "http://127.0.0.1:$port/v1/health" "http://127.0.0.1:$made_up_port/v1
   exit 1
 done
 
+# Four browsers at a time, unless the caller names how many.
+workers=(--workers=4)
+for each in "$@"; do
+  case "$each" in --workers=* | -j | --workers) workers=() ;; esac
+done
+
 # Screenshots and what failing tests leave behind land where a run on this
 # machine puts them.
 mkdir -p apps/web/screenshots apps/web/test-results
 # The container reaches this machine's 127.0.0.1 as host.docker.internal.
-docker run --rm "${read_only[@]}" \
+docker run --rm --cpus "$cpus" "${read_only[@]}" \
   -v "$root/apps/web/screenshots:/build/apps/web/screenshots" \
   -v "$root/apps/web/test-results:/build/apps/web/test-results" \
   -e VENTI_DEV_SERVER="http://host.docker.internal:$port" \
   -e VENTI_MADE_UP_DAY_SERVER="http://host.docker.internal:$made_up_port" \
-  venti-web-e2e:local npm run test:e2e -- "$@"
+  venti-web-e2e:local npm run test:e2e -- ${workers[@]+"${workers[@]}"} "$@"
 
 echo "Checks and browser tests passed in $(((SECONDS - started) / 60)) min $(((SECONDS - started) % 60)) s."

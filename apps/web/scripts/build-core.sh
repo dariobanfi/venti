@@ -19,10 +19,17 @@ fi
 
 # The tool that writes the JavaScript must be the very version of the
 # wasm-bindgen library the core was compiled with. Cargo.lock names it.
+# The tool that binds the core must be of exactly the version of the
+# wasm-bindgen crate in Cargo.lock. It is built and kept inside the
+# checkout, under target/tools: each checkout has the version its lock file
+# asks for, and a machine that runs only what was built under the project's
+# folder (the owner's Mac) runs it.
 version="$(cargo pkgid --locked -p wasm-bindgen)"
 version="${version##*@}"
-if [ "$(wasm-bindgen --version 2>/dev/null)" != "wasm-bindgen $version" ]; then
-  cargo install wasm-bindgen-cli --version "$version" --locked
+bindgen="$root/target/tools/bin/wasm-bindgen"
+if [ "$("$bindgen" --version 2>/dev/null)" != "wasm-bindgen $version" ]; then
+  CARGO_TARGET_DIR="$root/target/tools-build" \
+    cargo install wasm-bindgen-cli --version "$version" --locked --root "$root/target/tools"
 fi
 
 rustup target add wasm32-unknown-unknown
@@ -30,7 +37,7 @@ cargo build --locked -p venti-core-wasm --target wasm32-unknown-unknown --profil
 
 rm -rf "$out"
 # The page says where the module is; no second, guessed location is built in.
-wasm-bindgen --target web --omit-default-module-path --out-dir "$out" \
+"$bindgen" --target web --omit-default-module-path --out-dir "$out" \
   target/wasm32-unknown-unknown/wasm/venti_core_wasm.wasm
 
 # About half the module is the core's interface for the phones and what only

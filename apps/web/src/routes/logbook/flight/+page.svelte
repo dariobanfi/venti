@@ -139,7 +139,11 @@
 		const url = new URL(page.url.href);
 		if (ref) url.searchParams.set('beside', besideValue(ref));
 		else url.searchParams.delete('beside');
-		void goto(`${url.pathname}${url.search}`, { replace: true, reset: false });
+		void goto(`${url.pathname}${url.search}`, {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	/** Saves the flight's file, as it was imported, where the browser keeps downloads. */

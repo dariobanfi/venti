@@ -41,7 +41,7 @@ futures = { version = "0.3.34", default-features = false, features = ["std", "ex
 getrandom = "0.4.3"
 image-webp = "0.2.4"
 ipnet = "2.12.2"
-js-sys = "0.3.107"
+js-sys = "=0.3.106"
 png = "0.18.1"
 reqwest = "0.13.5"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -61,7 +61,11 @@ tsify = { version = "0.5.8", default-features = false, features = ["js"] }
 ttf-parser = { version = "0.25.1", default-features = false, features = ["std", "variable-fonts"] }
 unicode-normalization = "0.1.26"
 uniffi = "0.32.2"
-wasm-bindgen = "0.2.130"
+# Held at 0.2.129, and js-sys with it: the tool that binds the core for the
+# browser, wasm-bindgen-cli, must be of exactly this version, and the
+# registry mirror the owner's Mac builds from has no newer one yet. Move
+# both on together once it has.
+wasm-bindgen = "=0.2.129"
 zune-core = "0.5.3"
 zune-jpeg = { version = "0.5.15", default-features = false, features = ["std", "x86", "neon"] }
 zip = { version = "9.4.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }

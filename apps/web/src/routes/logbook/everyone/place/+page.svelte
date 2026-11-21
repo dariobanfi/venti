@@ -59,8 +59,9 @@
 		if (!asked?.at) return;
 		const season = next.season === ranking.seasons[0] ? '' : next.season;
 		void goto(placeHref(asked.at, asked.site, placeQuery({ order: next.order, season })), {
-			replace: true,
-			reset: false
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
 		});
 	}
 

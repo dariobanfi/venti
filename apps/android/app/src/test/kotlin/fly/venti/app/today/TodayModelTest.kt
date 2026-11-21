@@ -3,6 +3,7 @@ package fly.venti.app.today
 import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
 import fly.venti.core.Coordinate
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -11,7 +12,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
-import java.util.Collections
 
 /**
  * The Today tab's take-offs against the real core, with the server played
@@ -73,7 +73,7 @@ class TodayModelTest {
 
     @Test
     fun aForecastTheServerIsStillFetchingIsAskedForAgain() = runBlocking {
-        val asked = Collections.synchronizedList(mutableListOf<String>())
+        val asked = CopyOnWriteArrayList<String>()
         val today = model { url ->
             asked += url
             if ("/v1/forecast?" in url && asked.count { "/v1/forecast?" in it } <= 3) {

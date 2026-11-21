@@ -13,6 +13,7 @@ import fly.venti.core.serverStatus
 import fly.venti.core.sitesPath
 import fly.venti.core.stationsNear
 import fly.venti.core.windMap
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -26,7 +27,6 @@ import org.junit.Before
 import org.junit.Test
 import org.maplibre.geojson.Point
 import java.io.IOException
-import java.util.Collections
 import java.util.Locale
 
 /**
@@ -52,7 +52,7 @@ class SitesModelTest {
 
     /** The recorded server, and a list of what it was asked. */
     private class Server {
-        val asked: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
+        val asked: MutableList<String> = CopyOnWriteArrayList<String>()
 
         @Volatile
         var isReachable = true

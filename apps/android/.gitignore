@@ -2,6 +2,8 @@
 # interface of the Rust core and the compiled core included.
 .gradle/
 build/
+# What the Kotlin compiler keeps while it runs.
+.kotlin/
 # Where the Android SDK is on this machine.
 local.properties
 # Android Studio's project files.

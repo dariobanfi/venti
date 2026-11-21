@@ -9,6 +9,7 @@ import fly.venti.core.AssistantRequest
 import fly.venti.core.HttpHeader
 import fly.venti.core.assistantModels
 import fly.venti.core.serverStatus
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -22,7 +23,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.net.InetSocketAddress
-import java.util.Collections
 
 /**
  * The assistant's conversation model against the real core, with the
@@ -70,7 +70,7 @@ class AssistantChatTest {
 
     @Test
     fun theKeyGoesToTheProviderInAHeaderAndTheLogbookInTheBody() = runBlocking {
-        val seen = Collections.synchronizedList(mutableListOf<AssistantRequest>())
+        val seen = CopyOnWriteArrayList<AssistantRequest>()
         val chat = makeChat(
             transport = { request ->
                 seen += request
@@ -129,7 +129,7 @@ class AssistantChatTest {
     @Test
     fun liveWindIsFetchedFromThePilotsServerWithoutTheKey() = runBlocking {
         val logbook = makeLogbook()
-        val fetched = Collections.synchronizedList(mutableListOf<String>())
+        val fetched = CopyOnWriteArrayList<String>()
         val recorded = TestSupport.recordedAnswers
         // The server's clock when its answers were recorded: 45 minutes
         // after the Zugspitze's reading.
@@ -185,7 +185,7 @@ class AssistantChatTest {
 
     @Test
     fun withoutAServerTheWindToolIsNotOffered() = runBlocking {
-        val seen = Collections.synchronizedList(mutableListOf<AssistantRequest>())
+        val seen = CopyOnWriteArrayList<AssistantRequest>()
         val chat = makeChat(
             transport = { request ->
                 seen += request
@@ -242,7 +242,7 @@ class AssistantChatTest {
         val preferences = MemoryPreferences()
         val logbook = makeLogbook()
         val models = assistantModels().map { it.id }
-        val seen = Collections.synchronizedList(mutableListOf<AssistantRequest>())
+        val seen = CopyOnWriteArrayList<AssistantRequest>()
         val chat = makeChat(logbook, preferences = preferences, transport = { request ->
             seen += request
             ScriptedProvider.answer(request)
@@ -264,7 +264,7 @@ class AssistantChatTest {
     @Test
     fun aRequestIsPostedWithItsHeadersAndTheAnswerComesBackWhateverItsStatus() = runBlocking {
         // A provider on this machine, to see what is really sent.
-        val received = Collections.synchronizedList(mutableListOf<String>())
+        val received = CopyOnWriteArrayList<String>()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/v1/messages") { exchange ->
             received += exchange.requestMethod

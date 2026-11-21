@@ -12,6 +12,7 @@ import fly.venti.app.settings.MemoryPreferences
 import fly.venti.core.Coordinate
 import fly.venti.core.FlightSession
 import fly.venti.core.Replay
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -28,7 +29,6 @@ import org.junit.Test
 import org.maplibre.geojson.LineString
 import java.io.File
 import java.io.IOException
-import java.util.Collections
 import java.util.Locale
 
 /**
@@ -68,7 +68,7 @@ class TerrainModelTest {
 
     /** A tile server that notes what it was asked and answers as the test says. */
     private class Server(var answer: (String) -> HttpAnswer) {
-        val asked: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
+        val asked: MutableList<String> = CopyOnWriteArrayList<String>()
 
         val transport: TerrainTransport = { url ->
             asked += url
@@ -208,7 +208,7 @@ class TerrainModelTest {
     fun theCockpitHandsTheGroundToItsSessionAndAsksForTheGroundAroundTheGlider() {
         val model = TerrainModel(source = { TerrainModel.Source.Archive(archive) }, folder = null)
         runBlocking { model.load(TAKEOFF) }
-        val wanted: MutableList<Coordinate> = Collections.synchronizedList(mutableListOf<Coordinate>())
+        val wanted: MutableList<Coordinate> = CopyOnWriteArrayList<Coordinate>()
         val fly = FlySession(TestSupport.newFolder("fly"), MemoryPreferences(), NoSensors(), SilentTone(), scope)
         fly.terrain = { model.terrain }
         fly.wantTerrain = { place -> wanted += place }

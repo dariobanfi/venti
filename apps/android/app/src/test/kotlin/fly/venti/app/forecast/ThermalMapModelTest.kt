@@ -5,6 +5,7 @@ import fly.venti.app.HttpAnswer
 import fly.venti.core.Bounds
 import fly.venti.core.Flyability
 import fly.venti.core.thermalMapPath
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -16,7 +17,6 @@ import org.junit.Before
 import org.junit.Test
 import org.maplibre.geojson.Polygon
 import java.io.IOException
-import java.util.Collections
 import java.util.Locale
 
 /**
@@ -39,7 +39,7 @@ class ThermalMapModelTest {
 
     /** The server, and a list of what it was asked. */
     private class Server {
-        val asked: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
+        val asked: MutableList<String> = CopyOnWriteArrayList<String>()
 
         @Volatile
         var isReachable = true

@@ -9,6 +9,7 @@ import fly.venti.core.LiveAudience
 import fly.venti.core.LiveShareState
 import fly.venti.core.LocationSample
 import fly.venti.core.ServerRequest
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -24,7 +25,6 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.util.Collections
 
 /**
  * Sharing a flight while it is under way: the session model against the
@@ -53,7 +53,7 @@ class LiveSharingTest {
 
     /** The pilot's server as the cockpit sees it: it remembers what it was sent. */
     private class Server {
-        val requests: MutableList<ServerRequest> = Collections.synchronizedList(mutableListOf<ServerRequest>())
+        val requests: MutableList<ServerRequest> = CopyOnWriteArrayList<ServerRequest>()
 
         /** What it answers, or `null` for no answer at all. */
         @Volatile

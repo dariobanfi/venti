@@ -15,6 +15,7 @@ import fly.venti.app.waypoints.place
 import fly.venti.core.FlightSession
 import fly.venti.core.TaskPhase
 import fly.venti.core.TaskRole
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -28,7 +29,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
-import java.util.Collections
 import java.util.Locale
 
 /**
@@ -154,7 +154,7 @@ class TaskTest {
 
     /** Remembers what it was asked to say. */
     private class Spoken : Announcer {
-        val said: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
+        val said: MutableList<String> = CopyOnWriteArrayList<String>()
 
         override fun say(text: String) {
             said += text

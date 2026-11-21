@@ -18,6 +18,7 @@ import fly.venti.core.ToneView
 import fly.venti.core.pendingRecordings
 import fly.venti.core.liveMap
 import fly.venti.core.windMap
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -229,7 +230,7 @@ class FlySessionTest {
         val folder = TestSupport.newFolder("fly")
         val cockpit = SelfRecording(folder, scope)
         val fly = cockpit.fly
-        val saved = java.util.Collections.synchronizedList(mutableListOf<fly.venti.core.PendingRecording>())
+        val saved = CopyOnWriteArrayList<fly.venti.core.PendingRecording>()
         fly.savedByItself = { saved += it }
 
         // Opened on the ground: ready, and nothing written.
@@ -356,7 +357,7 @@ class FlySessionTest {
 
     /** An announcer that remembers what it was asked to say. */
     private class Spoken : Announcer {
-        val said: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val said: MutableList<String> = CopyOnWriteArrayList<String>()
 
         override fun say(text: String) {
             said += text
@@ -372,7 +373,7 @@ class FlySessionTest {
         // The stations Venti's own tests keep, read ten minutes after the newest of them.
         val now = java.time.Instant.parse("2026-11-18T19:10:00Z").epochSecond.toLong()
         val stations = windMap(200u, TestSupport.recordedAnswers.resolve("stations.json").readBytes(), now)
-        val asked = java.util.Collections.synchronizedList(mutableListOf<Pair<Coordinate, Coordinate?>>())
+        val asked = CopyOnWriteArrayList<Pair<Coordinate, Coordinate?>>()
         fly.windOnTheGround = { place, landing ->
             asked += place to landing
             stations
@@ -419,7 +420,7 @@ class FlySessionTest {
         // Who is in the air, as Venti's own tests keep its answer.
         val answer = liveMap(200u, TestSupport.recordedAnswers.resolve("live.json").readBytes()).gliders
         assertTrue(answer.isNotEmpty())
-        val asked = java.util.Collections.synchronizedList(mutableListOf<Coordinate>())
+        val asked = CopyOnWriteArrayList<Coordinate>()
         fly.others = { place ->
             asked += place
             answer

@@ -9,6 +9,7 @@ import fly.venti.core.Coordinate
 import fly.venti.core.CoreException
 import fly.venti.core.ForecastView
 import fly.venti.core.WindBand
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
@@ -21,7 +22,6 @@ import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.time.ZoneOffset
-import java.util.Collections
 import java.util.Locale
 
 /**
@@ -104,7 +104,7 @@ class ForecastTest {
     @Test
     fun aForecastTheServerIsStillFetchingIsAskedForAgain() = runBlocking {
         // "Not yet" twice, then the forecast.
-        val asked = Collections.synchronizedList(mutableListOf<String>())
+        val asked = CopyOnWriteArrayList<String>()
         val wind = model(asked) {
             if (asked.size < 3) HttpAnswer(503, refusal("unavailable")) else HttpAnswer(200, CANNED.toByteArray())
         }

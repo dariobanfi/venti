@@ -9,6 +9,7 @@ import fly.venti.core.ReportReason
 import fly.venti.core.ReportSubject
 import fly.venti.core.ServerRequest
 import fly.venti.core.syncSummaryInWords
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -20,7 +21,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
-import java.util.Collections
 
 /**
  * The account model against the real core, with the server played by the
@@ -41,7 +41,7 @@ class AccountModelTest {
 
     /** A server that signs anyone in, has no flights and takes every upload. */
     private class Server {
-        val sent: MutableList<Sent> = Collections.synchronizedList(mutableListOf<Sent>())
+        val sent: MutableList<Sent> = CopyOnWriteArrayList<Sent>()
 
         /** Answers in place of the usual ones, where a test wants a server in a particular mood. */
         var instead: suspend (Sent) -> HttpAnswer? = { null }

@@ -10,7 +10,9 @@
 //! drawing, counts how it was flown, runs the live flight computer, reads,
 //! measures and follows competition tasks, works out the thermals of an
 //! hour of a weather model, reads its wind at a height between the model's
-//! levels, and says what a forecast's hours make of a day for flying.
+//! levels, says what a forecast's hours make of a day for flying, finds the
+//! strongest wind in the model's cells around a place, and marks where the
+//! temperatures at the model's levels stop thermals.
 
 pub mod aloft;
 pub mod analysis;
@@ -21,6 +23,8 @@ pub mod geodesy;
 pub mod habits;
 mod identity;
 pub mod igc;
+pub mod layering;
+pub mod nearby;
 mod summary;
 pub mod testing;
 pub mod track;

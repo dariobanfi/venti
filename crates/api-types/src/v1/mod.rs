@@ -96,7 +96,7 @@ pub use flights::{
     MAX_PAGE_SIZE, Pilot, PilotResponse, RANKING_COUNTED, RankedPilot, RankingResponse, RouteKind,
     UpdateFlightRequest, UploadResponse, Visibility,
 };
-pub use forecast::{ForecastLayer, ForecastResponse};
+pub use forecast::{ForecastLayer, ForecastNearby, ForecastResponse, NearbyHour, NearbyStrongest};
 pub use groups::{
     CreateGroupRequest, CreateGroupResponse, Group, GroupId, GroupIdError, GroupInviteCode,
     GroupInviteResponse, GroupResponse, GroupTextError, GroupsResponse, HandOverGroupRequest,

@@ -1181,6 +1181,36 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
       ]
     }
   ],
+  "nearby": {
+    "source": "open-meteo",
+    "radius_km": 30.0,
+    "cells": 4,
+    "hours": [
+      {
+        "time": "2026-11-21T08:00:00Z",
+        "model": "icon-d2",
+        "run": "2026-11-21T06:00:00Z",
+        "wind": {
+          "kmh": 7,
+          "at": {
+            "lat": 47.7,
+            "lon": 11.9
+          },
+          "from_deg": 250,
+          "ground_m": 947
+        },
+        "gust": {
+          "kmh": 45,
+          "at": {
+            "lat": 47.7,
+            "lon": 11.8
+          },
+          "from_deg": 260,
+          "ground_m": 1069
+        }
+      }
+    ]
+  },
   "attributions": [
     {
       "source": "open-meteo",
@@ -1193,7 +1223,7 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
 }
 ```
 
-The place is the east shore of the Tegernsee. Each series is cut to its first hour here; in the whole answer ICON-D2 has 48 hours and ICON-EU 78.
+The place is the east shore of the Tegernsee. Each series is cut to its first hour here, and so is `nearby`; in the whole answer ICON-D2 has 48 hours, ICON-EU 78 and `nearby` 26.
 
 **The answer holds magnitudes and no judgement.** Nothing in it says whether a day can be flown, and a client that shows it adds none. The server's own reading of the days, cell by cell, is the thermal map ([`GET /v1/thermals`](#get-v1thermals)).
 
@@ -1205,6 +1235,7 @@ The place is the east shore of the Tegernsee. Each series is cut to its first ho
 | `fetched_at` | When the server asked its source. An answer is reused for up to half an hour |
 | `layers[].source` | The source of the layer. Its credit and licence are the entry of `attributions` with the same `source` |
 | `layers[].series` | One series per model |
+| `nearby` | The strongest wind and gust the models have around the place, hour by hour: see [below](#the-wind-around-the-place). Left out where the server has none |
 
 A series is the canonical forecast of the project, `venti_domain::ForecastSeries`:
 
@@ -1247,13 +1278,30 @@ A level of `winds_aloft` is given in one of two ways:
 
 Every value but `time` may be missing, and a missing value is left out, never written as `null` or zero. Between 180 m above the ground and the pressure surfaces, which lie 1.5 km apart, the answer has nothing.
 
+<a id="the-wind-around-the-place"></a>**The wind around the place.** A foehn two valleys away is in the model's cells around a place before it is in the place's own. So the answer carries, in `nearby`, the strongest mean wind and the strongest gust among the cells of the server's thermal map ([`GET /v1/thermals`](#get-v1thermals)) whose centres lie within `radius_km` of `point`, for every hour the map keeps from the first hour of the answer's series on. They are read from what the map already holds, the same values as `GET /v1/thermals/hours?layer=wind` serves: the forecast service is not asked again. Like the rest of the answer they are magnitudes: whether that is much against the place's own wind is the reader's rule (the apps' is in [design.md](design.md#thermals)).
+
+| Field | Meaning |
+|---|---|
+| `nearby.source` | The source whose models these are; its credit is in `attributions` |
+| `nearby.radius_km` | How far from `point` the centre of a cell may lie: 30 km |
+| `nearby.cells` | How many cells of the map lie within that distance. Some 34 in the middle of a region, fewer at its edge; four in the development mode, whose map has four |
+| `nearby.hours[].time` | The moment the values are for. Daylight hours only, an hour after sunrise to an hour before sunset: the map keeps no others |
+| `nearby.hours[].model`, `.run` | The model the map has that hour's day from, and its run. A day of the map is one model's ([below](#get-v1thermals)); it need not be the model a client reads the place's own hour from |
+| `nearby.hours[].wind`, `.gust` | The strongest mean wind 10 m above the model's ground among those cells, and the strongest gust. Each is left out when no cell has one in the hour, and an hour with neither is not listed |
+| `.kmh` | Its speed in whole km/h, as the map keeps it |
+| `.at` | The centre of the cell that has it; of equally strong ones the nearest to `point` |
+| `.from_deg` | Where the mean wind of that cell comes from, to the nearest ten degrees. Left out when the model gives none |
+| `.ground_m` | The height of the model's ground in that cell. **Show it with the wind**: a cell on a ridge has more wind than one in a valley on any day. Left out for a cell of water |
+
+`nearby` is left out, never empty or `null`: by a server that makes no thermal map, until its map is made after a start, and for a place none of the map's cells lies near. It is as coarse as the map: a cell of the map is 11 by 7.5 km and stands for the one cell of the model nearest its centre, one of some twenty of ICON-D2's, so a narrow valley's wind can be missing from it.
+
 **What it does not have.** No boundary-layer height, no thermal strength, no cloud base for ordinary cumulus. No model the server has computes a climb rate a glider sees, and the answer holds the models' figures only. What the apps and the assistant's `forecast_at` tool say of thermals is an estimate they work out from this answer, from `heat_to_air_w_m2` and the temperatures ([design.md](design.md#thermals)). [data-sources.md](data-sources.md#forecasts) says what the source lacks and where it could come from.
 
 **Credit.** Show the credit of the layer's source next to the forecast, with its link: Open-Meteo asks for that wherever its data is shown.
 
 **Caching.** `Cache-Control: public, max-age=60` and an `ETag`, like the stations. The server itself keeps an answer for up to half an hour, so asking more often than that brings the same answer and a `304`.
 
-**Size.** A whole answer for Tegernsee, two models and 126 hours, of which 78 are of a main run of ICON-EU, is 140 kB plain and 14 kB with gzip (measured 2026-11-21 over the recorded answers). After a run of ICON-EU in between, that model's series has 30 hours at most and the answer is smaller.
+**Size.** A whole answer for Tegernsee, two models and 126 hours, of which 78 are of a main run of ICON-EU, is 146 kB plain and 14 kB with gzip (measured 2026-11-21 over the recorded answers). Of that `nearby` is 6.1 kB plain for its 26 hours, some 240 bytes an hour; in summer a day has up to 14 such hours, so four days are some 13 kB plain. After a run of ICON-EU in between, that model's series has 30 hours at most and the answer is smaller.
 
 **When there is no forecast.**
 

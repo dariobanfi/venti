@@ -13,6 +13,7 @@ use axum::http::{Method, StatusCode, header};
 use chrono::{Duration, TimeZone, Utc};
 use venti_api_types::v1::{
     ErrorCode, ForecastRequest, ForecastResponse, ForecastsHealth, HealthResponse,
+    ThermalHoursResponse,
 };
 use venti_domain::GeoPoint;
 use venti_regions::RegionPack;
@@ -88,6 +89,9 @@ fn cut(mut answer: ForecastResponse, hours: usize) -> ForecastResponse {
             series.hours.truncate(hours);
         }
     }
+    if let Some(nearby) = &mut answer.nearby {
+        nearby.hours.truncate(hours);
+    }
     answer
 }
 
@@ -101,7 +105,8 @@ async fn the_forecast_of_a_place_is_one_series_per_model_with_its_run_and_its_cr
     assert_eq!(answer.header(header::CONTENT_TYPE), "application/json");
     assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=60");
     assert!(answer.header(header::ETAG).starts_with("W/\""));
-    // A whole answer: two models, 126 hours, 140 kB before compression.
+    // A whole answer: two models, 126 hours and the wind near by, 146 kB
+    // before compression.
     assert!(answer.body.len() < 170_000, "{} bytes", answer.body.len());
     let forecast: ForecastResponse = answer.json();
 
@@ -158,6 +163,68 @@ async fn the_forecast_of_a_place_is_one_series_per_model_with_its_run_and_its_cr
     assert!(!text.contains("flyable"));
 
     assert_golden(&golden("forecast.json"), &cut(forecast, 1));
+}
+
+#[tokio::test]
+async fn a_forecast_comes_with_the_strongest_wind_the_thermal_map_has_near_the_place() {
+    let router = recorded().await;
+    let answer = get(&router, TEGERNSEE).await;
+    let forecast: ForecastResponse = answer.json();
+    let nearby = forecast.nearby.expect("the development mode makes a map");
+
+    // The development mode's map is four cells around the Tegernsee, all
+    // within the distance.
+    assert_eq!(nearby.source.as_str(), "open-meteo");
+    assert_eq!(nearby.radius_km, venti_flight::nearby::NEARBY_KM);
+    assert_eq!(nearby.cells, 4);
+    // From the first hour the forecast has, oldest first: the map's hours
+    // of the day before are not among them.
+    let first = forecast.layers[0].series[0].hours[0].time;
+    assert!(nearby.hours.iter().all(|hour| hour.time >= first));
+    assert!(
+        nearby
+            .hours
+            .windows(2)
+            .all(|pair| pair[0].time < pair[1].time)
+    );
+
+    // Each hour is the strongest of what the map serves for that hour,
+    // and names a cell that has it.
+    let mut hours = 0;
+    for date in ["2026-11-21", "2026-11-22", "2026-11-23", "2026-11-24"] {
+        let day: ThermalHoursResponse = get(
+            &router,
+            &format!("/v1/thermals/hours?date={date}&layer=wind"),
+        )
+        .await
+        .json();
+        for hour in day.hours.iter().filter(|hour| hour.time >= first) {
+            let near = nearby
+                .hours
+                .iter()
+                .find(|near| near.time == hour.time)
+                .unwrap_or_else(|| panic!("no hour near by at {}", hour.time));
+            assert_eq!(near.model, day.model);
+            assert_eq!(near.run, day.run);
+            for (found, values) in [(&near.wind, &hour.wind_kmh), (&near.gust, &hour.gust_kmh)] {
+                let strongest = values.iter().flatten().max().copied();
+                assert_eq!(found.as_ref().map(|found| found.kmh), strongest);
+                if let Some(found) = found {
+                    let cell = day.grid.cell_at(found.at).unwrap();
+                    assert_eq!(values[cell], strongest);
+                    assert_eq!(found.ground_m, day.ground_m[cell]);
+                }
+            }
+            hours += 1;
+        }
+    }
+    assert_eq!(hours, nearby.hours.len());
+    // Four days of November daylight, the first without the hours before
+    // the run and the last to the run's end: 26 hours, 6.1 kB of the
+    // answer's 146 kB before compression.
+    assert_eq!(nearby.hours.len(), 26);
+    let bytes = serde_json::to_vec(&nearby).unwrap().len();
+    assert!(bytes < 7_000, "{bytes} bytes");
 }
 
 #[tokio::test]

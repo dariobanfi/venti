@@ -176,6 +176,36 @@
       ]
     }
   ],
+  "nearby": {
+    "source": "open-meteo",
+    "radius_km": 30.0,
+    "cells": 4,
+    "hours": [
+      {
+        "time": "2026-11-21T08:00:00Z",
+        "model": "icon-d2",
+        "run": "2026-11-21T06:00:00Z",
+        "wind": {
+          "kmh": 7,
+          "at": {
+            "lat": 47.7,
+            "lon": 11.9
+          },
+          "from_deg": 250,
+          "ground_m": 947
+        },
+        "gust": {
+          "kmh": 45,
+          "at": {
+            "lat": 47.7,
+            "lon": 11.8
+          },
+          "from_deg": 260,
+          "ground_m": 1069
+        }
+      }
+    ]
+  },
   "attributions": [
     {
       "source": "open-meteo",

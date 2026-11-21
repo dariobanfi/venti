@@ -18,18 +18,28 @@
 //! and its cell. The limits are our own, round numbers a cautious pilot
 //! would nod to. To verify with pilots, all of them.
 //!
+//! Two things stand beside the verdicts and change none of them. The
+//! strongest wind and gust the model has in the cells around the place,
+//! which the server hands out with the forecast, with a line when that is
+//! much more than the place has ([`venti_flight::nearby`]): a foehn two
+//! valleys away is in those cells before it is here. And the layering of
+//! the air: where between two of the model's levels the temperature falls
+//! too slowly for thermals, or rises ([`venti_flight::layering`]).
+//!
 //! The rules that judge by the air alone, with their limits, are the
 //! flight engine's ([`venti_flight::day`]), which the server's thermal map
 //! uses too. What a take-off adds is here: the directions it works in, and
 //! the words.
 
 use chrono::{DateTime, Duration, Timelike, Utc};
-use venti_api_types::v1::ForecastResponse;
-use venti_domain::{ForecastHour, ForecastSeries};
+use venti_api_types::v1::{ForecastNearby, ForecastResponse, NearbyHour, NearbyStrongest};
+use venti_domain::{ForecastHour, ForecastSeries, GeoPoint};
 use venti_flight::convection::{Convection, convection};
 use venti_flight::day::{
     self as rating, Against, Kind, RatedHour, Verdict, against, kind_of_hour, worst,
 };
+use venti_flight::layering::{self, Stability};
+use venti_flight::nearby::{self, Stronger};
 use venti_flight::sun;
 
 use crate::airspace::compass;
@@ -164,6 +174,64 @@ pub struct OutlookWind {
     pub wind: ForecastWind,
 }
 
+/// The strongest wind the model has near a take-off in an hour: among
+/// the squares of the server's forecast map within 30 km of the place,
+/// each of which is one cell of the model. It stands beside the hour and
+/// is no part of its verdict.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct OutlookNearby {
+    /// The strongest mean wind near by, 10 m above the model's ground, in
+    /// whole km/h: "38". Empty when no square has a wind in the hour.
+    pub wind_kmh: String,
+    /// Where that is from the place: "25 km to the south", and "at the
+    /// place" for the square the place lies in the middle of. Empty
+    /// without a wind.
+    pub wind_where: String,
+    /// How high the model's ground lies there, metres above sea level. A
+    /// square on a ridge has more wind than a valley on any day.
+    pub wind_ground_m: Option<f64>,
+    /// The strongest gust near by in whole km/h: "55". Empty when no
+    /// square has gusts in the hour.
+    pub gust_kmh: String,
+    /// Where that is: "25 km to the south". Empty without gusts.
+    pub gust_where: String,
+    /// How high the model's ground lies there.
+    pub gust_ground_m: Option<f64>,
+    /// Whether that is much stronger than the model has at the place
+    /// itself: gusts of 40 km/h or a wind of 30 km/h near by, and 15 km/h
+    /// more than at the place.
+    pub stronger: bool,
+    /// What is much stronger, in a line: "Gusts to 55 km/h 25 km to the
+    /// south over ground at 2400 m, 22 km/h here". Empty unless
+    /// `stronger`.
+    pub line: String,
+}
+
+/// A stretch of air over a take-off in which thermals stop: between two
+/// of the model's levels the temperature falls too slowly, or rises.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct OutlookLayer {
+    /// Its lower level, metres above sea level to the nearest fifty.
+    pub bottom_m: f64,
+    /// Its upper level, likewise.
+    pub top_m: f64,
+    /// Whether the temperature rises with height in it. Otherwise it
+    /// falls by less than 0.5 °C per 100 m.
+    pub inversion: bool,
+    /// By how much the temperature falls with height in it, °C per 100 m
+    /// to a tenth: the mean between the two levels. Negative in an
+    /// inversion.
+    pub fall_c_per_100m: f64,
+    /// The layer in words: "Stable layer between 1500 and 3000 m: 0.3 °C
+    /// per 100 m", "Inversion between 1000 and 1200 m: 2.0 °C warmer per
+    /// 100 m".
+    pub words: String,
+}
+
 /// One daylight hour at a take-off.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -202,6 +270,15 @@ pub struct OutlookHour {
     /// 10 m above its ground to 5000 m above the sea. Empty where the
     /// model's ground is not known: a level's height cannot be said then.
     pub winds: Vec<OutlookWind>,
+    /// Where thermals stop by the temperatures at the model's levels,
+    /// lowest first, up to 5000 m above the sea. Empty where the air
+    /// cools fast enough all the way up, and where the model's ground is
+    /// not known. Coarse: [`SiteOutlook::layers_note`] says how.
+    pub layers: Vec<OutlookLayer>,
+    /// The strongest wind and gust the model has near the place in the
+    /// hour. `None` when the server gave none: it makes no forecast map,
+    /// or the map has no square near the place or not this hour.
+    pub nearby: Option<OutlookNearby>,
 }
 
 /// One day at a take-off.
@@ -231,6 +308,13 @@ pub struct OutlookDay {
     /// run and not of the day, "The forecast ends at 14:00". Empty when
     /// nothing does.
     pub why: String,
+    /// The wind near by, when in an hour still to come it is much
+    /// stronger than at the place: the hour with the strongest of it,
+    /// "Much stronger near by at 14:00: gusts to 55 km/h 25 km to the
+    /// south over ground at 2400 m, 22 km/h here". Empty when no hour's
+    /// is. A line to show with the day whatever its verdict; it is no part
+    /// of the verdict.
+    pub nearby: String,
     /// Its daylight hours still to come, the earliest first.
     pub hours: Vec<OutlookHour>,
     /// The wind at the middle of the day's best stretch, 10 m above the
@@ -299,6 +383,12 @@ pub struct SiteOutlook {
     pub fetched_unix_s: i64,
     /// What the reading is and is not, for the foot of the screen.
     pub note: String,
+    /// What the wind near by is and is not, to show wherever an hour's or
+    /// a day's is shown. Empty when the server gave none.
+    pub nearby_note: String,
+    /// What the layers of an hour are and are not, to show wherever they
+    /// are drawn or listed. Empty without days.
+    pub layers_note: String,
     /// Whose data it is. The licences ask for this next to the data.
     pub credits: Vec<Credit>,
 }
@@ -334,6 +424,8 @@ pub fn site_outlook(
             run_unix_s: 0,
             fetched_unix_s: response.fetched_at.timestamp(),
             note: String::new(),
+            nearby_note: String::new(),
+            layers_note: String::new(),
             credits: response.attributions.iter().map(credit).collect(),
         });
     };
@@ -345,9 +437,13 @@ pub fn site_outlook(
     // A day is one model's, never a blend of two: the finest model's,
     // unless a coarser one has more of the day's hours. That is the day a
     // fine model's run ends in, and the days after it.
+    let around = response.nearby.as_ref().map(|nearby| Around {
+        place: response.point,
+        nearby,
+    });
     let mut chosen: Vec<OutlookDay> = Vec::new();
     for model in &models {
-        for day in days(model, &site, utc_offset_s, now_unix_s) {
+        for day in days(model, &site, around.as_ref(), utc_offset_s, now_unix_s) {
             match chosen
                 .iter_mut()
                 .find(|have| have.start_unix_s == day.start_unix_s)
@@ -363,6 +459,16 @@ pub fn site_outlook(
         // What the finest model's reading is, also on a day with nothing
         // to say about thermals; each day carries its own.
         note: note(series, chosen.iter().any(|day| day.thermals.is_some())),
+        nearby_note: response
+            .nearby
+            .as_ref()
+            .map(nearby_note)
+            .unwrap_or_default(),
+        layers_note: if chosen.is_empty() {
+            String::new()
+        } else {
+            LAYERS_NOTE.to_owned()
+        },
         days: chosen,
         model: crate::forecast::model_name(series.model.as_str()),
         run_unix_s: series.run.timestamp(),
@@ -391,6 +497,198 @@ fn note(series: &ForecastSeries, thermals: bool) -> String {
     )
 }
 
+/// What the layers of an hour are and are not.
+const LAYERS_NOTE: &str = "Layers are read between the model's levels as Venti has them: one step \
+    from the ground to 180 m above it, then surfaces some 1,500 m apart. Between two levels only \
+    the mean is known, so a thin inversion shows as a slightly slower fall or not at all. A true \
+    sounding needs the model's own levels.";
+
+/// What the wind near by is and is not.
+fn nearby_note(nearby: &ForecastNearby) -> String {
+    format!(
+        "Near by is the strongest wind and gust 10 m above the model's ground among the {} \
+         squares of the forecast map within {:.0} km. A square is one cell of the model, so a \
+         narrow valley's wind can be missing, and a square on a ridge has more wind than a \
+         valley on any day. It is called much stronger from gusts of {:.0} km/h or a wind of \
+         {:.0} km/h that is {:.0} km/h above the place's own, and it changes no verdict.",
+        nearby.cells,
+        nearby.radius_km,
+        nearby::NEARBY_GUSTS_KMH,
+        nearby::NEARBY_WIND_KMH,
+        nearby::MUCH_STRONGER_KMH,
+    )
+}
+
+/// The wind around the place, as the server gave it.
+struct Around<'a> {
+    /// The place the forecast is for.
+    place: GeoPoint,
+    nearby: &'a ForecastNearby,
+}
+
+impl Around<'_> {
+    /// What the neighbourhood has in the hour the place's `hour` is of.
+    fn at(&self, hour: &ForecastHour) -> Option<OutlookNearby> {
+        let near = self
+            .nearby
+            .hours
+            .iter()
+            .find(|near| near.time == hour.time)?;
+        Some(outlook_nearby(self.place, hour, near))
+    }
+}
+
+/// Where a square lies from the place, in words: "25 km to the south", to
+/// the nearest five kilometres, which is as fine as squares 11 km apart
+/// allow. "At the place" within 2.5 km.
+fn whereabouts_in_words(place: GeoPoint, square: GeoPoint) -> String {
+    const POINTS: [&str; 8] = [
+        "north",
+        "north-east",
+        "east",
+        "south-east",
+        "south",
+        "south-west",
+        "west",
+        "north-west",
+    ];
+    let found = nearby::whereabouts(place, square);
+    let km = (found.distance_km / 5.0).round() * 5.0;
+    if km < 5.0 {
+        return "at the place".to_owned();
+    }
+    let point = POINTS[((found.bearing_deg.rem_euclid(360.0) + 22.5) / 45.0) as usize % 8];
+    format!("{km:.0} km to the {point}")
+}
+
+/// An hour of the neighbourhood beside the place's own hour.
+fn outlook_nearby(place: GeoPoint, hour: &ForecastHour, near: &NearbyHour) -> OutlookNearby {
+    let kmh = |ms: f64| ms * 3.6;
+    let here = (hour.wind_speed_ms.map(kmh), hour.wind_gust_ms.map(kmh));
+    let speed = |found: &Option<NearbyStrongest>| found.as_ref().map(|found| f64::from(found.kmh));
+    let stronger = nearby::much_stronger(here, (speed(&near.wind), speed(&near.gust)));
+    let place_of = |found: &NearbyStrongest| {
+        let over = found
+            .ground_m
+            .map(|ground| format!(" over ground at {ground} m"))
+            .unwrap_or_default();
+        format!("{}{over}", whereabouts_in_words(place, found.at))
+    };
+    let line = match (stronger, &near.gust, &near.wind) {
+        (Some(Stronger::Gusts), Some(gust), _) => format!(
+            "Gusts to {} km/h {}, {:.0} km/h here",
+            gust.kmh,
+            place_of(gust),
+            here.1.unwrap_or_default()
+        ),
+        (Some(Stronger::Wind), _, Some(wind)) => format!(
+            "Wind {} km/h {}, {:.0} km/h here",
+            wind.kmh,
+            place_of(wind),
+            here.0.unwrap_or_default()
+        ),
+        _ => String::new(),
+    };
+    let text = |found: &Option<NearbyStrongest>| {
+        found
+            .as_ref()
+            .map(|found| found.kmh.to_string())
+            .unwrap_or_default()
+    };
+    let position = |found: &Option<NearbyStrongest>| {
+        found
+            .as_ref()
+            .map(|found| whereabouts_in_words(place, found.at))
+            .unwrap_or_default()
+    };
+    let ground = |found: &Option<NearbyStrongest>| {
+        found
+            .as_ref()
+            .and_then(|found| found.ground_m)
+            .map(f64::from)
+    };
+    OutlookNearby {
+        wind_kmh: text(&near.wind),
+        wind_where: position(&near.wind),
+        wind_ground_m: ground(&near.wind),
+        gust_kmh: text(&near.gust),
+        gust_where: position(&near.gust),
+        gust_ground_m: ground(&near.gust),
+        stronger: stronger.is_some(),
+        line,
+    }
+}
+
+/// The day's line about the wind near by: the hour in which what is much
+/// stronger is strongest, gusts before a mean wind, the earliest of equal
+/// ones. Empty when no hour's is much stronger.
+fn nearby_of_day(hours: &[Judged<'_>]) -> String {
+    let mut found: Option<(&Judged<'_>, (bool, u32))> = None;
+    for judged in hours {
+        let Some(near) = judged.nearby.as_ref().filter(|near| near.stronger) else {
+            continue;
+        };
+        let gusts = near.line.starts_with("Gusts");
+        let figure = if gusts {
+            &near.gust_kmh
+        } else {
+            &near.wind_kmh
+        };
+        let weight = (gusts, figure.parse::<u32>().unwrap_or_default());
+        if found.is_none_or(|(_, most)| weight > most) {
+            found = Some((judged, weight));
+        }
+    }
+    found
+        .and_then(|(judged, _)| {
+            let line = &judged.nearby.as_ref()?.line;
+            let mut letters = line.chars();
+            let first = letters.next()?.to_lowercase();
+            Some(format!(
+                "Much stronger near by at {}: {first}{}",
+                clock(judged.local_hour),
+                letters.as_str()
+            ))
+        })
+        .unwrap_or_default()
+}
+
+/// The layers of an hour over ground at `ground_m`, as the outlook gives
+/// them: those that begin below [`WINDS_UP_TO_M`], in words.
+fn layers(hour: &ForecastHour, ground_m: f64) -> Vec<OutlookLayer> {
+    layering::layers(hour, ground_m)
+        .into_iter()
+        .filter(|layer| layer.bottom_m < WINDS_UP_TO_M)
+        .map(|layer| {
+            let (bottom_m, top_m) = (fifty(layer.bottom_m), fifty(layer.top_m));
+            let fall = tenth(layer.fall_c_per_100m);
+            let inversion = layer.kind == Stability::Inversion;
+            let words = if !inversion {
+                format!(
+                    "Stable layer between {bottom_m:.0} and {top_m:.0} m: {:.1} °C per 100 m",
+                    fall.abs()
+                )
+            } else if fall == 0.0 {
+                format!(
+                    "Inversion between {bottom_m:.0} and {top_m:.0} m: barely warmer with height"
+                )
+            } else {
+                format!(
+                    "Inversion between {bottom_m:.0} and {top_m:.0} m: {:.1} °C warmer per 100 m",
+                    -fall
+                )
+            };
+            OutlookLayer {
+                bottom_m,
+                top_m,
+                inversion,
+                fall_c_per_100m: fall,
+                words,
+            }
+        })
+        .collect()
+}
+
 /// What the site's source says about the take-off.
 struct Site<'a> {
     wind: &'a [WindSpan],
@@ -409,6 +707,8 @@ struct Judged<'a> {
     air: Option<Convection>,
     /// What they count as for the day.
     thermals: Option<Thermals>,
+    /// The wind around the place in the hour, where the server gave it.
+    nearby: Option<OutlookNearby>,
 }
 
 impl Judged<'_> {
@@ -435,6 +735,7 @@ pub(crate) use venti_flight::day::{fifty, tenth};
 fn days(
     series: &ForecastSeries,
     site: &Site<'_>,
+    around: Option<&Around<'_>>,
     utc_offset_s: i32,
     now_unix_s: i64,
 ) -> Vec<OutlookDay> {
@@ -507,6 +808,7 @@ fn days(
                 why,
                 air,
                 thermals,
+                nearby: around.and_then(|around| around.at(hour)),
             });
         }
     }
@@ -769,6 +1071,7 @@ fn day(
         status: verdict.words().to_owned(),
         headline,
         why,
+        nearby: nearby_of_day(hours),
         hours: hours
             .iter()
             .map(|judged| OutlookHour {
@@ -792,6 +1095,10 @@ fn day(
                 winds: ground_m
                     .map(|ground| winds(judged.hour, ground))
                     .unwrap_or_default(),
+                layers: ground_m
+                    .map(|ground| layers(judged.hour, ground))
+                    .unwrap_or_default(),
+                nearby: judged.nearby.clone(),
             })
             .collect(),
         wind_kmh: middle
@@ -1552,6 +1859,183 @@ mod tests {
         assert_eq!(night.days[0].model, "ICON-EU");
         assert_eq!(night.days[0].hours.len(), 1);
         assert_eq!(night.days[0].verdict, Flyability::NotFlyable);
+    }
+
+    /// The answer with the wind around the place added to it.
+    fn with_nearby(answer: Vec<u8>, hours: &str) -> Vec<u8> {
+        let text = String::from_utf8(answer).unwrap();
+        let nearby = format!(
+            r#""nearby": {{"source": "open-meteo", "radius_km": 30.0, "cells": 34, "hours": [{hours}]}},
+            "attributions""#
+        );
+        assert!(text.contains(r#""attributions""#));
+        text.replacen(r#""attributions""#, &nearby, 1).into_bytes()
+    }
+
+    #[test]
+    fn a_much_stronger_wind_near_by_is_said_with_the_day_and_changes_no_verdict() {
+        let fine: Vec<(u32, &str)> = (8..=19).map(|hour| (hour, FINE)).collect();
+        // At 14:00 gusts of 55 km/h 22 km to the south and a wind of 28
+        // in the place's own square; at 15:00 gusts of 38, which is under
+        // the limit; at 16:00 a wind of 32 km/h 15 km to the east.
+        let near = r#"
+            {"time": "2026-07-04T12:00:00Z", "model": "icon-d2", "run": "2026-07-04T03:00:00Z",
+             "wind": {"kmh": 28, "at": {"lat": 47.7, "lon": 11.8}, "from_deg": 180, "ground_m": 812},
+             "gust": {"kmh": 55, "at": {"lat": 47.5, "lon": 11.8}, "from_deg": 180, "ground_m": 2400}},
+            {"time": "2026-07-04T13:00:00Z", "model": "icon-d2", "run": "2026-07-04T03:00:00Z",
+             "wind": {"kmh": 20, "at": {"lat": 47.5, "lon": 11.8}},
+             "gust": {"kmh": 38, "at": {"lat": 47.5, "lon": 11.8}}},
+            {"time": "2026-07-04T14:00:00Z", "model": "icon-d2", "run": "2026-07-04T03:00:00Z",
+             "wind": {"kmh": 32, "at": {"lat": 47.7, "lon": 12.0}},
+             "gust": {"kmh": 36, "at": {"lat": 47.7, "lon": 12.0}}}"#;
+        let read = |body: Vec<u8>| {
+            site_outlook(200, body, SUMMER_TIME_S, north(), Some(1550.0), MORNING_S).unwrap()
+        };
+        let without = read(answer_with(&fine));
+        let with = read(with_nearby(answer_with(&fine), near));
+
+        // The day is what it was: the wind near by is a line beside it.
+        let day = &with.days[0];
+        assert_eq!(day.verdict, Flyability::Flyable);
+        assert_eq!(day.headline, "Good all day");
+        assert_eq!(day.why, "");
+        assert_eq!(
+            day.nearby,
+            "Much stronger near by at 14:00: gusts to 55 km/h 20 km to the south over ground \
+             at 2400 m, 18 km/h here"
+        );
+        let verdicts = |outlook: &SiteOutlook| -> Vec<(Flyability, String)> {
+            outlook.days[0]
+                .hours
+                .iter()
+                .map(|hour| (hour.verdict, hour.why.clone()))
+                .collect()
+        };
+        assert_eq!(verdicts(&with), verdicts(&without));
+
+        let at = |local: &str| {
+            day.hours
+                .iter()
+                .find(|hour| hour.hour == local)
+                .unwrap()
+                .nearby
+                .clone()
+        };
+        assert_eq!(
+            at("14"),
+            Some(OutlookNearby {
+                wind_kmh: "28".to_owned(),
+                wind_where: "at the place".to_owned(),
+                wind_ground_m: Some(812.0),
+                gust_kmh: "55".to_owned(),
+                gust_where: "20 km to the south".to_owned(),
+                gust_ground_m: Some(2400.0),
+                stronger: true,
+                line: "Gusts to 55 km/h 20 km to the south over ground at 2400 m, 18 km/h here"
+                    .to_owned(),
+            })
+        );
+        // Under the limit: the figures are there, and no line.
+        let under = at("15").unwrap();
+        assert_eq!((under.gust_kmh.as_str(), under.stronger), ("38", false));
+        assert_eq!(under.line, "");
+        assert_eq!(
+            at("16").unwrap().line,
+            "Wind 32 km/h 15 km to the east, 11 km/h here"
+        );
+        // An hour the server's map has nothing for.
+        assert_eq!(at("9"), None);
+        assert!(
+            with.nearby_note.contains("among the 34 squares")
+                && with.nearby_note.contains("within 30 km")
+                && with
+                    .nearby_note
+                    .contains("gusts of 40 km/h or a wind of 30 km/h")
+                && with.nearby_note.contains("15 km/h above"),
+            "{}",
+            with.nearby_note
+        );
+
+        // Without the neighbourhood, as from a server that makes no map.
+        assert_eq!(without.days[0].nearby, "");
+        assert!(
+            without.days[0]
+                .hours
+                .iter()
+                .all(|hour| hour.nearby.is_none())
+        );
+        assert_eq!(without.nearby_note, "");
+    }
+
+    #[test]
+    fn where_the_temperature_falls_too_slowly_or_rises_an_hour_has_a_layer() {
+        // Ground at 812 m. In the morning the air at 180 m above it is
+        // warmer than at the ground; all day the air between the surfaces
+        // at 1500 and 3100 m cools by 4.8 °C, 0.3 °C per 100 m, and
+        // above 5700 m it hardly cools at all.
+        let levels = |ground_c: f64| {
+            format!(
+                r#""wind_speed_ms": 3.0, "wind_direction_deg": 0.0, "temperature_c": {ground_c:.1},
+                "winds_aloft": [
+                {{"above_ground_m": 80.0, "temperature_c": 17.0}},
+                {{"above_ground_m": 180.0, "temperature_c": 18.5}},
+                {{"pressure_hpa": 850.0, "altitude_m": 1500.0, "temperature_c": 14.0}},
+                {{"pressure_hpa": 700.0, "altitude_m": 3100.0, "temperature_c": 9.2}},
+                {{"pressure_hpa": 600.0, "altitude_m": 4300.0, "temperature_c": 0.0}},
+                {{"pressure_hpa": 500.0, "altitude_m": 5700.0, "temperature_c": -10.0}},
+                {{"pressure_hpa": 400.0, "altitude_m": 7200.0, "temperature_c": -11.0}}]"#
+            )
+        };
+        let outlook = outlook_of(|hour| levels(if hour < 10 { 15.0 } else { 26.0 }));
+        let day = &outlook.days[0];
+
+        let morning: Vec<&str> = day.hours[0]
+            .layers
+            .iter()
+            .map(|layer| layer.words.as_str())
+            .collect();
+        assert_eq!(
+            morning,
+            [
+                "Inversion between 800 and 1000 m: 2.0 °C warmer per 100 m",
+                "Stable layer between 1500 and 3100 m: 0.3 °C per 100 m",
+            ]
+        );
+        assert!(day.hours[0].layers[0].inversion);
+        assert_eq!(day.hours[0].layers[0].fall_c_per_100m, -2.0);
+
+        // By noon the ground has warmed and the lowest step is gone; the
+        // layer higher up stays. The stable air from 5700 m up begins
+        // above where a paraglider flies and is not listed.
+        let noon = &day.hours[4].layers;
+        assert_eq!(
+            noon.iter()
+                .map(|layer| layer.words.as_str())
+                .collect::<Vec<_>>(),
+            ["Stable layer between 1500 and 3100 m: 0.3 °C per 100 m"]
+        );
+        assert_eq!(
+            (
+                noon[0].bottom_m,
+                noon[0].top_m,
+                noon[0].inversion,
+                noon[0].fall_c_per_100m
+            ),
+            (1500.0, 3100.0, false, 0.3)
+        );
+        assert!(outlook.layers_note.contains("true sounding"));
+
+        // An hour without temperatures higher up has none, and neither
+        // has air that cools fast enough all the way.
+        let bare = self::outlook(&[(12, FINE), (13, FINE)]);
+        assert!(bare.days[0].hours.iter().all(|hour| hour.layers.is_empty()));
+        let unstable = outlook_of(|_| air(400.0, 3400.0, 10.0, 4.0));
+        assert!(
+            unstable.days[0]
+                .hours
+                .iter()
+                .all(|hour| hour.layers.is_empty())
+        );
     }
 
     #[test]

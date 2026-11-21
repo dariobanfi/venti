@@ -39,6 +39,11 @@
 //!   a layer of it some tens of kilobytes. The days and their hours are
 //!   made together when a model's part is whole, so that they say the
 //!   same.
+//! - **Read for a place.** A forecast for a place goes out with the
+//!   strongest wind and gust among the cells within
+//!   `venti_flight::nearby::NEARBY_KM` of it, hour by hour
+//!   ([`ThermalMap::around`]): read from the hours served, at no request
+//!   to the source.
 //! - **Written down.** Each time a model's part is made whole its kept
 //!   hours go to the store ([`Keeper`]), and a start reads them back
 //!   ([`ThermalMap::restore`]): today keeps the hours before the newest run
@@ -50,14 +55,16 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use chrono::{Duration, NaiveDate};
 use venti_api_types::v1::{
-    THERMAL_GRID_DEG, ThermalGrid, ThermalHoursResponse, ThermalKind, ThermalLayer, ThermalMapDay,
-    ThermalMapHour, ThermalMapResponse, ThermalReason, ThermalVerdict,
+    ForecastNearby, NearbyHour, NearbyStrongest, THERMAL_GRID_DEG, ThermalGrid,
+    ThermalHoursResponse, ThermalKind, ThermalLayer, ThermalMapDay, ThermalMapHour,
+    ThermalMapResponse, ThermalReason, ThermalVerdict,
 };
 use venti_domain::{
     BoundingBox, ForecastHour, ForecastSeries, GeoPoint, ModelId, SourceId, Timestamp,
 };
 use venti_flight::aloft::wind_at_height;
 use venti_flight::day::{self, Kind, RatedHour, Reason, Verdict};
+use venti_flight::nearby;
 
 use futures::FutureExt;
 use futures::future::BoxFuture;
@@ -359,6 +366,42 @@ struct WindAtHeight {
 }
 
 impl DayHours {
+    /// The strongest wind and gust of each hour from `from` on among the
+    /// cells `near`, which are listed the nearest first; `points` are the
+    /// centres of the grid's cells. An hour in which none of them has a
+    /// wind or a gust is left out.
+    fn strongest_among(
+        &self,
+        near: &[usize],
+        points: &[GeoPoint],
+        from: Timestamp,
+    ) -> Vec<NearbyHour> {
+        self.hours
+            .iter()
+            .filter(|hour| hour.time >= from)
+            .filter_map(|hour| {
+                let strongest = |values: &[Option<u16>]| {
+                    let (found, kmh) = nearby::strongest(near.iter().map(|cell| values[*cell]))?;
+                    let cell = near[found];
+                    Some(NearbyStrongest {
+                        kmh,
+                        at: *points.get(cell)?,
+                        from_deg: hour.wind_from_deg[cell],
+                        ground_m: self.ground_m[cell],
+                    })
+                };
+                let (wind, gust) = (strongest(&hour.wind_kmh), strongest(&hour.gust_kmh));
+                (wind.is_some() || gust.is_some()).then(|| NearbyHour {
+                    time: hour.time,
+                    model: self.model.clone(),
+                    run: self.run,
+                    wind,
+                    gust,
+                })
+            })
+            .collect()
+    }
+
     /// One layer of the day as the API answers it, without the credit,
     /// which is the API's. `height_m` chooses the wind at a height above
     /// the sea in place of the wind at the ground, and is of no account
@@ -567,6 +610,34 @@ impl ThermalMap {
             .served
             .as_ref()
             .and_then(|served| served.hours.get(&date).cloned())
+    }
+
+    /// The strongest wind and the strongest gust among the cells of the
+    /// map near a place, for each kept hour from `from` on: what a
+    /// forecast for the place is handed out with
+    /// ([`venti_flight::nearby`] says which cells are near). Read from
+    /// the hours the map serves, so the forecast service is not asked.
+    /// `None` before a map was made, and for a place with no cell near.
+    pub fn around(&self, place: GeoPoint, from: Timestamp) -> Option<ForecastNearby> {
+        let near = nearby::cells_within(place, &self.points);
+        if near.is_empty() {
+            return None;
+        }
+        let days: Vec<Arc<DayHours>> = self
+            .lock()
+            .served
+            .as_ref()
+            .map(|served| served.hours.values().cloned().collect())?;
+        let hours = days
+            .iter()
+            .flat_map(|day| day.strongest_among(&near, &self.points, from))
+            .collect();
+        Some(ForecastNearby {
+            source: self.source.clone(),
+            radius_km: nearby::NEARBY_KM,
+            cells: u32::try_from(near.len()).unwrap_or(u32::MAX),
+            hours,
+        })
     }
 
     /// Where the map stands, for the server's health answer: when the map

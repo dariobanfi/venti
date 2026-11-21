@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use venti_domain::{ForecastSeries, GeoPoint, SourceId, Timestamp};
+use venti_domain::{ForecastSeries, GeoPoint, ModelId, SourceId, Timestamp};
 
 use super::Attribution;
 
@@ -31,9 +31,79 @@ pub struct ForecastResponse {
     /// One layer for each source that has a series for the place, sorted
     /// by source.
     pub layers: Vec<ForecastLayer>,
+    /// The strongest wind and the strongest gust the models have near the
+    /// place, hour by hour. Left out by a server that makes no thermal
+    /// map, while its map is not made yet, and for a place with no cell
+    /// of the map near it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nearby: Option<ForecastNearby>,
     /// The credit for every source that has a layer in the answer, with
     /// what its licence asks a client to show.
     pub attributions: Vec<Attribution>,
+}
+
+/// The wind around the place: for each daylight hour the server's thermal
+/// map keeps, the strongest mean wind and the strongest gust among the
+/// cells of that map near the place.
+///
+/// Magnitudes, like the rest of the answer: whether that is much against
+/// what the place itself has is the reader's rule, not the server's. Read
+/// from what the map already holds, so it costs no request to the
+/// forecast service, and it is as coarse as the map: a cell of the map
+/// stands for one cell of the model at its centre, not for every cell of
+/// the model inside it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ForecastNearby {
+    /// The source whose models these are: one that has a layer in the
+    /// answer.
+    pub source: SourceId,
+    /// How far from the place a cell of the map counts as near, km.
+    pub radius_km: f64,
+    /// How many cells of the map lie within that distance.
+    pub cells: u32,
+    /// The hours, oldest first, from the first hour any series of the
+    /// answer has. Daylight hours only: the map keeps no others.
+    pub hours: Vec<NearbyHour>,
+}
+
+/// One hour of the wind around a place.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NearbyHour {
+    /// The moment the values are for, in UTC.
+    pub time: Timestamp,
+    /// The model the map has the hour's day from. It need not be the model
+    /// a client reads the place's own hour from.
+    pub model: ModelId,
+    /// When the newest run of that model began that the map has an hour
+    /// of the day from.
+    pub run: Timestamp,
+    /// The strongest mean wind 10 m above the model's ground among the
+    /// cells near the place. Left out when no cell has a wind in the hour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wind: Option<NearbyStrongest>,
+    /// The strongest gust there in the hour, likewise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gust: Option<NearbyStrongest>,
+}
+
+/// The strongest wind or gust near a place, and where it is.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NearbyStrongest {
+    /// Its speed, whole km/h, as the map keeps it.
+    pub kmh: u16,
+    /// The centre of the map's cell that has it: of equally strong ones
+    /// the nearest to the place.
+    pub at: GeoPoint,
+    /// The direction the mean wind of that cell comes from, degrees to
+    /// the nearest ten. Left out when the model gives none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_deg: Option<u16>,
+    /// The height of the model's ground in that cell, metres above mean
+    /// sea level. A cell on a ridge has more wind than one in a valley on
+    /// any day: show the height with the wind. Left out for a cell of
+    /// water.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ground_m: Option<i32>,
 }
 
 /// The forecasts of one source for the place.
@@ -86,6 +156,9 @@ mod tests {
         assert_eq!(hour.temperature_c, None);
         assert_eq!(hour.winds_aloft[0].pressure_hpa, Some(850.0));
         assert_eq!(hour.winds_aloft[0].above_ground_m, None);
+        // An answer of a server that has no thermal map has no wind near
+        // by, and says nothing of it.
+        assert_eq!(answer.nearby, None);
 
         // What is not known is left out again, never written as null.
         let written = serde_json::to_string(&answer).unwrap();

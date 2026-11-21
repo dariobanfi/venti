@@ -26,7 +26,8 @@ function day(verdict: OutlookDay['verdict'], thermals?: Thermals): OutlookDay {
 		groundM: undefined,
 		model: 'ICON-D2',
 		runUnixS: 0,
-		note: ''
+		note: '',
+		nearby: ''
 	};
 }
 
@@ -39,6 +40,8 @@ function place(name: string, distanceM: number, isKept = false, ...days: Outlook
 					runUnixS: 0,
 					fetchedUnixS: 0,
 					note: '',
+					nearbyNote: '',
+					layersNote: '',
 					credits: []
 				} as SiteOutlook)
 			: undefined;

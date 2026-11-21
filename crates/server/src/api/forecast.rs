@@ -117,10 +117,25 @@ impl<S: Store> Api<S> {
             })
             .collect();
         let attributions = self.attributions(layers.iter().map(|layer| &layer.source));
+        // The wind around the place, from the thermal map of a source
+        // that has a layer here: from the first hour the answer has, since
+        // the map also keeps yesterday's.
+        let first_hour = layers
+            .iter()
+            .flat_map(|layer| &layer.series)
+            .filter_map(|series| series.hours.first().map(|hour| hour.time))
+            .min();
+        let nearby = self
+            .thermal_map
+            .as_ref()
+            .filter(|map| layers.iter().any(|layer| layer.source == *map.source()))
+            .zip(first_hour)
+            .and_then(|(map, from)| map.around(forecast.point, from));
         Ok(ForecastResponse {
             point: forecast.point,
             fetched_at: forecast.fetched_at,
             layers,
+            nearby,
             attributions,
         })
     }

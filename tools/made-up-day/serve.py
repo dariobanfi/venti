@@ -146,6 +146,10 @@ def made_up(answer, lat, lon, now, today=None):
     heat = HEAT_W_M2[(round(lat * 1000) + round(lon * 1000)) % len(HEAT_W_M2)]
     stamp = lambda time: time.strftime("%Y-%m-%dT%H:%M:%SZ")
     answer["fetched_at"] = stamp(now)
+    # The wind around the place is the real answer's, of another season and
+    # other days than the made-up hours: without it, the day says nothing of
+    # a neighbourhood, which is what a server without a thermal map says.
+    answer.pop("nearby", None)
     for layer in answer.get("layers", []):
         # One model is enough: the finest of those the server answered.
         series = [s for s in layer.get("series", []) if s.get("model") == "icon-d2"][:1]

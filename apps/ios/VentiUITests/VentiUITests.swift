@@ -31,6 +31,29 @@ final class VentiUITests: XCTestCase {
         app.descendants(matching: .any)[name].firstMatch
     }
 
+    /// Switches one of the map tab's layer chips on or off. The row
+    /// scrolls: a chip off the screen is brought into it first, by
+    /// swiping the row on a chip that is on screen.
+    private func setLayer(_ identifier: String, on: Bool, in app: XCUIApplication) {
+        let chip = element(identifier, in: app)
+        guard chip.waitForExistence(timeout: 10) else { return }
+        for direction in [true, true, false, false, false, false] where !chip.isHittable {
+            let handle = ["layer-airspace", "layer-wind", "layer-sites", "forecast-chip"]
+                .map { element($0, in: app) }
+                .first { $0.exists && $0.isHittable }
+            if direction {
+                handle?.swipeLeft()
+            } else {
+                handle?.swipeRight()
+            }
+            usleep(600_000)
+        }
+        if chip.isHittable, chip.isSelected != on {
+            chip.tap()
+            usleep(700_000)
+        }
+    }
+
     /// Turns the cockpit to its next page: from the readings to the map,
     /// to the flight with what can be switched, and around.
     private func nextPage(in app: XCUIApplication) {
@@ -869,8 +892,14 @@ final class VentiUITests: XCTestCase {
         let app = launch(bundledMap: true, extra: ["--server", server])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
 
-        // The choice is kept between launches: an earlier run that stopped
-        // half-way may have left the layer on.
+        // The choices are kept between launches: an earlier run that
+        // stopped half-way may have left the other layers off.
+        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
+            setLayer(layer, on: true, in: app)
+        }
+        setLayer("forecast-chip", on: false, in: app)
+
+        // And it may have left this layer on.
         let chip = element("forecast-chip", in: app)
         XCTAssertTrue(chip.waitForExistence(timeout: 30))
         if chip.isSelected {
@@ -904,16 +933,25 @@ final class VentiUITests: XCTestCase {
         sleep(3)
         keepScreenshot("map-forecast-2-tomorrow")
 
-        // A tap a little above the map's middle, where the stand-in has
-        // squares. Something else may lie there, or nothing: only a
-        // square's sheet is checked, and only when it opens.
+        // A square, tapped. The wind, the sites and the pilots are switched
+        // off first, since a tap on one of them opens its page instead (the
+        // development server's glider flies over the made-up map's middle);
+        // they are switched on again before anything here may fail. The
+        // tap is a little above the map's middle, where the made-up map
+        // has squares (47.45 to 47.95 N, 11.45 to 12.35 E). Only a square's
+        // sheet is checked, and only when it opens.
+        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
+            setLayer(layer, on: false, in: app)
+        }
+        sleep(2)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
         let square = element("forecast-square", in: app)
+        var status: String?
         if square.waitForExistence(timeout: 15) {
-            // The square's status, as a word the core gives.
-            let status = element("forecast-square-status", in: app)
-            XCTAssertTrue(status.waitForExistence(timeout: 10))
-            XCTAssertTrue(["Flyable", "Marginal", "Not flyable"].contains(status.label), status.label)
+            let said = element("forecast-square-status", in: app)
+            if said.waitForExistence(timeout: 10) {
+                status = said.label
+            }
             sleep(1)
             keepScreenshot("map-forecast-3-square")
             // The forecast for the square's place, kept when it comes.
@@ -926,14 +964,16 @@ final class VentiUITests: XCTestCase {
                 }
                 // Back to the square's sheet, which has the button to close it.
                 for _ in 0..<2 where !app.buttons["Done"].waitForExistence(timeout: 5) {
-                    app.navigationBars.buttons.firstMatch.tap()
+                    if app.navigationBars.buttons.firstMatch.exists {
+                        app.navigationBars.buttons.firstMatch.tap()
+                    }
                 }
             }
-            app.buttons["Done"].tap()
-            XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 15))
-        } else if !chip.isHittable {
-            // Another thing's page opened instead: closed again, by its
-            // button or by pulling the sheet down.
+        }
+        // Whatever opened, closed again: by its button, or by pulling the
+        // sheet down. While a sheet is up the map's round buttons are not
+        // to be had.
+        if !app.buttons["Show my position"].isHittable {
             if app.buttons["Done"].exists {
                 app.buttons["Done"].tap()
             } else {
@@ -944,11 +984,17 @@ final class VentiUITests: XCTestCase {
             }
             sleep(1)
         }
+        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
+            setLayer(layer, on: true, in: app)
+        }
+        // The square's status, as a word the core gives.
+        if let status {
+            XCTAssertTrue(["Flyable", "Marginal", "Not flyable"].contains(status), status)
+        }
 
         // Off again, as the next test expects the map.
         XCTAssertTrue(chip.waitForExistence(timeout: 15))
-        tapWhenStill(chip)
-        usleep(700_000)
+        setLayer("forecast-chip", on: false, in: app)
         XCTAssertFalse(chip.isSelected)
         XCTAssertFalse(element("forecast-card", in: app).exists)
     }

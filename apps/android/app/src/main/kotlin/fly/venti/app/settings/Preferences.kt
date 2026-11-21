@@ -71,6 +71,9 @@ interface Preferences {
     /** Whether the maps show the aerial view, photographs from above. One choice for every map of the app. */
     var mapShowsAerial: Boolean
 
+    /** Whether the maps show the thermal map of thermal.kk7.ch. Off until the pilot switches it on; one choice for every map. */
+    var mapShowsThermals: Boolean
+
     /** The folder Venti brings new flight files in from whenever it opens, as Android names it; empty for none. */
     var watchedFolder: String
 
@@ -168,6 +171,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsAerial", false)
         set(value) = store.edit { putBoolean("VentiMapShowsAerial", value) }
 
+    override var mapShowsThermals: Boolean
+        get() = store.getBoolean("VentiMapShowsThermals", false)
+        set(value) = store.edit { putBoolean("VentiMapShowsThermals", value) }
+
     override var watchedFolder: String
         get() = store.getString("VentiWatchedFolder", null).orEmpty()
         set(value) = store.edit { putString("VentiWatchedFolder", value) }
@@ -218,6 +225,7 @@ class MemoryPreferences : Preferences {
     override var mapHidesSites = false
     override var mapHidesPilots = false
     override var mapShowsAerial = false
+    override var mapShowsThermals = false
     override var watchedFolder = ""
     override var watchedSeen: Set<String> = emptySet()
 }

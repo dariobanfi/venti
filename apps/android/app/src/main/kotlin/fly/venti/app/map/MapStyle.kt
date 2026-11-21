@@ -120,7 +120,9 @@ object MapStyle {
         // The placeholders in tile addresses, each with its value or none.
         // A source that names one without a value is left out, with every
         // layer that draws from it: nothing is asked without it.
-        val values = mapOf(SERVER_PLACEHOLDER to server, DOMAIN_PLACEHOLDER to appDomain)
+        // A region kept for flying without a network asks nobody for more:
+        // nothing that needs the app's domain, the thermal map, is fetched for it.
+        val values = mapOf(SERVER_PLACEHOLDER to server, DOMAIN_PLACEHOLDER to appDomain.takeIf { kept == null })
         fun tilesOf(described: kotlinx.serialization.json.JsonElement): List<String> =
             ((described as? JsonObject)?.get("tiles") as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
         val left = mutableSetOf<String>()
@@ -159,7 +161,12 @@ object MapStyle {
      * ground, or the aerial view, photographs from above. Every other layer
      * is in both.
      */
-    data class Views(val aerial: List<String>, val drawn: List<String>)
+    data class Views(
+        val aerial: List<String>,
+        val drawn: List<String>,
+        /** The layers of the thermal map, marked `venti:layer: thermals`: switched by their own chip. */
+        val thermals: List<String> = emptyList(),
+    )
 
     /**
      * Which layers of the shared style belong to which view. The style says
@@ -174,16 +181,20 @@ object MapStyle {
                 null
             }
             )?.get("layers") as? JsonArray ?: throw StyleError("The map style has no layers.")
-        fun names(view: String): List<String> = layers.mapNotNull { layer ->
+        fun names(key: String, value: String): List<String> = layers.mapNotNull { layer ->
             val fields = layer as? JsonObject ?: return@mapNotNull null
             val metadata = fields["metadata"] as? JsonObject
-            if ((metadata?.get("venti:view") as? JsonPrimitive)?.content == view) {
+            if ((metadata?.get(key) as? JsonPrimitive)?.content == value) {
                 (fields["id"] as? JsonPrimitive)?.content
             } else {
                 null
             }
         }
-        return Views(aerial = names("aerial"), drawn = names("drawn"))
+        return Views(
+            aerial = names("venti:view", "aerial"),
+            drawn = names("venti:view", "drawn"),
+            thermals = names("venti:layer", "thermals"),
+        )
     }
 
     /** A file's location the way the map engine wants it: `file:///data/...`. */

@@ -46,7 +46,7 @@ class MapStyleTest {
     private fun style(source: MapStyle.Source, region: File = this.region): JsonObject {
         // With Venti set, as a pilot's phone has it: everything the shared
         // file has is in the style.
-        val text = MapStyle.json(source, template, region, server = "https://venti.example")
+        val text = MapStyle.json(source, template, region, server = "https://venti.example", appDomain = "venti.example")
         assertFalse("a placeholder was not replaced", text.contains("__"))
         val style = Json.parseToJsonElement(text).jsonObject
         assertEquals(8, style.getValue("version").jsonPrimitive.int)
@@ -60,9 +60,10 @@ class MapStyleTest {
      */
     private fun sources(style: JsonObject): Map<String, JsonElement> {
         val sources = style.getValue("sources").jsonObject
-        assertEquals(setOf("basemap", "terrain"), sources.keys.filterNot { it.startsWith("aerial-") }.toSet())
+        // The photographs and the thermal map come from their providers wherever the rest is drawn from.
+        assertEquals(setOf("basemap", "terrain"), sources.keys.filterNot { it.startsWith("aerial-") || it == "thermals" }.toSet())
         assertFalse(style.toString().contains(MapStyle.SERVER_PLACEHOLDER))
-        return sources.filterKeys { !it.startsWith("aerial-") }
+        return sources.filterKeys { !it.startsWith("aerial-") && it != "thermals" }
     }
 
     @Test
@@ -153,7 +154,7 @@ class MapStyleTest {
             )
             assertTrue("aerial-austria" in layerNames(with))
 
-            val text = MapStyle.json(source, template, region, server = null)
+            val text = MapStyle.json(source, template, region, server = null, appDomain = "venti.example")
             assertFalse(text, text.contains("__"))
             val without = Json.parseToJsonElement(text).jsonObject
             assertFalse("aerial-austria" in without.getValue("sources").jsonObject)
@@ -265,6 +266,45 @@ class MapStyleTest {
             both.getValue("sources").jsonObject.getValue("both").jsonObject.getValue("tiles").jsonArray.map { it.jsonPrimitive.content },
         )
         assertEquals(listOf("land", "thermals", "both", "water"), layerNames(both))
+    }
+
+    @Test
+    fun theThermalMapIsOfferedOnlyWhereTheStyleHasItsLayers() {
+        assertEquals(listOf("thermals"), MapStyle.views(template).thermals)
+        val withDomain = MapStyle.json(MapStyle.Source.Online, template, region, server = null, appDomain = "venti.example")
+        assertEquals(listOf("thermals"), MapStyle.views(withDomain).thermals)
+        val thermals = Json.parseToJsonElement(withDomain).jsonObject.getValue("sources").jsonObject.getValue("thermals").jsonObject
+        assertTrue(thermals.toString(), thermals.getValue("tiles").jsonArray.single().jsonPrimitive.content.endsWith("?src=venti.example"))
+        // Hidden until the pilot switches it on.
+        val layer = Json.parseToJsonElement(withDomain).jsonObject.getValue("layers").jsonArray.map { it.jsonObject }
+            .single { it.getValue("id").jsonPrimitive.content == "thermals" }
+        assertEquals("none", layer["layout"]?.jsonObject?.get("visibility")?.jsonPrimitive?.content)
+        // Without the app's domain there is nothing to offer, and no chip.
+        val withoutDomain = MapStyle.json(MapStyle.Source.Online, template, region, server = null, appDomain = null)
+        assertTrue(MapStyle.views(withoutDomain).thermals.isEmpty())
+        assertTrue(MapStyle.views(MapStyle.json(MapStyle.Source.Online, template, region)).thermals.isEmpty())
+    }
+
+    @Test
+    fun aRegionKeptForFlyingWithoutANetworkNeverAsksForTheThermalMap() {
+        val kept = fly.venti.app.maps.KeptMap(
+            id = "alps",
+            version = "1",
+            basemap = region.resolve("basemap.pmtiles"),
+            terrain = region.resolve(MapStyle.BUNDLED_TERRAIN),
+        )
+        val text = MapStyle.json(MapStyle.Source.Online, template, region, kept, server = "https://venti.example", appDomain = "venti.example")
+        val style = Json.parseToJsonElement(text).jsonObject
+        assertFalse("thermals" in style.getValue("sources").jsonObject)
+        assertTrue(MapStyle.views(text).thermals.isEmpty())
+    }
+
+    @Test
+    fun theThermalMapsChoiceIsKept() {
+        val preferences = fly.venti.app.settings.MemoryPreferences()
+        assertFalse(preferences.mapShowsThermals)
+        preferences.mapShowsThermals = true
+        assertTrue(preferences.mapShowsThermals)
     }
 
     @Test

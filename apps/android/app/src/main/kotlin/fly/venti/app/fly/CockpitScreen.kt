@@ -1,5 +1,7 @@
 package fly.venti.app.fly
 
+import fly.venti.app.map.MapSetup
+import androidx.compose.ui.platform.LocalContext
 import fly.venti.core.LiveShareView
 import fly.venti.core.DaylightLeft
 import fly.venti.app.airspace.AirspaceWords
@@ -204,6 +206,11 @@ fun CockpitScreen(
     // glider: the map is made anew when the glider comes into one or
     // leaves it.
     val map = remember(keptMap) { CockpitMap() }
+    // The thermal map on the cockpit's map, one choice with the map tab's;
+    // never for a region kept for flying without a network.
+    val context = LocalContext.current
+    val offersThermals = remember(keptMap) { keptMap == null && MapSetup.offersThermals(context) }
+    var thermals by remember { mutableStateOf(preferences.mapShowsThermals) }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
     // The airspace the loudest warning is about: the map steps back as far
@@ -256,6 +263,11 @@ fun CockpitScreen(
                         live = fly.live,
                         onLive = { isShowingLive = true },
                         onRecordNow = fly::recordNow,
+                        showsThermals = thermals.takeIf { offersThermals },
+                        onThermals = {
+                            thermals = !thermals
+                            preferences.mapShowsThermals = thermals
+                        },
                     )
                 }
                 CockpitRule()
@@ -281,6 +293,7 @@ fun CockpitScreen(
                                 // Beside the thermal view the map keeps to the glide:
                                 // the circle is looked at in the close-up.
                                 map.closeUp = page == CockpitPage.Instruments
+                            map.showThermals(thermals && offersThermals)
                                 map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
                             },
                         )
@@ -693,6 +706,9 @@ private fun FlightPage(
     live: LiveShareView?,
     onLive: () -> Unit,
     onRecordNow: () -> Unit,
+    /** Whether the thermal map shows on the map; `null` where the maps do not offer it. */
+    showsThermals: Boolean? = null,
+    onThermals: () -> Unit = {},
 ) {
     Column(
         Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s3),
@@ -731,6 +747,18 @@ private fun FlightPage(
                 if (view.waitingForTakeoff) {
                     QuietButton("Record now", R.drawable.ic_record, Modifier.weight(1f).testTag("cockpit-record-now"), onClick = onRecordNow)
                 }
+            }
+        }
+        // The thermal map on the cockpit's map, where the maps offer it:
+        // what can be switched is on this page.
+        if (showsThermals != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
+                QuietButton(
+                    if (showsThermals) "Hide thermal map" else "Show thermal map",
+                    R.drawable.venti_thermal,
+                    Modifier.weight(1f).testTag("cockpit-thermals"),
+                    onClick = onThermals,
+                )
             }
         }
     }

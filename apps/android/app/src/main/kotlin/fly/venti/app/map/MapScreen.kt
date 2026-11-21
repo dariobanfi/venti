@@ -121,6 +121,9 @@ fun MapScreen(
     var hidesPilots by remember { mutableStateOf(preferences?.mapHidesPilots == true) }
     // The ground: the drawn map, or photographs from above. One choice for every map.
     var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
+    // The thermal map, where the style has it: only with the app's domain set.
+    var thermals by remember { mutableStateOf(preferences?.mapShowsThermals == true) }
+    val offersThermals = remember { MapSetup.offersThermals(context) }
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var showsStations by remember { mutableStateOf(false) }
@@ -222,6 +225,7 @@ fun MapScreen(
         sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true && !hidesSites },
         // Who made the photographs, by name, while they show.
         MapSetup.PHOTOS_CREDIT.takeIf { aerial },
+        MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
     )
     val hasServer = wind.server is WindServer.Usable
 
@@ -231,6 +235,7 @@ fun MapScreen(
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
             onUpdate = {
                 map.showAerial(aerial)
+                map.showThermals(thermals && offersThermals)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins)
                 map.follow(isFollowing)
             },
@@ -244,6 +249,12 @@ fun MapScreen(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = VentiSpace.s4),
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
+                if (offersThermals) {
+                    LayerChip("Thermals", R.drawable.venti_thermal, thermals, onChange = { on ->
+                        thermals = on
+                        preferences?.mapShowsThermals = on
+                    }, Modifier.testTag("layer-thermals"))
+                }
                 if (hasServer) {
                     LayerChip("Wind", R.drawable.venti_wind, !hidesWind, onChange = { on ->
                         hidesWind = !on

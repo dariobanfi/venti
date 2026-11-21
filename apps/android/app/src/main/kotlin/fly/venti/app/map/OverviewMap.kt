@@ -93,6 +93,18 @@ class OverviewMap : MapContent {
     /** Whether the map shows the aerial view, photographs from above, in place of the drawn ground. */
     private var aerial = false
 
+    /** Whether the thermal map shows. */
+    private var thermals = false
+
+    /** Shows or hides the thermal map; at once if the style is there, else when it comes. */
+    fun showThermals(on: Boolean) {
+        if (on == thermals) return
+        thermals = on
+        val style = style ?: return
+        val view = view ?: return
+        MapSetup.showThermals(on, style, view)
+    }
+
     /** Switches between the drawn ground and the aerial view; at once if the style is there, else when it comes. */
     fun showAerial(aerial: Boolean) {
         if (aerial == this.aerial) return
@@ -100,6 +112,7 @@ class OverviewMap : MapContent {
         val style = style ?: return
         val view = view ?: return
         MapSetup.showAerial(aerial, style, view)
+        MapSetup.showThermals(thermals, style, view)
     }
 
     override fun prepare(map: MapLibreMap, view: MapView) {

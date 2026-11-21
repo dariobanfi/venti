@@ -75,6 +75,18 @@ class CockpitMap : MapContent {
     private var style: Style? = null
     private var mapView: MapView? = null
 
+    /** Whether the thermal map shows, as the pilot switched it on the flight page. */
+    private var thermals = false
+
+    /** Shows or hides the thermal map; at once if the style is there, else when it comes. */
+    fun showThermals(on: Boolean) {
+        if (on == thermals) return
+        thermals = on
+        val style = style ?: return
+        val view = mapView ?: return
+        MapSetup.showThermals(on, style, view)
+    }
+
     /** What the cockpit wants shown, and what the map was last given. */
     private var wanted: CockpitView? = null
     private var shown: CockpitView? = null
@@ -156,6 +168,7 @@ class CockpitMap : MapContent {
     }
 
     override fun styleLoaded(map: MapLibreMap, style: Style, view: MapView) {
+        MapSetup.showThermals(thermals, style, view)
         this.map = map
         this.style = style
         this.mapView = view

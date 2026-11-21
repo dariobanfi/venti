@@ -106,6 +106,13 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 }
                 row {
                     Credit(
+                        "Thermal map",
+                        "thermal.kk7.ch by M. von Känel, under CC-BY-NC-SA 4.0. Shown only while it is switched on.",
+                        link = "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+                    )
+                }
+                row {
+                    Credit(
                         "Labels",
                         "Noto Sans, under the SIL Open Font License.",
                         link = "https://openfontlicense.org",

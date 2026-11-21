@@ -207,6 +207,24 @@ object MapSetup {
         }
     }
 
+    /**
+     * Whether the maps offer the thermal map: whether the prepared style
+     * has its layers, which it has only where the app's domain is set.
+     */
+    fun offersThermals(context: Context): Boolean =
+        runCatching { MapStyle.views(style(context)).thermals.isNotEmpty() }.getOrDefault(false)
+
+    /**
+     * Shows or hides the thermal map's layers. Only what the map in view
+     * asks for while they show is fetched; a hidden layer asks for nothing.
+     */
+    fun showThermals(on: Boolean, style: Style, view: MapView) {
+        val views = views(view.context) ?: return
+        for (name in views.thermals) {
+            style.getLayer(name)?.setProperties(PropertyFactory.visibility(if (on) Property.VISIBLE else Property.NONE))
+        }
+    }
+
     /** How a layer's name ends that is a casing for the aerial view only. */
     private const val AERIAL_CASING = "-aerial-casing"
 
@@ -224,6 +242,9 @@ object MapSetup {
      * button and on the credits screen.
      */
     const val PHOTOS_CREDIT = "Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX"
+
+    /** Whose the thermal map is, in its own words, with the map's credits while it shows. */
+    const val THERMALS_CREDIT = "thermal.kk7.ch CC-BY-NC-SA"
 
     /** A map view with the app's style and no camera yet. */
     fun makeMapView(context: Context, content: MapContent, kept: KeptMap? = null): MapView {

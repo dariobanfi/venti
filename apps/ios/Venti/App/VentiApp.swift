@@ -79,14 +79,8 @@ enum Session {
                     nowUnixS: Int64(Date().timeIntervalSince1970)
                 )
             }
-            // Under test the server is the one named on the command line,
-            // or none: a test must not depend on what a pilot has saved.
-            let wind =
-                if LaunchOptions.isUnderTest {
-                    WindModel(address: LaunchOptions.server ?? "")
-                } else {
-                    WindModel()
-                }
+            // Venti, as built; a UI test names its own (`VentiServer`).
+            let wind = WindModel()
             let airspace = AirspaceModel(core: core, remembersChoice: !LaunchOptions.isUnderTest)
             airspace.server = { wind.server }
             // Flying sites come from the same server as the wind.
@@ -179,6 +173,29 @@ enum Session {
             return .failed(error.words)
         }
     }
+}
+
+/// The Venti the app belongs to: the address it was built with, the build
+/// setting `VENTI_SERVER` in `project.yml`, which reaches the app as
+/// `VentiServer` in its Info.plist. There is one Venti and the app is
+/// its; the address is no setting. A UI test names its own with
+/// `--server`, and the unit tests' host asks no server unless one is named.
+enum VentiServer {
+    /// The address in the build.
+    static let builtIn = Bundle.main.object(forInfoDictionaryKey: "VentiServer") as? String ?? ""
+
+    /// The address the app talks to.
+    static var address: String {
+        if LaunchOptions.isUITesting {
+            return LaunchOptions.server ?? builtIn
+        }
+        if LaunchOptions.isUnderTest {
+            return LaunchOptions.server ?? ""
+        }
+        return builtIn
+    }
+
+    static var url: URL? { WindModel.server(from: address) }
 }
 
 /// Switches set on the command line. The UI tests use them; nothing in the

@@ -35,8 +35,6 @@ final class TodayModel {
         case idle
         case loading
         case loaded
-        /// No Venti to ask: its address is not set.
-        case noServer
         case failed(String)
     }
 
@@ -105,7 +103,7 @@ final class TodayModel {
             places = []
             credits = []
             asked = nil
-            state = .noServer
+            state = .failed("Venti could not be reached.")
             return
         }
         if places.isEmpty {

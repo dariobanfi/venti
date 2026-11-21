@@ -16,12 +16,41 @@ struct ForecastCard: View {
     /// The date of the day on the map.
     @Binding var date: String
     let tryAgain: () -> Void
+    /// The layer chosen, and for the wind its height above the sea.
+    @Binding var layer: ThermalHoursLayer
+    @Binding var heightM: Int32?
+    /// The hours of the layer, as far as they are there.
+    let hoursState: ThermalMapModel.HoursState
+    let hours: ThermalMapHoursView?
+    /// The hour chosen; `nil` for the day as a whole, on "Thermals".
+    @Binding var hour: Int?
+    let tryHoursAgain: () -> Void
+
+    /// The chosen layer's line of the map's choice of layers.
+    private var choice: ThermalMapLayerChoice? {
+        map?.layers.first { $0.layer == layer }
+    }
+
+    /// Whether the map shows an hour of a layer, not the day.
+    private var showsAnHour: Bool {
+        hours != nil && hoursState == .loaded && !(layer == .thermals && hour == nil)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: VentiSpace.s3) {
             if let map, let day {
+                if !map.layers.isEmpty {
+                    ForecastLayerRow(layers: map.layers, layer: $layer, levels: map.levels, heightM: $heightM)
+                }
                 days(of: map, showing: day)
-                if isInView {
+                if !map.layers.isEmpty {
+                    hoursLine
+                }
+                if showsAnHour, let choice {
+                    ForecastHoursKey(key: choice.legend)
+                } else if hoursState == .loading {
+                    EmptyView()
+                } else if isInView {
                     key(map.legend)
                 } else {
                     Text("The forecast map has no squares for this part of the map.")
@@ -32,9 +61,19 @@ struct ForecastCard: View {
                 }
                 VStack(alignment: .leading, spacing: VentiSpace.s1) {
                     // Each day is one model's: the days after ICON-D2's are ICON-EU's.
-                    Text("\(day.model), run of \(Format.dayAndTime(unixSeconds: day.runUnixS))")
+                    if showsAnHour, let hours {
+                        Text("\(hours.model), run of \(Format.dayAndTime(unixSeconds: hours.runUnixS))")
+                    } else {
+                        Text("\(day.model), run of \(Format.dayAndTime(unixSeconds: day.runUnixS))")
+                    }
+                    if showsAnHour, let choice, !choice.note.isEmpty {
+                        Text(choice.note)
+                    }
                     if !day.note.isEmpty {
                         Text(day.note)
+                    }
+                    if showsAnHour, let hours, !hours.whole, !hours.note.isEmpty {
+                        Text(hours.note)
                     }
                 }
                 .font(.ventiType(.caption))
@@ -63,6 +102,32 @@ struct ForecastCard: View {
         .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("forecast-card")
+    }
+
+    /// Where the hours stand: the strip once they are there, and while
+    /// they are asked for or could not be had, words in its place.
+    @ViewBuilder private var hoursLine: some View {
+        switch hoursState {
+        case .idle:
+            EmptyView()
+        case .loading:
+            HStack(spacing: VentiSpace.s2) {
+                ProgressView()
+                Text("Asking Venti for the hours.")
+                    .font(.ventiType(.label))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(minHeight: VentiSize.touch)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("forecast-hours-asking")
+        case .loaded:
+            if let hours, !hours.hours.isEmpty {
+                ForecastHourStrip(hours: hours.hours, hasDay: layer == .thermals, hour: $hour)
+            }
+        case .failed(let words):
+            problem(words, tryAgain: tryHoursAgain)
+                .accessibilityIdentifier("forecast-hours-problem")
+        }
     }
 
     /// The days the map holds, or the one day's name where it holds one.
@@ -114,7 +179,7 @@ struct ForecastCard: View {
 
     /// What went wrong, in the core's words where it has them, and the one
     /// thing to do about it.
-    private func problem(_ words: String) -> some View {
+    private func problem(_ words: String, tryAgain: (() -> Void)? = nil) -> some View {
         VStack(alignment: .leading, spacing: VentiSpace.s2) {
             HStack(alignment: .top, spacing: VentiSpace.s2) {
                 Image("icon-caution")
@@ -128,7 +193,7 @@ struct ForecastCard: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("forecast-problem")
-            Button("Try again", action: tryAgain)
+            Button("Try again", action: tryAgain ?? self.tryAgain)
                 .buttonStyle(.venti(.quiet))
         }
     }

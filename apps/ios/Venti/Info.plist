@@ -4,9 +4,8 @@
   Only what cannot be said as a build setting in project.yml: the app opens
   IGC flight files and XCTSK task files handed to it by Files, Mail and other
   apps, it keeps
-  working in the background during a flight, and it may reach a server on
-  the pilot's own network. Xcode adds the rest of the Info.plist when it
-  builds.
+  working in the background during a flight, and it names the Venti it was
+  built with. Xcode adds the rest of the Info.plist when it builds.
 -->
 <plist version="1.0">
 <dict>
@@ -78,16 +77,17 @@
 			</dict>
 		</dict>
 	</array>
-	<!-- A pilot who runs a Venti server at home may reach it without
-	     encryption inside their own network. Servers on the internet are
-	     reached over HTTPS only. -->
+	<!-- Venti's address, from the build setting VENTI_SERVER (project.yml). -->
+	<key>VentiServer</key>
+	<string>$(VENTI_SERVER)</string>
+	<!-- The Debug build's Venti, and the tests' servers, are on this Mac
+	     (127.0.0.1) and are reached without encryption. Everything on the
+	     internet is reached over HTTPS only. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Venti reaches the Venti server on your own network, if you have set one in the settings.</string>
 	<!-- The design language's typeface, from design/fonts. -->
 	<key>UIAppFonts</key>
 	<array>

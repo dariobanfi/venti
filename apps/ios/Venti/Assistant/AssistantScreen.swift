@@ -197,23 +197,18 @@ private struct Suggestions: View {
         "Where did I find my strongest thermals?",
     ]
 
-    /// Offered as well when a Venti server is set: the assistant can then
-    /// look up live wind.
+    /// The assistant can look up live wind on Venti.
     static let windQuestion = "How is the wind on the Zugspitze right now?"
-
-    private var hasWind: Bool { wind.server != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Ask about your flying")
                 .font(.venti(.title2, .semibold))
             Text(
-                hasWind
-                    ? "The assistant reads your logbook to answer, and on Venti the wind stations, the airspace, the forecast, the flying sites and the flights other pilots share with everyone. It does not say whether a day can be flown, and it cannot see where other pilots are."
-                    : "The assistant reads your logbook to answer. With Venti connected it can also look up wind, airspace, forecasts, flying sites and other pilots' public flights."
+                "The assistant reads your logbook to answer, and on Venti the wind stations, the airspace, the forecast, the flying sites and the flights other pilots share with everyone. It does not say whether a day can be flown, and it cannot see where other pilots are."
             )
             .foregroundStyle(.secondary)
-            ForEach(Self.questions + (hasWind ? [Self.windQuestion] : []), id: \.self) { question in
+            ForEach(Self.questions + [Self.windQuestion], id: \.self) { question in
                 Button(question) {
                     ask(question)
                 }

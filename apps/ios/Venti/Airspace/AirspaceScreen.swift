@@ -142,9 +142,6 @@ struct AirspaceScreen: View {
         if !airspace.usesServer {
             return "Switched off: only your own files are used."
         }
-        if wind.server == nil {
-            return "With Venti connected in the settings, the app fetches the airspace around you by itself and keeps it on this iPhone, so the cockpit warns without a network."
-        }
         if airspace.kept.isEmpty {
             return "Fetched the next time the map is open or a flight starts with a network, for about 200 km around you, and kept on this iPhone."
         }

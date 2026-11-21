@@ -48,6 +48,20 @@ struct MapScreen: View {
     @State private var forecastDate = ""
     /// A square of the forecast map the pilot tapped.
     @State private var chosenSquare: ChosenSquare?
+    /// The forecast map's layer and the wind's level, as the pilot left
+    /// them; the hour is chosen anew.
+    @AppStorage(Preferences.mapForecastLayer) private var forecastLayerStored = "thermals"
+    @AppStorage(Preferences.mapForecastLevelM) private var forecastLevelStored = -1
+    /// The hour of the layer chosen, by its place in the day's hours;
+    /// `nil` for the day as a whole.
+    @State private var forecastHour: Int?
+    /// The layer of a day whose first hour was chosen last.
+    @State private var openedHours: ThermalMapModel.HoursKey?
+    /// The hour the map draws, worked out when the hour or the layer
+    /// changes and not with every drawing of the screen.
+    @State private var hourDrawing: ForecastHourDrawing?
+    /// A square of an hour the pilot tapped.
+    @State private var chosenHourSquare: ChosenHourSquare?
     /// A place where airspace is drawn, tapped.
     @State private var chosenAirspace: ChosenAirspacePlace?
     /// Who made the photographs in view on the map.
@@ -107,7 +121,7 @@ struct MapScreen: View {
                 source: maps.browsingSource(at: nil),
                 aerial: showsAerial,
                 photos: photos,
-                forecast: forecastDay,
+                forecast: dayOnTheMap,
                 onSquare: { index in
                     guard let day = forecastDay, let map = thermals.map, day.cells.indices.contains(index) else {
                         return
@@ -125,6 +139,10 @@ struct MapScreen: View {
                           Self.isDrawn(over, among: airspaceInView)
                     else { return }
                     chosenAirspace = ChosenAirspacePlace(over: over)
+                },
+                forecastHour: hourDrawing,
+                onHourPlace: { place in
+                    openHourSquare(at: place)
                 }
             )
             // Without a network the map is drawn from a region kept on
@@ -206,6 +224,23 @@ struct MapScreen: View {
         .task(id: isForecastOn ? wind.address : "") {
             guard isForecastOn else { return }
             await thermals.keepCurrent()
+        }
+        // The hours of the layer chosen, for the day chosen: asked for
+        // when one of them changes, or a new map of the days comes.
+        .task(id: HoursRequest(key: hoursKey, map: thermals.map?.computedUnixS)) {
+            await thermals.showHours(hoursKey)
+        }
+        .onChange(of: HoursShown(key: thermals.hoursKey, state: thermals.hoursState)) { _, _ in
+            openHours()
+        }
+        .onChange(of: forecastHour) { _, _ in
+            drawHour()
+        }
+        .sheet(item: $chosenHourSquare) { chosen in
+            ForecastHourSquareSheet(chosen: chosen, choose: { date in
+                forecastDate = date
+            })
+            .presentationDetents([.medium, .large])
         }
         .sheet(item: $chosenAirspace) { chosen in
             AirspaceOverPlaceSheet(over: chosen.over)
@@ -487,6 +522,102 @@ struct MapScreen: View {
         }
     }
 
+    /// The layer of the forecast map chosen.
+    private var forecastLayer: Binding<ThermalHoursLayer> {
+        Binding {
+            ThermalHoursLayer(stored: forecastLayerStored)
+        } set: { layer in
+            forecastLayerStored = layer.stored
+        }
+    }
+
+    /// The height of the wind chosen; `nil` at the ground.
+    private var forecastLevel: Binding<Int32?> {
+        Binding {
+            forecastLevelStored < 0 ? nil : Int32(forecastLevelStored)
+        } set: { height in
+            forecastLevelStored = height.map(Int.init) ?? -1
+        }
+    }
+
+    /// The layer of the day to ask for, where the map offers layers.
+    private var hoursKey: ThermalMapModel.HoursKey? {
+        guard let day = forecastDay, let map = thermals.map, !map.layers.isEmpty else { return nil }
+        let layer = ThermalHoursLayer(stored: forecastLayerStored)
+        let level = forecastLevel.wrappedValue
+        let offered = map.levels.contains { $0.heightM == level }
+        return ThermalMapModel.HoursKey(
+            date: day.date, layer: layer, heightM: layer == .wind && offered ? level : nil
+        )
+    }
+
+    /// The day's squares, where the map shows the day: not while an hour
+    /// is shown, nor while one is asked for, when the squares of the layer
+    /// before are taken away.
+    private var dayOnTheMap: ThermalMapDay? {
+        if hourDrawing != nil || thermals.hoursState == .loading {
+            return nil
+        }
+        return forecastDay
+    }
+
+    /// When the hours of a layer have come: the hour it opens at, "Day"
+    /// on "Thermals", the core's first hour on the others; then drawn.
+    private func openHours() {
+        if thermals.hoursState == .loaded, let key = thermals.hoursKey, key != openedHours,
+           let hours = thermals.hours
+        {
+            openedHours = key
+            let first = Int(hours.view().firstHour)
+            forecastHour = key.layer == .thermals ? nil : first
+        }
+        drawHour()
+    }
+
+    /// Works out the hour the map draws.
+    private func drawHour() {
+        guard isForecastOn, thermals.hoursState == .loaded, let hours = thermals.hours,
+              let key = thermals.hoursKey, let hour = forecastHour,
+              let choice = thermals.map?.layers.first(where: { $0.layer == key.layer })
+        else {
+            hourDrawing = nil
+            return
+        }
+        let view = hours.view()
+        guard view.hours.indices.contains(hour) else {
+            hourDrawing = nil
+            return
+        }
+        let shapes = hours.shapes(hour: UInt32(hour))
+        hourDrawing = ForecastHourDrawing(
+            id: "\(key.date) \(key.layer.stored) \(key.heightM.map(String.init) ?? "ground") \(hour)",
+            shapes: shapes, key: choice.legend
+        )
+    }
+
+    /// A tap on the map while an hour is drawn: the square at the place,
+    /// drawn or not, with its days side by side.
+    private func openHourSquare(at place: Coordinate) {
+        guard let hours = thermals.hours, let hour = forecastHour, let key = thermals.hoursKey,
+              let cell = hours.cellAt(lat: place.lat, lon: place.lon),
+              let square = hours.square(cell: cell, hour: UInt32(hour)),
+              let map = thermals.map
+        else { return }
+        let view = hours.view()
+        let middle = Coordinate(lat: (square.south + square.north) / 2, lon: (square.west + square.east) / 2)
+        Task {
+            let strip = await thermals.strip(at: middle)
+            chosenHourSquare = ChosenHourSquare(
+                square: square, layer: key.layer, days: strip, date: key.date,
+                note: [map.layers.first { $0.layer == key.layer }?.note ?? "", view.note]
+                    .filter { !$0.isEmpty }.joined(separator: "\n\n"),
+                credits: view.credits,
+                opening: ForecastOpening(date: key.date, model: view.model),
+                id: "\(key.date)-\(cell)-\(hour)"
+            )
+        }
+    }
+
     /// The forecast map's card, clear of the round buttons on the right
     /// and over the line of credits, which stands clear of the map's own
     /// credits button.
@@ -500,6 +631,16 @@ struct MapScreen: View {
             tryAgain: {
                 Task {
                     await thermals.load()
+                }
+            },
+            layer: forecastLayer,
+            heightM: forecastLevel,
+            hoursState: thermals.hoursState,
+            hours: thermals.hours?.view(),
+            hour: $forecastHour,
+            tryHoursAgain: {
+                Task {
+                    await thermals.showHours(hoursKey)
                 }
             }
         )
@@ -564,4 +705,17 @@ struct ChosenPlace: Identifiable {
 struct ChosenStation: Identifiable {
     let station: WindStation
     var id: String { station.id }
+}
+
+/// What the hours are asked for by: the layer of the day, and the map of
+/// the days it belongs to.
+private struct HoursRequest: Hashable {
+    let key: ThermalMapModel.HoursKey?
+    let map: Int64?
+}
+
+/// What the hours shown are, and how far they are there.
+private struct HoursShown: Equatable {
+    let key: ThermalMapModel.HoursKey?
+    let state: ThermalMapModel.HoursState
 }

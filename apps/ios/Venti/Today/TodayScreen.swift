@@ -229,7 +229,6 @@ struct TodayScreen: View {
     /// the screen is waiting for.
     private var headline: String {
         switch today.state {
-        case .noServer: return "No forecast yet"
         case .failed: return "No forecast"
         case .idle, .loading: return "Reading the forecast"
         case .loaded:
@@ -255,14 +254,6 @@ struct TodayScreen: View {
 
     @ViewBuilder private var content: some View {
         switch today.state {
-        case .noServer:
-            Explained(
-                title: "Venti is not connected",
-                words: "The forecast and the take-offs come from Venti. Set its address in the settings.",
-                action: "Open the settings"
-            ) {
-                isShowingSettings = true
-            }
         case .failed(let message):
             Explained(title: "The forecast could not be read", words: message, action: "Try again") {
                 Task { await today.load(around: place) }

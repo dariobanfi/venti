@@ -104,11 +104,6 @@ private struct SignInForm: View {
                     .disabled(account.isWorking || handle.isEmpty || password.isEmpty)
                     .accessibilityIdentifier("account-submit")
                 }
-            } else {
-                Section {
-                    Text("Set Venti's address in the settings first.")
-                        .foregroundStyle(.secondary)
-                }
             }
         }
     }

@@ -55,6 +55,13 @@ struct OverviewMap: UIViewRepresentable {
     /// else the app draws lies, while the map is close enough for airspace
     /// to be drawn. The screen decides whether airspace lies there.
     var onAirspace: (Coordinate) -> Void = { _ in }
+    /// An hour of a layer of the forecast map, drawn in place of the day;
+    /// nothing while the day is drawn.
+    var forecastHour: ForecastHourDrawing?
+    /// Called with the place under the finger after a tap while an hour
+    /// is drawn, where nothing else the app draws lies: the screen finds
+    /// the square from the place, drawn or not.
+    var onHourPlace: (Coordinate) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -99,7 +106,9 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onPlace = onPlace
         coordinator.onSquare = onSquare
         coordinator.onAirspace = onAirspace
+        coordinator.onHourPlace = onHourPlace
         coordinator.showForecast(forecast, on: map)
+        coordinator.showHour(forecastHour, on: map)
         coordinator.show(plans, on: map)
         coordinator.show(sites, on: map)
         coordinator.show(gliders, on: map)
@@ -128,6 +137,10 @@ struct OverviewMap: UIViewRepresentable {
         var onPlace: (Coordinate) -> Void = { _ in }
         var onSquare: (Int) -> Void = { _ in }
         var onAirspace: (Coordinate) -> Void = { _ in }
+        var onHourPlace: (Coordinate) -> Void = { _ in }
+        private var hour: ForecastHourDrawing?
+        /// What was drawn of an hour: its identity, `nil` for none.
+        private var drawnHour: String??
 
         private var forecast: ThermalMapDay?
         private var drawnForecast: ThermalMapDay?
@@ -185,6 +198,21 @@ struct OverviewMap: UIViewRepresentable {
         func showForecast(_ day: ThermalMapDay?, on map: MLNMapView) {
             forecast = day
             drawForecast(on: map)
+        }
+
+        func showHour(_ hour: ForecastHourDrawing?, on map: MLNMapView) {
+            self.hour = hour
+            drawHour(on: map)
+        }
+
+        /// Draws an hour's squares and arrows, once the style is there and
+        /// only when the hour, the layer or the day has changed.
+        private func drawHour(on map: MLNMapView) {
+            guard isStyleLoaded, let style = map.style else { return }
+            let id = hour?.id
+            if let drawn = drawnHour, drawn == id { return }
+            drawnHour = .some(id)
+            ThermalMapLayers.showHour(hour?.shapes, key: hour?.key ?? [], in: style)
         }
 
         /// Draws the forecast map's squares, once the style is there and
@@ -256,6 +284,7 @@ struct OverviewMap: UIViewRepresentable {
             drawFollowed(on: mapView)
             drawAirspace(on: mapView)
             drawForecast(on: mapView)
+            drawHour(on: mapView)
             tellRegion(of: mapView)
         }
 
@@ -318,6 +347,13 @@ struct OverviewMap: UIViewRepresentable {
                 onSquare(index)
                 return
             }
+            // An hour of the forecast map: its square under the finger,
+            // drawn or not ("Dry" is a reading too).
+            if hour != nil {
+                let place = map.convert(point, toCoordinateFrom: map)
+                onHourPlace(Coordinate(lat: place.latitude, lon: place.longitude))
+                return
+            }
             // Nothing else: what airspace lies over the place, where the
             // map is close enough to draw it.
             if map.zoomLevel >= Double(AirspaceLayers.minimumZoom) {
@@ -355,6 +391,7 @@ struct OverviewMap: UIViewRepresentable {
         /// flights over it, the wind above them.
         private func prepare(_ style: MLNStyle) {
             ThermalMapLayers.add(to: style)
+            ThermalMapLayers.addHours(to: style)
             AirspaceLayers.add(to: style)
             let empty = MLNShapeCollectionFeature(shapes: [])
 
@@ -406,6 +443,8 @@ struct OverviewMap: UIViewRepresentable {
             for picture in WindSymbols.all {
                 style.setImage(picture.image, forName: picture.name)
             }
+            // The forecast's arrows, under the stations' own.
+            ThermalMapLayers.addArrows(to: style)
             let wind = MLNShapeSource(identifier: Self.wind, shape: empty, options: nil)
             style.addSource(wind)
             let symbols = MLNSymbolStyleLayer(identifier: Self.wind, source: wind)

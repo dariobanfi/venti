@@ -268,8 +268,8 @@ extension VentiEmpty where Actions == EmptyView {
 /// Drawn 36 high, with room above and below it for the finger.
 struct VentiChip: View {
     let title: String
-    /// The name of one of the pack's icons.
-    let icon: String
+    /// The name of one of the pack's icons; none for a chip of words alone.
+    var icon: String? = nil
     @Binding var isOn: Bool
 
     var body: some View {
@@ -277,14 +277,16 @@ struct VentiChip: View {
             isOn.toggle()
         } label: {
             HStack(spacing: 6) {
-                Image(icon)
-                    .resizable()
-                    .frame(width: 18, height: 18)
+                if let icon {
+                    Image(icon)
+                        .resizable()
+                        .frame(width: 18, height: 18)
+                }
                 Text(title)
                     .font(.ventiType(.label))
                     .lineLimit(1)
             }
-            .padding(.leading, 10)
+            .padding(.leading, icon == nil ? 14 : 10)
             .padding(.trailing, 14)
             .frame(height: 36)
             .foregroundStyle(.venti(isOn ? .onPrimary : .text))

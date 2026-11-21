@@ -206,7 +206,7 @@ enum MapStyle {
 
     /// The Venti server the pilot has set, if the address is one.
     static var savedServer: URL? {
-        WindModel.server(from: UserDefaults.standard.string(forKey: Preferences.server) ?? "")
+        VentiServer.url
     }
 
     /// The style as JSON text, pointing at the given source.

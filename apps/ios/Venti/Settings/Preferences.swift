@@ -14,8 +14,6 @@ enum Preferences {
     /// That other service's address, and its name for the model to use.
     static let assistantAddress = "VentiAssistantAddress"
     static let assistantOtherModel = "VentiAssistantOtherModel"
-    /// The address of the Venti server that live wind comes from.
-    static let server = "VentiServerAddress"
     /// The glider's speed with the brakes up, km/h.
     static let trimSpeed = "VentiGliderTrimSpeed"
     /// The glider's glide ratio at that speed.
@@ -38,6 +36,12 @@ enum Preferences {
     /// heights. One choice for every map that draws airspace but the
     /// cockpit's, which draws all of it.
     static let mapAirspaceCeilingM = "VentiMapAirspaceCeilingM"
+    /// The layer of the forecast map: "thermals", "wind", "gusts",
+    /// "cloud" or "rain". Kept as the pilot left it.
+    static let mapForecastLayer = "VentiMapForecastLayer"
+    /// The height of the forecast map's wind above the sea, metres; -1
+    /// for the ground. Kept as the pilot left it.
+    static let mapForecastLevelM = "VentiMapForecastLevelM"
     /// Whether the pilot has switched off airspace from the server.
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 

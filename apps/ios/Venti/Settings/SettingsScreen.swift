@@ -78,17 +78,6 @@ struct SettingsScreen: View {
                 }
 
                 Section {
-                    TextField(
-                        "Server address",
-                        text: Binding(
-                            get: { wind.address },
-                            set: { address in wind.use(address: address) }
-                        )
-                    )
-                    .keyboardType(.URL)
-                    .textContentType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
                     NavigationLink {
                         AccountScreen()
                     } label: {
@@ -123,18 +112,12 @@ struct SettingsScreen: View {
         }
     }
 
-    /// What the address field means, and whether what is in it is usable.
+    /// What Venti gives, or why it cannot be reached at the moment.
     private var serverNote: String {
-        if wind.address.trimmingCharacters(in: .whitespaces).isEmpty {
-            return "Venti's address. The map shows the wind stations it collects, the assistant can look them up, and with an account your flights are kept there and can be shared. Without it, everything stays on this iPhone and the map has no wind."
-        }
-        if wind.server == nil {
-            return "This is not an address the app can use. It should look like wind.example.org."
-        }
         if let problem = wind.problem {
             return problem
         }
-        return "The map shows the wind stations Venti collects, and the assistant can look them up."
+        return "The map shows the wind stations Venti collects, and the assistant can look them up. With an account your flights are kept on Venti and can be shared."
     }
 
     private static var version: String {

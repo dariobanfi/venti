@@ -42,6 +42,47 @@ final class ThermalMapModel {
     /// When the map shown was fetched.
     private(set) var fetchedAt: Date?
 
+    /// The map's answer as it came, which a tapped square's days are read
+    /// from again (`thermalMapStrip`).
+    @ObservationIgnored private var answer: (status: UInt16, body: Data)?
+
+    // MARK: The hours of a day
+
+    /// A layer of a day that can be asked for: the day's date, the layer,
+    /// and for the wind the height above the sea, none at the ground.
+    struct HoursKey: Hashable {
+        let date: String
+        let layer: ThermalHoursLayer
+        let heightM: Int32?
+    }
+
+    enum HoursState: Equatable {
+        /// No layer of hours asked for: the map shows the day.
+        case idle
+        /// Asked, and no answer yet.
+        case loading
+        /// The hours are there.
+        case loaded
+        /// Refused or not reached, in words; the map shows the day.
+        case failed(String)
+    }
+
+    private(set) var hoursState = HoursState.idle
+    /// The hours of the layer asked for last, once they are there.
+    private(set) var hours: ThermalMapHours?
+    /// What `hours` are of.
+    private(set) var hoursKey: HoursKey?
+
+    /// The answers of this run of the app, by the address asked, for the
+    /// map of the days they belong to: the wind at the ground and the
+    /// gusts are one answer, read twice.
+    @ObservationIgnored private var bodies: [String: (status: UInt16, body: Data)] = [:]
+    /// The answers as the core read them, by what was asked.
+    @ObservationIgnored private var read: [HoursKey: ThermalMapHours] = [:]
+    /// Which map of the days the answers kept belong to: its run and when
+    /// it was worked out.
+    @ObservationIgnored private var keptFor: (run: Int64, computed: Int64)?
+
     /// The server to ask. The app sets this to the one in the settings.
     @ObservationIgnored var server: () -> URL? = { nil }
     /// The time by the server's clock, seconds since 1970-01-01 UTC: it
@@ -113,7 +154,7 @@ final class ThermalMapModel {
         }
         do {
             guard let url = URL(string: server.absoluteString + thermalMapPath()) else {
-                state = map == nil ? .failed("Venti's address cannot be asked for the forecast map.") : .loaded
+                state = map == nil ? .failed("Venti could not be asked for the forecast map.") : .loaded
                 return
             }
             let (status, body) = try await transport(url)
@@ -124,6 +165,12 @@ final class ThermalMapModel {
             )
             // The pilot may have changed the address while this was under way.
             guard server == self.server() else { return }
+            if keptFor.map({ $0.run != read.runUnixS || $0.computed != read.computedUnixS }) ?? true {
+                // A new map of the days: the hours kept were of the old.
+                forgetHours()
+                keptFor = (read.runUnixS, read.computedUnixS)
+            }
+            answer = (UInt16(clamping: status), body)
             map = read
             fetchedAt = now()
             hasFailed = false
@@ -146,6 +193,99 @@ final class ThermalMapModel {
                         : "Venti could not be reached for the forecast map. \(error.localizedDescription)"
                 )
             }
+        }
+    }
+}
+
+extension ThermalMapModel {
+    /// The time and the offset of the iPhone's clock from UTC by which
+    /// the days are cut, as the map of the days was read.
+    private func clockAndOffset() async -> (now: Int64, offset: Int32) {
+        let nowUnixS = await clock()
+        let offset = TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
+        return (nowUnixS, Int32(offset))
+    }
+
+    /// Shows a layer of a day hour by hour, or the day again for `nil`.
+    /// An answer of this run of the app for the map of the days at hand is
+    /// shown without asking; otherwise the layer before is taken away
+    /// while Venti is asked.
+    func showHours(_ key: HoursKey?) async {
+        hoursKey = key
+        guard let key else {
+            hours = nil
+            hoursState = .idle
+            return
+        }
+        if let kept = read[key] {
+            hours = kept
+            hoursState = .loaded
+            return
+        }
+        hours = nil
+        let path: String
+        do {
+            path = try thermalHoursPath(date: key.date, layer: key.layer, heightM: key.heightM)
+        } catch {
+            hoursState = .failed(error.words)
+            return
+        }
+        do {
+            let answer: (status: UInt16, body: Data)
+            if let kept = bodies[path] {
+                answer = kept
+            } else {
+                guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+                    hoursState = .failed("Venti could not be asked for the hours.")
+                    return
+                }
+                hoursState = .loading
+                let (status, body) = try await transport(url)
+                answer = (UInt16(clamping: status), body)
+            }
+            let (nowUnixS, offset) = await clockAndOffset()
+            let hours = try ThermalMapHours.read(
+                status: answer.status, body: answer.body, layer: key.layer, utcOffsetS: offset, nowUnixS: nowUnixS
+            )
+            // Something else may have been asked for meanwhile.
+            bodies[path] = answer
+            read[key] = hours
+            guard hoursKey == key else { return }
+            self.hours = hours
+            hoursState = .loaded
+        } catch is CancellationError {
+            return
+        } catch {
+            if (error as? URLError)?.code == .cancelled {
+                return
+            }
+            guard hoursKey == key else { return }
+            hoursState = .failed(
+                error is CoreError
+                    ? error.words
+                    : "Venti could not be reached for the hours. \(error.localizedDescription)"
+            )
+        }
+    }
+
+    /// Every day of the map for the square at a place: its name, and the
+    /// square's verdict and kind of day. Empty without a map.
+    func strip(at place: Coordinate) async -> [ThermalStripDay] {
+        guard let answer else { return [] }
+        let (nowUnixS, offset) = await clockAndOffset()
+        return (try? thermalMapStrip(
+            status: answer.status, body: answer.body, utcOffsetS: offset, nowUnixS: nowUnixS,
+            lat: place.lat, lon: place.lon
+        )) ?? []
+    }
+
+    /// Forgets the hours kept: they were of another map of the days.
+    private func forgetHours() {
+        bodies = [:]
+        read = [:]
+        hours = nil
+        if hoursState != .idle {
+            hoursState = .idle
         }
     }
 }

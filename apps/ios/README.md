@@ -12,7 +12,7 @@ apps/ios/scripts/open-in-xcode.sh
 
 That builds the Rust core, installs XcodeGen if it is missing, generates `Venti.xcodeproj` and opens it. Pick an iPhone simulator and press Run. After a change to the Rust core run `apps/ios/scripts/build-core.sh` again; after adding files or changing `project.yml`, run `xcodegen generate` in `apps/ios`.
 
-For live wind, flying sites and an account the app needs a Venti server. Start one over recorded data with `cargo run -p venti-server -- dev` in the repository, and give `http://127.0.0.1:8080` as the server's address in the app's settings on the simulator.
+The app talks to the Venti it was built with, `VENTI_SERVER` in `project.yml`: the Debug build to `http://127.0.0.1:8088` on the same Mac. To build it for another, change that value and run `xcodegen generate`; a Release build has no address yet and does not build.
 
 ## On your own iPhone
 

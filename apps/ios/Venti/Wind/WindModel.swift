@@ -33,11 +33,10 @@ final class WindModel {
     /// The providers the server has not heard from lately.
     private(set) var lateProviders: [String] = []
 
-    /// The server's address as the pilot wrote it. Empty for none.
-    private(set) var address: String
+    /// Venti's address: the one the app was built with (`VentiServer`).
+    let address: String
 
     @ObservationIgnored private let transport: Transport
-    @ObservationIgnored private let remembersAddress: Bool
     /// The part of the map in view.
     @ObservationIgnored private var wanted: Bounds?
     /// The area the stations were asked for, and when the answer came.
@@ -46,11 +45,10 @@ final class WindModel {
     @ObservationIgnored private var clock: (ahead: TimeInterval, readAt: Date)?
     @ObservationIgnored private var waiting: Task<Void, Never>?
 
-    /// - Parameter address: the server to use. Without one, the address the
-    ///   pilot saved in the settings is used and changes to it are saved.
-    init(address: String? = nil, transport: @escaping Transport = WindModel.fetch) {
-        self.address = address ?? UserDefaults.standard.string(forKey: Preferences.server) ?? ""
-        remembersAddress = address == nil
+    /// - Parameter address: the server to use: Venti's, unless a test
+    ///   names another.
+    init(address: String = VentiServer.address, transport: @escaping Transport = WindModel.fetch) {
+        self.address = address
         self.transport = transport
     }
 
@@ -253,23 +251,6 @@ final class WindModel {
         }
         let (status, body) = try await transport(url)
         return (UInt16(clamping: status), body)
-    }
-
-    /// Changes the server, and drops everything learned from the old one.
-    func use(address: String) {
-        guard address != self.address else { return }
-        self.address = address
-        if remembersAddress {
-            UserDefaults.standard.set(address, forKey: Preferences.server)
-        }
-        waiting?.cancel()
-        stations = []
-        credits = []
-        isTruncated = false
-        problem = nil
-        lateProviders = []
-        answered = nil
-        clock = nil
     }
 
     /// Fetches with the system's own networking and its cache, which

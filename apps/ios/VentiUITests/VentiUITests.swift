@@ -8,11 +8,23 @@ import XCTest
 /// The app is started with an empty logbook in a throwaway folder.
 @MainActor
 final class VentiUITests: XCTestCase {
+    /// A Venti that is not reached: nothing listens on this port. The app
+    /// talks to the Venti it was built with unless a test names another,
+    /// and a test that needs none names this one, so that it never asks a
+    /// Venti that happens to run on the Mac.
+    static let nowhere = "http://127.0.0.1:9"
+
+    /// The arguments with a server named, `nowhere` where none is.
+    private static func naming(_ arguments: [String]) -> [String] {
+        arguments.contains("--server") ? arguments : arguments + ["--server", nowhere]
+    }
+
     private func launch(bundledMap: Bool, dark: Bool = false, extra: [String] = []) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments =
+        app.launchArguments = Self.naming(
             ["--ui-testing"] + (bundledMap ? ["--bundled-map"] : []) + (dark ? ["--dark"] : []) + extra
+        )
         app.launch()
         // The app opens on Today; most tests begin on the map.
         openTab("Map", in: app)
@@ -607,7 +619,7 @@ final class VentiUITests: XCTestCase {
     func testAFlightRecordsItself() {
         let app = XCUIApplication()
         app.resetAuthorizationStatus(for: .location)
-        app.launchArguments = ["--ui-testing", "--bundled-map"]
+        app.launchArguments = Self.naming(["--ui-testing", "--bundled-map"])
         continueAfterFailure = false
         app.launch()
         openTab("Fly", in: app)
@@ -1026,7 +1038,11 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(chip.waitForExistence(timeout: 10))
 
         // The card at the map's lower edge: the days and the key, once the
-        // map is there.
+        // map is there. On "Thermals", which an earlier run of the hours'
+        // test may have left on another layer.
+        if element("forecast-layer-thermals", in: app).waitForExistence(timeout: 60) {
+            chooseForecastLayer("thermals", in: app)
+        }
         XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 90))
         XCTAssertTrue(element("forecast-days", in: app).waitForExistence(timeout: 15))
         XCTAssertTrue(labelled(containing: "Not flyable", in: app).exists)
@@ -1128,11 +1144,154 @@ final class VentiUITests: XCTestCase {
         }
     }
 
+    /// Chooses a layer of the forecast map's card by its chip.
+    private func chooseForecastLayer(_ layer: String, in app: XCUIApplication) {
+        let chip = element("forecast-layer-\(layer)", in: app)
+        XCTAssertTrue(chip.waitForExistence(timeout: 15))
+        for _ in 0..<3 where !isOnScreen(chip, in: app) {
+            element("forecast-layers", in: app).swipeLeft()
+        }
+        chip.tap()
+    }
+
+    /// The forecast map by the hour, against the stand-in with a made-up
+    /// day (`tools/made-up-day`): the card's row of layers, the line of
+    /// hours, each of the five layers, the wind at a height, and a tapped
+    /// square of an hour with its days side by side. The day is made up.
+    /// The layer, the level and the chip are kept between launches: the
+    /// test starts on "Thermals" at the ground and leaves it so, off.
+    func testTheForecastMapShowsTheHoursOfADay() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        // Nothing over the squares: the wind, the sites and the pilots off.
+        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
+            setLayer(layer, on: false, in: app)
+        }
+        setLayer("forecast-chip", on: true, in: app)
+        XCTAssertTrue(element("forecast-chip", in: app).isSelected)
+        chooseForecastLayer("thermals", in: app)
+
+        // The day as a whole, and the line of hours under the days.
+        let strip = element("forecast-hours", in: app)
+        XCTAssertTrue(strip.waitForExistence(timeout: 60))
+        XCTAssertEqual(strip.value as? String, "The whole day")
+        sleep(3)
+        keepScreenshot("map-hours-1-thermals-day")
+
+        // An hour, by a tap in the middle of the strip.
+        strip.tap()
+        XCTAssertNotEqual(strip.value as? String, "The whole day")
+        sleep(3)
+        keepScreenshot("map-hours-2-thermals-hour")
+        // VoiceOver's swipe up: the next hour.
+        let before = strip.value as? String
+        strip.swipeRight()
+        sleep(1)
+        XCTAssertNotNil(before)
+
+        // The other layers, each opening at the core's first hour.
+        for (layer, name) in [("wind", "3-wind"), ("gusts", "4-gusts"), ("cloud", "5-cloud"), ("rain", "6-rain")] {
+            chooseForecastLayer(layer, in: app)
+            XCTAssertTrue(strip.waitForExistence(timeout: 60))
+            XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 30))
+            sleep(3)
+            keepScreenshot("map-hours-\(name)")
+        }
+
+        // The wind at a height, from the level's menu.
+        chooseForecastLayer("wind", in: app)
+        let level = element("forecast-level", in: app)
+        XCTAssertTrue(level.waitForExistence(timeout: 15))
+        level.tap()
+        let height = app.buttons["2000 m"]
+        XCTAssertTrue(height.waitForExistence(timeout: 10))
+        height.tap()
+        XCTAssertTrue(strip.waitForExistence(timeout: 60))
+        sleep(3)
+        keepScreenshot("map-hours-7-wind-2000")
+
+        // At 1000 m: where the made-up ground lies higher there is no
+        // wind, and a tapped square says so. Squares are tapped across
+        // the map until one says it; each opens a sheet.
+        level.tap()
+        let low = app.buttons["1000 m"]
+        XCTAssertTrue(low.waitForExistence(timeout: 10))
+        low.tap()
+        XCTAssertTrue(strip.waitForExistence(timeout: 60))
+        sleep(2)
+        let sheet = element("forecast-hour-square", in: app)
+        var none = false
+        var kept = false
+        search: for row in [0.3, 0.4, 0.2, 0.5] {
+            for column in [0.5, 0.3, 0.7, 0.15, 0.85] {
+                app.coordinate(withNormalizedOffset: CGVector(dx: column, dy: row)).tap()
+                guard sheet.waitForExistence(timeout: 5) else { continue }
+                let title = element("forecast-hour-title", in: app).label
+                if !kept {
+                    // The first square tapped: its days side by side.
+                    XCTAssertTrue(element("forecast-square-days", in: app).waitForExistence(timeout: 10))
+                    sleep(1)
+                    keepScreenshot("map-hours-8-square")
+                    kept = true
+                }
+                if title.contains("No wind at 1000 m") {
+                    sleep(1)
+                    keepScreenshot("map-hours-9-no-wind-at-1000")
+                    none = true
+                }
+                app.buttons["Done"].tap()
+                _ = sheet.waitForNonExistence(timeout: 5)
+                if none {
+                    break search
+                }
+            }
+        }
+        XCTAssertTrue(kept, "No tap opened a square of an hour.")
+        XCTAssertTrue(none, "No square said that there is no wind at 1000 m.")
+
+        // Back to "Thermals" at the ground, and off, as the next test
+        // expects the map.
+        level.tap()
+        let ground = app.buttons["Ground"]
+        if ground.waitForExistence(timeout: 10) {
+            ground.tap()
+        }
+        chooseForecastLayer("thermals", in: app)
+        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
+            setLayer(layer, on: true, in: app)
+        }
+        setLayer("forecast-chip", on: false, in: app)
+        XCTAssertFalse(element("forecast-chip", in: app).isSelected)
+    }
+
+    /// The keys of the forecast map's layers in the dark appearance, the
+    /// card over the map, which stays light: the wind's, with its hours.
+    func testTheForecastMapsKeysInTheDark() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
+        }
+        let app = launch(bundledMap: true, dark: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        setLayer("forecast-chip", on: true, in: app)
+        for (layer, name) in [("wind", "wind"), ("cloud", "cloud"), ("thermals", "thermals")] {
+            chooseForecastLayer(layer, in: app)
+            XCTAssertTrue(element("forecast-hours", in: app).waitForExistence(timeout: 60))
+            XCTAssertTrue(element("forecast-key", in: app).waitForExistence(timeout: 30))
+            sleep(3)
+            keepScreenshot("map-hours-dark-\(name)")
+        }
+        setLayer("forecast-chip", on: false, in: app)
+        XCTAssertFalse(element("forecast-chip", in: app).isSelected)
+    }
+
     /// The app's icon on the home screen: the design language's, which
     /// the screenshot is kept to show.
     func testTheAppHasItsIconOnTheHomeScreen() {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
+        app.launchArguments = Self.naming(["--ui-testing"])
         app.launch()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 60))
         XCUIDevice.shared.press(.home)
@@ -1150,20 +1309,32 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("icon-1-home-screen")
     }
 
-    /// Today without a Venti to ask: the app opens on it, says what is
-    /// missing and leads to where it is set.
+    /// Today when Venti is not reached: the app opens on it, says so and
+    /// offers to try again. The settings name no address: the app talks to
+    /// the Venti it was built with.
     func testTodayWithoutVentiSaysWhatIsMissing() {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--bundled-map"]
+        app.launchArguments = Self.naming(["--ui-testing", "--bundled-map"])
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Venti is not connected"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.staticTexts["The forecast could not be read"].waitForExistence(timeout: 90))
+        XCTAssertTrue(app.buttons["Try again"].exists)
         XCTAssertTrue(element("today-headline", in: app).exists)
         sleep(1)
         keepScreenshot("today-0-not-connected")
-        app.buttons["Open the settings"].tap()
+        app.buttons["Settings"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.textFields["Server address"].exists)
+        // The section "Venti", further down: the account and the maps.
+        let accountRow = element("account-link", in: app)
+        for _ in 0..<4 where !accountRow.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(accountRow.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.textFields["Server address"].exists)
+        sleep(1)
+        keepScreenshot("settings-0-venti")
         // The tabs stay while the settings are open.
         openTab("Fly", in: app)
         XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
@@ -1174,7 +1345,7 @@ final class VentiUITests: XCTestCase {
     func testTheAssistantAnswersFromTheLogbook() {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--bundled-map", "--scripted-assistant"]
+        app.launchArguments = Self.naming(["--ui-testing", "--bundled-map", "--scripted-assistant"])
         app.launch()
 
         openTab("Logbook", in: app)

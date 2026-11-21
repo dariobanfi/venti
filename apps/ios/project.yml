@@ -77,6 +77,24 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.sports
+      # Venti's address, built into the app (its Info.plist's VentiServer):
+      # there is one Venti and the app is its; it is no setting. Debug talks
+      # to the owner's own Venti on this Mac, as a simulator reaches it.
+      # Release has no public address yet and does not build without one:
+      # when there is a domain, it is the value here.
+      configs:
+        Debug:
+          VENTI_SERVER: "http://127.0.0.1:8088"
+        Release:
+          VENTI_SERVER: ""
+    preBuildScripts:
+      - name: Venti's address
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ -z "${VENTI_SERVER}" ]; then
+            echo "error: VENTI_SERVER is empty. The app talks to the Venti it is built with, and this configuration names none: Venti has no public address yet. Set VENTI_SERVER for the configuration in apps/ios/project.yml."
+            exit 1
+          fi
   VentiTests:
     type: bundle.unit-test
     platform: iOS

@@ -201,19 +201,6 @@ final class WindModelTests: XCTestCase {
         XCTAssertEqual(wind.problem, "The server is busy or being restarted. Try again in a moment.")
     }
 
-    func testChangingTheServerForgetsTheOldOnesStations() async {
-        let wind = WindModel(address: "http://127.0.0.1:8080", transport: server(noting: Asked()))
-        wind.show(alps)
-        await wind.load()
-        XCTAssertFalse(wind.stations.isEmpty)
-
-        wind.use(address: "")
-
-        XCTAssertNil(wind.server)
-        XCTAssertTrue(wind.stations.isEmpty)
-        XCTAssertTrue(wind.credits.isEmpty)
-    }
-
     func testAStationIsDrawnPointingWhereTheWindBlows() async {
         let wind = WindModel(address: "http://127.0.0.1:8080", transport: server(noting: Asked()))
         wind.show(alps)

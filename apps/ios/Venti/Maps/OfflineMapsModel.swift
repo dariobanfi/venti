@@ -440,7 +440,7 @@ final class OfflineMapsModel {
         let files = FileManager.default
         let total = Int64(clamping: file.bytes)
         guard let url = URL(string: server.absoluteString + file.path) else {
-            throw Stopped(words: "The server's address cannot be used for a download.")
+            throw Stopped(words: "Venti could not be asked for this download.")
         }
         // Twice at the most: once more from the start when the server does
         // not go on from where the file stopped.

@@ -223,6 +223,30 @@ class ForecastTest {
     }
 
     @Test
+    fun aForecastFromASquareOpensOnTheMapsDayFromTheMapsModel() {
+        val (d2, eu) = fetched().models
+        // Both models have the 4th of July; only the coarser one has the 5th.
+        val euFifth = eu.days.first().copy(startUnixS = eu.days.first().startUnixS + 86_400, date = "2026-07-05")
+        val models = listOf(d2, eu.copy(days = eu.days + euFifth))
+        assertEquals("2026-07-04", d2.days.first().date)
+
+        // The named model has the day: it is that model's.
+        val named = ForecastRows.opening(models, ForecastOpening("2026-07-04", "ICON-EU"))
+        assertEquals("ICON-EU", named?.first?.name)
+        assertEquals("2026-07-04", named?.second?.date)
+
+        // The named model lacks it, or there is no model of that name: the finest that has it.
+        val finest = ForecastRows.opening(models, ForecastOpening("2026-07-04", "AROME"))
+        assertEquals("ICON-D2", finest?.first?.name)
+        val coarser = ForecastRows.opening(models, ForecastOpening("2026-07-05", "ICON-D2"))
+        assertEquals("ICON-EU", coarser?.first?.name)
+        assertEquals(euFifth.startUnixS, coarser?.second?.startUnixS)
+
+        // Nobody has it: the forecast opens as from anywhere else.
+        assertEquals(null, ForecastRows.opening(models, ForecastOpening("2026-07-09", "ICON-EU")))
+    }
+
+    @Test
     fun aDayIsCalledTodayOnlyWhileItIs() {
         val days = ForecastRows.days(fetched().models[0])
         val day = days.single()

@@ -196,7 +196,7 @@ final class ForecastTests: XCTestCase {
         XCTAssertTrue(light.allSatisfy(\.isDaylight))
 
         let night = ForecastDay(
-            startUnixS: day.startUnixS, sunriseUnixS: nil, sunsetUnixS: nil,
+            startUnixS: day.startUnixS, date: day.date, sunriseUnixS: nil, sunsetUnixS: nil,
             hours: day.hours.map { hour in
                 var dark = hour
                 dark.isDaylight = false
@@ -204,5 +204,55 @@ final class ForecastTests: XCTestCase {
             }
         )
         XCTAssertEqual(ForecastTable.hours(of: night).count, day.hours.count)
+    }
+
+    /// The models of the canned answer, finest first, with these days:
+    /// by date, each beginning a day after the one before.
+    private func models(withDays dates: [[String]]) async throws -> [ModelForecast] {
+        let fetchedModels = try await fetched().models
+        return zip(fetchedModels, dates).map { model, dates in
+            var model = model
+            model.days = dates.enumerated().map { index, date in
+                ForecastDay(
+                    startUnixS: 1_795_302_000 + Int64(index) * 86_400, date: date, sunriseUnixS: nil,
+                    sunsetUnixS: nil, hours: []
+                )
+            }
+            return model
+        }
+    }
+
+    func testASquareOfTheMapOpensOnItsDayInTheModelItWasReadFrom() async throws {
+        let models = try await models(withDays: [
+            ["2026-11-22", "2026-11-23"], ["2026-11-22", "2026-11-23", "2026-11-24"],
+        ])
+        XCTAssertEqual(models.map(\.name), ["ICON-D2", "ICON-EU"])
+        // The map's model has the day, though a finer one has it too.
+        let opened = ForecastScreen.opening(ForecastOpening(date: "2026-11-23", model: "ICON-EU"), among: models)
+        XCTAssertEqual(opened?.model, models[1].model)
+        XCTAssertEqual(opened?.day, models[1].days[1].startUnixS)
+        // And the finer one where it is the map's.
+        let finer = ForecastScreen.opening(ForecastOpening(date: "2026-11-22", model: "ICON-D2"), among: models)
+        XCTAssertEqual(finer?.model, models[0].model)
+        XCTAssertEqual(finer?.day, models[0].days[0].startUnixS)
+    }
+
+    func testADayOnlyACoarserModelHasOpensInThatModel() async throws {
+        let models = try await models(withDays: [
+            ["2026-11-22", "2026-11-23"], ["2026-11-22", "2026-11-23", "2026-11-24"],
+        ])
+        let opened = ForecastScreen.opening(ForecastOpening(date: "2026-11-24", model: "ICON-D2"), among: models)
+        XCTAssertEqual(opened?.model, models[1].model)
+        XCTAssertEqual(opened?.day, models[1].days[2].startUnixS)
+        // A model the forecast does not have is no hindrance.
+        let unknown = ForecastScreen.opening(ForecastOpening(date: "2026-11-23", model: "AROME"), among: models)
+        XCTAssertEqual(unknown?.model, models[0].model)
+        XCTAssertEqual(unknown?.day, models[0].days[1].startUnixS)
+    }
+
+    func testADayThatNoModelHasLeavesTheForecastAsItOpens() async throws {
+        let models = try await models(withDays: [["2026-11-22"], ["2026-11-22", "2026-11-23"]])
+        XCTAssertNil(ForecastScreen.opening(ForecastOpening(date: "2026-11-25", model: "ICON-EU"), among: models))
+        XCTAssertNil(ForecastScreen.opening(ForecastOpening(date: "2026-11-22", model: "ICON-EU"), among: []))
     }
 }

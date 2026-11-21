@@ -22,6 +22,7 @@
 	import { reportedTrack } from '#lib/community/report.ts';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import ForecastView from '#lib/forecast/ForecastView.svelte';
+	import type { OpenOn } from '#lib/forecast/table.ts';
 	import {
 		creditLine as forecastCreditLine,
 		hasSquaresIn,
@@ -188,9 +189,10 @@
 
 	/**
 	 * The place whose forecast is looked at, with what it is called: a
-	 * site's or a station's page leads there.
+	 * site's or a station's page leads there, and a square of the thermal
+	 * map, which also names the day the map was showing.
 	 */
-	let forecastFor = $state.raw<{ place: Coordinate; name: string }>();
+	let forecastFor = $state.raw<{ place: Coordinate; name: string; openOn?: OpenOn }>();
 
 	/**
 	 * The glider the pilot chose, by the identifier of its track. Only that
@@ -256,10 +258,20 @@
 		chosenSquare = { south: picked.south, west: picked.west };
 	}
 
-	/** The forecast for the middle of a square of the thermal map. */
-	function squareForecast(cell: { south: number; west: number; north: number; east: number }) {
+	/**
+	 * The forecast for the middle of a square of the thermal map, open on
+	 * the day the map shows, of the model the map read that day from.
+	 */
+	function squareForecast(
+		cell: { south: number; west: number; north: number; east: number },
+		day: OpenOn
+	) {
 		const place = { lat: (cell.south + cell.north) / 2, lon: (cell.west + cell.east) / 2 };
-		forecastFor = { place, name: text.place(place.lat, place.lon) };
+		forecastFor = {
+			place,
+			name: text.place(place.lat, place.lon),
+			openOn: { date: day.date, model: day.model }
+		};
 	}
 
 	const said = $derived(notice(current, text.list));
@@ -381,7 +393,7 @@
 							map={thermals.map}
 							day={thermals.day}
 							cell={square}
-							onforecast={() => square && squareForecast(square)}
+							onforecast={() => square && thermals?.day && squareForecast(square, thermals.day)}
 							named={false}
 							withRun={false}
 						/>
@@ -446,7 +458,7 @@
 						map={thermals.map}
 						day={thermalDay}
 						cell={square}
-						onforecast={() => square && squareForecast(square)}
+						onforecast={() => square && thermalDay && squareForecast(square, thermalDay)}
 						named={false}
 					/>
 				{/if}

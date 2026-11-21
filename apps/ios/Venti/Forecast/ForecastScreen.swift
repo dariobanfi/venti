@@ -12,6 +12,9 @@ struct ForecastScreen: View {
     /// The place, and a name for it.
     let place: Coordinate
     let title: String
+    /// The day to open on, from a square of the forecast map; none opens
+    /// on the finest model and today.
+    var opening: ForecastOpening? = nil
 
     @Environment(WindModel.self) private var wind
 
@@ -26,6 +29,9 @@ struct ForecastScreen: View {
     @State private var model: String?
     /// The day looked at, by its first moment.
     @State private var day: Int64?
+    /// Whether the day to open on was looked for: once, when the forecast
+    /// first came. After that the pilot's own choice stands.
+    @State private var opened = false
 
     var body: some View {
         Group {
@@ -64,7 +70,15 @@ struct ForecastScreen: View {
 
     private func load() async {
         do {
-            phase = .loaded(try await wind.forecast(at: place))
+            let forecast = try await wind.forecast(at: place)
+            if !opened {
+                opened = true
+                if let opening, let found = Self.opening(opening, among: forecast.models) {
+                    model = found.model
+                    day = found.day
+                }
+            }
+            phase = .loaded(forecast)
         } catch {
             phase = .failed(
                 error is CoreError
@@ -90,6 +104,8 @@ struct ForecastScreen: View {
                     )
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Day")
                     .accessibilityIdentifier("forecast-day")
                 }
             }
@@ -133,6 +149,21 @@ struct ForecastScreen: View {
         .accessibilityIdentifier("forecast")
     }
 
+    /// The model and the day to open on for a day of the forecast map: the
+    /// map's own model where it has that date, or else the first model,
+    /// finest first, that has it; none where no model has it.
+    static func opening(
+        _ opening: ForecastOpening, among models: [ModelForecast]
+    ) -> (model: String, day: Int64)? {
+        let named = models.filter { $0.name == opening.model }
+        for candidate in named + models {
+            if let day = candidate.days.first(where: { $0.date == opening.date }) {
+                return (candidate.model, day.startUnixS)
+            }
+        }
+        return nil
+    }
+
     /// The day that holds this moment, or the first one.
     private static func today(among days: [ForecastDay]) -> ForecastDay? {
         let now = Int64(Date().timeIntervalSince1970)
@@ -167,6 +198,14 @@ struct ForecastScreen: View {
         text += " The cloud base is that of the model's convective cloud; an hour without one shows none. Nothing here says whether the day can be flown."
         return text
     }
+}
+
+/// A day of the forecast map, for the forecast to open on: its date
+/// ("2026-11-22", as the core names the days of both) and the display
+/// name of the model it was read from ("ICON-D2").
+struct ForecastOpening: Equatable {
+    let date: String
+    let model: String
 }
 
 /// The hours of one day as a table: a row for each height the wind is

@@ -8,9 +8,14 @@ The screens that show a cross-country day or a big day cannot be seen
 with it. This program stands in front of a development server and hands
 on everything that server answers, except `GET /v1/forecast`: there it
 keeps the real answer's place, grid cell, model ground and credit, and
-puts made-up hours in place of the model's, from this midnight (UTC) on
-for two days: 26 °C under cumulus at 3500 m with a light south wind, and
-by day as much heat from the ground as a summer noon gives.
+puts made-up hours in place of the model's, for three days from the
+midnight (UTC) of today by the development server's clock: 26 °C under
+cumulus at 3500 m with a light south wind, and by day as much heat from
+the ground as a summer noon gives. Those are the days its made-up map
+has, below: a square of the map and the forecast for its place speak of
+the same days. (Until 2026-11-21 the hours began at the real midnight,
+three days after that clock's, and the map's "Tomorrow" was a day no
+forecast had.)
 
 How much heat depends on the place asked for, so that a list of take-offs
 shows more than one kind of day: 550, 300 or 70 W/m² at noon, which the
@@ -102,9 +107,12 @@ def hour(time, heat_at_noon, ground_m):
     return made
 
 
-def made_up(answer, lat, lon, now):
-    """The real answer with made-up hours in place of the model's."""
+def made_up(answer, lat, lon, now, today=None):
+    """The real answer with made-up hours in place of the model's, from
+    the midnight of `today`, or of `now` without one."""
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if today is not None:
+        midnight = datetime.datetime.combine(today, datetime.time(), tzinfo=datetime.timezone.utc)
     # By the thousandths of the place's degrees: neighbours differ.
     heat = HEAT_W_M2[(round(lat * 1000) + round(lon * 1000)) % len(HEAT_W_M2)]
     stamp = lambda time: time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -121,7 +129,7 @@ def made_up(answer, lat, lon, now):
             one["available_at"] = stamp(run + datetime.timedelta(minutes=70))
             one["hours"] = [
                 hour(midnight + datetime.timedelta(hours=ahead), heat, ground)
-                for ahead in range(46)
+                for ahead in range(72)
             ]
         layer["series"] = series
     return answer
@@ -243,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 lat, lon = float(query["lat"][0]), float(query["lon"][0])
                 now = datetime.datetime.now(datetime.timezone.utc)
-                answer = json.dumps(made_up(json.loads(answer), lat, lon, now)).encode()
+                answer = json.dumps(made_up(json.loads(answer), lat, lon, now, self.today())).encode()
                 # What was changed is not what the tag and the times name.
                 handed_back = {"Content-Type": "application/json", "Cache-Control": "no-store"}
             except (KeyError, ValueError):

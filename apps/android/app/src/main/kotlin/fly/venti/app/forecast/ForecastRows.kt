@@ -26,6 +26,13 @@ sealed interface ForecastCell {
     data object Empty : ForecastCell
 }
 
+/**
+ * Where a forecast is to open: a day of the forecast map, by its date
+ * ("2026-11-22") and the display name of the model it is read from
+ * ("ICON-EU"), both as the core's `ThermalMapDay` has them.
+ */
+data class ForecastOpening(val date: String, val model: String)
+
 /** One row of the table: its name, a line under the name, and what each hour holds. */
 data class ForecastRow(val id: String, val name: String, val detail: String, val cells: List<ForecastCell>)
 
@@ -41,6 +48,23 @@ object ForecastRows {
 
     /** The days worth choosing between: those with the sun up in some hour the model has. */
     fun days(model: ModelForecast): List<ForecastDay> = model.days.filter { day -> day.hours.any { it.isDaylight } }
+
+    /**
+     * The model and the day a forecast opened from a square of the forecast
+     * map stands on first: the day the map showed, read from the model that
+     * day of the map is read from; if that model has no such day, the first
+     * (finest) model that has it; `null` when none has it, and the forecast
+     * opens as it does from anywhere else.
+     */
+    fun opening(models: List<ModelForecast>, on: ForecastOpening): Pair<ModelForecast, ForecastDay>? {
+        fun dayOf(model: ModelForecast) = days(model).firstOrNull { it.date == on.date }
+        val named = models.firstOrNull { it.name == on.model }
+        named?.let(::dayOf)?.let { return named to it }
+        for (model in models) {
+            dayOf(model)?.let { return model to it }
+        }
+        return null
+    }
 
     /** The day that holds this moment, or the first one. */
     fun today(days: List<ForecastDay>, now: Long): ForecastDay? =

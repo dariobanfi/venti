@@ -62,6 +62,11 @@ enum Session {
         do {
             let folder = try LaunchOptions.dataFolder()
             let core = try Core(dataFolder: folder.path)
+            if LaunchOptions.usesSampleLogbook {
+                for text in LaunchOptions.sampleLogbook() {
+                    _ = try? core.importFlight(igcText: text)
+                }
+            }
             let logbook = LogbookModel(core: core, folder: folder)
             if LaunchOptions.usesSampleWaypoints {
                 _ = try? core.importWaypoints(text: LaunchOptions.sampleWaypoints)
@@ -209,6 +214,23 @@ enum LaunchOptions {
         "Sample turnpoint",STP,DE,4737.200N,01152.000E,1700m,1
         "Sample summit far away",SSF,DE,4725.260N,01059.090E,2962m,7
         """
+
+    /// Start with the sample flight five times on other days of July 2026,
+    /// so that the logbook holds enough thermals for "How you fly" to say
+    /// something. The web's browser test does the same.
+    static let usesSampleLogbook = arguments.contains("--sample-logbook")
+
+    /// The sample flight on the 1st, 2nd, 3rd, 5th and 6th of July 2026:
+    /// its date rewritten, since the logbook takes a flight with the same
+    /// positions on the same day for one it already has.
+    static func sampleLogbook() -> [String] {
+        guard let url = Bundle.main.url(forResource: "sample", withExtension: "igc"),
+            let text = try? String(contentsOf: url, encoding: .utf8)
+        else { return [] }
+        return ["01", "02", "03", "05", "06"].map { day in
+            text.replacingOccurrences(of: "HFDTEDATE:040726", with: "HFDTEDATE:\(day)0726")
+        }
+    }
 
     /// Start with a made-up control zone near the end of the sample
     /// flight, so the cockpit's airspace warnings can be tested.

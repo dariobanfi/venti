@@ -307,8 +307,9 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("light-6d-statistics-bests")
         // At the end, the way to how the pilot flies. The sample logbook
-        // has too few thermals for an observation, so the screen says so.
-        // Kept when it is reached; not a condition.
+        // has too few thermals for an observation, so the screen says so
+        // (with observations: `testHowYouFlySaysWhatTheTracksShow`). Kept
+        // when it is reached; not a condition.
         app.swipeUp()
         let howYouFly = element("statistics-how-you-fly", in: app)
         if howYouFly.waitForExistence(timeout: 5), howYouFly.isHittable {
@@ -318,7 +319,7 @@ final class VentiUITests: XCTestCase {
                 .firstMatch
             if said.waitForExistence(timeout: 30) {
                 sleep(1)
-                keepScreenshot("light-6f-how-you-fly")
+                keepScreenshot("light-6f-how-you-fly-empty")
             }
             if app.navigationBars["How you fly"].exists {
                 app.navigationBars.buttons.firstMatch.tap()
@@ -341,6 +342,34 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("light-8-delete")
         confirm.tap()
         XCTAssertTrue(app.staticTexts["No flights yet"].waitForExistence(timeout: 15))
+    }
+
+    /// "How you fly" with something to say: the logbook starts with the
+    /// sample flight on five days (`--sample-logbook`), ten thermals, and
+    /// the screen at the foot of the statistics shows its observations.
+    func testHowYouFlySaysWhatTheTracksShow() {
+        let app = launch(bundledMap: true, extra: ["--sample-logbook"])
+        openTab("Logbook", in: app)
+        let totals = element("logbook-totals", in: app)
+        XCTAssertTrue(totals.waitForExistence(timeout: 30))
+        totals.tap()
+        XCTAssertTrue(app.staticTexts["Last twelve months"].waitForExistence(timeout: 15))
+
+        // The way there is at the end of the statistics, whose list makes
+        // its rows as they come into view.
+        let howYouFly = element("statistics-how-you-fly", in: app)
+        for _ in 0..<10 where !isOnScreen(howYouFly, in: app) {
+            app.swipeUp()
+            usleep(500_000)
+        }
+        XCTAssertTrue(isOnScreen(howYouFly, in: app))
+        howYouFly.tap()
+        XCTAssertTrue(app.navigationBars["How you fly"].waitForExistence(timeout: 15))
+        // The core counts each flight from its file the first time.
+        XCTAssertTrue(element("how-you-fly-card", in: app).waitForExistence(timeout: 60))
+        XCTAssertFalse(element("how-you-fly-empty", in: app).exists)
+        sleep(1)
+        keepScreenshot("light-6f-how-you-fly")
     }
 
     /// A flight of the logbook on its way to a league: what the pilot is
@@ -956,6 +985,9 @@ final class VentiUITests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
         let square = element("forecast-square", in: app)
         var status: String?
+        /// Which of the forecast's days was chosen when it opened, counted
+        /// from the first.
+        var forecastOpenedOn: Int?
         if square.waitForExistence(timeout: 15) {
             let said = element("forecast-square-status", in: app)
             if said.waitForExistence(timeout: 10) {
@@ -963,11 +995,17 @@ final class VentiUITests: XCTestCase {
             }
             sleep(1)
             keepScreenshot("map-forecast-3-square")
-            // The forecast for the square's place, kept when it comes.
+            // The forecast for the square's place, kept when it comes. It
+            // opens on the day the map showed, the second: the second of
+            // the forecast's days too, since both begin today.
             let toForecast = element("forecast-square-forecast", in: app)
             if toForecast.exists, toForecast.isHittable {
                 toForecast.tap()
                 if element("forecast-table", in: app).waitForExistence(timeout: 60) {
+                    let days = element("forecast-day", in: app).buttons
+                    if days.firstMatch.waitForExistence(timeout: 10) {
+                        forecastOpenedOn = (0..<days.count).first { days.element(boundBy: $0).isSelected }
+                    }
                     sleep(1)
                     keepScreenshot("map-forecast-4-forecast")
                 }
@@ -1006,6 +1044,11 @@ final class VentiUITests: XCTestCase {
         setLayer("forecast-chip", on: false, in: app)
         XCTAssertFalse(chip.isSelected)
         XCTAssertFalse(element("forecast-card", in: app).exists)
+        // The square's forecast, on the map's day: tomorrow. Asked last,
+        // so that a failure leaves the layers as the next test expects.
+        if let forecastOpenedOn {
+            XCTAssertEqual(forecastOpenedOn, 1, "The square's forecast did not open on the map's second day.")
+        }
     }
 
     /// The app's icon on the home screen: the design language's, which

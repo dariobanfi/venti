@@ -29,6 +29,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -290,14 +291,15 @@ class VentiUiTest {
         assertTrue(exists(hasText("Your bests")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-6e-statistics-bests")
-        // At the end, "How you fly": what the tracks say, or that they do
-        // not say enough yet. The sample flight alone has few thermals.
+        // At the end, "How you fly": the sample flight alone has two
+        // thermals, too few to say anything yet. With enough flights it
+        // says something: `seeHowYouFly`.
         list.performScrollToNode(hasTestTag("statistics-how-you-fly"))
         tap(hasTestTag("statistics-how-you-fly"))
-        waitFor(hasTestTag("tendency") or hasTestTag("tendencies-nothing"))
+        waitFor(hasTestTag("tendencies-nothing"))
         assertTrue(exists(hasTestTag("tendencies-note")))
         letTheMapDraw(1)
-        keepScreenshot("$prefix-6f-how-you-fly")
+        keepScreenshot("$prefix-6f-how-you-fly-empty")
         tap(described("Back"))
         waitFor(hasTestTag("statistics"))
         tap(described("Back"))
@@ -1904,7 +1906,8 @@ class VentiUiTest {
      * Today's kinds of day); without it the test is skipped. Its map has
      * every kind of day in clear patches around 47.5 to 47.9 N and 11.5 to
      * 12.3 E, and two days; the middle of the map, 47.7 N 11.9 E, is weak
-     * thermals on both. What its screenshots show is made up.
+     * thermals on both. What its screenshots show is made up. The forecast
+     * a square leads to opens on the day the map showed.
      */
     @Test
     fun theMapShowsTheKindOfDaySquareBySquare() {
@@ -1984,10 +1987,15 @@ class VentiUiTest {
         letTheMapDraw(2)
         keepScreenshot("map-forecast-3-square")
 
-        // The square leads to the forecast for its middle, in the same sheet.
+        // The square leads to the forecast for its middle, in the same sheet,
+        // on the day the map showed: its second. The stand-in's forecast has
+        // the map's days from its first on, so that is the forecast's second
+        // day too; from anywhere else the forecast opens on today, or on its
+        // first day when it has no today.
         screen.onNode(hasTestTag("forecast-square-forecast")).performScrollTo()
         tap(hasTestTag("forecast-square-forecast"))
         waitFor(hasTestTag("forecast-table"))
+        waitFor(hasTestTag("forecast-day-1") and isSelected())
         letTheMapDraw(1)
         keepScreenshot("map-forecast-4-forecast")
         tap(hasText("Done"))
@@ -2295,6 +2303,51 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(line) }
         folder.deleteRecursively()
     }
+
+    /**
+     * "How you fly" with something to say. The core observes once the
+     * logbook holds ten thermals; the sample flight has two, so five
+     * copies of it on other days of July 2026 are brought in together, as
+     * files shared to the app. A flight the logbook already has is
+     * recognised, so the copies differ in their date.
+     */
+    private fun seeHowYouFly(prefix: String, dark: Boolean) {
+        val sample = context.assets.open(AppFiles.SAMPLE_FLIGHT).use { it.readBytes() }.decodeToString()
+        check("HFDTEDATE:040726" in sample) { "the sample flight is no longer of 4 July 2026" }
+        val folder = File(context.cacheDir, "tendencies-${System.nanoTime()}").apply { mkdirs() }
+        val files = listOf(1, 2, 3, 5, 6).map { day ->
+            File(folder, "2026-07-%02d.igc".format(day)).apply {
+                writeText(sample.replace("HFDTEDATE:040726", "HFDTEDATE:%02d0726".format(day)))
+            }
+        }
+        launch(dark = dark) {
+            action = Intent.ACTION_SEND_MULTIPLE
+            type = "application/octet-stream"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(files.map(Uri::fromFile)))
+        }
+        waitFor(hasText("5 flights added"))
+        tap(hasText("OK") and hasClickAction())
+        waitFor(hasTestTag("logbook-row"))
+        tap(hasTestTag("logbook-totals"))
+        waitFor(hasTestTag("statistics"))
+        screen.onNode(hasTestTag("statistics")).performScrollToNode(hasTestTag("statistics-how-you-fly"))
+        tap(hasTestTag("statistics-how-you-fly"))
+        // At least one observation, and what they are and are not under them.
+        waitFor(hasTestTag("tendency"))
+        assertFalse(exists(hasTestTag("tendencies-nothing")))
+        screen.onNode(hasTestTag("tendencies")).performScrollToNode(hasTestTag("tendencies-note"))
+        waitFor(hasTestTag("tendencies-note"))
+        screen.onNode(hasTestTag("tendencies")).performScrollToIndex(0)
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-6f-how-you-fly")
+        folder.deleteRecursively()
+    }
+
+    @Test
+    fun howYouFlySaysWhatTheTracksShow() = seeHowYouFly("light", dark = false)
+
+    @Test
+    fun howYouFlyInDarkAppearance() = seeHowYouFly("dark", dark = true)
 
     @Test
     fun twoFlightsAreLaidSideBySide() = layTwoFlightsSideBySide("light", dark = false)

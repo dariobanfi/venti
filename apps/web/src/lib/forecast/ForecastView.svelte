@@ -13,7 +13,15 @@
 	import { format } from '#lib/design/format.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import ForecastTable from './ForecastTable.svelte';
-	import { caveat, dayName, daysWithLight, THERMALS_NOTE, today } from './table';
+	import {
+		caveat,
+		dayName,
+		daysWithLight,
+		type OpenOn,
+		openingOn,
+		THERMALS_NOTE,
+		today
+	} from './table';
 
 	interface Props {
 		/** The place, and what it is called. */
@@ -21,9 +29,15 @@
 		name: string;
 		/** Asks the server. Nothing comes back from a site without one. */
 		ask: (place: Coordinate) => Promise<ForecastView | undefined>;
+		/**
+		 * The day of the thermal map a square was chosen on, for a forecast
+		 * opened from it: the forecast opens on that day, of the model the
+		 * map read it from where it can.
+		 */
+		openOn?: OpenOn;
 	}
 
-	let { place, name, ask }: Props = $props();
+	let { place, name, ask, openOn }: Props = $props();
 
 	const text = format();
 	const now = Math.floor(Date.now() / 1000);
@@ -34,6 +48,8 @@
 	let phase = $state.raw<Phase>({ is: 'loading' });
 	/** Counts the requests, so that a slow answer for another place is dropped. */
 	let asked = 0;
+	/** Whether a forecast has come: the day it opens on is chosen only then. */
+	let opened = false;
 
 	function load(place: Coordinate) {
 		const mine = ++asked;
@@ -41,6 +57,16 @@
 		ask(place).then(
 			(forecast) => {
 				if (mine !== asked) return;
+				if (forecast && !opened) {
+					// Once, on the first answer: after it the reader's own
+					// choice of model and day stands.
+					opened = true;
+					const start = openOn && openingOn(forecast.models, openOn);
+					if (start) {
+						chosenModel = start.model.model;
+						chosenDay = dayName(start.day, now, text);
+					}
+				}
 				phase = forecast
 					? { is: 'loaded', forecast }
 					: {
@@ -61,9 +87,12 @@
 
 	$effect(() => load(place));
 
-	/** The model looked at, by its identifier. The finest one at first. */
+	/**
+	 * The model looked at, by its identifier. The finest one at first, or
+	 * the one of the thermal map's day it was opened from.
+	 */
 	let chosenModel = $state<string>();
-	/** The day looked at, by its name. Today at first. */
+	/** The day looked at, by its name. Today at first, or the thermal map's day. */
 	let chosenDay = $state('');
 
 	const models = $derived(phase.is === 'loaded' ? phase.forecast.models : []);

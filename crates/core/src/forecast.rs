@@ -119,6 +119,11 @@ pub struct ForecastHourView {
 pub struct ForecastDay {
     /// The day's first moment, seconds since 1970-01-01 UTC.
     pub start_unix_s: i64,
+    /// The day as a date by that clock: "2026-07-12". It is how a day of
+    /// the thermal map names itself ([`crate::ThermalMapDay`]), so a shell
+    /// that comes from a square of the map finds the day by it and does
+    /// no reckoning of its own.
+    pub date: String,
     /// Sunrise at the place that day.
     pub sunrise_unix_s: Option<i64>,
     /// Sunset.
@@ -317,6 +322,7 @@ fn model_forecast(series: &ForecastSeries, asked: GeoPoint, utc_offset_s: i32) -
             let light = sun::daylight_at(start + Duration::hours(12), series.cell);
             days.push(ForecastDay {
                 start_unix_s: start.timestamp(),
+                date: local_day.format("%Y-%m-%d").to_string(),
                 sunrise_unix_s: light.sunrise.map(|time| time.timestamp()),
                 sunset_unix_s: light.sunset.map(|time| time.timestamp()),
                 hours: Vec::new(),
@@ -503,6 +509,10 @@ mod tests {
         // The day begins at the local midnight, which is 22:00 UTC.
         assert_eq!(days[1].start_unix_s - days[0].start_unix_s, 86_400);
         assert_eq!(days[0].start_unix_s % 86_400, 22 * 3600);
+        // Each names its date by that clock, as a day of the thermal map
+        // does.
+        assert_eq!(days[0].date, "2026-07-04");
+        assert_eq!(days[1].date, "2026-07-05");
         // Midday is in daylight, an hour before midnight is not.
         assert!(days[0].hours[0].is_daylight);
         assert!(!days[0].hours[1].is_daylight);

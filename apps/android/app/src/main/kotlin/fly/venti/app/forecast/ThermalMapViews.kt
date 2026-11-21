@@ -242,7 +242,14 @@ fun ThermalSquareSheet(
         // height with the square still in view above it.
         Box(Modifier.fillMaxHeight()) {
             if (showsForecast) {
-                ForecastPage(ThermalMapWords.place(square), wind, onBack = { showsForecast = false }, onDone = onDismiss)
+                ForecastPage(
+                    ThermalMapWords.place(square),
+                    wind,
+                    onBack = { showsForecast = false },
+                    onDone = onDismiss,
+                    // On the day the map shows, from the model it is read from.
+                    opensOn = ForecastOpening(day.date, day.model),
+                )
                 return@Box
             }
             Column(Modifier.testTag("forecast-square")) {

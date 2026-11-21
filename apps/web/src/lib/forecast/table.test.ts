@@ -6,7 +6,17 @@ import type {
 	ModelForecast
 } from '#lib/core/index.ts';
 import { compassPoint, createFormat } from '#lib/design/format.ts';
-import { caveat, dayName, daysWithLight, DRY, hoursOf, rows, today, windInWords } from './table';
+import {
+	caveat,
+	dayName,
+	daysWithLight,
+	DRY,
+	hoursOf,
+	openingOn,
+	rows,
+	today,
+	windInWords
+} from './table';
 
 const text = createFormat('en-GB', 'Europe/Berlin');
 
@@ -43,6 +53,8 @@ function hour(at: number, given: Partial<ForecastHourView> = {}): ForecastHourVi
 function day(start: number, hours: ForecastHourView[]): ForecastDay {
 	return {
 		startUnixS: start,
+		// The date at noon, which is the same day in Munich and in UTC.
+		date: new Date((start + 12 * HOUR) * 1000).toISOString().slice(0, 10),
 		sunriseUnixS: start + 7 * HOUR,
 		sunsetUnixS: start + 16 * HOUR,
 		hours
@@ -97,6 +109,51 @@ describe('the days and hours of a forecast worth showing', () => {
 
 		expect(dayName(friday, FRIDAY + 10 * HOUR, text)).toBe('Today');
 		expect(dayName(friday, FRIDAY - HOUR, text)).toBe('Fri 20');
+	});
+});
+
+describe('a forecast opened from a day of the thermal map', () => {
+	const SATURDAY = FRIDAY + 24 * HOUR;
+	const daytime = (start: number) => day(start, [hour(start + 12 * HOUR)]);
+	// Finest first, as the core lists them: ICON-D2 reaches Friday only,
+	// ICON-EU Friday and Saturday.
+	const d2 = model({ days: [daytime(FRIDAY)] });
+	const eu = model({
+		model: 'icon-eu',
+		name: 'ICON-EU',
+		days: [daytime(FRIDAY), daytime(SATURDAY)]
+	});
+	const global = model({ model: 'gfs', name: 'GFS', days: [daytime(FRIDAY), daytime(SATURDAY)] });
+
+	it('opens on the model the map’s day is read from, when it has the day', () => {
+		const opened = openingOn([d2, eu, global], { date: '2026-11-20', model: 'ICON-EU' });
+
+		expect(opened?.model).toBe(eu);
+		expect(opened?.day).toBe(eu.days[0]);
+	});
+
+	it('else on the finest model that has the day', () => {
+		// ICON-D2 does not reach Saturday; the map read it from a model this
+		// place has no forecast of.
+		const opened = openingOn([d2, global, eu], { date: '2026-11-21', model: 'ICON-D2' });
+
+		expect(opened?.model).toBe(global);
+		expect(opened?.day.date).toBe('2026-11-21');
+	});
+
+	it('counts only a day with the sun up', () => {
+		const dark = model({
+			model: 'icon-eu',
+			name: 'ICON-EU',
+			days: [day(SATURDAY, [hour(SATURDAY + 2 * HOUR, { isDaylight: false })])]
+		});
+
+		expect(openingOn([dark, global], { date: '2026-11-21', model: 'ICON-EU' })?.model).toBe(global);
+	});
+
+	it('opens as from anywhere else when no model has the day', () => {
+		expect(openingOn([d2, eu], { date: '2026-11-25', model: 'ICON-EU' })).toBeUndefined();
+		expect(openingOn([], { date: '2026-11-20', model: 'ICON-D2' })).toBeUndefined();
 	});
 });
 

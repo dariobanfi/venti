@@ -108,6 +108,7 @@ struct MapScreen: View {
                     }
                     chosenSquare = ChosenSquare(
                         dayName: day.name, cell: day.cells[index], note: map.note, credits: map.credits,
+                        opening: ForecastOpening(date: day.date, model: day.model),
                         id: "\(day.date)-\(index)"
                     )
                 }

@@ -278,17 +278,18 @@ fun MapScreen(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = VentiSpace.s4),
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
-                if (offersThermals) {
-                    LayerChip("Thermals", R.drawable.venti_thermal, thermals, onChange = { on ->
-                        thermals = on
-                        preferences?.mapShowsThermals = on
-                    }, Modifier.testTag("layer-thermals"))
-                }
+                // The kind of day first, as on the iPhone and the web.
                 if (hasServer && thermalMap != null) {
                     LayerChip("Forecast", R.drawable.venti_forecast, forecast, onChange = { on ->
                         forecast = on
                         preferences?.mapShowsForecast = on
                     }, Modifier.testTag("layer-forecast"))
+                }
+                if (offersThermals) {
+                    LayerChip("Thermals", R.drawable.venti_thermal, thermals, onChange = { on ->
+                        thermals = on
+                        preferences?.mapShowsThermals = on
+                    }, Modifier.testTag("layer-thermals"))
                 }
                 if (hasServer) {
                     LayerChip("Wind", R.drawable.venti_wind, !hidesWind, onChange = { on ->

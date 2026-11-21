@@ -162,6 +162,9 @@ struct ChosenSquare: Identifiable {
     /// What the map is and is not.
     let note: String
     let credits: [Credit]
+    /// The day of the map the square was tapped on, and its model: where
+    /// the square's forecast opens.
+    let opening: ForecastOpening
     let id: String
 
     /// The middle of the square: the mean of its edges.
@@ -214,10 +217,12 @@ struct ForecastSquareSheet: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     // The forecast for the middle of the square, as a
-                    // site's page leads to it.
+                    // site's page leads to it, on the day the map showed:
+                    // the hours behind that day's verdict.
                     NavigationLink {
                         ForecastScreen(
-                            place: square.middle, title: Format.place(lat: square.middle.lat, lon: square.middle.lon)
+                            place: square.middle, title: Format.place(lat: square.middle.lat, lon: square.middle.lon),
+                            opening: square.opening
                         )
                     } label: {
                         Label("Forecast for this place", systemImage: "cloud.sun")

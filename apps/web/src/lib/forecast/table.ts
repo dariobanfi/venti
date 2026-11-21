@@ -49,6 +49,35 @@ export function daysWithLight(model: ModelForecast): ForecastDay[] {
 	return model.days.filter((day) => day.hours.some((hour) => hour.isDaylight));
 }
 
+/**
+ * A day of the thermal map a forecast is opened from: its date, "2026-11-22",
+ * and the name of the model it is read from, "ICON-D2", as the core's
+ * `ThermalMapDay` has them.
+ */
+export interface OpenOn {
+	date: string;
+	model: string;
+}
+
+/**
+ * Where a forecast opened from a square of the thermal map starts: the
+ * model the map's day is read from, if it has that day, else the first
+ * model that has it, finest first as the core lists them. Nothing when no
+ * model has the day, and the forecast opens as it does from anywhere else.
+ * Only days worth picking count, those with the sun up.
+ */
+export function openingOn(
+	models: readonly ModelForecast[],
+	on: OpenOn
+): { model: ModelForecast; day: ForecastDay } | undefined {
+	const withTheDay = (model: ModelForecast) => {
+		const day = daysWithLight(model).find((day) => day.date === on.date);
+		return day && { model, day };
+	};
+	const named = models.find((model) => model.name === on.model);
+	return (named && withTheDay(named)) ?? models.map(withTheDay).find(Boolean);
+}
+
 /** The day that holds this moment, or the first one. */
 export function today(days: readonly ForecastDay[], nowUnixS: number): ForecastDay | undefined {
 	return (

@@ -130,6 +130,12 @@ fun ForecastPage(
     /** Back to the page the forecast was opened from, if there is one. */
     onBack: (() -> Unit)?,
     onDone: () -> Unit,
+    /**
+     * The day of the forecast map it was opened from, to open on; `null`
+     * from everywhere else. Used once, at the first forecast that comes in:
+     * after that the pilot's own choice stands.
+     */
+    opensOn: ForecastOpening? = null,
 ) {
     var phase by remember(place) { mutableStateOf<Phase>(Phase.Loading) }
     var attempt by remember(place) { mutableIntStateOf(0) }
@@ -137,11 +143,21 @@ fun ForecastPage(
     var model by remember(place) { mutableStateOf<String?>(null) }
     // The day looked at, by its first moment.
     var day by remember(place) { mutableStateOf<Long?>(null) }
+    // Whether the day of the map it was opened from has been chosen yet.
+    var hasOpened by remember(place) { mutableStateOf(opensOn == null) }
 
     LaunchedEffect(place, attempt) {
         phase = Phase.Loading
         phase = try {
-            Phase.Loaded(wind.forecast(place.position))
+            val forecast = wind.forecast(place.position)
+            if (!hasOpened && opensOn != null) {
+                ForecastRows.opening(forecast.models, opensOn)?.let { (opening, openingDay) ->
+                    model = opening.model
+                    day = openingDay.startUnixS
+                }
+                hasOpened = true
+            }
+            Phase.Loaded(forecast)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {

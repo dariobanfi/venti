@@ -37,6 +37,14 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	wide
 }) => {
 	await madeUpMap(page);
+	// MADE UP: the stand-in's forecast too, which has the same three days
+	// as its map, by the development server's clock; the recorded
+	// forecast's days are others.
+	await page.route('**/v1/forecast**', async (route) => {
+		const asked = new URL(route.request().url());
+		const response = await route.fetch({ url: `${MADE_UP_DAY}${asked.pathname}${asked.search}` });
+		await route.fulfill({ response });
+	});
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
 	await page.goto('/');
@@ -94,11 +102,30 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	await mapDrawn();
 	await keep('114-map-forecast-square');
 
-	// The hours behind the day's verdict: the forecast for the square's middle.
+	// The hours behind the day's verdict: the forecast for the square's middle,
+	// open on the day the map shows, the second, of the model the map read it
+	// from. The card shows all three of the stand-in's days, so its second is
+	// the second of the stand-in's answer.
+	const shown = (await (await fetch(`${MADE_UP_DAY}/v1/thermals`)).json()).days[1];
 	await square.getByRole('button', { name: 'Forecast for this place' }).click();
 	const forecast = page.getByRole('dialog', { name: 'Forecast' });
 	await expect(forecast).toContainText(/\d+\.\d{4}° N, \d+\.\d{4}° E/);
 	await expect(forecast.getByRole('table').first()).toBeVisible();
+	const browsersToday = await page.evaluate(() =>
+		new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })
+	);
+	// As the forecast names a day: "Today", else "Sun 22".
+	const weekdayAndDay = { weekday: 'short', day: 'numeric', timeZone: 'UTC' } as const;
+	const noon = new Date(`${shown.date}T12:00:00Z`);
+	const named =
+		shown.date === browsersToday ? 'Today' : noon.toLocaleDateString('en-GB', weekdayAndDay);
+	await expect(
+		forecast.getByRole('radiogroup', { name: 'Day' }).getByRole('radio', { checked: true })
+	).toHaveAccessibleName(named);
+	// The map's second day is ICON-D2's, the one model of the stand-in's forecast.
+	expect(shown.model).toBe('icon-d2');
+	await expect(forecast).toContainText('What the weather model ICON-D2 computes');
+	await keep('115-map-forecast-square-forecast');
 	await forecast.getByRole('button', { name: 'Done' }).click();
 	await expect(forecast).toBeHidden();
 

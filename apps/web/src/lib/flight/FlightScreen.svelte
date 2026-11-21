@@ -184,6 +184,8 @@
 		return () => clearInterval(timer);
 	});
 	let terrain3d = $state(false);
+	/** Whether the camera follows the marked moment from behind, in 3D. */
+	let follow = $state(false);
 	/** Whether the ground is photographs from above: the pilot's choice for every map. */
 	let aerial = $state(aerialOn(globalThis.localStorage));
 	let map = $state<FlightMap>();
@@ -224,6 +226,9 @@
 			airspace={app.airspace}
 			onairspace={(count) => (airspaceDrawn = count)}
 			{other}
+			{analysis}
+			{ground}
+			follow={terrain3d && follow}
 		/>
 		<!-- A map says nothing to a screen reader: this much it can be told. -->
 		{#if airspaceDrawn !== undefined && !app.airspace?.isEmpty}
@@ -250,8 +255,22 @@
 				label="Terrain in 3D"
 				icon="mountain"
 				pressed={terrain3d}
-				onclick={() => (terrain3d = !terrain3d)}
+				onclick={() => {
+					terrain3d = !terrain3d;
+					if (!terrain3d) follow = false;
+				}}
 			/>
+			<!-- In 3D: the whole flight from a good angle, and a camera that
+			     follows the marked moment from behind. -->
+			{#if terrain3d}
+				<MapButton label="Whole flight" icon="track" onclick={() => map?.wholeFlight()} />
+				<MapButton
+					label="Follow the glider"
+					icon="glider"
+					pressed={follow}
+					onclick={() => (follow = !follow)}
+				/>
+			{/if}
 			<MapButton
 				label="Aerial view"
 				icon="layers"

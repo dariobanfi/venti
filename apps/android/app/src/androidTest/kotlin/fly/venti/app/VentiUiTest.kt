@@ -143,6 +143,11 @@ class VentiUiTest {
         screen.onAllNodes(what).onFirst().performClick()
     }
 
+    /** One of the map tab's chips, scrolled into view first: their row scrolls sideways. */
+    private fun tapChip(tag: String) {
+        screen.onNode(hasTestTag(tag)).performScrollTo().performClick()
+    }
+
     /** One of the sections in the tab bar; not a day of Today's switch or of the forecast map's, which say "Today" too. */
     private fun tab(name: String) =
         hasText(name) and isSelectable() and !hasAnyAncestor(hasTestTag("today-days")) and !hasAnyAncestor(hasTestTag("forecast-days"))
@@ -1666,11 +1671,11 @@ class VentiUiTest {
 
         // The chips switch the sites off and on again, and the map
         // remembers.
-        tap(hasTestTag("layer-sites"))
+        tapChip("layer-sites")
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(described("Flying sites")) }
         letTheMapDraw(1)
         keepScreenshot("$prefix-sites-2c-sites-off")
-        tap(hasTestTag("layer-sites"))
+        tapChip("layer-sites")
         waitFor(described("Flying sites"))
 
         // The same signs as a list: those with a name first.
@@ -1905,12 +1910,15 @@ class VentiUiTest {
         // Off until the pilot switches it on.
         screen.onNode(chip).assertIsOff()
         // Nothing else of Venti's under the finger where a square is tapped.
+        // The chips' row scrolls: a chip beyond its edge is scrolled to
+        // first. A test's choices are its own: every launch starts a new
+        // session with the chips as a new phone has them.
         for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
-            tap(hasTestTag(layer))
+            tapChip(layer)
             screen.onNode(hasTestTag(layer)).assertIsOff()
         }
         assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
-        tap(chip)
+        tapChip("layer-forecast")
         screen.onNode(chip).assertIsOn()
 
         // The card: the days, the key from the best kind of day down to
@@ -1977,7 +1985,7 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("forecast-table")) }
 
         // Switched off, the card goes and the squares with it.
-        tap(chip)
+        tapChip("layer-forecast")
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("forecast-map-card")) }
     }
 
@@ -1994,7 +2002,7 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         waitFor(hasTestTag("layer-forecast"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
-        tap(hasTestTag("layer-forecast"))
+        tapChip("layer-forecast")
         waitFor(hasTestTag("forecast-key"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0

@@ -2,9 +2,20 @@ import SwiftUI
 import VentiCore
 
 /// Everyone's public flights on the pilot's Venti server: the newest
-/// first, or the best.
+/// first, or the best. The field over them finds a pilot by name: while
+/// something is typed in it, the pilots Venti found stand in place of the
+/// flights, each opening the pilot's page.
 struct PublicFlightsList: View {
     @Environment(CommunityModel.self) private var community
+
+    /// What is typed into the field that finds a pilot.
+    @State private var typed = ""
+    @State private var search = PilotSearch()
+
+    /// Whether the pilots found stand in place of the flights.
+    private var isFinding: Bool {
+        !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     /// The order shown; choosing the other asks the server for it.
     private var order: Binding<PublicFlightsOrder> {
@@ -19,45 +30,15 @@ struct PublicFlightsList: View {
 
     var body: some View {
         VentiList {
-            Section {
-                VentiSegmented(
-                    options: [
-                        (value: PublicFlightsOrder.newest, name: "Newest"),
-                        (value: PublicFlightsOrder.best, name: "Best"),
-                    ],
-                    selection: order
-                )
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            }
-            Section {
-                ForEach(community.flights, id: \.id) { flight in
-                    NavigationLink(value: flight) {
-                        PublicFlightRow(flight: flight)
-                    }
-                    .accessibilityIdentifier("public-flight-row")
-                    .onAppear {
-                        // The last row in view: fetch what follows it.
-                        if flight.id == community.flights.last?.id {
-                            Task {
-                                await community.loadMore()
-                            }
-                        }
-                    }
-                }
-                if community.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                }
-            } footer: {
-                if !community.flights.isEmpty {
-                    Text("Flights their pilots share with everyone on Venti. Distances and points are Venti's own reckoning by the World XContest's rules, not a league's.")
-                }
+            if isFinding {
+                PilotsFoundSection(search: search)
+            } else {
+                flights
             }
         }
         .listStyle(.insetGrouped)
         .overlay {
-            if community.flights.isEmpty, !community.isLoading {
+            if !isFinding, community.flights.isEmpty, !community.isLoading {
                 if let problem = community.problem {
                     // Something went wrong: said plainly, without art.
                     ContentUnavailableView {
@@ -77,11 +58,55 @@ struct PublicFlightsList: View {
                 }
             }
         }
+        .searchable(text: $typed, placement: .navigationBarDrawer(displayMode: .always), prompt: "Pilot")
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.never)
+        .onChange(of: typed) { _, typed in
+            search.search(typed, in: community)
+        }
         .refreshable {
             await community.refresh()
         }
         .task {
             await community.loadIfNeeded()
+        }
+    }
+
+    @ViewBuilder private var flights: some View {
+        Section {
+            VentiSegmented(
+                options: [
+                    (value: PublicFlightsOrder.newest, name: "Newest"),
+                    (value: PublicFlightsOrder.best, name: "Best"),
+                ],
+                selection: order
+            )
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+        }
+        Section {
+            ForEach(community.flights, id: \.id) { flight in
+                NavigationLink(value: flight) {
+                    PublicFlightRow(flight: flight)
+                }
+                .accessibilityIdentifier("public-flight-row")
+                .onAppear {
+                    // The last row in view: fetch what follows it.
+                    if flight.id == community.flights.last?.id {
+                        Task {
+                            await community.loadMore()
+                        }
+                    }
+                }
+            }
+            if community.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+            }
+        } footer: {
+            if !community.flights.isEmpty {
+                Text("Flights their pilots share with everyone on Venti. Distances and points are Venti's own reckoning by the World XContest's rules, not a league's.")
+            }
         }
     }
 }
@@ -235,7 +260,8 @@ struct PilotRoute: Hashable {
     let name: String
 }
 
-/// One pilot's public flights, the newest first.
+/// One pilot's page: what their public flights add up to, by the core,
+/// and under that the flights, the newest first.
 struct PilotFlightsScreen: View {
     let pilot: PilotRoute
 
@@ -246,9 +272,16 @@ struct PilotFlightsScreen: View {
     @State private var isLoading = true
     @State private var problem: String?
     @State private var reporting: Reported?
+    /// What the pilot's public flights add up to, once Venti has said.
+    @State private var statistics: PilotStatistics?
+    /// The year of the season whose totals are shown; 0 is all years.
+    @State private var year: Int32 = 0
 
     var body: some View {
         VentiList {
+            if let statistics, !flights.isEmpty {
+                PilotTotalsSections(statistics: statistics, year: $year)
+            }
             Section {
                 ForEach(flights, id: \.id) { flight in
                     NavigationLink {
@@ -300,7 +333,13 @@ struct PilotFlightsScreen: View {
         .task(id: pilot.handle) {
             flights = []
             next = nil
+            statistics = nil
+            year = 0
+            // The totals beside the flights: the page is the flights'
+            // where Venti does not add them up.
+            async let totals = try? community.statistics(of: pilot.handle)
             await load()
+            statistics = await totals
         }
     }
 

@@ -33,6 +33,12 @@ final class CommunityModel {
         var seasons: [RankingSeason] = []
         /// The name of the season the ranking is of.
         var season = ""
+        /// The month of that season the ranking is of, as the core
+        /// writes it ("2026-05"). `nil` for the whole season.
+        var month: String?
+        /// The years that have a ranking, each with its months that have
+        /// one: the server's, the same whichever the ranking is of.
+        var periods: [RankingYearChoice] = []
         /// The pilots, the one with the most points first.
         var pilots: [RankedPilot] = []
         /// The rule in a sentence, for under the list.
@@ -41,6 +47,18 @@ final class CommunityModel {
         var isLoading = false
         /// Why it is missing, in words for the pilot.
         var problem: String?
+
+        /// The months of the season shown that have a ranking, the
+        /// newest first, in the core's names. None for all years.
+        var months: [RankingMonthChoice] {
+            periods.first { $0.name == season }?.months ?? []
+        }
+
+        /// What the ranking is of, in the core's words: "May 2026",
+        /// "2026", "All years".
+        var title: String {
+            months.first { $0.month == month }?.title ?? season
+        }
     }
 
     /// The ranking of the season last asked for.
@@ -128,41 +146,61 @@ final class CommunityModel {
         }
     }
 
-    /// Fetches the ranking of a season, by the name the core gives it.
-    /// Without a name it is the season last shown, or the newest.
+    /// Fetches the ranking of a season, by the name the core gives it:
+    /// the whole season, whichever month of another was shown. Without a
+    /// name it is what was last shown, season and month, or the newest.
     func rank(season: String? = nil, now: Date = Date()) async {
+        await rank(season: season, month: season == nil ? ranked.month : nil, now: now)
+    }
+
+    /// Fetches the ranking of a month of the season shown, as the core
+    /// writes the month ("2026-05"); `nil` is the whole season again.
+    func rank(month: String?, now: Date = Date()) async {
+        await rank(season: nil, month: month, now: now)
+    }
+
+    private func rank(season: String?, month: String?, now: Date) async {
         guard let server = server() else {
             ranked = Ranked()
             return
         }
-        let seasons = rankingSeasons(nowUnixS: Int64(now.timeIntervalSince1970))
+        let byTheClock = rankingSeasons(nowUnixS: Int64(now.timeIntervalSince1970))
         let wanted = season ?? ranked.season
-        guard let chosen = seasons.first(where: { $0.name == wanted }) ?? seasons.first else { return }
-        if chosen.name != ranked.season {
-            // Another season's pilots are not this one's.
+        let offered = ranked.seasons.isEmpty ? byTheClock : ranked.seasons
+        guard let chosen = offered.first(where: { $0.name == wanted }) ?? byTheClock.first else { return }
+        if chosen.name != ranked.season || month != ranked.month {
+            // Another season's or month's pilots are not this one's.
             ranked.pilots = []
             ranked.rule = ""
         }
-        ranked.seasons = seasons
+        ranked.seasons = offered
         ranked.season = chosen.name
+        ranked.month = month
         ranked.problem = nil
         ranked.isLoading = true
         do {
-            let path = try rankingPath(area: nil, fromUnixS: chosen.fromUnixS, toUnixS: chosen.toUnixS)
+            let path = if let month {
+                try rankingMonthPath(area: nil, month: month)
+            } else {
+                try rankingPath(area: nil, fromUnixS: chosen.fromUnixS, toUnixS: chosen.toUnixS)
+            }
             guard let url = URL(string: server.absoluteString + path) else {
                 ranked.isLoading = false
                 return
             }
             let (status, body) = try await transport(url)
             let answer = try VentiCore.ranking(status: UInt16(clamping: status), body: body)
-            // The pilot may have chosen another season or server while
-            // this was under way: that question's answer sets the rest.
-            guard server == self.server(), ranked.season == chosen.name else { return }
+            // The pilot may have chosen another season, month or server
+            // while this was under way: that question's answer sets the
+            // rest.
+            guard server == self.server(), ranked.season == chosen.name, ranked.month == month else { return }
             ranked.pilots = answer.pilots
             ranked.rule = answer.rule
+            ranked.periods = answer.periods
+            ranked.seasons = Self.seasons(having: answer.periods, shown: chosen, byTheClock: byTheClock)
             ranked.isLoading = false
         } catch {
-            guard ranked.season == chosen.name else { return }
+            guard ranked.season == chosen.name, ranked.month == month else { return }
             ranked.isLoading = false
             if error is CancellationError || (error as? URLError)?.code == .cancelled {
                 return
@@ -171,6 +209,24 @@ final class CommunityModel {
                 ? error.words
                 : "The server could not be reached for the ranking. \(error.localizedDescription)"
         }
+    }
+
+    /// The seasons a ranking is offered for once the server has said
+    /// which years have one: those years, the newest first, the season
+    /// shown where it is not one of them, and all years. From a server
+    /// that does not say, the core's years by the clock.
+    static func seasons(
+        having periods: [RankingYearChoice], shown: RankingSeason, byTheClock: [RankingSeason]
+    ) -> [RankingSeason] {
+        guard !periods.isEmpty else { return byTheClock }
+        var years = periods.map {
+            RankingSeason(name: $0.name, fromUnixS: $0.fromUnixS, toUnixS: $0.toUnixS)
+        }
+        if shown.fromUnixS != nil, !years.contains(where: { $0.name == shown.name }) {
+            years.append(shown)
+        }
+        years.sort { ($0.fromUnixS ?? 0) > ($1.fromUnixS ?? 0) }
+        return years + byTheClock.filter { $0.fromUnixS == nil }
     }
 
     /// Fetches a flight's file and prepares it for display, like one of
@@ -216,6 +272,40 @@ final class CommunityModel {
         }
         let (status, body) = try await transport(url)
         return try pilotPage(status: UInt16(clamping: status), body: body)
+    }
+
+    /// The pilots whose handle or name holds a text, as the core lists
+    /// them. Fewer than two letters are not asked for: the core refuses
+    /// them in words, which are thrown.
+    func pilots(named text: String) async throws -> PilotsFound {
+        let path = try pilotsSearchPath(text: text)
+        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+            throw URLError(.badURL)
+        }
+        let (status, body) = try await transport(url)
+        return try pilotsFound(status: UInt16(clamping: status), body: body)
+    }
+
+    /// What a pilot's public flights add up to, overall and season by
+    /// season.
+    func statistics(of handle: String) async throws -> PilotStatistics {
+        let path = try pilotStatisticsPath(handle: handle)
+        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+            throw URLError(.badURL)
+        }
+        let (status, body) = try await transport(url)
+        return try pilotStatistics(status: UInt16(clamping: status), body: body)
+    }
+
+    /// One public flight by its address on the server, as a row of the
+    /// list has it: for what names a flight by its address alone.
+    func flight(_ id: String) async throws -> PublicFlight {
+        let path = try publicFlightPath(id: id)
+        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+            throw URLError(.badURL)
+        }
+        let (status, body) = try await transport(url)
+        return try publicFlight(status: UInt16(clamping: status), body: body)
     }
 
     /// Why a flight could not be opened, in words.

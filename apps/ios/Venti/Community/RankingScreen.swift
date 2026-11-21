@@ -4,9 +4,12 @@ import VentiCore
 /// The pilots of the pilot's Venti server by the points of their best
 /// flights that they share with everyone, in a year or in all years.
 ///
-/// The rule, the seasons and every word of a row are the core's and the
-/// server's. Under each pilot stand the flights that count, each of which
-/// opens like any public flight.
+/// The rule, the seasons, the months and every word of a row are the
+/// core's and the server's. Under the years stand the months of the year
+/// shown that have a ranking, after the year itself, which is the whole
+/// of it; over the pilots stands what the ranking is of. Under each pilot
+/// stand the flights that count, each of which opens like any public
+/// flight.
 struct RankingList: View {
     @Environment(CommunityModel.self) private var community
 
@@ -17,6 +20,18 @@ struct RankingList: View {
         } set: { season in
             Task {
                 await community.rank(season: season)
+            }
+        }
+    }
+
+    /// The month shown, as the core writes it; the empty one is the
+    /// whole year. Choosing another asks the server for it.
+    private var month: Binding<String> {
+        Binding {
+            community.ranked.month ?? ""
+        } set: { month in
+            Task {
+                await community.rank(month: month.isEmpty ? nil : month)
             }
         }
     }
@@ -33,6 +48,27 @@ struct RankingList: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                     .accessibilityIdentifier("ranking-season")
+                    if !ranked.months.isEmpty {
+                        VentiSegmented(
+                            options: [(value: "", name: ranked.season)]
+                                + ranked.months.map { (value: $0.month, name: $0.name) },
+                            selection: month
+                        )
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: VentiSpace.s2, leading: 0, bottom: 0, trailing: 0))
+                        .listRowSeparator(.hidden)
+                        .accessibilityIdentifier("ranking-month")
+                    }
+                } footer: {
+                    if !ranked.title.isEmpty {
+                        Text(ranked.title)
+                            .font(.venti(.headline))
+                            .foregroundStyle(.venti(.text))
+                            .textCase(nil)
+                            .padding(.top, VentiSpace.s2)
+                            .accessibilityAddTraits(.isHeader)
+                            .accessibilityIdentifier("ranking-title")
+                    }
                 }
             }
             ForEach(ranked.pilots, id: \.handle) { pilot in

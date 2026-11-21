@@ -3007,6 +3007,89 @@ final class VentiUITests: XCTestCase {
         XCTAssertFalse(element("flight-beside", in: app).exists)
     }
 
+    /// The ranking of a month, a pilot found by name, and the pilot's
+    /// page with what their public flights add up to. Runs against a
+    /// Venti server in development mode, whose made-up pilot Lena Probe
+    /// shares three flights with everyone, of May, June and July 2026.
+    func testAPilotIsFoundRankedByMonthAndAddedUp() throws {
+        try findAPilotAndTheRankingOfAMonth(dark: false, prefix: "pilots")
+    }
+
+    /// The same three screens in the dark.
+    func testAPilotIsFoundRankedByMonthAndAddedUpInTheDark() throws {
+        try findAPilotAndTheRankingOfAMonth(dark: true, prefix: "pilots-dark")
+    }
+
+    private func findAPilotAndTheRankingOfAMonth(dark: Bool, prefix: String) throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, dark: dark, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        openTab("League", in: app)
+
+        // The ranking of 2026, and under the years its months that have
+        // one, after the year itself. May is far right in the row.
+        let ranking = app.buttons["Ranking"]
+        XCTAssertTrue(ranking.waitForExistence(timeout: 15))
+        ranking.tap()
+        let year = app.buttons["2026"].firstMatch
+        XCTAssertTrue(year.waitForExistence(timeout: 30))
+        year.tap()
+        let may = app.buttons["May"].firstMatch
+        XCTAssertTrue(may.waitForExistence(timeout: 30))
+        for _ in 0..<4 where !isOnScreen(may, in: app) {
+            ["September", "August", "July", "June"]
+                .map { app.buttons[$0].firstMatch }
+                .first { isOnScreen($0, in: app) }?
+                .swipeLeft()
+            usleep(700_000)
+        }
+        may.tap()
+        // The page says which month, and Lena's flight of May is the one
+        // that scores in it.
+        XCTAssertTrue(labelled(containing: "May 2026", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(labelled(containing: "Place 1, Lena Probe", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("\(prefix)-1-ranking-of-a-month")
+
+        // A pilot is found by two letters of the name, in the field over
+        // everyone's flights.
+        let everyone = app.buttons["Everyone"]
+        everyone.tap()
+        XCTAssertTrue(element("public-flight-row", in: app).waitForExistence(timeout: 30))
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap()
+        field.typeText("le")
+        let found = labelled(containing: "Lena Probe (@lena), 3 public flights", in: app)
+        XCTAssertTrue(found.waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("\(prefix)-2-pilot-found")
+
+        // The line opens the pilot's page: the totals over the flights.
+        found.tap()
+        let totals = app.descendants(matching: .any).matching(identifier: "pilot-total")
+        let points = totals.matching(NSPredicate(format: "label CONTAINS %@", "Points, best 3 flights")).firstMatch
+        XCTAssertTrue(points.waitForExistence(timeout: 30))
+        XCTAssertEqual(points.value as? String, "28.19")
+        let site = labelled(containing: "Musterkogel West, 2 flights", in: app)
+        XCTAssertTrue(site.waitForExistence(timeout: 15))
+        XCTAssertTrue(element("flown-months", in: app).exists)
+        sleep(1)
+        keepScreenshot("\(prefix)-3-pilot-totals")
+
+        // A take-off flown from opens the site's page. This step only
+        // adds a screenshot.
+        if isOnScreen(site, in: app) {
+            site.tap()
+            if element("site-tier", in: app).waitForExistence(timeout: 20) {
+                sleep(1)
+                keepScreenshot("\(prefix)-4-pilot-site")
+            }
+        }
+    }
+
     /// A region's map is downloaded from the pilot's server and kept, and
     /// the cockpit then draws its map from it. Runs against a Venti server
     /// whose development mode hands out the region that comes with the

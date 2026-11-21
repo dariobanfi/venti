@@ -1,6 +1,6 @@
 # Notes for AI sessions
 
-The binding rules for AI sessions are in [CLAUDE.md](CLAUDE.md): what the owner has fixed, the architecture and data-source rules, the commands, and how to work. As it says, read [docs/plan.md](docs/plan.md), [docs/architecture.md](docs/architecture.md) and [docs/data-sources.md](docs/data-sources.md) before changing anything, and before changing anything a user sees: [design/AGENTS.md](design/AGENTS.md) and [design/DESIGN.md](design/DESIGN.md), the product's design language, and [docs/design.md](docs/design.md), which says what each screen does.
+The binding rules for AI sessions are in [CLAUDE.md](CLAUDE.md): what the owner has fixed, the architecture and data-source rules, the commands, and how to work. As it says, read [docs/plan.md](docs/plan.md), [docs/architecture.md](docs/architecture.md) and [docs/data-sources.md](docs/data-sources.md) before changing anything, and before changing anything a user sees: [design/AGENTS.md](design/AGENTS.md) and [design/DESIGN.md](design/DESIGN.md), the product's design language, and [docs/design.md](docs/design.md), which says what each screen does. Before adding an endpoint or a table to the server: [docs/data-platform.md](docs/data-platform.md), the principles the owner's decision 14 gives it, what the server holds, and the pieces still missing in their build order.
 
 ## Notes by folder
 

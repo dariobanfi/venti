@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -18,6 +20,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -31,6 +34,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
+import fly.venti.app.design.Group
 import fly.venti.app.design.PillShape
 import fly.venti.app.design.SegmentedPills
 import fly.venti.app.design.Venti
@@ -41,6 +45,7 @@ import fly.venti.core.SitesFiltered
 import fly.venti.core.SitesShown
 import fly.venti.core.SitesWindIs
 import fly.venti.core.WindStation
+import fly.venti.core.siteWords
 import fly.venti.core.sitesFilterChoices
 import fly.venti.core.stationsNear
 
@@ -137,6 +142,15 @@ private fun Leaves(filtered: SitesFiltered) {
         color = colours.textSecondary,
         modifier = Modifier.testTag("sites-filter-leaves"),
     )
+    if (filtered.fromPilotsWords.isNotEmpty()) {
+        // So that a count never passes places from pilots off as sites: the core's line.
+        Text(
+            filtered.fromPilotsWords,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colours.textSecondary,
+            modifier = Modifier.testTag("sites-filter-from-pilots"),
+        )
+    }
     if (filtered.unsaidTitle.isNotEmpty()) {
         Text(
             filtered.unsaidTitle,
@@ -150,9 +164,11 @@ private fun Leaves(filtered: SitesFiltered) {
 /**
  * The filter of the sites, as a sheet over the map: which sites, the wind
  * a take-off is to work in and the height it is to lie at, each choice in
- * the core's words; under them what the filter leaves of the sites at
- * hand, and the core's note on what a fit says and what it does not. A
- * choice counts at once: the map behind the sheet and the list follow it.
+ * the core's words; then the switch that shows the places from pilots, off
+ * until the pilot switches it on; under them what the filter leaves of the
+ * sites at hand, and the core's note on what a fit says and what it does
+ * not. A choice counts at once: the map behind the sheet and the list
+ * follow it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,10 +176,13 @@ fun SitesFilterSheet(
     sites: SitesModel,
     /** Told the filter after every choice, to keep it for the next run. */
     onChange: (SitesFilter) -> Unit,
+    /** Told whether the places from pilots show, to keep it for the next run. */
+    onFromPilots: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colours = Venti.colours
     val choices = remember { sitesFilterChoices() }
+    val says = remember { siteWords() }
     val filter = sites.filter
     val asked = sites.asked
     val filtered = sites.filtered
@@ -250,6 +269,36 @@ fun SitesFilterSheet(
                     Modifier.testTag("sites-filter-heights"),
                     onChoose = { index -> choose(filter.copy(takeoffsFromM = choices.heights[index].fromM)) },
                 )
+            }
+
+            // The crowdsourced layer, which no map shows until its pilot
+            // says so: the core's name for it and what it is.
+            Group(Modifier.padding(top = VentiSpace.s3)) {
+                row {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = sites.showsFromPilots,
+                                role = Role.Switch,
+                                onValueChange = { on ->
+                                    sites.showFromPilots(on)
+                                    onFromPilots(on)
+                                },
+                            )
+                            .testTag("sites-from-pilots")
+                            .heightIn(min = VentiSize.touch)
+                            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(says.pilotsLayer, style = MaterialTheme.typography.bodyLarge)
+                            Text(says.pilotsLayerAbout, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
+                        }
+                        Spacer(Modifier.width(VentiSpace.s3))
+                        Switch(checked = sites.showsFromPilots, onCheckedChange = null)
+                    }
+                }
             }
 
             Column(

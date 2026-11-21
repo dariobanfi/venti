@@ -11,6 +11,7 @@ import fly.venti.core.WindSpan
 import fly.venti.core.WindStation
 import fly.venti.core.serverStatus
 import fly.venti.core.sitesPath
+import fly.venti.core.sitesPathWithPilots
 import fly.venti.core.stationsNear
 import fly.venti.core.windMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -66,6 +67,8 @@ class SitesModelTest {
             return when {
                 "/v1/sites?" !in url -> HttpAnswer(404, ByteArray(0))
                 refuses -> HttpAnswer(400, recorded("error_missing_bbox.json"))
+                // The crowdsourced layer is in an answer only when it was asked for.
+                "venti-pilots" in url -> HttpAnswer(200, recorded("sites_venti_pilots.json"))
                 else -> HttpAnswer(200, recorded("sites.json"))
             }
         }
@@ -119,6 +122,55 @@ class SitesModelTest {
         assertEquals("Landing", bare.name)
         // Nothing else is known of it; it is at least somewhere.
         assertEquals("47.6919° N, 11.8880° E", SiteWords.detail(bare))
+    }
+
+    @Test
+    fun thePlacesFromPilotsAreAskedForOnlyOnceThePilotSwitchesThemOn() = runBlocking {
+        val server = Server()
+        val sites = model(server, scope = this)
+        val area = valley.grown(0.5)
+        // Off until the pilot says so: the path names no such layer, and the filter is not on.
+        assertFalse(sites.showsFromPilots)
+        sites.load(area, BASE)
+        assertEquals(BASE + sitesPath(area.south, area.west, area.north, area.east), server.asked.single())
+        assertFalse("venti-pilots" in server.asked.single())
+        assertFalse(sites.isAsking)
+        assertEquals("", sites.filtered.fromPilotsWords)
+        assertTrue(sites.sites.none { it.byPilots?.fromPilots == true })
+
+        // Switched on: the same area is asked for again, with the layer, and
+        // the switch counts as part of the filter being on.
+        sites.showFromPilots(true)
+        delay(200)
+        assertEquals(BASE + sitesPathWithPilots(area.south, area.west, area.north, area.east), server.asked.last())
+        assertEquals(2, server.asked.size)
+        assertTrue(sites.isAsking)
+        val place = sites.sites.single()
+        assertEquals(true, place.byPilots?.fromPilots)
+        // Marked wherever it is shown: in the list's line, and under its name on the map.
+        assertEquals("From pilots", place.byPilots?.label)
+        assertEquals("From pilots · Take-off · 2104 m", SiteWords.detail(place))
+        assertEquals("Beispieljoch\nFrom pilots", SiteFeature.label(place))
+        assertEquals("It is a place from pilots: not official and not checked by anyone.", sites.filtered.fromPilotsWords)
+        // An answer with the layer does not stand for a map that asks without it, and the other way round.
+        sites.show(valley)
+        delay(2 * SitesModel.REST_MILLISECONDS)
+        assertEquals(2, server.asked.size)
+
+        // Off again: asked again without it, and nothing of the layer stays.
+        sites.showFromPilots(false)
+        delay(200)
+        assertEquals(3, server.asked.size)
+        assertFalse("venti-pilots" in server.asked.last())
+        assertFalse(sites.isAsking)
+        assertTrue(sites.sites.none { it.byPilots?.fromPilots == true })
+        // A site of a source keeps its name alone on the map and in its line.
+        val takeoff = sites.sites.first { it.name == "Fluggelände Jägerkamp/Nagelspitz" }
+        assertEquals("Fluggelände Jägerkamp/Nagelspitz", SiteFeature.label(takeoff))
+        // The same choice again asks nobody.
+        sites.showFromPilots(false)
+        delay(200)
+        assertEquals(3, server.asked.size)
     }
 
     @Test

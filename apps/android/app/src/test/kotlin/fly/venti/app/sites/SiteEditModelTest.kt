@@ -11,6 +11,7 @@ import fly.venti.core.ReportSubject
 import fly.venti.core.SiteField
 import fly.venti.core.SiteKind
 import fly.venti.core.reportFormFor
+import java.time.LocalDate
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -34,6 +35,13 @@ class SiteEditModelTest {
     private class Server {
         val sent: MutableList<Sent> = CopyOnWriteArrayList<Sent>()
 
+        /** What the server says of the account: the development mode's demo pilot, a partner, until a test says otherwise. */
+        @Volatile
+        var account: ByteArray = recorded("account.json")
+
+        @Volatile
+        var accountStatus = 200
+
         /** What the server says to a request about a site. */
         var sites: (Sent) -> HttpAnswer = { refusal(404, "site_not_found") }
 
@@ -50,6 +58,7 @@ class SiteEditModelTest {
             return when {
                 method == "POST" && request.path == "/v1/sessions" -> HttpAnswer(201, recorded("sign_in.json"))
                 method == "GET" && request.path == "/v1/flights/changes" -> HttpAnswer(200, NO_CHANGES.toByteArray())
+                method == "GET" && request.path == "/v1/account" -> HttpAnswer(accountStatus, account)
                 else -> sites(request)
             }
         }
@@ -62,25 +71,34 @@ class SiteEditModelTest {
         }
     }
 
-    private fun model(server: Server, account: AccountModel): SiteEditModel =
-        SiteEditModel(account, read = server::look).apply {
+    private fun model(server: Server, logbook: LogbookModel, account: AccountModel): SiteEditModel =
+        logbook.makeSiteEdit(account, read = server::look).apply {
             this.server = { SERVER }
             takesSites = { true }
         }
 
-    private suspend fun signedIn(server: Server): SiteEditModel {
+    /** A phone that knows no account, with its model. */
+    private fun signedOut(server: Server): Pair<AccountModel, SiteEditModel> {
         val logbook = LogbookModel.open(TestSupport.newFolder("site-edit"), TestSupport.files)
         val account = logbook.makeAccount(MemorySessionStore(), device = "Sample Phone", transport = server::answer)
+        return account to model(server, logbook, account)
+    }
+
+    private suspend fun signedIn(server: Server): SiteEditModel = signedInWithItsAccount(server).second
+
+    /** Signed in as the development mode's demo pilot, whose sign-in says that it is a partner. */
+    private suspend fun signedInWithItsAccount(server: Server): Pair<AccountModel, SiteEditModel> {
+        val (account, edit) = signedOut(server)
         account.signIn(SERVER, "demo", "a password of the test")
         server.sent.clear()
-        return model(server, account)
+        return account to edit
     }
 
     @Test
     fun aNewSiteGoesWithTheAccountsTokenAndComesBackInTheCoresWords() = runBlocking {
         val server = Server()
         val edit = signedIn(server)
-        assertTrue(edit.isSignedIn)
+        assertTrue(edit.hasSession)
         server.sites = { HttpAnswer(201, recorded("site_written.json")) }
 
         val entry = SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87))
@@ -148,24 +166,189 @@ class SiteEditModelTest {
         assertTrue(refused.words, refused.words.startsWith("Someone else changed this site while you were editing it."))
         val now = checkNotNull(refused.now)
 
-        // The form goes on from the site as it stands, with the pilot's
-        // own entry in it and the other pilot's change said in words.
-        entry.carryOnto(now)
+        // The form goes on from the site as it stands: the core carries
+        // the pilot's own entry onto it and says the other pilot's change.
+        assertTrue(entry.rebase(now))
         assertEquals("Musterkogel Westgrat", entry.draft.name)
         assertEquals(1871.0, entry.draft.elevationM)
         assertEquals("1871", entry.height)
         assertEquals(3u, entry.draft.revision)
         assertEquals("its name on the signpost", entry.comment)
         assertEquals(listOf("Height: 1862 m → 1871 m"), entry.meanwhile)
+        assertEquals(
+            "Someone else changed this site while you were editing it. Your entries are kept, and what you left " +
+                "alone is as the site stands now.",
+            entry.meanwhileWords,
+        )
+        assertEquals(now, entry.site)
+    }
+
+    @Test
+    fun aHeightThePilotTypedStaysWhenBothChangedItAndTheCoreNamesTheField() = runBlocking {
+        val server = Server()
+        val edit = signedIn(server)
+        server.sites = { HttpAnswer(200, recorded("site.json")) }
+        val entry = SiteFormDraft.of(edit.page(ID).site)
+        entry.typeHeight("1865")
+        // The site stands at 1871 m meanwhile.
+        server.sites = { HttpAnswer(200, recorded("site_written.json")) }
+        assertTrue(entry.rebase(edit.page(ID).site))
+        assertEquals("1865", entry.height)
+        assertEquals(1865.0, entry.draft.elevationM)
+        val words = checkNotNull(entry.meanwhileWords)
+        assertTrue(words, words.contains("You both changed: Height."))
+        // A refusal for another reason carries nothing: the form stays as it is.
+        server.sites = { refusal(403, "sites_closed") }
+        val refused = edit.send(entry.draft, "") as SiteEditModel.Sent.Refused
+        assertNull(refused.now)
+    }
+
+    @Test
+    fun whatAPilotMayDoWithASiteIsTheCoresAnswerForTheAccount() = runBlocking {
+        val server = Server()
+        val (account, edit) = signedInWithItsAccount(server)
+        server.sites = { request ->
+            HttpAnswer(200, recorded(if (request.path.endsWith("/confirmations")) "site_confirmations.json" else "site.json"))
+        }
+        val partners = edit.page(ID).site
+        assertEquals("From a partner", partners.byPilots?.label)
+        val listed = edit.confirmations(ID)
+        assertEquals("2 pilots took off here, last on 16 November 2026", listed.words)
+        assertTrue(listed.lines.first().words, listed.lines.first().words.startsWith("Mara Muster (@mara) on Mon 16 Nov 2026"))
+        assertTrue(server.sent.all { it.headers["Authorization"] == null })
+
+        // The demo pilot is a partner: everything is offered on a partner's
+        // site, each with the core's words; the phone's entry for adding is
+        // the partners', which the map does not show.
+        val asPartner = checkNotNull(edit.offers(partners, listed))
+        assertEquals(
+            listOf("Correct this site", "Remove this site", "I took off here and it was good", "Report this site", "History"),
+            listOf(asPartner.correct, asPartner.remove, asPartner.confirm, asPartner.report, asPartner.history).map { it.words },
+        )
+        assertFalse(asPartner.hasConfirmed || asPartner.withdraw.isOffered)
+        assertEquals("", asPartner.note)
+        assertTrue(checkNotNull(edit.adding()).let { it.mayAdd && it.asPartner })
+
+        // The owner takes the trust back: the next read of the account says
+        // so, and the same site offers an ordinary pilot no correcting.
+        server.account = """{"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z"}}"""
+            .toByteArray()
+        server.sent.clear()
+        account.refresh()
+        val read = server.sent.single()
+        assertEquals("GET" to "/v1/account", read.method to read.path)
+        assertTrue(checkNotNull(read.headers["Authorization"]).startsWith("Bearer "))
+        assertEquals(false, account.account?.mayEditPartnerSites)
+        val asPilot = checkNotNull(edit.offers(partners, listed))
+        assertFalse(asPilot.correct.isOffered || asPilot.remove.isOffered)
+        assertTrue(asPilot.confirm.isOffered && asPilot.report.isOffered && asPilot.history.isOffered)
+        assertEquals(
+            "A partner of Venti added this site, and only Venti's partners change it. If something about it is wrong, report it.",
+            asPilot.note,
+        )
+        val adding = checkNotNull(edit.adding())
+        assertTrue(adding.mayAdd && !adding.asPartner)
+        assertEquals("Add a place pilots take off from", adding.entryWords)
+        assertEquals("A place pilots take off from", adding.title)
+        assertEquals("Add as a place from pilots", adding.sendWords)
+        // Where the server takes nothing from pilots, an ordinary pilot adds nothing, and the core says why.
+        edit.takesSites = { false }
+        assertEquals("This server takes no places from pilots yet.", checkNotNull(edit.adding()).whyNot)
+        assertFalse(checkNotNull(edit.offers(partners, listed)).confirm.isOffered)
+        edit.takesSites = { true }
+
+        // A site of a source is its source's record: nothing is offered, and the core says so.
+        server.sites = { HttpAnswer(200, recorded("site_of_a_source.json")) }
+        val sources = checkNotNull(edit.offers(edit.page("osm-free-flying:way/1080986173").site))
+        assertFalse(listOf(sources.correct, sources.remove, sources.confirm, sources.report, sources.history).any { it.isOffered })
+        assertTrue(sources.note, sources.note.startsWith("This site is its source's record"))
+
+        // The server no longer knows the session: that is no error, and the page says to sign in again.
+        server.accountStatus = 401
+        account.refresh()
+        assertTrue(account.needsSignIn)
+        assertFalse(edit.hasSession)
+        val ended = checkNotNull(edit.offers(partners, listed))
+        assertEquals(edit.says.signedInAgain, ended.note)
+        assertFalse(ended.report.isOffered || ended.confirm.isOffered)
+    }
+
+    @Test
+    fun signedOutASitesPageSaysWhatSigningInIsForAndOffersItsHistory() = runBlocking {
+        val server = Server()
+        val (account, edit) = signedOut(server)
+        assertFalse(edit.hasSession)
+        server.sites = { HttpAnswer(200, recorded("site.json")) }
+        val offers = checkNotNull(edit.offers(edit.page(ID).site))
+        assertEquals("Sign in to correct this site, to say that you took off here and to report it.", offers.note)
+        assertEquals(edit.says.signedOut, offers.note)
+        assertTrue(offers.history.isOffered)
+        assertFalse(listOf(offers.correct, offers.remove, offers.confirm, offers.withdraw, offers.report).any { it.isOffered })
+        val adding = checkNotNull(edit.adding())
+        assertFalse(adding.mayAdd)
+        assertEquals("Sign in to add a place pilots take off from.", adding.whyNot)
+        // Signed out there is no account to read, and nothing is asked.
+        server.sent.clear()
+        account.refresh()
+        assertTrue(server.sent.isEmpty())
+    }
+
+    @Test
+    fun aPilotSaysTheyTookOffHereAndTakesItBack() = runBlocking {
+        val server = Server()
+        val edit = signedIn(server)
+        val today = LocalDate.of(2026, 11, 18)
+        val form = edit.confirmForm(today)
+        assertEquals("I took off here and it was good", form.title)
+        assertEquals(listOf("Today", "Yesterday", "Mon 16 Nov"), form.days.take(3).map { it.words })
+        assertEquals("2026-11-17", form.days[1].day)
+        assertEquals("12 / 200", SiteEditWords.room(12, form.noteAtMost))
+
+        server.sites = { request ->
+            when (request.method) {
+                "PUT" -> HttpAnswer(200, recorded("site.json"))
+                "DELETE" -> HttpAnswer(204, ByteArray(0))
+                else -> HttpAnswer(200, recorded("site_confirmations.json"))
+            }
+        }
+        val written = edit.confirm(ID, form.days[1].day, "West wind, easy launch.", flight = null, today = today)
+        val sent = server.sent.single()
+        assertEquals("PUT" to "/v1/sites/$ID/confirmation", sent.method to sent.path)
+        assertTrue(checkNotNull(sent.headers["Authorization"]).startsWith("Bearer "))
+        assertEquals("You confirmed this site for Tue 17 Nov.", written.words)
+        assertEquals(ID, written.site.id)
+        // No flight of the logbook began there: the form shows no choice of one.
+        assertTrue(edit.confirmFlights(written.site, form.days[1].day).isEmpty())
+
+        // The list holds another pilot's and not this one's: the core offers no taking back.
+        val listed = edit.confirmations(ID)
+        assertFalse(checkNotNull(edit.offers(written.site, listed)).hasConfirmed)
+        // With this pilot's own in it, the core says so and offers both ways on.
+        val mine = listed.copy(lines = listed.lines.map { it.copy(by = it.by.copy(handle = "demo")) }.take(1))
+        val offers = checkNotNull(edit.offers(written.site, mine))
+        assertTrue(offers.hasConfirmed)
+        assertEquals("You confirmed this site for Mon 16 Nov 2026.", offers.confirmedWords)
+        assertEquals("Change the day" to "Take my confirmation back", offers.confirm.words to offers.withdraw.words)
+
+        server.sent.clear()
+        assertEquals("Your confirmation of this site is taken back.", edit.withdraw(ID))
+        assertEquals("DELETE" to "/v1/sites/$ID/confirmation", server.sent.single().let { it.method to it.path })
+
+        // A day the server does not take, and a day the core does not send.
+        server.sites = { refusal(400, "invalid_confirmation") }
+        val refused = runCatching { edit.confirm(ID, form.days[0].day, "", null, today) }.exceptionOrNull() as Exception
+        assertTrue(edit.words(refused).startsWith("The server does not take this confirmation."))
+        server.sent.clear()
+        val tooEarly = runCatching { edit.confirm(ID, "2026-01-01", "", null, today) }.exceptionOrNull() as Exception
+        assertTrue(edit.words(tooEarly), edit.words(tooEarly).startsWith("Choose today or one of the"))
+        assertTrue(server.sent.isEmpty())
     }
 
     @Test
     fun aHistoryIsReadWithoutAnAccountAndNothingIsSentWithoutOne() = runBlocking {
         val server = Server()
-        val logbook = LogbookModel.open(TestSupport.newFolder("site-edit"), TestSupport.files)
-        val account = logbook.makeAccount(MemorySessionStore(), device = "Sample Phone", transport = server::answer)
-        val edit = model(server, account)
-        assertFalse(edit.isSignedIn)
+        val (_, edit) = signedOut(server)
+        assertFalse(edit.hasSession)
         server.sites = { HttpAnswer(200, recorded("site_history.json")) }
 
         val history = edit.history("venti:0000000000000000000000s002")
@@ -174,6 +357,9 @@ class SiteEditModelTest {
         assertEquals(3, history.revisions.size)
         assertTrue(history.revisions.all { it.words.isNotEmpty() })
         assertTrue(history.revisions[1].changes.isNotEmpty())
+        // The ways back, in the core's words: the site stands, so nothing brings it back.
+        assertEquals(listOf("Put back to this revision", "Put back to this revision", ""), history.revisions.map { it.putBackWords })
+        assertNull(history.bringBackRevision)
         // The newest revision is the one the site stands at.
         assertEquals(history.revisions.last().number, history.revision)
 
@@ -225,9 +411,8 @@ class SiteEditModelTest {
     @Test
     fun theFormAndTheReportOfASiteAreTheCores() {
         val server = Server()
-        val logbook = LogbookModel.open(TestSupport.newFolder("site-edit"), TestSupport.files)
-        val account = logbook.makeAccount(MemorySessionStore(), device = "Sample Phone", transport = server::answer)
-        val form = model(server, account).form
+        val edit = signedOut(server).second
+        val form = edit.form
         assertEquals(SiteField.NAME, form.fields.first().field)
         assertEquals(SiteField.COMMENT, form.fields.last().field)
         assertEquals(16, form.winds.size)
@@ -240,6 +425,9 @@ class SiteEditModelTest {
         assertEquals(ReportSubject.Site(ID), site.subject)
         assertEquals(ReportSubject.SiteRevision(ID, 2u), Reported.siteRevision(ID, 2u).subject)
         assertTrue(reportFormFor(site.subject).reasons.isNotEmpty())
+        // Under the core's words, as every word of a site's page is.
+        assertEquals(edit.says.report to edit.says.reportRevision, site.title to Reported.siteRevision(ID, 2u).title)
+        assertEquals("Report this site", site.title)
     }
 
     private companion object {

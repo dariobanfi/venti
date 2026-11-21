@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,6 +82,11 @@ fun AccountScreen(
     scope: CoroutineScope,
     onBack: () -> Unit,
 ) {
+    // What the server says of the account now, asked when its page opens:
+    // its name, and whether it is one of Venti's partners for flying sites.
+    LaunchedEffect(account) {
+        scope.launch { account.refresh() }
+    }
     // "Programs with access" is a page of the account's, laid over it.
     var showsTokens by rememberSaveable { mutableStateOf(false) }
     if (showsTokens && account.isSignedIn) {

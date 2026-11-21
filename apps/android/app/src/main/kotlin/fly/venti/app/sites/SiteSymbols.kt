@@ -146,13 +146,20 @@ object SiteFeature {
 
     /**
      * Only a name the source gives is written on the map: "Take-off" under
-     * every take-off sign would say nothing.
+     * every take-off sign would say nothing. A place from pilots has the
+     * core's label for its tier under its name: its sign is the one any
+     * site of its kind has, and the label says what it is.
      */
+    fun label(site: SiteView): String = listOfNotNull(
+        site.name.takeIf { site.isNamed },
+        site.byPilots?.takeIf { it.fromPilots }?.label?.takeIf { it.isNotEmpty() },
+    ).joinToString("\n")
+
     fun of(site: SiteView, dimmed: Boolean = false): Feature =
         Feature.fromGeometry(Point.fromLngLat(site.position.lon, site.position.lat)).apply {
             addStringProperty(ID, site.id)
             addStringProperty(PICTURE, if (dimmed) site.kind.dimmedPicture else site.kind.picture)
-            addStringProperty(LABEL, if (site.isNamed) site.name else "")
+            addStringProperty(LABEL, label(site))
             addBooleanProperty(DIMMED, dimmed)
         }
 

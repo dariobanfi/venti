@@ -205,6 +205,29 @@ class AccountModel(
         isSessionLost = false
     }
 
+    /**
+     * Reads the account from the server, where the phone is signed in:
+     * what the server says of it can change while the phone stays signed
+     * in, its name and whether it is one of Venti's partners for flying
+     * sites. Asked when the app starts and when the account's page opens.
+     * It is quiet: without an answer the account stays as it is known.
+     */
+    suspend fun refresh() {
+        val server = account?.server ?: return
+        try {
+            val request = withContext(background) { core.accountRequest() } ?: return
+            val answer = ask(request, server, answerWithinMilliseconds = ANSWER_TO_OTHERS_WITHIN_MILLISECONDS)
+            val read = withContext(background) { core.accountRead(answer.status16, answer.body) }
+            // The server no longer knows the session: its token is of no use.
+            if (read?.needsSignIn == true) withContext(background) { session.remove() }
+            account = read
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // What the phone knows of the account stays.
+        }
+    }
+
     // Sync
 
     /**

@@ -19,6 +19,7 @@ import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.app.task.TaskModel
 import fly.venti.app.sites.KeptSitesModel
+import fly.venti.app.sites.SiteEditModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.core.Assistant
 import fly.venti.core.Core
@@ -285,6 +286,15 @@ class LogbookModel(
      */
     fun makeGroups(account: AccountModel, today: () -> LocalDate = LocalDate::now): GroupsModel =
         GroupsModel(core, account, background, today)
+
+    /**
+     * Adding and correcting the flying sites of Venti's own layers, and
+     * what the core says may be offered for one to the account this phone
+     * stores. A site and its history are read through `read`, without
+     * the account.
+     */
+    fun makeSiteEdit(account: AccountModel, read: suspend (String) -> HttpAnswer = { url -> Http.get(url) }): SiteEditModel =
+        SiteEditModel(core, account, read, background)
 
     /**
      * How often a sync with the server has read the logbook again. What a

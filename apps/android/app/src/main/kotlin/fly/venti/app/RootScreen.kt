@@ -58,6 +58,9 @@ import fly.venti.app.task.TaskScreen
 import fly.venti.app.waypoints.WaypointsScreen
 import fly.venti.app.sites.KeptSitesScreen
 import fly.venti.app.sites.SiteActions
+import fly.venti.app.sites.SiteEditing
+import fly.venti.app.sites.SiteFormDraft
+import fly.venti.app.sites.SiteFormSheet
 import fly.venti.app.sites.SiteSources
 import fly.venti.app.sites.SiteSheet
 import fly.venti.app.task.RouteMapPlanner
@@ -66,6 +69,7 @@ import fly.venti.app.today.TodayScreen
 import fly.venti.app.wind.WindServer
 import fly.venti.core.Bounds
 import fly.venti.core.SiteView
+import fly.venti.core.SiteWritten
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -143,6 +147,12 @@ fun RootScreen(
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             session.scope.launch { account.sync() }
         }
+    }
+    // What the server says of the account can change while the phone stays
+    // signed in, whether it is one of Venti's partners for flying sites
+    // above all: asked when the app starts.
+    LaunchedEffect(account) {
+        session.scope.launch { account.refresh() }
     }
     // The watched folder, XCTrack's as a rule: what is new there comes in
     // whenever the app comes to the front, without a word.
@@ -232,6 +242,17 @@ private fun Sections(
     BackHandler(enabled = navigation.canGoBack) { navigation.back() }
     // A take-off opened from the Today tab: its page, in a sheet over it.
     var todaySite by remember { mutableStateOf<SiteView?>(null) }
+    // The core's line about what was just done to that site, and the form that corrects it.
+    var todaySiteSaid by remember { mutableStateOf<String?>(null) }
+    var todaySiteForm by remember { mutableStateOf<SiteFormDraft?>(null) }
+    // The site was corrected, put back or confirmed: its page as it stands, with the core's line.
+    val showTodaySiteWritten = { written: SiteWritten ->
+        todaySiteForm = null
+        todaySiteSaid = written.words
+        todaySite = written.site
+        session.scope.launch { session.sites.again() }
+        Unit
+    }
     // A route being drawn from a site's page, from that site.
     var routeFrom by remember { mutableStateOf<Coordinate?>(null) }
     // What a site's page leads to: its forecast, a route from it, a flight.
@@ -344,7 +365,31 @@ private fun Sections(
                             // has no answer for: Today has the credit it was kept with.
                             known = SiteSources(session.today.siteCredits, session.today.sitesAsOf),
                             onChoose = { todaySite = it },
-                            onDismiss = { todaySite = null },
+                            onDismiss = {
+                                todaySite = null
+                                todaySiteSaid = null
+                            },
+                            // What the core offers for a site of Venti's own
+                            // layers is on its page here as on the map's.
+                            editing = SiteEditing(
+                                model = session.siteEdit,
+                                account = session.account,
+                                requests = session.scope,
+                                said = todaySiteSaid,
+                                onCorrect = { stands ->
+                                    // The core refuses a site of another source: nothing opens then.
+                                    todaySiteForm = runCatching { SiteFormDraft.of(stands) }.getOrNull()
+                                },
+                                onSignIn = {
+                                    todaySite = null
+                                    navigation.showAccount()
+                                },
+                                onWritten = showTodaySiteWritten,
+                                onSaid = { words ->
+                                    todaySiteSaid = words
+                                    session.scope.launch { session.sites.again() }
+                                },
+                            ),
                             community = session.community,
                             onOpenFlight = { flight ->
                                 todaySite = null
@@ -363,6 +408,20 @@ private fun Sections(
                                     navigation.startFlight()
                                 },
                             ),
+                        )
+                    }
+                    // A correction from Today's page: the form without the
+                    // map, which the place is moved on from the map tab.
+                    todaySiteForm?.let { formed ->
+                        SiteFormSheet(
+                            entry = formed,
+                            edit = session.siteEdit,
+                            requests = session.scope,
+                            onMove = null,
+                            onWritten = showTodaySiteWritten,
+                            onOpen = { todaySiteForm = null },
+                            onStands = { now -> if (todaySite?.id == now.id) todaySite = now },
+                            onDismiss = { todaySiteForm = null },
                         )
                     }
                 }

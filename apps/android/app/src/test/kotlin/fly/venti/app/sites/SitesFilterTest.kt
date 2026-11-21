@@ -64,6 +64,10 @@ class SitesFilterTest {
         assertNull(preferences.mapSitesFilter)
         preferences.mapSitesFilter = SitesFilterWords.kept(asked)
         assertEquals(asked, SitesFilterWords.read(preferences.mapSitesFilter))
+        // The places from pilots are off until the pilot switches them on, and kept as they were left.
+        assertFalse(preferences.mapShowsSitesFromPilots)
+        preferences.mapShowsSitesFromPilots = true
+        assertTrue(preferences.mapShowsSitesFromPilots)
     }
 
     @Test

@@ -41,6 +41,7 @@ import fly.venti.core.ReportReason
 import fly.venti.core.ReportReasonChoice
 import fly.venti.core.ReportSubject
 import fly.venti.core.reportFormFor
+import fly.venti.core.siteWords
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -61,12 +62,12 @@ data class Reported(
 
         fun plan(groupId: String, id: String) = Reported(ReportSubject.Plan(groupId, id), "Report this plan")
 
-        /** A site that pilots made. */
-        fun site(id: String) = Reported(ReportSubject.Site(id), "Report this site")
+        /** A site of Venti's own layers, under the core's words for it. */
+        fun site(id: String) = Reported(ReportSubject.Site(id), siteWords().report)
 
         /** One revision of such a site: what one pilot wrote into it. */
         fun siteRevision(id: String, revision: UInt) =
-            Reported(ReportSubject.SiteRevision(id, revision), "Report this revision")
+            Reported(ReportSubject.SiteRevision(id, revision), siteWords().reportRevision)
     }
 }
 

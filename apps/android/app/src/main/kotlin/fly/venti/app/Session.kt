@@ -255,7 +255,7 @@ sealed interface Session {
             val groups = logbook.makeGroups(account)
             // The sites that pilots make are sent to the app's Venti, where
             // that server takes them.
-            val siteEdit = SiteEditModel(account)
+            val siteEdit = logbook.makeSiteEdit(account)
             siteEdit.server = { (wind.server as? WindServer.Usable)?.url }
             siteEdit.takesSites = { wind.takesSitesFromPilots }
             // The cockpit names the landing within reach among the

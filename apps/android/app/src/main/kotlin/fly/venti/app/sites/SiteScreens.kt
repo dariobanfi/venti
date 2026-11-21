@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -92,6 +93,7 @@ import fly.venti.app.wind.StationPage
 import fly.venti.app.wind.WindGlyph
 import fly.venti.app.wind.WindModel
 import fly.venti.core.Credit
+import fly.venti.core.SiteConfirmations
 import fly.venti.core.SiteView
 import fly.venti.core.SiteField
 import fly.venti.core.SitePage as SiteAsItStands
@@ -142,15 +144,19 @@ fun SiteSheet(
      * of the pilot's own was kept with.
      */
     known: SiteSources = SiteSources(),
-    /** Correcting a site that pilots made, its history and reporting it; `null` where the page offers none of it. */
+    /** What the core offers for a site of Venti's own layers, and where each leads; `null` where the page offers none of it. */
     editing: SiteEditing? = null,
 ) {
-    // The site as the server has it now, where pilots made it: the map's
-    // answer may be an hour old, and only this one says whether the site
-    // can be corrected here.
+    // The site as the server has it now, where it is of Venti's own
+    // layers: the map's answer may be an hour old.
     var page by remember(chosen?.id) { mutableStateOf<SiteAsItStands?>(null) }
     var pageProblem by remember(chosen?.id) { mutableStateOf<String?>(null) }
-    LaunchedEffect(chosen?.id, chosen?.byPilots?.revision, editing?.model) {
+    // Who says they took off there: the core finds the pilot's own among them.
+    var confirmations by remember(chosen?.id) { mutableStateOf<SiteConfirmations?>(null) }
+    var confirmationsProblem by remember(chosen?.id) { mutableStateOf<String?>(null) }
+    // Counts up when both are to be read again: after a confirmation and after one was taken back.
+    var readAgain by remember { mutableIntStateOf(0) }
+    LaunchedEffect(chosen?.id, chosen?.byPilots?.revision, editing?.model, readAgain) {
         val site = chosen ?: return@LaunchedEffect
         val model = editing?.model ?: return@LaunchedEffect
         if (site.byPilots == null) return@LaunchedEffect
@@ -163,9 +169,22 @@ fun SiteSheet(
             page = null
             pageProblem = model.words(error)
         }
+        try {
+            confirmations = model.confirmations(site.id)
+            confirmationsProblem = null
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            confirmations = null
+            confirmationsProblem = model.words(error)
+        }
     }
     // Whether the pilot is being asked why the site is to be removed.
     var isRemoving by remember { mutableStateOf(false) }
+    // Whether the form that says "I took off here and it was good" is open.
+    var isConfirming by remember { mutableStateOf(false) }
+    // Whether the pilot is being asked if their confirmation is to be taken back.
+    var isWithdrawing by remember { mutableStateOf(false) }
     // A site that was removed from this sheet: its history is what is left to show.
     var removed by remember { mutableStateOf<String?>(null) }
     // A site or a revision being reported, with its form open.
@@ -208,13 +227,28 @@ fun SiteSheet(
                 onBack = back,
                 onDone = onDismiss,
             )
+            is FromASite.Confirmations -> if (editing != null) {
+                SiteConfirmationsPage(
+                    name = top.site.name,
+                    says = editing.model.says,
+                    confirmations = confirmations?.takeIf { it.siteId == top.site.id },
+                    problem = confirmationsProblem,
+                    onTryAgain = { readAgain += 1 },
+                    onBack = back,
+                    onDone = onDismiss,
+                )
+            }
             is FromASite.History -> if (editing != null) {
+                // Who may correct the site puts it back and brings it back: the core's offer for it.
+                val offers = editing.model.offers(top.site)
                 SiteHistoryPage(
-                    id = top.id,
-                    name = top.name,
+                    id = top.site.id,
+                    name = top.site.name,
                     edit = editing.model,
                     requests = editing.requests,
                     said = editing.said,
+                    mayWrite = offers?.correct?.isOffered == true,
+                    mayReport = offers?.report?.isOffered == true,
                     onBack = back,
                     onDone = onDismiss,
                     onWritten = { written ->
@@ -229,21 +263,29 @@ fun SiteSheet(
             null -> if (chosen != null) {
                 // Not an answer older than the site at hand, which a correction has just changed.
                 val shown = page?.site?.takeIf { (it.byPilots?.revision ?: 0u) >= (chosen.byPilots?.revision ?: 0u) } ?: chosen
+                val listed = confirmations?.takeIf { it.siteId == shown.id }
                 SitePage(
                     site = shown,
-                    edits = editing?.takeIf { shown.byPilots != null && it.model.takesSites() }?.let { given ->
-                        SitePageEdits(
-                            canBeCorrected = page?.canBeCorrected == true,
-                            isSignedIn = given.model.isSignedIn,
-                            correct = given.model.form.titleCorrect,
-                            said = given.said,
-                            problem = pageProblem,
-                            onCorrect = { given.onCorrect(shown) },
-                            onRemove = { isRemoving = true },
-                            onHistory = { opened = opened + FromASite.History(shown.id, shown.name) },
-                            onReport = { reporting = Reported.site(shown.id) },
-                            onSignIn = given.onSignIn,
-                        )
+                    // What the core offers for the site to whoever is signed in here: its one answer.
+                    edits = editing?.let { given ->
+                        given.model.offers(shown, listed)?.let { offers ->
+                            SitePageEdits(
+                                offers = offers,
+                                confirmations = listed,
+                                said = given.said,
+                                problem = pageProblem,
+                                // Where the core offers anything for the site and the phone holds no session.
+                                showsSignIn = offers.history.isOffered && !given.model.hasSession,
+                                onCorrect = { given.onCorrect(shown) },
+                                onRemove = { isRemoving = true },
+                                onHistory = { opened = opened + FromASite.History(shown) },
+                                onReport = { reporting = Reported.site(shown.id) },
+                                onSignIn = given.onSignIn,
+                                onConfirm = { isConfirming = true },
+                                onWithdraw = { isWithdrawing = true },
+                                onConfirmations = { opened = opened + FromASite.Confirmations(shown) },
+                            )
+                        }
                     },
                     sources = known.with(sites),
                     own = own,
@@ -270,9 +312,12 @@ fun SiteSheet(
     }
 
     if (isRemoving && chosen != null && editing != null) {
+        val says = editing.model.says
         SiteWhyDialog(
-            title = SiteEditWords.REMOVE_ASK,
-            send = SiteEditWords.REMOVE,
+            title = says.removeQuestion,
+            about = says.removeAbout,
+            send = says.remove,
+            cancel = says.cancel,
             why = editing.model.form.fields.firstOrNull { it.field == SiteField.COMMENT },
             isRemoval = true,
             requests = editing.requests,
@@ -282,8 +327,8 @@ fun SiteSheet(
                     isRemoving = false
                     // What is left of the site is its history, which brings it back.
                     removed = chosen.id
-                    opened = listOf(FromASite.History(chosen.id, chosen.name))
-                    editing.onRemoved(words)
+                    opened = listOf(FromASite.History(chosen))
+                    editing.onSaid(words)
                     null
                 } catch (error: CancellationException) {
                     throw error
@@ -292,6 +337,51 @@ fun SiteSheet(
                 }
             },
             onDismiss = { isRemoving = false },
+        )
+    }
+
+    if (isConfirming && chosen != null && editing != null) {
+        SiteConfirmSheet(
+            site = chosen,
+            edit = editing.model,
+            requests = editing.requests,
+            onConfirmed = { written ->
+                isConfirming = false
+                // The site with the confirmation counted, and the list read again for the pilot's own.
+                page = null
+                readAgain += 1
+                editing.onWritten(written)
+            },
+            onDismiss = { isConfirming = false },
+        )
+    }
+
+    if (isWithdrawing && chosen != null && editing != null) {
+        val says = editing.model.says
+        SiteWhyDialog(
+            title = says.withdrawQuestion,
+            about = null,
+            send = says.withdraw,
+            cancel = says.cancel,
+            why = null,
+            isRemoval = true,
+            requests = editing.requests,
+            work = {
+                try {
+                    val words = editing.model.withdraw(chosen.id)
+                    isWithdrawing = false
+                    // The answer has no body: the site's count and its list are read anew.
+                    readAgain += 1
+                    editing.onSaid(words)
+                    null
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    editing.model.words(error)
+                }
+            },
+            onDismiss = { isWithdrawing = false },
+            asksWhy = false,
         )
     }
 
@@ -304,9 +394,9 @@ fun SiteSheet(
 }
 
 /**
- * What a site's page needs to correct a site that pilots made: the model
- * that sends, the account a report goes from, and what the screen around
- * the sheet does when the site changed.
+ * What a site's page needs for a site of Venti's own layers: the model
+ * that asks the core what is offered and sends, the account a report goes
+ * from, and what the screen around the sheet does when the site changed.
  */
 class SiteEditing(
     val model: SiteEditModel,
@@ -319,10 +409,10 @@ class SiteEditing(
     val onCorrect: (SiteView) -> Unit,
     /** Leads to the account, for a pilot who is not signed in. */
     val onSignIn: () -> Unit,
-    /** A revision was put back: the site as it stands, and the core's line. */
+    /** A revision was put back or the site was confirmed: the site as it stands, and the core's line. */
     val onWritten: (SiteWritten) -> Unit,
-    /** The site was removed: the core's line. */
-    val onRemoved: (String) -> Unit,
+    /** The site was removed or a confirmation taken back: the core's line. */
+    val onSaid: (String) -> Unit,
 )
 
 /**
@@ -400,8 +490,11 @@ private sealed interface FromASite {
     /** The forecast for the site's place, or for a station's. */
     data class Forecast(val place: ForecastPlace) : FromASite
 
-    /** The history of a site that pilots made. */
-    data class History(val id: String, val name: String) : FromASite
+    /** The history of a site of Venti's own layers: the site as it stands, or as it stood when it was removed. */
+    data class History(val site: SiteView) : FromASite
+
+    /** Who says they took off at a site. */
+    data class Confirmations(val site: SiteView) : FromASite
 }
 
 /**
@@ -426,7 +519,7 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
         ) {
             // While a filter is on, the filter in the core's line stands where the title stands.
             Text(
-                if (filtered.isOn) filtered.filterWords else "Flying sites",
+                if (sites.isAsking) filtered.filterWords else "Flying sites",
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f).testTag("site-list-title"),
             )
@@ -435,7 +528,7 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                     Icon(
                         painterResource(R.drawable.ic_filter),
                         contentDescription = SitesFilterWords.TITLE,
-                        tint = if (filtered.isOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (sites.isAsking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -447,10 +540,12 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                 sites.problem ?: "Zoom the map in on an area, and the sites its source knows there are listed.",
             )
         } else {
-            if (filtered.isOn) {
-                // What the filter leaves of the sites on this part of the map.
+            if (sites.isAsking) {
+                // What the filter leaves of the sites on this part of the
+                // map, and under it how many of them are places from
+                // pilots: the core's two lines.
                 Text(
-                    filtered.words,
+                    listOf(filtered.words, filtered.fromPilotsWords).filter { it.isNotEmpty() }.joinToString("\n"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp).testTag("site-list-leaves"),
@@ -598,7 +693,7 @@ private fun SitePage(
     community: CommunityModel?,
     onOpenFlight: (PublicFlight) -> Unit,
     actions: SiteActions?,
-    /** What can be done about a site that pilots made; `null` for a source's site and where nothing is offered. */
+    /** What the core offers for the site and where each leads; `null` where the page asks for none of it. */
     edits: SitePageEdits? = null,
 ) {
     val links = LocalUriHandler.current
@@ -652,13 +747,24 @@ private fun SitePage(
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
                 }
             }
-            Text(
-                site.name,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).semantics { heading() },
-            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    site.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.semantics { heading() },
+                )
+                // The site's tier in the core's word or two: "From pilots", "From a partner".
+                site.byPilots?.label?.takeIf { it.isNotEmpty() }?.let { tier ->
+                    Text(
+                        tier,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Venti.colours.textSecondary,
+                        modifier = Modifier.testTag("site-tier"),
+                    )
+                }
+            }
             day?.let { shown ->
                 StatusChip(shown.verdict.status, shown.status, Modifier.testTag("site-status"))
             }
@@ -689,10 +795,14 @@ private fun SitePage(
                     row { WindRow(site) }
                 }
             }
-            // A site that pilots made: who added it and who changed it
-            // last, and the core's notice that nobody has verified it.
+            // A site of Venti's own layers: who added it and who changed
+            // it last, and the core's notice of what its tier is worth;
+            // then who took off here, and the pilot's own word on it.
             site.byPilots?.let { by ->
                 item { SiteByPilotsRows(by) }
+                if (edits != null && edits.showsConfirmed(by)) {
+                    item { SiteConfirmedRows(by, edits) }
+                }
             }
             if (site.official == true || site.discouraged || site.paragliding == false) {
                 item {
@@ -803,7 +913,7 @@ private fun SitePage(
                     }
                 }
             }
-            if (edits != null) {
+            if (edits != null && edits.showsEntries) {
                 item { SiteEditRows(edits) }
             }
             item {
@@ -1072,6 +1182,8 @@ object SiteWords {
     /** What a row says under the name: what it is, how high, and the wind it works in. */
     fun detail(site: SiteView): String {
         val parts = mutableListOf<String>()
+        // A place from pilots says so first, in the core's label for its tier.
+        site.byPilots?.takeIf { it.fromPilots }?.label?.takeIf { it.isNotEmpty() }?.let { parts += it }
         // Without a name of its own, the name already says what it is.
         if (site.isNamed) parts += site.kindInWords
         site.elevationM?.let { parts += "${Format.metres(it)} m" }

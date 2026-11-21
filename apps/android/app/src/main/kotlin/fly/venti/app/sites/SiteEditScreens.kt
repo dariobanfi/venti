@@ -15,11 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,11 +66,17 @@ import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.ValueRow
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
+import fly.venti.core.SiteAdding
 import fly.venti.core.SiteByPilots
+import fly.venti.core.SiteConfirmFlight
+import fly.venti.core.SiteConfirmations
 import fly.venti.core.SiteField
 import fly.venti.core.SiteFormField
 import fly.venti.core.SiteHistory
+import fly.venti.core.SiteOffers
 import fly.venti.core.SiteRevisionView
+import fly.venti.core.SiteView
+import fly.venti.core.SiteWords as CoreSiteWords
 import fly.venti.core.SiteWritten
 import fly.venti.core.siteDraftCheck
 import fly.venti.core.siteDraftWindInWords
@@ -77,53 +86,63 @@ import kotlinx.coroutines.launch
 
 /**
  * What the screens for adding and correcting a site say that the core has
- * not worded: the names of buttons. Every word about the rule, the licence
- * and a refusal is the core's.
+ * not worded: where the way to the account is named, and a heading. Every
+ * word about the rule, a tier, the licence and a refusal is the core's.
  */
 object SiteEditWords {
-    const val ADD_HERE = "Add a site here"
-
-    /** Why the entry leads to the account, signed out. */
-    const val NEEDS_ACCOUNT = "Adding and correcting a site needs an account. Sign in first."
     const val SIGN_IN = "Sign in"
-    const val MOVE = "Move"
-    const val USE_PLACE = "Use this place"
-    const val HISTORY = "History"
-    const val REMOVE = "Remove this site"
-    const val REMOVE_ASK = "Remove this site?"
-    const val PUT_BACK = "Put back"
-    const val PUT_BACK_ASK = "Put the site back to this?"
-    const val REPORT = "Report"
-
-    /** Over the core's lines of what another pilot changed while the form was open. */
-    const val MEANWHILE = "Changed meanwhile, and in the form now. What you entered is still there:"
     const val NO_HISTORY = "The history could not be read"
+    const val NO_CONFIRMATIONS = "The confirmations could not be read"
+    const val TRY_AGAIN = "Try again"
+
+    /** How much of a line's room is used: "12 / 200". */
+    fun room(used: Int, atMost: UInt): String = "$used / $atMost"
 
     /** A test's name for a field of the form. */
     fun tag(field: SiteField): String = field.name.lowercase().replace('_', '-')
 }
 
 /**
- * "Add a site here", in what a long press on the map opens: the form for a
- * signed-in pilot, and the way to the account with a line why for one who
- * is not.
+ * The entry for adding, in what a long press on the map opens: the core's
+ * words for the tier the site would go to, which lead to the form. Where
+ * the core says that nothing may be added, its line why, and the way to
+ * the account for a phone that holds no session.
  */
 @Composable
-fun AddSiteEntry(isSignedIn: Boolean, onAdd: () -> Unit, onSignIn: () -> Unit, modifier: Modifier = Modifier) {
+fun AddSiteEntry(
+    adding: SiteAdding,
+    /** Whether the phone holds a session: without one, "Sign in" leads to the account. */
+    hasSession: Boolean,
+    onAdd: () -> Unit,
+    onSignIn: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier.padding(horizontal = VentiSpace.s4)) {
-        Group {
-            row {
-                LinkRow(
-                    SiteEditWords.ADD_HERE,
-                    R.drawable.ic_chevron_right,
-                    Modifier.testTag("site-add-here"),
-                    leading = R.drawable.venti_site,
-                    onClick = if (isSignedIn) onAdd else onSignIn,
-                )
+        if (adding.mayAdd || !hasSession) {
+            Group {
+                row {
+                    if (adding.mayAdd) {
+                        LinkRow(
+                            adding.entryWords,
+                            R.drawable.ic_chevron_right,
+                            Modifier.testTag("site-add-here"),
+                            leading = R.drawable.venti_site,
+                            onClick = onAdd,
+                        )
+                    } else {
+                        LinkRow(
+                            SiteEditWords.SIGN_IN,
+                            R.drawable.ic_chevron_right,
+                            Modifier.testTag("site-add-sign-in"),
+                            leading = R.drawable.venti_site,
+                            onClick = onSignIn,
+                        )
+                    }
+                }
             }
         }
-        if (!isSignedIn) {
-            SectionFooter(SiteEditWords.NEEDS_ACCOUNT, Modifier.testTag("site-add-needs-account"))
+        if (adding.whyNot.isNotEmpty()) {
+            SectionFooter(adding.whyNot, Modifier.testTag("site-add-why-not"))
         }
     }
 }
@@ -133,7 +152,13 @@ fun AddSiteEntry(isSignedIn: Boolean, onAdd: () -> Unit, onSignIn: () -> Unit, m
  * button that takes the place under the mark in the middle of the map.
  */
 @Composable
-fun SitePlaceCard(words: String, onUse: () -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
+fun SitePlaceCard(
+    words: String,
+    says: CoreSiteWords,
+    onUse: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         modifier = modifier.fillMaxWidth().testTag("site-place-card"),
         shape = MaterialTheme.shapes.medium,
@@ -146,11 +171,11 @@ fun SitePlaceCard(words: String, onUse: () -> Unit, onCancel: () -> Unit, modifi
                 OutlinedButton(
                     onClick = onCancel,
                     modifier = Modifier.weight(1f).heightIn(min = VentiSize.touch),
-                ) { Text("Cancel") }
+                ) { Text(says.cancel) }
                 Button(
                     onClick = onUse,
                     modifier = Modifier.weight(1f).heightIn(min = VentiSize.touch).testTag("site-place-use"),
-                ) { Text(SiteEditWords.USE_PLACE) }
+                ) { Text(says.usePlace) }
             }
         }
     }
@@ -169,19 +194,29 @@ fun SiteFormSheet(
     edit: SiteEditModel,
     /** Where the request runs, so that it carries on when the sheet is closed. */
     requests: CoroutineScope,
-    /** The pilot wants to move the place on the map. */
-    onMove: () -> Unit,
+    /** The pilot wants to move the place on the map; `null` where no map is at hand to move it on. */
+    onMove: (() -> Unit)?,
     /** The server took the site. */
     onWritten: (SiteWritten) -> Unit,
     /** Opens the site that stands in the way, by its identifier. */
     onOpen: (String) -> Unit,
     /** Someone else changed the site meanwhile: the page under the form shows it as it stands. */
-    onStands: (fly.venti.core.SiteView) -> Unit,
+    onStands: (SiteView) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val form = edit.form
+    val says = edit.says
     val colours = Venti.colours
     val links = LocalUriHandler.current
+    // The words of the tier: a new site's as the core said them with the
+    // entry; a correction's by the tier of the site that is corrected.
+    val adding = entry.adding
+    val corrected = entry.site?.byPilots
+    val title = adding?.title?.takeIf { it.isNotEmpty() } ?: if (entry.isNew) form.titleNew else form.titleCorrect
+    val giving = adding?.giving?.takeIf { it.isNotEmpty() }
+        ?: if (corrected?.fromPilots == false) form.givingAsPartner else form.giving
+    val note = adding?.note?.takeIf { it.isNotEmpty() } ?: corrected?.note?.takeIf { it.isNotEmpty() } ?: form.note
+    val send = adding?.sendWords?.takeIf { it.isNotEmpty() } ?: if (entry.isNew) form.sendNew else form.sendCorrection
     val showing = rememberCoroutineScope()
     var isSending by remember { mutableStateOf(false) }
     val draft = entry.draft
@@ -204,11 +239,11 @@ fun SiteFormSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        if (entry.isNew) form.titleNew else form.titleCorrect,
+                        title,
                         style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f).semantics { heading() },
+                        modifier = Modifier.weight(1f).semantics { heading() }.testTag("site-form-title"),
                     )
-                    TextButton(onClick = onDismiss, modifier = Modifier.testTag("site-form-cancel")) { Text("Cancel") }
+                    TextButton(onClick = onDismiss, modifier = Modifier.testTag("site-form-cancel")) { Text(says.cancel) }
                 }
                 Column(
                     modifier = Modifier
@@ -240,11 +275,13 @@ fun SiteFormSheet(
                                                     style = MaterialTheme.typography.bodyLarge.numbers,
                                                     modifier = Modifier.weight(1f).testTag("site-field-place"),
                                                 )
-                                                TextButton(
-                                                    onClick = onMove,
-                                                    enabled = !isSending,
-                                                    modifier = Modifier.testTag("site-move"),
-                                                ) { Text(SiteEditWords.MOVE) }
+                                                if (onMove != null) {
+                                                    TextButton(
+                                                        onClick = onMove,
+                                                        enabled = !isSending,
+                                                        modifier = Modifier.testTag("site-move"),
+                                                    ) { Text(says.movePlace) }
+                                                }
                                             }
                                         }
                                     }
@@ -371,8 +408,13 @@ fun SiteFormSheet(
                                 Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3),
                                 verticalArrangement = Arrangement.spacedBy(VentiSpace.s1),
                             ) {
-                                Text(form.giving, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("site-giving"))
-                                Text(form.note, style = MaterialTheme.typography.bodySmall, color = colours.textSecondary)
+                                Text(giving, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("site-giving"))
+                                Text(
+                                    note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colours.textSecondary,
+                                    modifier = Modifier.testTag("site-giving-note"),
+                                )
                             }
                         }
                         row {
@@ -382,9 +424,11 @@ fun SiteFormSheet(
                             }
                         }
                     }
-                    if (entry.meanwhile.isNotEmpty()) {
-                        Column(Modifier.testTag("site-meanwhile")) {
-                            Text(SiteEditWords.MEANWHILE, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
+                    // Someone else changed the site meanwhile: what became of
+                    // the draft and what they changed, in the core's words.
+                    entry.meanwhileWords?.let { words ->
+                        Column(Modifier.testTag("site-meanwhile"), verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+                            Text(words, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
                             for (line in entry.meanwhile) {
                                 Text(line, style = MaterialTheme.typography.bodyMedium.numbers)
                             }
@@ -421,12 +465,12 @@ fun SiteFormSheet(
                                     when (val sent = edit.send(entry.draft, entry.comment)) {
                                         is SiteEditModel.Sent.Written -> onWritten(sent.written)
                                         is SiteEditModel.Sent.Refused -> {
-                                            entry.problem = sent.words
                                             entry.inTheWay = sent.inTheWay
-                                            sent.now?.let { now ->
-                                                entry.carryOnto(now)
-                                                onStands(now)
-                                            }
+                                            val now = sent.now
+                                            // Carried onto the site as it stands, the core's
+                                            // words about that stand for the refusal's.
+                                            entry.problem = if (now != null && entry.rebase(now)) null else sent.words
+                                            now?.let(onStands)
                                         }
                                     }
                                 } finally {
@@ -438,7 +482,7 @@ fun SiteFormSheet(
                         enabled = !isSending,
                         modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("site-send"),
                     ) {
-                        Text(if (entry.isNew) form.sendNew else form.sendCorrection)
+                        Text(send)
                     }
                 }
             }
@@ -502,23 +546,47 @@ private fun Chosen(field: SiteFormField, fault: String?, content: @Composable ()
     }
 }
 
-/** What a site's page does about a site that pilots made. */
+/**
+ * What a site's page does about a site: what the core offers for it to
+ * whoever is signed in on this phone, each with the core's words, and
+ * where each leads. The page shows what is offered and nothing else; the
+ * core's note says why something is missing.
+ */
 class SitePageEdits(
-    /** Whether a pilot can correct the site here, as the server's own answer about it says. */
-    val canBeCorrected: Boolean,
-    val isSignedIn: Boolean,
-    /** "Correct this site", the core's title of the form. */
-    val correct: String,
+    val offers: SiteOffers,
+    /** Who says they took off here, once the server has answered. */
+    val confirmations: SiteConfirmations?,
     /** The core's line about what was just done to the site. */
     val said: String?,
     /** Why the site could not be asked for, in the core's words. */
     val problem: String?,
+    /** Whether the way to the account stands with the entries: the phone holds no session. */
+    val showsSignIn: Boolean,
     val onCorrect: () -> Unit,
     val onRemove: () -> Unit,
     val onHistory: () -> Unit,
     val onReport: () -> Unit,
     val onSignIn: () -> Unit,
-)
+    /** Opens the form that says "I took off here and it was good", or says it of another day. */
+    val onConfirm: () -> Unit,
+    /** Asks whether the pilot's confirmation is to be taken back. */
+    val onWithdraw: () -> Unit,
+    /** Opens the list of who took off here. */
+    val onConfirmations: () -> Unit,
+) {
+    /** The count of confirmations as the core's line: the list's once it is read, the site's own until then. */
+    fun confirmedLine(by: SiteByPilots): String =
+        confirmations?.let { it.words.ifEmpty { it.nobodyWords } } ?: by.confirmedInWords
+
+    /** Whether the page has anything to show about confirmations. */
+    fun showsConfirmed(by: SiteByPilots): Boolean =
+        confirmedLine(by).isNotEmpty() || offers.confirm.isOffered || offers.hasConfirmed
+
+    /** Whether the page has an entry or a note to show at its foot. */
+    val showsEntries: Boolean
+        get() = offers.correct.isOffered || offers.history.isOffered || offers.remove.isOffered ||
+            offers.report.isOffered || showsSignIn || offers.note.isNotEmpty() || problem != null
+}
 
 /** The core's line about what was just done to a site, at the head of its page or its history. */
 @Composable
@@ -538,9 +606,9 @@ fun SiteSaid(words: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * On the page of a site that pilots made: who added it and who changed it
- * last, each with its day, and under them the core's notice that nobody
- * has verified it.
+ * On the page of a site of Venti's own layers: who added it and who
+ * changed it last, each with its day, and under them the core's notice of
+ * what a site of its tier is worth.
  */
 @Composable
 fun SiteByPilotsRows(by: SiteByPilots) {
@@ -555,30 +623,103 @@ fun SiteByPilotsRows(by: SiteByPilots) {
     }
 }
 
-/** What a pilot does about a site that pilots made: correct it, read its history, remove it, report it. */
+/**
+ * Who took off here, on a site's page: the count as the core's line, which
+ * opens the list; the sentence "I took off here and it was good" as a
+ * button where the core offers it; and once the pilot has said it, the
+ * core's line about that in the button's place, with the ways to change
+ * the day and to take it back.
+ */
 @Composable
-fun SiteEditRows(edits: SitePageEdits) {
-    val primary = MaterialTheme.colorScheme.primary
-    Column(Modifier.testTag("site-edits")) {
-        Group {
-            if (edits.canBeCorrected && edits.isSignedIn) {
-                row { ActionRow(edits.correct, primary, Modifier.testTag("site-correct"), onClick = edits.onCorrect) }
-            }
-            row {
-                LinkRow(SiteEditWords.HISTORY, R.drawable.ic_chevron_right, Modifier.testTag("site-history-open"), onClick = edits.onHistory)
-            }
-            if (edits.canBeCorrected && edits.isSignedIn) {
-                row {
-                    ActionRow(SiteEditWords.REMOVE, MaterialTheme.colorScheme.error, Modifier.testTag("site-remove"), onClick = edits.onRemove)
+fun SiteConfirmedRows(by: SiteByPilots, edits: SitePageEdits) {
+    val offers = edits.offers
+    val line = edits.confirmedLine(by)
+    Column(Modifier.testTag("site-confirmed"), verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+        if (line.isNotEmpty() || offers.hasConfirmed) {
+            Group {
+                if (line.isNotEmpty()) {
+                    row {
+                        LinkRow(line, R.drawable.ic_chevron_right, Modifier.testTag("site-confirmations-open"), onClick = edits.onConfirmations)
+                    }
+                }
+                if (offers.hasConfirmed) {
+                    row {
+                        Text(
+                            offers.confirmedWords,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3)
+                                .testTag("site-confirmed-words"),
+                        )
+                    }
+                    if (offers.confirm.isOffered) {
+                        row {
+                            ActionRow(
+                                offers.confirm.words,
+                                MaterialTheme.colorScheme.primary,
+                                Modifier.testTag("site-confirm-again"),
+                                onClick = edits.onConfirm,
+                            )
+                        }
+                    }
+                    if (offers.withdraw.isOffered) {
+                        row {
+                            ActionRow(
+                                offers.withdraw.words,
+                                MaterialTheme.colorScheme.error,
+                                Modifier.testTag("site-withdraw"),
+                                onClick = edits.onWithdraw,
+                            )
+                        }
+                    }
                 }
             }
-            row { ActionRow(Reported.site("").title, primary, Modifier.testTag("site-report"), onClick = edits.onReport) }
-            if (edits.canBeCorrected && !edits.isSignedIn) {
-                row { ActionRow(SiteEditWords.SIGN_IN, primary, Modifier.testTag("site-sign-in"), onClick = edits.onSignIn) }
+        }
+        if (offers.confirm.isOffered && !offers.hasConfirmed) {
+            OutlinedButton(
+                onClick = edits.onConfirm,
+                modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("site-confirm"),
+            ) { Text(offers.confirm.words) }
+        }
+    }
+}
+
+/**
+ * What the core offers for a site, at the foot of its page: correct it,
+ * read its history, remove it, report it, each under the core's words and
+ * only where offered; and the core's one line about what is missing.
+ */
+@Composable
+fun SiteEditRows(edits: SitePageEdits) {
+    val offers = edits.offers
+    val primary = MaterialTheme.colorScheme.primary
+    Column(Modifier.testTag("site-edits")) {
+        if (offers.correct.isOffered || offers.history.isOffered || offers.remove.isOffered || offers.report.isOffered || edits.showsSignIn) {
+            Group {
+                if (offers.correct.isOffered) {
+                    row { ActionRow(offers.correct.words, primary, Modifier.testTag("site-correct"), onClick = edits.onCorrect) }
+                }
+                if (offers.history.isOffered) {
+                    row {
+                        LinkRow(offers.history.words, R.drawable.ic_chevron_right, Modifier.testTag("site-history-open"), onClick = edits.onHistory)
+                    }
+                }
+                if (offers.remove.isOffered) {
+                    row {
+                        ActionRow(offers.remove.words, MaterialTheme.colorScheme.error, Modifier.testTag("site-remove"), onClick = edits.onRemove)
+                    }
+                }
+                if (offers.report.isOffered) {
+                    row { ActionRow(offers.report.words, primary, Modifier.testTag("site-report"), onClick = edits.onReport) }
+                }
+                if (edits.showsSignIn) {
+                    row { ActionRow(SiteEditWords.SIGN_IN, primary, Modifier.testTag("site-sign-in"), onClick = edits.onSignIn) }
+                }
             }
         }
-        if (edits.canBeCorrected && !edits.isSignedIn) {
-            SectionFooter(SiteEditWords.NEEDS_ACCOUNT)
+        if (offers.note.isNotEmpty()) {
+            SectionFooter(offers.note, Modifier.testTag("site-offers-note"))
         }
         edits.problem?.let { words ->
             Text(
@@ -592,22 +733,28 @@ fun SiteEditRows(edits: SitePageEdits) {
 }
 
 /**
- * Asks for the line about a change before it is sent: removing a site,
- * putting a revision back, undoing the last change. The field is the
- * form's own "Why", with the core's title and help. It stays open while
- * the request runs and says what the server refused.
+ * Asks before something is done to a site: removing it, putting a
+ * revision back, bringing a removed site back, undoing the last change,
+ * taking a confirmation back. The question and what it means are the
+ * core's; with `asksWhy` the form's own "Why" field takes the line about
+ * the change. It stays open while the request runs and says what the
+ * server refused.
  */
 @Composable
 fun SiteWhyDialog(
     title: String,
+    /** What the step does, under the question; `null` for none. */
+    about: String?,
     /** The words of the button that sends. */
     send: String,
+    cancel: String,
     why: SiteFormField?,
     isRemoval: Boolean,
     requests: CoroutineScope,
     /** Sends with the line; returns what went wrong in words, or `null` when nothing did. */
     work: suspend (String) -> String?,
     onDismiss: () -> Unit,
+    asksWhy: Boolean = true,
 ) {
     var comment by remember { mutableStateOf("") }
     var isWorking by remember { mutableStateOf(false) }
@@ -617,15 +764,20 @@ fun SiteWhyDialog(
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
-                OutlinedTextField(
-                    value = comment,
-                    onValueChange = { comment = it },
-                    label = why?.let { field -> { Text(field.title) } },
-                    supportingText = why?.let { field -> { Text(field.help) } },
-                    enabled = !isWorking,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    modifier = Modifier.fillMaxWidth().testTag("site-why"),
-                )
+                if (about != null) {
+                    Text(about, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("site-why-about"))
+                }
+                if (asksWhy) {
+                    OutlinedTextField(
+                        value = comment,
+                        onValueChange = { comment = it },
+                        label = why?.let { field -> { Text(field.title) } },
+                        supportingText = why?.let { field -> { Text(field.help) } },
+                        enabled = !isWorking,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        modifier = Modifier.fillMaxWidth().testTag("site-why"),
+                    )
+                }
                 problem?.let { words ->
                     Text(
                         words,
@@ -655,16 +807,46 @@ fun SiteWhyDialog(
                 Text(send, color = if (isRemoval) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !isWorking) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !isWorking) { Text(cancel) } },
     )
 }
 
+/** The head of a page laid over a site's: the way back, a title with the site's name under it, and "Done". */
+@Composable
+private fun OverASiteHead(title: String, name: String, onBack: (() -> Unit)?, onDone: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = if (onBack != null) VentiSpace.s1 else VentiSpace.s5, end = VentiSpace.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (onBack != null) {
+            IconButton(onClick = onBack) {
+                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Venti.colours.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        TextButton(onClick = onDone) { Text("Done") }
+    }
+}
+
+/** What the pilot is asked before a revision is put back: the revision, and the core's words around the step. */
+private class PuttingBack(val revision: UInt, val question: String, val about: String?, val send: String)
+
 /**
  * A site's history: its revisions, the newest first, each in the core's
- * line with what it changed under it, and the ways back: the core's
- * "Undo the last change" where it names a revision for it, and "Put back"
- * on each revision the core says can be. That is also how a removed site
- * comes back.
+ * line with what it changed under it, and the ways back, each under the
+ * core's words: "Bring this site back" on a removed site, "Undo the last
+ * change" where the core names a revision for it, and the core's offer on
+ * each revision that can be put back. They are shown to a pilot the core
+ * offers correcting the site to.
  */
 @Composable
 fun SiteHistoryPage(
@@ -674,17 +856,21 @@ fun SiteHistoryPage(
     requests: CoroutineScope,
     /** The core's line about what was just done to the site. */
     said: String?,
+    /** Whether the core offers this pilot to correct the site: who may, puts it back and brings it back. */
+    mayWrite: Boolean,
+    /** Whether the core offers this pilot to report the site. */
+    mayReport: Boolean,
     onBack: (() -> Unit)?,
     onDone: () -> Unit,
     /** A revision was put back: the site as it stands now. */
     onWritten: (SiteWritten) -> Unit,
     onReport: (Reported) -> Unit,
 ) {
+    val says = edit.says
     var history by remember(id) { mutableStateOf<SiteHistory?>(null) }
     var problem by remember(id) { mutableStateOf<String?>(null) }
     var attempt by remember(id) { mutableIntStateOf(0) }
-    // The revision to put back, with the words of the button that asked.
-    var asking by remember { mutableStateOf<Pair<UInt, String>?>(null) }
+    var asking by remember { mutableStateOf<PuttingBack?>(null) }
     LaunchedEffect(id, attempt) {
         try {
             history = edit.history(id)
@@ -696,30 +882,9 @@ fun SiteHistoryPage(
         }
     }
     val shown = history
-    val mayWrite = edit.takesSites() && edit.isSignedIn
 
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = if (onBack != null) VentiSpace.s1 else VentiSpace.s5, end = VentiSpace.s2),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onBack != null) {
-                IconButton(onClick = onBack) {
-                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
-                }
-            }
-            Column(Modifier.weight(1f)) {
-                Text(SiteEditWords.HISTORY, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                Text(
-                    name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Venti.colours.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            TextButton(onClick = onDone) { Text("Done") }
-        }
+        OverASiteHead(says.history, name, onBack, onDone)
         Column(
             modifier = Modifier
                 .testTag("site-history")
@@ -736,25 +901,38 @@ fun SiteHistoryPage(
                 shown == null -> {
                     Text(SiteEditWords.NO_HISTORY, style = MaterialTheme.typography.titleMedium)
                     Text(problem.orEmpty(), color = Venti.colours.textSecondary, modifier = Modifier.testTag("site-history-problem"))
-                    TextButton(onClick = { attempt += 1 }) { Text("Try again") }
+                    TextButton(onClick = { attempt += 1 }) { Text(SiteEditWords.TRY_AGAIN) }
                 }
                 else -> {
+                    // A removed site, as it stood before it was removed.
+                    val bringBack = shown.bringBackRevision
+                    if (bringBack != null && mayWrite) {
+                        Button(
+                            onClick = { asking = PuttingBack(bringBack, says.bringBackQuestion, says.bringBackAbout, says.bringBack) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("site-bring-back"),
+                        ) { Text(shown.bringBackWords) }
+                    }
                     val undo = shown.undoRevision
                     if (undo != null && mayWrite) {
                         OutlinedButton(
-                            onClick = { asking = undo to shown.undoWords },
+                            onClick = { asking = PuttingBack(undo, "${shown.undoWords}?", null, shown.undoWords) },
                             modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("site-undo"),
                         ) { Text(shown.undoWords) }
                     }
                     for (revision in shown.revisions.asReversed()) {
                         Revision(
                             revision,
+                            report = says.reportRevision,
                             onPutBack = if (revision.canBePutBack && mayWrite) {
-                                { asking = revision.number to SiteEditWords.PUT_BACK }
+                                { asking = PuttingBack(revision.number, says.putBackQuestion, says.putBackAbout, says.putBack) }
                             } else {
                                 null
                             },
-                            onReport = { onReport(Reported.siteRevision(id, revision.number)) },
+                            onReport = if (mayReport) {
+                                { onReport(Reported.siteRevision(id, revision.number)) }
+                            } else {
+                                null
+                            },
                         )
                     }
                     shown.credit?.let { SectionFooter(it.text) }
@@ -763,16 +941,18 @@ fun SiteHistoryPage(
         }
     }
 
-    asking?.let { (revision, words) ->
+    asking?.let { asked ->
         SiteWhyDialog(
-            title = if (words == SiteEditWords.PUT_BACK) SiteEditWords.PUT_BACK_ASK else "$words?",
-            send = words,
+            title = asked.question,
+            about = asked.about,
+            send = asked.send,
+            cancel = says.cancel,
             why = edit.form.fields.firstOrNull { it.field == SiteField.COMMENT },
             isRemoval = false,
             requests = requests,
             work = { comment ->
                 try {
-                    val written = edit.restore(id, revision, comment)
+                    val written = edit.restore(id, asked.revision, comment)
                     asking = null
                     onWritten(written)
                     null
@@ -787,9 +967,10 @@ fun SiteHistoryPage(
     }
 }
 
-/** One revision: the core's line, what it changed a line a field, and what can be done about it. */
+/** One revision: the core's line, what it changed a line a field, and what can be done about it, in the core's words. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Revision(revision: SiteRevisionView, onPutBack: (() -> Unit)?, onReport: () -> Unit) {
+private fun Revision(revision: SiteRevisionView, report: String, onPutBack: (() -> Unit)?, onReport: (() -> Unit)?) {
     Group(Modifier.testTag("site-revision")) {
         row {
             Column(
@@ -805,17 +986,265 @@ private fun Revision(revision: SiteRevisionView, onPutBack: (() -> Unit)?, onRep
                         modifier = Modifier.testTag("site-revision-change"),
                     )
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onReport, modifier = Modifier.testTag("site-revision-report")) {
-                        Text(SiteEditWords.REPORT)
+                // Side by side where there is room, one under the other where there is not.
+                FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    if (onReport != null) {
+                        TextButton(onClick = onReport, modifier = Modifier.testTag("site-revision-report")) { Text(report) }
                     }
                     if (onPutBack != null) {
                         TextButton(onClick = onPutBack, modifier = Modifier.testTag("site-put-back")) {
-                            Text(SiteEditWords.PUT_BACK)
+                            Text(revision.putBackWords)
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * "Pilots who took off here": the count as the core's line and each
+ * confirmation in the core's line, the newest day first. Anyone reads it.
+ */
+@Composable
+fun SiteConfirmationsPage(
+    name: String,
+    says: CoreSiteWords,
+    confirmations: SiteConfirmations?,
+    /** Why the list could not be read, in the core's words. */
+    problem: String?,
+    onTryAgain: () -> Unit,
+    onBack: (() -> Unit)?,
+    onDone: () -> Unit,
+) {
+    Column {
+        OverASiteHead(says.confirmationsTitle, name, onBack, onDone)
+        Column(
+            modifier = Modifier
+                .testTag("site-confirmations")
+                .verticalScroll(rememberScrollState())
+                .padding(start = VentiSpace.s4, end = VentiSpace.s4, top = VentiSpace.s2, bottom = VentiSpace.s6),
+            verticalArrangement = Arrangement.spacedBy(VentiSpace.s3),
+        ) {
+            when {
+                confirmations == null && problem == null -> Box(
+                    Modifier.fillMaxWidth().padding(vertical = VentiSpace.s6),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
+                confirmations == null -> {
+                    Text(SiteEditWords.NO_CONFIRMATIONS, style = MaterialTheme.typography.titleMedium)
+                    Text(problem.orEmpty(), color = Venti.colours.textSecondary, modifier = Modifier.testTag("site-confirmations-problem"))
+                    TextButton(onClick = onTryAgain) { Text(SiteEditWords.TRY_AGAIN) }
+                }
+                else -> {
+                    Text(
+                        confirmations.words.ifEmpty { confirmations.nobodyWords },
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.testTag("site-confirmations-count"),
+                    )
+                    if (confirmations.lines.isNotEmpty()) {
+                        Group {
+                            for (line in confirmations.lines) {
+                                row {
+                                    Text(
+                                        line.words,
+                                        style = MaterialTheme.typography.bodyLarge.numbers,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3)
+                                            .testTag("site-confirmation"),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The small form that says of a site "I took off here and it was good":
+ * the day from a menu, today chosen; a line for other pilots, if the pilot
+ * likes, with the room it has; one of the pilot's own flights of that day
+ * that began here, only where the logbook has one; and the core's button.
+ * Every word and every refusal is the core's.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SiteConfirmSheet(
+    site: SiteView,
+    edit: SiteEditModel,
+    /** Where the request runs, so that it carries on when the sheet is closed. */
+    requests: CoroutineScope,
+    /** The server took it: the site with it counted, and the core's line. */
+    onConfirmed: (SiteWritten) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colours = Venti.colours
+    val form = remember { runCatching { edit.confirmForm() }.getOrNull() }
+    val today = form?.days?.firstOrNull()
+    if (form == null || today == null) {
+        // The core could not make the form of this phone's date: nothing to show.
+        LaunchedEffect(Unit) { onDismiss() }
+        return
+    }
+    var day by remember { mutableStateOf(today) }
+    var isChoosingDay by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf("") }
+    var flights by remember { mutableStateOf(emptyList<SiteConfirmFlight>()) }
+    var flight by remember { mutableStateOf<String?>(null) }
+    var isSending by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    // The pilot's own flights of the day chosen that began here: mostly none.
+    LaunchedEffect(site.id, day.day) {
+        flight = null
+        flights = edit.confirmFlights(site, day.day)
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .testTag("site-confirm-form")
+                .verticalScroll(rememberScrollState())
+                .padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s6),
+            verticalArrangement = Arrangement.spacedBy(VentiSpace.s3),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    form.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
+                TextButton(onClick = onDismiss, modifier = Modifier.testTag("site-confirm-cancel")) { Text(edit.says.cancel) }
+            }
+            Text(site.name, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                form.about,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colours.textSecondary,
+                modifier = Modifier.testTag("site-confirm-about"),
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+                Text(
+                    form.dayTitle,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colours.textSecondary,
+                    modifier = Modifier.semantics { heading() },
+                )
+                Box {
+                    Group {
+                        row {
+                            LinkRow(
+                                day.words,
+                                R.drawable.ic_arrow_drop_down,
+                                Modifier.testTag("site-confirm-day"),
+                                onClick = { if (!isSending) isChoosingDay = true },
+                            )
+                        }
+                    }
+                    DropdownMenu(expanded = isChoosingDay, onDismissRequest = { isChoosingDay = false }) {
+                        for (one in form.days) {
+                            DropdownMenuItem(
+                                text = { Text(one.words) },
+                                onClick = {
+                                    day = one
+                                    isChoosingDay = false
+                                },
+                                modifier = Modifier.testTag("site-confirm-day-${one.day}"),
+                            )
+                        }
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = note,
+                // No more than the core says the line has room for.
+                onValueChange = { note = it.take(form.noteAtMost.toInt()) },
+                label = { Text(form.noteTitle) },
+                supportingText = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+                        Text(form.noteHelp, modifier = Modifier.weight(1f))
+                        Text(SiteEditWords.room(note.length, form.noteAtMost), style = MaterialTheme.typography.bodySmall.numbers)
+                    }
+                },
+                enabled = !isSending,
+                minLines = 2,
+                maxLines = 6,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                modifier = Modifier.fillMaxWidth().testTag("site-confirm-note"),
+            )
+
+            if (flights.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+                    Text(
+                        form.flightTitle,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colours.textSecondary,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Group(Modifier.testTag("site-confirm-flights")) {
+                        row { Picked(form.noFlight, isOn = flight == null, enabled = !isSending) { flight = null } }
+                        for (one in flights) {
+                            row { Picked(one.words, isOn = flight == one.id, enabled = !isSending) { flight = one.id } }
+                        }
+                    }
+                    Text(form.flightHelp, style = MaterialTheme.typography.bodySmall, color = colours.textSecondary)
+                }
+            }
+
+            problem?.let { words ->
+                Text(
+                    words,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.testTag("site-confirm-problem"),
+                )
+            }
+            Button(
+                onClick = {
+                    isSending = true
+                    problem = null
+                    requests.launch {
+                        try {
+                            onConfirmed(edit.confirm(site.id, day.day, note, flight))
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Exception) {
+                            problem = edit.words(error)
+                        } finally {
+                            isSending = false
+                        }
+                    }
+                },
+                enabled = !isSending,
+                modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("site-confirm-send"),
+            ) { Text(form.send) }
+        }
+    }
+}
+
+/** One of several to pick one from, in a group's row: its words, and a tick at the one that is picked. */
+@Composable
+private fun Picked(words: String, isOn: Boolean, enabled: Boolean, onPick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = isOn, enabled = enabled, role = Role.RadioButton, onClick = onPick)
+            .heightIn(min = VentiSize.touch)
+            .padding(horizontal = VentiSpace.s4),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(words, style = MaterialTheme.typography.bodyLarge.numbers, modifier = Modifier.weight(1f))
+        if (isOn) {
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

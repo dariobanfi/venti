@@ -6,27 +6,37 @@ import androidx.compose.runtime.setValue
 import fly.venti.app.Http
 import fly.venti.app.HttpAnswer
 import fly.venti.app.account.AccountModel
-import fly.venti.app.community.ReportWords
 import fly.venti.app.pilotMessage
 import fly.venti.app.wind.WindTransport
 import fly.venti.core.Coordinate
+import fly.venti.core.Core
 import fly.venti.core.CoreException
 import fly.venti.core.ServerRequest
+import fly.venti.core.SiteAdding
+import fly.venti.core.SiteConfirmFlight
+import fly.venti.core.SiteConfirmForm
+import fly.venti.core.SiteConfirmations
 import fly.venti.core.SiteDraftView
+import fly.venti.core.SiteField
 import fly.venti.core.SiteForm
 import fly.venti.core.SiteHistory
 import fly.venti.core.SiteInTheWay
+import fly.venti.core.SiteOffers
 import fly.venti.core.SitePage
 import fly.venti.core.SiteView
 import fly.venti.core.SiteWritten
 import fly.venti.core.siteAddRequest
 import fly.venti.core.siteChangeRequest
-import fly.venti.core.siteChangesBetween
+import fly.venti.core.siteConfirmForm
+import fly.venti.core.siteConfirmations
+import fly.venti.core.siteConfirmationsPath
+import fly.venti.core.siteConfirmed
 import fly.venti.core.siteDraftMoved
 import fly.venti.core.siteDraftNew
 import fly.venti.core.siteDraftOf
+import fly.venti.core.siteDraftRebased
 import fly.venti.core.siteForm
-import fly.venti.core.siteHistory
+import fly.venti.core.siteHistoryPage
 import fly.venti.core.siteHistoryPath
 import fly.venti.core.siteInTheWay
 import fly.venti.core.sitePage
@@ -34,22 +44,30 @@ import fly.venti.core.sitePath
 import fly.venti.core.siteRemoveRequest
 import fly.venti.core.siteRemoved
 import fly.venti.core.siteRestoreRequest
+import fly.venti.core.siteWasChanged
+import fly.venti.core.siteWithdrawRequest
+import fly.venti.core.siteWithdrawn
+import fly.venti.core.siteWords
 import fly.venti.core.siteWritten
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Adding and correcting a flying site of Venti's own layer, the sites that
- * pilots make.
+ * Adding, correcting and confirming a flying site of Venti's own layers:
+ * the partners' sites and the places from pilots.
  *
- * No rule of it is here: the core says what the form shows, checks a
- * draft, puts every request together and reads every answer into words.
- * This class sends what the core gives, a change with the account's token
- * and a look without one, and keeps nothing.
+ * No rule of it is here: the core says what may be offered for a site to
+ * the account this phone stores, what the forms show, checks a draft,
+ * puts every request together and reads every answer into words. This
+ * class sends what the core gives, a change with the account's token and
+ * a look without one, and keeps nothing.
  */
 class SiteEditModel(
+    private val core: Core,
     private val account: AccountModel,
     /** Asks for a site and its history, which anyone may read. */
     private val read: WindTransport = { url -> Http.get(url) },
@@ -64,9 +82,32 @@ class SiteEditModel(
     /** What the form shows: the core's fields, choices and words. */
     val form: SiteForm by lazy { siteForm() }
 
-    /** Whether a site can be sent from here: signed in, on the server the sites are on. */
-    val isSignedIn: Boolean
-        get() = ReportWords.obstacle(account.isSignedIn, account.account?.server, server()) == null
+    /** The words around a site's page, its form and its history: the core's. */
+    val says: fly.venti.core.SiteWords by lazy { siteWords() }
+
+    /**
+     * Whether this phone holds a session: only for where "Sign in" leads
+     * to the account. What a pilot may do with a site is [offers] and
+     * [adding], never this.
+     */
+    val hasSession: Boolean get() = account.isSignedIn
+
+    /**
+     * What may be offered for a site to whoever is signed in on this
+     * phone, as the core's one answer; with the site's confirmations it
+     * knows the pilot's own among them. `null` when the core cannot say.
+     */
+    fun offers(site: SiteView, confirmations: SiteConfirmations? = null): SiteOffers? {
+        // Read with the account as it is known now: a screen that shows the answer follows the account.
+        account.account
+        return runCatching { core.siteOffers(site, takesSites(), confirmations) }.getOrNull()
+    }
+
+    /** Whether a site may be added from here, into which tier, and the words of the entry and the form: the core's. */
+    fun adding(): SiteAdding? {
+        account.account
+        return runCatching { core.siteAdding(takesSites()) }.getOrNull()
+    }
 
     /** What became of a draft that was sent. */
     sealed interface Sent {
@@ -94,10 +135,11 @@ class SiteEditModel(
                 Sent.Written(withContext(background) { siteWritten(answer.status16, answer.body) })
             } catch (error: CoreException) {
                 val inTheWay = withContext(background) { siteInTheWay(answer.status16, answer.body) }
-                // A correction that was refused: the site as it stands, if
-                // it stands at another revision than the draft was made from.
-                val now = if (id != null && inTheWay == null) {
-                    runCatching { page(id).site }.getOrNull()?.takeIf { it.byPilots?.revision != draft.revision }
+                // A correction refused because someone else changed the
+                // site meanwhile, as the core reads the answer: the site
+                // as it stands now, to carry the draft onto.
+                val now = if (id != null && withContext(background) { siteWasChanged(answer.status16, answer.body) }) {
+                    runCatching { page(id).site }.getOrNull()
                 } else {
                     null
                 }
@@ -126,33 +168,51 @@ class SiteEditModel(
 
     /**
      * A site's whole history: the server's pages one after the other, as
-     * one. What the first revision of a later page changed is asked of
-     * the core, which a page alone cannot say.
+     * one. Each page is read with the last revision of the page before,
+     * so that the core says what its first revision changed.
      */
     suspend fun history(id: String): SiteHistory {
         var whole: SiteHistory? = null
         var after: UInt? = null
         for (page in 0 until PAGES_AT_MOST) {
             val answer = look(withContext(background) { siteHistoryPath(id, after) })
-            val next = withContext(background) { siteHistory(answer.status16, answer.body) }
             val before = whole
-            whole = if (before == null) {
-                next
-            } else {
-                val last = before.revisions.lastOrNull()
-                val joined = next.revisions.mapIndexed { index, revision ->
-                    if (index == 0 && last != null && revision.changes.isEmpty()) {
-                        revision.copy(changes = withContext(background) { siteChangesBetween(last.site, revision.site) })
-                    } else {
-                        revision
-                    }
-                }
-                next.copy(revisions = before.revisions + joined)
+            val next = withContext(background) {
+                siteHistoryPage(answer.status16, answer.body, before?.revisions?.lastOrNull())
             }
+            whole = next.copy(revisions = before?.revisions.orEmpty() + next.revisions)
             after = next.nextAfter ?: break
         }
         return checkNotNull(whole)
     }
+
+    // Confirming: "I took off here and it was good"
+
+    /** Who says they took off at a site, which anyone may read. */
+    suspend fun confirmations(id: String): SiteConfirmations {
+        val answer = look(withContext(background) { siteConfirmationsPath(id) })
+        return withContext(background) { siteConfirmations(answer.status16, answer.body) }
+    }
+
+    /** The form for a confirmation: the days to choose from, counted back from this phone's date, and the core's words. */
+    fun confirmForm(today: LocalDate = LocalDate.now()): SiteConfirmForm = siteConfirmForm(today.toString())
+
+    /** The pilot's own flights of a day that began at the site and are on the server; mostly none. */
+    suspend fun confirmFlights(site: SiteView, day: String): List<SiteConfirmFlight> = withContext(background) {
+        runCatching {
+            // How far this phone's clock is ahead of UTC on that day.
+            val ahead = ZoneId.systemDefault().rules.getOffset(LocalDate.parse(day).atTime(12, 0)).totalSeconds
+            core.siteConfirmFlights(site, day, ahead)
+        }.getOrDefault(emptyList())
+    }
+
+    /** Says of a site that the pilot took off there on a day; again, it changes the day. The site with it counted, and the core's line. */
+    suspend fun confirm(id: String, day: String, note: String, flight: String?, today: LocalDate = LocalDate.now()): SiteWritten =
+        write({ core.siteConfirmRequest(id, day, today.toString(), note, flight) }) { status, body -> siteConfirmed(status, body, day) }
+
+    /** Takes the pilot's own confirmation of a site back; the core's line about it. */
+    suspend fun withdraw(id: String): String =
+        write({ siteWithdrawRequest(id) }) { status, body -> siteWithdrawn(status, body) }
 
     /** What went wrong, in words for the pilot. */
     fun words(error: Exception): String = account.words(error)
@@ -184,21 +244,19 @@ class SiteEditModel(
  * on the map, and after a correction that the server refused.
  */
 class SiteFormDraft private constructor(
-    base: SiteDraftView,
+    made: SiteDraftView,
     /** The site the draft corrects, as it stood when the draft was made; `null` for a new one. */
     site: SiteView?,
+    /** For a new site: the tier it goes to and the words of its form, as the core said when the form was opened. */
+    val adding: SiteAdding?,
 ) {
-    /** The draft as it was made, from a place or from a site: what the pilot's entries are held against. */
-    var base: SiteDraftView = base
-        private set
-
     var site: SiteView? = site
         private set
 
-    var draft: SiteDraftView by mutableStateOf(base)
+    var draft: SiteDraftView by mutableStateOf(made)
 
     /** The height as the pilot typed it. */
-    var height: String by mutableStateOf(heightAsTyped(base.elevationM))
+    var height: String by mutableStateOf(heightAsTyped(made.elevationM))
         private set
 
     /** The line about the change, which belongs to the revision and not to the site. */
@@ -213,11 +271,16 @@ class SiteFormDraft private constructor(
     /** The site that stands where this one was to be added, to open in its place. */
     var inTheWay: SiteInTheWay? by mutableStateOf(null)
 
-    /** What someone else changed while the form was open, a line a field, in the core's words. */
+    /** After someone else changed the site while the form was open: what became of the draft, in the core's words. */
+    var meanwhileWords: String? by mutableStateOf(null)
+        private set
+
+    /** What they changed, a line a field, in the core's words. */
     var meanwhile: List<String> by mutableStateOf(emptyList())
+        private set
 
     /** Whether the draft is of a site that is new. */
-    val isNew: Boolean get() = base.siteId == null
+    val isNew: Boolean = made.siteId == null
 
     /** Takes what was typed as the height, if it can be one: digits, with a sign and a fraction. */
     fun typeHeight(text: String) {
@@ -232,40 +295,29 @@ class SiteFormDraft private constructor(
     }
 
     /**
-     * Someone else changed the site while the form was open: the draft is
-     * made again from the site as it stands now, and what the pilot had
-     * changed in the form is laid over it, so that nothing entered is lost
-     * and nothing the other pilot changed is undone unseen.
+     * Someone else changed the site while the form was open: the core
+     * carries the draft onto the site as it stands now, with what the
+     * pilot had entered laid over it, and says what the others changed
+     * and where both did. Returns whether it could.
      */
-    fun carryOnto(now: SiteView) {
-        fun <Value> mine(was: Value, entered: Value, stands: Value): Value = if (entered != was) entered else stands
-        val stands = siteDraftOf(now)
-        val old = base
-        val entered = draft
-        meanwhile = site?.let { siteChangesBetween(it, now) }.orEmpty()
-        val placed = if (entered.position != old.position) siteDraftMoved(stands, entered.position) else stands
-        draft = placed.copy(
-            name = mine(old.name, entered.name, stands.name),
-            elevationM = mine(old.elevationM, entered.elevationM, stands.elevationM),
-            uses = mine(old.uses, entered.uses, stands.uses),
-            windFromDeg = mine(old.windFromDeg, entered.windFromDeg, stands.windFromDeg),
-            description = mine(old.description, entered.description, stands.description),
-            fee = mine(old.fee, entered.fee, stands.fee),
-            website = mine(old.website, entered.website, stands.website),
-            noFlightTime = mine(old.noFlightTime, entered.noFlightTime, stands.noFlightTime),
-            guestGuidelines = mine(old.guestGuidelines, entered.guestGuidelines, stands.guestGuidelines),
-        )
-        if (entered.elevationM == old.elevationM) height = heightAsTyped(stands.elevationM)
-        base = stands
+    fun rebase(now: SiteView): Boolean {
+        val was = site ?: return false
+        val rebased = runCatching { siteDraftRebased(was, draft, now) }.getOrNull() ?: return false
+        draft = rebased.draft
+        // A height the pilot left alone is the site's, also as text.
+        if (SiteField.HEIGHT !in rebased.kept) height = heightAsTyped(rebased.draft.elevationM)
+        meanwhileWords = rebased.words
+        meanwhile = rebased.theirs
         site = now
+        return true
     }
 
     companion object {
-        /** A draft for a new site at a place, with nothing said yet. */
-        fun new(place: Coordinate): SiteFormDraft = SiteFormDraft(siteDraftNew(place), null)
+        /** A draft for a new site at a place, with nothing said yet, for the tier the core names. */
+        fun new(place: Coordinate, adding: SiteAdding? = null): SiteFormDraft = SiteFormDraft(siteDraftNew(place), null, adding)
 
-        /** A draft that corrects a site of Venti's own layer. Throws the core's refusal for a site of another source. */
-        fun of(site: SiteView): SiteFormDraft = SiteFormDraft(siteDraftOf(site), site)
+        /** A draft that corrects a site of Venti's own layers. Throws the core's refusal for a site of another source. */
+        fun of(site: SiteView): SiteFormDraft = SiteFormDraft(siteDraftOf(site), site, null)
 
         private val HEIGHT = Regex("""-?\d{0,5}(\.\d{0,2})?""")
 

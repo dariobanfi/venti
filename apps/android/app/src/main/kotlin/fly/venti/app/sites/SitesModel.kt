@@ -20,6 +20,7 @@ import fly.venti.core.SitesWindIs
 import fly.venti.core.filterSites
 import fly.venti.core.sitesMap
 import fly.venti.core.sitesPath
+import fly.venti.core.sitesPathWithPilots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -79,6 +80,20 @@ class SitesModel(
      */
     val filtered: SitesFiltered by derivedStateOf { filterSites(sites, asked) }
 
+    /**
+     * Whether the places from pilots are asked for with the sites: the
+     * crowdsourced layer, which the server leaves out of every answer that
+     * does not name it. Off until the pilot switches it on.
+     */
+    var showsFromPilots: Boolean by mutableStateOf(false)
+        private set
+
+    /**
+     * Whether the pilot asks anything of the sites: the core's filter is
+     * on, or the places from pilots are.
+     */
+    val isAsking: Boolean get() = filtered.isOn || showsFromPilots
+
     /** Whose data they are. The licences ask for this next to the data. */
     var credits: List<Credit> by mutableStateOf(emptyList())
         private set
@@ -101,10 +116,13 @@ class SitesModel(
     /** The server to ask, without a slash at its end: the app's (`AppServer`), or a test's. */
     var server: () -> String? = { null }
 
-    /** The area the sites were asked for, from which server, and when. */
-    private class Answered(val area: Bounds, val server: String, val at: Long)
+    /** The area the sites were asked for, from which server, with or without the places from pilots, and when. */
+    private class Answered(val area: Bounds, val server: String, val fromPilots: Boolean, val at: Long)
 
     private var answered: Answered? = null
+
+    /** The area and the server of the newest request, answered or not. */
+    private var newest: Pair<Bounds, String>? = null
     private var waiting: Job? = null
 
     /**
@@ -134,7 +152,10 @@ class SitesModel(
         }
         if (!showsSites(region)) return
         val answered = answered
-        if (answered != null && answered.area.contains(region) && clock() - answered.at < KEEP_MILLISECONDS) {
+        if (
+            answered != null && answered.fromPilots == showsFromPilots && answered.area.contains(region) &&
+            clock() - answered.at < KEEP_MILLISECONDS
+        ) {
             return
         }
         waiting?.cancel()
@@ -148,24 +169,32 @@ class SitesModel(
 
     /** Asks the server for the sites of an area. */
     suspend fun load(area: Bounds, server: String) {
+        // The switch is the choice of path: the core's, with the layer or without.
+        val fromPilots = showsFromPilots
+        newest = area to server
         try {
-            val answer = transport(server + sitesPath(area.south, area.west, area.north, area.east))
+            val path = if (fromPilots) {
+                sitesPathWithPilots(area.south, area.west, area.north, area.east)
+            } else {
+                sitesPath(area.south, area.west, area.north, area.east)
+            }
+            val answer = transport(server + path)
             val status = answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()
             val map = withContext(background) {
                 sitesMap(area.south, area.west, area.north, area.east, status, answer.body)
             }
-            // The pilot may have changed the server while this was under way.
-            if (server != this.server()) return
+            // The pilot may have changed the server or the switch while this was under way.
+            if (server != this.server() || fromPilots != showsFromPilots) return
             sites = map.sites
             credits = map.credits
             isWhole = map.isWhole
             asOf = map.asOfUnixS
-            answered = Answered(area, server, clock())
+            answered = Answered(area, server, fromPilots, clock())
             problem = null
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            if (server != this.server()) return
+            if (server != this.server() || fromPilots != showsFromPilots) return
             problem = when (error) {
                 is CoreException -> error.pilotMessage
                 else -> "Venti could not be reached for flying sites. ${error.pilotMessage}"
@@ -175,8 +204,20 @@ class SitesModel(
 
     /** Asks again for the area at hand: a pilot has added or changed a site there. */
     suspend fun again() {
-        val answered = answered ?: return
-        load(answered.area, answered.server)
+        val (area, server) = answered?.let { it.area to it.server } ?: newest ?: return
+        load(area, server)
+    }
+
+    /**
+     * Shows the places from pilots with the sites, or leaves them out, and
+     * asks the server again for the area at hand: an answer holds the
+     * layer only when it was asked for.
+     */
+    fun showFromPilots(on: Boolean) {
+        if (on == showsFromPilots) return
+        showsFromPilots = on
+        waiting?.cancel()
+        waiting = scope.launch { again() }
     }
 
     private fun forget() {
@@ -186,6 +227,7 @@ class SitesModel(
         isWhole = false
         asOf = null
         answered = null
+        newest = null
         problem = null
     }
 

@@ -1739,8 +1739,12 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-sites-7-forecast-other-model")
 
-        // Back on the site's page, which still knows that it was kept.
+        // Back on the site's page, which still knows that it was kept. The
+        // page is a lazy list and comes back at its head: the kept row
+        // exists again only once it is scrolled to.
         tap(described("Back"))
+        waitFor(hasTestTag("site-page"))
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-keep"))
         waitFor(hasText("In your waypoints"))
         tap(described("Back"))
         waitFor(described(takeoff))
@@ -1927,7 +1931,9 @@ class VentiUiTest {
         // The card: the days, the key from the best kind of day down to
         // "Not flyable", and the model with its run.
         waitFor(hasTestTag("forecast-key"))
-        waitForAll(hasTestTag("forecast-days"), hasText("Big day"), hasText("Not flyable"), hasTestTag("forecast-map-run"))
+        // A line of the key is read as its words: it has a description and
+        // no text of its own for a test to find.
+        waitForAll(hasTestTag("forecast-days"), described("Big day"), described("Not flyable"), hasTestTag("forecast-map-run"))
         // The first day the map has is shown first. Its name is the core's,
         // by the server's clock; the stand-in dates its map from that
         // clock, so the days are "Today", "Tomorrow" and a third. The test

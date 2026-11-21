@@ -29,6 +29,7 @@ import {
 	type TokenForm
 } from '#lib/core/index.ts';
 import { reasonFor } from '#lib/logbook/model.svelte.ts';
+import type { GoogleIntent, GoogleReturn } from './google';
 
 /** How long after a sync the next one that nobody asked for may run, in milliseconds. */
 export const PAUSE_BETWEEN_SYNCS_MS = 60_000;
@@ -58,6 +59,12 @@ export class AccountModel {
 
 	/** The words of signing in with Google, the core's: there when `googleSignIn` is. */
 	googleWords = $state.raw<GoogleWords>();
+
+	/** A first sign-in with Google, on its way to the handle step. */
+	googleStep = $state.raw<GoogleSignUp>();
+
+	/** Why what the pilot went to Google for did not work, in words, and what it was. */
+	googleRefusal = $state.raw<{ intent: GoogleIntent | undefined; words: string }>();
 
 	/** Whether a request or a sync is under way. */
 	working = $state(false);
@@ -160,9 +167,39 @@ export class AccountModel {
 		return { refusal, signUp };
 	}
 
+	/**
+	 * Does what the pilot went to Google for, with what came back: signs in
+	 * (or goes on to the handle step), links the account, or deletes it.
+	 */
+	async finishGoogle(returned: GoogleReturn): Promise<void> {
+		this.googleRefusal = undefined;
+		if ('refusal' in returned) {
+			this.googleRefusal = { intent: returned.intent, words: returned.refusal };
+			return;
+		}
+		const { intent, idToken } = returned;
+		// A sync that started with the page goes first: the token waits for it.
+		for (let waited = 0; this.working && waited < 600; waited += 1) {
+			await new Promise((done) => setTimeout(done, 100));
+		}
+		let refusal: string | undefined;
+		if (intent === 'signIn') {
+			const entered = await this.continueWithGoogle(idToken);
+			this.googleStep = entered.signUp;
+			refusal = entered.refusal;
+		} else if (intent === 'link') {
+			refusal = await this.linkGoogle(idToken);
+		} else {
+			refusal = await this.deleteAccountWithGoogle(idToken);
+		}
+		if (refusal) this.googleRefusal = { intent, words: refusal };
+	}
+
 	/** The handle step after a first sign-in with Google: creates the account and signs in. */
-	createGoogleAccount(wanted: NewGoogleAccount): Promise<string | undefined> {
-		return this.#enter(() => this.#core.createGoogleAccount(wanted));
+	async createGoogleAccount(wanted: NewGoogleAccount): Promise<string | undefined> {
+		const refusal = await this.#enter(() => this.#core.createGoogleAccount(wanted));
+		if (!refusal) this.googleStep = undefined;
+		return refusal;
 	}
 
 	/** Links the account to the Google account of an ID token. Returns why not, in words. */

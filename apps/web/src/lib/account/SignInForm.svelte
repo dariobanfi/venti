@@ -14,9 +14,8 @@
 	own checks are off, so there is one voice.
 -->
 <script lang="ts">
-	import type { GoogleSignUp } from '#lib/core/index.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
-	import GoogleButton from './GoogleButton.svelte';
+	import { goToGoogle } from './google';
 	import GoogleHandleStep from './GoogleHandleStep.svelte';
 	import type { AccountModel } from './model.svelte';
 
@@ -41,30 +40,39 @@
 		account.registration === 'invite' || account.registration === undefined
 	);
 
-	/** Whether Google's button is on the screen: nothing until that is known. */
-	let googleDrawn = $state<boolean>();
-	/** Whether the pilot opened the form behind Google's button. */
-	let withPassword = $state(false);
-	/** A first sign-in with Google, on its way to the handle step. */
-	let signUp = $state.raw<GoogleSignUp>();
-	/** Why the sign-in with Google did not work, in words. */
-	let googleRefusal = $state.raw<string>();
+	/** Where this browser keeps whether the pilot opened the form behind Google's button. */
+	const WITH_PASSWORD = 'venti.account-with-password';
+
+	/** Whether the pilot opened the form behind Google's button, as this browser remembers. */
+	let withPassword = $state(remembered());
+
+	function remembered(): boolean {
+		try {
+			return localStorage.getItem(WITH_PASSWORD) === '1';
+		} catch {
+			return false;
+		}
+	}
+
+	function toggleForm() {
+		withPassword = !withPassword;
+		try {
+			if (withPassword) localStorage.setItem(WITH_PASSWORD, '1');
+			else localStorage.removeItem(WITH_PASSWORD);
+		} catch {
+			// Not remembered: it opens closed next time.
+		}
+	}
 
 	const offersGoogle = $derived(account.googleSignIn === true && account.googleWords !== undefined);
-	/**
-	 * The form shows once it is known whether Google's button stands above
-	 * it: at once without one, behind the core's words with one.
-	 */
-	const formShown = $derived(
-		account.googleSignIn === false || (offersGoogle && (googleDrawn === false || withPassword))
+	/** The form shows once it is known whether "Continue with Google" stands above it. */
+	const formShown = $derived(account.googleSignIn === false || (offersGoogle && withPassword));
+	/** Why the sign-in with Google did not work, in words. */
+	const googleRefusal = $derived(
+		account.googleRefusal && account.googleRefusal.intent !== 'link'
+			? account.googleRefusal.words
+			: undefined
 	);
-
-	async function fromGoogle(idToken: string) {
-		googleRefusal = undefined;
-		const entered = await account.continueWithGoogle(idToken);
-		googleRefusal = entered.refusal;
-		signUp = entered.signUp;
-	}
 
 	let handle = $state('');
 	let displayName = $state('');
@@ -87,12 +95,12 @@
 	}
 </script>
 
-{#if signUp && account.googleWords}
+{#if account.googleStep && account.googleWords}
 	<GoogleHandleStep
 		{account}
 		words={account.googleWords}
-		{signUp}
-		oncancel={() => (signUp = undefined)}
+		signUp={account.googleStep}
+		oncancel={() => (account.googleStep = undefined)}
 	/>
 {:else}
 	<p class="lead">
@@ -100,23 +108,27 @@
 		can share one with a link. A flight stays private until you share it.
 	</p>
 
-	<!-- Once Google's button turned out not to load, its place goes. -->
-	{#if offersGoogle && account.googleWords && googleDrawn !== false}
+	{#if offersGoogle && account.googleWords}
 		<section class="group google" aria-label={account.googleWords.continueWithGoogle}>
-			<GoogleButton text="continue_with" ontoken={fromGoogle} bind:drawn={googleDrawn} />
+			<button
+				class="button-prominent"
+				type="button"
+				disabled={account.working}
+				onclick={() => goToGoogle('signIn')}
+			>
+				{account.googleWords.continueWithGoogle}
+			</button>
 			{#if googleRefusal}
 				<p class="group-note refusal" role="alert">{googleRefusal}</p>
 			{/if}
-			{#if googleDrawn}
-				<button
-					class="button-plain with-password"
-					type="button"
-					aria-expanded={withPassword}
-					onclick={() => (withPassword = !withPassword)}
-				>
-					{account.googleWords.withPassword}
-				</button>
-			{/if}
+			<button
+				class="button-plain with-password"
+				type="button"
+				aria-expanded={withPassword}
+				onclick={toggleForm}
+			>
+				{account.googleWords.withPassword}
+			</button>
 		</section>
 	{/if}
 
@@ -243,6 +255,21 @@
 
 	.with-password {
 		align-self: center;
+	}
+
+	/* On a wide screen the buttons are as wide as their words, not as the column. */
+	@media (min-width: 56rem) {
+		.google {
+			align-items: flex-start;
+		}
+
+		.google .button-prominent {
+			min-width: 12rem;
+		}
+
+		.with-password {
+			align-self: flex-start;
+		}
 	}
 
 	.refusal {

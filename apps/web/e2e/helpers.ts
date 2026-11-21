@@ -8,7 +8,6 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test as base, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { serveBundledMap } from './bundled-map';
-import { noGoogle } from './made-up-google';
 
 /** The made-up sample flight, the one copy every app shares. */
 export const SAMPLE_FLIGHT = fileURLToPath(
@@ -43,11 +42,13 @@ interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
-	// Every page draws its map from the region in the repository, and none
-	// reaches Google: a test of signing in with Google sets a made-up one.
+	// Every page draws its map from the region in the repository. The
+	// account screen opens with its handle and password form, as for a
+	// pilot who opened it last time: the tests sign in with a password.
+	// `google.spec.ts` closes it again.
 	context: async ({ context }, use) => {
 		await serveBundledMap(context);
-		await noGoogle(context);
+		await context.addInitScript(() => localStorage.setItem('venti.account-with-password', '1'));
 		await use(context);
 		// A routed request may still be on its way when the test ends: let go
 		// of every route without waiting for it, so that its handler's

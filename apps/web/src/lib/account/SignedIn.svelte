@@ -8,9 +8,11 @@
 
 	Where the server signs pilots in with Google: the Google account's email
 	the account is linked to, shown to the pilot alone, with the core's
-	"Unlink Google"; or the core's "Link Google" over Google's own button. An
-	account linked to Google can be deleted by confirming with Google, in
-	place of a password it may not have.
+	"Unlink Google"; or the core's "Link Google", which takes the pilot to
+	Google (`google.ts`) and back. An account linked to Google can be deleted
+	by confirming with Google, in place of a password it may not have: the
+	core's "Continue with Google" in the dialog goes to Google, and the
+	account is deleted when Google comes back.
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -20,7 +22,7 @@
 	import Dialog from '#lib/design/Dialog.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
-	import GoogleButton from './GoogleButton.svelte';
+	import { goToGoogle } from './google';
 	import type { AccountModel } from './model.svelte';
 
 	interface Props {
@@ -52,21 +54,14 @@
 	/** Why the account was not deleted, in words. */
 	let refusal = $state.raw<string>();
 
-	/** Whether Google's button for linking is on the screen: nothing until that is known. */
-	let linkDrawn = $state<boolean>();
-	/** Why linking or unlinking Google did not work, in words. */
-	let googleRefusal = $state.raw<string>();
-
-	async function linkGoogle(idToken: string) {
-		googleRefusal = await account.linkGoogle(idToken);
-	}
+	/** Why unlinking Google did not work, in words. */
+	let unlinkRefusal = $state.raw<string>();
+	/** Why what the pilot went to Google for did not work, in words, or why unlinking did not. */
+	const googleRefusal = $derived(unlinkRefusal ?? account.googleRefusal?.words);
 
 	async function unlinkGoogle() {
-		googleRefusal = await account.unlinkGoogle();
-	}
-
-	async function deleteWithGoogle(idToken: string) {
-		refusal = await account.deleteAccountWithGoogle(idToken);
+		account.googleRefusal = undefined;
+		unlinkRefusal = await account.unlinkGoogle();
 	}
 
 	async function signOut() {
@@ -107,7 +102,7 @@
 	</dl>
 </section>
 
-{#if account.googleWords && (signedIn.googleEmail || (account.googleSignIn && linkDrawn !== false))}
+{#if account.googleWords && (signedIn.googleEmail || account.googleSignIn)}
 	{@const words = account.googleWords}
 	<section class="group" aria-labelledby="account-google">
 		<h2 class="group-title" id="account-google">Google</h2>
@@ -123,11 +118,14 @@
 					{words.unlinkGoogle}
 				</button>
 			{:else}
-				<!-- Shown once Google's button is drawn: without it there is no way to link. -->
-				<div class="link-google" class:waiting={!linkDrawn}>
-					<span>{words.linkGoogle}</span>
-					<GoogleButton text="continue_with" ontoken={linkGoogle} bind:drawn={linkDrawn} />
-				</div>
+				<button
+					class="group-row"
+					type="button"
+					disabled={account.working || signedIn.needsSignIn}
+					onclick={() => goToGoogle('link')}
+				>
+					{words.linkGoogle}
+				</button>
 			{/if}
 		</div>
 		{#if googleRefusal}
@@ -285,7 +283,16 @@
 			/>
 			{#if signedIn.googleEmail && deleting}
 				<p class="with-google">An account linked to Google may confirm with Google instead.</p>
-				<GoogleButton text="continue_with" ontoken={deleteWithGoogle} />
+				{#if account.googleWords}
+					<button
+						class="button-prominent with-google-button"
+						type="button"
+						disabled={account.working}
+						onclick={() => goToGoogle('delete')}
+					>
+						{account.googleWords.continueWithGoogle}
+					</button>
+				{/if}
 			{/if}
 			{#if refusal}
 				<p class="refusal" role="alert">{refusal}</p>
@@ -352,15 +359,8 @@
 		overflow-wrap: anywhere;
 	}
 
-	.link-google {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
-		padding: var(--space-3) var(--space-4);
-	}
-
-	.link-google.waiting {
-		display: none;
+	.with-google-button {
+		width: 100%;
 	}
 
 	.with-google {

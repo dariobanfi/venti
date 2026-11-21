@@ -15,13 +15,16 @@ test('a pilot continues with Google, chooses a handle, and next time is signed i
 }) => {
 	// A Google account new to the server, every run.
 	const email = `ui.test.${Math.random().toString(36).slice(2, 8)}@example.com`;
-	await madeUpGoogle(page, { email, name: 'UI Test' });
+	const asked = await madeUpGoogle(page, { email, name: 'UI Test' });
 	await page.goto('/settings/account/');
 
-	// Google's button first; the handle and password form waits behind it.
+	// "Continue with Google" first; the handle and password form waits
+	// behind it. The tests open it for every page: closed, it stays closed.
 	const google = page.getByRole('button', { name: 'Continue with Google' });
 	await expect(google).toBeVisible();
 	const withPassword = page.getByRole('button', { name: 'Sign in with a handle and password' });
+	await expect(withPassword).toHaveAttribute('aria-expanded', 'true');
+	await withPassword.click();
 	await expect(withPassword).toHaveAttribute('aria-expanded', 'false');
 	await expect(page.getByRole('textbox', { name: 'Password' })).toHaveCount(0);
 	await keep('250-account-google');
@@ -33,9 +36,21 @@ test('a pilot continues with Google, chooses a handle, and next time is signed i
 	await withPassword.click();
 	await expect(page.getByRole('textbox', { name: 'Password' })).toHaveCount(0);
 
-	// A first sign-in: the handle step, with the server's suggestion and the name from Google.
+	// A first sign-in: to Google and back, then the handle step, with the
+	// server's suggestion and the name from Google.
 	await google.click();
 	await expect(page.getByRole('heading', { name: 'Choose your handle' })).toBeVisible();
+	expect(asked[0]).toMatchObject({
+		client_id: '490070141586-8k1a3mrggi5fb87iirrcfhq7eint5ef3.apps.googleusercontent.com',
+		response_type: 'id_token',
+		scope: 'openid email profile',
+		redirect_uri: 'http://localhost:4173/settings/account/',
+		prompt: 'select_account'
+	});
+	expect(asked[0].nonce).toMatch(/^[\w-]{22}$/);
+	expect(asked[0].state).toMatch(/^[\w-]{22}$/);
+	// Google's answer is out of the address bar at once.
+	expect(new URL(page.url()).hash).toBe('');
 	const handle = page.getByRole('textbox', { name: 'Handle' });
 	await expect(handle).toHaveValue(/^ui_test/);
 	const chosen = await handle.inputValue();
@@ -66,6 +81,9 @@ test('a pilot continues with Google, chooses a handle, and next time is signed i
 	await expect(metric(page, 'Handle')).toHaveText(`@${chosen}`);
 	await expect(page.getByRole('heading', { name: 'Choose your handle' })).toHaveCount(0);
 	await expect(page.getByRole('region', { name: 'Google' })).toContainText(email);
+	expect(asked).toHaveLength(2);
+	expect(asked[1].state).not.toBe(asked[0].state);
+	expect(new URL(page.url()).hash).toBe('');
 
 	expect(problems).toEqual([]);
 });

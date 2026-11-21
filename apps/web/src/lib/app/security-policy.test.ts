@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mapStyle, terrain3dSource } from '#lib/map/style.ts';
-import { GOOGLE_SCRIPT } from '#lib/account/google.ts';
-import { contentSecurityPolicy, GOOGLE_SIGN_IN, TILE_HOSTS } from './security-policy';
+import { contentSecurityPolicy, TILE_HOSTS } from './security-policy';
 
 const HASH = 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=';
 const policy = contentSecurityPolicy([HASH]);
@@ -20,7 +19,7 @@ describe('the site’s content security policy', () => {
 	});
 
 	it('runs no script but the app’s own files, and none made from text', () => {
-		expect(policy['script-src']).toEqual(['self', GOOGLE_SIGN_IN.script]);
+		expect(policy['script-src']).toEqual(['self']);
 		expect(everySource).not.toContain('unsafe-eval');
 		expect(everySource).not.toContain('unsafe-inline');
 	});
@@ -42,7 +41,7 @@ describe('the site’s content security policy', () => {
 		const asked = new Set(tiles.map((address) => new URL(address.replaceAll(/[{}]/g, '')).origin));
 
 		expect([...asked].sort()).toEqual([...TILE_HOSTS].sort());
-		expect(policy['connect-src']).toEqual(['self', 'data:', ...TILE_HOSTS, GOOGLE_SIGN_IN.connect]);
+		expect(policy['connect-src']).toEqual(['self', 'data:', ...TILE_HOSTS]);
 		expect(TILE_HOSTS).toEqual([
 			'https://tiles.openfreemap.org',
 			'https://tiles.mapterhorn.com',
@@ -54,15 +53,13 @@ describe('the site’s content security policy', () => {
 		]);
 	});
 
-	it('lets Google’s sign-in in by its paths, and nothing else of Google’s host', () => {
-		expect(GOOGLE_SCRIPT).toBe(GOOGLE_SIGN_IN.script);
-		expect(policy['frame-src']).toEqual(['https://accounts.google.com/gsi/']);
-		const google = everySource.filter((source) => source.includes('google'));
-		for (const source of google) expect(source).toMatch(/^https:\/\/accounts\.google\.com\/gsi\//);
+	it('names nothing of Google’s: signing in with Google is a navigation', () => {
+		expect(everySource.filter((source) => source.includes('google'))).toEqual([]);
+		expect(policy).not.toHaveProperty('frame-src');
 	});
 
 	it('lets one inline style through, by its hash', () => {
-		expect(policy['style-src']).toEqual(['self', GOOGLE_SIGN_IN.style]);
+		expect(policy['style-src']).toEqual(['self']);
 		expect(policy['style-src-attr']).toEqual(['unsafe-hashes', HASH]);
 	});
 

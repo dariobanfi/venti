@@ -37,6 +37,8 @@ function answer(status: number, body: Uint8Array = new Uint8Array()): ServerAnsw
 class Server {
 	asked: { method: string; path: string; token: string | undefined; body: string }[] = [];
 	fired = recorded('alerts_fired.json');
+	/** Answers a request differently, if it gives an answer. */
+	instead: (request: ServerRequest) => ServerAnswer | undefined = () => undefined;
 
 	send: Send = async (request: ServerRequest, token) => {
 		this.asked.push({
@@ -46,6 +48,8 @@ class Server {
 			body: text(request.body)
 		});
 		const { method, path } = request;
+		const other = this.instead(request);
+		if (other) return other;
 		if (method === 'POST' && path === '/v1/sessions') return answer(201, recorded('sign_in.json'));
 		if (method === 'GET' && path === '/v1/account/alerts')
 			return answer(200, recorded('alerts.json'));
@@ -189,6 +193,37 @@ describe('alarms', () => {
 			method: 'DELETE',
 			path: `/v1/account/alerts/${added.id}`
 		});
+	});
+
+	it('has every word of the screens from the core, the days and kinds in the draft’s order', async () => {
+		const { alerts } = await signedIn();
+		const words = alerts.formWords();
+		expect(words).toMatchObject({
+			alertMe: 'Alert me',
+			changeTitle: 'Change the alarm',
+			title: 'Alerts',
+			least: 'Least wind',
+			hoursTitle: 'Hours, Central European Time',
+			signedOut: 'Alarms live on your account: sign in to set one.',
+			delete: 'Delete alarm'
+		});
+		expect(words.dayNames).toEqual(['Today', 'Tomorrow', 'In 2 days', 'In 3 days']);
+		expect(words.dayKinds.map((choice) => choice.kind)).toEqual([
+			'flyable',
+			'local',
+			'crossCountry',
+			'big'
+		]);
+		expect(words.fields.find((one) => one.field === 'rule.min_kmh')?.name).toBe('The least wind');
+	});
+
+	it('takes an alarm that is gone already for removed, and says a refusal in the core’s words', async () => {
+		const { alerts, server } = await signedIn();
+		server.instead = () => answer(404, json({ error: { code: 'not_found', message: 'gone' } }));
+		await expect(alerts.remove('a1')).resolves.toBeUndefined();
+		server.instead = () =>
+			answer(401, json({ error: { code: 'unauthorized', message: 'for developers' } }));
+		await expect(alerts.remove('a1')).rejects.toSatisfy(isInWords);
 	});
 
 	it('is refused by the core, in words, for a draft without a station', async () => {

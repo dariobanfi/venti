@@ -51,6 +51,11 @@
 		inLogbook: boolean;
 		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
 		whose?: { name: string; href: string };
+		/**
+		 * The site it took off from, where one is known: its name, and the
+		 * site's identifier where the server named it.
+		 */
+		takeoffSite?: { name: string; id?: string };
 		/** A second flight laid beside this one. */
 		beside?: Beside;
 		/** Takes the second flight away again. */
@@ -67,6 +72,7 @@
 		actions,
 		inLogbook,
 		whose,
+		takeoffSite,
 		beside,
 		onendbeside,
 		onleague
@@ -135,7 +141,9 @@
 	 * site with a server to ask. The recording says where that was.
 	 */
 	const fromHere = $derived(
-		app.account?.hasServer && analysis?.takeoff ? placeHref(analysis.takeoff.position) : undefined
+		app.account?.hasServer && analysis?.takeoff
+			? placeHref(analysis.takeoff.position, takeoffSite?.id ?? '')
+			: undefined
 	);
 
 	/** How many airspaces the map draws, or nothing while it is zoomed too far out for any. */
@@ -330,7 +338,14 @@
 				/>
 			</div>
 			{#if wide}
-				<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} {fromHere} />
+				<FlightDetails
+					{flight}
+					{analysis}
+					airspace={airspaceCheck}
+					onselect={mark}
+					{fromHere}
+					takeoffName={takeoffSite?.name}
+				/>
 			{/if}
 		</div>
 	</div>
@@ -338,7 +353,14 @@
 
 {#if !wide}
 	<Sheet open={showingDetails} title="Flight details" onclose={() => (showingDetails = false)}>
-		<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} {fromHere} />
+		<FlightDetails
+			{flight}
+			{analysis}
+			airspace={airspaceCheck}
+			onselect={mark}
+			{fromHere}
+			takeoffName={takeoffSite?.name}
+		/>
 	</Sheet>
 {/if}
 

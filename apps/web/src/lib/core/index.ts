@@ -41,6 +41,8 @@ export type {
 	AccountView,
 	AlertDayKind,
 	AlertDraft,
+	AlertDayKindChoice,
+	AlertFormWords,
 	AlertFaultView,
 	AlertKind,
 	AlertView,
@@ -78,6 +80,8 @@ export type {
 	FlightMoment,
 	FlightScore,
 	FlightSharing,
+	GoogleSignUp,
+	GoogleWords,
 	FlightView,
 	FlightVisibility,
 	ForecastDay,
@@ -239,7 +243,7 @@ export type {
 import type { CoreErrorKind } from './pkg/venti_core_wasm.js';
 import { UNREACHABLE } from './protocol';
 
-export type { NewAccount, SyncOutcome } from './account-source';
+export type { GoogleEntered, NewAccount, NewGoogleAccount, SyncOutcome } from './account-source';
 export type { AccessWanted, ProgramView } from './tokens-source';
 export type { AlertsHeld, AlertsSynced } from './alerts-source';
 export { CoreClient } from './client';

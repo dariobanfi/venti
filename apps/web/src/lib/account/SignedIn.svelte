@@ -5,6 +5,12 @@
 
 	Every number and every refusal here is the core's. The screen adds the
 	time of the last sync in the reader's own clock.
+
+	Where the server signs pilots in with Google: the Google account's email
+	the account is linked to, shown to the pilot alone, with the core's
+	"Unlink Google"; or the core's "Link Google" over Google's own button. An
+	account linked to Google can be deleted by confirming with Google, in
+	place of a password it may not have.
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -14,6 +20,7 @@
 	import Dialog from '#lib/design/Dialog.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import GoogleButton from './GoogleButton.svelte';
 	import type { AccountModel } from './model.svelte';
 
 	interface Props {
@@ -44,6 +51,23 @@
 	let password = $state('');
 	/** Why the account was not deleted, in words. */
 	let refusal = $state.raw<string>();
+
+	/** Whether Google's button for linking is on the screen: nothing until that is known. */
+	let linkDrawn = $state<boolean>();
+	/** Why linking or unlinking Google did not work, in words. */
+	let googleRefusal = $state.raw<string>();
+
+	async function linkGoogle(idToken: string) {
+		googleRefusal = await account.linkGoogle(idToken);
+	}
+
+	async function unlinkGoogle() {
+		googleRefusal = await account.unlinkGoogle();
+	}
+
+	async function deleteWithGoogle(idToken: string) {
+		refusal = await account.deleteAccountWithGoogle(idToken);
+	}
 
 	async function signOut() {
 		confirmingSignOut = false;
@@ -82,6 +106,35 @@
 		</div>
 	</dl>
 </section>
+
+{#if account.googleWords && (signedIn.googleEmail || (account.googleSignIn && linkDrawn !== false))}
+	{@const words = account.googleWords}
+	<section class="group" aria-labelledby="account-google">
+		<h2 class="group-title" id="account-google">Google</h2>
+		<div class="group-card">
+			{#if signedIn.googleEmail}
+				<p class="group-row google-email">{signedIn.googleEmail}</p>
+				<button
+					class="group-row"
+					type="button"
+					disabled={account.working || signedIn.needsSignIn}
+					onclick={unlinkGoogle}
+				>
+					{words.unlinkGoogle}
+				</button>
+			{:else}
+				<!-- Shown once Google's button is drawn: without it there is no way to link. -->
+				<div class="link-google" class:waiting={!linkDrawn}>
+					<span>{words.linkGoogle}</span>
+					<GoogleButton text="continue_with" ontoken={linkGoogle} bind:drawn={linkDrawn} />
+				</div>
+			{/if}
+		</div>
+		{#if googleRefusal}
+			<p class="group-note refusal" role="alert">{googleRefusal}</p>
+		{/if}
+	</section>
+{/if}
 
 <section class="group" aria-labelledby="account-logbook">
 	<h2 class="group-title" id="account-logbook">Logbook</h2>
@@ -230,6 +283,10 @@
 				autofocus
 				bind:value={password}
 			/>
+			{#if signedIn.googleEmail && deleting}
+				<p class="with-google">An account linked to Google may confirm with Google instead.</p>
+				<GoogleButton text="continue_with" ontoken={deleteWithGoogle} />
+			{/if}
 			{#if refusal}
 				<p class="refusal" role="alert">{refusal}</p>
 			{/if}
@@ -289,6 +346,30 @@
 		background: var(--background);
 		color: var(--text);
 		font: inherit;
+	}
+
+	.google-email {
+		overflow-wrap: anywhere;
+	}
+
+	.link-google {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-4);
+	}
+
+	.link-google.waiting {
+		display: none;
+	}
+
+	.with-google {
+		margin-block: var(--space-3) var(--space-2);
+		color: var(--text-secondary);
+	}
+
+	.refusal {
+		color: var(--danger);
 	}
 
 	.words .refusal {

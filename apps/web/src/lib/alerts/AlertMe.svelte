@@ -4,7 +4,7 @@
 	the account, so signed out it is a line that leads to signing in. On a
 	site without a Venti server there is nothing.
 
-	The line for signing in is the app's: the core has none.
+	Its words are the core's (`alertFormWords`).
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -28,20 +28,25 @@
 	let open = $state(false);
 	let draft = $state.raw<AlertDraft>();
 
+	$effect(() => {
+		void alerts?.words().catch(() => {});
+	});
+	const words = $derived(alerts?.said);
+
 	function begin() {
 		draft = start();
 		open = true;
 	}
 </script>
 
-{#if account && alerts && account.hasServer !== false}
+{#if account && alerts && words && account.hasServer !== false}
 	{#if account.signedIn}
-		<button class="entry {look}" type="button" onclick={begin}>Alert me</button>
+		<button class="entry {look}" type="button" onclick={begin}>{words.alertMe}</button>
 		{#if draft}
 			<AlertForm {open} {alerts} start={draft} onclose={() => (open = false)} />
 		{/if}
 	{:else}
-		<a class="entry {look}" href={accountHref()}>Sign in to set an alarm</a>
+		<a class="entry {look}" href={accountHref()}>{words.signedOut}</a>
 	{/if}
 {/if}
 

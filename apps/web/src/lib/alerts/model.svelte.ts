@@ -15,6 +15,7 @@
 import type {
 	AlertDraft,
 	AlertFaultView,
+	AlertFormWords,
 	AlertView,
 	CoreClient,
 	FiredLine,
@@ -122,12 +123,15 @@ export class AlertsModel {
 	unseen = $state(0);
 	/** Why the last fetch stopped, in words. */
 	problem = $state.raw<string>();
+	/** Every word of the alarms' screens, the core's, once `words()` was asked. */
+	said = $state.raw<AlertFormWords>();
 
 	#core: CoreClient;
 	#notifier: Notifier;
 	#now: () => number;
 	#open: () => void;
 	#points: Promise<string[]> | undefined;
+	#words: Promise<AlertFormWords> | undefined;
 	#syncing: Promise<void> | undefined;
 
 	constructor(
@@ -147,6 +151,13 @@ export class AlertsModel {
 		this.#points ??= this.#core.alertPoints();
 		this.#points.catch(() => (this.#points = undefined));
 		return this.#points;
+	}
+
+	/** Every word of the alarms' screens, the core's, asked for once; `said` holds them then. */
+	words(): Promise<AlertFormWords> {
+		this.#words ??= this.#core.alertFormWords().then((words) => (this.said = words));
+		this.#words.catch(() => (this.#words = undefined));
+		return this.#words;
 	}
 
 	line(draft: AlertDraft): Promise<string> {

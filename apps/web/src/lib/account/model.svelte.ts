@@ -14,8 +14,11 @@ import {
 	type CoreClient,
 	type FlightSharing,
 	type FlightVisibility,
+	type GoogleSignUp,
+	type GoogleWords,
 	isInWords,
 	type NewAccount,
+	type NewGoogleAccount,
 	type ProgramView,
 	type Registration,
 	type ReportForm,
@@ -46,6 +49,15 @@ export class AccountModel {
 	 * from one that never does, which may ask for a code.
 	 */
 	registration = $state<Registration>();
+
+	/**
+	 * Whether the server signs pilots in with Google: whether the account
+	 * screen offers Google's button. Not known before the server was asked.
+	 */
+	googleSignIn = $state<boolean>();
+
+	/** The words of signing in with Google, the core's: there when `googleSignIn` is. */
+	googleWords = $state.raw<GoogleWords>();
 
 	/** Whether a request or a sync is under way. */
 	working = $state(false);
@@ -102,6 +114,14 @@ export class AccountModel {
 			(registration) => (model.registration = registration),
 			() => {}
 		);
+		// Google's button is offered with the core's words for it, or not at all.
+		void Promise.all([core.googleSignIn(), core.googleWords()]).then(
+			([offered, said]) => {
+				model.googleWords = said;
+				model.googleSignIn = offered;
+			},
+			() => (model.googleSignIn = false)
+		);
 		return model;
 	}
 
@@ -123,11 +143,62 @@ export class AccountModel {
 		return this.#enter(() => this.#core.createAccount(wanted));
 	}
 
-	async #enter(ask: () => Promise<AccountView>): Promise<string | undefined> {
+	/**
+	 * Signs in with an ID token Google gave, and brings the logbook in step.
+	 * A Google account that no Venti account is linked to yet goes on to the
+	 * handle step: `signUp` says what it needs. `refusal` says, in words, why
+	 * it did not work.
+	 */
+	async continueWithGoogle(idToken: string): Promise<{ refusal?: string; signUp?: GoogleSignUp }> {
+		let signUp: GoogleSignUp | undefined;
+		const refusal = await this.#enter(async () => {
+			const entered = await this.#core.signInWithGoogle(idToken);
+			if (entered.kind === 'signedIn') return entered.account;
+			signUp = entered.signUp;
+			return undefined;
+		});
+		return { refusal, signUp };
+	}
+
+	/** The handle step after a first sign-in with Google: creates the account and signs in. */
+	createGoogleAccount(wanted: NewGoogleAccount): Promise<string | undefined> {
+		return this.#enter(() => this.#core.createGoogleAccount(wanted));
+	}
+
+	/** Links the account to the Google account of an ID token. Returns why not, in words. */
+	linkGoogle(idToken: string): Promise<string | undefined> {
+		return this.#changeAccount(() => this.#core.linkGoogle(idToken));
+	}
+
+	/** Unlinks the account from its Google account. Returns why not, in words. */
+	unlinkGoogle(): Promise<string | undefined> {
+		return this.#changeAccount(() => this.#core.unlinkGoogle());
+	}
+
+	async #changeAccount(ask: () => Promise<AccountView | undefined>): Promise<string | undefined> {
 		if (this.working) return undefined;
 		this.working = true;
 		try {
-			this.account = await ask();
+			this.account = (await ask()) ?? this.account;
+			return undefined;
+		} catch (error) {
+			return words(error);
+		} finally {
+			this.working = false;
+		}
+	}
+
+	/**
+	 * Enters the account `ask` gives and syncs; one that gives none, as a
+	 * first sign-in with Google, enters nothing.
+	 */
+	async #enter(ask: () => Promise<AccountView | undefined>): Promise<string | undefined> {
+		if (this.working) return undefined;
+		this.working = true;
+		try {
+			const entered = await ask();
+			if (!entered) return undefined;
+			this.account = entered;
 			this.lastSync = undefined;
 			await this.#runSync(true);
 			return undefined;
@@ -189,6 +260,21 @@ export class AccountModel {
 		this.working = true;
 		try {
 			await this.#core.deleteAccount(password);
+			this.#forget();
+			return undefined;
+		} catch (error) {
+			return words(error);
+		} finally {
+			this.working = false;
+		}
+	}
+
+	/** Deletes an account that signs in with Google, given a fresh ID token of it. As `deleteAccount`. */
+	async deleteAccountWithGoogle(idToken: string): Promise<string | undefined> {
+		if (this.working) return undefined;
+		this.working = true;
+		try {
+			await this.#core.deleteAccountWithGoogle(idToken);
 			this.#forget();
 			return undefined;
 		} catch (error) {

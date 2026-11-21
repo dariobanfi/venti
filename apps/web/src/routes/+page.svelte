@@ -284,9 +284,12 @@
 										</th>
 										<td class="words">
 											{#if flight.takeoff}
-												<a class="link" href={placeHref(flight.takeoff)}
-													>{text.place(flight.takeoff.lat, flight.takeoff.lon)}</a
+												<a class="link" href={placeHref(flight.takeoff, flight.takeoffSiteId ?? '')}
+													>{flight.takeoffName ??
+														text.place(flight.takeoff.lat, flight.takeoff.lon)}</a
 												>
+											{:else if flight.takeoffName}
+												{flight.takeoffName}
 											{/if}
 										</td>
 										<td class="number">

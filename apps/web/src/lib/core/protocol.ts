@@ -8,7 +8,13 @@
  * something.
  */
 
-import type { AccountSource, NewAccount, SyncOutcome } from './account-source';
+import type {
+	AccountSource,
+	GoogleEntered,
+	NewAccount,
+	NewGoogleAccount,
+	SyncOutcome
+} from './account-source';
 import type { AlertsHeld, AlertsSource, AlertsSynced } from './alerts-source';
 import type { AirspaceSource } from './airspace-source';
 import type {
@@ -22,7 +28,9 @@ import type {
 import { flightFileText } from './flight-text';
 import type {
 	AccountView,
+	GoogleWords,
 	AlertDraft,
+	AlertFormWords,
 	AlertFaultView,
 	AlertView,
 	AirspaceFile,
@@ -431,6 +439,19 @@ export interface Calls {
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
 	registration: { given: undefined; answer: Registration | undefined };
+	/** Whether this site's server signs pilots in with Google. No, if that cannot be found out. */
+	googleSignIn: { given: undefined; answer: boolean };
+	/** The words of signing in with Google. */
+	googleWords: { given: undefined; answer: GoogleWords };
+	/** Given an ID token from Google: signed in, or on to the handle step. */
+	signInWithGoogle: { given: string; answer: GoogleEntered };
+	/** The handle step after a first sign-in with Google: creates the account. */
+	createGoogleAccount: { given: NewGoogleAccount; answer: AccountView };
+	/** Given an ID token from Google: links the account to that Google account. */
+	linkGoogle: { given: string; answer: AccountView | undefined };
+	unlinkGoogle: { given: undefined; answer: AccountView | undefined };
+	/** Given a fresh ID token from Google: deletes an account that signs in with it. */
+	deleteAccountWithGoogle: { given: string; answer: undefined };
 	/** The account this browser is signed in to, if any. */
 	account: { given: undefined; answer: AccountView | undefined };
 	/** The same after asking the server what it says of the account now. */
@@ -459,6 +480,8 @@ export interface Calls {
 	withdrawAccess: { given: string; answer: undefined };
 	/** The sixteen points of the compass an alarm's directions are chosen from. */
 	alertPoints: { given: undefined; answer: string[] };
+	/** Every word of the alarms' screens. */
+	alertFormWords: { given: undefined; answer: AlertFormWords };
 	/** What a draft of an alarm waits for, in the core's line. */
 	alertLine: { given: AlertDraft; answer: string };
 	/** What is wrong with a draft of an alarm, field by field. */
@@ -703,6 +726,13 @@ export async function answer<Name extends CallName>(
 			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
 		hasServer: () => wind.present(),
 		registration: () => wind.registration(),
+		googleSignIn: () => wind.googleSignIn(),
+		googleWords: () => account.googleWords(),
+		signInWithGoogle: (idToken) => account.googleSignIn(idToken),
+		createGoogleAccount: (wanted) => account.createGoogleAccount(wanted),
+		linkGoogle: (idToken) => account.linkGoogle(idToken),
+		unlinkGoogle: () => account.unlinkGoogle(),
+		deleteAccountWithGoogle: (idToken) => account.deleteAccountWithGoogle(idToken),
 		account: () => account.account(),
 		refreshAccount: () => account.refresh(),
 		signIn: ({ handle, password }) => account.signIn(handle, password),
@@ -717,6 +747,7 @@ export async function answer<Name extends CallName>(
 		giveAccess: (wanted) => tokens.give(wanted),
 		withdrawAccess: (id) => tokens.withdraw(id),
 		alertPoints: () => alerts.points(),
+		alertFormWords: () => alerts.formWords(),
 		alertLine: (draft) => alerts.line(draft),
 		alertCheck: (draft) => alerts.check(draft),
 		alertsHeld: ({ nowUnixS, utcOffsetS }) => alerts.held(nowUnixS, utcOffsetS),

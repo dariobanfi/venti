@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test as base, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { serveBundledMap } from './bundled-map';
+import { noGoogle } from './made-up-google';
 
 /** The made-up sample flight, the one copy every app shares. */
 export const SAMPLE_FLIGHT = fileURLToPath(
@@ -42,9 +43,11 @@ interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
-	// Every page draws its map from the region in the repository.
+	// Every page draws its map from the region in the repository, and none
+	// reaches Google: a test of signing in with Google sets a made-up one.
 	context: async ({ context }, use) => {
 		await serveBundledMap(context);
+		await noGoogle(context);
 		await use(context);
 		// A routed request may still be on its way when the test ends: let go
 		// of every route without waiting for it, so that its handler's

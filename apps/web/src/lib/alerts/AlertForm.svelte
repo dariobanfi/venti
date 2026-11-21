@@ -6,11 +6,12 @@
 	(`alertLine`); the core's faults stand at their fields once the pilot has
 	tried to save (`alertCheck`), and the server's refusal under the form.
 
-	The words of the choices are the app's: the core has none for them yet.
+	Every word of the form is the core's (`alertFormWords`): its title, its
+	labels, the names of the days and of the kinds of day, its buttons.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import type { AlertDayKind, AlertDraft, AlertFaultView } from '#lib/core/index.ts';
+	import type { AlertDraft, AlertFaultView } from '#lib/core/index.ts';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import type { AlertsModel } from './model.svelte';
 
@@ -53,7 +54,10 @@
 			(said) => (points = said),
 			() => {}
 		);
+		void alerts.words().catch(() => {});
 	});
+
+	const words = $derived(alerts.said);
 
 	// The core's line and faults, as the draft changes; a late answer is dropped.
 	let asked = 0;
@@ -114,14 +118,6 @@
 			: [...draft.daysAhead, day].sort();
 	}
 
-	const DAYS = ['Today', 'Tomorrow', 'In 2 days', 'In 3 days'];
-	const KINDS: { kind: AlertDayKind; words: string }[] = [
-		{ kind: 'flyable', words: 'Flyable' },
-		{ kind: 'local', words: 'Local thermals' },
-		{ kind: 'crossCountry', words: 'Cross-country' },
-		{ kind: 'big', words: 'Big day' }
-	];
-
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
 		tried = true;
@@ -162,172 +158,176 @@
 	{/each}
 {/snippet}
 
-<Sheet {open} title={id ? 'Change the alarm' : 'Alert me'} {onclose}>
-	<form onsubmit={save} novalidate>
-		<p class="summary" aria-live="polite" data-alert-line>{line}</p>
+<Sheet {open} title={(id ? words?.changeTitle : words?.alertMe) ?? ''} {onclose}>
+	{#if words}
+		<form onsubmit={save} novalidate>
+			<p class="summary" aria-live="polite" data-alert-line>{line}</p>
 
-		<div class="group">
-			<div class="group-card">
-				<label class="field">
-					<span>Name</span>
-					<input name="alert-name" autocomplete="off" bind:value={draft.name} />
-				</label>
-				<div class="group-row">
-					<span>{draft.kind === 'wind' ? 'Station' : 'Place'}</span>
-					<span class="group-value">
-						{draft.kind === 'wind' ? draft.stationName : draft.placeName}
-					</span>
+			<div class="group">
+				<div class="group-card">
+					<label class="field">
+						<span>{words.name}</span>
+						<input name="alert-name" autocomplete="off" bind:value={draft.name} />
+					</label>
+					<div class="group-row">
+						<span>{draft.kind === 'wind' ? words.station : words.place}</span>
+						<span class="group-value">
+							{draft.kind === 'wind' ? draft.stationName : draft.placeName}
+						</span>
+					</div>
+					<label class="group-row toggle">
+						<span>{words.on}</span>
+						<input type="checkbox" role="switch" bind:checked={draft.enabled} />
+					</label>
 				</div>
-				<label class="group-row toggle">
-					<span>On</span>
-					<input type="checkbox" role="switch" bind:checked={draft.enabled} />
-				</label>
+				{@render said(
+					at('name', 'rule.station', 'rule.station_name', 'rule.place', 'rule.place_name')
+				)}
 			</div>
-			{@render said(
-				at('name', 'rule.station', 'rule.station_name', 'rule.place', 'rule.place_name')
-			)}
-		</div>
 
-		{#if draft.kind === 'wind'}
-			<section class="group" aria-labelledby="{uid}-from">
-				<h3 class="group-title" id="{uid}-from">Wind from</h3>
-				<div class="chips" role="group" aria-labelledby="{uid}-from">
-					<button
-						class="chip"
-						type="button"
-						aria-pressed={draft.fromPoint === undefined}
-						onclick={() => from(undefined)}>Any</button
-					>
-					{#each points as point, index (point)}
+			{#if draft.kind === 'wind'}
+				<section class="group" aria-labelledby="{uid}-from">
+					<h3 class="group-title" id="{uid}-from">{words.windFrom}</h3>
+					<div class="chips" role="group" aria-labelledby="{uid}-from">
 						<button
 							class="chip"
 							type="button"
-							aria-pressed={draft.fromPoint === index}
-							onclick={() => from(index)}>{point}</button
+							aria-pressed={draft.fromPoint === undefined}
+							onclick={() => from(undefined)}>{words.any}</button
 						>
-					{/each}
-				</div>
-				{#if draft.fromPoint !== undefined}
-					<h3 class="group-title to" id="{uid}-to">To</h3>
-					<div class="chips" role="group" aria-labelledby="{uid}-to">
 						{#each points as point, index (point)}
 							<button
 								class="chip"
 								type="button"
-								aria-pressed={draft.toPoint === index}
-								onclick={() => (draft.toPoint = index)}>{point}</button
+								aria-pressed={draft.fromPoint === index}
+								onclick={() => from(index)}>{point}</button
 							>
 						{/each}
 					</div>
-				{/if}
-				{@render said(at('rule.directions'))}
-			</section>
+					{#if draft.fromPoint !== undefined}
+						<h3 class="group-title to" id="{uid}-to">{words.windTo}</h3>
+						<div class="chips" role="group" aria-labelledby="{uid}-to">
+							{#each points as point, index (point)}
+								<button
+									class="chip"
+									type="button"
+									aria-pressed={draft.toPoint === index}
+									onclick={() => (draft.toPoint = index)}>{point}</button
+								>
+							{/each}
+						</div>
+					{/if}
+					{@render said(at('rule.directions'))}
+				</section>
 
-			<section class="group" aria-labelledby="{uid}-speed">
-				<h3 class="group-title" id="{uid}-speed">Wind, km/h</h3>
-				<div class="group-card">
-					<label class="field">
-						<span>Least</span>
-						<input
-							inputmode="numeric"
-							autocomplete="off"
-							value={draft.minKmh ?? ''}
-							oninput={(event) => set('minKmh', event.currentTarget.value)}
-						/>
-					</label>
-					<label class="field">
-						<span>Most</span>
-						<input
-							inputmode="numeric"
-							autocomplete="off"
-							value={draft.maxKmh ?? ''}
-							oninput={(event) => set('maxKmh', event.currentTarget.value)}
-						/>
-					</label>
-					<label class="field">
-						<span>Gusts at most</span>
-						<input
-							inputmode="numeric"
-							autocomplete="off"
-							value={draft.gustsMaxKmh ?? ''}
-							oninput={(event) => set('gustsMaxKmh', event.currentTarget.value)}
-						/>
-					</label>
-				</div>
-				{@render said(at('rule.min_kmh', 'rule.max_kmh', 'rule.gusts_max_kmh'))}
-			</section>
+				<section class="group">
+					<div class="group-card">
+						<label class="field">
+							<span>{words.least}</span>
+							<input
+								inputmode="numeric"
+								autocomplete="off"
+								value={draft.minKmh ?? ''}
+								oninput={(event) => set('minKmh', event.currentTarget.value)}
+							/>
+							<span class="unit" aria-hidden="true">{words.kmh}</span>
+						</label>
+						<label class="field">
+							<span>{words.most}</span>
+							<input
+								inputmode="numeric"
+								autocomplete="off"
+								value={draft.maxKmh ?? ''}
+								oninput={(event) => set('maxKmh', event.currentTarget.value)}
+							/>
+							<span class="unit" aria-hidden="true">{words.kmh}</span>
+						</label>
+						<label class="field">
+							<span>{words.gustsAtMost}</span>
+							<input
+								inputmode="numeric"
+								autocomplete="off"
+								value={draft.gustsMaxKmh ?? ''}
+								oninput={(event) => set('gustsMaxKmh', event.currentTarget.value)}
+							/>
+							<span class="unit" aria-hidden="true">{words.kmh}</span>
+						</label>
+					</div>
+					{@render said(at('rule.min_kmh', 'rule.max_kmh', 'rule.gusts_max_kmh'))}
+				</section>
 
-			<section class="group" aria-labelledby="{uid}-hours">
-				<h3 class="group-title" id="{uid}-hours">Hours, Central European Time</h3>
-				<div class="group-card">
-					<label class="field">
-						<span>From</span>
-						<input
-							inputmode="numeric"
-							autocomplete="off"
-							placeholder="0"
-							value={draft.fromHour ?? ''}
-							oninput={(event) => set('fromHour', event.currentTarget.value)}
-						/>
-					</label>
-					<label class="field">
-						<span>To</span>
-						<input
-							inputmode="numeric"
-							autocomplete="off"
-							placeholder="24"
-							value={draft.toHour ?? ''}
-							oninput={(event) => set('toHour', event.currentTarget.value)}
-						/>
-					</label>
-				</div>
-				{@render said(at('rule.hours'))}
-			</section>
-		{:else}
-			<section class="group" aria-labelledby="{uid}-days">
-				<h3 class="group-title" id="{uid}-days">Days</h3>
-				<div class="chips" role="group" aria-labelledby="{uid}-days">
-					{#each DAYS as day, index (day)}
-						<button
-							class="chip"
-							type="button"
-							aria-pressed={draft.daysAhead.includes(index)}
-							onclick={() => toggleDay(index)}>{day}</button
-						>
-					{/each}
-				</div>
-				{@render said(at('rule.days_ahead'))}
-			</section>
+				<section class="group" aria-labelledby="{uid}-hours">
+					<h3 class="group-title" id="{uid}-hours">{words.hoursTitle}</h3>
+					<div class="group-card">
+						<label class="field">
+							<span>{words.fromHour}</span>
+							<input
+								inputmode="numeric"
+								autocomplete="off"
+								placeholder="0"
+								value={draft.fromHour ?? ''}
+								oninput={(event) => set('fromHour', event.currentTarget.value)}
+							/>
+						</label>
+						<label class="field">
+							<span>{words.toHour}</span>
+							<input
+								inputmode="numeric"
+								autocomplete="off"
+								placeholder="24"
+								value={draft.toHour ?? ''}
+								oninput={(event) => set('toHour', event.currentTarget.value)}
+							/>
+						</label>
+					</div>
+					{@render said(at('rule.hours'))}
+				</section>
+			{:else}
+				<section class="group" aria-labelledby="{uid}-days">
+					<h3 class="group-title" id="{uid}-days">{words.days}</h3>
+					<div class="chips" role="group" aria-labelledby="{uid}-days">
+						{#each words.dayNames as day, index (day)}
+							<button
+								class="chip"
+								type="button"
+								aria-pressed={draft.daysAhead.includes(index)}
+								onclick={() => toggleDay(index)}>{day}</button
+							>
+						{/each}
+					</div>
+					{@render said(at('rule.days_ahead'))}
+				</section>
 
-			<section class="group" aria-labelledby="{uid}-kind">
-				<h3 class="group-title" id="{uid}-kind">At least</h3>
-				<div class="chips" role="group" aria-labelledby="{uid}-kind">
-					{#each KINDS as one (one.kind)}
-						<button
-							class="chip"
-							type="button"
-							aria-pressed={draft.atLeast === one.kind}
-							onclick={() => (draft.atLeast = one.kind)}>{one.words}</button
-						>
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		{@render said(elsewhere)}
-		{#if refusal}
-			<p class="group-note refusal" role="alert">{refusal}</p>
-		{/if}
-
-		<div class="submit">
-			{#if id}
-				<button class="remove" type="button" disabled={sending} onclick={remove}>
-					Delete alarm
-				</button>
+				<section class="group" aria-labelledby="{uid}-kind">
+					<h3 class="group-title" id="{uid}-kind">{words.atLeast}</h3>
+					<div class="chips" role="group" aria-labelledby="{uid}-kind">
+						{#each words.dayKinds as one (one.kind)}
+							<button
+								class="chip"
+								type="button"
+								aria-pressed={draft.atLeast === one.kind}
+								onclick={() => (draft.atLeast = one.kind)}>{one.name}</button
+							>
+						{/each}
+					</div>
+				</section>
 			{/if}
-			<button class="button-prominent" type="submit" disabled={sending}>Save</button>
-		</div>
-	</form>
+
+			{@render said(elsewhere)}
+			{#if refusal}
+				<p class="group-note refusal" role="alert">{refusal}</p>
+			{/if}
+
+			<div class="submit">
+				{#if id}
+					<button class="remove" type="button" disabled={sending} onclick={remove}>
+						{words.delete}
+					</button>
+				{/if}
+				<button class="button-prominent" type="submit" disabled={sending}>{words.save}</button>
+			</div>
+		</form>
+	{/if}
 </Sheet>
 
 <style>
@@ -371,6 +371,11 @@
 
 	.field input {
 		font-variant-numeric: tabular-nums;
+	}
+
+	.field .unit {
+		min-width: 0;
+		color: var(--text-secondary);
 	}
 
 	.refusal {

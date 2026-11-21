@@ -101,7 +101,7 @@ test('a wind alarm is made from a station’s page, its fault shown and put righ
 	await keep('242-alert-form-fault');
 
 	// A least wind puts it right, and the core's line says what it waits for.
-	await form.getByRole('textbox', { name: 'Least', exact: true }).fill('12');
+	await form.getByRole('textbox', { name: 'Least wind', exact: true }).fill('12');
 	await expect(fault).toBeHidden();
 	await expect(form.locator('[data-alert-line]')).toHaveText(
 		'Wind at Patscherkofel, at least 12 km/h'

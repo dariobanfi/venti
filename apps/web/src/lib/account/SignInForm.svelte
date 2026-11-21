@@ -14,7 +14,10 @@
 	own checks are off, so there is one voice.
 -->
 <script lang="ts">
+	import type { GoogleSignUp } from '#lib/core/index.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
+	import GoogleButton from './GoogleButton.svelte';
+	import GoogleHandleStep from './GoogleHandleStep.svelte';
 	import type { AccountModel } from './model.svelte';
 
 	interface Props {
@@ -38,6 +41,31 @@
 		account.registration === 'invite' || account.registration === undefined
 	);
 
+	/** Whether Google's button is on the screen: nothing until that is known. */
+	let googleDrawn = $state<boolean>();
+	/** Whether the pilot opened the form behind Google's button. */
+	let withPassword = $state(false);
+	/** A first sign-in with Google, on its way to the handle step. */
+	let signUp = $state.raw<GoogleSignUp>();
+	/** Why the sign-in with Google did not work, in words. */
+	let googleRefusal = $state.raw<string>();
+
+	const offersGoogle = $derived(account.googleSignIn === true && account.googleWords !== undefined);
+	/**
+	 * The form shows once it is known whether Google's button stands above
+	 * it: at once without one, behind the core's words with one.
+	 */
+	const formShown = $derived(
+		account.googleSignIn === false || (offersGoogle && (googleDrawn === false || withPassword))
+	);
+
+	async function fromGoogle(idToken: string) {
+		googleRefusal = undefined;
+		const entered = await account.continueWithGoogle(idToken);
+		googleRefusal = entered.refusal;
+		signUp = entered.signUp;
+	}
+
 	let handle = $state('');
 	let displayName = $state('');
 	let password = $state('');
@@ -59,107 +87,141 @@
 	}
 </script>
 
-<p class="lead">
-	With an account, your flights are copied to Venti. They appear on your other devices, and you can
-	share one with a link. A flight stays private until you share it.
-</p>
+{#if signUp && account.googleWords}
+	<GoogleHandleStep
+		{account}
+		words={account.googleWords}
+		{signUp}
+		oncancel={() => (signUp = undefined)}
+	/>
+{:else}
+	<p class="lead">
+		With an account, your flights are copied to Venti. They appear on your other devices, and you
+		can share one with a link. A flight stays private until you share it.
+	</p>
 
-<form onsubmit={submit} novalidate>
-	<section class="group" aria-labelledby="account-server">
-		<h2 class="group-title" id="account-server">{host}</h2>
-		<div class="group-card">
-			<div class="switch">
-				<Segmented label="What to do" options={MODES} bind:value={mode} />
-			</div>
-			{#if closed}
-				<p class="closed">
-					Venti takes no new accounts at the moment. An account you already have signs in as before.
-				</p>
-			{:else}
-				<label class="field">
-					<span>Handle</span>
-					<input
-						name="username"
-						autocomplete="username"
-						autocapitalize="none"
-						autocorrect="off"
-						spellcheck="false"
-						bind:value={handle}
-					/>
-				</label>
-				{#if isNew}
-					<label class="field">
-						<span>Name</span>
-						<input
-							name="name"
-							autocomplete="name"
-							placeholder="Shown to others"
-							aria-label="Name shown to others"
-							bind:value={displayName}
-						/>
-					</label>
-				{/if}
-				<label class="field">
-					<span>Password</span>
-					<input
-						name="password"
-						type="password"
-						autocomplete={isNew ? 'new-password' : 'current-password'}
-						bind:value={password}
-					/>
-				</label>
-				{#if isNew && mayNeedInvite}
-					<label class="field">
-						<span>Invite code</span>
-						<input
-							name="invite"
-							autocomplete="off"
-							autocapitalize="none"
-							autocorrect="off"
-							spellcheck="false"
-							bind:value={invite}
-						/>
-					</label>
-				{/if}
+	<!-- Once Google's button turned out not to load, its place goes. -->
+	{#if offersGoogle && account.googleWords && googleDrawn !== false}
+		<section class="group google" aria-label={account.googleWords.continueWithGoogle}>
+			<GoogleButton text="continue_with" ontoken={fromGoogle} bind:drawn={googleDrawn} />
+			{#if googleRefusal}
+				<p class="group-note refusal" role="alert">{googleRefusal}</p>
 			{/if}
-		</div>
-		{#if isNew && !closed}
-			<p class="group-note">
-				A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters;
-				a few words in a row are easy to remember. A forgotten password cannot be recovered: Venti
-				knows no email address. Handle and name are public once you share a flight.
-			</p>
-			{#if account.registration === 'invite'}
-				<p class="group-note">
-					Venti takes new accounts by invite for now, and hands the codes out itself.
-				</p>
-			{:else if mayNeedInvite}
-				<p class="group-note">
-					An invite code is needed while Venti takes accounts by invite, and Venti hands them out.
-				</p>
+			{#if googleDrawn}
+				<button
+					class="button-plain with-password"
+					type="button"
+					aria-expanded={withPassword}
+					onclick={() => (withPassword = !withPassword)}
+				>
+					{account.googleWords.withPassword}
+				</button>
 			{/if}
-		{/if}
-		{#if refusal}
-			<p class="group-note refusal" role="alert">{refusal}</p>
-		{/if}
-	</section>
-
-	{#if !closed}
-		<div class="submit">
-			<button
-				class="button-prominent"
-				type="submit"
-				disabled={account.working || handle === '' || password === ''}
-			>
-				{#if account.working}
-					Working…
-				{:else}
-					{isNew ? 'Create account' : 'Sign in'}
-				{/if}
-			</button>
-		</div>
+		</section>
 	{/if}
-</form>
+
+	{#if formShown}
+		<form onsubmit={submit} novalidate>
+			<section class="group" aria-labelledby="account-server">
+				<h2 class="group-title" id="account-server">{host}</h2>
+				<div class="group-card">
+					<div class="switch">
+						<Segmented label="What to do" options={MODES} bind:value={mode} />
+					</div>
+					{#if closed}
+						<p class="closed">
+							Venti takes no new accounts at the moment. An account you already have signs in as
+							before.
+						</p>
+					{:else}
+						<label class="field">
+							<span>Handle</span>
+							<input
+								name="username"
+								autocomplete="username"
+								autocapitalize="none"
+								autocorrect="off"
+								spellcheck="false"
+								bind:value={handle}
+							/>
+						</label>
+						{#if isNew}
+							<label class="field">
+								<span>Name</span>
+								<input
+									name="name"
+									autocomplete="name"
+									placeholder="Shown to others"
+									aria-label="Name shown to others"
+									bind:value={displayName}
+								/>
+							</label>
+						{/if}
+						<label class="field">
+							<span>Password</span>
+							<input
+								name="password"
+								type="password"
+								autocomplete={isNew ? 'new-password' : 'current-password'}
+								bind:value={password}
+							/>
+						</label>
+						{#if isNew && mayNeedInvite}
+							<label class="field">
+								<span>Invite code</span>
+								<input
+									name="invite"
+									autocomplete="off"
+									autocapitalize="none"
+									autocorrect="off"
+									spellcheck="false"
+									bind:value={invite}
+								/>
+							</label>
+						{/if}
+					{/if}
+				</div>
+				{#if isNew && !closed}
+					<p class="group-note">
+						A handle is 3 to 20 letters, digits or underscores. A password needs at least 15
+						characters; a few words in a row are easy to remember. A forgotten password cannot be
+						recovered: Venti knows no email address. Handle and name are public once you share a
+						flight.
+					</p>
+					{#if account.registration === 'invite'}
+						<p class="group-note">
+							Venti takes new accounts by invite for now, and hands the codes out itself.
+						</p>
+					{:else if mayNeedInvite}
+						<p class="group-note">
+							An invite code is needed while Venti takes accounts by invite, and Venti hands them
+							out.
+						</p>
+					{/if}
+				{/if}
+				{#if refusal}
+					<p class="group-note refusal" role="alert">{refusal}</p>
+				{/if}
+			</section>
+
+			{#if !closed}
+				<div class="submit">
+					<button
+						class="button-prominent"
+						type="submit"
+						disabled={account.working || handle === '' || password === ''}
+					>
+						{#if account.working}
+							Working…
+						{:else}
+							{isNew ? 'Create account' : 'Sign in'}
+						{/if}
+					</button>
+				</div>
+			{/if}
+		</form>
+	{/if}
+{/if}
 
 <style>
 	.lead {
@@ -170,6 +232,17 @@
 
 	.switch {
 		padding: 0.75rem 1rem;
+	}
+
+	.google {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: var(--space-3);
+	}
+
+	.with-password {
+		align-self: center;
 	}
 
 	.refusal {

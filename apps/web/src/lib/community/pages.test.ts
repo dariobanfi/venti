@@ -25,6 +25,8 @@ function flight(given: Partial<PublicFlight> = {}): PublicFlight {
 		startUnixS: 1_786_789_800,
 		airtimeS: 1752,
 		takeoff: { lat: 47.6642, lon: 11.7967 },
+		takeoffName: undefined,
+		takeoffSiteId: undefined,
 		trackLengthM: 21_340,
 		maxAltitudeM: 2117,
 		maxClimbMs: 2.4,

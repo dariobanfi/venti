@@ -178,6 +178,9 @@
 			actions={actions(opened)}
 			inLogbook={false}
 			whose={{ name: opened.row.pilot, href: pilotHref(opened.row.handle) }}
+			takeoffSite={opened.row.takeoffName
+				? { name: opened.row.takeoffName, id: opened.row.takeoffSiteId }
+				: undefined}
 			{beside}
 			onendbeside={() => layBeside(undefined)}
 		/>

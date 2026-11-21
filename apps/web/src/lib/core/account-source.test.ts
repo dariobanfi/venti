@@ -270,6 +270,173 @@ describe('a new account', () => {
 	});
 });
 
+describe('signing in with Google', () => {
+	/** The account as the server says it with the Google account linked. */
+	const LINKED = json({
+		account: {
+			handle: 'demo',
+			display_name: 'Demo Pilot',
+			created_at: '2026-11-18T19:05:00Z',
+			edits_sites: true,
+			google_email: 'demo@example.com'
+		}
+	});
+
+	it('goes on to the handle step for a Google account no account is linked to, storing nothing', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		browser.server.instead = (request) =>
+			request.path === '/v1/auth/google' ? answer(200, recorded('google_sign_up.json')) : undefined;
+
+		const entered = await account.googleSignIn(' google-id-token ');
+
+		expect(entered).toEqual({
+			kind: 'needsHandle',
+			signUp: {
+				signup: 'venti_signup_kZ3x7k9q2m4r8t1v6w0y5a2b3c4d5e6f7g8h9j0',
+				suggestedHandle: 'ui_test',
+				suggestionLine: expect.stringContaining('@ui_test'),
+				name: 'UI Test'
+			}
+		});
+		expect(browser.server.asked).toEqual([
+			{
+				method: 'POST',
+				path: '/v1/auth/google',
+				token: undefined,
+				body: '{"id_token":"google-id-token","device":"Test browser"}'
+			}
+		]);
+		expect(await account.account()).toBeUndefined();
+		expect((await browser.stored()).token).toBeUndefined();
+	});
+
+	it('signs in at once for a Google account an account is linked to, the token stored with it', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		browser.server.instead = (request) =>
+			request.path === '/v1/auth/google' ? answer(201, recorded('sign_in.json')) : undefined;
+
+		const entered = await account.googleSignIn('google-id-token');
+
+		expect(entered).toMatchObject({ kind: 'signedIn', account: { handle: 'demo' } });
+		expect((await browser.stored()).token).toBe(TOKEN);
+	});
+
+	it('creates the account with the handle chosen, and signs in', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		browser.server.instead = (request) =>
+			request.path === '/v1/auth/google/account'
+				? answer(201, recorded('sign_in.json'))
+				: undefined;
+
+		const signedIn = await account.createGoogleAccount({
+			signup: 'venti_signup_x',
+			handle: 'ui_test',
+			displayName: 'UI Test',
+			invite: ''
+		});
+
+		expect(signedIn.handle).toBe('demo');
+		expect(browser.server.asked).toEqual([
+			{
+				method: 'POST',
+				path: '/v1/auth/google/account',
+				token: undefined,
+				body: '{"signup":"venti_signup_x","handle":"ui_test","display_name":"UI Test","device":"Test browser"}'
+			}
+		]);
+		expect((await browser.stored()).token).toBe(TOKEN);
+	});
+
+	it('refuses a handle the core does not take before the server is asked', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+
+		await expect(
+			account.createGoogleAccount({ signup: 's', handle: 'no', displayName: 'X', invite: '' })
+		).rejects.toThrow('A handle has at least 3 characters');
+		expect(browser.server.asked).toEqual([]);
+	});
+
+	it('says in the core’s words when Google’s token is not good for the server', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		browser.server.instead = () => refusal(401, 'invalid_google_token');
+
+		await expect(account.googleSignIn('google-id-token')).rejects.toThrow(
+			'Google’s sign-in did not work for Venti. Try Continue with Google again.'.replace('’', "'")
+		);
+		expect((await browser.stored()).token).toBeUndefined();
+	});
+
+	it('links and unlinks the account, and remembers the email', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.asked = [];
+		browser.server.instead = (request) =>
+			request.method === 'POST' && request.path === '/v1/account/google'
+				? answer(200, LINKED)
+				: undefined;
+
+		expect((await account.linkGoogle('google-id-token'))?.googleEmail).toBe('demo@example.com');
+		expect((await account.account())?.googleEmail).toBe('demo@example.com');
+
+		expect((await account.unlinkGoogle())?.googleEmail).toBeUndefined();
+		expect(browser.server.lines).toEqual(['POST /v1/account/google', 'DELETE /v1/account/google']);
+		expect(browser.server.asked.map(({ token }) => token)).toEqual([TOKEN, TOKEN]);
+		expect((await account.account())?.googleEmail).toBeUndefined();
+	});
+
+	it('keeps an account Google is the only way into linked, and says so', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.instead = (request) =>
+			request.method === 'DELETE' && request.path === '/v1/account/google'
+				? refusal(409, 'google_only_sign_in')
+				: undefined;
+
+		await expect(account.unlinkGoogle()).rejects.toThrow(
+			'Google is the only way into your account, so it stays linked.'
+		);
+	});
+
+	it('deletes an account with a fresh token from Google in place of the password', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.asked = [];
+
+		await account.deleteAccountWithGoogle('google-id-token');
+
+		expect(browser.server.asked).toEqual([
+			{
+				method: 'DELETE',
+				path: '/v1/account',
+				token: TOKEN,
+				body: '{"password":"","google_id_token":"google-id-token"}'
+			}
+		]);
+		expect(await account.account()).toBeUndefined();
+	});
+
+	it('has the core’s words for its screens', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		expect(account.googleWords()).toMatchObject({
+			continueWithGoogle: 'Continue with Google',
+			withPassword: 'Sign in with a handle and password',
+			chooseHandle: 'Choose your handle',
+			createAccount: 'Create account',
+			linkGoogle: 'Link Google',
+			unlinkGoogle: 'Unlink Google'
+		});
+	});
+});
+
 describe('a sync', () => {
 	it('fetches what is missing here and sends what is missing there', async () => {
 		browser = new Browser();

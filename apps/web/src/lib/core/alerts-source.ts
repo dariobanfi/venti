@@ -6,7 +6,7 @@
  * fired; the browser fetches it.
  *
  * Everything a pilot reads is the core's (`crates/core/src/alerts.rs`): the
- * sixteen points, the line a draft makes, the faults of a draft by field,
+ * words of the screens, the sixteen points, the line a draft makes, the faults of a draft by field,
  * the requests, what the answers mean, and the lines of what fired. This
  * file sends the requests in between, with the session token, and runs
  * `Core.alertsSync`, which keeps the list and what fired in the browser so
@@ -20,11 +20,13 @@ import {
 	alertCheck,
 	type AlertDraft,
 	type AlertFaultView,
+	type AlertFormWords,
+	alertFormWords,
 	alertLine,
 	alertPoints,
+	alertRemoved,
 	alertRemoveRequest,
 	alertSaved,
-	alertsRead,
 	type AlertView,
 	type FiredLine
 } from './pkg/venti_core_wasm.js';
@@ -68,6 +70,11 @@ export class AlertsSource {
 	/** The sixteen points of the compass, short, from the north clockwise. */
 	points(): string[] {
 		return alertPoints();
+	}
+
+	/** Every word of the alarms' screens. */
+	formWords(): AlertFormWords {
+		return alertFormWords();
 	}
 
 	/** What a draft waits for, in one line, as it changes. */
@@ -135,10 +142,7 @@ export class AlertsSource {
 	/** Removes an alarm. One that is gone already is removed. */
 	async remove(id: string): Promise<void> {
 		const answer = await this.#send(alertRemoveRequest(id), await this.#session.token());
-		if ((answer.status >= 200 && answer.status < 300) || answer.status === 404) return;
-		// The core has no reader of this answer; the list's reader puts a
-		// refusal into its words, which is what is left to say.
-		alertsRead(answer.status, answer.body);
-		throw new Error('The alarm could not be removed.');
+		// Throws the server's refusal in the core's words.
+		alertRemoved(answer.status, answer.body);
 	}
 }

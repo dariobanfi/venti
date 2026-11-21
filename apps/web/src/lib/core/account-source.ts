@@ -20,6 +20,9 @@ import {
 	type AccountView,
 	type FlightSharing,
 	type FlightVisibility,
+	type GoogleSignUp,
+	type GoogleWords,
+	googleWords,
 	reportFormFor,
 	type ReportForm,
 	type ReportReason,
@@ -80,6 +83,23 @@ export interface NewAccount {
 	displayName: string;
 	password: string;
 	/** An invite code, on a server that asks for one. */
+	invite: string;
+}
+
+/**
+ * What a sign-in with Google came to: signed in, or a first sign-in with a
+ * Google account that goes on to the handle step.
+ */
+export type GoogleEntered =
+	{ kind: 'signedIn'; account: AccountView } | { kind: 'needsHandle'; signUp: GoogleSignUp };
+
+/** What a pilot enters at the handle step after a first sign-in with Google. */
+export interface NewGoogleAccount {
+	/** What carries the Google account on, from the first answer. */
+	signup: string;
+	handle: string;
+	displayName: string;
+	/** An invite code, on a server that asks for one; empty otherwise. */
 	invite: string;
 }
 
@@ -229,6 +249,73 @@ export class AccountSource {
 			)
 		);
 		return this.#enter(request);
+	}
+
+	/** The words of signing in with Google, the core's. */
+	googleWords(): GoogleWords {
+		return googleWords();
+	}
+
+	/**
+	 * Signs in with an ID token Google gave for this site. A Google account
+	 * that no Venti account is linked to yet goes on to the handle step;
+	 * nothing is stored then. Throws, in the core's words, when the server
+	 * refuses.
+	 */
+	async googleSignIn(idToken: string): Promise<GoogleEntered> {
+		const request = await this.#session.ask((core) =>
+			core.googleSignInRequest(idToken, this.#device)
+		);
+		const answer = await this.#send(request, undefined);
+		// A sign-in stores the account and its token together, or not at all.
+		const entered = await this.#session.change(
+			(core) => core.googleSignIn(this.#server, answer.status, answer.body),
+			(entered) => entered.signedIn?.token
+		);
+		if (entered.signedIn) return { kind: 'signedIn', account: entered.signedIn.account };
+		if (entered.needsHandle) return { kind: 'needsHandle', signUp: entered.needsHandle };
+		throw new Error('Venti gave an answer this browser cannot read. Try again.');
+	}
+
+	/** Creates the account of a first sign-in with Google, with the handle chosen, and signs in. */
+	async createGoogleAccount(wanted: NewGoogleAccount): Promise<AccountView> {
+		const request = await this.#session.ask((core) =>
+			core.googleAccountRequest(
+				wanted.signup,
+				wanted.handle,
+				wanted.displayName,
+				wanted.invite,
+				this.#device
+			)
+		);
+		return this.#enter(request);
+	}
+
+	/** Links the account this browser is signed in to to the Google account of an ID token. */
+	async linkGoogle(idToken: string): Promise<AccountView | undefined> {
+		const request = await this.#session.ask((core) => core.linkGoogleRequest(idToken));
+		const answer = await this.#send(request, await this.#session.token());
+		return this.#session.change((core) => core.googleLinked(answer.status, answer.body));
+	}
+
+	/** Unlinks the account from its Google account. Refused, in words, where Google is the only way in. */
+	async unlinkGoogle(): Promise<AccountView | undefined> {
+		const request = await this.#session.ask((core) => core.unlinkGoogleRequest());
+		const answer = await this.#send(request, await this.#session.token());
+		return this.#session.change((core) => core.googleUnlinked(answer.status, answer.body));
+	}
+
+	/**
+	 * Deletes an account that signs in with Google, with a fresh ID token of
+	 * its Google account in place of the password. As `deleteAccount`.
+	 */
+	async deleteAccountWithGoogle(idToken: string): Promise<void> {
+		const request = await this.#session.ask((core) => core.deleteAccountWithGoogleRequest(idToken));
+		const answer = await this.#send(request, await this.#session.token());
+		await this.#session.change(
+			(core) => core.accountDeleted(answer.status, answer.body),
+			() => null
+		);
 	}
 
 	async #enter(request: ServerRequest): Promise<AccountView> {

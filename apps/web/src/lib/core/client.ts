@@ -4,7 +4,7 @@
  * nothing the core does can hold up the page.
  */
 
-import type { NewAccount } from './account-source';
+import type { NewAccount, NewGoogleAccount } from './account-source';
 import type { FlightRef, PublicFlightsAsked } from './community-source';
 import type { GroundAsked } from './terrain-source';
 import type { RadarColours } from './radar-source';
@@ -555,6 +555,41 @@ export class CoreClient {
 		return this.#call('registration', undefined);
 	}
 
+	/** Whether this site's server signs pilots in with Google. */
+	googleSignIn() {
+		return this.#call('googleSignIn', undefined);
+	}
+
+	/** The words of signing in with Google, the core's. */
+	googleWords() {
+		return this.#call('googleWords', undefined);
+	}
+
+	/** Signs in with an ID token from Google, or goes on to the handle step. */
+	signInWithGoogle(idToken: string) {
+		return this.#call('signInWithGoogle', idToken);
+	}
+
+	/** Creates the account of a first sign-in with Google, and signs in. */
+	createGoogleAccount(wanted: NewGoogleAccount) {
+		return this.#call('createGoogleAccount', wanted);
+	}
+
+	/** Links the account to the Google account of an ID token. */
+	linkGoogle(idToken: string) {
+		return this.#call('linkGoogle', idToken);
+	}
+
+	/** Unlinks the account from its Google account. */
+	unlinkGoogle() {
+		return this.#call('unlinkGoogle', undefined);
+	}
+
+	/** Deletes an account that signs in with Google. It needs a fresh ID token. */
+	deleteAccountWithGoogle(idToken: string) {
+		return this.#call('deleteAccountWithGoogle', idToken);
+	}
+
 	/** The account this browser is signed in to, if any. */
 	account() {
 		return this.#call('account', undefined);
@@ -626,6 +661,11 @@ export class CoreClient {
 	/** The sixteen points of the compass an alarm's directions are chosen from. */
 	alertPoints() {
 		return this.#call('alertPoints', undefined);
+	}
+
+	/** Every word of the alarms' screens, the core's. */
+	alertFormWords() {
+		return this.#call('alertFormWords', undefined);
 	}
 
 	/** What a draft of an alarm waits for, in the core's line. */

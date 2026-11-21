@@ -10,6 +10,8 @@ function flight(id: string, trackLengthM: number, points?: number): PublicFlight
 		startUnixS: 0,
 		airtimeS: 600,
 		takeoff: undefined,
+		takeoffName: undefined,
+		takeoffSiteId: undefined,
 		trackLengthM,
 		maxAltitudeM: 1500,
 		maxClimbMs: 2,

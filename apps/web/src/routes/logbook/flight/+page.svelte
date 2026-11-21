@@ -104,6 +104,12 @@
 	});
 
 	/** The flight laid beside this one, as the address names it, once compared. */
+	/** The logbook's name for where the flight took off, if it has one. */
+	const takeoffName = $derived(
+		app.logbook?.view.years.flatMap((year) => year.flights).find((entry) => entry.id === id)
+			?.takeoffName
+	);
+
 	let beside = $state.raw<Beside>();
 	let choosing = $state(false);
 	const besideRef = $derived(browser ? besideIn(page.url.searchParams) : undefined);
@@ -207,6 +213,7 @@
 					back={{ href: logbookHref(), label: 'Logbook' }}
 					{actions}
 					inLogbook
+					takeoffSite={takeoffName ? { name: takeoffName } : undefined}
 					{beside}
 					onendbeside={() => layBeside(undefined)}
 					onleague={() => void sendToALeague()}

@@ -6,7 +6,7 @@
 	the page fetches them anew when it opens.
 
 	A new alarm is made from a wind station's page or a take-off's ("Alert
-	me"). The headings and the empty lines are the app's: the core has none.
+	me"). Its words are the core's (`alertFormWords`).
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
@@ -32,6 +32,11 @@
 			void model.reread().then(() => model.sync());
 		});
 	});
+
+	$effect(() => {
+		void alerts?.words().catch(() => {});
+	});
+	const words = $derived(alerts?.said);
 
 	let editing = $state.raw<{ id: string; draft: AlertDraft }>();
 	let open = $state(false);
@@ -60,7 +65,7 @@
 </script>
 
 <svelte:head>
-	<title>Alerts · Venti</title>
+	<title>{words?.title ?? 'Alerts'} · Venti</title>
 </svelte:head>
 
 <div class="settings-page">
@@ -70,27 +75,25 @@
 			Account
 		</a>
 	</header>
-	<h1>Alerts</h1>
+	<h1>{words?.title ?? ''}</h1>
 
 	{#if app.failure}
 		<p class="group-note">Venti could not open its data. {app.failure}</p>
+	{:else if !words}
+		<!-- The core's words come first. -->
 	{:else if account && !account.signedIn}
-		<p class="lead">
-			Alarms live on your account. <a href={accountHref()}>Sign in</a> to set one.
-		</p>
+		<p class="lead"><a href={accountHref()}>{words.signedOut}</a></p>
 	{:else if alerts}
 		{#if problem || alerts.problem}
 			<p class="group-note refusal" role="alert">{problem ?? alerts.problem}</p>
 		{/if}
 
 		<section class="group" aria-labelledby="alerts-list">
-			<h2 class="group-title" id="alerts-list">Your alarms</h2>
+			<h2 class="group-title" id="alerts-list">{words.listTitle}</h2>
 			{#if !alerts.read}
 				<p class="group-note" role="status">Loading…</p>
 			{:else if alerts.alerts.length === 0}
-				<p class="group-card group-row none">
-					No alarms yet. Set one with “Alert me” on a wind station’s page or a take-off’s.
-				</p>
+				<p class="group-card group-row none">{words.listEmpty}</p>
 			{:else}
 				<ul class="group-card" aria-labelledby="alerts-list">
 					{#each alerts.alerts as alert (alert.id)}
@@ -105,7 +108,7 @@
 								<span class="lesser">{alert.line}</span>
 							</button>
 							<label class="toggle switch">
-								<span class="visually-hidden">{alert.name} on</span>
+								<span class="visually-hidden">{alert.name} {words.on}</span>
 								<input
 									type="checkbox"
 									role="switch"
@@ -121,9 +124,9 @@
 		</section>
 
 		<section class="group" aria-labelledby="fired">
-			<h2 class="group-title" id="fired">What fired</h2>
+			<h2 class="group-title" id="fired">{words.firedTitle}</h2>
 			{#if alerts.read && alerts.fired.length === 0}
-				<p class="group-card group-row none">Nothing has fired in the last 30 days.</p>
+				<p class="group-card group-row none">{words.firedEmpty}</p>
 			{:else if alerts.fired.length > 0}
 				<ul class="group-card" aria-labelledby="fired">
 					{#each alerts.fired as fired (`${fired.alertId}:${fired.firedAtUnixS}`)}
@@ -136,10 +139,7 @@
 					{/each}
 				</ul>
 			{/if}
-			<p class="group-note">
-				Venti checks your alarms as the data arrives. This site fetches what fired while it is open,
-				and your browser tells you if you let it.
-			</p>
+			<p class="group-note">{words.firedNote}</p>
 		</section>
 	{/if}
 </div>

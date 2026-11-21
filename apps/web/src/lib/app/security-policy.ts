@@ -37,6 +37,20 @@ export const TILE_HOSTS: readonly string[] = [
 ];
 
 /**
+ * Google Identity Services, for signing in with Google
+ * (`src/lib/account/google.ts`), by the paths Google names for a content
+ * security policy: its script, the frame of its button and its requests
+ * under `/gsi/`, and its button's style sheet. Nothing else of Google's
+ * host. The page loads it only where the server signs pilots in with Google.
+ */
+export const GOOGLE_SIGN_IN = {
+	script: 'https://accounts.google.com/gsi/client',
+	frame: 'https://accounts.google.com/gsi/',
+	connect: 'https://accounts.google.com/gsi/',
+	style: 'https://accounts.google.com/gsi/style'
+} as const;
+
+/**
  * The policy, as SvelteKit's `csp` setting takes it. SvelteKit adds to
  * `script-src` the hash of the one inline script it writes into each page,
  * the one that starts the app.
@@ -50,10 +64,14 @@ export function contentSecurityPolicy(inlineStyles: readonly `sha256-${string}`[
 		// media.
 		'default-src': ['none'],
 		// The app's own script files, and nothing written into a page or
-		// made from text.
-		'script-src': ['self'],
-		// The app's own style sheets. No `style` element.
-		'style-src': ['self'],
+		// made from text; and Google's sign-in script.
+		'script-src': ['self', GOOGLE_SIGN_IN.script],
+		// The app's own style sheets, and the one of Google's button. No
+		// `style` element.
+		'style-src': ['self', GOOGLE_SIGN_IN.style],
+		// Google's sign-in button, which is a frame of Google's. No other
+		// frame.
+		'frame-src': [GOOGLE_SIGN_IN.frame],
 		// No `style` attribute in markup either, but for the one SvelteKit
 		// writes. Styles the app sets from its scripts are not attributes
 		// and need no leave.
@@ -69,7 +87,8 @@ export function contentSecurityPolicy(inlineStyles: readonly `sha256-${string}`[
 		// view, for its photographs. (What the app asks its own server under
 		// `/v1`, the core's worker asks, which this policy does not reach;
 		// held to it, it would find `/v1` under the app's own origin.)
-		'connect-src': ['self', 'data:', ...TILE_HOSTS],
+		// And Google's sign-in, which asks its own host under `/gsi/`.
+		'connect-src': ['self', 'data:', ...TILE_HOSTS, GOOGLE_SIGN_IN.connect],
 		// The typeface of the design pack, Fira Sans, served by the app
 		// from its own files. Nothing is fetched from a font host.
 		'font-src': ['self'],

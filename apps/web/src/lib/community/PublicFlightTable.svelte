@@ -6,8 +6,9 @@
 	anywhere on a row opens the flight; the pilot's name and the take-off
 	are links of their own.
 
-	A flight's record has no name for its take-off: the column is the place,
-	which leads to what else was flown from there.
+	The take-off is the name of the site it took off from, where the server
+	has one there, and otherwise the place; either leads to what else was
+	flown from there.
 
 	What another pilot wrote, a name or a glider, is set as text.
 -->
@@ -88,9 +89,11 @@
 				</td>
 				<td class="words lesser">
 					{#if flight.takeoff}
-						<a class="place" href={placeHref(flight.takeoff)}>
-							{text.place(flight.takeoff.lat, flight.takeoff.lon)}
+						<a class="place" href={placeHref(flight.takeoff, flight.takeoffSiteId ?? '')}>
+							{flight.takeoffName ?? text.place(flight.takeoff.lat, flight.takeoff.lon)}
 						</a>
+					{:else if flight.takeoffName}
+						{flight.takeoffName}
 					{/if}
 				</td>
 				<td class="words">{flight.glider ?? ''}</td>

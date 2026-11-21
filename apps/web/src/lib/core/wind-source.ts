@@ -84,6 +84,8 @@ export class WindSource {
 	#registration: Registration | undefined;
 	/** Whether the server takes flying sites from pilots, by its own last word. */
 	#takesSites = false;
+	/** Whether the server signs pilots in with Google, by its own last word. */
+	#googleSignIn = false;
 	/** Whether the site turned out to have no server. */
 	#absent = false;
 
@@ -140,6 +142,19 @@ export class WindSource {
 	async takesSitesFromPilots(): Promise<boolean> {
 		try {
 			return (await this.#readClock()) && this.#takesSites;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Whether this site's server signs pilots in with Google: whether to
+	 * offer Google's button at all. No when the server does not say, when
+	 * it could not be asked, and when the site has none.
+	 */
+	async googleSignIn(): Promise<boolean> {
+		try {
+			return (await this.#readClock()) && this.#googleSignIn;
 		} catch {
 			return false;
 		}
@@ -207,6 +222,7 @@ export class WindSource {
 		this.#lateProviders = status.lateProviders;
 		this.#registration = status.registration;
 		this.#takesSites = status.takesSitesFromPilots ?? false;
+		this.#googleSignIn = status.googleSignIn ?? false;
 		return true;
 	}
 }

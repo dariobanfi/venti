@@ -35,9 +35,11 @@
 		onselect: (trackIndex: number) => void;
 		/** The page of the place the flight took off from, where the site has a server to ask. */
 		fromHere?: string;
+		/** The name of the site it took off from, where one is known. */
+		takeoffName?: string;
 	}
 
-	let { flight, analysis, airspace, onselect, fromHere }: Props = $props();
+	let { flight, analysis, airspace, onselect, fromHere, takeoffName }: Props = $props();
 
 	const text = format();
 
@@ -62,7 +64,12 @@
 
 	const summary = $derived([
 		['Date', text.day(flight.startUnixS)],
-		['Take-off', text.time(flight.startUnixS)],
+		[
+			'Take-off',
+			takeoffName
+				? `${text.time(flight.startUnixS)} · ${takeoffName}`
+				: text.time(flight.startUnixS)
+		],
 		['Landing', text.time(flight.startUnixS + flight.durationS)],
 		['Airtime', `${text.hoursMinutes(flight.durationS)} h`],
 		['Track length', `${text.kilometres(flight.trackLengthM)} km`]

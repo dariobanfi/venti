@@ -98,9 +98,18 @@
 /* A wide screen: the navigation moves to the side and frees the bottom. */
 @media (min-width: 56rem) {
 	:root {
-		--nav-side: 5.5rem;
+		--nav-side: 11rem;
 		--nav-bottom: 0px;
-		--gutter: 2rem;
+		--gutter: var(--space-5);
+		/* Denser, as a website on a large screen is (docs/design.md, Web):
+		   the pack's label style is the body's size and its caption the
+		   secondary one; controls about 32 px high, for a pointer, not a
+		   finger. */
+		--body: 0.875rem;
+		--subheadline: 0.75rem;
+		--title: 1rem;
+		--large-title: 1.1875rem;
+		--target: 2rem;
 	}
 }
 

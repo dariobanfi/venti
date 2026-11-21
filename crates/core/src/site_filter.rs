@@ -95,6 +95,16 @@ pub struct SitesFilter {
     /// Take-offs from this height up, metres above mean sea level. `None`
     /// asks about no height.
     pub takeoffs_from_m: Option<f64>,
+    /// Whether the places from pilots are on: the switch "Places from
+    /// pilots" ([`SitesFilterChoices::with_pilots_words`]), off unless
+    /// the pilot switched it on. With it the shell asks the server for
+    /// the crowdsourced layer too ([`sites_path_for`] chooses the path),
+    /// the filter counts as on, and its words say so. It leaves no site
+    /// out by itself: which sites there are to filter is decided by what
+    /// was asked of the server.
+    #[uniffi(default = false)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub with_pilots: bool,
 }
 
 /// One choice of which sites to show.
@@ -173,6 +183,18 @@ pub struct SitesFilterChoices {
     /// What the filter does and what it does not say, to show where it is
     /// chosen.
     pub note: String,
+    /// The switch that puts the places from pilots on the map
+    /// ([`SitesFilter::with_pilots`]): "Places from pilots". The same as
+    /// [`crate::SiteWords::pilots_layer`].
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub with_pilots_words: String,
+    /// What the switch shows, under it: "Places pilots say they take off
+    /// from. Not official and not checked by anyone: a place on the map
+    /// is not permission to fly there."
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub with_pilots_about: String,
 }
 
 /// The sites a filter leaves, and what to say of them.
@@ -199,10 +221,12 @@ pub struct SitesFiltered {
     pub unsaid_note: String,
     /// The filter itself in a line, for the button that opens it:
     /// "Take-offs for a wind from NW, from 1500 m up". "All sites" when it
-    /// asks nothing.
+    /// asks nothing. With the places from pilots on it ends ", with
+    /// places from pilots".
     pub filter_words: String,
     /// Whether the filter asks anything: whether some site could be left
-    /// out or shown apart by it.
+    /// out or shown apart by it, or the places from pilots are on
+    /// ([`SitesFilter::with_pilots`]).
     pub is_on: bool,
     /// How many of the sites in `fitting` and `unsaid` are of the
     /// crowdsourced layer: added by pilots, not official. `0` where the
@@ -278,6 +302,38 @@ pub fn sites_filter_choices() -> SitesFilterChoices {
                Many take-offs give no wind directions and no height: those are shown apart, \
                neither as a fit nor left out. A site on the map is not permission to fly there."
             .to_owned(),
+        with_pilots_words: PILOTS_LAYER.to_owned(),
+        with_pilots_about: PILOTS_LAYER_ABOUT.to_owned(),
+    }
+}
+
+/// The switch that shows the crowdsourced layer.
+pub(crate) const PILOTS_LAYER: &str = "Places from pilots";
+
+/// What the switch shows.
+pub(crate) const PILOTS_LAYER_ABOUT: &str = "Places pilots say they take off from. Not official     and not checked by anyone: a place on the map is not permission to fly there.";
+
+/// The path and query to `GET` for the flying sites of a box, as a filter
+/// asks for them: with the places from pilots where the filter has them
+/// on ([`crate::sites_path_with_pilots`]), and without them otherwise
+/// ([`crate::sites_path`]). [`crate::sites_map`] reads the answer to
+/// either.
+///
+/// # Errors
+///
+/// As [`crate::sites_path`].
+#[uniffi::export]
+pub fn sites_path_for(
+    filter: SitesFilter,
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+) -> Result<String, crate::CoreError> {
+    if filter.with_pilots {
+        crate::sites_path_with_pilots(south, west, north, east)
+    } else {
+        crate::sites_path(south, west, north, east)
     }
 }
 
@@ -383,8 +439,14 @@ pub fn filter_sites(sites: Vec<SiteView>, filter: SitesFilter) -> SitesFiltered 
         words,
         unsaid_title,
         unsaid_note,
-        filter_words: asked.in_words(filter.shown),
-        is_on: filter.shown != SitesShown::All || asked.of_takeoffs(),
+        filter_words: {
+            let mut words = asked.in_words(filter.shown);
+            if filter.with_pilots {
+                words.push_str(", with places from pilots");
+            }
+            words
+        },
+        is_on: filter.shown != SitesShown::All || asked.of_takeoffs() || filter.with_pilots,
     }
 }
 
@@ -562,6 +624,7 @@ mod tests {
             wind_from_deg: None,
             wind_is: SitesWindIs::Chosen,
             takeoffs_from_m: None,
+            with_pilots: false,
         }
     }
 
@@ -598,6 +661,71 @@ mod tests {
            "created_at": "2026-11-06T19:05:00Z", "changed_at": "2026-11-06T19:05:00Z"}
         ]
       }"#;
+
+    #[test]
+    fn the_switch_for_places_from_pilots_is_the_filters() {
+        let choices = sites_filter_choices();
+        assert_eq!(choices.with_pilots_words, "Places from pilots");
+        assert_eq!(choices.with_pilots_words, crate::site_words().pilots_layer);
+        assert_eq!(
+            choices.with_pilots_about,
+            crate::site_words().pilots_layer_about
+        );
+
+        // Off: the filter that asks nothing is not on, and asks the
+        // server for the layers every answer holds.
+        let off = nothing();
+        let plain = filter_sites(sites(), off);
+        assert!(!plain.is_on);
+        assert_eq!(plain.filter_words, "All sites");
+        assert_eq!(
+            sites_path_for(off, 47.0, 11.0, 48.0, 12.0).unwrap(),
+            crate::sites_path(47.0, 11.0, 48.0, 12.0).unwrap()
+        );
+
+        // On: the filter is on by that alone, says so, and asks for the
+        // crowdsourced layer too. It leaves no site out by itself.
+        let on = SitesFilter {
+            with_pilots: true,
+            ..nothing()
+        };
+        let with = filter_sites(sites(), on);
+        assert!(with.is_on);
+        assert_eq!(with.filter_words, "All sites, with places from pilots");
+        assert_eq!(with.fitting, plain.fitting);
+        assert_eq!(with.words, plain.words);
+        let path = sites_path_for(on, 47.0, 11.0, 48.0, 12.0).unwrap();
+        assert_eq!(
+            path,
+            crate::sites_path_with_pilots(47.0, 11.0, 48.0, 12.0).unwrap()
+        );
+        assert!(path.contains("venti-pilots"), "{path}");
+        let asked = filter_sites(
+            sites(),
+            SitesFilter {
+                shown: SitesShown::Takeoffs,
+                wind_from_deg: Some(315.0),
+                with_pilots: true,
+                ..nothing()
+            },
+        );
+        assert_eq!(
+            asked.filter_words,
+            "Take-offs for a wind from NW, with places from pilots"
+        );
+        assert_eq!(
+            filter_sites(
+                sites(),
+                SitesFilter {
+                    shown: SitesShown::Landings,
+                    with_pilots: true,
+                    ..nothing()
+                }
+            )
+            .filter_words,
+            "Landings, with places from pilots"
+        );
+    }
 
     #[test]
     fn the_counts_say_when_places_from_pilots_are_among_them() {
@@ -797,6 +925,7 @@ mod tests {
                     wind_from_deg: Some(184.0),
                     wind_is,
                     takeoffs_from_m: None,
+                    with_pilots: false,
                 },
             )
         };
@@ -858,6 +987,7 @@ mod tests {
                 wind_from_deg: Some(315.0),
                 wind_is: SitesWindIs::Chosen,
                 takeoffs_from_m: Some(1200.0),
+                with_pilots: false,
             },
         );
         // Only the first is said to fit the wind and to lie high enough.
@@ -887,6 +1017,7 @@ mod tests {
                 wind_from_deg: Some(315.0),
                 wind_is: SitesWindIs::Chosen,
                 takeoffs_from_m: None,
+                with_pilots: false,
             },
         );
         assert_eq!(one_left.words, "0 of 1 take-off fit a wind from NW");
@@ -902,6 +1033,7 @@ mod tests {
                 wind_from_deg: Some(315.0),
                 wind_is: SitesWindIs::Chosen,
                 takeoffs_from_m: Some(1200.0),
+                with_pilots: false,
             },
         );
         // The landing and the training slope stay, though the slope names
@@ -928,6 +1060,7 @@ mod tests {
                 wind_from_deg: Some(315.0),
                 wind_is: SitesWindIs::Chosen,
                 takeoffs_from_m: Some(1200.0),
+                with_pilots: false,
             },
         );
         assert_eq!(numbers(&landings.fitting), [7, 8]);
@@ -945,6 +1078,7 @@ mod tests {
                 wind_from_deg: Some(f64::NAN),
                 wind_is: SitesWindIs::ForecastNow,
                 takeoffs_from_m: Some(f64::INFINITY),
+                with_pilots: false,
             },
         );
         assert_eq!(left.fitting.len(), 9);

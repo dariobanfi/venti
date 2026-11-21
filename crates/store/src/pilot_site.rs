@@ -534,6 +534,17 @@ pub(crate) fn decide(
     }
 }
 
+/// Whether a revision puts the site at a place it does not stand at
+/// already, so that the place has to be free: one that moves it, and one
+/// that brings a removed site back.
+///
+/// A revision that leaves a standing site where it is takes no place. It
+/// is written whatever stands near by: a partner's site may have been put
+/// beside a place from pilots since, and that place must stay correctable.
+pub(crate) fn takes_a_place(current: &PilotSite, writing: &Writing) -> bool {
+    !writing.removed && (!current.stands() || current.site.position != writing.record.position)
+}
+
 /// The site among `standing` that is nearer to `record` than `apart_m`
 /// metres and is not the record's own: the nearest of them, and by
 /// identifier among those equally near. `None` if the place is free.

@@ -59,8 +59,8 @@ use venti_core::{
     WindMap, WindSpan, WindStation,
 };
 use venti_core::{
-    SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteDraftRebased,
-    SiteOffers, SiteRemovedLine, SiteRevisionView, SiteWords, SitesRemoved,
+    SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteCorrecting,
+    SiteDraftRebased, SiteHistoryOffers, SiteOffers, SiteRevisionView, SiteWords, SitesRemoved,
 };
 use venti_core::{TokenCreated, TokenForm, TokenScope, TokenView, TokenWithdrawal};
 use wasm_bindgen::prelude::*;
@@ -385,7 +385,9 @@ impl Core {
     }
 
     /// Whether the page may offer to add a site, into which tier it
-    /// would go, and what the entry and the form say for that tier.
+    /// would go, and what the entry and the form say for that tier. The
+    /// entry is shown whenever its words are not empty, and opens the
+    /// account where it leads to signing in.
     #[wasm_bindgen(js_name = siteAdding)]
     pub fn site_adding(&self, takes_sites_from_pilots: bool) -> Result<Ts<SiteAdding>, JsValue> {
         let adding = self
@@ -393,6 +395,41 @@ impl Core {
             .call(|core| core.site_adding(takes_sites_from_pilots))
             .map_err(thrown)?;
         to_js(&adding)
+    }
+
+    /// What the page may offer in a site's history to whoever is signed
+    /// in: to put a revision back, to undo the last change, to bring a
+    /// removed site back and to report a revision. `history` is a page
+    /// of it as `siteHistory` read it.
+    #[wasm_bindgen(js_name = siteHistoryOffers)]
+    pub fn site_history_offers(
+        &self,
+        history: Ts<SiteHistory>,
+        takes_sites_from_pilots: bool,
+    ) -> Result<Ts<SiteHistoryOffers>, JsValue> {
+        let history = from_js(&history)?;
+        let offers = self
+            .session
+            .call(|core| core.site_history_offers(history, takes_sites_from_pilots))
+            .map_err(thrown)?;
+        to_js(&offers)
+    }
+
+    /// Reads the server's answer to `sitesRemovedPath`: the removed
+    /// sites of a tier, each in a line with who removed it and when, and
+    /// whether whoever is signed in may bring it back.
+    #[wasm_bindgen(js_name = sitesRemoved)]
+    pub fn sites_removed(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+        takes_sites_from_pilots: bool,
+    ) -> Result<Ts<SitesRemoved>, JsValue> {
+        let removed = self
+            .session
+            .call(|core| core.sites_removed(status, body, takes_sites_from_pilots))
+            .map_err(thrown)?;
+        to_js(&removed)
     }
 
     /// The pilot's own flights to name with a confirmation of a site for
@@ -1296,6 +1333,20 @@ pub fn site_outlook(
     )
 }
 
+/// The path and query to `GET` for the flying sites of a box as a filter
+/// asks for them: with the places from pilots where the filter has them
+/// on, without them otherwise.
+#[wasm_bindgen(js_name = sitesPathFor)]
+pub fn sites_path_for(
+    filter: Ts<SitesFilter>,
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+) -> Result<String, JsValue> {
+    venti_core::sites_path_for(from_js(&filter)?, south, west, north, east).map_err(thrown)
+}
+
 /// The choices of the filter of sites, and what to say with them.
 #[wasm_bindgen(js_name = sitesFilterChoices)]
 pub fn sites_filter_choices() -> Result<Ts<SitesFilterChoices>, JsValue> {
@@ -1541,29 +1592,31 @@ pub fn site_confirmations(status: u16, body: Vec<u8>) -> Result<Ts<SiteConfirmat
     to_js(&venti_core::site_confirmations(status, body).map_err(thrown)?)
 }
 
+/// Reads the server's answer to `siteConfirmationsPath` for the site's
+/// page: as `siteConfirmations`, and without the line that nobody took
+/// off here for a site nobody takes off at.
+#[wasm_bindgen(js_name = siteConfirmationsOf)]
+pub fn site_confirmations_of(
+    site: Ts<SiteView>,
+    status: u16,
+    body: Vec<u8>,
+) -> Result<Ts<SiteConfirmations>, JsValue> {
+    to_js(&venti_core::site_confirmations_of(from_js(&site)?, status, body).map_err(thrown)?)
+}
+
+/// What the form says when it corrects a given site, by the site's tier:
+/// the title, the sentence of giving, the notice and the button.
+#[wasm_bindgen(js_name = siteCorrecting)]
+pub fn site_correcting(site: Ts<SiteView>) -> Result<Ts<SiteCorrecting>, JsValue> {
+    to_js(&venti_core::site_correcting(from_js(&site)?).map_err(thrown)?)
+}
+
 /// The path to `GET` for what happened to the sites of a tier, to find
 /// the removed ones: the crowdsourced tier with `from_pilots`, else the
 /// partners'. `since` is the cursor of the page before.
 #[wasm_bindgen(js_name = sitesRemovedPath)]
 pub fn sites_removed_path(from_pilots: bool, since: Option<String>) -> Result<String, JsValue> {
     venti_core::sites_removed_path(from_pilots, since).map_err(thrown)
-}
-
-/// Reads the server's answer to `sitesRemovedPath`: the identifiers of
-/// the sites it says are removed.
-#[wasm_bindgen(js_name = sitesRemoved)]
-pub fn sites_removed(status: u16, body: Vec<u8>) -> Result<Ts<SitesRemoved>, JsValue> {
-    to_js(&venti_core::sites_removed(status, body).map_err(thrown)?)
-}
-
-/// A removed site as a line, from the last page of its history. Nothing
-/// for a site that stands.
-#[wasm_bindgen(js_name = siteRemovedLine)]
-pub fn site_removed_line(history: Ts<SiteHistory>) -> Result<Option<Ts<SiteRemovedLine>>, JsValue> {
-    venti_core::site_removed_line(from_js(&history)?)
-        .as_ref()
-        .map(to_js)
-        .transpose()
 }
 
 /// What differs between a site as one revision said it and as another

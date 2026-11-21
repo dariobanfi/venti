@@ -7,7 +7,7 @@ use venti_domain::{BoundingBox, Site, SiteId, SourceId, Timestamp};
 
 use super::accounts::Accounts;
 use crate::pilot_site::{
-    Decision, check_confirmation, check_new, check_revising, decide, nearest_within,
+    Decision, check_confirmation, check_new, check_revising, decide, nearest_within, takes_a_place,
 };
 use crate::{
     NewPilotSite, NewSiteConfirmation, PilotSite, PilotSiteChanges, RevisionKind, SiteAct,
@@ -180,7 +180,7 @@ impl PilotSites {
             Decision::Answer(answer) => return Ok(answer),
             Decision::Write(writing) => *writing,
         };
-        if !writing.removed
+        if takes_a_place(&current, &writing)
             && let Some(other) = self.too_close(&writing.record, apart_m)
         {
             return Ok(SiteWrite::TooClose(other));

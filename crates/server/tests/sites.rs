@@ -1244,6 +1244,97 @@ mod of_pilots {
     }
 
     #[tokio::test]
+    async fn a_place_from_pilots_is_refused_where_a_partners_site_stands() {
+        let (router, _) = recorded_with_its_store().await;
+        let partner = dev::DEMO_TOKEN;
+        let quirin = sign_up(&router, "quirin").await.token;
+
+        // A partner's site, with nothing of either layer near it.
+        let official: SiteResponse = ask(Method::POST, "/v1/sites")
+            .token(partner)
+            .json(&AddSiteRequest {
+                site: draft("Beispielgrat", 47.42, 11.2),
+                comment: None,
+            })
+            .send(&router)
+            .await
+            .ok(StatusCode::CREATED);
+        let official_id = official.site.id.clone();
+        assert_eq!(official_id.source().as_str(), "venti");
+        let refused_by_the_official = |refused: &ErrorResponse| {
+            let named = refused.error.site.clone().expect("the site in the way");
+            assert_eq!(named.id, official_id);
+            assert_eq!(named.name.as_deref(), Some("Beispielgrat"));
+        };
+
+        // A new place from pilots a few metres from it: refused across
+        // the layers, with the partner's site named to be opened.
+        let refused = ask(Method::POST, "/v1/sites")
+            .token(&quirin)
+            .json(&AddSiteRequest {
+                site: draft("Beispielgrat, by a pilot", 47.42003, 11.2),
+                comment: None,
+            })
+            .send(&router)
+            .await;
+        refused.error(StatusCode::CONFLICT, ErrorCode::SiteTooClose);
+        refused_by_the_official(&refused.json());
+
+        // A place from pilots that stands elsewhere, moved there by a
+        // correction: refused the same, and it stays where it stood.
+        let elsewhere: SiteResponse = ask(Method::POST, "/v1/sites")
+            .token(&quirin)
+            .json(&AddSiteRequest {
+                site: draft("Beispielscharte", 47.43, 11.2),
+                comment: None,
+            })
+            .send(&router)
+            .await
+            .ok(StatusCode::CREATED);
+        let place = elsewhere.site.id.clone();
+        assert_eq!(place.source().as_str(), "venti-pilots");
+        let moved = ChangeSiteRequest {
+            site: SiteDraft {
+                position: GeoPoint::new(47.42003, 11.2).unwrap(),
+                ..SiteDraft::of(&elsewhere.site)
+            },
+            revision: 1,
+            comment: None,
+        };
+        let refused = ask(Method::PUT, &site_path(&place.to_string()))
+            .token(&quirin)
+            .json(&moved)
+            .send(&router)
+            .await;
+        refused.error(StatusCode::CONFLICT, ErrorCode::SiteTooClose);
+        refused_by_the_official(&refused.json());
+        let stands: SiteResponse = get(&router, &site_path(&place.to_string())).await.json();
+        assert_eq!(stands.standing.unwrap().revision, 1);
+        assert_eq!(stands.site.position, elsewhere.site.position);
+
+        // The other way round nothing is refused: a partner's site is
+        // put where a place from pilots stands, and both stand.
+        let over: SiteResponse = ask(Method::POST, "/v1/sites")
+            .token(partner)
+            .json(&AddSiteRequest {
+                site: draft("Beispielscharte, official", 47.43002, 11.2),
+                comment: None,
+            })
+            .send(&router)
+            .await
+            .ok(StatusCode::CREATED);
+        assert_eq!(over.site.id.source().as_str(), "venti");
+        let both: SitesResponse = get(
+            &router,
+            "/v1/sites?bbox=11.19,47.425,11.21,47.435&layers=venti,venti-pilots",
+        )
+        .await
+        .json();
+        let standing: usize = both.layers.iter().map(|layer| layer.sites.len()).sum();
+        assert_eq!(standing, 2);
+    }
+
+    #[tokio::test]
     async fn a_pilot_says_they_took_off_at_a_site_and_takes_it_back() {
         let (router, store) = recorded_with_its_store().await;
         let first = dev::DEMO_SITES[0];

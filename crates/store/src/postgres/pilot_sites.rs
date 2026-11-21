@@ -27,6 +27,7 @@ use venti_domain::{BoundingBox, Site, SiteId, SourceId};
 use super::{corrupt, db_error};
 use crate::pilot_site::{
     Decision, Writing, check_confirmation, check_new, check_revising, decide, nearest_within,
+    takes_a_place,
 };
 use crate::{
     NewPilotSite, NewSiteConfirmation, PilotSite, PilotSiteChanges, RevisionKind, SiteAct,
@@ -402,7 +403,7 @@ pub(super) async fn revise(
         Decision::Answer(answer) => return Ok(answer),
         Decision::Write(writing) => *writing,
     };
-    if !writing.removed
+    if takes_a_place(&current, &writing)
         && let Some(other) = too_close(&tx, &writing.record, apart_m).await?
     {
         return Ok(SiteWrite::TooClose(other));

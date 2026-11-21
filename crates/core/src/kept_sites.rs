@@ -43,9 +43,8 @@ use venti_api_types::v1::{Attribution, SiteStanding};
 use venti_domain::{GeoPoint, Site, SiteId, SiteOutline, SiteUse, SourceId, WindSector};
 use venti_flight::live::navigation::bearing_deg;
 
-use crate::sites::{SiteKind, SiteView, SitesMap, site_view, standing_of};
+use crate::sites::{SiteKind, SiteView, SitesMap, site_credit, site_view, standing_of};
 use crate::today::{Flyability, Thermals};
-use crate::wind::credit;
 use crate::{Bounds, Coordinate, Core, CoreError, Credit};
 
 /// The folder the kept sites are stored in, one file for each source.
@@ -318,7 +317,7 @@ impl Core {
             credits: layers
                 .iter()
                 .filter(|layer| !layer.sites.is_empty())
-                .filter_map(|layer| layer.attribution.as_ref().map(credit))
+                .filter_map(|layer| layer.attribution.as_ref().map(site_credit))
                 .collect(),
             note: format!(
                 "{} A kept site is as its source had it on the day shown with it.",
@@ -444,7 +443,7 @@ impl Core {
                     .iter()
                     .find(|layer| layer.source.as_str() == source)
                     .and_then(|layer| layer.attribution.as_ref())
-                    .map(credit)
+                    .map(site_credit)
             };
             credits.extend(answered.or_else(kept));
         }

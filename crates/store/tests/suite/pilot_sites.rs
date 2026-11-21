@@ -1117,6 +1117,40 @@ pub(crate) async fn the_two_layers_of_sites_are_kept_and_read_apart(store: &impl
     assert_eq!(store.pilot_site(&crowd.site.id).await.unwrap(), Some(crowd));
 }
 
+pub(crate) async fn a_site_that_stays_where_it_is_takes_no_place(store: &impl Store) {
+    let partner = create(store, "partner").await;
+    let anna = create(store, "anna").await;
+    // A place from pilots, and a partner's site put beside it afterwards.
+    let crowd = add(store, pilots_record("b", 47.70, 11.90), &anna, at(10, 0)).await;
+    let official = add(store, record("f", 47.7001, 11.90), &partner, at(10, 1)).await;
+    let revising = |at, act| SiteRevising {
+        id: crowd.site.id.clone(),
+        ..by(&anna, "b", at, act)
+    };
+
+    // The place is corrected where it stands, although the partner's
+    // site is nearer than two sites may be.
+    let mut higher = crowd.site.clone();
+    higher.elevation_m = Some(1840.0);
+    let corrected = written(store, &revising(at(10, 2), change(higher.clone()))).await;
+    assert_eq!(corrected.site.elevation_m, Some(1840.0));
+
+    // Moved, it has to find its place free: not beside the partner's.
+    let mut moved = higher.clone();
+    moved.position = GeoPoint::new(47.70005, 11.90).unwrap();
+    assert_eq!(
+        revise(store, &revising(at(10, 3), change(moved))).await,
+        SiteWrite::TooClose(official.site.id.clone())
+    );
+
+    // Removed and brought back, it has to find its place free as well.
+    written(store, &revising(at(10, 4), REMOVE)).await;
+    assert_eq!(
+        revise(store, &revising(at(10, 5), SiteAct::Restore(2))).await,
+        SiteWrite::TooClose(official.site.id.clone())
+    );
+}
+
 // --- What pilots confirm of a site -----------------------------------------
 
 fn day(day: u32) -> chrono::NaiveDate {

@@ -30,10 +30,9 @@ use venti_domain::{GeoPoint, Site, SiteId, SiteOutline, SiteUse, WindSector};
 use crate::account::json_request;
 use crate::server::{answer, code, refusal};
 use crate::sites::{
-    BY_PILOTS_NOTE, FROM_PILOTS_NOTE, author, author_in_words, kind, site_view, uses_in_words,
-    wind_in_words,
+    BY_PILOTS_NOTE, FROM_PILOTS_NOTE, author, author_in_words, by_pilots_in_history, kind,
+    site_credit, site_view, uses_in_words, wind_in_words,
 };
-use crate::wind::credit;
 use crate::{
     Coordinate, CoreError, Credit, ServerRequest, SiteAuthor, SiteKind, SiteView, SitesWindChoice,
 };
@@ -319,7 +318,10 @@ pub struct SiteRevisionView {
     /// revision's are empty, and [`site_changes_between`] says them.
     pub changes: Vec<String>,
     /// The site as it stood from this revision on; for one that removed
-    /// the site, as it stood until then.
+    /// the site, as it stood until then. It knows its tier and whether
+    /// the site is removed ([`crate::SiteByPilots::is_of_history`],
+    /// `is_removed`), so that [`crate::Core::site_offers`] answers for
+    /// it; no draft is made of it.
     pub site: SiteView,
     /// Whether the site stands at this revision.
     pub is_current: bool,
@@ -338,9 +340,8 @@ pub struct SiteRevisionView {
     pub put_back_words: String,
 }
 
-/// One page of a site's history. A shell hands the last page of a
-/// removed site's back for its line among the removed
-/// ([`crate::site_removed_line`]).
+/// One page of a site's history. A shell hands it back to ask what the
+/// history offers ([`crate::Core::site_history_offers`]).
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(
     feature = "wasm",
@@ -528,7 +529,7 @@ pub fn site_form() -> SiteForm {
         giving: format!(
             "You give this site to everyone under {VENTI_SITES_LICENCE}, the public domain: \
              anyone may use it and change it, on Venti and anywhere else. It is shown with your \
-             handle to pilots who switch on the sites from pilots, any pilot can correct it, \
+             handle to pilots who switch on the places from pilots, any pilot can correct it, \
              and it stays on Venti when your account goes."
         ),
         licence: VENTI_SITES_LICENCE.to_owned(),
@@ -592,6 +593,12 @@ pub fn site_draft_of(site: SiteView) -> Result<SiteDraftView, CoreError> {
              that pilots added on Venti is corrected here.",
         ));
     };
+    if by_pilots.is_of_history || by_pilots.is_removed {
+        return Err(invalid(
+            "This is the site as its history shows it. Open the site as it stands now to \
+             correct it.",
+        ));
+    }
     let sectors: Vec<WindSector> = site
         .wind
         .iter()
@@ -1016,13 +1023,22 @@ pub(crate) fn site_refusal(status: u16, body: &[u8]) -> CoreError {
             "This place lies outside the area Venti takes sites for.".to_owned()
         }
         (_, Some("site_too_close")) => match site_in_the_way(status, body.to_vec()) {
-            Some(other) => format!(
-                "A site that pilots added stands at this place already: {}. If it is the same \
-                 place, correct that one.",
+            // A partner's site stands in a pilot's way and never the
+            // other way round: whoever is refused by one cannot correct
+            // it, unless they are a partner too.
+            Some(other) if other.id.starts_with(&format!("{VENTI_SITES_SOURCE}:")) => format!(
+                "A site that a partner of Venti added stands at this place already: {}. No \
+                 second site is put on top of it. If it is the same place and something \
+                 about it is wrong, open it and report it; a partner corrects it.",
                 other.name
             ),
-            None => "A site that pilots added stands at this place already. If it is the same \
-                     place, correct that one."
+            Some(other) => format!(
+                "A place from pilots stands here already: {}. If it is the same place, \
+                 correct that one.",
+                other.name
+            ),
+            None => "A site stands at this place already. If it is the same place, correct \
+                     that one."
                 .to_owned(),
         },
         (_, Some("site_changed")) => {
@@ -1038,8 +1054,8 @@ pub(crate) fn site_refusal(status: u16, body: &[u8]) -> CoreError {
         (_, Some("site_not_found")) => "There is no such site.".to_owned(),
         (_, Some("site_revision_not_found")) => "The site has no such revision.".to_owned(),
         (_, Some("sites_closed")) => {
-            "This server takes no sites from pilots. A site of another source is corrected at \
-             its source."
+            "This server takes no places from pilots yet. A site of another source is \
+             corrected at its source."
                 .to_owned()
         }
         (_, Some("sites_for_partners")) => {
@@ -1121,7 +1137,7 @@ pub fn site_page(status: u16, body: Vec<u8>) -> Result<SitePage, CoreError> {
             .attributions
             .iter()
             .find(|attribution| attribution.source.as_str() == site.source)
-            .map(credit),
+            .map(site_credit),
         is_lasting: response.lasting,
         can_be_corrected: site.by_pilots.is_some(),
         site,
@@ -1178,7 +1194,7 @@ pub fn site_removed(status: u16, body: Vec<u8>) -> Result<String, CoreError> {
 }
 
 /// A day in words, in UTC: "21 Nov 2026".
-fn day(at: venti_domain::Timestamp) -> String {
+pub(crate) fn day_in_words(at: venti_domain::Timestamp) -> String {
     at.format("%-d %b %Y").to_string()
 }
 
@@ -1407,7 +1423,7 @@ pub fn site_history_page(
             (SiteRevisionKind::Removed, _) => (SiteRevisionWas::Removed, "Removed".to_owned()),
             (SiteRevisionKind::Other, _) => (SiteRevisionWas::Other, "Revised".to_owned()),
         };
-        let mut words = format!("{did} by {who} on {}", day(revision.at));
+        let mut words = format!("{did} by {who} on {}", day_in_words(revision.at));
         if let Some(comment) = &revision.comment {
             words.push_str(": ");
             words.push_str(&quoted(comment));
@@ -1428,13 +1444,22 @@ pub fn site_history_page(
         revisions.push(SiteRevisionView {
             number: revision.number,
             at_unix_s: revision.at.timestamp(),
-            by,
+            by: by.clone(),
             was,
             restores: revision.restores,
             comment: revision.comment.clone(),
             words,
             changes: changed,
-            site: site_view(&revision.site, None),
+            site: SiteView {
+                by_pilots: by_pilots_in_history(
+                    &response.id,
+                    revision.number,
+                    revision.at.timestamp(),
+                    by.clone(),
+                    response.removed,
+                ),
+                ..site_view(&revision.site, None)
+            },
             is_current,
             can_be_put_back,
             put_back_words: match (can_be_put_back, response.removed) {
@@ -1485,7 +1510,7 @@ pub fn site_history_page(
         },
         bring_back_revision,
         revisions,
-        credit: response.attributions.first().map(credit),
+        credit: response.attributions.first().map(site_credit),
     })
 }
 
@@ -1523,6 +1548,12 @@ pub struct SiteDraftRebased {
     /// entry is in the draft; a shell names these fields, so that the
     /// pilot sees what sending again would overwrite.
     pub clashes: Vec<SiteField>,
+    /// The same fields with a sentence each, to show at the field as a
+    /// fault is shown: "Height: you entered 1840 m, it now stands at
+    /// 1850 m. Yours is kept." In the order of `clashes`.
+    #[uniffi(default = [])]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub clashes_in_words: Vec<SiteDraftFault>,
     /// What happened, to show over the form: "Someone else changed this
     /// site while you were editing it. Your entries are kept, and what
     /// you left alone is as the site stands now."
@@ -1543,6 +1574,63 @@ fn field_title(field: SiteField) -> &'static str {
         SiteField::NoFlightTime => "Not to be used",
         SiteField::Guests => "Rules for guests",
         SiteField::Comment => "Why",
+    }
+}
+
+/// What a draft says in one field, as the lines of a history say it:
+/// "1840 m", "none", a text between quotation marks.
+fn entry_in_words(field: SiteField, draft: &SiteDraftView) -> String {
+    let text = |text: &str| said(Some(text.trim()).filter(|text| !text.is_empty()));
+    match field {
+        SiteField::Name => text(&draft.name),
+        SiteField::Uses => uses_in_words(&draft.uses),
+        SiteField::Height => metres(draft.elevation_m),
+        SiteField::Wind => match wind_in_words(&sectors_of(&draft.wind_from_deg)) {
+            words if words.is_empty() => "none".to_owned(),
+            words => words,
+        },
+        SiteField::Fee => text(&draft.fee),
+        SiteField::NoFlightTime => text(&draft.no_flight_time),
+        SiteField::Website => match draft.website.trim() {
+            "" => "none".to_owned(),
+            address => address.to_owned(),
+        },
+        SiteField::Guests => yes_no(draft.guest_guidelines).to_owned(),
+        SiteField::Description | SiteField::Place | SiteField::Comment => String::new(),
+    }
+}
+
+/// One field that the pilot and someone else both changed, in a
+/// sentence: `mine` is the pilot's draft, `stands` the site as it stands
+/// now.
+fn clash_in_words(field: SiteField, mine: &SiteDraftView, stands: &SiteDraftView) -> String {
+    let title = field_title(field);
+    match field {
+        // A description may be long: that both rewrote it is said.
+        SiteField::Description => {
+            format!("{title}: you rewrote it, and someone else did too. Yours is kept.")
+        }
+        SiteField::Place => {
+            let apart = match (
+                GeoPoint::new(mine.position.lat, mine.position.lon),
+                GeoPoint::new(stands.position.lat, stands.position.lon),
+            ) {
+                (Ok(mine), Ok(stands)) => match mine.distance_m(stands) {
+                    metres if metres < 1.0 => "less than a metre".to_owned(),
+                    metres => crate::airspace::distance_in_words(metres),
+                },
+                _ => "some way".to_owned(),
+            };
+            format!(
+                "{title}: you moved it, and someone else moved it too, to {apart} from where \
+                 you put it. Yours is kept."
+            )
+        }
+        _ => format!(
+            "{title}: you entered {}, it now stands at {}. Yours is kept.",
+            entry_in_words(field, mine),
+            entry_in_words(field, stands)
+        ),
     }
 }
 
@@ -1634,11 +1722,16 @@ pub fn site_draft_rebased(
         words.push_str(&named.join(", "));
         words.push_str(". Your entry stands in the form: look at it before you save.");
     }
+    let clashes_in_words = clashes
+        .iter()
+        .map(|field| fault(*field, clash_in_words(*field, &edited, &stands)))
+        .collect();
     Ok(SiteDraftRebased {
         draft,
         kept,
         theirs,
         clashes,
+        clashes_in_words,
         words,
     })
 }
@@ -1900,7 +1993,7 @@ mod tests {
         // and for good.
         assert_eq!(
             form.giving,
-            "You give this site to everyone under CC0 1.0, the public domain: anyone may use it and change it, on Venti and anywhere else. It is shown with your handle to pilots who switch on the sites from pilots, any pilot can correct it, and it stays on Venti when your account goes."
+            "You give this site to everyone under CC0 1.0, the public domain: anyone may use it and change it, on Venti and anywhere else. It is shown with your handle to pilots who switch on the places from pilots, any pilot can correct it, and it stays on Venti when your account goes."
         );
         assert!(
             form.giving_as_partner
@@ -1926,6 +2019,22 @@ mod tests {
         assert!(page.is_lasting && page.can_be_corrected);
         assert_eq!(page.credit.as_ref().unwrap().licence, "CC0 1.0");
         let standing = page.site.by_pilots.clone().unwrap();
+        // The tier's notice is said once on the page: by the site, in
+        // the core's words. The credit of one of Venti's own layers
+        // does not repeat what the server sends as its notice.
+        let sent: serde_json::Value = serde_json::from_slice(&golden("site.json")).unwrap();
+        assert!(
+            sent["attributions"][0]["notice"]
+                .as_str()
+                .unwrap()
+                .starts_with("Added by a partner of Venti")
+        );
+        assert_eq!(page.credit.as_ref().unwrap().notice, None);
+        assert!(standing.note.starts_with("Added by a partner of Venti"));
+        assert!(!standing.is_of_history && !standing.is_removed);
+        // Its description is the partner's, and headed so.
+        assert!(page.site.description.is_some());
+        assert_eq!(page.site.description_title, "What the partner wrote");
         let draft = site_draft_of(page.site.clone()).unwrap();
         assert_eq!(draft.site_id.as_deref(), Some(page.site.id.as_str()));
         assert_eq!(draft.revision, Some(standing.revision));
@@ -1962,6 +2071,17 @@ mod tests {
         );
         let of_a_source = site_page(200, golden("site_of_a_source.json")).unwrap();
         assert!(!of_a_source.can_be_corrected && !of_a_source.is_lasting);
+        // A source's credit keeps the notice its licence asks for.
+        assert!(
+            of_a_source
+                .credit
+                .as_ref()
+                .unwrap()
+                .notice
+                .as_ref()
+                .unwrap()
+                .contains("OpenStreetMap")
+        );
         assert!(words(site_draft_of(of_a_source.site.clone())).contains("corrected at its source"));
         assert!(
             words(site_remove_request(of_a_source.site.id, String::new()))
@@ -2162,7 +2282,16 @@ mod tests {
             offers,
             ["Put back to this revision", "Put back to this revision", ""]
         );
-        assert_eq!(history.credit.unwrap().licence, "CC0 1.0");
+        let credit = history.credit.unwrap();
+        assert_eq!((credit.licence.as_str(), credit.notice), ("CC0 1.0", None));
+        // Each revision's site says its tier, in the words of the tier,
+        // and heads its description as a place from pilots does.
+        for revision in &history.revisions {
+            let by = revision.site.by_pilots.as_ref().unwrap();
+            assert!(by.from_pilots && by.is_of_history && !by.is_removed);
+            assert_eq!(by.revision, revision.number);
+            assert_eq!(revision.site.description_title, "What pilots wrote");
+        }
     }
 
     /// The history of the documentation as the server would page it: the
@@ -2308,6 +2437,15 @@ mod tests {
         // wrote the same description: no clash.
         assert_eq!(rebased.clashes, [SiteField::Name]);
         assert_eq!(
+            rebased.clashes_in_words,
+            [SiteDraftFault {
+                field: SiteField::Name,
+                words: "Name: you entered \u{201c}Musterkogel West (upper)\u{201d}, it now \
+                        stands at \u{201c}Musterkogel\u{201d}. Yours is kept."
+                    .to_owned()
+            }]
+        );
+        assert_eq!(
             rebased.theirs,
             site_changes_between(base.clone(), now.clone())
         );
@@ -2345,6 +2483,63 @@ mod tests {
         let only_mine = site_draft_rebased(base.clone(), edited, same).unwrap();
         assert!(only_mine.theirs.is_empty() && only_mine.clashes.is_empty());
         assert!(only_mine.words.ends_with("Your entries are kept."));
+        assert!(only_mine.clashes_in_words.is_empty());
+
+        // Every field both changed has a sentence, in the form's order.
+        let mut theirs = base.clone();
+        theirs.by_pilots.as_mut().unwrap().revision += 1;
+        theirs.name = "Theirs".to_owned();
+        theirs.position.lat += 0.002;
+        theirs.uses = vec![SiteKind::Takeoff, SiteKind::Landing];
+        theirs.elevation_m = Some(1850.0);
+        theirs.wind = vec![crate::WindSpan {
+            from_deg: 0.0,
+            to_deg: 45.0,
+        }];
+        theirs.description = Some("Their words.".to_owned());
+        theirs.fee = Some("yes".to_owned());
+        theirs.guest_guidelines = Some(true);
+        theirs.no_flight_time = Some("01.04-30.09".to_owned());
+        theirs.website = Some("https://example.org/theirs".to_owned());
+        let mine = SiteDraftView {
+            name: "Mine".to_owned(),
+            uses: vec![SiteKind::Training],
+            elevation_m: Some(1840.0),
+            wind_from_deg: Vec::new(),
+            description: "My words.".to_owned(),
+            fee: "no".to_owned(),
+            guest_guidelines: Some(false),
+            no_flight_time: String::new(),
+            website: "https://example.org/mine".to_owned(),
+            ..site_draft_moved(was.clone(), place)
+        };
+        // The base says something in the fields the pilot emptied.
+        let mut said = base.clone();
+        said.no_flight_time = Some("in winter".to_owned());
+        let all = site_draft_rebased(said, mine, theirs).unwrap();
+        let sentences: Vec<&str> = all
+            .clashes_in_words
+            .iter()
+            .map(|clash| clash.words.as_str())
+            .collect();
+        assert_eq!(
+            sentences,
+            [
+                "Name: you entered \u{201c}Mine\u{201d}, it now stands at \u{201c}Theirs\u{201d}. Yours is kept.",
+                "Place: you moved it, and someone else moved it too, to 110 m from where you put it. Yours is kept.",
+                "Used for: you entered Training slope, it now stands at Take-off and landing. Yours is kept.",
+                "Height: you entered 1840 m, it now stands at 1850 m. Yours is kept.",
+                "Wind directions: you entered none, it now stands at N to NE. Yours is kept.",
+                "Description: you rewrote it, and someone else did too. Yours is kept.",
+                "Fee: you entered \u{201c}no\u{201d}, it now stands at \u{201c}yes\u{201d}. Yours is kept.",
+                "Rules for guests: you entered no, it now stands at yes. Yours is kept.",
+                "Not to be used: you entered none, it now stands at \u{201c}01.04-30.09\u{201d}. Yours is kept.",
+                "Web page: you entered https://example.org/mine, it now stands at https://example.org/theirs. Yours is kept.",
+            ]
+        );
+        let fields: Vec<SiteField> = all.clashes_in_words.iter().map(|c| c.field).collect();
+        assert_eq!(fields, all.clashes);
+
         // Two sites are not carried onto each other.
         let mut other = now;
         other.id = "venti:0000000000000000000000s003".to_owned();
@@ -2418,8 +2613,9 @@ mod tests {
             "Someone else changed this site while you were editing it. Look at how it stands now, then make your change again."
         );
         assert!(refused(410, "site_gone").starts_with("This site was removed."));
-        assert!(
-            refused(403, "sites_closed").starts_with("This server takes no sites from pilots.")
+        assert_eq!(
+            refused(403, "sites_closed"),
+            "This server takes no places from pilots yet. A site of another source is corrected at its source."
         );
         assert_eq!(
             refused(403, "publishing_suspended"),
@@ -2443,7 +2639,7 @@ mod tests {
         // Without the other site's name the words still say what to do.
         assert_eq!(
             refused(409, "site_too_close"),
-            "A site that pilots added stands at this place already. If it is the same place, correct that one."
+            "A site stands at this place already. If it is the same place, correct that one."
         );
 
         // The example of the server's documentation names the other site.
@@ -2452,9 +2648,24 @@ mod tests {
         assert_eq!(other.name, "Musterkogel West");
         assert_eq!(other.words, "Open Musterkogel West");
         assert!(other.id.starts_with("venti:"));
+        // It is a partner's site: whoever it stands in the way of is
+        // told so, and is not told to correct what they may not.
         assert_eq!(
             words(site_written(409, too_close.clone())),
-            "A site that pilots added stands at this place already: Musterkogel West. If it is the same place, correct that one."
+            "A site that a partner of Venti added stands at this place already: Musterkogel West. No second site is put on top of it. If it is the same place and something about it is wrong, open it and report it; a partner corrects it."
+        );
+        // A place from pilots in the way is corrected instead.
+        let by_pilots = String::from_utf8(too_close.clone())
+            .unwrap()
+            .replace("venti:", "venti-pilots:")
+            .replace("Musterkogel West", "Beispieljoch");
+        assert_eq!(
+            words(site_written(409, by_pilots.clone().into_bytes())),
+            "A place from pilots stands here already: Beispieljoch. If it is the same place, correct that one."
+        );
+        assert_eq!(
+            site_in_the_way(409, by_pilots.into_bytes()).unwrap().words,
+            "Open Beispieljoch"
         );
         assert_eq!(site_page(200, too_close.clone()).ok(), None);
         assert_eq!(site_in_the_way(200, too_close), None);

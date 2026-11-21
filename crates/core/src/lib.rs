@@ -95,10 +95,10 @@ pub use site_edit::*;
 pub use site_filter::*;
 pub use site_offers::{
     SiteAdding, SiteConfirmDay, SiteConfirmFlight, SiteConfirmForm, SiteConfirmationLine,
-    SiteConfirmations, SiteOffer, SiteOffers, SiteRemovedLine, SiteWords, SitesRemoved,
-    site_confirm_form, site_confirmations, site_confirmations_path, site_confirmed,
-    site_removed_line, site_withdraw_request, site_withdrawn, site_words, sites_removed,
-    sites_removed_path,
+    SiteConfirmations, SiteCorrecting, SiteHistoryOffers, SiteOffer, SiteOffers, SiteRemovedLine,
+    SiteWords, SitesRemoved, site_confirm_form, site_confirmations, site_confirmations_of,
+    site_confirmations_path, site_confirmed, site_correcting, site_withdraw_request,
+    site_withdrawn, site_words, sites_removed_path,
 };
 pub use sites::*;
 pub use station_air::*;

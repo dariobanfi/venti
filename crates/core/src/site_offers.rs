@@ -26,7 +26,15 @@
 //!   is a place to take off from (a take-off, a winch site or a training
 //!   slope) and not for a landing: the sentence is "I took off here".
 //!
-//! A shell asks [`Core::site_offers`] and [`Core::site_adding`] and shows
+//! - A site that is removed offers its history, and to bring it back to
+//!   whoever may correct a site of its tier. A site that whoever runs
+//!   Venti took down is brought back by nobody.
+//! - What a history offers follows the same rule: whoever may correct the
+//!   site puts a revision back, undoes the last change and brings a
+//!   removed site back; signed in, a pilot reports a revision.
+//!
+//! A shell asks [`Core::site_offers`], [`Core::site_adding`],
+//! [`site_correcting`] and [`Core::site_history_offers`] and shows
 //! what is offered. The server still decides: what is offered here can
 //! be refused there, and the readers say so in words.
 
@@ -40,12 +48,13 @@ use venti_domain::GeoPoint;
 
 use crate::account::json_request;
 use crate::server::code;
-use crate::site_edit::{invalid, is_own_layer, made_here, quoted, read, site_form, site_refusal};
-use crate::sites::{FROM_PILOTS_LABEL, author, author_in_words, confirmed_in_words, site_view};
-use crate::{
-    Core, CoreError, ServerRequest, SiteAuthor, SiteHistory, SiteKind, SiteRevisionWas, SiteView,
-    SiteWritten,
+use crate::site_edit::{
+    day_in_words, invalid, is_own_layer, made_here, quoted, read, site_form, site_refusal,
 };
+use crate::sites::{
+    FROM_PILOTS_LABEL, author, author_in_words, confirmed_in_words, site_view, takes_off_here,
+};
+use crate::{Core, CoreError, ServerRequest, SiteAuthor, SiteHistory, SiteView, SiteWritten};
 
 // --- Who asks -----------------------------------------------------------------
 
@@ -116,6 +125,68 @@ pub struct SiteOffers {
     /// that you took off here and to report it." Empty when nothing is
     /// held back that words would help with.
     pub note: String,
+    /// For a removed site, in a view from its history
+    /// ([`crate::SiteByPilots::is_removed`]): the words of the entry that
+    /// brings it back, "Bring this site back", when this pilot may. The
+    /// revision to bring back is the history's
+    /// ([`SiteHistory::bring_back_revision`]). Empty for a site that
+    /// stands, and when this pilot may not.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub bring_back_words: String,
+}
+
+/// What a shell may offer in a site's history to whoever is signed in on
+/// this device: the one answer of [`Core::site_history_offers`]. Which
+/// revision each is about is the history's to say
+/// ([`crate::SiteRevisionView::can_be_put_back`],
+/// [`SiteHistory::undo_revision`], [`SiteHistory::bring_back_revision`]):
+/// a shell shows an entry where the history has one and this says it is
+/// offered.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct SiteHistoryOffers {
+    /// To put the site back to a revision: "Put back". On a row a shell
+    /// shows the row's own words
+    /// ([`crate::SiteRevisionView::put_back_words`]) where the revision
+    /// can be put back.
+    pub put_back: SiteOffer,
+    /// To undo the last change: "Undo the last change". Not offered when
+    /// the history names no revision for it.
+    pub undo: SiteOffer,
+    /// To bring a removed site back: "Bring this site back". Not offered
+    /// for a site that stands.
+    pub bring_back: SiteOffer,
+    /// To report one revision: "Report this revision".
+    pub report_revision: SiteOffer,
+    /// Why something is not offered, in a line to show over the history:
+    /// "Sign in to put a revision back or to report one." Empty when
+    /// nothing is held back that words would help with.
+    pub note: String,
+}
+
+/// What the form says when it corrects a given site: the one answer of
+/// [`site_correcting`]. The words follow the site's tier, whoever
+/// corrects it: a partner who corrects a place from pilots gives to that
+/// tier.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct SiteCorrecting {
+    /// Whether the site is of the partners' tier.
+    pub as_partner: bool,
+    /// The form's title: "Correct this site".
+    pub title: String,
+    /// What giving means, in the tier's own sentence:
+    /// [`crate::SiteForm`]'s `giving` for a place from pilots,
+    /// `giving_as_partner` for a partner's site.
+    pub giving: String,
+    /// What is said wherever a site of the tier is shown, and on its
+    /// form: the site's own [`crate::SiteByPilots::note`].
+    pub note: String,
+    /// The button that sends it: "Save for everyone".
+    pub send_words: String,
 }
 
 /// Whether a shell may offer to add a site, and what the entry and its
@@ -124,7 +195,9 @@ pub struct SiteOffers {
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SiteAdding {
-    /// Whether the shell shows the entry.
+    /// Whether this pilot may add a site now. The entry is shown
+    /// whenever `entry_words` is not empty: that is so when `may_add`,
+    /// and for someone who has to sign in first (`leads_to_sign_in`).
     pub may_add: bool,
     /// Whether the site goes to the partners' tier: the account is a
     /// partner of Venti. `false` for the crowdsourced tier, and when
@@ -135,8 +208,11 @@ pub struct SiteAdding {
     /// not choose: the server decides by the account.
     pub layer: String,
     /// The entry's words: "Add a place pilots take off from" for the
-    /// crowdsourced tier, "Add a site" for a partner. Empty when nothing
-    /// may be added.
+    /// crowdsourced tier, "Add a site" for a partner, and for someone who
+    /// is not signed in on a server that takes places from pilots "Sign
+    /// in to add a place pilots take off from." (`leads_to_sign_in`).
+    /// Empty when there is no entry to show: the server takes none, or
+    /// the account may not publish.
     pub entry_words: String,
     /// The form's title: "A place pilots take off from", "Add a site".
     pub title: String,
@@ -150,8 +226,17 @@ pub struct SiteAdding {
     /// everyone".
     pub send_words: String,
     /// Why nothing may be added, in a line: "Sign in to add a place
-    /// pilots take off from." Empty when `may_add`.
+    /// pilots take off from." Empty when `may_add`. Where the entry leads
+    /// to signing in it is the entry's own sentence: a shell shows the
+    /// entry and not this line beside it.
     pub why_not: String,
+    /// Whether the entry leads to signing in and not to the form: nobody
+    /// is signed in, or the session has ended, on a server that takes
+    /// places from pilots. `may_add` is `false` then, and the form's
+    /// words are empty.
+    #[uniffi(default = false)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub leads_to_sign_in: bool,
 }
 
 fn offer(is_offered: bool, words: &str) -> SiteOffer {
@@ -188,6 +273,7 @@ pub(crate) fn offers(
             note: "This site is its source's record: it is corrected at its source, and \
                    nothing is added to it here."
                 .to_owned(),
+            bring_back_words: String::new(),
         };
     };
     let (signed_in, partner, suspended, handle) = match actor {
@@ -198,15 +284,44 @@ pub(crate) fn offers(
         } => (true, *partner, *suspended, Some(handle.as_str())),
         Actor::SignedOut | Actor::SessionEnded => (false, false, false, None),
     };
-    let may_write =
-        signed_in && !suspended && (partner || (by.from_pilots && takes_sites_from_pilots));
-    let takes_off_here = site.uses.iter().any(|kind| {
-        matches!(
-            kind,
-            SiteKind::Takeoff | SiteKind::Towing | SiteKind::Training
-        )
-    });
-    let may_confirm = signed_in && !suspended && takes_sites_from_pilots && takes_off_here;
+    let may_write = may_write(actor, by.from_pilots, takes_sites_from_pilots);
+    if by.is_removed || by.is_of_history {
+        // A view from the site's history: the site as it stood, or a
+        // site that is gone. Nothing is written to it from here.
+        let nothing = || offer(false, "");
+        let bring_back = by.is_removed && may_write;
+        return SiteOffers {
+            correct: nothing(),
+            remove: nothing(),
+            confirm: nothing(),
+            withdraw: nothing(),
+            report: nothing(),
+            history: offer(true, &words.history),
+            has_confirmed: false,
+            confirmed_words: String::new(),
+            note: if by.is_removed {
+                let mut note = "This site was removed: it is on no map.".to_owned();
+                let why = history_note(actor, by.from_pilots, takes_sites_from_pilots, true);
+                if !why.is_empty() {
+                    note.push(' ');
+                    note.push_str(&why);
+                }
+                note
+            } else {
+                format!(
+                    "This is the site as revision {} of its history said it.",
+                    by.revision
+                )
+            },
+            bring_back_words: if bring_back {
+                words.bring_back
+            } else {
+                String::new()
+            },
+        };
+    }
+    let may_confirm =
+        signed_in && !suspended && takes_sites_from_pilots && takes_off_here(&site.uses);
     let mine = handle.and_then(|handle| {
         confirmations
             .filter(|list| list.site_id == site.id)?
@@ -217,11 +332,7 @@ pub(crate) fn offers(
     let note = match actor {
         Actor::SignedOut => words.signed_out,
         Actor::SessionEnded => words.signed_in_again,
-        Actor::Pilot { .. } if suspended => {
-            "This account was stopped from publishing on Venti: it changes and confirms no \
-             site."
-                .to_owned()
-        }
+        Actor::Pilot { .. } if suspended => STOPPED.to_owned(),
         Actor::Pilot { .. } => match (by.from_pilots, partner, takes_sites_from_pilots) {
             (false, false, true) => "A partner of Venti added this site, and only Venti's \
                                      partners change it. If something about it is wrong, \
@@ -258,7 +369,132 @@ pub(crate) fn offers(
             format!("You confirmed this site for {}.", line.day_in_words)
         }),
         note,
+        bring_back_words: String::new(),
     }
+}
+
+/// Whether whoever asks may correct, remove, put back and bring back a
+/// site of a tier: the one statement of that rule in the core.
+fn may_write(actor: &Actor, from_pilots: bool, takes_sites_from_pilots: bool) -> bool {
+    match actor {
+        Actor::Pilot {
+            partner, suspended, ..
+        } => !suspended && (*partner || (from_pilots && takes_sites_from_pilots)),
+        Actor::SignedOut | Actor::SessionEnded => false,
+    }
+}
+
+const STOPPED: &str =
+    "This account was stopped from publishing on Venti: it changes and confirms no site.";
+
+/// Why a history does not offer to put back or to bring back, in a line.
+/// Empty when it does.
+fn history_note(
+    actor: &Actor,
+    from_pilots: bool,
+    takes_sites_from_pilots: bool,
+    is_removed: bool,
+) -> String {
+    match actor {
+        Actor::SignedOut if is_removed => "Sign in to bring this site back.".to_owned(),
+        Actor::SessionEnded if is_removed => "Sign in again to bring this site back.".to_owned(),
+        Actor::SignedOut => "Sign in to put a revision back or to report one.".to_owned(),
+        Actor::SessionEnded => "Sign in again to put a revision back or to report one.".to_owned(),
+        Actor::Pilot {
+            suspended: true, ..
+        } => STOPPED.to_owned(),
+        Actor::Pilot { partner: true, .. } => String::new(),
+        Actor::Pilot { .. } => match (from_pilots, takes_sites_from_pilots, is_removed) {
+            (true, true, _) => String::new(),
+            (true, false, _) => "This server takes no changes from pilots yet.".to_owned(),
+            (false, _, true) => "A partner of Venti added this site, and only Venti's \
+                                 partners bring it back."
+                .to_owned(),
+            (false, _, false) => "A partner of Venti added this site, and only Venti's \
+                                  partners change it. If something about it is wrong, report \
+                                  it."
+            .to_owned(),
+        },
+    }
+}
+
+/// The rules of the module's head, for a site's history.
+pub(crate) fn history_offers(
+    history: &SiteHistory,
+    actor: &Actor,
+    takes_sites_from_pilots: bool,
+) -> SiteHistoryOffers {
+    let words = site_words();
+    let tier = history
+        .site_id
+        .parse::<venti_domain::SiteId>()
+        .ok()
+        .map(|id| id.source().as_str().to_owned())
+        .filter(|source| is_own_layer(source));
+    let Some(tier) = tier else {
+        // A source's site has no history here.
+        let nothing = || offer(false, "");
+        return SiteHistoryOffers {
+            put_back: nothing(),
+            undo: nothing(),
+            bring_back: nothing(),
+            report_revision: nothing(),
+            note: String::new(),
+        };
+    };
+    let from_pilots = tier == VENTI_PILOTS_SITES_SOURCE;
+    let may_write = may_write(actor, from_pilots, takes_sites_from_pilots);
+    let signed_in = matches!(actor, Actor::Pilot { .. });
+    SiteHistoryOffers {
+        put_back: offer(may_write, &words.put_back),
+        undo: offer(
+            may_write && history.undo_revision.is_some(),
+            "Undo the last change",
+        ),
+        bring_back: offer(
+            may_write && history.bring_back_revision.is_some(),
+            &words.bring_back,
+        ),
+        report_revision: offer(signed_in, &words.report_revision),
+        note: history_note(
+            actor,
+            from_pilots,
+            takes_sites_from_pilots,
+            history.is_removed,
+        ),
+    }
+}
+
+/// What the form says when it corrects a site: by the site's tier.
+///
+/// # Errors
+///
+/// For a site of a source, which is corrected at its source: as
+/// [`crate::site_draft_of`].
+#[uniffi::export]
+pub fn site_correcting(site: SiteView) -> Result<SiteCorrecting, CoreError> {
+    let Some(by) = site
+        .by_pilots
+        .as_ref()
+        .filter(|_| is_own_layer(&site.source))
+    else {
+        return Err(invalid(
+            "This site is its source's record and is corrected at its source. Only a site \
+             that a partner or pilots added on Venti is corrected here.",
+        ));
+    };
+    let form = site_form();
+    Ok(SiteCorrecting {
+        as_partner: !by.from_pilots,
+        title: form.title_correct,
+        giving: if by.from_pilots {
+            form.giving
+        } else {
+            form.giving_as_partner
+        },
+        note: by.note.clone(),
+        send_words: form.send_correction,
+    })
 }
 
 /// The rules of the module's head, for a new site.
@@ -274,6 +510,13 @@ pub(crate) fn adding(actor: &Actor, takes_sites_from_pilots: bool) -> SiteAdding
         note: String::new(),
         send_words: String::new(),
         why_not: why.to_owned(),
+        leads_to_sign_in: false,
+    };
+    // Someone who has to sign in first: the sentence is the entry.
+    let sign_in = |words: &str| SiteAdding {
+        entry_words: words.to_owned(),
+        leads_to_sign_in: true,
+        ..no(words)
     };
     const CLOSED: &str = "This server takes no places from pilots yet.";
     match actor {
@@ -290,6 +533,7 @@ pub(crate) fn adding(actor: &Actor, takes_sites_from_pilots: bool) -> SiteAdding
             note: form.note_as_partner,
             send_words: form.send_new,
             why_not: String::new(),
+            leads_to_sign_in: false,
         },
         Actor::Pilot { .. } if takes_sites_from_pilots => SiteAdding {
             may_add: true,
@@ -301,10 +545,11 @@ pub(crate) fn adding(actor: &Actor, takes_sites_from_pilots: bool) -> SiteAdding
             note: form.note,
             send_words: "Add as a place from pilots".to_owned(),
             why_not: String::new(),
+            leads_to_sign_in: false,
         },
         _ if !takes_sites_from_pilots => no(CLOSED),
-        Actor::SessionEnded => no("Sign in again to add a place pilots take off from."),
-        _ => no("Sign in to add a place pilots take off from."),
+        Actor::SessionEnded => sign_in("Sign in again to add a place pilots take off from."),
+        _ => sign_in("Sign in to add a place pilots take off from."),
     }
 }
 
@@ -338,9 +583,51 @@ impl Core {
     }
 
     /// Whether a shell may offer to add a site, into which tier it would
-    /// go, and what the entry and the form say for that tier.
+    /// go, and what the entry and the form say for that tier. A shell
+    /// shows the entry whenever its words are not empty, and opens the
+    /// account in place of the form where it leads to signing in.
     pub fn site_adding(&self, takes_sites_from_pilots: bool) -> Result<SiteAdding, CoreError> {
         Ok(adding(&self.site_actor()?, takes_sites_from_pilots))
+    }
+
+    /// What a shell may offer in a site's history to whoever is signed
+    /// in on this device: to put a revision back, to undo the last
+    /// change, to bring a removed site back and to report a revision.
+    /// `history` is a page of it as [`crate::site_history`] read it; the
+    /// tier is read from the site's identifier, so a history reached by
+    /// identifier alone is answered too.
+    pub fn site_history_offers(
+        &self,
+        history: SiteHistory,
+        takes_sites_from_pilots: bool,
+    ) -> Result<SiteHistoryOffers, CoreError> {
+        Ok(history_offers(
+            &history,
+            &self.site_actor()?,
+            takes_sites_from_pilots,
+        ))
+    }
+
+    /// Reads the server's answer to [`sites_removed_path`]: the sites of
+    /// a tier that are removed, each in a line with who removed it and
+    /// when, and whether whoever is signed in on this device may bring
+    /// it back. One answer names them all: no request per site.
+    ///
+    /// # Errors
+    ///
+    /// The server's refusal in words.
+    pub fn sites_removed(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+        takes_sites_from_pilots: bool,
+    ) -> Result<SitesRemoved, CoreError> {
+        let response: SiteChangesResponse = read(status, &body)?;
+        Ok(removed(
+            &response,
+            &self.site_actor()?,
+            takes_sites_from_pilots,
+        ))
     }
 
     /// The pilot's own flights to name with a confirmation of a site for
@@ -716,6 +1003,11 @@ pub struct SiteConfirmations {
     /// Whether `lines` holds every confirmation: `false` when more
     /// pilots confirmed the site than one answer lists.
     pub is_whole: bool,
+    /// What to say under the lines when they are not all: "The 100
+    /// newest are shown." Empty when `is_whole`.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub not_whole_words: String,
 }
 
 /// The path to `GET` for what pilots confirm of a site that a partner or
@@ -725,7 +1017,31 @@ pub fn site_confirmations_path(id: String) -> Result<String, CoreError> {
     Ok(api::site_confirmations_path(&made_here(&id)?))
 }
 
-/// Reads the server's answer to [`site_confirmations_path`].
+/// Reads the server's answer to [`site_confirmations_path`] for the
+/// site's page: as [`site_confirmations`], and by what the site is used
+/// for. For a site nobody takes off at (a landing), of which the
+/// sentence is not offered, `nobody_words` is empty: its page does not
+/// say that no pilot took off there.
+///
+/// # Errors
+///
+/// As [`site_confirmations`].
+#[uniffi::export]
+pub fn site_confirmations_of(
+    site: SiteView,
+    status: u16,
+    body: Vec<u8>,
+) -> Result<SiteConfirmations, CoreError> {
+    let mut list = site_confirmations(status, body)?;
+    if !takes_off_here(&site.uses) {
+        list.nobody_words.clear();
+    }
+    Ok(list)
+}
+
+/// Reads the server's answer to [`site_confirmations_path`], without
+/// the site: `nobody_words` is then said whatever the site is used for.
+/// A site's page reads it with [`site_confirmations_of`].
 ///
 /// # Errors
 ///
@@ -769,6 +1085,11 @@ pub fn site_confirmations(status: u16, body: Vec<u8>) -> Result<SiteConfirmation
             String::new()
         },
         is_whole: listed >= response.confirmed.pilots,
+        not_whole_words: match listed {
+            _ if listed >= response.confirmed.pilots => String::new(),
+            1 => "The newest is shown.".to_owned(),
+            listed => format!("The {listed} newest are shown."),
+        },
         lines,
     })
 }
@@ -894,11 +1215,8 @@ pub fn site_words() -> SiteWords {
         report_revision: text("Report this revision"),
         show_now: text("Show how it stands now"),
         from_pilots_label: text(FROM_PILOTS_LABEL),
-        pilots_layer: text("Places from pilots"),
-        pilots_layer_about: text(
-            "Places pilots say they take off from. Not official and not checked by anyone: a \
-             place on the map is not permission to fly there.",
-        ),
+        pilots_layer: text(crate::site_filter::PILOTS_LAYER),
+        pilots_layer_about: text(crate::site_filter::PILOTS_LAYER_ABOUT),
         confirm: text("I took off here and it was good"),
         confirm_again: text("Change the day"),
         withdraw: text("Take my confirmation back"),
@@ -910,23 +1228,27 @@ pub fn site_words() -> SiteWords {
 
 // --- Sites that were removed ----------------------------------------------------
 
-/// One page of the sites of a tier that are removed, by identifier.
+/// One page of the sites of a tier that are removed.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SitesRemoved {
-    /// The identifiers of sites this page says are removed. The server
-    /// names no more of them: a shell reads each one's history
-    /// ([`crate::site_history_path`]) and asks [`site_removed_line`] for
-    /// its name, who removed it and when.
+    /// The identifiers of sites this page says are removed.
     pub ids: Vec<String>,
     /// What to pass as `since` for the next page.
     pub cursor: String,
     /// Whether more is waiting: ask again with `cursor`.
     pub more: bool,
     /// Whether the server started again from the beginning: a shell
-    /// forgets the identifiers of the pages before.
+    /// forgets the identifiers and the lines of the pages before.
     pub reset: bool,
+    /// The same sites as lines of "Removed lately", in the server's
+    /// order: each with its name, who removed it and when. A server from
+    /// before 2026-11-21 names none, and `lines` is then empty beside
+    /// `ids`.
+    #[uniffi(default = [])]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub lines: Vec<SiteRemovedLine>,
 }
 
 /// The path to `GET` for what happened to the sites of a tier, to find
@@ -959,67 +1281,100 @@ pub fn sites_removed_path(from_pilots: bool, since: Option<String>) -> Result<St
     Ok(path)
 }
 
-/// Reads the server's answer to [`sites_removed_path`].
-#[uniffi::export]
-pub fn sites_removed(status: u16, body: Vec<u8>) -> Result<SitesRemoved, CoreError> {
-    let response: SiteChangesResponse = read(status, &body)?;
-    Ok(SitesRemoved {
-        ids: response.removed.iter().map(ToString::to_string).collect(),
-        cursor: response.cursor,
-        more: response.more,
-        reset: response.reset,
-    })
-}
-
 /// A removed site in a line of "Removed lately".
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SiteRemovedLine {
-    /// The site, to open its history with.
+    /// The site, to open its history with ([`crate::site_history_path`]).
     pub id: String,
-    /// Its name as it stood, or what it was: "Take-off".
+    /// Its name as it last stood. "A site that was taken down" for one
+    /// that whoever runs Venti took down, which shows nothing of what it
+    /// said.
     pub name: String,
     /// Who removed it. Absent for whoever runs Venti, and once the
     /// pilot's account is gone.
     pub by: Option<SiteAuthor>,
     /// When, seconds since 1970-01-01 UTC.
     pub at_unix_s: i64,
-    /// The line: "Beispieljoch: Removed by Jonas Beispiel (@jonas) on 21
-    /// Nov 2026".
+    /// The line: "Beispieljoch: removed by Jonas Beispiel (@jonas) on 21
+    /// Nov 2026". The day is the day in UTC.
     pub words: String,
-    /// The revision that brings it back as it stood, for
-    /// [`crate::site_restore_request`].
-    pub bring_back_revision: Option<u32>,
+    /// Whether the site is of the crowdsourced tier.
+    pub from_pilots: bool,
+    /// Whether whoever is signed in on this device may bring it back:
+    /// they may correct a site of its tier, and it was not taken down.
+    /// The revision to bring back is its history's
+    /// ([`SiteHistory::bring_back_revision`]), which a shell reads when
+    /// the pilot asks for it: one request, for the one site.
+    pub may_bring_back: bool,
+    /// The words of that entry: "Bring this site back". Empty when
+    /// `may_bring_back` is not.
+    pub bring_back_words: String,
 }
 
-/// A removed site as a line, from the page of its history that holds the
-/// revision that removed it: the last page. `None` for a site that
-/// stands, and for a page without that revision.
-#[uniffi::export]
-pub fn site_removed_line(history: SiteHistory) -> Option<SiteRemovedLine> {
-    if !history.is_removed {
-        return None;
-    }
-    let removal = history
-        .revisions
+/// The removed sites of an answer, as lines, for whoever asks.
+fn removed(
+    response: &SiteChangesResponse,
+    actor: &Actor,
+    takes_sites_from_pilots: bool,
+) -> SitesRemoved {
+    let bring_back = site_words().bring_back;
+    let lines = response
+        .removals
         .iter()
-        .find(|one| one.is_current && one.was == SiteRevisionWas::Removed)?;
-    Some(SiteRemovedLine {
-        id: history.site_id,
-        name: removal.site.name.clone(),
-        by: removal.by.clone(),
-        at_unix_s: removal.at_unix_s,
-        words: format!("{}: {}", removal.site.name, removal.words),
-        bring_back_revision: history.bring_back_revision,
-    })
+        .map(|removal| {
+            let by = removal.by.as_ref().map(author);
+            let on = day_in_words(removal.at);
+            let from_pilots = removal.id.source().as_str() == VENTI_PILOTS_SITES_SOURCE;
+            // A pilot's text from a server: one line of it.
+            let name = removal
+                .name
+                .as_deref()
+                .map(|name| name.chars().filter(|c| !c.is_control()).collect::<String>())
+                .map(|name| name.trim().to_owned())
+                .filter(|name| !name.is_empty());
+            let words = match (&name, &by) {
+                (Some(name), Some(by)) => {
+                    format!("{name}: removed by {} on {on}", author_in_words(by))
+                }
+                // The answer does not tell whoever runs Venti from a
+                // pilot whose account is gone: the history does.
+                (Some(name), None) => format!("{name}: removed on {on}"),
+                (None, _) => format!("A site that whoever runs Venti took down on {on}"),
+            };
+            let may_bring_back =
+                name.is_some() && may_write(actor, from_pilots, takes_sites_from_pilots);
+            SiteRemovedLine {
+                id: removal.id.to_string(),
+                name: name.unwrap_or_else(|| "A site that was taken down".to_owned()),
+                by,
+                at_unix_s: removal.at.timestamp(),
+                words,
+                from_pilots,
+                may_bring_back,
+                bring_back_words: if may_bring_back {
+                    bring_back.clone()
+                } else {
+                    String::new()
+                },
+            }
+        })
+        .collect();
+    SitesRemoved {
+        ids: response.removed.iter().map(ToString::to_string).collect(),
+        cursor: response.cursor.clone(),
+        more: response.more,
+        reset: response.reset,
+        lines,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::testing::TempFolder;
-    use crate::{Coordinate, site_history, site_page};
+    use crate::{Coordinate, SiteKind, site_history, site_page};
 
     fn golden(name: &str) -> Vec<u8> {
         let path = format!(
@@ -1213,29 +1568,273 @@ mod tests {
             closed.why_not,
             "This server takes no places from pilots yet."
         );
+        assert!(!closed.leads_to_sign_in && !anyone.leads_to_sign_in);
+        assert!(!partner.leads_to_sign_in);
+
+        // Signed out where the server takes places from pilots: the
+        // entry is there for the three apps alike, says what it leads
+        // to, and leads to signing in. Nothing of the form is given.
+        let out = adding(&Actor::SignedOut, true);
+        assert!(!out.may_add && out.leads_to_sign_in);
         assert_eq!(
-            adding(&Actor::SignedOut, true).why_not,
+            out.entry_words,
             "Sign in to add a place pilots take off from."
         );
-        assert_eq!(adding(&Actor::SignedOut, false).why_not, closed.why_not);
+        assert_eq!(out.why_not, out.entry_words);
+        assert!(out.layer.is_empty() && out.title.is_empty() && out.send_words.is_empty());
+        let ended = adding(&Actor::SessionEnded, true);
+        assert!(!ended.may_add && ended.leads_to_sign_in);
+        assert_eq!(
+            ended.entry_words,
+            "Sign in again to add a place pilots take off from."
+        );
+        assert_eq!(ended.why_not, ended.entry_words);
+        // A server that takes none has no entry, whoever asks.
+        for actor in [Actor::SignedOut, Actor::SessionEnded] {
+            let none = adding(&actor, false);
+            assert_eq!(none.why_not, closed.why_not);
+            assert!(none.entry_words.is_empty() && !none.leads_to_sign_in);
+        }
+        let stopped = Actor::Pilot {
+            handle: "demo".to_owned(),
+            partner: true,
+            suspended: true,
+        };
+        let stopped = adding(&stopped, true);
+        assert!(!stopped.may_add && !stopped.leads_to_sign_in);
+        assert!(stopped.entry_words.is_empty());
+    }
+
+    #[test]
+    fn a_correction_takes_its_words_from_the_sites_tier() {
+        let form = site_form();
+        let pilots = site_correcting(pilots_site()).unwrap();
+        assert!(!pilots.as_partner);
+        assert_eq!(pilots.title, "Correct this site");
+        assert_eq!(pilots.giving, form.giving);
+        assert!(pilots.giving.contains("the places from pilots"));
+        assert_eq!(pilots.note, form.note);
+        assert_eq!(pilots.send_words, "Save for everyone");
+
+        let partners = site_correcting(partners_site()).unwrap();
+        assert!(partners.as_partner);
+        assert_eq!(partners.title, "Correct this site");
+        assert_eq!(partners.giving, form.giving_as_partner);
+        assert_eq!(partners.note, form.note_as_partner);
+        assert_eq!(partners.send_words, "Save for everyone");
+
+        // A source's site is corrected at its source.
+        let osm = site_page(200, golden("site_of_a_source.json"))
+            .unwrap()
+            .site;
+        assert!(words(site_correcting(osm)).contains("corrected at its source"));
+    }
+
+    /// The history of the made-up crowdsourced site, as it stands and as
+    /// it would read had its last revision removed it.
+    fn histories() -> (SiteHistory, SiteHistory) {
+        let stands = site_history(200, golden("site_history.json")).unwrap();
+        let text = String::from_utf8(golden("site_history.json")).unwrap();
+        let mut history: serde_json::Value = serde_json::from_str(&text).unwrap();
+        history["removed"] = true.into();
+        let last = history["revisions"].as_array().unwrap().len() - 1;
+        history["revisions"][last]["kind"] = "removed".into();
+        history["revisions"][last]
+            .as_object_mut()
+            .unwrap()
+            .remove("restores");
+        let removed = site_history(200, history.to_string().into_bytes()).unwrap();
+        (stands, removed)
+    }
+
+    #[test]
+    fn a_revisions_site_knows_its_tier_and_a_removed_site_offers_its_history_and_its_return() {
+        let (stands, removed) = histories();
+        assert!(!stands.is_removed && removed.is_removed);
+
+        // Every revision's site says its tier, and that it is a view of
+        // the history: no draft is made of it, and nothing is said of
+        // who added the site or confirmed it.
+        for (history, gone) in [(&stands, false), (&removed, true)] {
+            for revision in &history.revisions {
+                let by = revision.site.by_pilots.as_ref().expect("the tier");
+                assert!(by.from_pilots && by.is_of_history);
+                assert_eq!(by.is_removed, gone);
+                assert_eq!(by.label, "From pilots");
+                assert_eq!(by.note, site_form().note);
+                assert_eq!(by.revision, revision.number);
+                assert_eq!(by.changed_unix_s, revision.at_unix_s);
+                assert_eq!(by.changed_by, revision.by);
+                assert_eq!(
+                    (by.added_in_words.as_str(), by.changed_in_words.as_str()),
+                    ("", "")
+                );
+                assert!(by.added_by.is_none() && by.confirmed_in_words.is_empty());
+                assert!(
+                    words(crate::site_draft_of(revision.site.clone()))
+                        .starts_with("This is the site as its history shows it.")
+                );
+            }
+        }
+
+        // A removed site, reached through its history alone: only the
+        // history and bringing it back, for whoever may correct it.
+        let gone = removed.revisions.last().unwrap().site.clone();
+        let someone = pilot("someone", false);
+        let asked = offers(&gone, &someone, true, None);
+        assert_eq!(offered(&asked), "H");
+        assert_eq!(asked.bring_back_words, "Bring this site back");
+        assert_eq!(asked.note, "This site was removed: it is on no map.");
+        let out = offers(&gone, &Actor::SignedOut, true, None);
+        assert_eq!(offered(&out), "H");
+        assert_eq!(out.bring_back_words, "");
+        assert_eq!(
+            out.note,
+            "This site was removed: it is on no map. Sign in to bring this site back."
+        );
+        let closed = offers(&gone, &someone, false, None);
+        assert_eq!(closed.bring_back_words, "");
         assert!(
-            adding(&Actor::SessionEnded, true)
-                .why_not
-                .starts_with("Sign in again")
+            closed
+                .note
+                .ends_with("This server takes no changes from pilots yet.")
+        );
+        assert_eq!(
+            offers(&gone, &pilot("demo", true), false, None).bring_back_words,
+            "Bring this site back"
+        );
+
+        // The site as an earlier revision said it, of a site that
+        // stands: the history, and nothing to write from there.
+        let earlier = stands.revisions[0].site.clone();
+        let asked = offers(&earlier, &someone, true, None);
+        assert_eq!(offered(&asked), "H");
+        assert_eq!(asked.bring_back_words, "");
+        assert_eq!(
+            asked.note,
+            "This is the site as revision 1 of its history said it."
+        );
+
+        // A site that stands never offers to bring it back.
+        assert_eq!(
+            offers(&pilots_site(), &someone, true, None).bring_back_words,
+            ""
+        );
+    }
+
+    /// What a history offers, as letters: Put back, Undo, Bring back,
+    /// Report a revision.
+    fn history_offered(offers: &SiteHistoryOffers) -> String {
+        [
+            (&offers.put_back, 'P'),
+            (&offers.undo, 'U'),
+            (&offers.bring_back, 'B'),
+            (&offers.report_revision, 'R'),
+        ]
+        .into_iter()
+        .filter(|(offer, _)| {
+            assert_eq!(offer.is_offered, !offer.words.is_empty());
+            offer.is_offered
+        })
+        .map(|(_, letter)| letter)
+        .collect()
+    }
+
+    #[test]
+    fn what_a_history_offers_follows_the_tier_the_account_and_the_server() {
+        let (stands, removed) = histories();
+        assert!(stands.undo_revision.is_some() && removed.bring_back_revision.is_some());
+        let partners = SiteHistory {
+            site_id: "venti:0000000000000000000000s001".to_owned(),
+            ..stands.clone()
+        };
+        let partners_removed = SiteHistory {
+            site_id: partners.site_id.clone(),
+            ..removed.clone()
+        };
+        let ask = |history: &SiteHistory, actor: &Actor, takes: bool| {
+            let offers = history_offers(history, actor, takes);
+            (history_offered(&offers), offers.note)
+        };
+        let (someone, demo) = (pilot("someone", false), pilot("demo", true));
+
+        // A pilot in the history of a place from pilots.
+        let (letters, note) = ask(&stands, &someone, true);
+        assert_eq!((letters.as_str(), note.as_str()), ("PUR", ""));
+        let all = history_offers(&stands, &someone, true);
+        assert_eq!(all.put_back.words, "Put back");
+        assert_eq!(all.undo.words, "Undo the last change");
+        assert_eq!(all.report_revision.words, "Report this revision");
+        let (letters, note) = ask(&removed, &someone, true);
+        assert_eq!((letters.as_str(), note.as_str()), ("PBR", ""));
+        assert_eq!(
+            history_offers(&removed, &someone, true).bring_back.words,
+            "Bring this site back"
+        );
+        // Where the server takes nothing from pilots: reporting only.
+        let (letters, note) = ask(&stands, &someone, false);
+        assert_eq!(letters, "R");
+        assert_eq!(note, "This server takes no changes from pilots yet.");
+
+        // A pilot in the history of a partner's site: reads and reports.
+        let (letters, note) = ask(&partners, &someone, true);
+        assert_eq!(letters, "R");
+        assert!(note.contains("only Venti's partners change it"), "{note}");
+        let (letters, note) = ask(&partners_removed, &someone, true);
+        assert_eq!(letters, "R");
+        assert_eq!(
+            note,
+            "A partner of Venti added this site, and only Venti's partners bring it back."
+        );
+
+        // A partner: both tiers, whatever the setting.
+        for takes in [true, false] {
+            assert_eq!(
+                ask(&partners, &demo, takes),
+                ("PUR".to_owned(), String::new())
+            );
+            assert_eq!(
+                ask(&removed, &demo, takes),
+                ("PBR".to_owned(), String::new())
+            );
+        }
+
+        // Signed out, a session that ended, a suspended account.
+        let (letters, note) = ask(&stands, &Actor::SignedOut, true);
+        assert_eq!(letters, "");
+        assert_eq!(note, "Sign in to put a revision back or to report one.");
+        assert_eq!(
+            ask(&removed, &Actor::SessionEnded, true).1,
+            "Sign in again to bring this site back."
         );
         let stopped = Actor::Pilot {
             handle: "demo".to_owned(),
             partner: true,
             suspended: true,
         };
-        assert!(!adding(&stopped, true).may_add);
+        let (letters, note) = ask(&removed, &stopped, true);
+        assert_eq!(letters, "R");
+        assert!(note.contains("stopped from publishing"));
+
+        // A source's site has no history here: nothing, and no words.
+        let source = SiteHistory {
+            site_id: "osm-free-flying:way/1".to_owned(),
+            ..stands
+        };
+        assert_eq!(ask(&source, &demo, true), (String::new(), String::new()));
     }
 
     #[test]
     fn the_core_asks_the_stored_account() {
         let folder = TempFolder::new();
         let core = Core::new(folder.path().to_str().unwrap().to_owned()).unwrap();
-        assert!(!core.site_adding(true).unwrap().may_add);
+        let signed_out = core.site_adding(true).unwrap();
+        assert!(!signed_out.may_add && signed_out.leads_to_sign_in);
+        let (stands, _) = histories();
+        assert_eq!(
+            history_offered(&core.site_history_offers(stands, true).unwrap()),
+            ""
+        );
         assert_eq!(
             offered(&core.site_offers(pilots_site(), true, None).unwrap()),
             "H"
@@ -1251,6 +1850,11 @@ mod tests {
         assert_eq!(
             offered(&core.site_offers(partners_site(), true, None).unwrap()),
             "CRFPH"
+        );
+        let (_, removed) = histories();
+        assert_eq!(
+            history_offered(&core.site_history_offers(removed, false).unwrap()),
+            "PBR"
         );
     }
 
@@ -1425,7 +2029,20 @@ mod tests {
             list.lines[0].words,
             "@mara on Sat 14 Nov 2026, with a flight: \u{201c}light north wind,easy\u{201d}"
         );
+        // More confirmed than the answer lists: a line says so.
         assert!(!list.is_whole);
+        assert_eq!(list.not_whole_words, "The newest is shown.");
+        let mut many: serde_json::Value = serde_json::from_slice(with_flight).unwrap();
+        let one = many["confirmations"][0].clone();
+        many["confirmations"] = vec![one; 100].into();
+        many["confirmed"]["pilots"] = 250.into();
+        let list = site_confirmations(200, many.to_string().into_bytes()).unwrap();
+        assert!(!list.is_whole);
+        assert_eq!(list.not_whole_words, "The 100 newest are shown.");
+        many["confirmed"]["pilots"] = 100.into();
+        let list = site_confirmations(200, many.to_string().into_bytes()).unwrap();
+        assert!(list.is_whole);
+        assert_eq!(list.not_whole_words, "");
 
         let nobody = br#"{"id": "venti:0000000000000000000000s003",
             "confirmed": {"pilots": 0}, "confirmations": []}"#;
@@ -1436,6 +2053,41 @@ mod tests {
             "No pilot has said yet that they took off here."
         );
         assert!(list.is_whole);
+        assert_eq!(list.not_whole_words, "");
+
+        // Read for the site's page: said of a place to take off from,
+        // and not of a landing, where nobody is asked to say so.
+        let takeoff = pilots_site();
+        assert_eq!(
+            site_confirmations_of(takeoff.clone(), 200, nobody.to_vec())
+                .unwrap()
+                .nobody_words,
+            "No pilot has said yet that they took off here."
+        );
+        for uses in [vec![SiteKind::Landing], vec![SiteKind::Other], Vec::new()] {
+            let landing = SiteView {
+                uses,
+                ..takeoff.clone()
+            };
+            let list = site_confirmations_of(landing, 200, nobody.to_vec()).unwrap();
+            assert_eq!(list.nobody_words, "");
+            assert_eq!((list.pilots, list.is_whole), (0, true));
+        }
+        let both = SiteView {
+            uses: vec![SiteKind::Landing, SiteKind::Training],
+            ..takeoff.clone()
+        };
+        assert!(
+            !site_confirmations_of(both, 200, nobody.to_vec())
+                .unwrap()
+                .nobody_words
+                .is_empty()
+        );
+        // The lines and the count are the same either way.
+        assert_eq!(
+            site_confirmations_of(takeoff, 200, golden("site_confirmations.json")).unwrap(),
+            site_confirmations(200, golden("site_confirmations.json")).unwrap()
+        );
 
         assert_eq!(
             site_confirmations_path("venti-pilots:0000000000000000000000s002".to_owned()).unwrap(),
@@ -1533,7 +2185,7 @@ mod tests {
     }
 
     #[test]
-    fn removed_sites_are_named_from_the_changes_and_their_histories() {
+    fn removed_sites_are_lines_from_one_answer_with_who_may_bring_each_back() {
         assert_eq!(
             sites_removed_path(false, None).unwrap(),
             "/v1/sites/changes?layer=venti"
@@ -1544,41 +2196,102 @@ mod tests {
         );
         assert!(sites_removed_path(true, Some("1&layer=x".to_owned())).is_err());
 
-        let page = sites_removed(200, golden("site_changes.json")).unwrap();
+        let read = |body: &[u8], actor: &Actor, takes: bool| {
+            removed(&serde_json::from_slice(body).unwrap(), actor, takes)
+        };
+        let someone = pilot("someone", false);
+        let page = read(&golden("site_changes.json"), &someone, true);
         assert!(!page.cursor.is_empty());
-        let gone = br#"{"sites": [], "removed": ["venti-pilots:0000000000000000000000s004"],
+        assert!(page.ids.is_empty() && page.lines.is_empty());
+
+        // A place a pilot removed, one whose remover's account is gone,
+        // and one that whoever runs Venti took down, which has no name.
+        let gone = br#"{"sites": [],
+            "removed": ["venti-pilots:0000000000000000000000s004",
+                        "venti-pilots:0000000000000000000000s005",
+                        "venti-pilots:0000000000000000000000s006"],
+            "removals": [
+              {"id": "venti-pilots:0000000000000000000000s004", "name": "Beispieljoch",
+               "at": "2026-11-21T08:30:00Z",
+               "by": {"handle": "jonas", "display_name": "Jonas Beispiel"}},
+              {"id": "venti-pilots:0000000000000000000000s005", "name": " Muster\tkopf ",
+               "at": "2026-11-20T23:59:59Z"},
+              {"id": "venti-pilots:0000000000000000000000s006", "at": "2026-11-19T12:00:00Z"}],
             "cursor": "9", "more": false, "reset": false, "attributions": []}"#;
-        let page = sites_removed(200, gone.to_vec()).unwrap();
-        assert_eq!(page.ids, ["venti-pilots:0000000000000000000000s004"]);
+        let page = read(gone, &someone, true);
+        assert_eq!(page.ids.len(), 3);
         assert_eq!(
             (page.cursor.as_str(), page.more, page.reset),
             ("9", false, false)
         );
-
-        // A history of a site that stands is no removed site.
+        let said: Vec<&str> = page.lines.iter().map(|line| line.words.as_str()).collect();
         assert_eq!(
-            site_removed_line(site_history(200, golden("site_history.json")).unwrap()),
-            None
+            said,
+            [
+                "Beispieljoch: removed by Jonas Beispiel (@jonas) on 21 Nov 2026",
+                "Musterkopf: removed on 20 Nov 2026",
+                "A site that whoever runs Venti took down on 19 Nov 2026"
+            ]
         );
-        // One that ends with its removal is.
-        let text = String::from_utf8(golden("site_history.json")).unwrap();
-        let mut history: serde_json::Value = serde_json::from_str(&text).unwrap();
-        history["removed"] = true.into();
-        let last = history["revisions"].as_array().unwrap().len() - 1;
-        history["revisions"][last]["kind"] = "removed".into();
-        history["revisions"][last]
-            .as_object_mut()
+        let first = &page.lines[0];
+        assert_eq!(first.id, "venti-pilots:0000000000000000000000s004");
+        assert_eq!(first.name, "Beispieljoch");
+        assert_eq!(first.by.as_ref().unwrap().handle, "jonas");
+        assert_eq!(first.at_unix_s, 1_795_249_800);
+        assert!(first.from_pilots);
+        assert_eq!(page.lines[1].name, "Musterkopf");
+        assert_eq!(page.lines[2].name, "A site that was taken down");
+        // Who may bring each back: whoever may correct a place of the
+        // tier, and nobody a site that was taken down.
+        let may = |page: &SitesRemoved| -> Vec<bool> {
+            page.lines
+                .iter()
+                .map(|line| {
+                    assert_eq!(
+                        line.bring_back_words,
+                        if line.may_bring_back {
+                            "Bring this site back"
+                        } else {
+                            ""
+                        }
+                    );
+                    line.may_bring_back
+                })
+                .collect()
+        };
+        assert_eq!(may(&page), [true, true, false]);
+        assert_eq!(may(&read(gone, &someone, false)), [false, false, false]);
+        assert_eq!(may(&read(gone, &Actor::SignedOut, true)), [false; 3]);
+        assert_eq!(
+            may(&read(gone, &pilot("demo", true), false)),
+            [true, true, false]
+        );
+
+        // A partner's site that was removed: a partner brings it back.
+        let partners = String::from_utf8(gone.to_vec())
             .unwrap()
-            .remove("restores");
-        let read = site_history(200, history.to_string().into_bytes()).unwrap();
-        let line = site_removed_line(read.clone()).unwrap();
-        assert_eq!(line.id, read.site_id);
-        assert_eq!(line.name, "Beispieljoch");
-        assert_eq!(line.bring_back_revision, Some(read.revision - 1));
-        assert!(
-            line.words.starts_with("Beispieljoch: Removed by "),
-            "{}",
-            line.words
+            .replace("venti-pilots:", "venti:");
+        let page = read(partners.as_bytes(), &someone, true);
+        assert!(!page.lines[0].from_pilots);
+        assert_eq!(may(&page), [false; 3]);
+        assert_eq!(
+            may(&read(partners.as_bytes(), &pilot("demo", true), true)),
+            [true, true, false]
         );
+
+        // A server from before it named them: the identifiers alone.
+        let unnamed = br#"{"sites": [], "removed": ["venti-pilots:0000000000000000000000s004"],
+            "cursor": "9", "more": false, "reset": false, "attributions": []}"#;
+        let page = read(unnamed, &someone, true);
+        assert_eq!(page.ids, ["venti-pilots:0000000000000000000000s004"]);
+        assert!(page.lines.is_empty());
+
+        // The core reads it for the account this device stores.
+        let folder = TempFolder::new();
+        let core = Core::new(folder.path().to_str().unwrap().to_owned()).unwrap();
+        let page = core.sites_removed(200, gone.to_vec(), true).unwrap();
+        assert_eq!(may(&page), [false; 3]);
+        let (status, body) = refused(404, "not_found");
+        assert!(core.sites_removed(status, body, true).is_err());
     }
 }

@@ -258,6 +258,26 @@ pub struct SiteByPilots {
     #[uniffi(default = "")]
     #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
     pub label: String,
+    /// Whether the site is removed: `true` only in a view from the
+    /// history of a removed site ([`crate::SiteRevisionView::site`]). A
+    /// removed site is in no map and has no page of its own;
+    /// [`crate::Core::site_offers`] then offers its history and to bring
+    /// it back, and nothing else.
+    #[uniffi(default = false)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub is_removed: bool,
+    /// Whether this is the site as a revision of its history said it
+    /// ([`crate::SiteRevisionView::site`]) and not as its own address
+    /// answers it. Such a view knows its tier (`from_pilots`, `label`,
+    /// `note`), the revision's number (`revision`) and who made that
+    /// revision and when (`changed_by`, `changed_unix_s`); who added the
+    /// site and who confirmed it are not known there, and the lines about
+    /// them are empty. [`crate::Core::site_offers`] offers only the
+    /// history for it: what a history offers is
+    /// [`crate::Core::site_history_offers`]'s to say.
+    #[uniffi(default = false)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub is_of_history: bool,
 }
 
 /// One flying site as a map and a sheet show it. A shell hands it back to
@@ -345,6 +365,15 @@ pub struct SiteView {
     #[uniffi(default = None)]
     #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
     pub by_pilots: Option<SiteByPilots>,
+    /// What stands over `description` on the site's page, by whose words
+    /// it is: "What its source says" for a site of a source the server
+    /// collects, "What the partner wrote" for a partner's site and "What
+    /// pilots wrote" for a place from pilots, which any pilot may have
+    /// rewritten. Empty when the site has no description, and in a
+    /// record a shell builds without it.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub description_title: String,
 }
 
 /// The sites in a part of the map. A shell hands it back for Today's
@@ -426,7 +455,7 @@ fn sites_of(asked: &BoundingBox, response: &SitesResponse) -> SitesMap {
                 })
             })
             .collect(),
-        credits: response.attributions.iter().map(credit).collect(),
+        credits: response.attributions.iter().map(site_credit).collect(),
         as_of_unix_s: response
             .layers
             .iter()
@@ -577,6 +606,95 @@ pub(crate) const FROM_PILOTS_LABEL: &str = "From pilots";
 /// The tier of a partner's site, by its name.
 pub(crate) const BY_PARTNER_LABEL: &str = "From a partner";
 
+/// The credit of a layer of sites. For one of Venti's own two layers it
+/// carries no `notice`: what the server says there is the tier's notice,
+/// which every site of the layer has in [`SiteByPilots::note`], in the
+/// core's words, and a page that shows the site and its credit would say
+/// it twice. A source's credit keeps the notice its licence asks for.
+pub(crate) fn site_credit(attribution: &venti_api_types::v1::Attribution) -> Credit {
+    let mut credit = credit(attribution);
+    if crate::site_edit::is_own_layer(&credit.source) {
+        credit.notice = None;
+    }
+    credit
+}
+
+/// What stands over a site's description, by whose words it is. Empty
+/// for a site without one.
+fn description_title(site: &Site) -> &'static str {
+    if site.description.is_none() {
+        return "";
+    }
+    match site.id.source().as_str() {
+        VENTI_PILOTS_SITES_SOURCE => "What pilots wrote",
+        venti_api_types::v1::VENTI_SITES_SOURCE => "What the partner wrote",
+        _ => "What its source says",
+    }
+}
+
+/// Whether pilots take off at a site: a take-off, a winch site or a
+/// training slope, and not a landing alone. "I took off here and it was
+/// good" is said of such a site only.
+pub(crate) fn takes_off_here(uses: &[SiteKind]) -> bool {
+    uses.iter().any(|kind| {
+        matches!(
+            kind,
+            SiteKind::Takeoff | SiteKind::Towing | SiteKind::Training
+        )
+    })
+}
+
+/// The tier of a site of Venti's own, for the view of a revision in its
+/// history, which the server sends without where the site stands: what
+/// the identifier and the revision say, and nothing made up beside it.
+/// `None` for a site of a source.
+pub(crate) fn by_pilots_in_history(
+    id: &SiteId,
+    number: u32,
+    at_unix_s: i64,
+    by: Option<SiteAuthor>,
+    is_removed: bool,
+) -> Option<SiteByPilots> {
+    let source = id.source();
+    if !crate::site_edit::is_own_layer(source.as_str()) {
+        return None;
+    }
+    let from_pilots = source.as_str() == VENTI_PILOTS_SITES_SOURCE;
+    Some(SiteByPilots {
+        revision: number,
+        added_unix_s: at_unix_s,
+        added_by: None,
+        changed_unix_s: at_unix_s,
+        changed_by: by,
+        note: tier_note(from_pilots).to_owned(),
+        added_in_words: String::new(),
+        changed_in_words: String::new(),
+        from_pilots,
+        confirmed_pilots: 0,
+        confirmed_latest_day: None,
+        confirmed_in_words: String::new(),
+        label: tier_label(from_pilots).to_owned(),
+        is_removed,
+        is_of_history: true,
+    })
+}
+
+fn tier_note(from_pilots: bool) -> &'static str {
+    if from_pilots {
+        FROM_PILOTS_NOTE
+    } else {
+        BY_PILOTS_NOTE
+    }
+}
+
+fn tier_label(from_pilots: bool) -> &'static str {
+    if from_pilots {
+        FROM_PILOTS_LABEL
+    } else {
+        BY_PARTNER_LABEL
+    }
+}
+
 /// "3 pilots took off here, last on 14 November 2026"; empty while nobody
 /// confirmed the site.
 pub(crate) fn confirmed_in_words(confirmed: &SiteConfirmed) -> String {
@@ -615,19 +733,11 @@ fn by_pilots(standing: &SiteStanding) -> SiteByPilots {
         revision: standing.revision,
         added_unix_s: standing.created_at.timestamp(),
         changed_unix_s: standing.changed_at.timestamp(),
-        note: if from_pilots {
-            FROM_PILOTS_NOTE
-        } else {
-            BY_PILOTS_NOTE
-        }
-        .to_owned(),
+        note: tier_note(from_pilots).to_owned(),
         from_pilots,
-        label: if from_pilots {
-            FROM_PILOTS_LABEL
-        } else {
-            BY_PARTNER_LABEL
-        }
-        .to_owned(),
+        label: tier_label(from_pilots).to_owned(),
+        is_removed: false,
+        is_of_history: false,
         confirmed_pilots: standing.confirmed.pilots,
         confirmed_latest_day: standing
             .confirmed
@@ -657,7 +767,8 @@ fn by_pilots(standing: &SiteStanding) -> SiteByPilots {
 /// it: for keeping a site of Venti's own layer with who made it. `None`
 /// for a view of a source's site, and for one whose identifier is none.
 pub(crate) fn standing_of(view: &SiteView) -> Option<SiteStanding> {
-    let by = view.by_pilots.as_ref()?;
+    // A view from a history does not know where the site stands.
+    let by = view.by_pilots.as_ref().filter(|by| !by.is_of_history)?;
     let id: SiteId = view.id.parse().ok()?;
     let pilot = |author: &Option<SiteAuthor>| {
         let author = author.as_ref()?;
@@ -749,6 +860,7 @@ pub(crate) fn site_view(site: &Site, standing: Option<&SiteStanding>) -> SiteVie
             })
             .collect(),
         by_pilots: standing.map(by_pilots),
+        description_title: description_title(site).to_owned(),
     }
 }
 
@@ -1209,6 +1321,9 @@ mod tests {
         // Anything else a mapper wrote about a fee is shown as written.
         let own = site_view(&record(r#","fee":"donation""#), None);
         assert_eq!(own.fee_in_words, "Fee: donation");
+        assert_eq!(own.description_title, "");
+        let told = site_view(&record(r#","description":"A grass slope.""#), None);
+        assert_eq!(told.description_title, "What its source says");
         assert_eq!(own.guests_in_words, "");
     }
 
@@ -1350,7 +1465,44 @@ mod tests {
             found.site.as_ref().map(|site| site.id.as_str()),
             Some(site.id.as_str())
         );
-        assert_eq!(found.credit.unwrap().source, "venti-pilots");
+        // The layer's credit names the licence and leaves the tier's
+        // notice to the site, which says it in `by_pilots.note`.
+        let credit = found.credit.unwrap();
+        assert_eq!(credit.source, "venti-pilots");
+        assert_eq!((credit.licence.as_str(), credit.notice), ("CC0 1.0", None));
+        let found = found.site.unwrap();
+        assert!(
+            found
+                .by_pilots
+                .unwrap()
+                .note
+                .starts_with("Added by pilots on Venti")
+        );
+        assert_eq!(found.description_title, "What pilots wrote");
+        // A source's description is its source's, and its credit keeps
+        // the notice its licence asks for.
+        let osm = sites_map(47.25, 10.85, 47.32, 10.95, 200, golden("sites_venti.json")).unwrap();
+        let described = osm
+            .sites
+            .iter()
+            .find(|site| site.by_pilots.is_none() && site.description.is_some());
+        if let Some(described) = described {
+            assert_eq!(described.description_title, "What its source says");
+        }
+        let osm_credit = osm
+            .credits
+            .iter()
+            .find(|credit| credit.source == "osm-free-flying")
+            .unwrap();
+        assert!(
+            osm_credit
+                .notice
+                .as_ref()
+                .unwrap()
+                .contains("OpenStreetMap")
+        );
+        let venti_credit = osm.credits.iter().find(|c| c.source == "venti").unwrap();
+        assert_eq!(venti_credit.notice, None);
     }
 
     #[test]
@@ -1368,6 +1520,11 @@ mod tests {
         assert_eq!(licences, ["ODbL 1.0", "CC0 1.0"]);
         // A source's site says nothing of the kind.
         assert_eq!(map.sites[0].by_pilots, None);
+        // A description is headed by whose words it is, and a site
+        // without one has no heading.
+        assert_eq!(map.sites[0].description_title, "");
+        assert_eq!(map.sites[1].description_title, "What the partner wrote");
+        assert_eq!(map.sites[2].description_title, "");
 
         let site = &map.sites[1];
         assert_eq!(site.name, "Musterberg Ost");

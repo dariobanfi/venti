@@ -1,0 +1,344 @@
+# Conditions, forecast and planning: parity with Burnair
+
+Last revised: 2026-11-21
+
+Burnair is the owner's yardstick for conditions, forecast and planning on the map, as XCTrack is for the cockpit ([xctrack-parity.md](xctrack-parity.md)). The owner said on 2026-11-21: "The app is still quite far away from features available on burnair.cloud." This document lists what Burnair offers a pilot, what Venti has of each today, and what closing each gap takes under Venti's rules. It is a list of what a pilot can do there. Nothing of Burnair's data, texts, pictures or methods is used or to be used: Venti offers the same from open data by its own means.
+
+## Evidence
+
+Everything below was read on 2026-11-21.
+
+| Tag | Source | How it was read |
+|---|---|---|
+| **tiers** | Burnair's table of functions by subscription, [burnair.ch/abouebersicht](https://www.burnair.ch/abouebersicht/) | In a browser. The ticks are pictures; they were read from the page's table, cell by cell |
+| **weather** | [burnair.ch, Wetter Prognosen](https://www.burnair.ch/portfolio-item/wetter-prognosen/). The page says the forecasts were built anew at the end of September 2026 | In a browser, the page's text |
+| **thermal** | [burnair.ch, Thermik Prognosen](https://www.burnair.ch/portfolio-item/thermik-prognosen/). Undated; its paragraph on coverage speaks of 2024 | In a browser, the page's text |
+| **help** | Single articles of [help.burnair.cloud](https://help.burnair.cloud/hc/de), each named with the date it was last changed | In a browser, the article's text |
+| **store** | Apple's App Store, Swiss store: [burnair Map](https://apps.apple.com/ch/app/burnair-map/id1495320175) (version 3.3.140 of 14 Nov) and [burnair Go](https://apps.apple.com/ch/app/burnair-go/id1666354109) (2.2.60 of 21 Aug). The store prints no year for this year's dates; both listings say © 2026 | In a browser: the description and the newest version's notes. Older versions' notes through the fetch tool below |
+| **page** | Burnair's other product pages on burnair.ch: [burnair Map](https://www.burnair.ch/portfolio-item/burnair-map/), [Startplatz-Prognosen](https://www.burnair.ch/portfolio-item/startplatz-prognosen/), [Live Wetter](https://www.burnair.ch/portfolio-item/live-wetter/), [Live Tracking](https://www.burnair.ch/portfolio-item/live-tracking/), [XC Planung](https://www.burnair.ch/portfolio-item/xc-planung/), [Hike & Fly](https://www.burnair.ch/portfolio-item/hike-and-fly/), [Fluggebietsinformationen](https://www.burnair.ch/portfolio-item/fluggebietsinformationen/), [burnair Go](https://www.burnair.ch/portfolio-item/burnair-go-app/), [Paracaching](https://www.burnair.ch/portfolio-item/paracaching-wettkaempfe-aber-fuer-alle/), [events](https://www.burnair.ch/portfolio-item/events-mit-der-burnair-map/), [clubs](https://www.burnair.ch/burnair-map-fuer-clubs-vereine/), [flight schools](https://www.burnair.ch/burnair-map-fuer-partner-flugschulen/) | Through a tool that fetches a page and hands back a summary of it. These were not read word by word: **a figure from them is to verify on the page before anything is built on it.** The Go page was also searched for single words in a browser |
+| **news** | [burnair.ch/aktuelles](https://www.burnair.ch/aktuelles/) and its posts, from 2019-12-12 to 2025-08-25, named here by their date | Through the same tool. A post shows no date on its page; the date is the one in its address |
+| **glimpse** | The first screen of the web app, as it stood behind its terms dialog | Seen once and not operated; see below |
+| **review** | lu-glidz, a pilot's blog, 2022 and 2024, as [data-sources.md](data-sources.md#forecasts) cites it | Not Burnair's own. Used for one thing: which colour means which kind of day |
+
+### The app itself was not looked at
+
+The brief for this document asked for the public web app to be looked at as a visitor would. That did not happen, and the reason is Burnair's own rule.
+
+- `burnair.cloud` leads to `map.burnair.cloud`, which opens with a dialog of terms of use for the map, before anything can be touched. One of its sentences: "Automated access or storage of our data is not permitted." It has two buttons. Declining sends the visitor to burnair.ch; there is no use of the map without accepting. It was declined: a session does not accept terms for anybody.
+- Burnair's help centre says the same at length in two articles ([scraping](https://help.burnair.cloud/hc/de/articles/360019932598), [scripts and assistants](https://help.burnair.cloud/hc/de/articles/40749679600285-Darf-ich-meine-Flugvorbereitung-mit-einem-Skript-oder-KI-Assistenten-automatisieren)). On 2026-11-21 both said they had been changed three days earlier, so about 2026-11-18. By them no script, no browser automation, no automatic screenshot and no AI assistant or agent that operates or reads the map is allowed, also not for one pilot privately on their own subscription and also not once a day; the endpoints the map itself uses are named too. The reasons given: open access led to competing projects and to data being sold on, and the live and flight data are the pilots'. Burnair offers no interface for reading forecasts, site information, live positions or flights, and sells or licenses none of it to other platforms *(help)*.
+- So nothing below is "seen in the app". It is what Burnair's own pages, help articles and store listings say the app does. Where those are old or disagree, that is said. **The owner, who uses the app, is the one who can check the points marked *to verify in the app*.**
+- What was read for this document: Burnair's product pages, news posts and help articles, which are published to be read and which its `robots.txt` leaves open, and once the one file Burnair gives out under an open licence (below). No part of the map, its data or its endpoints was fetched. Whether Burnair would count the reading of its product pages by a session as automated access is not something its pages say; the owner should know that it was done.
+
+**What stood on the first screen behind the dialog** *(glimpse)*, nothing tapped: the title, burnair Map v3; a map of the Bernese Oberland with take-off signs with wedges, coloured areas and red lines, which fit Burnair's descriptions of take-off directions, advisory zones and cables (inferred); a search field; buttons for live tracking, layers, search, the position, and centring by itself; three buttons for time (what is active now, a date, a date and a time), which fit airspace by its hours of activity (inferred); a menu button carrying the name of the free level; panels named for details, menu and settings, and charts and timeline; a card of news with three entries (the pilot's season as a film with music, a hike-and-fly tour as a video, the take-off as a widget on the home screen); and among the things it loaded one named for today's NOTAM and marked experimental. The map's credits name MapLibre, OpenStreetMap and OpenMapTiles.
+
+**What Burnair does allow others** *(help, the scraping article)*: the whole map embedded in a club's website; screenshots by its rules; positions *sent to* Burnair through an interface, after writing to them first ([article](https://help.burnair.cloud/hc/de/articles/360018620678-How-does-the-burnair-Live-Tracking-API-work), changed 2026-11-18); and the readings of Burnair's own wind stations, a public file under CC BY 4.0 with burnair GmbH as the credit and a note that readings come without warranty ([article](https://help.burnair.cloud/hc/de/articles/40437088593949-Wie-kann-ich-die-Messwerte-der-burnair-Windstationen-in-meine-Website-oder-App-einbinden), changed about 2026-11-06; the article says the release holds for this file alone). The file was fetched once on 2026-11-21 at 09:43 UTC: three stations, all in Switzerland, none in Venti's first region. It lists only stations with a reading in the last hour.
+
+## What Burnair is and who it is for
+
+Burnair GmbH, of Winterthur in Switzerland, calls itself a service for licensed paraglider pilots (the title of burnair.ch). Around the map it also runs courses, trips, a shop, events and an Academy of videos and webinars. The products that matter here:
+
+- **The burnair Map**: a map in the browser at burnair.cloud, and as an app for the iPhone and for Android. Burnair's pages describe it as one product and seldom say where the three differ; a function below is the Map's on all three unless a platform is named. *To verify in the app:* that the apps show what the browser shows. The store's notes speak of a large update with a new map engine in version 3.0 in mid-May (2026 by the store's way of dating) and of a release every few days since October *(store, fetched)*.
+- **burnair Go**: a map for the cockpit, for the iPhone and Android, for subscribers. By its own page it is no vario, does not beep and wants no settings *(page)*.
+- **For others**: FANET ground stations of its own, which also send wind readings to instruments in the air; Skytraxx instruments that show Burnair's data; a programme for clubs and flight schools; live tracking and scoring for hike-and-fly races *(page, help)*.
+
+**Who it is for.** Pilots who prepare a flying day and want local knowledge with the weather: the help article on its ratings says the forecasts are made for occasional pilots and are marked down already at a wind one notices ([help, changed five years ago](https://help.burnair.cloud/hc/de/articles/360017954777-Tages-und-Halbstunden-Bewertung-in-der-Thermikprognose)). Its examples, and every layer that names a country, are Swiss; its forecasts and sites reach over the Alps and, since 2024, to Spain, Italy, France and beyond *(thermal, news 2024-01-01)*.
+
+**What it costs** *(tiers, weather)*. Three levels. **Free**: site information, live wind, today's take-off forecast, airspace, live tracking; some functions need a registration, and the page does not say which. **Basic**, CHF 59 a year: the weather forecasts, take-off forecasts for five days, hike and fly, the valley winds. **Premium**, CHF 129 a year, or 29 for 30 days, or 59 for 90: the thermal forecast, cross-country planning, weather along a route, groups in live tracking, the sounding diagrams. No subscription renews by itself. Registering gives three days of Premium to try *(thermal)*. A fourth level, Pro, is named for partners and professionals only *(page: flight schools)*.
+
+**Where Burnair's own pages disagree or are dated:**
+
+- The news on burnair.ch ends on 2025-08-25 with a post that says news now stands in the app itself *(news)*. What changed since is known here only from the store's version notes and from help articles. The product pages can lag the app.
+- The Free level lists the Go app, but the Go page and the store say Go is for Basic and Premium subscribers, and the table of functions has no tick for Free in any of Go's rows *(tiers, page, store)*.
+- The Go page says connecting a vario is not part of its strategy, and lists a side view of airspace as a wish. The store's notes say version 2.1 (May to July) connects to an XC Tracer and 2.2.60 (21 Aug) has the side view *(page, store)*. The page is the older.
+- The Go page says the app will have no competition functions and, further down, describes tasks for hike-and-fly races on Android *(page)*.
+- The thermal forecast's page names ICON-EU alone as its area; a post of 2024-01-01 says ICON-D2 for the first 48 hours and ICON-EU for days two to four, with the Regtherm model *(thermal, news)*.
+- Thousands of wind stations on the live weather page, more than 15,000 in a post of 2024-05-30 *(page, news)*.
+- Prices: CHF 59 and 129 on burnair.ch; as purchases inside the apps CHF 69 and 149 in the Map's listing and 60 and 140 in Go's *(tiers; store, fetched)*.
+- Two posts of October 2024 (wind at 1,000 and 2,500 m, forecasts for all of Europe) describe the weather forecasts before they were rebuilt in September 2026 *(news, weather)*.
+
+## How to read the tables
+
+- **Tier**: F is free, B from Basic, P Premium only, by the table of functions *(tiers)* unless another source is named.
+- **Ours**: **Has**, **Part** (with what is missing) or **Lacks**, by Venti's own documents: [plan.md](plan.md), [design.md](design.md), [data-sources.md](data-sources.md), [architecture.md](architecture.md), [api.md](api.md).
+
+One thing holds for every "Has": Burnair is a running service with pilots on it. Venti's server runs on no public machine yet, most of what is built was seen in tests and on simulators, and almost none of it has flown ([plan.md](plan.md#roadmap)). "Has" means built and tested, not in a pilot's hands.
+
+## Weather forecast on the map
+
+Burnair's weather forecasts are a set of map layers under a time line, rebuilt at the end of September 2026 *(weather)*. This is the largest single thing Venti does not have.
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| Wind as a layer over the map at eight heights: 10 m and 250 m above the ground, and 1,000, 1,500, 2,000, 2,500, 3,000 and 4,000 m above the sea. A coloured field for the strength and arrows for the direction, the figures beside the arrows when zoomed in, one height at a time, terrain higher than the chosen height greyed out *(weather)* | B | **Lacks.** No forecast is drawn as a field on any map; the kind for it (`FieldSource`) is designed and not built ([data-sources.md](data-sources.md#what-is-built)). Venti has these winds for one place at a time, as a table ([design.md](design.md#map)), at the model's own levels: 10 m, 80, 120 and 180 m above the ground and five pressure surfaces. The server fetches them every run for a grid of 1,817 cells and serves only the judged day ([architecture.md](architecture.md#the-thermal-map)) |
+| Gusts at 10 m as the rim of each arrow, on a scale of their own, and a field of warning signs where gusts pass a limit *(weather)* | B | **Lacks** as a layer. Gusts are in the table and in the rule for a flyable hour |
+| Streamlines for every height, fading where the model's resolution ends *(weather)* | B | **Lacks** |
+| Cloud in three layers and rain in mm an hour, as one layer; the terrain that lies inside cloud hatched, with the base or the top written on the map *(weather)* | B | **Lacks** as a layer. The table has cloud base, cloud, rain, temperature and the 0 °C level for a place |
+| A time line: yesterday, today and four days; the map changes without steps while it is dragged (blended between the model's hours, which the page says adds no information); play; a jump to the present hour; the model and its run written under it; a mark where a coarser model takes over *(weather)* | B | **Lacks.** The forecast layer has a choice of day and no hours. A day names its model and run, and one day is never two models ([design.md](design.md#thermals)) |
+| Models: ICON-D2 (2 km), then ICON-EU (7 km); switched by hand to MeteoSwiss's ICON-CH1 (1 km) and ICON-CH2 (2 km) for the Alps *(weather)* | B | **Part.** ICON-D2 and ICON-EU, chosen under the table. ICON-CH is noted as a possible second model, licence to verify, for the owner to decide ([data-sources.md](data-sources.md#forecasts)) |
+| Five days: today and four more; rain from three-hour means after about three days *(weather)* | B | **Part.** Three days at most, and the third only where ICON-EU's run reaches ([data-sources.md](data-sources.md#what-a-series-holds)) |
+| The forecast of a past day, from a calendar; every day kept with all layers since 2026-09-28 *(weather)* | B | **Lacks.** A forecast is kept for half an hour; the map keeps its judged hours from yesterday on |
+| The wind at the middle of the map on the buttons for all eight heights at once *(weather)* | B | **Part**, another way: on the iPhone and Android a long press anywhere opens the table for that place. The web has no such way to a place that is neither a site, a station nor a square of the forecast layer ([design.md](design.md#web)) |
+| A forecast of pressure differences, for foehn *(tiers; [help](https://help.burnair.cloud/hc/de/articles/24999498147485), changed 2025-02-10)*. What it shows was not described on a page that was read: *to verify in the app* | B | **Lacks** |
+
+## The forecast for a take-off
+
+Burnair calls it the 4D take-off forecast: a picture of time against height for one place *(page, news 2024-04-09, 2024-07-09)*.
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| For each take-off: wind arrows at the heights through the day, coloured by strength; cloud by layer with its cover; rain; a line at the take-off's height and one at the cloud base; the height of the model's ground *(page)* | F for today, B for five days | **Has.** The forecast table of a place, and on a take-off's page "the air through the day": a column to where thermals end, cloud on it, wind arrows at the model's levels, the take-off's height as a line and the model's ground as a band ([design.md](design.md#thermals)). Three days, not five |
+| The strongest wind and gust in the cells around the place, 3 by 3 and 7 by 7 of the model's cells, as the rim of each arrow, with a button to look at the place alone *(page, news 2024-04-09)* | F for today | **Lacks.** One cell of the model, named with its centre and ground |
+| The same picture for any place: a long press, or a right click at a desk, and a marker that can be dragged *(help, [changed 2026-10-01](https://help.burnair.cloud/hc/de/articles/20347225002397-Was-ist-der-Unterschied-zwischen-Startplatzfinger-und-Previtempfinger))* | B | **Part.** A long press anywhere on the map, on the iPhone and Android. On the web the forecast opens from a site, a station or a square of the forecast layer, not from any place |
+| The same with the layering of the air drawn behind it, the change of temperature for every hundred metres, to find inversions and compare two valleys (Burnair's *Previtemp*) *(help, same article)* | P | **Lacks.** The core works out how high thermals reach from the temperatures at the model's levels and does not draw them; the levels are far apart ([design.md](design.md#thermals)) |
+| A word on whether the take-off can be flown: the map's page says so, the forecast's page describes colours of wind and no verdict *(page)*. *To verify in the app* | | **Has**, and more: flyable, marginal or not flyable by fixed, published limits, with the reason and the hours, on Today and on a take-off's page ([design.md](design.md#flyable-marginal-not-flyable)) |
+| Finding a take-off: a filter by wind direction, height, weather situation, kind of flying and season *(page)*; take-offs marked as favourites come first in the search *([help](https://help.burnair.cloud/hc/de/articles/8941140379037), changed 2025-04-04)* | B | **Part.** Today orders the take-offs within 30 km by what the forecast says of them; a site can be kept as a waypoint; the lists of sites and stations are searched by name. No filter, and the pilot's own list of take-offs is "later" ([design.md](design.md#structure)) |
+| The next five days at one take-off as a widget on the phone's home screen: wind up to 1,500 m above it, cloud, weather *(store, 3.3.140)* | B | **Lacks** |
+| Where: wherever ICON-EU reaches *(news 2023-11-17; [help](https://help.burnair.cloud/hc/de/articles/360018676918), changed 2024-10-01)* | | Sites in the first region's box only |
+
+## Thermal forecast and the kind of day
+
+The owner's word: the most useful thing about Burnair ([design.md](design.md#thermals)).
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| 654 named regions at present, each rated for today and four days in five classes: large cross-country flights possible, cross-country, regional thermal flights, a glide down or soaring, not recommended. On the map a region's name with five coloured circles under it, one a day *(thermal)*. Which colour is which class is from a review: blue, green, yellow, grey, red *(review)* | P | **Part.** The "Forecast" layer: a grid of 0.1° squares, 1,817 in the first region, each with one of four kinds of day or "not flyable", for today, tomorrow and, where ICON-EU reaches, the day after. One day at a time, squares and not regions, no names, no five days side by side |
+| The rating half-hour by half-hour as a coloured line through the day: when thermals begin, the best hours, where danger lies *(thermal)* | P | **Part.** For a take-off, each hour's status and the climb to expect as bars (Today). The map's squares have the day only. Hours, not half-hours: the model's step |
+| For a region, the day as a picture: thermal strength in m/s by height and time; cumulus with base, top and cover in eighths; cloud in layers; inversions marked with their lower and upper edge; wind arrows by height and time with temperature and spread; the rim of an arrow is the strongest wind anywhere in the region *(thermal, news 2024-03-12)* | P | **Part.** "The air through the day" for a take-off has the height thermals reach, the climb, cumulus where it caps them and the wind at the model's levels. No inversions, no cloud top, no cloud in layers, nothing of the neighbourhood |
+| Notes in words on what matters for the chosen day and region *(thermal)* | P | **Part.** What speaks against a day ("Rain", "Gusts", "Wind higher up") and the day's line in words, made by fixed rules. The pilot's own assistant can be asked, on the pilot's account |
+| A figure for a region: the distance that might be flown that day. Burnair's own help calls it a much simplified reckoning that is often not reliable *([help](https://help.burnair.cloud/hc/de/articles/21153410206749), changed 2024-08-27)* | P | **Lacks**, and not wanted as it stands |
+| Five days. Made anew several times a day; the help lists three times in the morning for today and five through the day for tomorrow *(thermal; [help](https://help.burnair.cloud/hc/de/articles/360018097418), changed 2024-05-16)* | P | Three days at most; made anew with every run of ICON-D2, eight a day |
+| A widget for the thermal forecast, which opens the map in its region *(store, fetched: versions of 2025-01-18 and 31 Oct)* | P *(inferred)* | **Lacks** |
+| How it is made: from ICON by the Regtherm model and an algorithm of Burnair's own with more than forty parameters; neither is open *(thermal, news 2024-01-01, help)* | | Venti's own estimate from ICON-D2's public fields, written down with its limits and its weaknesses ([design.md](design.md#thermals)). Not yet checked against flown climbs |
+
+## Live weather
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| Live wind stations, thousands in the Alps by its page; arrows whose inside is the mean wind and whose rim is the gust; a reading older than ten minutes greyed, a station silent for an hour hidden *(page)*. Networks its pages name: Holfuy, MeteoSwiss, Austria's weather service, Weather Underground, Windbird, Davis WeatherLink, the Bavarian avalanche service since 2023, after an exchange with that service by the post, Skytraxx stations, Burnair's own *(help, page: clubs, news 2023-11-14)* | F | **Part.** The same picture, with 317 stations of two weather services in the first region (50 of DWD, 267 of GeoSphere Austria). The stations at the take-offs are the ones missing: Holfuy and four avalanche services are "Ask", Tirol's is open after confirmation; South Tyrol, METAR, FANET stations and Pioupiou are open and not built ([data-sources.md](data-sources.md#live-wind-and-weather-stations)) |
+| What stations measured in the past, up to two years back, with a flight's file laid beside it *(page)* | F | **Part.** A station's last 24 hours as a chart. The server keeps thirteen months and answers any seven days of them ([api.md](api.md#get-v1stationsidobservationsfromto)); no app asks for a past day |
+| Webcams, as a tool on the map *(page, tiers)*. How many and whose is not said | F | **Lacks.** Webcams are "link only" in the catalogue and nothing is built ([data-sources.md](data-sources.md#webcams)) |
+| Rain radar: the last twenty minutes in steps of five, a 1 km composite of central Europe named Euradcom *(page)* | B | **Lacks.** DWD's composite and GeoSphere's analysis are "Open"; the kind is designed, not built ([data-sources.md](data-sources.md#radar-and-lightning)) |
+| Pressure differences between pairs of stations as coloured lines, with the last 24 hours on a tap: foehn *(page, news 2019-12-13)* | B | **Lacks.** The stations Venti collects send their pressure |
+| A cloud base worked out from the stations' readings, live *(page)* | P | **Lacks.** The stations send temperature and humidity |
+| The temperature difference between two stations at different heights, live, as a measure of how stable the air is *(page)* | P | **Lacks.** The stations send temperature and Venti knows their heights |
+| A fog map of Switzerland *(tiers)* | F | **Lacks**; Swiss only |
+| A wind alarm: a station, wind directions, least and most mean wind, a gust limit; a push message when it fits. With ready-made examples for soaring and foehn *(news 2024-05-30)* | B | **Lacks.** Alerts are "later" in the plan |
+| Lightning, satellite pictures | | Not found on any of Burnair's pages that were read. *To verify in the app.* Venti has neither; no open lightning feed was found |
+
+## Others in the air
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| The pilot's position from the Map app or Go, with flight and ground told apart by itself; a public name *(page, tiers)*. Since version 3.2.131 the Map app goes on sending after it is closed *(store, fetched)* | F | **Has.** The cockpit sends from take-off, to nobody, to those with a link, or to everyone ([design.md](design.md#live-tracking-in-the-app)) |
+| Positions from the pilot's instrument: FANET or FLARM through ground stations, Flymaster, inReach, SPOT, varios with a SIM card; XCTrack through a group on XContest *(page, tiers, news 2024-03-27, 2024-04-09, 2024-11-19)* | F | **Lacks.** Only pilots who fly with Venti are on its map. The Open Glider Network is "Open" and not built ([data-sources.md](data-sources.md#live-tracking)) |
+| The map kept on one chosen pilot (the magnet function) *(tiers)* | F | **Part.** A glider's page draws its flight so far and keeps it up to date; the map does not follow |
+| How far a pilot on the map can still glide *(tiers, page)* | B | **Lacks** for others. The pilot's own reach over the terrain is in the cockpit |
+| A list of friends; friends' tracks *(tiers)* | B | **Lacks.** No follows yet |
+| An e-mail to a chosen person when the pilot has landed or needs fetching *(page)* | B | **Part.** The link's page says in words whether the pilot is under way, landed or silent, for whoever opens it. Nothing is sent |
+| A public address for one's track *(tiers)* | B | **Has**, free |
+| Live thermals: where others climbed in the last twenty minutes, coloured by climb and sink, with a wind arrow *(page)* | P | **Lacks** |
+| Tracks coloured by climb *(tiers)* | P | **Has**, for the followed glider |
+| Groups, for events, schools and fetching pilots *(page)* | P | **Part.** Groups exist for flying plans; no live track is seen because of a group ([plan.md](plan.md#needed-from-the-owner)) |
+| The tracks of a day *(tiers)* | P | **Lacks.** A live track is removed after 48 hours |
+| A push message when someone flies over a take-off the pilot chose *(news 2024-03-27)* | B | **Lacks** |
+| A photograph posted at one's place on the map, shown for a limited time (*Moments*) *(news 2024-06-20)* | F | **Lacks** |
+| Told by Burnair: it hands no positions or flights to other apps, platforms or authorities, also not with the pilot's consent; it helps rescue services by telephone *([help](https://help.burnair.cloud/hc/de/articles/40749658384541-Gebt-ihr-Live-Tracking-oder-Flugdaten-an-Dritte-weiter), changed 2026-11-18)* | | Burnair's pilots cannot be shown in Venti. Venti's own positions are the pilots' own and are kept apart from any source |
+
+## Places
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| Take-offs and landings, over 5,000 by its page *(page)*. A take-off has wedges for its wind directions, a dot for how hard it is, photographs, and a description: the weather it suits, whether it is for thermals, cross-country or an evening glide. Also winch sites, places to fold and to ground-handle *(page, tiers)* | F | **Part.** 252 take-offs and 142 landings from OpenStreetMap in the first region; a name where the source has one, wind directions for 37 % of the take-offs, a height for 51 of them; marked official or discouraged. Well-known sites are missing ([data-sources.md](data-sources.md#flying-sites)). No photographs, no difficulty, no description |
+| The DHV's site list, brought in regularly; such take-offs cannot be made favourites or have alerts *(page, help, news 2024-03-27)*. On what terms Burnair has the list is not said | F | **Lacks.** The DHV's database is "Ask" |
+| Landing fields drawn as areas, with the pattern to fly for each wind direction; a link to a road map *(page)* | F | **Lacks** the patterns and the areas; a landing is a pin |
+| Places to top-land, the usual ways out of a take-off, parking, the cable car to take, transport to the take-off, the nearest public transport (Switzerland), meeting points *(tiers)* | B | **Lacks.** Cable cars are lines of the base map. A transit router is designed, not built ([architecture.md](architecture.md#transit)) |
+| Where the knowledge comes from: Burnair's own visits and analysis, local pilots, clubs and flight schools who map their area with Burnair and report changes *(page)* | | OpenStreetMap alone. "Site pages anyone can improve" is a line in the plan |
+| Wind stations around a site, and whether their wind fits it: not described on a page that was read. *To verify in the app* | | **Has**: the stations within 15 km of a site, each with whether its wind comes from a direction the site works in |
+| Flights flown from a place: a search of another service's flights from a marker on the map *(page: hike and fly)* | B | **Has**, from Venti's own public flights: "Flown from here" on a take-off's page |
+
+## What is known locally: hazards, valley winds, cables
+
+This is Burnair's own drawing, done with local pilots. No open data holds it.
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| Advisory zones in three kinds (good to know, take care, keep away), and known lee areas *(page)* | F | **Lacks** |
+| Valley winds as arrows, by how strong they get and whether the air rises, sinks or flows level, about 90 % of the Alps' valley winds by Burnair's word; where two meet; local weather explained with pictures *(page)* | B | **Lacks** |
+| Cables: drawn by hand, and the official obstacle data of Switzerland and Austria, renewed daily *(page: Go)* | F | **Lacks.** No obstacle data; the cable cars of the base map only. Tirol's cable data is open after confirmation ([data-sources.md](data-sources.md#obstacles-and-cables)) |
+| On a cross-country route: the crossings that decide it, with the height to leave at and where the sink lies *(page)* | P | **Lacks** |
+
+## Airspace and protected areas
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| Control zones and areas, transponder zones, danger and restricted areas, small airfields and heliports, glider areas, airways *(tiers)* | F | **Has.** openAIP's airspace of the eight countries the first region's box takes in, drawn with name, floor and ceiling, warned about in the cockpit, and checked against a flown track ([airspace.md](airspace.md)) |
+| Airspace by when it is active; the day's notices (NOTAM, marked experimental; Switzerland's daily bulletin) on the map *(page, tiers, glimpse)* | F | **Lacks.** Every airspace counts as active. There is no open feed of activations in Germany or Austria ([data-sources.md](data-sources.md#airspace)) |
+| A marker set anywhere that says which airspace lies over the place (*Luftraumfinger*, beta) *(tiers, page)* | B | **Lacks** on the map: a tap on airspace opens nothing (read in the iPhone's map code, 2026-11-21). The assistant's `airspace_at` and the cockpit's side view answer the question elsewhere |
+| Agreements with single airfields and heliports (Switzerland) *(tiers)* | F | **Lacks** |
+| Areas where wildlife is not to be flown over: Burnair's own zones and agreements, and three kinds of Swiss reserves *(tiers)* | F | **Lacks.** Protected zones are a kind that is designed; the first version is to be curated by hand ([data-sources.md](data-sources.md#protected-zones)) |
+
+## Planning a cross-country flight
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| A planner on the map, in the browser and on a phone: turnpoints, the areas in which a triangle is an FAI triangle, the circles in which it closes, the kind of flight and its points by XContest's rules as one draws *(page)* | P | **Part.** A route is drawn on the map on the iPhone and Android, with each leg's length and what it would score as a free flight or a triangle. Not on the web. The FAI areas are drawn in the cockpit, in flight, not while planning |
+| The height to leave each point at, for a glide ratio the pilot sets; wind and thermals not counted *(page)* | B | **Lacks** while planning. In flight the cockpit says the height of arrival and whether ground is in the way |
+| More than 200 routes prepared with local pilots, each with its thermal sources and heights *(page)*; routes other pilots shared *(store: Go 2.2.60)* | P | **Lacks** |
+| Weather along the route: for a start time and a speed, the wind by height and the cloud at each point when the pilot would be there, five days ahead *(page, news 2023-02-18)* | P | **Lacks** |
+| The thermal map and the skyways of thermal.kk7.ch *(tiers)* | F | **Lacks today.** Agreed with the author by the owner's word; waits for a domain to name to his server ([data-sources.md](data-sources.md#thermal-maps)) |
+| A route made from a flown track, with turnpoints where its thermals began *(news 2024-06-11)* | P | **Lacks.** The core already finds a flight's thermals |
+| Routes brought in as XCTSK or GPX; a plan sent to an instrument *(news 2024-04-12, page)* | P *(inferred: it feeds the planner)* | **Part.** XCTSK in all its forms, read and written, and waypoints as `.cup` and `.wpt`. No GPX |
+| Layer choices kept as named views *(tiers)* | B | **Part.** Each layer stays as the pilot left it; no named views |
+
+## Hike and fly
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| Over 500 take-offs to walk to, by its page, found by direction, height, time on foot *(page)* | B | **Lacks.** Planned for a later phase |
+| What a glide reaches from a take-off or from any point, over the terrain, for a glide ratio the pilot sets *(page, news 2022-10-19)* | B | **Lacks** on the map. The cockpit draws it in flight, as a straight glide in 72 directions |
+| A walk planned along the marked trails, kept, and taken out as GPX; walks brought in as GPX *(page; store, fetched: version of 2025-05-30)* | B | **Lacks** |
+| Layers for finding a place to take off: classes of slope for the whole Alps, tree cover from satellite data, a heat map of where people walk *(tiers)* | B | **Lacks.** The aerial photographs at 20 to 30 cm are there |
+| The pilot's own points *(tiers)* | B | **Has**: waypoints |
+
+## Flights and logbook
+
+Here Venti is ahead; the table is short.
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| Flights arrive in the logbook from live tracking and from files, single or by folder; some instruments send them directly; the pilot can take their file out again *(news 2024-08-14, 2024-10-15, help)* | F | **Has**: import by file or folder, a folder watched on Android, the logbook in step across devices |
+| A list with a picture of each flight; the track in two dimensions coloured by climb; a replay in three dimensions at up to 120 times; hours by month; a month's flights on one map *(news 2024-08-14, 2024-08-20, tiers)* | F for the last two flights, else B | **Has**, and beyond: scoring, every thermal and glide, statistics by year, take-off and glider, "How you fly", two flights side by side, the flight over the ground, sending to a league. The view in three dimensions is on the web only |
+| Laying a past day's station readings and forecast beside a flight *(page, weather)* | F and B | **Lacks** |
+| The season as a film with music *(glimpse: a news entry)*. What it is: *to verify in the app* | | **Lacks** |
+
+## Clubs, schools, events, community
+
+Burnair's business has parts Venti does not aim at. They are listed so that nothing is missing, not as gaps.
+
+| Burnair | Ours |
+|---|---|
+| Clubs and flight schools as partners: their area mapped with Burnair, a discount for members, for schools a briefing tool with slides and the tracks of a group of students *(page)* | Not a goal. Venti has groups of pilots with their plans for a flying day, which Burnair's pages do not describe |
+| Races: tasks, turnpoints, trackers handed out, scoring, a public ranking, for a fee per day *(page)* | Not a goal now. The cockpit flies a competition task |
+| *Paracaching*: places to reach on foot or by air through a season, checked in by live tracking, free *(page)* | Lacks; not asked for |
+| A video of the pilot's linked to the map *(news 2024-05-23)*; the Academy's lessons | Lacks; not asked for |
+
+## Alerts, offline, account
+
+| Burnair | Tier | Ours |
+|---|---|---|
+| Push messages: the wind alarm, and someone flying over a chosen take-off *(tiers)* | B | **Lacks** |
+| Widgets on the home screen: the thermal forecast, a take-off's five days *(store)* | B, P | **Lacks** |
+| Offline: a piece of Burnair's own topographic map, chosen and downloaded; that map only *([help](https://help.burnair.cloud/hc/de/articles/34382005623709), changed 2026-03-04)* | B | **Has**, and more: a region's map with its elevation, kept on the phone and drawn in the cockpit; the airspace around the pilot kept too ([design.md](design.md)). No real region has been built yet; forecasts are not kept |
+| Nine base maps: Burnair's own in three kinds, Google's satellite and terrain, OpenTopoMap, swisstopo's map and photographs, a gliding chart *(tiers)* | F for one, B for the rest | **Part.** One drawn map of Venti's own and the aerial view, free. No dark map yet |
+| Eight languages by the store's listing; a pilot's review of August 2025 says the content is German *(store)*; dark mode with the phone's since version 3.2.112 *(store, fetched)* | | English only; German is listed as open ([design.md](design.md#open)). Light and dark themes |
+| An account by e-mail; three days of Premium on registering; a subscription can be given away *(thermal, news)* | | An account by handle and password, by invite; everything is free. Sign-in with Apple or Google is the direction set ([plan.md](plan.md#needed-from-the-owner)) |
+
+## In the air: burnair Go
+
+The cockpit's yardstick is XCTrack. For completeness, what Go lists *(store, page)* and where Venti stands:
+
+| Go | Ours |
+|---|---|
+| The track coloured by climb; a map that turns with the flight; zooming in by itself when circling, with a simplified map | **Has** ([xctrack-parity.md](xctrack-parity.md)) |
+| Live wind, read aloud on a tap; rain radar; the thermal map for the season and hour; live thermals | **Part**: the ground wind of the stations with a spoken warning of strong wind at the landing. No radar, no thermal map yet, no live thermals |
+| Landings, their patterns once the pilot comes down, the glide needed to the nearest | **Part**: the landing within reach with height to spare, from the pilot's own waypoints. No patterns |
+| Airspace with a view from the side, notices, wildlife areas, cables, lee areas, valley winds | **Part**: airspace with warnings and the side view. None of the rest |
+| Friends and groups with names, heights and tracks; a list of friends by height | **Part**: every pilot who shows their flight to all; no friends |
+| Prepared and own routes with the glide to the next point; go to a pressed place | **Has**: tasks, routes and going to a waypoint, with the height of arrival over the terrain |
+| No vario sound, by design; a link to an XC Tracer and a hand remote in this year's versions *(store; the year is inferred)* | **Has** vario, sound, recorder, Bluetooth vario |
+
+## What Venti has that Burnair does not
+
+From [plan.md](plan.md) and the tables above, briefly:
+
+1. It is free and its code, its methods and their limits are open. Burnair's thermal model and ratings are closed, and its weather layers, thermal forecast and planning are paid.
+2. A flight computer: vario with sound, an external vario, a recorder that starts by itself, airspace warnings with a prediction, competition tasks, the glide over the terrain. Go says of itself that it is not one.
+3. A logbook that explains a flight: scoring, thermals and glides, statistics, "How you fly", two flights side by side, and sending to the DHV-XC.
+4. A verdict in words for a take-off and a day, by published limits, free; and the wind stations around a site with whether their direction fits it.
+5. The pilot's own assistant, in the app and through a connector, over the same data. Burnair forbids assistants and scripts on its map and offers no interface.
+6. Aerial photographs at 20 to 30 cm from open sources, in every app and in the cockpit.
+7. A page for those at home that needs no app, and that never calls silence a landing; groups that plan a flying day; everyone's public flights with their analysis, and a ranking.
+
+## The gaps, in build order
+
+Ordered by what a pilot preparing a flying day gains against the work, and by what can be built now from data Venti already collects. Steps 1 to 3 and 5 to 8 need no new source. Rules that hold for all of them: a new source needs its manifest with the licence verified on the provider's page and recorded fixtures with golden files; data of different licence families is never merged; what judges weather or safety is fixed rules in the core or the flight engine, never the assistant; no service that bills by use; colours and sizes come from the design pack, and a layer that needs a colour the pack lacks waits for the owner or stands in with an existing scale, as the kinds of day do.
+
+**1. Five days, not three.** Burnair shows today and four days everywhere; Venti's adapter asks for three and the third is only sometimes covered. Ask ICON-EU for as far as its main runs reach (120 hours, of which 78 hour by hour) and carry the days through the forecast table, Today, a take-off's page and the thermal map. It is already the first step in [plan.md](plan.md#where-the-work-stands-and-what-comes-next). The hours after the 78th come three hours apart, which the adapter leaves out today on purpose: a day made of them needs a rule of its own ("two hours in a row" means nothing there) and has to say that it is coarser.
+*Server:* `FORECAST_DAYS` in `crates/sources-openmeteo/src/lib.rs`, fixtures and goldens recorded again, the map's merge of runs. *Core:* `site_outlook`, `thermal_map` and `venti_flight::day` for days in three-hour steps. *Apps:* the day pickers take what the core gives. *Data:* built (`open-meteo`, CC BY 4.0). *For the owner:* the rule for a three-hour day.
+
+**2. The days side by side, and the hours of a day, on the forecast map.** What makes Burnair's overview quick is five marks under a name: which day, at a glance. Venti's answer already holds every day for every square. Show them together: in a tapped square's sheet and on each take-off of Today a row of days, each with its mark and word; and give the map's chosen day a line of hours to drag, so that the squares show when the day turns on and off. The server keeps each cell's judged hours and serves only the day.
+*Server:* the hours in `GET /v1/thermals` or beside it (`crates/server/src/thermals.rs`), with the answer's size measured. *Core:* `thermal_map` gives a square's days as a strip and a day's hours. *Apps:* the strip, and a slider in the layer's card. *Data:* held already. *Not in it:* named regions. Venti has squares; regions with names would be outlines Venti draws itself, which is the owner's to want.
+
+**3. Wind, gusts, cloud and rain on the map, with a time line.** The largest gap. A first version needs no new fetching: for the thermal map the server already asks, every run, for 1,817 places and every hour, the wind at 10 m with gusts, the wind at three levels above the ground and on five pressure surfaces with their heights, cloud by layer and rain, and keeps only the hours it judged from them. Keep the values, serve them hour by hour, and draw them: arrows and the wind scale for a chosen height, gusts beside the mean, cloud and rain as fills, under the same slider as step 2. Heights above the sea (1,000 to 4,000 m) are read between the model's levels by a pure function, and a square whose ground lies higher says so.
+*Server:* fields kept per cell and hour and a compact endpoint for a layer and a day. *Core and flight engine:* wind at a height above the sea from a series' levels; the bands. *Apps:* layers, the height picker, the slider. *Data:* held already. *Honest limit:* a square is 11 by 7.5 km and takes one of some twenty cells of ICON-D2, so a valley's wind is not in it; Burnair draws the model's own 2 km. Finer needs four times the requests for half the step, or DWD's own files on the triangular grid ("Open, later", a large adapter). *For the owner:* colours for cloud and rain.
+
+**4. Wind stations where pilots fly.** 317 stations against thousands is what a pilot sees first. Open by the catalogue and unbuilt, each one adapter crate whose licence is still to be read on the provider's own page for its manifest: South Tyrol (CC0, in the box's south), METAR, the FANET stations that the Open Glider Network carries (ODbL), Pioupiou. Open after a confirmation the owner must fetch: Tirol's avalanche service, some 200 mountain stations. With Switzerland: MeteoSwiss, and Burnair's own stations (CC BY 4.0, three in the file today). The ones that stand at the take-offs, Holfuy's, and four avalanche services stay "Ask"; that Burnair shows Bavaria's after talking to the service says asking can work.
+*Server:* adapters and the region pack; the resolve stage, so that one station from two sources is one. *Core and apps:* nothing new. *Blocked in part:* the owner's letters ([data-sources.md](data-sources.md#outreach)).
+
+**5. What the stations already say.** Three of Burnair's live readings can be made from what the 317 stations send now. A cloud base over a station, from its temperature and humidity, by the rule the thermal estimate already uses. The temperature step between a valley station and a mountain station near it, in degrees per hundred metres, with a word for what it means for the air between. And a station's past days: the server has thirteen months, the apps ask for one day. The pressure difference across the main ridge, for foehn, is the fourth and waits: it needs pressure reduced to one level (*to verify* what the two services send) and a station south of the ridge, which is step 4's South Tyrol.
+*Server:* pairs of stations chosen once per run by distance and height, or nothing at all if the core does it from the station list. *Core:* the three readings and their words, as fixed rules. *Apps:* a station's page, a layer of figures, a day picker. *For the owner:* the limits of the words.
+
+**6. The air around and above a take-off.** Two things Burnair's take-off forecast has. The strongest wind and gust in the model's cells around the place, which is how a foehn two valleys away shows before it arrives: one more request of some fifty places when a take-off's forecast is asked for (the adapter takes eighty in one), and a line in the outlook when the neighbourhood is much stronger than the place. And the layering: mark in "the air through the day" where the temperature between two levels falls too slowly or rises, which is where thermals stop. The second is coarse with the levels Venti reads, three within 180 m of the ground and then surfaces some 1,500 m apart, and says so; a true sounding needs DWD's model levels, the same large adapter as in step 3.
+*Server:* the neighbourhood with a forecast, within the request budget. *Flight engine and core:* the strongest hour nearby as a reason; layers from a series' temperatures. *Apps:* the picture and the table.
+
+**7. Sites one can choose from.** With the data held: a filter of the sites on the map and in the list by wind direction and height, and by "the wind that is forecast now"; the pilot's own take-offs, kept and shown first on Today; more of what OpenStreetMap already has for a site and the record has no place for (website, operator, description, fee, opening hours, the guest rules); landing fields as areas, where OpenStreetMap maps them so. That makes a page worth opening; it does not make the list complete. Completeness is the DHV's list ("Ask") or ParaglidingEarth (open, share-alike, a layer of its own, variable quality).
+*Domain and server:* the site record and the adapter's goldens. *Core:* the filter, the list. *Apps:* the three of them. *Blocked in part:* the DHV, on the owner's letter.
+
+**8. Airspace asked at a place.** A tap or a long press on the map where airspace is drawn opens what lies over that place, from the lowest floor up, with limits as published and how Venti treats each; a filter by height takes the high airspace off the map; and the hours and the "by NOTAM" marks that openAIP's records carry are shown as published. The engine answers all of it already (`venti-airspace`, the assistant's `airspace_at`).
+*Apps:* the sheet and the filter. *Core:* the words. *Not in it:* what is active today. No open feed exists; it stays blocked on XContest's or the authorities' answer.
+
+**9. Rain radar.** The last hour of rain as moving pictures is what decides an afternoon. DWD's composite and GeoSphere Austria's analysis are both CC BY 4.0 by the catalogue; each needs its licence verified on its own page for a manifest, a reader for its format, and the picture turned to the map's projection on the server, which keeps the last frames and hands them out. DWD's is weak behind the main ridge; Austria's analysis covers that side, every quarter of an hour.
+*Server:* the radar kind, two adapters, frames kept on disk. *Apps:* the layer, its age written on it. *For the owner:* the colours.
+
+**10. A route with the weather along it.** Bring the route planner to the web; draw the FAI areas and the closing circle while planning (the core draws them in flight); say the height to leave each point at, over the terrain, with the glide the pilot set; and lay the forecast along the route: for a start time and a speed, the wind at height and the thermal estimate at each point when the pilot would be there, one request of several places. Then a route from a flown track, since the core has its thermals, and GPX in and out. The thermal map of thermal.kk7.ch belongs here and waits for a domain. Prepared routes and the crossings' lore are Burnair's own work with locals; Venti's way to them is its own public flights, when there are enough.
+*Server:* a forecast for the points of a route. *Core:* departure heights, the route's weather in words, a route from a flight, GPX. *Apps:* the planner in three. *Blocked in part:* the domain, for kk7.
+
+**11. Alerts, and a widget.** "Tell me when the wind at the Wallberg station is from the north at 10 to 20" and "tell me when Saturday becomes a cross-country day at my take-off" are fixed rules over data the server has, checked with every reading and every run. Delivery is the hard part. A push message to an iPhone needs Apple's developer membership, which the owner has put off. Android's usual way is Google's messaging service, which the architecture lists as free and not self-hosted, and which the Android app's rule of no Google services speaks against ([architecture.md](architecture.md#android)): the owner's to decide. Without either: the alarms as a list in the app, a check from the background on Android, web push from the browser, and a widget that shows a kept take-off's days on the home screen (*to verify* that an iPhone widget can be built with the owner's own signing).
+*Server:* alarms per account, the checks, later the sending. *Core:* the rules and their words. *Apps:* setting an alarm on a station or a take-off; the widget. *Blocked:* push on the owner.
+
+**12. Cables.** Tirol publishes some 2,000 cable spans that endanger air sports (licence to verify for the dataset, and Tirol asks to be told of use); DFS's obstacle data is reported as CC BY 4.0; OpenStreetMap has ropeways and power lines, incompletely. Draw them on every map with a light casing, and warn in the cockpit by a fixed rule with a margin.
+*Server:* the obstacle kind and adapters, each source its own layer. *Core:* the warning. *Apps:* the layer. *Blocked in part:* Land Tirol's confirmation; Austro Control is "Ask".
+
+**13. Others in the air, beyond Venti's own.** The Open Glider Network carries FANET and FLARM gliders under ODbL, with its two conditions built into the pipeline: pilots who opted out are not shown, and nothing older than 24 hours is passed on. That fills the map on a flying day before Venti has pilots of its own. After it: following a pilot, members of a group seeing each other's flights, and a word to someone at home when the pilot has landed, which needs step 11's sending or a mail relay. Where others climb now follows from the positions once there are enough of them.
+*Server:* a live source with a standing connection, kept apart from Venti's own positions. *Core and apps:* the gliders by their source; follows.
+
+**14. Hike and fly, the first pieces.** What a glide reaches from a place on the map, for a glide ratio, over the terrain: the core has it for the cockpit. Classes of slope from the elevation tiles the apps already read. A walk as GPX, in and out. Take-offs to walk to have no open list beyond OpenStreetMap; tree cover would be a new source (*to verify* which and under what licence); a heat map of walkers is another company's and is skipped.
+*Core:* reach from a point; slope. *Apps:* a planning tool on the map. *Server:* nothing at first.
+
+**15. Webcams and protected areas.** Webcams are "link only": a list on a site's page that opens the operator's own page, once the main operators have agreed to be listed. Protected areas: the few that matter to pilots in the first region, drawn by hand with the rule cited, as the catalogue plans.
+*Blocked:* webcams on the owner's letters; the zones on someone choosing them.
+
+Not in the order, on purpose: lee areas, valley winds, landing patterns and the lore of crossings. They are what many pilots open Burnair for, and no data source gives them. Venti could only get them from its own pilots, which needs the community first and decisions about who may draw what on everybody's map.
+
+## What is blocked, and on whom
+
+| What | Waits for |
+|---|---|
+| Anything public at all | A server and a domain: the owner ([plan.md](plan.md#needed-from-the-owner)) |
+| Looking at Burnair's app, and every point marked *to verify in the app* | The owner, by hand, in their own browser. Not a session |
+| Holfuy's stations; the avalanche services of Bavaria, Salzburg, Vorarlberg and Carinthia | The owner's letters ("Ask") |
+| Tirol's mountain stations and its cable data | Land Tirol's confirmation of the licence |
+| The DHV's sites | The owner's letter ("Ask") |
+| Airspace by what is active today; notices | No open feed. XContest's answer, or the authorities' |
+| The thermal map of thermal.kk7.ch | A domain to name to its author's server; his agreement in writing |
+| Push messages | Apple's developer membership; a decision about Google's messaging service on Android |
+| An e-mail to a pilot's contact | A mail relay, which the architecture lists as a small cost: the owner |
+| Colours for cloud, rain, radar and the kinds of day | The owner's design pack |
+| MeteoSwiss's 1 km model as a second model | The owner's decision; its licence to verify |
+| A day judged from three-hour steps; the words for a temperature step; the defaults of an alarm | The owner's limits |
+| Webcams beyond nothing | foto-webcam.eu's and Panomax's agreement to be listed |
+| Lightning | Blitzortung's written permission ("Ask") |
+| Sending a Venti pilot's position to Burnair's map as well, if that is wanted | Burnair asks to be written to first, and the pilot's Burnair account would be needed |
+| Local knowledge on the map | A community, and rules for it |
+
+## Still to verify
+
+- Everything tagged **page** or **news**, against the page itself: the counts above all (5,000 sites, 500 take-offs to walk to, 200 routes, 654 regions, 15,000 stations).
+- In the app, by the owner: whether a take-off's forecast gives a verdict or colours only; what the pressure forecast shows; whether lightning or satellite pictures exist; how many webcams and whose; how airspace by time works and which countries' notices it has; what the Free level shows without a registration; whether the phone apps are the browser's map; the widgets on Android.
+- Whether the thermal forecast's first two days are ICON-D2's today, as the post of 2024 says, or ICON-EU's, as the product page says.
+- The year of the store's version notes without one (taken as 2026), and the prices inside the apps. Google Play's listings were not read: the fetch tool got nothing of them.
+- On what terms Burnair shows the DHV's sites and the Bavarian avalanche service's stations. It bears on what Venti's own letters can hope for.
+- Whether the two weather services' ten-minute data carry pressure reduced to sea level (step 5).
+- Whether an iPhone widget can be built and run with the owner's own signing (step 11).
+- The licence of each open source named in the build order that the catalogue marks "to verify" or has not yet read on the provider's page: Tirol's stations and cables, DFS's obstacles, MeteoSwiss's model, a tree-cover source.
+- Whether Burnair counts the reading of its product pages by a session as automated access. Its rule names the map's data and content; the pages do not say more.

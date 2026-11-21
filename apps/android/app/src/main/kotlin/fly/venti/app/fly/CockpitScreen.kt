@@ -88,6 +88,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.composed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -138,7 +140,10 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-/** The pages of the cockpit. "Next page" goes around them. */
+/**
+ * The pages of the cockpit. A swipe across the cockpit turns them, and a
+ * tap on the dots in the top line goes to the next.
+ */
 enum class CockpitPage(
     /** The page in a word, for a pilot who has the screen read out. */
     val title: String,
@@ -156,16 +161,31 @@ enum class CockpitPage(
     Flight("Flight"),
     ;
 
-    val next: CockpitPage get() = entries[(ordinal + 1) % entries.size]
+    /** The page after this one, round to the first after the last. */
+    fun next(hasTask: Boolean): CockpitPage = step(hasTask, 1)
 
-    /** The page after this one: the task's only while a task is flown. */
-    fun next(hasTask: Boolean): CockpitPage = next.let { if (it == Task && !hasTask) it.next else it }
+    /** The page before this one, round to the last before the first. */
+    fun previous(hasTask: Boolean): CockpitPage = step(hasTask, -1)
+
+    private fun step(hasTask: Boolean, by: Int): CockpitPage {
+        val pages = pages(hasTask)
+        val here = pages.indexOf(this).takeIf { it >= 0 } ?: return pages.first()
+        return pages[(here + by + pages.size) % pages.size]
+    }
+
+    companion object {
+        /** The pages there are: the task's only while a task is flown. */
+        fun pages(hasTask: Boolean): List<CockpitPage> = entries.filter { it != Task || hasTask }
+    }
 }
 
 /**
  * The cockpit: what the pilot looks at in the air, as the design language's
  * flight screen. It is always in the flight theme: a white ground and
- * near-black ink, one very large reading, four large ones and two buttons.
+ * near-black ink, one very large reading and four large ones. The screen
+ * is for readings: no button at its foot. A swipe turns the pages, or a
+ * tap on their dots in the top line, and the flight ends from the top
+ * line too, by a finger held on "End".
  *
  * Three pages: the readings over the map, the map with the way to the place
  * flown to, and the flight with what can be switched. Warnings stand at the
@@ -259,15 +279,34 @@ fun CockpitScreen(
         view.position?.let(airspace::refreshSoon)
         view.position?.let { cables?.refreshSoon(it) }
     }
-    // The cockpit covers the whole app and ends only by "Hold to end": the
+    // The cockpit covers the whole app and ends only by holding "End": the
     // system's back does nothing here, so that a thumb on the edge of the
     // screen ends no flight.
     BackHandler {}
 
     Box(Modifier.fillMaxSize()) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.systemBarsPadding()) {
-                StatusLine(view, fly.mode, varioName, onReplaySpeed = fly::setReplaySpeed, mapIsKept = keptMap != null)
+            Column(
+                Modifier
+                    .systemBarsPadding()
+                    .testTag("cockpit")
+                    .turnsPagesBySwipe(
+                        onNext = { chosenPage = page.next(hasTask) },
+                        onPrevious = { chosenPage = page.previous(hasTask) },
+                    ),
+            ) {
+                StatusLine(
+                    view,
+                    fly.mode,
+                    varioName,
+                    onReplaySpeed = fly::setReplaySpeed,
+                    mapIsKept = keptMap != null,
+                    page = page,
+                    pages = CockpitPage.pages(hasTask),
+                    onNextPage = { chosenPage = page.next(hasTask) },
+                    onEnd = onFinish,
+                    isLocked = isLocked,
+                )
                 // What the pilot must know now, on every page.
                 Alerts(
                     fly,
@@ -452,8 +491,9 @@ fun CockpitScreen(
                         }
                     }
                 }
-                CockpitRule()
+                // Under the map a rule only where readings follow it.
                 if (page == CockpitPage.Map) {
+                    CockpitRule()
                     // The airspace that matters next, large: it stays while
                     // a warning is up, and can be about another airspace
                     // than the band, which is about the most urgent warning.
@@ -470,14 +510,6 @@ fun CockpitScreen(
                     TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
                     MapReadings(view)
                 }
-                // The two buttons, in the same place on every page. Locked,
-                // the lock stands in their place.
-                Foot(
-                    page,
-                    onNext = { chosenPage = page.next(hasTask) },
-                    onEnd = onFinish,
-                    modifier = Modifier.alpha(if (isLocked) 0f else 1f),
-                )
             }
         }
         if (isLocked) {
@@ -636,7 +668,11 @@ private fun PhaseNotice(view: CockpitView, title: String, detail: String?) {
     }
 }
 
-/** The line at the top: ready, recording or replaying, how long, and where the climb comes from. */
+/**
+ * The line at the top: ready, recording or replaying, how long, where the
+ * climb comes from, the pages as dots, and "End". It is as high as a finger
+ * needs, so that the dots and "End" can be pressed in flight.
+ */
 @Composable
 private fun StatusLine(
     view: CockpitView,
@@ -646,11 +682,18 @@ private fun StatusLine(
     onReplaySpeed: (Double) -> Unit,
     /** Whether the map is drawn from a region kept on the phone, and so stays when the network goes. */
     mapIsKept: Boolean = false,
+    page: CockpitPage,
+    pages: List<CockpitPage>,
+    onNextPage: () -> Unit,
+    /** Called when the pilot has held "End". */
+    onEnd: () -> Unit,
+    /** Locked, the lock's own control lies over the dots and "End". */
+    isLocked: Boolean,
 ) {
     val style = fixed(VentiType.label)
     val danger = Venti.colours.danger
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s1),
+        modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).padding(start = VentiSpace.s4, end = VentiSpace.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         when {
@@ -673,32 +716,121 @@ private fun StatusLine(
             Text(Format.stopwatch(seconds), style = style.numbers, maxLines = 1, modifier = Modifier.testTag("flight-time"))
         }
         Spacer(Modifier.width(VentiSpace.s2))
-        Spacer(Modifier.weight(1f))
-        // No position for five seconds means the fix is gone.
-        if (view.positionAgeS?.let { it > 5 } != false) {
-            Icon(painterResource(R.drawable.ic_location_off), contentDescription = null, modifier = Modifier.size(18.dp), tint = danger)
-            Spacer(Modifier.width(VentiSpace.s1))
-            Text("No GPS", style = style, color = danger, maxLines = 1)
-            Spacer(Modifier.width(VentiSpace.s2))
-        }
-        // The map is drawn from the phone: an arrow in a circle says so.
-        if (mapIsKept) {
-            Icon(
-                painterResource(R.drawable.ic_map_kept),
-                contentDescription = "Map from this phone",
-                modifier = Modifier.size(18.dp).testTag("map-kept"),
+        // To the right, before the dots and "End": what the readings come
+        // from. Only its words give way when the line is short.
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            // No position for five seconds means the fix is gone.
+            if (view.positionAgeS?.let { it > 5 } != false) {
+                Icon(painterResource(R.drawable.ic_location_off), contentDescription = null, modifier = Modifier.size(18.dp), tint = danger)
+                Spacer(Modifier.width(VentiSpace.s1))
+                Text("No GPS", style = style, color = danger, maxLines = 1)
+                Spacer(Modifier.width(VentiSpace.s2))
+            }
+            // The map is drawn from the phone: an arrow in a circle says so.
+            if (mapIsKept) {
+                Icon(
+                    painterResource(R.drawable.ic_map_kept),
+                    contentDescription = "Map from this phone",
+                    modifier = Modifier.size(18.dp).testTag("map-kept"),
+                )
+                Spacer(Modifier.width(VentiSpace.s2))
+            }
+            // An external vario that was talking and has stopped.
+            val varioIsLost = view.instrument?.talking == false
+            Text(
+                varioText(view, mode, varioName),
+                style = style,
+                color = if (varioIsLost) danger else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
-            Spacer(Modifier.width(VentiSpace.s2))
         }
-        // An external vario that was talking and has stopped.
-        val varioIsLost = view.instrument?.talking == false
-        Text(
-            varioText(view, mode, varioName),
-            style = style,
-            color = if (varioIsLost) danger else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(Modifier.alpha(if (isLocked) 0f else 1f), verticalAlignment = Alignment.CenterVertically) {
+            PageDots(page, pages, onNext = onNextPage)
+            HoldToEnd(onEnd)
+        }
+    }
+}
+
+/**
+ * The cockpit's pages as dots, the one in view filled. A tap goes to the
+ * next page, for a pilot with one hand free or in gloves; a swipe across
+ * the cockpit does the same.
+ */
+@Composable
+private fun PageDots(page: CockpitPage, pages: List<CockpitPage>, onNext: () -> Unit) {
+    // The flight theme's ink for the page in view, its raised surface for
+    // the others: its outline is as dark as its ink.
+    val ink = Venti.colours.text
+    val quiet = Venti.colours.surfaceRaised
+    Row(
+        Modifier
+            .heightIn(min = VentiSize.touch)
+            .clip(PillShape)
+            .clickable(onClick = onNext)
+            .testTag("cockpit-pages")
+            .clearAndSetSemantics {
+                contentDescription = "Page"
+                stateDescription = page.title
+                role = Role.Button
+                onClick(label = "Next page") {
+                    onNext()
+                    true
+                }
+            }
+            .padding(horizontal = VentiSpace.s2),
+        horizontalArrangement = Arrangement.spacedBy(VentiSpace.s1),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        for (each in pages) {
+            Box(
+                Modifier
+                    .size(VentiSpace.s2)
+                    .clip(CircleShape)
+                    .background(if (each == page) ink else quiet),
+            )
+        }
+    }
+}
+
+/**
+ * Turns the cockpit's pages by a swipe across it: to the left the next, to
+ * the right the one before. It watches the touches before what lies under
+ * them; once a finger has clearly gone sideways the touch is the swipe's,
+ * and what it started on (a reading, a button, the map) lets it go. Two
+ * fingers are a pinch on the map, never a swipe.
+ */
+private fun Modifier.turnsPagesBySwipe(onNext: () -> Unit, onPrevious: () -> Unit): Modifier = composed {
+    val next by rememberUpdatedState(onNext)
+    val previous by rememberUpdatedState(onPrevious)
+    pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            var across = 0f
+            var along = 0f
+            var isSwipe = false
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                if (event.changes.count { it.pressed } > 1) {
+                    isSwipe = false
+                    break
+                }
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                val moved = change.position - change.previousPosition
+                across += moved.x
+                along += moved.y
+                if (!isSwipe && abs(across) > viewConfiguration.touchSlop && abs(across) > 2 * abs(along)) {
+                    isSwipe = true
+                }
+                if (isSwipe) change.consume()
+                if (!change.pressed) break
+            }
+            // Far enough to be meant: a sixth of the screen's width.
+            if (isSwipe && abs(across) > size.width / 6f) {
+                if (across < 0) next() else previous()
+            }
+        }
     }
 }
 
@@ -905,39 +1037,18 @@ private fun QuietButton(title: String, @DrawableRes icon: Int, modifier: Modifie
     }
 }
 
-/** The two buttons of the cockpit, in the same place on every page. */
-@Composable
-private fun Foot(page: CockpitPage, onNext: () -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3),
-        horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3),
-    ) {
-        OutlinedButton(
-            onClick = onNext,
-            modifier = Modifier
-                .weight(1f)
-                .height(VentiSize.touchFlight)
-                .testTag("cockpit-next-page")
-                .semantics { stateDescription = page.title },
-            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
-        ) {
-            Text("Next page", style = fixed(VentiType.heading), maxLines = 1)
-        }
-        HoldToEnd(onEnd, Modifier.weight(1f))
-    }
-}
-
-/** How long a finger stays on "Hold to end" to end the session, milliseconds. */
+/** How long a finger stays on "End" to end the session, milliseconds. */
 private const val HOLD_TO_END_MILLISECONDS = 1_000
 
 /**
- * The button that ends the session: held for a second, so that a glove, a
- * line or a drop of rain ends nothing. It fills while the finger stays, and
- * nothing asks again. TalkBack's double tap ends it, which is deliberate
- * enough.
+ * "End" in the top line, which ends the session when held for a second, so
+ * that a glove, a line or a drop of rain ends nothing. It fills while the
+ * finger stays, and nothing asks again. TalkBack's double tap ends it,
+ * which is deliberate enough. The touch is as high as the line; the pill
+ * in it is small, to leave the screen to the readings.
  */
 @Composable
-private fun HoldToEnd(onEnd: () -> Unit, modifier: Modifier = Modifier) {
+private fun HoldToEnd(onEnd: () -> Unit) {
     val filled = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -945,13 +1056,8 @@ private fun HoldToEnd(onEnd: () -> Unit, modifier: Modifier = Modifier) {
     val primary = MaterialTheme.colorScheme.primary
     val fill = Venti.colours.primaryPressed
     Box(
-        modifier
-            .height(VentiSize.touchFlight)
-            .clip(PillShape)
-            .drawBehind {
-                drawRect(primary)
-                drawRect(fill, size = Size(size.width * filled.value, size.height))
-            }
+        Modifier
+            .heightIn(min = VentiSize.touch)
             .testTag("cockpit-end")
             .pointerInput(Unit) {
                 awaitEachGesture {
@@ -969,16 +1075,28 @@ private fun HoldToEnd(onEnd: () -> Unit, modifier: Modifier = Modifier) {
                 }
             }
             .clearAndSetSemantics {
-                contentDescription = "Hold to end"
+                contentDescription = "End"
+                stateDescription = "Hold to end"
                 role = Role.Button
                 onClick(label = "End the session") {
                     end()
                     true
                 }
-            },
+            }
+            .padding(start = VentiSpace.s1),
         contentAlignment = Alignment.Center,
     ) {
-        Text("Hold to end", style = fixed(VentiType.heading), color = MaterialTheme.colorScheme.onPrimary, maxLines = 1)
+        Box(
+            Modifier
+                .clip(PillShape)
+                .drawBehind {
+                    drawRect(primary)
+                    drawRect(fill, size = Size(size.width * filled.value, size.height))
+                }
+                .padding(horizontal = VentiSpace.s3, vertical = VentiSpace.s1),
+        ) {
+            Text("End", style = fixed(VentiType.label), color = MaterialTheme.colorScheme.onPrimary, maxLines = 1)
+        }
     }
 }
 
@@ -1523,12 +1641,12 @@ private fun LockCover(onUnlock: () -> Unit) {
     ) {
         Surface(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.TopEnd)
                 .systemBarsPadding()
-                // In the place of the two buttons at the foot.
-                .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3)
-                .fillMaxWidth()
-                .height(VentiSize.touchFlight)
+                // In the top line, over the dots and "End": the readings
+                // stay in view while the screen is locked.
+                .padding(end = VentiSpace.s2)
+                .height(VentiSize.touch)
                 .testTag("cockpit-unlock")
                 .pointerInput(Unit) {
                     awaitEachGesture {
@@ -1551,10 +1669,14 @@ private fun LockCover(onUnlock: () -> Unit) {
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
         ) {
-            Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_lock), contentDescription = null)
+            Row(
+                Modifier.padding(horizontal = VentiSpace.s3),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(painterResource(R.drawable.ic_lock), contentDescription = null, modifier = Modifier.size(VentiSize.icon))
                 Spacer(Modifier.width(VentiSpace.s2))
-                Text("Locked. Hold to unlock", style = fixed(VentiType.heading))
+                Text("Hold to unlock", style = fixed(VentiType.label))
             }
         }
     }

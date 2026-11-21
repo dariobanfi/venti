@@ -1,6 +1,7 @@
 package fly.venti.app.fly
 
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.longClick
 import android.Manifest
 import android.app.NotificationManager
@@ -128,16 +129,19 @@ class LiveFlightTest {
         screen.onAllNodes(what).onFirst().performClick()
     }
 
-    /** Turns the cockpit's pages with "Next page" until this one shows. */
+    /**
+     * Turns the cockpit's pages as a pilot does, by a swipe to the left across
+     * the cockpit, until the dots in the top line say this one shows.
+     */
     private fun turnTo(page: String) {
-        val next = hasTestTag("cockpit-next-page")
-        waitFor(next)
-        repeat(3) {
-            if (exists(next and saying(page))) return
-            tap(next)
+        val dots = hasTestTag("cockpit-pages")
+        waitFor(dots)
+        repeat(4) {
+            if (exists(dots and saying(page))) return
+            screen.onNode(hasTestTag("cockpit")).performTouchInput { swipeLeft() }
             TestDevice.letTheAppRun(screen, 1)
         }
-        waitFor(next and saying(page))
+        waitFor(dots and saying(page))
     }
 
     private fun saying(text: String) = SemanticsMatcher("says \"$text\"") { node ->
@@ -297,7 +301,7 @@ class LiveFlightTest {
         screen.waitForIdle()
         TestDevice.keepScreenshot("light-fly-7-recording")
 
-        // Held for a second, "Hold to end" saves the flight; nothing asks again.
+        // Held for a second, "End" in the top line saves the flight; nothing asks again.
         screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_600) }
         isFlying = false
 

@@ -39,6 +39,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeUp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -214,7 +215,7 @@ class VentiUiTest {
     }
 
     /**
-     * Ends the cockpit as a pilot does: a finger held on "Hold to end" for
+     * Ends the cockpit as a pilot does: a finger held on "End" in the top line for
      * longer than the second it takes. Nothing asks again.
      */
     private fun holdToEnd() {
@@ -223,16 +224,19 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cockpit-end")) }
     }
 
-    /** Turns the cockpit's pages with "Next page" until this one shows: "Instruments", "Map" or "Flight". */
+    /**
+     * Turns the cockpit's pages as a pilot does, by a swipe to the left across
+     * the cockpit, until the dots in the top line say this one shows: "Instruments", "Map" or "Flight".
+     */
     private fun turnTo(page: String) {
-        val next = hasTestTag("cockpit-next-page")
-        waitFor(next)
-        repeat(3) {
-            if (exists(next and saying(page))) return
-            tap(next)
+        val dots = hasTestTag("cockpit-pages")
+        waitFor(dots)
+        repeat(4) {
+            if (exists(dots and saying(page))) return
+            screen.onNode(hasTestTag("cockpit")).performTouchInput { swipeLeft() }
             TestDevice.letTheAppRun(screen, 1)
         }
-        waitFor(next and saying(page))
+        waitFor(dots and saying(page))
     }
 
     /** From an empty logbook to a flight on the map. */
@@ -519,18 +523,23 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-5a-flight-page")
 
-        // Locked, the screen answers no touch: a press on "Next page"
-        // turns no page. Holding the lock opens it.
+        // Locked, the screen answers no touch: neither a swipe nor a tap
+        // on the dots turns a page. Holding the lock opens it.
         tap(hasTestTag("cockpit-lock"))
         waitFor(hasTestTag("cockpit-unlock"))
-        tap(hasTestTag("cockpit-next-page"))
+        screen.onNode(hasTestTag("cockpit")).performTouchInput { swipeLeft() }
+        tap(hasTestTag("cockpit-pages"))
         letTheMapDraw(2)
-        assertTrue(exists(hasTestTag("cockpit-next-page") and saying("Flight")))
+        assertTrue(exists(hasTestTag("cockpit-pages") and saying("Flight")))
         keepScreenshot("$prefix-fly-5b-locked")
         screen.onNode(hasTestTag("cockpit-unlock")).performTouchInput { longClick(durationMillis = 1_600) }
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cockpit-unlock")) }
 
-        // Held for a second, "Hold to end" ends the replay; nothing asks again.
+        // A tap on the dots goes to the next page, round to the first.
+        tap(hasTestTag("cockpit-pages"))
+        waitFor(hasTestTag("cockpit-pages") and saying("Instruments"))
+
+        // Held for a second, "End" in the top line ends the replay; nothing asks again.
         holdToEnd()
         waitFor(hasText("Open the cockpit"))
 
@@ -1551,7 +1560,7 @@ class VentiUiTest {
         TestDevice.allowToRecordAFlight()
         tap(hasText("Open the cockpit"))
         try {
-            waitFor(hasTestTag("cockpit-next-page"))
+            waitFor(hasTestTag("cockpit-pages"))
             // An emulator's location may be switched off; the app says so,
             // and the flight goes on without a position.
             if (exists(hasText("Flying")) && exists(hasText("OK"))) {

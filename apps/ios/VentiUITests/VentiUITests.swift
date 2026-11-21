@@ -274,6 +274,25 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Your bests"].waitForExistence(timeout: 10))
         sleep(1)
         keepScreenshot("light-6d-statistics-bests")
+        // At the end, the way to how the pilot flies. The sample logbook
+        // has too few thermals for an observation, so the screen says so.
+        // Kept when it is reached; not a condition.
+        app.swipeUp()
+        let howYouFly = element("statistics-how-you-fly", in: app)
+        if howYouFly.waitForExistence(timeout: 5), howYouFly.isHittable {
+            howYouFly.tap()
+            let said = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier IN %@", ["how-you-fly-empty", "how-you-fly-card"]))
+                .firstMatch
+            if said.waitForExistence(timeout: 30) {
+                sleep(1)
+                keepScreenshot("light-6f-how-you-fly")
+            }
+            if app.navigationBars["How you fly"].exists {
+                app.navigationBars.buttons.firstMatch.tap()
+                _ = app.staticTexts["Your bests"].waitForExistence(timeout: 10)
+            }
+        }
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(row.waitForExistence(timeout: 15))
 

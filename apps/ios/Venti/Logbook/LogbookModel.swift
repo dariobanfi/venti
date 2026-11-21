@@ -183,6 +183,16 @@ final class LogbookModel {
         }.value
     }
 
+    /// What the pilot's own tracks say about how they fly. Runs off the
+    /// main thread: the first time on an older logbook the core counts
+    /// each flight from its file.
+    func tendencies() async -> Tendencies {
+        let core = self.core
+        return await Task.detached(priority: .userInitiated) {
+            core.tendencies()
+        }.value
+    }
+
     /// A flight checked against the airspace the app has. Runs off the
     /// main thread.
     func airspace(of id: String) async throws -> FlightAirspace {

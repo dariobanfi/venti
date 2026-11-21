@@ -54,6 +54,20 @@ final class LogbookModelTests: XCTestCase {
         XCTAssertEqual(words.contains("farthest"), place.farthest != nil, words)
     }
 
+    func testHowYouFlyHasNothingToSayWithoutTenThermals() async throws {
+        let logbook = try makeLogbook()
+        let empty = await logbook.tendencies()
+        XCTAssertEqual(empty.flights, 0)
+        XCTAssertTrue(empty.observations.isEmpty)
+        XCTAssertFalse(empty.note.isEmpty)
+
+        // One flight is counted, and is too little to say anything of.
+        _ = await logbook.addSample()
+        let one = await logbook.tendencies()
+        XCTAssertEqual(one.flights, 1)
+        XCTAssertTrue(one.observations.isEmpty)
+    }
+
     func testImportingTheSameFlightAgainSaysSoAndAddsNothing() async throws {
         let logbook = try makeLogbook()
         _ = await logbook.addSample()

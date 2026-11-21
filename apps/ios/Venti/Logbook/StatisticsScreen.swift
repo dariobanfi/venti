@@ -4,8 +4,8 @@ import VentiCore
 
 /// The logbook as a whole: the last twelve months, one year beside
 /// another, when in the year the pilot flies, what a flight is usually
-/// like, the kinds of flight, the places flown from, the gliders flown
-/// and the pilot's bests.
+/// like, the kinds of flight, the places flown from, the gliders flown,
+/// the pilot's bests, and the way to how the pilot flies.
 /// Every figure is the core's.
 struct StatisticsScreen: View {
     @Environment(LogbookModel.self) private var logbook
@@ -173,6 +173,16 @@ struct StatisticsScreen: View {
                 best("Most points", statistics.mostPoints) { Format.decimal($0, places: 2) }
                 best("Highest", statistics.highest) { "\(Format.metres($0)) m" }
                 best("Best climb", statistics.bestClimb) { "\(Format.climb(metresPerSecond: $0)) m/s" }
+            }
+
+            // What the pilot's own tracks say about how they fly.
+            Section {
+                NavigationLink {
+                    HowYouFlyScreen()
+                } label: {
+                    Text("How you fly")
+                }
+                .accessibilityIdentifier("statistics-how-you-fly")
             }
         }
         .monospacedDigit()

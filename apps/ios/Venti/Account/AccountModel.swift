@@ -30,10 +30,17 @@ final class AccountModel {
     @ObservationIgnored private let saveToken: (String?) -> Void
     /// Called after a sync changed the logbook, so its screens can catch up.
     @ObservationIgnored var onLogbookChanged: () -> Void = {}
+    /// Called after the pilot's own sites were brought in step with the
+    /// account, and when the account came or went: where the list is kept
+    /// has changed, and with `true` the sites on this iPhone have too.
+    @ObservationIgnored var onKeptSitesSynced: (_ changedHere: Bool) -> Void = { _ in }
     @ObservationIgnored private var lastAutomaticSync: Date?
     /// Set when a sync was asked for while one was under way: the logbook
     /// changed again, and another run follows the present one.
     @ObservationIgnored private var isSyncDue = false
+    /// Set when a site was kept or forgotten while a request was under
+    /// way: the pilot's own sites are brought in step once more.
+    @ObservationIgnored private var areKeptSitesDue = false
 
     init(
         core: Core,
@@ -130,6 +137,7 @@ final class AccountModel {
         saveToken(nil)
         account = nil
         lastSync = nil
+        onKeptSitesSynced(false)
     }
 
     /// Deletes the account on the server, with its flights there. The
@@ -145,6 +153,7 @@ final class AccountModel {
             saveToken(nil)
             self.account = nil
             lastSync = nil
+            onKeptSitesSynced(false)
             return true
         } catch {
             problem = Self.words(for: error)
@@ -176,18 +185,85 @@ final class AccountModel {
         repeat {
             isSyncDue = false
             await runSync(reportsProblems: !quietly)
-        } while isSyncDue && isSignedIn
+        } while (isSyncDue || areKeptSitesDue) && isSignedIn
     }
 
+    /// Brings the pilot's own sites in step with the account, if the
+    /// pilot is signed in: called after a site was kept or forgotten.
+    /// Quiet, as every run the pilot did not ask for: the list on the
+    /// iPhone holds, and its note says that the account has yet to learn.
+    func syncKeptSites() async {
+        guard isSignedIn else { return }
+        guard !isWorking else {
+            areKeptSitesDue = true
+            return
+        }
+        isWorking = true
+        defer { isWorking = false }
+        repeat {
+            await runKeptSitesSync(reportsProblems: false)
+        } while areKeptSitesDue && isSignedIn
+    }
+
+    /// Ties the pilot's own sites to the account: a site kept or forgotten
+    /// while signed in goes to the account at once, and after every run,
+    /// sign-in and sign-out the list is read again, with its note.
+    func keepsInStep(_ own: KeptSitesModel) {
+        onKeptSitesSynced = { [weak own] changedHere in
+            Task { await own?.followedTheAccount(changedHere: changedHere) }
+        }
+        own.onChanged = { [weak self] in
+            Task { await self?.syncKeptSites() }
+        }
+    }
+
+    /// The logbook's run, and beside it the run of the pilot's own sites.
     private func runSync(reportsProblems: Bool = true) async {
         guard let server = account?.server else { return }
         lastAutomaticSync = Date()
         let run = core.sync()
-        var step = run.start(nowUnixS: Int64(Date().timeIntervalSince1970))
+        let summary = await finish(
+            from: run.start(nowUnixS: Int64(Date().timeIntervalSince1970)),
+            on: server, reportsProblems: reportsProblems
+        ) { status, body, retryAfter in
+            run.receive(status: status, body: body, retryAfterS: retryAfter)
+        }
+        if let summary {
+            lastSync = summary
+        }
+        account = try? core.account()
+        onLogbookChanged()
+        await runKeptSitesSync(reportsProblems: reportsProblems)
+    }
+
+    /// One run of the core's sync of the pilot's own sites, to its end.
+    private func runKeptSitesSync(reportsProblems: Bool) async {
+        areKeptSitesDue = false
+        // A session the logbook's run just found ended sends nothing more.
+        guard isSignedIn, readToken() != nil, let server = account?.server else { return }
+        let run = core.keptSitesSync()
+        let summary = await finish(
+            from: run.start(nowUnixS: Int64(Date().timeIntervalSince1970)),
+            on: server, reportsProblems: reportsProblems
+        ) { status, body, retryAfter in
+            run.receive(status: status, body: body, retryAfterS: retryAfter)
+        }
+        account = try? core.account()
+        onKeptSitesSynced(summary.map { $0.fetched > 0 || $0.removedHere > 0 } ?? false)
+    }
+
+    /// Runs a sync of the core's to its end: sends each request it hands
+    /// out with the session and hands the answer back. Returns what it
+    /// did, or `nil` when it stopped before its end.
+    private func finish(
+        from first: SyncStep, on server: String, reportsProblems: Bool,
+        receive: (UInt16, Data, UInt32?) -> SyncStep
+    ) async -> SyncSummary? {
+        var step = first
         while case .send(let request) = step {
             do {
                 let (status, body, retryAfter) = try await ask(request, of: server)
-                step = run.receive(status: status, body: body, retryAfterS: retryAfter)
+                step = receive(status, body, retryAfter)
             } catch {
                 // What was done so far is kept; the next sync goes on.
                 if reportsProblems {
@@ -198,7 +274,7 @@ final class AccountModel {
         }
         switch step {
         case .finished(let summary):
-            lastSync = summary
+            return summary
         case .failed(let message, let needsSignIn):
             if needsSignIn {
                 saveToken(nil)
@@ -206,11 +282,10 @@ final class AccountModel {
             if reportsProblems || needsSignIn {
                 problem = message
             }
+            return nil
         case .send:
-            break
+            return nil
         }
-        account = try? core.account()
-        onLogbookChanged()
     }
 
     // MARK: Sharing

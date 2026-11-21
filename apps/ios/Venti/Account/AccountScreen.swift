@@ -161,6 +161,16 @@ private struct SignedInView: View {
                 Text("Venti syncs by itself when you open the app and after a flight. Your flights stay private on Venti until you share one.")
             }
 
+            // What other makers' programs may do for the pilot: with a
+            // token each, never with the password.
+            Section {
+                NavigationLink(tokenForm().title) {
+                    ProgramsScreen()
+                }
+                .disabled(signedIn.needsSignIn)
+                .accessibilityIdentifier("programs-link")
+            }
+
             Section {
                 Button("Sign out") {
                     isConfirmingSignOut = true

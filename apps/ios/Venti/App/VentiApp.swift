@@ -178,6 +178,8 @@ enum Session {
             }
             let account = AccountModel(core: core)
             account.onLogbookChanged = { logbook.refresh() }
+            // The pilot's own take-offs follow the account.
+            account.keepsInStep(own)
             // A flight shared while it is under way goes to the pilot's
             // server, with the account's token.
             fly.server = { account.isSignedIn ? account.account?.server : nil }

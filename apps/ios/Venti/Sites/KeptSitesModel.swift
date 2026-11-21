@@ -7,7 +7,8 @@ import VentiCore
 /// The core keeps them on the iPhone, says which they are and what to say
 /// with them, and chooses Today's take-offs with them. This class asks,
 /// off the main thread because the core reads and writes files, and keeps
-/// the latest list for the screens to draw.
+/// the latest list for the screens to draw. With an account the list is
+/// on the account too: `AccountModel.keepsInStep` ties the two.
 @MainActor
 @Observable
 final class KeptSitesModel {
@@ -19,7 +20,13 @@ final class KeptSitesModel {
     /// again when it has changed.
     private(set) var changes = 0
 
+    /// Called after the pilot kept or forgot a site: with an account the
+    /// change goes to it.
+    @ObservationIgnored var onChanged: () -> Void = {}
+
     @ObservationIgnored private let core: Core
+    /// The place the list was last read from, for reading it again.
+    @ObservationIgnored private var place: Coordinate?
 
     init(core: Core) {
         self.core = core
@@ -47,19 +54,38 @@ final class KeptSitesModel {
         try await Task.detached {
             try core.keepSite(site: site, credits: credits, asOfUnixS: asOfUnixS)
         }.value
-        changes += 1
+        await changed()
     }
 
     /// Unmarks a site.
     func forget(_ id: String) async throws {
         let core = self.core
         try await Task.detached { try core.forgetSite(id: id) }.value
+        await changed()
+    }
+
+    /// After a keep or a forget: the list and its note are read again,
+    /// the screens are told, and so is whoever sends it to the account.
+    private func changed() async {
+        await load(from: place)
         changes += 1
+        onChanged()
+    }
+
+    /// After the account's sync, a sign-in or a sign-out: the note says
+    /// anew where the list is kept, and where the sync brought or took
+    /// sites on this iPhone the screens read them again.
+    func followedTheAccount(changedHere: Bool) async {
+        await load(from: place)
+        if changedHere {
+            changes += 1
+        }
     }
 
     /// Reads the list: nearest first from a place, by name without one.
     func load(from place: Coordinate?) async {
         let core = self.core
+        self.place = place
         do {
             list = try await Task.detached { try core.keptSites(from: place) }.value
             problem = nil

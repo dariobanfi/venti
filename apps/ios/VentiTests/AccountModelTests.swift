@@ -39,6 +39,8 @@ final class AccountModelTests: XCTestCase {
                 return (201, Data(ServerAnswers.signIn.utf8), nil)
             case ("GET", "/v1/flights/changes"):
                 return (200, Data(ServerAnswers.noChanges.utf8), nil)
+            case ("GET", "/v1/account/kept-sites/changes"):
+                return (200, Data(ServerAnswers.noKeptSites.utf8), nil)
             case ("POST", "/v1/flights"):
                 return (201, Data(ServerAnswers.upload.utf8), nil)
             case ("PATCH", _):
@@ -135,7 +137,9 @@ final class AccountModelTests: XCTestCase {
         XCTAssertEqual(account.account?.flightsToSend, 0)
 
         let requests = await sent.requests
-        XCTAssertEqual(requests.map { $0.httpMethod ?? "" }, ["POST", "GET", "POST"])
+        // The logbook's run is followed by the run of the pilot's own sites.
+        XCTAssertEqual(requests.map { $0.httpMethod ?? "" }, ["POST", "GET", "POST", "GET"])
+        XCTAssertEqual(requests[3].url?.path, "/v1/account/kept-sites/changes")
         XCTAssertTrue(requests.allSatisfy { $0.url?.host() == "venti.example.org" })
         // The password goes with the sign-in and the token does not; after
         // that the token goes with every request.
@@ -233,6 +237,88 @@ final class AccountModelTests: XCTestCase {
         XCTAssertEqual(account.problem, "This device is no longer signed in. Sign in again.")
     }
 
+    /// Waits until something that an unawaited task brings about is so.
+    private func eventually(_ what: String, _ isSo: () async -> Bool) async throws {
+        for _ in 0..<200 {
+            if await isSo() {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTFail("Never came about: \(what)")
+    }
+
+    func testThePilotsOwnSitesFollowTheAccount() async throws {
+        let core = try makeCore()
+        let (sent, box) = (Sent(), TokenBox())
+        let good = server(noting: sent)
+        let account = AccountModel(
+            core: core,
+            transport: { request in
+                // The account keeps the Jägerkamp; after the first read
+                // nothing has changed.
+                if request.url?.path == "/v1/account/kept-sites/changes",
+                   !(request.url?.query ?? "").contains("since=")
+                {
+                    await sent.add(request)
+                    return (200, Data(ServerAnswers.keptJaegerkamp.utf8), nil)
+                }
+                return try await good(request)
+            },
+            readToken: { box.token }, saveToken: { box.token = $0 }
+        )
+        let own = KeptSitesModel(core: core)
+        account.keepsInStep(own)
+
+        // Signed out the list is the iPhone's alone, and nothing is asked.
+        await own.load(from: nil)
+        XCTAssertEqual(own.list?.sites.count, 0)
+        XCTAssertTrue(own.list?.note.hasPrefix("Kept on this device only") ?? false, own.list?.note ?? "")
+        await account.sync(force: true)
+        let before = await sent.requests
+        XCTAssertTrue(before.isEmpty)
+
+        // Signing in runs the logbook's sync and beside it the sync of
+        // the pilot's own sites, with the session: the account's site is
+        // on the iPhone, and the note says where the list lives.
+        let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
+        await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
+        XCTAssertNil(account.problem)
+        try await eventually("the account's site on the iPhone") { own.list?.sites.count == 1 }
+        let kept = try XCTUnwrap(own.list?.sites.first)
+        XCTAssertEqual(kept.site.name, "Fluggelände Jägerkamp/Nagelspitz")
+        XCTAssertTrue(own.list?.note.hasPrefix("Kept on your Venti account and on this device.") ?? false)
+        // Today and the list read again: the sites on the iPhone changed.
+        XCTAssertEqual(own.changes, 1)
+        let asked = await sent.requests.filter { $0.url?.path == "/v1/account/kept-sites/changes" }
+        XCTAssertEqual(asked.count, 1)
+        XCTAssertEqual(asked.first?.value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
+
+        // Forgotten while signed in: the account is told at once.
+        try await own.forget(kept.site.id)
+        XCTAssertEqual(own.list?.sites.count, 0)
+        try await eventually("the account told of the forgotten site") {
+            await sent.requests.contains {
+                $0.httpMethod == "DELETE" && ($0.url?.path ?? "").hasPrefix("/v1/account/kept-sites/")
+            }
+        }
+        try await eventually("the run at its end") { !account.isWorking }
+        let forgotten = await sent.requests.last { $0.httpMethod == "DELETE" }
+        XCTAssertEqual(forgotten?.value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
+
+        // Signed out, keeping is the iPhone's matter again: nothing is sent.
+        await account.signOut()
+        try await eventually("the note of a list on the iPhone alone") {
+            own.list?.note.hasPrefix("Kept on this device only") ?? false
+        }
+        let count = await sent.requests.count
+        try await own.keep(kept.site, credits: [], asOfUnixS: kept.asOfUnixS)
+        try await Task.sleep(for: .milliseconds(200))
+        let after = await sent.requests.count
+        XCTAssertEqual(after, count)
+        XCTAssertEqual(own.list?.sites.count, 1)
+    }
+
     func testAReportGoesToTheServerFromTheAccountAndSaysWhatBecameOfIt() async throws {
         let (sent, box) = (Sent(), TokenBox())
         let good = server(noting: sent)
@@ -310,6 +396,23 @@ private enum ServerAnswers {
 
     static let noChanges = """
         {"flights": [], "deleted": [], "cursor": "c1", "more": false, "reset": false}
+        """
+
+    static let noKeptSites = """
+        {"kept": [], "forgotten": [], "cursor": "1795028700000002", "more": false, "reset": false}
+        """
+
+    /// The account keeps one site: the server's own example answer.
+    static let keptJaegerkamp = """
+        {"kept": [{"site": {"id": "osm-free-flying:way/1080986173", "name": "Fluggelände Jägerkamp/Nagelspitz",
+          "position": {"lat": 47.6791413, "lon": 11.9051032}, "elevation_m": 1560.0, "uses": ["takeoff"],
+          "paragliding": true, "hang_gliding": true, "official": true,
+          "url": "https://www.openstreetmap.org/way/1080986173", "website": "https://www.dhv.de/", "fee": "yes"},
+          "attribution": {"source": "osm-free-flying", "provider": "OpenStreetMap contributors",
+            "licence": "ODbL 1.0", "text": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/copyright", "notice": "OpenStreetMap's data, under the ODbL."},
+          "as_of": "2026-11-18T19:05:00Z", "kept_at": "2026-11-18T17:30:00Z"}],
+         "forgotten": [], "cursor": "1795028700000002", "more": false, "reset": false}
         """
 
     static let upload = """

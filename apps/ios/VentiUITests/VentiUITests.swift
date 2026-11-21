@@ -3229,3 +3229,206 @@ extension VentiUITests {
         keepScreenshot("site-edit-form-dark-2-giving")
     }
 }
+
+/// What a pilot keeps on the account, against the development server with
+/// an account the test makes: the kept take-offs, and the programs with
+/// access.
+extension VentiUITests {
+    /// A take-off kept while signed in is on the account, and the note
+    /// under it says so; a second start of the app, which begins with
+    /// nothing kept and signed out, has it back from the account once it
+    /// is signed in to it.
+    func testKeptTakeoffsFollowTheAccount() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let account = try await makeAccount(on: server)
+        let arguments = ["--server", server, "--map-at", "47.6653,11.7954,14"]
+        let app = launch(bundledMap: true, extra: arguments)
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(account, in: app)
+
+        // The Jägerkamp, one of Today's rows, kept on its page.
+        // The settings are a page of the Today tab, and the sign-in left
+        // the account's page open there: a second tap goes back to Today.
+        openTab("Today", in: app)
+        app.tabBars.buttons["Today"].tap()
+        XCTAssertTrue(element("today-card", in: app).waitForExistence(timeout: 60))
+        let row = app.descendants(matching: .any).matching(identifier: "today-row")
+            .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        bringUp(row, in: app)
+        row.tap()
+        let keep = element("site-keep", in: app)
+        bringUp(keep, in: app)
+        XCTAssertTrue(keep.waitForExistence(timeout: 10))
+        keep.tap()
+        XCTAssertTrue(app.buttons["Kept"].waitForExistence(timeout: 10))
+        // Sent to the account at once: the core's note says where it lives.
+        XCTAssertTrue(
+            labelled(containing: "Kept on your Venti account and on this device", in: app)
+                .waitForExistence(timeout: 30)
+        )
+        sleep(1)
+        keepScreenshot("kept-account-1-site-kept")
+
+        // A second start: every start of a UI test has an empty folder of
+        // its own and is signed out, as a second iPhone would be.
+        app.terminate()
+        let second = launch(bundledMap: true, extra: arguments)
+        XCTAssertTrue(second.buttons["Show my position"].waitForExistence(timeout: 90))
+        openTab("Settings", in: second)
+        let link = element("kept-sites-link", in: second)
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap()
+        XCTAssertTrue(second.staticTexts["No take-offs of your own yet"].waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Kept on this device only", in: second).exists)
+
+        // Signed in to the same account, the take-off comes back from it.
+        signIn(account, in: second)
+        openTab("Settings", in: second)
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap()
+        let listed = second.descendants(matching: .any).matching(identifier: "kept-site-row")
+            .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
+        XCTAssertTrue(listed.waitForExistence(timeout: 30))
+        XCTAssertTrue(
+            labelled(containing: "Kept on your Venti account and on this device", in: second)
+                .waitForExistence(timeout: 15)
+        )
+        sleep(1)
+        keepScreenshot("kept-account-2-back-from-the-account")
+    }
+
+    /// Opens "Programs with access" from the account's page, signed in,
+    /// and keeps a screenshot of the account's page on the way if asked.
+    private func openPrograms(in app: XCUIApplication, keeping screenshot: String? = nil) {
+        openTab("Settings", in: app)
+        bring("account-link", into: app).tap()
+        let link = bring("programs-link", into: app)
+        if let screenshot {
+            sleep(1)
+            keepScreenshot(screenshot)
+        }
+        link.tap()
+        XCTAssertTrue(app.navigationBars["Programs with access"].waitForExistence(timeout: 15))
+    }
+
+    /// A pilot gives "My logger" access with two things it may do, sees
+    /// its secret once, finds it in the list, withdraws it after being
+    /// asked, and the list is empty again.
+    func testAPilotGivesAProgramAccessAndWithdrawsIt() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let account = try await makeAccount(on: server)
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(account, in: app)
+
+        // The account's page has the row; a new account's list is empty.
+        openPrograms(in: app, keeping: "programs-1-account")
+        let empty = element("programs-empty", in: app)
+        XCTAssertTrue(empty.waitForExistence(timeout: 30))
+        XCTAssertEqual(empty.label, "No program has access to your account.")
+        sleep(1)
+        keepScreenshot("programs-2-empty")
+
+        // The form: sent with nothing in it, it says what is missing.
+        element("programs-give", in: app).tap()
+        let name = element("token-name", in: app)
+        XCTAssertTrue(name.waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("programs-3-form")
+        _ = bring("token-submit", into: app)
+        element("token-submit", in: app).tap()
+        let fault = bring("token-name-fault", into: app, down: true)
+        XCTAssertTrue(fault.label.hasPrefix("Give the program a name"), fault.label)
+
+        // A name, two things it may do, the password.
+        name.tap()
+        name.typeText("My logger\n")
+        for scope in ["flights:write", "live:write"] {
+            let row = bring("token-scope-\(scope)", into: app)
+            row.tap()
+            XCTAssertEqual(row.value as? String, "Chosen", scope)
+        }
+        sleep(1)
+        keepScreenshot("programs-4-form-two-chosen")
+        _ = bring("token-password", into: app)
+        let password = app.secureTextFields["token-password"]
+        password.tap()
+        password.typeText(account.password + "\n")
+        _ = bring("token-submit", into: app)
+        sleep(1)
+        keepScreenshot("programs-5-form-password")
+        element("token-submit", in: app).tap()
+
+        // The secret, this once, with the core's words; copied.
+        let secret = element("token-secret", in: app)
+        XCTAssertTrue(secret.waitForExistence(timeout: 30))
+        // Not written into the test's log either: only its form is looked at.
+        XCTAssertTrue(secret.label.hasPrefix("venti_pat_"))
+        XCTAssertEqual(element("token-shown-once", in: app).label, "Copy it now: Venti does not show it again.")
+        XCTAssertFalse(app.buttons["Cancel"].exists)
+        let copy = element("token-copy", in: app)
+        copy.tap()
+        XCTAssertEqual(copy.value as? String, "Copied")
+        sleep(1)
+        keepScreenshot("programs-6-secret-once")
+        let done = bring("token-done", into: app)
+        XCTAssertEqual(done.label, "I have copied it")
+        done.tap()
+
+        // The list has it, with what it may do; the secret is nowhere.
+        let listed = app.descendants(matching: .any).matching(identifier: "program-row")
+            .matching(NSPredicate(format: "label CONTAINS %@", "My logger")).firstMatch
+        XCTAssertTrue(listed.waitForExistence(timeout: 15))
+        XCTAssertTrue(listed.label.contains("Flights: write"), listed.label)
+        XCTAssertTrue(listed.label.contains("Live tracking: send"), listed.label)
+        XCTAssertFalse(secret.exists)
+        XCTAssertFalse(labelled(containing: "venti_pat_", in: app).exists)
+        XCTAssertFalse(empty.exists)
+        sleep(1)
+        keepScreenshot("programs-7-list")
+
+        // Withdrawing asks first, in the core's words.
+        let withdraw = bring("program-withdraw", into: app)
+        withdraw.tap()
+        let question = app.alerts.firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        XCTAssertTrue(question.label.contains("My logger"), question.label)
+        XCTAssertTrue(question.buttons["Keep access"].exists)
+        sleep(1)
+        keepScreenshot("programs-8-withdraw-question")
+        question.buttons["Withdraw access"].tap()
+        XCTAssertTrue(empty.waitForExistence(timeout: 30))
+        XCTAssertFalse(listed.exists)
+        sleep(1)
+        keepScreenshot("programs-9-empty-again")
+    }
+
+    /// The form that gives access, in the dark.
+    func testTheAccessFormInTheDark() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let account = try await makeAccount(on: server)
+        let app = launch(bundledMap: true, dark: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(account, in: app)
+        openPrograms(in: app)
+        XCTAssertTrue(element("programs-empty", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("programs-dark-1-empty")
+        element("programs-give", in: app).tap()
+        XCTAssertTrue(element("token-name", in: app).waitForExistence(timeout: 15))
+        let row = bring("token-scope-flights:read", into: app)
+        row.tap()
+        sleep(1)
+        keepScreenshot("programs-dark-2-form")
+        _ = bring("token-submit", into: app)
+        sleep(1)
+        keepScreenshot("programs-dark-3-form-end")
+    }
+}

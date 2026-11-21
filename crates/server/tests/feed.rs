@@ -15,7 +15,7 @@ use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_flight::igc::{self, IgcFile};
 use venti_flight::testing::synthetic_flight;
 use venti_server::api::{Api, Cors};
-use venti_server::dev::{DEMO_HANDLE, DEMO_PILOTS, DEMO_TOKEN};
+use venti_server::dev::{DEMO_HANDLE, DEMO_PILOTS, DEMO_TAKEOFF_PILOTS, DEMO_TOKEN};
 use venti_sources::testing::assert_golden;
 use venti_store::testing::TroubledStore;
 
@@ -118,6 +118,13 @@ fn tegernsee() -> BoundingBox {
     BoundingBox::new(47.55, 11.6, 47.85, 12.0).unwrap()
 }
 
+/// The box of the development mode's made-up sites
+/// ([`venti_server::dev::DEMO_SITES_BBOX`]), from which the flights that
+/// say something about take-offs are flown.
+fn made_up_sites() -> BoundingBox {
+    BoundingBox::new(47.25, 10.85, 47.32, 10.95).unwrap()
+}
+
 /// An answer with the outlines cut to two points: short enough to stand in
 /// the documentation.
 fn example(mut answer: FlightsResponse) -> FlightsResponse {
@@ -130,11 +137,15 @@ fn example(mut answer: FlightsResponse) -> FlightsResponse {
 // --- The development mode -----------------------------------------------------
 
 #[tokio::test]
-async fn the_development_mode_lists_five_public_flights_of_three_pilots() {
+async fn the_development_mode_lists_eleven_public_flights_of_six_pilots() {
     let router = recorded().await;
     let [mara, jonas] = DEMO_PILOTS.map(|pilot| pilot.handle);
+    let [lena, timo, ines] = DEMO_TAKEOFF_PILOTS.map(|pilot| pilot.handle);
 
     let all = list(&router, &everything()).await;
+    // The newest first: the five of the demo account, Mara and Jonas in
+    // August and September 2026, then the six that say something about
+    // take-offs, of which Timo's of July 2025 is the oldest.
     assert_eq!(
         rows(&all.flights),
         [
@@ -143,16 +154,34 @@ async fn the_development_mode_lists_five_public_flights_of_three_pilots() {
             row(jonas, "08-16 10:00"),
             row(mara, "08-15 11:10"),
             row(DEMO_HANDLE, "08-15 10:30"),
+            row(lena, "07-11 10:30"),
+            row(timo, "06-07 10:30"),
+            row(lena, "06-06 10:30"),
+            row(lena, "05-09 10:30"),
+            row(ines, "04-25 10:30"),
+            row(timo, "07-19 10:30"),
         ]
     );
     assert_eq!(all.next, None);
     assert_eq!(all.flights[1].pilot.display_name, "Mara Muster");
     assert_eq!(all.flights[0].pilot.display_name, "Jonas Beispiel");
-    for flight in &all.flights {
+    assert_eq!(all.flights[5].pilot.display_name, "Lena Probe");
+    assert_eq!(all.flights[10].start.format("%Y").to_string(), "2025");
+    let mut pilots: Vec<&str> = all
+        .flights
+        .iter()
+        .map(|flight| flight.pilot.handle.as_str())
+        .collect();
+    pilots.sort_unstable();
+    pilots.dedup();
+    assert_eq!(pilots.len(), 6);
+    for (n, flight) in all.flights.iter().enumerate() {
         assert_eq!(flight.visibility, Visibility::Public);
-        // Every one is the sample flight, from the same take-off.
+        // Every one is the sample flight: the first five from its own
+        // take-off, the other six moved to the box of the made-up sites.
         let takeoff = flight.takeoff.unwrap().position;
-        assert!(tegernsee().contains(takeoff), "{takeoff:?}");
+        let valley = if n < 5 { tegernsee() } else { made_up_sites() };
+        assert!(valley.contains(takeoff), "{n}: {takeoff:?}");
         assert!(flight.score.is_some());
         // Each row is the flight as its own address shows it.
         let one: venti_api_types::v1::FlightResponse = get(&router, &flight_path(&flight.id))
@@ -160,8 +189,8 @@ async fn the_development_mode_lists_five_public_flights_of_three_pilots() {
             .ok(StatusCode::OK);
         assert_eq!(&one.flight, flight);
     }
-    // Nine flights exist in this mode. The demo account sees its own three
-    // in its logbook, and nobody sees more than the five here.
+    // Sixteen flights exist in this mode. The demo account sees its own
+    // three in its logbook, and nobody sees more than the eleven here.
     let mine: FlightsResponse = ask(Method::GET, "/v1/flights")
         .token(DEMO_TOKEN)
         .send(&router)
@@ -209,13 +238,18 @@ async fn the_development_mode_lists_five_public_flights_of_three_pilots() {
     assert_eq!(best.next, None);
     assert_golden(&golden("public_flights_best.json"), &example(best));
 
-    // Every flight of this mode took off in the same valley: a box either
-    // holds all five or none.
+    // The flights of this mode took off in two places: a box holds the
+    // five of the one, the six of the other, or none.
     let here = PublicFlightsRequest {
         bbox: Some(tegernsee()),
         ..everything()
     };
-    assert_eq!(list(&router, &here).await, all);
+    assert_eq!(list(&router, &here).await.flights, all.flights[..5]);
+    let there = PublicFlightsRequest {
+        bbox: Some(made_up_sites()),
+        ..everything()
+    };
+    assert_eq!(list(&router, &there).await.flights, all.flights[5..]);
     let elsewhere = PublicFlightsRequest {
         bbox: Some(BoundingBox::new(46.0, 9.0, 47.0, 10.0).unwrap()),
         ..everything()
@@ -227,7 +261,7 @@ async fn the_development_mode_lists_five_public_flights_of_three_pilots() {
 async fn the_list_is_read_page_by_page_in_either_order() {
     let router = recorded().await;
     let all = list(&router, &everything()).await.flights;
-    assert_eq!(all.len(), 5);
+    assert_eq!(all.len(), 11);
 
     for sort in [FlightSort::Newest, FlightSort::Score] {
         let mut expected = all.clone();

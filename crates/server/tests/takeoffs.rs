@@ -2,9 +2,8 @@
 //! router: the flights that began at a site of any layer, and the places
 //! where several pilots took off and no site stands.
 //!
-//! Over the development mode's recorded data, with the made-up flights of
-//! `dev::add_demo_takeoffs` beside it: the mode itself does not start
-//! with those, since they change what the apps' tests count.
+//! Over the development mode's recorded data, which holds the made-up
+//! flights of `dev::add_demo_takeoffs`.
 
 use axum::Router;
 use axum::http::{Method, StatusCode, header};
@@ -22,19 +21,7 @@ use venti_sources::testing::assert_golden;
 
 mod common;
 
-use common::{
-    ask, get, golden, recorded, recorded_with_its_store, set_visibility, settings, try_sign_in,
-};
-
-/// The development mode with the made-up flights that say something
-/// about take-offs.
-async fn with_takeoffs() -> Router {
-    let (router, store) = recorded_with_its_store().await;
-    dev::add_demo_takeoffs(&store, settings().password_cost)
-        .await
-        .unwrap();
-    router
-}
+use common::{ask, get, golden, recorded, set_visibility, try_sign_in};
 
 fn site(id: &str) -> SiteId {
     id.parse().unwrap()
@@ -70,7 +57,7 @@ const WALLBERG: &str = "osm-free-flying:node/5964676196";
 
 #[tokio::test]
 async fn a_site_says_what_the_public_flights_that_began_there_say() {
-    let router = with_takeoffs().await;
+    let router = recorded().await;
     let [kogel, joch, wiese, removed] = DEMO_SITES;
 
     // The made-up take-off: three public flights of two pilots began
@@ -182,7 +169,7 @@ async fn a_site_says_what_the_public_flights_that_began_there_say() {
 
 #[tokio::test]
 async fn a_place_pilots_take_off_at_that_no_site_names_is_offered() {
-    let router = with_takeoffs().await;
+    let router = recorded().await;
 
     // Three pilots took off at a place where no site stands: it is
     // offered, with what their flights say and nothing of who they are.
@@ -296,16 +283,18 @@ async fn a_place_pilots_take_off_at_that_no_site_names_is_offered() {
 
 #[tokio::test]
 async fn candidates_are_asked_for_in_a_box_of_a_bounded_size() {
-    // The development mode as it starts has none: its public flights all
-    // began beside a take-off of OpenStreetMap's.
+    // The development mode has one candidate. A box of the bound or
+    // smaller that holds it has that one; one about the Tegernsee, where
+    // its other public flights began beside a take-off of
+    // OpenStreetMap's, has none.
     let router = recorded().await;
-    for bbox in [
-        DEMO_SITES_BBOX,
-        "11.7,47.6,11.95,47.75",
-        "10.5,46.5,12.5,48.5",
-    ] {
-        assert!(candidates(&router, bbox).await.candidates.is_empty());
+    let the_one = candidates(&router, DEMO_CANDIDATE_BBOX).await;
+    assert_eq!(the_one.candidates.len(), 1);
+    for bbox in [DEMO_SITES_BBOX, "10.5,46.5,12.5,48.5"] {
+        assert_eq!(candidates(&router, bbox).await, the_one, "{bbox}");
     }
+    let tegernsee = candidates(&router, "11.7,47.6,11.95,47.75").await;
+    assert!(tegernsee.candidates.is_empty());
 
     get(&router, SITE_CANDIDATES_PATH)
         .await

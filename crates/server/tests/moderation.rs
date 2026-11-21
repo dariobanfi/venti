@@ -272,7 +272,7 @@ async fn a_pilot_reports_a_flight_a_page_and_a_live_track() {
             .iter()
             .all(|report| report.about.as_ref().unwrap().handle == DEMO_HANDLE)
     );
-    assert_eq!(public_flights(&router).await.len(), 5);
+    assert_eq!(public_flights(&router).await.len(), 11);
     assert_eq!(gliders_on_the_map(&router).await.len(), 2);
     let listed = operator(&store, &clock, Action::Reports { all: false }).await;
     assert!(listed.said.starts_with("5 reports are open, oldest first."));
@@ -1152,7 +1152,7 @@ async fn an_account_that_may_not_publish_is_told_so_and_publishes_nothing() {
         panic!("the demo account has three flights");
     };
     assert_eq!(gliders_on_the_map(&router).await.len(), 2);
-    assert_eq!(public_flights(&router).await.len(), 5);
+    assert_eq!(public_flights(&router).await.len(), 11);
 
     let suspended = Action::SuspendPublishing {
         handle: "Demo".to_owned(),
@@ -1188,7 +1188,7 @@ async fn an_account_that_may_not_publish_is_told_so_and_publishes_nothing() {
     assert_eq!(signed_in.account, account.account);
 
     // Nothing of it is in a list that others read.
-    assert_eq!(public_flights(&router).await.len(), 4);
+    assert_eq!(public_flights(&router).await.len(), 10);
     assert!(!public_flights(&router).await.contains(&public.id));
     get(&router, "/v1/pilots/demo")
         .await
@@ -1277,10 +1277,10 @@ async fn an_account_that_may_not_publish_is_told_so_and_publishes_nothing() {
         .await
         .ok(StatusCode::OK);
     assert_eq!(account.account.publishing_suspended_at, None);
-    assert_eq!(public_flights(&router).await.len(), 4);
+    assert_eq!(public_flights(&router).await.len(), 10);
     assert!(gliders_on_the_map(&router).await.is_empty());
     set_visibility(&router, DEMO_TOKEN, &public.id, Visibility::Public).await;
-    assert_eq!(public_flights(&router).await.len(), 5);
+    assert_eq!(public_flights(&router).await.len(), 11);
     let not_suspended = Action::ResumePublishing {
         handle: "demo".to_owned(),
     };

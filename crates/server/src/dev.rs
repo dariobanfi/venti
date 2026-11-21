@@ -21,8 +21,11 @@
 //! flights holds the flights of several. The three pilots are in a group
 //! that the demo account keeps, with plans for the day this mode's clock
 //! shows and the two days after; the two further pilots have a second
-//! group that the demo account is not in. Client work and UI tests run
-//! against this.
+//! group that the demo account is not in. Three more made-up pilots have
+//! flights from a made-up take-off and from a place where no site stands,
+//! so that what public flights say about a site and the places no site
+//! names have something to show: eleven public flights of six pilots in
+//! all. Client work and UI tests run against this.
 //!
 //! The rain radar has both of the first region's sources, each with the
 //! two frames recorded on 2026-11-21 within two minutes of each other:
@@ -818,8 +821,9 @@ pub const DEMO_PILOTS: [DemoPilot; 2] = [
 /// of them take off from the same place.
 ///
 /// With the demo account's public flight that makes five public flights of
-/// three pilots: two on 15 August 2026, two on the 16th and one on 6
-/// September. One flight of each further pilot is not public, and must
+/// three pilots from this take-off: two on 15 August 2026, two on the 16th
+/// and one on 6 September. The mode's other six public flights are those
+/// of [`add_demo_takeoffs`], flown elsewhere. One flight of each further pilot is not public, and must
 /// show in no list. The first one's was public and is shared by link now
 /// ([`withdraw_a_flight`]).
 fn further_flights() -> [Vec<(Vec<u8>, Visibility)>; 2] {
@@ -914,13 +918,9 @@ pub const DEMO_CANDIDATE_BBOX: &str = "10.92,47.25,10.95,47.27";
 ///   a candidate; and a fourth flight that is private and counts for
 ///   nothing.
 ///
-/// **The development mode does not start with these.** Its five public
-/// flights of three pilots are counted by the apps' tests (the list of
-/// everyone's flights has five rows, the ranking three pilots), and six
-/// more public flights of three more pilots change every one of those
-/// counts. The server's own tests call this on the recorded store; one
-/// call in [`add_demo_account`] gives them to `venti-server dev`, once
-/// the apps' tests count what is then there.
+/// The development mode starts with these since 2026-11-21 (they are
+/// added by [`add_demo_account`]): eleven public flights of six pilots in
+/// all, which the apps' tests count.
 pub async fn add_demo_takeoffs(store: &MemoryStore, password_cost: Cost) -> Result<(), String> {
     let now = adapters::recorded_at();
     // From the sample flight's own take-off (47.6642 N, 11.7967 E) to the
@@ -1049,8 +1049,9 @@ async fn withdraw_a_flight(
 }
 
 /// Puts the demo account, its session, its flights and its live tracks
-/// into the store, the two further pilots with their flights, and the
-/// groups the three are in.
+/// into the store, the two further pilots with their flights, the groups
+/// the three are in, their made-up sites, and the three pilots of
+/// [`add_demo_takeoffs`] with theirs.
 async fn add_demo_account(
     store: &MemoryStore,
     now: Timestamp,
@@ -1088,6 +1089,7 @@ async fn add_demo_account(
     withdraw_a_flight(store, &pilots[1], now).await?;
     add_demo_groups(store, &pilots, now).await?;
     add_demo_sites(store, &pilots, now).await?;
+    add_demo_takeoffs(store, password_cost).await?;
 
     let session = Session {
         id: DEMO_SESSION_ID.to_owned(),

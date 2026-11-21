@@ -19,7 +19,9 @@ use venti_api_types::v1::{
     RANKING_PATH, RankingResponse, Visibility, flight_file_path, flight_path, flight_track_path,
 };
 use venti_flight::testing::synthetic_flight;
-use venti_server::dev::{DEMO_ACCESS_TOKEN, DEMO_HANDLE, DEMO_PILOTS, DEMO_TOKEN};
+use venti_server::dev::{
+    DEMO_ACCESS_TOKEN, DEMO_HANDLE, DEMO_PILOTS, DEMO_TAKEOFF_PILOTS, DEMO_TOKEN,
+};
 use venti_sources::testing::assert_golden;
 use venti_store::Store;
 
@@ -669,13 +671,14 @@ fn short(mut answer: PublicFlightChangesResponse) -> PublicFlightChangesResponse
 }
 
 #[tokio::test]
-async fn the_development_mode_has_five_flights_to_follow_and_one_withdrawn() {
+async fn the_development_mode_has_eleven_flights_to_follow_and_one_withdrawn() {
     let router = recorded().await;
     let [mara, jonas] = DEMO_PILOTS.map(|pilot| pilot.handle);
+    let [lena, timo, ines] = DEMO_TAKEOFF_PILOTS.map(|pilot| pilot.handle);
 
     let mut mirror = Mirror::default();
     mirror.follow(&router, 100).await;
-    assert_eq!(mirror.held.len(), 5);
+    assert_eq!(mirror.held.len(), 11);
     mirror.is_true(&router).await;
     let all = changes(&router, &PublicFlightChangesRequest::default()).await;
     let by: Vec<&str> = all
@@ -683,7 +686,24 @@ async fn the_development_mode_has_five_flights_to_follow_and_one_withdrawn() {
         .iter()
         .map(|flight| flight.pilot.handle.as_str())
         .collect();
-    assert_eq!(by, [DEMO_HANDLE, mara, mara, jonas, jonas]);
+    // In the order they were made public: the pilots of the development
+    // mode one after the other, as it puts them in.
+    assert_eq!(
+        by,
+        [
+            DEMO_HANDLE,
+            mara,
+            mara,
+            jonas,
+            jonas,
+            lena,
+            lena,
+            lena,
+            timo,
+            timo,
+            ines
+        ]
+    );
     assert_eq!(all.withdrawn.len(), 1);
     assert!(!all.more && !all.reset);
 
@@ -717,18 +737,33 @@ async fn the_development_mode_has_five_flights_to_follow_and_one_withdrawn() {
     assert_eq!(first.flights.len(), 4);
     // The document names this cursor.
     assert_eq!(first.cursor, "1795028700000003");
+    // The two after them, which the document shows: Jonas's second flight
+    // and the one that was withdrawn, with more to come.
     let then = PublicFlightChangesRequest {
         since: Some(first.cursor.clone()),
+        limit: Some(2),
         ..PublicFlightChangesRequest::default()
     };
     assert_eq!(
         then.path_and_query(),
-        format!("/v1/flights/public/changes?since={}", first.cursor)
+        format!("/v1/flights/public/changes?since={}&limit=2", first.cursor)
     );
-    let rest = changes(&router, &then).await;
-    assert_eq!((rest.flights.len(), rest.withdrawn.len()), (1, 1));
+    let next = changes(&router, &then).await;
+    assert_eq!((next.flights.len(), next.withdrawn.len()), (1, 1));
+    assert!(next.more);
+    let rest = changes(
+        &router,
+        &PublicFlightChangesRequest {
+            since: Some(next.cursor.clone()),
+            ..PublicFlightChangesRequest::default()
+        },
+    )
+    .await;
+    // And the rest: the six flights that say something about take-offs.
+    assert_eq!((rest.flights.len(), rest.withdrawn.len()), (6, 0));
+    assert!(!rest.more);
     assert_eq!(rest.cursor, all.cursor);
-    assert_golden(&golden("public_flight_changes.json"), &short(rest));
+    assert_golden(&golden("public_flight_changes.json"), &short(next.clone()));
 
     // One pilot's.
     let maras = changes(
@@ -740,7 +775,8 @@ async fn the_development_mode_has_five_flights_to_follow_and_one_withdrawn() {
     )
     .await;
     assert_eq!((maras.flights.len(), maras.withdrawn.len()), (2, 1));
-    assert_eq!(maras.cursor, all.cursor);
+    // Her cursor stands at her last change, the withdrawal.
+    assert_eq!(maras.cursor, next.cursor);
 
     // The track of the demo account's public flight, cut to its first
     // three positions for the document.

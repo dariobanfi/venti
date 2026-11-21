@@ -86,18 +86,28 @@ curl http://127.0.0.1:8080/v1/flights \
   -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
 ```
 
-Two further pilots are there as well, so that [the list of everyone's public flights](#public-flights) holds the flights of several. One flight of the first of them was public and is shared by link now, so that [what changed among the public flights](#get-v1flightspublicchangessincepilotlimit) holds five flights and one that was withdrawn. Their names are made up, as "Max Mustermann" is. Each signs in with the demo account's password; neither has a token that always works, and neither has a live track.
+Two further pilots are there as well, so that [the list of everyone's public flights](#public-flights) holds the flights of several. One flight of the first of them was public and is shared by link now, so that [what changed among the public flights](#get-v1flightspublicchangessincepilotlimit) holds eleven flights and one that was withdrawn. Their names are made up, as "Max Mustermann" is. Each signs in with the demo account's password; neither has a token that always works, and neither has a live track.
 
 | Handle | Display name | Flights |
 |---|---|---|
 | `mara` | Mara Muster | Public: 2026-08-15 at 11:10 UTC (the first 25 minutes of the sample flight) and 2026-08-16 at 12:05 (the whole of it, with a landing). Unlisted: 2026-08-17 |
 | `jonas` | Jonas Beispiel | Public: 2026-08-16 at 10:00 UTC (the first 20 minutes) and 2026-09-06 at 13:00 (the whole of it, with a landing). Private: 2026-09-07 |
 
-That makes nine flights, of which five are public: these four and the demo account's. Every one of them is the sample flight, flown on another day and at another time of day, some cut short; a flight that is cut short ends in the air and has no landing. The sample flight is the only flight file the project may ship, so every flight of this mode takes off from the same place, the Wallberg at 47.6642° N, 11.7967° E: a `bbox` holds all five public flights or none. The three whole flights score the same 11.98 points, the two that are cut short score less.
+That makes nine flights, of which five are public: these four and the demo account's. Every one of them is the sample flight, flown on another day and at another time of day, some cut short; a flight that is cut short ends in the air and has no landing. The sample flight is the only flight file the project may ship, so every one of these takes off from the same place, the Wallberg at 47.6642° N, 11.7967° E. The three whole flights score the same 11.98 points, the two that are cut short score less.
+
+Three more made-up pilots have flights that say something about [where pilots take off](#what-public-flights-say-about-a-site) (`dev::add_demo_takeoffs`): the sample flight again, moved to two places in the Lechtal Alps, in the box of the [made-up sites](#sites-that-ventis-partners-and-pilots-add) (`10.85,47.25,10.95,47.32`). One is the made-up take-off "Musterkogel West" (`venti:0000000000000000000000s001`, 47.3° N, 10.9° E); the other, 4 km south-east of it at 47.2612° N, 10.9312° E, is a place where no site stands. Each of them signs in with the demo account's password too, and none has a token that always works or a live track. Every flight of theirs lands.
+
+| Handle | Display name | Flights |
+|---|---|---|
+| `lena` | Lena Probe | Public: from the Musterkogel on 2026-05-09 (the whole sample flight, 12.01 points) and on 2026-07-11 (the first 25 minutes); from the place without a site on 2026-06-06 (the first 10 minutes) |
+| `timo` | Timo Entwurf | Public: from the Musterkogel on 2025-07-19 (the whole of it); from the place without a site on 2026-06-07 (the first 700 seconds) |
+| `ines` | Ines Vorlage | Public: from the place without a site on 2026-04-25 (the first 800 seconds). Private: from there on 2026-06-13 |
+
+Each of these starts at 10:30 UTC. So the mode has sixteen flights, of which eleven are public, by six pilots. A `bbox` around the Tegernsee holds the five from the Wallberg, one around the made-up sites the six from the Lechtal Alps. The ranking is, by the sum of each pilot's best three flights: `lena` (28.19 points, three flights), `mara` (23.42), `jonas` (21.0), `timo` (17.83), `demo` (11.98, one flight) and `ines` (6.32, one flight). The Musterkogel has three public flights of two pilots, and the place without a site is a [candidate](#get-v1sitescandidatesbboxwestsoutheastnorth): three flights of three pilots, Ines's private one not counted.
 
 ```bash
-curl http://127.0.0.1:8080/v1/flights/public                          # the five public flights, newest first
-curl http://127.0.0.1:8080/v1/ranking                                 # their three pilots, by the sum of their best three flights
+curl http://127.0.0.1:8080/v1/flights/public                          # the eleven public flights, newest first
+curl http://127.0.0.1:8080/v1/ranking                                 # their six pilots, by the sum of their best three flights
 curl 'http://127.0.0.1:8080/v1/flights/public?bbox=11.6,47.55,12,47.85&sort=score'
 curl http://127.0.0.1:8080/v1/pilots/mara
 ```
@@ -118,7 +128,7 @@ curl http://127.0.0.1:8080/live/11111111111111111111111111             # the pag
 
 Every fix of these tracks but the first of each says how fast the glider moved, how fast it climbed and where it was heading; the first says only where it was, and a glider that stands still has no heading. That is what a real app sends too.
 
-The three pilots are in a [group](#groups) that the demo account keeps, and the two further pilots have a second one that the demo account is not in: to the demo account it is no group, until the account comes into it with its code. The names are made up, like the pilots': a "Mustergruppe" is a sample group as "Max Mustermann" is a sample man.
+The demo account and the two further pilots are in a [group](#groups) that the demo account keeps, and the two further pilots have a second one that the demo account is not in: to the demo account it is no group, until the account comes into it with its code. The names are made up, like the pilots': a "Mustergruppe" is a sample group as "Max Mustermann" is a sample man.
 
 | Identifier | Name | Invite code | Keeper and members |
 |---|---|---|---|
@@ -146,7 +156,7 @@ curl -X POST http://127.0.0.1:8080/v1/groups/join -H "$token" \
 
 An account that a test creates comes into either group with its code. This mode counts nothing an account does with groups, and takes a plan for any day from 17 November 2026 on, however far ahead: its clock stands still while an app under test may run in a later year.
 
-None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. [Reports](#reports) are taken and kept, and nobody reads them: no flight of this mode is taken down and no account's publishing is suspended, because the commands that do that work on a real server's database. Whatever a client changes is forgotten when the program stops. The addresses of the flights of all three pilots, the identifiers of the demo live tracks and those of the two groups and their plans, with the groups' invite codes, are the same on every start.
+None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. [Reports](#reports) are taken and kept, and nobody reads them: no flight of this mode is taken down and no account's publishing is suspended, because the commands that do that work on a real server's database. Whatever a client changes is forgotten when the program stops. The addresses of the flights of all six pilots, the identifiers of the demo live tracks and those of the two groups and their plans, with the groups' invite codes, are the same on every start.
 
 Because its clock stands still, this mode takes live fixes of **any time**, where a real server refuses those from the future and those more than 12 hours old, and it never treats a track as too old to read or to add to. An app under test can therefore send the fixes of a replayed flight of last summer, or of its own clock. Two things stay as on a real server: an answer says when a track would be removed (`expires_at`), and the list of public tracks holds a track only while its newest fix is no older than half an hour by this mode's clock. A track sent with the times of a replayed flight is thus read by its identifier and is not on the list.
 
@@ -1970,7 +1980,7 @@ A pilot says of a place from pilots "I took off here and it was good" ([above](#
 
 **The bound.** Both count as reads of public flights for the address that asks, with the list and the tracks: [600 an hour](#how-often-an-address-may-read).
 
-The examples are the answers the server's tests keep, over the development mode with a few more made-up flights (`dev::add_demo_takeoffs`: the sample flight, flown by three more made-up pilots from two made-up places). The development mode does not start with those, because they would change every count of its five public flights; as it starts, `curl 'http://127.0.0.1:8080/v1/sites/osm-free-flying:node/5964676196/flights'` shows those five, and no box holds a candidate.
+The examples are the answers the server's tests keep, over the [development mode](#try-it). Its made-up flights of `lena`, `timo` and `ines` (`dev::add_demo_takeoffs`: the sample flight, flown from two made-up places) give the made-up take-off "Musterkogel West" its flights and make one candidate; `curl 'http://127.0.0.1:8080/v1/sites/osm-free-flying:node/5964676196/flights'` shows the five public flights of the other three pilots, beside a take-off of OpenStreetMap's.
 
 ### `GET /v1/sites/{id}/flights`
 
@@ -5852,7 +5862,7 @@ What a row of a list needs is in every flight: `id`, the flight's address, under
 
 **Who may keep an answer.** `Cache-Control: public, no-cache` and an `ETag`, like a pilot's page: an answer may be kept, by anyone, and must be checked with `If-None-Match` before every reuse, which ends in `304` without a body while the page has not changed. That is how a flight that is made private leaves every copy of the list at once. A token changes nothing about the answer.
 
-**How large an answer is.** A flight is about 0.6 kB and 20 bytes for each point of its outline, of which it has 96 at most. A page of 50 long flights is therefore up to 130 kB, and one of 100 up to 250 kB *(worked out from the format, not measured on real flights)*. The five flights of the development mode, whose outlines have 13 points, are 4.4 kB, and 0.9 kB with gzip.
+**How large an answer is.** A flight is about 0.6 kB and 20 bytes for each point of its outline, of which it has 96 at most. A page of 50 long flights is therefore up to 130 kB, and one of 100 up to 250 kB *(worked out from the format, not measured on real flights)*. The eleven flights of the development mode, whose outlines have 6 to 13 points, are 10.2 kB, and 2.2 kB with gzip (measured on 2026-11-21).
 
 | Status | Code | When |
 |---|---|---|
@@ -5873,10 +5883,10 @@ What changed in what the public sees of flights since a program last asked: of e
 | `pilot` | A handle: only the changes to that pilot's flights. `404` with `pilot_not_found` when the pilot has no public flight, as [the pilot's page](#pilots) answers | The changes to everyone's |
 | `limit` | How many changes to return, 1 to 100 | 50 |
 
-The development mode has six changes. The first four, read with `limit=4`, end at the cursor `1795028700000003`; what came after them:
+The development mode has twelve changes: eleven flights made public and one withdrawn. The first four, read with `limit=4`, end at the cursor `1795028700000003`; the two after them, read with `limit=2`, are a flight and the withdrawal, and six more wait:
 
 ```bash
-curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003'
+curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003&limit=2'
 ```
 
 ```json
@@ -5941,7 +5951,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003'
     }
   ],
   "cursor": "1795028700000006",
-  "more": false,
+  "more": true,
   "reset": false,
   "terms": {
     "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",

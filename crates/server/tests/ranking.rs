@@ -14,7 +14,7 @@ use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_flight::igc::{self, IgcFile};
 use venti_flight::testing::synthetic_flight;
 use venti_server::api::{Api, Cors};
-use venti_server::dev::{DEMO_HANDLE, DEMO_PILOTS, DEMO_TOKEN};
+use venti_server::dev::{DEMO_HANDLE, DEMO_PILOTS, DEMO_TAKEOFF_PILOTS, DEMO_TOKEN};
 use venti_sources::testing::assert_golden;
 use venti_store::testing::TroubledStore;
 
@@ -101,6 +101,13 @@ fn tegernsee() -> BoundingBox {
     BoundingBox::new(47.55, 11.6, 47.85, 12.0).unwrap()
 }
 
+/// The box of the development mode's made-up sites
+/// ([`venti_server::dev::DEMO_SITES_BBOX`]), from which the flights that
+/// say something about take-offs are flown.
+fn made_up_sites() -> BoundingBox {
+    BoundingBox::new(47.25, 10.85, 47.32, 10.95).unwrap()
+}
+
 /// An answer with the outlines cut to two points: short enough to stand in
 /// the documentation.
 fn example(mut answer: RankingResponse) -> RankingResponse {
@@ -117,25 +124,31 @@ fn example(mut answer: RankingResponse) -> RankingResponse {
 // --- The development mode -----------------------------------------------------
 
 #[tokio::test]
-async fn the_development_mode_ranks_its_three_pilots() {
+async fn the_development_mode_ranks_its_six_pilots() {
     let router = recorded().await;
     let [mara, jonas] = DEMO_PILOTS.map(|pilot| pilot.handle);
+    let [lena, timo, ines] = DEMO_TAKEOFF_PILOTS.map(|pilot| pilot.handle);
 
     let all = ranking(&router, &everything()).await;
     assert_eq!(all.counted, 3);
-    // Five public flights: two each of Mara and Jonas, one of the demo
-    // account, whose other two are not public.
-    let mut everyone = handles(&all.pilots);
-    everyone.sort();
-    let mut expected = [DEMO_HANDLE, mara, jonas].map(str::to_owned);
-    expected.sort();
-    assert_eq!(everyone, expected);
+    // Eleven public flights: three of Lena, two each of Mara, Jonas and
+    // Timo, one each of the demo account and Ines. The demo account's
+    // other two are not public, nor is one of Ines's. By the sum of their
+    // points, the most first: Lena, whose three all count, before the
+    // pilots of two flights, and the demo account and Ines, of one each,
+    // last.
+    assert_eq!(
+        handles(&all.pilots),
+        [lena, mara, jonas, timo, DEMO_HANDLE, ines].map(str::to_owned)
+    );
+    let public_flights = |handle: &str| match handle {
+        DEMO_HANDLE => 1,
+        handle if handle == ines => 1,
+        handle if handle == lena => 3,
+        _ => 2,
+    };
     for pilot in &all.pilots {
-        let flights = if pilot.pilot.handle.as_str() == DEMO_HANDLE {
-            1
-        } else {
-            2
-        };
+        let flights = public_flights(pilot.pilot.handle.as_str());
         assert_eq!(pilot.flights.len(), flights, "{}", pilot.pilot.handle);
         assert_eq!(pilot.scored, u32::try_from(flights).unwrap());
         assert_eq!(pilot.points, sum(&pilot.flights));
@@ -181,13 +194,27 @@ async fn the_development_mode_ranks_its_three_pilots() {
     assert_eq!(top.pilots.len(), 2);
     assert_golden(&golden("ranking.json"), &example(top));
 
-    // Every flight of this mode took off in the same valley: a box either
-    // holds all of them or none.
+    // The flights of this mode took off in two places: a box ranks the
+    // three pilots who flew from the one, the three who flew from the
+    // other, or nobody.
     let here = RankingRequest {
         bbox: Some(tegernsee()),
         ..everything()
     };
-    assert_eq!(ranking(&router, &here).await, all);
+    let mut theirs = handles(&ranking(&router, &here).await.pilots);
+    theirs.sort();
+    let mut expected = [DEMO_HANDLE, mara, jonas].map(str::to_owned);
+    expected.sort();
+    assert_eq!(theirs, expected);
+    let there = RankingRequest {
+        bbox: Some(made_up_sites()),
+        ..everything()
+    };
+    let mut theirs = handles(&ranking(&router, &there).await.pilots);
+    theirs.sort();
+    let mut expected = [lena, timo, ines].map(str::to_owned);
+    expected.sort();
+    assert_eq!(theirs, expected);
     let elsewhere = RankingRequest {
         bbox: Some(BoundingBox::new(46.0, 9.0, 47.0, 10.0).unwrap()),
         ..everything()

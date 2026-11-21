@@ -1,8 +1,8 @@
 # Airspace
 
-Last revised: 2026-11-19. Facts marked *(to verify)* could not be checked against a primary source and must not be relied on until they are.
+Last revised: 2026-11-21. Facts marked *(to verify)* could not be checked against a primary source and must not be relied on until they are.
 
-Airspace is safety-relevant. This document describes the part of Venti that knows about it: the canonical record, the reader for OpenAir files, the questions the cockpit and the map can ask, and the warnings. All of it is deterministic code in Rust that works offline, reads no clock and needs no assistant.
+Airspace is safety-relevant. This document describes the part of Venti that knows about it: the canonical record, the reader for OpenAir files, the questions the cockpit and the map can ask, the warnings, and the reading of the airspace that matters next while no warning is up. All of it is deterministic code in Rust that works offline, reads no clock and needs no assistant.
 
 One rule runs through everything below: **a wrong "you are clear" is the worst thing the app can say.** Where something is unknown, the airspace is taken as reaching toward the pilot and the answer says that it is uncertain. Every such rule is listed under [Conservative rules](#conservative-rules).
 
@@ -13,7 +13,7 @@ Everything is advisory. A record names its source and carries the age of its dat
 | Crate | What it holds |
 |---|---|
 | `venti-domain` | The canonical record, `Airspace`, with its checks |
-| `venti-airspace` | The OpenAir reader, the index with its questions, the warning table and the warning engine. Depends on `venti-domain` only |
+| `venti-airspace` | The OpenAir reader, the index with its questions, the warning table, the warning engine and the reading of the airspace that matters next. Depends on `venti-domain` only |
 | `venti-sources` | `AirspaceSource`, the adapter trait for providers, and `run_airspace`, the pipeline that runs one |
 | `venti-sources-openaip` | The first provider: openAIP's airspace of the eight countries the first region's box takes in. See [data-sources.md](data-sources.md#airspace) |
 | `venti-store`, `venti-server` | Keep each source's airspace as one whole set and serve it at `GET /v1/airspace`. See [api.md](api.md#get-v1airspacebboxwestsoutheastnorth) |
@@ -29,6 +29,8 @@ A client reaches airspace through `venti-airspace`; nothing in it touches a netw
 No app reads the endpoint yet; the pilot's own OpenAir files remain the app's only airspace until the core does.
 
 **In the app (since 2026-11-19).** Until that bundle exists, the pilot brings airspace in as OpenAir files. The core (`crates/core/src/airspace.rs`) keeps each file as it came, under the day it was brought in, reads all of them into one index, and gives a map the airspaces in view and the cockpit's session the warnings: the session feeds the engine every position, at most once a second, with the flight computer's altitude, pressure altitude, speed, course and averaged climb, and no ground elevation. The wording of a warning ("Inside CTR Innsbruck", "CTR Innsbruck in 30 s", "CTR Innsbruck 300 m NE", "Climbing into ...") is made in the core, so every shell says the same. The iPhone draws the airspace on both maps, shows the most urgent warning over the cockpit's map, says a new or more urgent one aloud, and offers "Seen: quiet for 10 minutes" (acknowledge) and "Does not apply today" (ignore). What a file left out is said at import and stays on the file's row in red. Not done: the ground elevation, so every limit above ground is "possibly"; activations; the airspace side view. Android has the same since the same day: the files, both maps, the banner, the sheet and the voice.
+
+**The airspace that matters next, in the core (since 2026-11-21).** With every position it checks, the session also reads which airspace comes next, how far off it is and how it lies in height, out to 5 km, also when no warning is up: `CockpitView::airspace_proximity`, described under [The airspace that matters next](#the-airspace-that-matters-next). No phone shows it yet.
 
 **On the web (since 2026-11-19).** The web app has no cockpit and therefore no warnings. It has the rest: the pilot brings in OpenAir files with a button or by dropping them on the screen that lists them, the import says what each file gave and what it left out, and what a file left out stays on its row in red. The maps draw the one set the core builds from the files and from what is kept from the server: the map of all flights, and the map of one flight, which draws the airspace as it is today, not as it was on the day of the flight. A map asks the core for the airspace of what it shows when it has come to rest outside what it has, not for a frame, and not at all below zoom 7, where nothing is drawn. The screen says what the app does not know, in the words of the phone where they apply: it knows the airspace listed there and no other, an empty map does not mean empty air, an old file looks like a new one, nothing is known about activations, and what is drawn is advice. For those who cannot see a map, each map says in a sentence how many airspaces it has drawn on the part in view.
 
@@ -112,6 +114,7 @@ Checked against real files on 2026-11-19: openAIP's OpenAir exports for Germany 
 |---|---|
 | `index.at(position, &altitudes)` | Every airspace whose outline contains the position, each with the pilot's height in relation to it: below, inside or above, by how many metres, with the floor and ceiling placed on the pilot's height scale and a flag when the answer is uncertain |
 | `index.nearby(position, &altitudes, radius_m, vertical_margin_m)` | The airspaces within the radius that the pilot is at a height to enter, each with the distance and direction to its outline. From inside, the distance is to the nearest way out |
+| `proximity(&index, &config, position, &altitudes, set_aside)`, `engine.proximity(&index, &sample)` | The one airspace that matters next, of those the warning table does not call free, out to 5 km over the ground and at whatever height: see [The airspace that matters next](#the-airspace-that-matters-next) |
 | `index.in_box(&area, band)` | For a map: what touches a box, optionally only what can reach into a band of altitudes |
 | `index.cross_section(&path)` | For a side view: the stretches of a path that run under, in or over each airspace, as distances from its start, with the published floor and ceiling |
 | `horizontal(&airspace, position)` | The distance and direction to one airspace's outline |
@@ -241,6 +244,62 @@ So outside Germany and Austria a warning is the general reading of an airspace's
 
 Not in the table, because the app cannot know them: airspace marked HX, which is open at times and must be left within ten minutes of activation; and the relief an active glider sector or Austrian TRA gives to the airspace it lies in. A pilot who knows that a sector is open uses `ignore` on the airspace around it.
 
+## The airspace that matters next
+
+The warnings speak when something is urgent. Between them a pilot still wants to read which airspace comes next: the owner's XCTrack layout has an "airspace proximity" reading on two of its three pages, set to look 5 km ([xctrack-parity.md](xctrack-parity.md#a-layout-a-pilot-flies-with-the-owners)). Since 2026-11-21 the core makes that reading. In `venti-airspace` it is `proximity(...)`, and `WarningEngine::proximity(&index, &sample)` for an engine; in the cockpit's view it is `CockpitView::airspace_proximity`. It is deterministic, reads no clock and needs no network. **No phone shows it yet.**
+
+**What it says.** One airspace, and three things about it:
+
+- *Which:* its name as a warning names it, with its class and limits ("Class D control zone · GND to 5000 ft AMSL"), its source and the date of its data.
+- *Over the ground:* how far its outline is and in which direction, to the nearest point of the outline. With the glider inside the outline: that it is, and from inside the airspace the distance and direction to the nearest way out.
+- *In height:* its floor so many metres above the glider, its ceiling so many below, or that it is at the glider's height.
+
+| The glider is | The reading, in words |
+|---|---|
+| Beside it and under its floor | "CTR Innsbruck · 3.2 km NE · floor 400 m above" |
+| Beside it, between floor and ceiling | "CTR Innsbruck · 3.2 km NE · at your height" |
+| Beside it and over its ceiling | "CTR Innsbruck · 3.2 km NE · ceiling 250 m below" |
+| Inside its outline, under its floor | "TMA Innsbruck · overhead · floor 324 m above" |
+| Inside its outline, over its ceiling | "TMA Innsbruck · underneath · ceiling 250 m below" |
+| In it | "CTR Innsbruck · inside, edge 2.2 km N" |
+| Any of these, with the height in doubt | "ED-R 138 · 3.0 km S · possibly at your height", "possibly inside, edge 2.2 km N", and a line that says what is missing, the one a warning has |
+
+Distances and heights are written as a warning writes them, so the band and the reading never show two figures for one airspace. Beyond 5 km over the ground there is no reading, and the view says so by having none.
+
+**It is the warnings' own check without their margin.** This is what keeps the reading and the warnings from ever contradicting each other:
+
+- *The same airspaces.* The table under [Which airspaces warn](#which-airspaces-warn) decides: everything it does not call free can be the reading, and nothing else. A class E area or a glider sector is never the reading, as it never warns.
+- *The same two measurements.* The distance to the outline is `horizontal`, the height is `vertical_status`, with every [conservative rule](#conservative-rules) in it: a limit above ground without the ground's height, or a flight level without a pressure altitude, reaches to the glider, the reading says "possibly at your height" and names what is missing. "Floor 400 m above" is said only when it is certain, and is the least it can be.
+- *The same moment.* The session reads it in the same pass as the warnings, with every position it checks, from the same position and altitudes.
+- *The same order of nearness*, as follows.
+
+**Which one, among several.** Every airspace that counts and whose outline comes within 5 km of the glider over the ground is a candidate, at whatever height it lies; so is every one whose outline the glider is inside. Of the candidates the first in this order is the reading:
+
+1. *One the pilot has not set aside before one the pilot has.* "Does not apply today" (`ignore`) puts an airspace last. It is the reading only when no other is within reach, and is then marked as quieted. "Seen" (`acknowledge`) changes nothing: the airspace is where it was.
+2. *One to avoid before one that deserves attention.* A pilot who crosses a nature reserve for an hour is inside it all the while, and would otherwise read nothing about the control zone 3 km on. An airspace of the "caution" kind is the reading only when no airspace to avoid has its outline within 5 km.
+3. *The one nearer to a warning.* For each airspace take its **warning distance**: the distance over the ground to its outline divided by four, or the height between the glider and the airspace, whichever is larger. This is the measure the warning margins are steps of: an airspace to avoid is "near" at a warning distance of 500 m (2000 m over the ground, 500 m of height), "very near" at 100 m and "inside" at none. The smallest warning distance wins. So an airspace overhead whose floor is 300 m above the glider comes before a zone at the glider's height 3 km away (750 m), and after one 1 km away (250 m).
+4. *The nearer over the ground, then the lower identifier,* so that the answer never depends on the order of the files.
+
+The four to one is the shape of the margins, which are XCTrack's, and the ratio its manual gives for the "scaled distance" its own proximity widget is coloured by (above, under [Warnings](#warnings)). Whether XCTrack also picks the airspace it shows by that distance the manual does not say: it says that the widget is split when more than one airspace is near *(to verify in XCTrack itself)*. The manual describes the widget as showing the airspace's name with its altitudes, the vertical distance to floor or ceiling, the horizontal distance to the border with the direction to its nearest part, and from inside the nearest border as the shortest way out ([AIR³ XCTrack Pro manual, Navigation widgets 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-navigation2/), read on 2026-11-21 through a tool that summarises a page; the wording is *to verify* against the page). Ours says the same three things. Taking the larger of the two parts, and not a sum or a root of squares, is ours: it is the one measure under which "within both margins", which is how Venti warns, and "warning distance under the margin" are the same statement. Rules 1 and 2 are ours too, *to verify in the air*.
+
+**While a warning is up the reading stays.** The band at the top comes and goes with what is urgent; the reading is the instrument beside it, and is not taken away at the moment the pilot looks at it. It then carries the warning's level (`level`), so that a shell draws it as urgent as the band, and whether the pilot has quieted the warning (`silenced`). The two can be about different airspaces, and are then both right: the band is about the most urgent warning, which may be an entry predicted for an airspace ahead, or a warning held for ten seconds after its airspace was left; the reading is about where the glider is now.
+
+What follows from the rule, and is tested on a grid of positions around two airspaces, on scripted flights and through a replayed flight:
+
+- While a warning is up there is a reading. (A warning about an airspace further than 5 km would need more than 240 km/h over the ground: an entry predicted 75 s ahead.)
+- When a warning is up for the reading's airspace, the two give the same distance, direction, height and doubt.
+- When the position alone puts the glider near, very near or inside any airspace to avoid that the pilot has not set aside, the reading is about an airspace that is at least as deep in the margins. It never reads "3 km" while a "near" the pilot has not set aside is up for another airspace 300 m away.
+
+**What the reading does not know.** Everything the warnings do not know, and a little more:
+
+- *Whether the airspace is active.* Every airspace counts as active (rule 12). The reading can stand on an area that is closed to nobody today, until the pilot says "Does not apply today".
+- *The true height of a limit.* A limit above sea level is compared with the cockpit's altitude and not with an altimeter at the local pressure setting (rule 3), so "floor 400 m above" can be some tens of metres off on a hot or cold day. A limit that cannot be placed is taken toward the glider: without terrain a floor "1000 ft AGL" reads "possibly at your height" at any height under the airspace's ceiling. Where a floor can be placed only within a range, the height said is to the lowest it can be.
+- *What lies beyond its data.* No reading means "no airspace to avoid or to be careful in within 5 km" only while the cockpit is checking (`airspace_check` says `Checking`). Without airspace, before the first position with a height and outside the area the pilot's airspace covers there is no reading either, and when positions stop the reading is the last one. A shell must not show an empty reading as "clear", and shows the state of the check where it shows the reading (rule 15).
+- *Where the glider is going.* The reading does not predict. An airspace straight ahead does not come before a nearer one to the side; the "entering" warning is what looks ahead.
+- *What it said a second ago.* It has no memory and holds nothing back: on the line where two airspaces are equally near it can change from one to the other and back with each position. Whether it has to hold its airspace for some seconds, as a warning holds its level, is *to verify in the air*.
+- *The way out through the floor.* In an airspace the words name the nearest edge over the ground. That the floor is 30 m below, for a glider that has climbed into a terminal area, is in the numbers (`floor_m`, `ceiling_m`, `altitude_m`) and not in the words.
+- *The pilot's wishes.* The 5 km are the owner's setting in XCTrack, `Config::proximity_reach_m` here; nothing stores a pilot's choice.
+
 ## Feeding the engine from the cockpit
 
 The cockpit has everything a sample needs in `LiveState`, the flight computer's output: `position`, `altitude_m`, `pressure_altitude_m`, `ground_speed_ms`, `course_deg` and `average_climb_ms`. The ground elevation comes from the terrain model once there is one; until then pass `None`. Build the index once, when the airspace is loaded, and keep the engine for the flight.
@@ -299,6 +358,14 @@ if first.is_new && first.silenced.is_none() {
     // play the sound for first.level
 }
 
+// Beside the warnings, and also while there are none: the airspace that
+// matters next, as a reading. Asked with the same sample, it says of the
+// zone what the warning says.
+let next = engine.proximity(&index, &sample)?.expect("the zone is within 5 km");
+assert_eq!(next.airspace.name, "CTR INNSBRUCK");
+assert_eq!(next.horizontal, first.horizontal);
+assert_eq!(next.vertical, first.vertical);
+
 // "Ignore for ten minutes."
 engine.acknowledge(first.id(), Silence::For { seconds: 600.0 });
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -331,6 +398,8 @@ On openAIP's exports for Germany and Austria of 2026-11-19, read as OpenAir file
 
 The warning update is cheap on the real data because most of what surrounds a pilot there is class E or an information sector, which the table sets aside before any geometry is done. The made-up country has neither. Both are far below the one second between samples. The memory figure is an estimate summed from the sizes of the records and their corners (`AirspaceIndex::stats`), not a measurement of the process.
 
+The reading of the airspace that matters next is not in the table: it was measured on 2026-11-21 on another machine (the owner's Mac, release build, the same test), over the made-up country only. There the reading at a position took 76 µs, one update of the warnings 189 µs, and the two together, as the cockpit asks for them with every position, 251 µs. It looks only at the airspaces the grid lists within 5 km, lets the table set aside what is free before any geometry, and measures the distance to an outline only for an airspace whose height alone does not already put it behind the best found so far. Not measured on the real files and not on a phone: *to verify*.
+
 ## Not built
 
 - **Activations.** Which areas are active today, NOTAMs, and the hours in the records. See [data-sources.md](data-sources.md#airspace): there is no open feed. Every airspace counts as active.
@@ -339,7 +408,8 @@ The warning update is cheap on the real data because most of what surrounds a pi
 - **QNH.** Limits above sea level are compared with the altitude passed in, not with a barometric altitude at the local setting.
 - **Airways in OpenAir files** (`DY`).
 - **Drawing.** The crate gives a map the airspaces in a box and a side view its stretches; nothing here draws.
-- **Settings for the pilot.** Margins, look-ahead and the table are `Config`; nothing stores a pilot's choices.
+- **Settings for the pilot.** Margins, look-ahead, the reading's reach and the table are `Config`; nothing stores a pilot's choices.
+- **The reading on a screen.** The airspace that matters next is made in the core and is in the cockpit's view; the iPhone and Android do not show it yet. Where it is to stand is proposed in [design.md](design.md#the-cockpit).
 - **Bundles.** The region bundle of [architecture.md](architecture.md#api-and-offline-sync) does not exist. The server's airspace endpoint stands in for it: since 2026-11-19 the three apps fetch the airspace around the pilot from it, and the two phones keep it on the device for the cockpit.
 - **Coverage by country.** The server's answer says which box its set is whole in and which countries it holds, but not where inside the box those countries end. For the first region every country in the box is fetched except Liechtenstein, which has no file. An OpenAir file says nothing of the kind at all.
 - **Rules for countries other than Germany and Austria.** See [above](#outside-germany-and-austria).

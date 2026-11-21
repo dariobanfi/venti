@@ -1,6 +1,6 @@
 # Cockpit checklist: parity with XCTrack
 
-Last revised: 2026-11-20
+Last revised: 2026-11-21
 
 XCTrack is the benchmark for the Fly mode. This document lists what XCTrack does, what our first cockpit release must match, and where we intend to go further.
 
@@ -67,7 +67,7 @@ Thermalling detection in XCTrack *(official)*: start when heading has changed at
 | Side view | Terrain and airspace cross-section along bearing or route, with glide lines | Built on the iPhone on 2026-11-20 for airspace, along the course or towards the target, ten kilometres, with one glide line. Since the same day the core draws the ground into it where the app holds elevation tiles, says where the glide meets it, and stands limits above ground on it; without tiles those limits are drawn as far as they may reach. Not along a task's route. On Android since the same day too (`fly/AheadSheet.kt`). Tried against a replayed flight, not flown |
 | XC | Map with live XContest optimisation, FAI sectors, closing circle, leg distances; flown distance; unfinished-triangle estimate; FAI triangle potential | v1 |
 | Competition | Task map, distance, altitude and glide to goal and to end of speed section, time to start, predicted time at start, speed to start, percent of speed section, task summary | Built on the iPhone as one line and a sheet, not as separate widgets: time to start, distance to the start's edge and speed to it, the time to the edge at the present speed, distance and glide to goal, distance to the end of the speed section, the task on the map and its summary. Percent of the speed section is worked out and not shown |
-| Airspace | Proximity widget with nearest airspace, distance and direction | v1 |
+| Airspace | Proximity widget with nearest airspace, distance and direction | v1. In the core since 2026-11-21, with the height to floor or ceiling as well (`CockpitView::airspace_proximity`, [airspace.md](airspace.md#the-airspace-that-matters-next)); no phone shows it yet |
 | Time | Clock, flight time, sunset, civil twilight | v1 |
 | System | Status line (GPS, sensors, live, battery), brightness, volume, last notification | v1 |
 | Livetracking | Incoming messages | v1 |
@@ -159,7 +159,7 @@ Ours: v1, all of it. The missing-data alarm matters most with an external vario.
 | Per-class colours and per-airspace floor and ceiling adjustment (1.0, paid) | Later | |
 | Obstacle and cable warnings with safety margin and an emergency map zoom | v1 where open cable data exists (Tirol), Later elsewhere | Not built |
 
-The widgets above that depend on it: the airspace proximity widget (nearest airspace, distance and direction, also the nearest way out from inside) is answered by `AirspaceIndex::nearby`, and the airspace part of the side view by `AirspaceIndex::cross_section`. Terrain for the side view and for limits above ground is in the core since 2026-11-20, from the map's elevation tiles (`crates/core/src/terrain.rs`).
+The widgets above that depend on it: the airspace proximity widget (nearest airspace, distance and direction, also the nearest way out from inside) is answered since 2026-11-21 by `WarningEngine::proximity`, which names the one airspace that matters next by the warnings' own checks ([airspace.md](airspace.md#the-airspace-that-matters-next)); `AirspaceIndex::nearby` lists all that are near. The airspace part of the side view is answered by `AirspaceIndex::cross_section`. Terrain for the side view and for limits above ground is in the core since 2026-11-20, from the map's elevation tiles (`crates/core/src/terrain.rs`).
 
 ## Livetracking
 
@@ -225,9 +225,9 @@ What our cockpit already does in the layout's place, and where it differs:
 | The layout has | Ours, 2026-11-20 |
 |---|---|
 | Speed, altitude, height over ground, wind speed and direction, climb, glide, air time, always in the same place | The same readings on the first page, the climb largest; air time in the line at the top. While circling, speed and glide give way to the thermal's gain and average |
-| A thermal assistant **beside** the map, always there | Since 2026-11-20 on the iPhone, by the owner's word: a drawn close-up beside the first page's map, with the last circles where their air is now, the circle to fly next and the wind; on the glide the last minutes of track ([design.md](design.md#the-cockpit)). Android follows. Not flown |
-| Airspace proximity as a standing reading (5 km), small on page 1 and large with a height line on page 3 | Airspace on the map, a band at the top once something is near, and a view from the side on the second page. **Gap:** nothing says "the nearest airspace is 3.2 km away and 400 m above" while nothing is urgent |
-| Bearing as a reading | **Gap:** the course is computed and turns the glider's arrow, but is not written |
+| A thermal assistant **beside** the map, always there | Since 2026-11-20 on the iPhone, by the owner's word: a drawn close-up beside the first page's map, with the last circles where their air is now, the circle to fly next and the wind; on the glide the last minutes of track ([design.md](design.md#the-cockpit)); on Android too. Not flown |
+| Airspace proximity as a standing reading (5 km), small on page 1 and large with a height line on page 3 | Airspace on the map, a band at the top once something is near, and a view from the side on the second page. Since 2026-11-21 the core also makes the reading: with every position the cockpit's view carries the one airspace that matters next, out to 5 km over the ground and also while no warning is up, with the distance and direction to its outline, the height to its floor or ceiling, and the words for a small place and a large one ("CTR Innsbruck · 3.2 km NE · floor 400 m above"). Which airspace that is among several, and what the reading does not know, is in [airspace.md](airspace.md#the-airspace-that-matters-next). **Gap, now the shells':** neither phone shows it; where it is to stand is proposed in [design.md](design.md#the-cockpit). Tested in the core on scripted positions and a replayed flight, not flown |
+| Bearing as a reading | Since 2026-11-21 the core writes the course as a reading (`CockpitView::course_words`, "285° W": whole degrees and one of eight compass points), and leaves it out while the glider moves slower than 2 m/s over the ground. **Gap, now the shells':** neither phone shows it; the course still only turns the glider's arrow |
 | The scored distance and the unclosed triangle beside the map | On the third page, away from the map. **Gap:** not visible while looking at the map |
 | The thermal map of thermal.kk7.ch under the track | To build. The author has agreed, by the owner's word; his terms are read ([data-sources.md](data-sources.md#thermalkk7ch-as-read-on-its-own-page-on-2026-11-20)). It waits for a domain Venti can name to his server |
 | Other pilots with their tracks | Other pilots who show their flight are on the cockpit's map; their tracks are not. *To check* |
@@ -236,7 +236,7 @@ What our cockpit already does in the layout's place, and where it differs:
 | FAI areas, closing circle | FAI areas, since 2026-11-19; the closing circle is *to check* |
 | The competition page's nine readings | A task has its line, its start and its progress in the cockpit ([design.md](design.md#a-task-in-the-cockpit)); reading by reading against this page is *to do* |
 
-What follows for the presets: the cross-country numbers belong on the map's page, and the nearest airspace should be readable while nothing is urgent. Neither is built.
+What follows for the presets: the cross-country numbers belong on the map's page, and the nearest airspace should be readable while nothing is urgent. The first is not built. The second is made in the core since 2026-11-21, with the course in words, and is on no screen yet.
 
 ## Where we go beyond
 

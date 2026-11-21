@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 use venti_airspace::openair::{self, Options};
 use venti_airspace::{
     AirspaceIndex, Altitudes, Config, PressureAltitude, Sample, WarningEngine, circle_ring,
-    destination,
+    destination, proximity,
 };
 use venti_domain::{
     Activity, Airspace, AirspaceClass, AirspaceType, GeoPoint, HeightUnit, Polygon, SourceId,
@@ -156,8 +156,9 @@ fn microseconds(duration: Duration) -> f64 {
 }
 
 /// Asks every question many times around `centre` and prints what each
-/// cost. Returns the mean cost of the question the cockpit asks every
-/// second: one update of the warning engine.
+/// cost. Returns the mean cost of what the cockpit asks every second: one
+/// update of the warning engine, and the reading of the airspace that
+/// matters next.
 fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration {
     let started = Instant::now();
     let index = AirspaceIndex::new(airspaces);
@@ -194,14 +195,20 @@ fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration 
         index.cross_section(&path).len()
     });
 
+    let config = Config::default();
+    let mut read = 0;
+    let reading = time(probes.len(), |call| {
+        let found = proximity(&index, &config, probes[call], &altitudes, |_| false);
+        read += usize::from(found.is_some());
+        found.is_some()
+    });
+
     // A quarter of an hour of flight at one sample a second: south from the
     // centre at 11 m/s, climbing and sinking between 1000 m and 2600 m.
-    let mut engine = WarningEngine::new(Config::default());
-    let mut raised = 0;
-    let update = time(FLIGHT_S, |second| {
+    let sample_at = |second: usize| {
         let seconds = second as f64;
         let altitude = 1800.0 + 800.0 * (seconds / 300.0).sin();
-        let sample = Sample {
+        Sample {
             time_s: seconds,
             position: destination(centre, 170.0, 11.0 * seconds).unwrap(),
             altitude_m: altitude,
@@ -210,10 +217,25 @@ fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration 
             ground_speed_ms: Some(11.0),
             course_deg: Some(170.0),
             climb_ms: Some(2.7 * (seconds / 300.0).cos()),
-        };
-        let warnings = engine.update(&index, &sample).unwrap();
+        }
+    };
+    let mut engine = WarningEngine::new(Config::default());
+    let mut raised = 0;
+    let update = time(FLIGHT_S, |second| {
+        let warnings = engine.update(&index, &sample_at(second)).unwrap();
         raised += warnings.len();
         warnings.len()
+    });
+    // The same flight again, with what the cockpit asks for every
+    // position: the warnings, and the reading beside them.
+    let mut engine = WarningEngine::new(Config::default());
+    let both = time(FLIGHT_S, |second| {
+        let sample = sample_at(second);
+        let warnings = engine.update(&index, &sample).unwrap().len();
+        let reading = engine.proximity(&index, &sample).unwrap();
+        // While a warning is up there is a reading.
+        assert!(warnings == 0 || reading.is_some(), "second {second}");
+        warnings
     });
 
     println!("{label}");
@@ -240,11 +262,16 @@ fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration 
     line("nearby within 2 km", &near_2);
     line("nearby within 20 km", &near_20);
     line("side view along two legs", &section);
+    line("the reading at a position", &reading);
     line("one update of the warnings", &update);
+    line("the warnings and the reading", &both);
     println!(
-        "  on average {:.1} airspaces overhead and {:.1} warnings per second of flight",
+        "  on average {:.1} airspaces overhead and {:.1} warnings per second of flight; \
+         a reading at {} of {} positions",
         overhead as f64 / probes.len() as f64,
-        raised as f64 / FLIGHT_S as f64
+        raised as f64 / FLIGHT_S as f64,
+        read,
+        probes.len()
     );
 
     // Limits for an unoptimised build on a busy, shared machine: ten to
@@ -262,14 +289,19 @@ fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration 
         "{:?}",
         section.mean
     );
-    update.mean
+    assert!(
+        reading.mean < Duration::from_millis(60),
+        "{:?}",
+        reading.mean
+    );
+    both.mean
 }
 
 #[test]
 fn a_country_of_airspace_is_answered_in_a_fraction_of_a_second() {
-    let update = measure("A made-up country", made_up_country(), point(50.0, 10.0));
+    let every_second = measure("A made-up country", made_up_country(), point(50.0, 10.0));
     // Once a second on a phone: even unoptimised this must be far below.
-    assert!(update < Duration::from_millis(60), "{update:?}");
+    assert!(every_second < Duration::from_millis(60), "{every_second:?}");
 }
 
 #[test]

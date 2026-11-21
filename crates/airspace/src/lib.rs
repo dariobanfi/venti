@@ -18,6 +18,9 @@
 //! - [`WarningEngine`] turns a stream of samples from the cockpit into a
 //!   small, stable set of warnings, using [`PARAGLIDER_RULES`] to decide
 //!   which airspaces concern a paraglider.
+//! - [`proximity()`] names the airspace that matters next while no warning
+//!   is up, by the warnings' own checks: a standing reading for the cockpit
+//!   ([`WarningEngine::proximity`]).
 //!
 //! One rule runs through all of it: **a wrong "you are clear" is the worst
 //! thing this code can say.** Where something is unknown (the ground
@@ -34,6 +37,7 @@ mod geometry;
 mod index;
 pub mod openair;
 mod policy;
+mod proximity;
 mod vertical;
 mod warning;
 
@@ -45,6 +49,7 @@ pub use index::{
     horizontal,
 };
 pub use policy::{PARAGLIDER_RULES, Policy, PolicyTable, Rule};
+pub use proximity::{Proximity, proximity};
 pub use vertical::{
     Altitudes, HIGHEST_GROUND_M, HIGHEST_QNH_HPA, LOWEST_GROUND_M, LOWEST_QNH_HPA,
     PressureAltitude, ResolvedLimit, STANDARD_PRESSURE_HPA, TEMPERATURE_SPREAD, Unknown,

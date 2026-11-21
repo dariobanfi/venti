@@ -52,8 +52,8 @@ use crate::airspace::{AirspaceWatch, compass};
 use crate::live::{self as sharing, LiveAudience, LiveShare, LiveShareView};
 use crate::task::{TaskEventView, TaskFlown, TaskStatusView};
 use crate::{
-    AirspaceCheck, AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError, RouteKind,
-    ServerRequest, Terrain,
+    AirspaceCheck, AirspaceLevel, AirspaceProximity, AirspaceSet, AirspaceWarning, Coordinate,
+    CoreError, RouteKind, ServerRequest, Terrain,
 };
 
 /// How long an external instrument may be silent, in seconds, before it
@@ -338,6 +338,11 @@ pub struct CockpitView {
     pub ground_speed_ms: Option<f64>,
     /// Direction of travel.
     pub course_deg: Option<f64>,
+    /// The direction of travel as a reading, in degrees and as one of
+    /// eight compass points: "285° W". Absent while the glider moves
+    /// slower than 2 m/s over the ground, where a course says nothing,
+    /// and whenever there is no course.
+    pub course_words: Option<String>,
     /// Metres forward per metre of height lost. Absent when not losing
     /// height.
     pub glide_ratio: Option<f64>,
@@ -378,6 +383,17 @@ pub struct CockpitView {
     pub tone: Option<ToneView>,
     /// The external instrument, if one has sent anything.
     pub instrument: Option<InstrumentView>,
+    /// The airspace that matters next, as a reading that is always there:
+    /// which one, how far its outline is and in which direction, and how
+    /// it lies in height. It is of the same position as
+    /// [`FlightSession::airspace_warnings`] and stays while a warning is
+    /// up. Absent when no airspace to avoid or to be careful in has its
+    /// outline within five kilometres over the ground, and that is "none
+    /// near" only while [`FlightSession::airspace_check`] says `Checking`:
+    /// it is absent as well without airspace, before the first position
+    /// with a height and where the pilot's airspace does not reach, and
+    /// once positions have stopped it is the last one made.
+    pub airspace_proximity: Option<AirspaceProximity>,
 }
 
 /// How the flight scores as a cross-country flight so far, by the same
@@ -975,7 +991,7 @@ impl FlightSession {
         let on_course = state.course_deg.filter(|_| !state.circling).filter(|_| {
             state
                 .ground_speed_ms
-                .is_some_and(|speed| speed >= AHEAD_MOVING_MS)
+                .is_some_and(|speed| speed >= MOVING_MS)
         });
         let (bearing_deg, toward) = match on_course {
             Some(course) => (course, format!("On course {}", compass(course))),
@@ -1619,6 +1635,11 @@ impl FlightSession {
             average_climb_ms: state.average_climb_ms,
             ground_speed_ms: state.ground_speed_ms,
             course_deg: state.course_deg,
+            course_words: state
+                .course_deg
+                .zip(state.ground_speed_ms)
+                .filter(|(course, speed)| course.is_finite() && *speed >= MOVING_MS)
+                .map(|(course, _)| course_in_words(course)),
             glide_ratio: state.glide_ratio,
             wind: state.wind.map(|wind| WindView {
                 from_deg: wind.from_deg,
@@ -1698,6 +1719,7 @@ impl FlightSession {
                 sentences: instrument.sentences,
                 damaged: instrument.damaged,
             }),
+            airspace_proximity: inner.watch.as_ref().and_then(AirspaceWatch::proximity),
         }
     }
 }
@@ -2042,8 +2064,16 @@ fn aim_of(inner: &Inner, state: &live::LiveState) -> Option<(Target, bool)> {
 }
 
 /// Below this speed over the ground a course says nothing, metres per
-/// second.
-const AHEAD_MOVING_MS: f64 = 2.0;
+/// second: it is not looked along for the side view and not written as a
+/// reading.
+const MOVING_MS: f64 = 2.0;
+
+/// A course as a reading: whole degrees from 0 to 359 and the compass
+/// point, "285° W".
+fn course_in_words(course_deg: f64) -> String {
+    let degrees = course_deg.rem_euclid(360.0).round() % 360.0;
+    format!("{degrees:.0}° {}", compass(course_deg))
+}
 
 /// A glide of the last seconds is taken for the line ahead only within
 /// these bounds: flatter, and the glider is in lift that will not last
@@ -3336,6 +3366,55 @@ mod tests {
             });
         }
         assert_eq!(session.view(0.0).recorded_fixes, 3);
+    }
+
+    #[test]
+    fn the_course_is_written_once_the_glider_moves_enough_for_it_to_mean_something() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        let began = 1_783_161_000.0;
+        let start = GeoPoint::new(47.6, 11.8).unwrap();
+        let at = |second: u32, metres: f64, speed: Option<f64>, course: Option<f64>| {
+            let here = venti_airspace::destination(start, 285.0, metres).unwrap();
+            session.on_location(LocationSample {
+                time_unix_s: began + f64::from(second),
+                lat: here.lat(),
+                lon: here.lon(),
+                altitude_m: Some(1500.0),
+                ground_speed_ms: speed,
+                course_deg: course,
+            });
+            session.view(began + f64::from(second))
+        };
+        // One position gives no course, and no words.
+        let mut view = at(0, 0.0, None, None);
+        assert_eq!((view.course_deg, &view.course_words), (None, &None));
+
+        // West-north-west at 10 m/s, worked out from the positions.
+        for second in 1..=4 {
+            view = at(second, 10.0 * f64::from(second), None, None);
+        }
+        assert!((view.course_deg.unwrap() - 285.0).abs() < 0.5);
+        assert_eq!(view.course_words.as_deref(), Some("285° W"));
+
+        // The receiver's own course is written the same way, in whole
+        // degrees from 0 to 359.
+        let view = at(5, 50.0, Some(9.0), Some(359.7));
+        assert_eq!(view.course_words.as_deref(), Some("0° N"));
+        let view = at(6, 60.0, Some(9.0), Some(44.6));
+        assert_eq!(view.course_words.as_deref(), Some("45° NE"));
+
+        // Slower than 2 m/s a course says nothing: the number is still
+        // there for the arrow, the words are not.
+        let view = at(7, 61.0, Some(1.5), Some(90.0));
+        assert_eq!(view.course_deg, Some(90.0));
+        assert_eq!(view.course_words, None);
+        let view = at(8, 63.0, Some(2.0), Some(90.0));
+        assert_eq!(view.course_words.as_deref(), Some("90° E"));
+
+        // Once positions stop there is neither.
+        let view = session.view(began + 60.0);
+        assert_eq!((view.course_deg, view.course_words), (None, None));
     }
 
     #[test]

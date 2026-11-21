@@ -18,8 +18,8 @@ use std::sync::Arc;
 use chrono::{DateTime, NaiveDate, Utc};
 use venti_airspace::openair::{self, Options, ProblemKind};
 use venti_airspace::{
-    AirspaceIndex, Config, EntryVia, Level, Policy, PolicyTable, PressureAltitude, Sample, Silence,
-    Unknown, VerticalRelation, Warning, WarningEngine,
+    AirspaceIndex, Config, EntryVia, Level, Policy, PolicyTable, PressureAltitude, Proximity,
+    Sample, Silence, Unknown, VerticalRelation, VerticalStatus, Warning, WarningEngine,
 };
 use venti_domain::{
     Airspace, AirspaceClass, AirspaceId, AirspaceType, BoundingBox, GeoPoint, HeightUnit, SourceId,
@@ -163,6 +163,95 @@ pub struct AirspaceWarning {
     /// For a file: when it was brought in, seconds since 1970-01-01 UTC,
     /// which is not the age of the data in it; an OpenAir file does not
     /// say that. For airspace from the server: when the provider wrote it.
+    pub data_unix_s: Option<i64>,
+}
+
+/// How an airspace lies in height, seen from the glider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AirspaceInHeight {
+    /// Its floor is above the glider.
+    FloorAbove,
+    /// The glider is between its floor and its ceiling, or possibly so.
+    AtHeight,
+    /// Its ceiling is below the glider.
+    CeilingBelow,
+}
+
+/// The airspace that matters next, as a reading that is always there: also
+/// while no warning is up. `docs/airspace.md` says how the one airspace is
+/// chosen among several and what the reading does not know.
+///
+/// It is made in the same pass as the warnings, from the same position and
+/// by the same checks. For the same airspace the two agree in every number.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct AirspaceProximity {
+    /// The airspace's identifier: the one a warning for it carries.
+    pub id: String,
+    /// Its name as a warning names it: as published, or "Unnamed airspace".
+    pub name: String,
+    /// The airspace in a line: "Class D control zone · GND to 5000 ft AMSL".
+    pub detail: String,
+    /// Its floor as published.
+    pub lower: String,
+    /// Its ceiling as published.
+    pub upper: String,
+    /// How the app treats it: to avoid, or deserving attention. Never free.
+    pub policy: AirspacePolicy,
+    /// Whether the glider is inside the outline, at whatever height.
+    pub inside_outline: bool,
+    /// Metres over the ground to the outline: to the airspace from
+    /// outside, to the nearest way out from inside.
+    pub distance_m: f64,
+    /// The direction to that point, degrees clockwise from north.
+    pub bearing_deg: f64,
+    /// How it lies in height.
+    pub in_height: AirspaceInHeight,
+    /// Metres of air between the glider and the airspace: up to its floor,
+    /// or down to its ceiling, the least it can be. Zero at its height.
+    pub height_m: f64,
+    /// The glider's altitude the reading was made with, metres above mean
+    /// sea level.
+    pub altitude_m: f64,
+    /// Its floor on the glider's height scale, metres above mean sea
+    /// level: the lowest the floor can be. For a floor at the ground that
+    /// is the ground's height where the session has terrain, and far below
+    /// the glider where it has none: the airspace then reaches down as far
+    /// as a picture goes.
+    pub floor_m: f64,
+    /// Its ceiling: the highest it can be. `None` when it has none.
+    pub ceiling_m: Option<f64>,
+    /// Where it is, in words: "3.2 km NE"; "overhead" or "underneath" when
+    /// the glider is inside the outline and clear in height; "inside, edge
+    /// 1.2 km S" in the airspace, with the nearest way out.
+    pub place_words: String,
+    /// How it lies in height, in words: "floor 400 m above", "ceiling
+    /// 250 m below", "at your height".
+    pub height_words: String,
+    /// The reading for a small place, without the name: "3.2 km NE · floor
+    /// 400 m above". In the airspace it is the place alone: "inside, edge
+    /// 1.2 km S".
+    pub short_words: String,
+    /// The reading in one line, for a large place and for a screen
+    /// reader: "CTR Innsbruck · 3.2 km NE · floor 400 m above".
+    pub words: String,
+    /// Set when the glider may in truth be clear of the airspace's height
+    /// band, with what is missing to tell, in words. The words above then
+    /// say "possibly"; a place with room shows this line too.
+    pub uncertain: Option<String>,
+    /// The level of the warning that is up for this airspace, if one is.
+    /// The reading stays while it is, and is drawn as urgent as the warning.
+    pub level: Option<AirspaceLevel>,
+    /// Whether the pilot has quieted this airspace: acknowledged its
+    /// warning, or said that it does not apply today. One that does not
+    /// apply today is the reading only when no other is within reach.
+    pub silenced: bool,
+    /// Whether the airspace is from a file of the pilot's or from the
+    /// pilot's server.
+    pub origin: AirspaceOrigin,
+    /// Where the airspace comes from: the name of the pilot's file, or
+    /// the provider the server has it from.
+    pub source: String,
+    /// The date of its data, as [`AirspaceWarning::data_unix_s`] gives it.
     pub data_unix_s: Option<i64>,
 }
 
@@ -755,6 +844,11 @@ pub(crate) struct AirspaceWatch {
     engine: WarningEngine,
     /// The warnings as of the latest position.
     warnings: Vec<AirspaceWarning>,
+    /// The airspace that matters next as of the latest position.
+    proximity: Option<AirspaceProximity>,
+    /// What the engine was last asked with, for reading the airspace that
+    /// matters next again when the pilot sets one aside.
+    checked: Option<Sample>,
     /// The most urgent warning that became new and has not been sounded.
     alert: Option<AirspaceLevel>,
     /// When the engine last checked a position, in sample time.
@@ -784,6 +878,8 @@ impl AirspaceWatch {
             set,
             engine: WarningEngine::new(Config::default()),
             warnings: Vec::new(),
+            proximity: None,
+            checked: None,
             alert: None,
             checked_s: None,
             covered: None,
@@ -865,10 +961,34 @@ impl AirspaceWatch {
             .iter()
             .map(|warning| view(&self.set, warning))
             .collect();
+        self.checked = Some(sample);
+        self.read_proximity();
     }
 
     pub(crate) fn warnings(&self) -> Vec<AirspaceWarning> {
         self.warnings.clone()
+    }
+
+    /// The airspace that matters next as of the latest position, out to
+    /// five kilometres over the ground. `None` when none is that near.
+    pub(crate) fn proximity(&self) -> Option<AirspaceProximity> {
+        self.proximity.clone()
+    }
+
+    /// Reads the airspace that matters next for the position the warnings
+    /// were last worked out for, so that the two are of the same moment.
+    fn read_proximity(&mut self) {
+        let Some(sample) = self.checked else {
+            return;
+        };
+        let Ok(found) = self.engine.proximity(&self.set.index, &sample) else {
+            return;
+        };
+        self.proximity = found.map(|found| {
+            let id = found.airspace.id.to_string();
+            let warning = self.warnings.iter().find(|warning| warning.id == id);
+            proximity_view(&self.set, &found, sample.altitude_m, warning)
+        });
     }
 
     /// The airspace the watch warns from.
@@ -890,6 +1010,7 @@ impl AirspaceWatch {
                 },
             );
             self.mark_silenced(&id, true);
+            self.read_proximity();
         }
     }
 
@@ -899,6 +1020,7 @@ impl AirspaceWatch {
         if let Ok(id) = id.parse::<AirspaceId>() {
             self.engine.ignore(&id, Silence::RestOfDay { utc_offset_s });
             self.mark_silenced(&id, true);
+            self.read_proximity();
         }
     }
 
@@ -906,6 +1028,7 @@ impl AirspaceWatch {
         if let Ok(id) = id.parse::<AirspaceId>() {
             self.engine.unsilence(&id);
             self.mark_silenced(&id, false);
+            self.read_proximity();
         }
     }
 
@@ -931,11 +1054,7 @@ fn level_view(level: Level) -> AirspaceLevel {
 
 fn view(set: &AirspaceSet, warning: &Warning<'_>) -> AirspaceWarning {
     let airspace = warning.airspace;
-    let name = if airspace.name.trim().is_empty() {
-        "Unnamed airspace".to_owned()
-    } else {
-        airspace.name.clone()
-    };
+    let name = name_in_words(airspace);
     let (lower, upper) = (
         limit_in_words(&airspace.lower),
         limit_in_words(&airspace.upper),
@@ -966,19 +1085,7 @@ fn view(set: &AirspaceSet, warning: &Warning<'_>) -> AirspaceWarning {
             compass(warning.horizontal.bearing_deg)
         ),
     };
-    let uncertain = warning.uncertain().then(|| {
-        // The limit the doubt really comes from, as the engine works it out.
-        match warning.vertical.missing() {
-            Some(Unknown::GroundElevation) => {
-                "Possibly clear: the app does not know the height of the ground here."
-            }
-            Some(Unknown::Pressure) => {
-                "Possibly clear: no pressure sensor to place a flight level."
-            }
-            None => "Possibly clear: the airspace's height could not be placed exactly.",
-        }
-        .to_owned()
-    });
+    let uncertain = doubt_in_words(&warning.vertical);
     let (origin, source, data_unix_s) = set.origin(airspace);
     AirspaceWarning {
         id: airspace.id.to_string(),
@@ -995,6 +1102,113 @@ fn view(set: &AirspaceSet, warning: &Warning<'_>) -> AirspaceWarning {
         entry_seconds: warning.entry.map(|entry| entry.seconds),
         uncertain,
         silenced: warning.silenced.is_some(),
+        origin,
+        source,
+        data_unix_s,
+    }
+}
+
+/// An airspace's name as the cockpit says it.
+fn name_in_words(airspace: &Airspace) -> String {
+    if airspace.name.trim().is_empty() {
+        "Unnamed airspace".to_owned()
+    } else {
+        airspace.name.clone()
+    }
+}
+
+/// What is missing to tell whether the glider is really in an airspace's
+/// height band, when that is in doubt.
+fn doubt_in_words(vertical: &VerticalStatus) -> Option<String> {
+    vertical.uncertain.then(|| {
+        // The limit the doubt really comes from, as the engine works it out.
+        match vertical.missing() {
+            Some(Unknown::GroundElevation) => {
+                "Possibly clear: the app does not know the height of the ground here."
+            }
+            Some(Unknown::Pressure) => {
+                "Possibly clear: no pressure sensor to place a flight level."
+            }
+            None => "Possibly clear: the airspace's height could not be placed exactly.",
+        }
+        .to_owned()
+    })
+}
+
+/// The airspace that matters next as the cockpit reads it. `warning` is
+/// the warning that is up for the same airspace, if one is.
+fn proximity_view(
+    set: &AirspaceSet,
+    found: &Proximity<'_>,
+    altitude_m: f64,
+    warning: Option<&AirspaceWarning>,
+) -> AirspaceProximity {
+    let airspace = found.airspace;
+    let (horizontal, vertical) = (&found.horizontal, &found.vertical);
+    let name = name_in_words(airspace);
+    let (lower, upper) = (
+        limit_in_words(&airspace.lower),
+        limit_in_words(&airspace.upper),
+    );
+    // Distances and heights are written as a warning writes them, so that
+    // the two never show different figures for the same airspace.
+    let outline = format!(
+        "{} {}",
+        distance_in_words(horizontal.distance_m),
+        compass(horizontal.bearing_deg)
+    );
+    let possibly = if vertical.uncertain { "possibly " } else { "" };
+    let in_it = horizontal.inside && vertical.relation == VerticalRelation::Inside;
+    let place_words = match (horizontal.inside, vertical.relation) {
+        (false, _) => outline,
+        (true, VerticalRelation::Below) => "overhead".to_owned(),
+        (true, VerticalRelation::Above) => "underneath".to_owned(),
+        // In it: what matters is the nearest way out.
+        (true, VerticalRelation::Inside) => format!("{possibly}inside, edge {outline}"),
+    };
+    let (in_height, height_words) = match vertical.relation {
+        VerticalRelation::Below => (
+            AirspaceInHeight::FloorAbove,
+            format!("floor {:.0} m above", vertical.separation_m),
+        ),
+        VerticalRelation::Above => (
+            AirspaceInHeight::CeilingBelow,
+            format!("ceiling {:.0} m below", vertical.separation_m),
+        ),
+        VerticalRelation::Inside => (
+            AirspaceInHeight::AtHeight,
+            format!("{possibly}at your height"),
+        ),
+    };
+    // "Inside" has said that the airspace is at the glider's height.
+    let short_words = if in_it {
+        place_words.clone()
+    } else {
+        format!("{place_words} · {height_words}")
+    };
+    let (origin, source, data_unix_s) = set.origin(airspace);
+    AirspaceProximity {
+        id: airspace.id.to_string(),
+        words: format!("{name} · {short_words}"),
+        name,
+        detail: format!("{} · {lower} to {upper}", kind_in_words(airspace)),
+        lower,
+        upper,
+        policy: policy_view(found.policy),
+        inside_outline: horizontal.inside,
+        distance_m: horizontal.distance_m,
+        bearing_deg: horizontal.bearing_deg,
+        in_height,
+        height_m: vertical.separation_m,
+        altitude_m,
+        floor_m: vertical.floor.low_m,
+        ceiling_m: Some(vertical.ceiling.high_m).filter(|ceiling| ceiling.is_finite()),
+        place_words,
+        height_words,
+        short_words,
+        uncertain: doubt_in_words(vertical),
+        level: warning.map(|warning| warning.level),
+        silenced: warning.map_or(found.set_aside, |warning| warning.silenced),
         origin,
         source,
         data_unix_s,
@@ -1445,6 +1659,348 @@ AH FL 100
         // Without airspace there are no warnings.
         session.use_airspace(None);
         assert!(session.airspace_warnings().is_empty());
+    }
+
+    /// Innsbruck made simple: a control zone from the ground to 1500 m, a
+    /// terminal area over it and around it from 1500 m to 3000 m, open
+    /// class E air all around, a parachute drop zone to the north, and far
+    /// to the south a restricted area that begins 300 m above the ground.
+    const AROUND_INNSBRUCK: &str = "\
+AC D
+AY CTR
+AN CTR Innsbruck
+AL GND
+AH 1500m AMSL
+DP 47.2N 11.2E
+DP 47.2N 11.5E
+DP 47.3N 11.5E
+DP 47.3N 11.2E
+
+AC C
+AY TMA
+AN TMA Innsbruck
+AL 1500m AMSL
+AH 3000m AMSL
+DP 47.1N 11.0E
+DP 47.1N 11.7E
+DP 47.4N 11.7E
+DP 47.4N 11.0E
+
+AC E
+AN Echo
+AL GND
+AH 3000m AMSL
+DP 46.5N 10.0E
+DP 46.5N 12.5E
+DP 48.0N 12.5E
+DP 48.0N 10.0E
+
+AC UNC
+AY ASRA
+AN Drop zone
+AL GND
+AH 3000m AMSL
+DP 47.6N 11.2E
+DP 47.6N 11.3E
+DP 47.65N 11.3E
+DP 47.65N 11.2E
+
+AC R
+AN ED-R Test
+AL 300m AGL
+AH 3000m AMSL
+DP 46.0N 11.0E
+DP 46.0N 11.2E
+DP 46.1N 11.2E
+DP 46.1N 11.0E
+";
+
+    /// A cockpit over [`AROUND_INNSBRUCK`] that has stood at a place and a
+    /// height for three seconds, and the time of its last position.
+    fn standing(lat: f64, lon: f64, altitude_m: f64) -> (Arc<FlightSession>, f64) {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        core.import_airspace(
+            "zones.txt".to_owned(),
+            AROUND_INNSBRUCK.as_bytes().to_vec(),
+            NOW,
+        )
+        .unwrap();
+        let session = FlightSession::new(folder.path().to_str().unwrap().to_owned());
+        session.use_airspace(Some(core.airspace().unwrap()));
+        let began = NOW as f64;
+        for second in 0..3 {
+            session.on_location(crate::LocationSample {
+                time_unix_s: began + f64::from(second),
+                lat,
+                lon,
+                altitude_m: Some(altitude_m),
+                ground_speed_ms: None,
+                course_deg: None,
+            });
+        }
+        (session, began + 2.0)
+    }
+
+    /// The reading of a cockpit standing at a place and a height.
+    fn read(position: GeoPoint, altitude_m: f64) -> Option<AirspaceProximity> {
+        let (session, now) = standing(position.lat(), position.lon(), altitude_m);
+        assert_eq!(session.airspace_check(now), AirspaceCheck::Checking);
+        session.view(now).airspace_proximity
+    }
+
+    fn away(lat: f64, lon: f64, bearing_deg: f64, metres: f64) -> GeoPoint {
+        venti_airspace::destination(GeoPoint::new(lat, lon).unwrap(), bearing_deg, metres).unwrap()
+    }
+
+    #[test]
+    fn the_cockpit_reads_the_airspace_that_matters_next_while_nothing_is_urgent() {
+        // 3.2 km south-west of the terminal area's corner, 400 m under its
+        // floor: no warning, and a reading.
+        let south_west = away(47.1, 11.0, 225.0, 3200.0);
+        let (session, now) = standing(south_west.lat(), south_west.lon(), 1100.0);
+        assert!(session.airspace_warnings().is_empty());
+        let reading = session.view(now).airspace_proximity.unwrap();
+        assert_eq!(
+            reading.words,
+            "TMA Innsbruck · 3.2 km NE · floor 400 m above"
+        );
+        assert_eq!(reading.name, "TMA Innsbruck");
+        assert_eq!(reading.place_words, "3.2 km NE");
+        assert_eq!(reading.height_words, "floor 400 m above");
+        assert_eq!(reading.short_words, "3.2 km NE · floor 400 m above");
+        assert_eq!(
+            reading.detail,
+            "Class C terminal area · 1500 m AMSL to 3000 m AMSL"
+        );
+        assert_eq!(
+            (reading.lower.as_str(), reading.upper.as_str()),
+            ("1500 m AMSL", "3000 m AMSL")
+        );
+        assert_eq!(reading.policy, AirspacePolicy::Avoid);
+        assert!(!reading.inside_outline);
+        assert!((reading.distance_m - 3200.0).abs() < 2.0);
+        assert!((reading.bearing_deg - 45.0).abs() < 0.5);
+        assert_eq!(reading.in_height, AirspaceInHeight::FloorAbove);
+        assert!((reading.height_m - 400.0).abs() < 0.5);
+        assert!((reading.altitude_m - 1100.0).abs() < 0.5);
+        assert_eq!((reading.floor_m, reading.ceiling_m), (1500.0, Some(3000.0)));
+        assert_eq!(reading.uncertain, None);
+        assert_eq!((reading.level, reading.silenced), (None, false));
+        assert_eq!(reading.origin, AirspaceOrigin::File);
+        assert_eq!(reading.source, "zones");
+        assert!(reading.data_unix_s.is_some());
+
+        // The same place at its height, and over it.
+        let reading = read(south_west, 2000.0).unwrap();
+        assert_eq!(reading.words, "TMA Innsbruck · 3.2 km NE · at your height");
+        assert_eq!(reading.in_height, AirspaceInHeight::AtHeight);
+        assert_eq!(reading.height_m, 0.0);
+        let reading = read(south_west, 3250.0).unwrap();
+        assert_eq!(
+            reading.words,
+            "TMA Innsbruck · 3.2 km NE · ceiling 250 m below"
+        );
+        assert_eq!(reading.in_height, AirspaceInHeight::CeilingBelow);
+
+        // Six kilometres out there is none, and the cockpit is checking:
+        // none within five kilometres.
+        assert_eq!(read(away(47.1, 11.0, 225.0, 6000.0), 1100.0), None);
+
+        // A drop zone is not closed. With nothing to avoid within five
+        // kilometres it is the reading, a kilometre to the north.
+        let reading = read(away(47.6, 11.25, 180.0, 1000.0), 1500.0).unwrap();
+        assert_eq!(reading.words, "Drop zone · 1.0 km N · at your height");
+        assert_eq!(reading.policy, AirspacePolicy::Caution);
+        assert_eq!(reading.level, None);
+
+        // A floor above ground without the ground's height: the reading
+        // carries the doubt in its words and says what is missing, as a
+        // warning for the same airspace would.
+        let reading = read(away(46.1, 11.1, 0.0, 3000.0), 1500.0).unwrap();
+        assert_eq!(
+            reading.words,
+            "ED-R Test · 3.0 km S · possibly at your height"
+        );
+        assert_eq!(reading.height_words, "possibly at your height");
+        assert_eq!(
+            reading.uncertain.as_deref(),
+            Some("Possibly clear: the app does not know the height of the ground here.")
+        );
+    }
+
+    #[test]
+    fn the_reading_stays_while_a_warning_is_up_and_says_the_same() {
+        // Under the terminal area, west of the control zone, 324 m under
+        // the floor: the area warns as near, and the reading is about it.
+        let (session, now) = standing(47.25, 11.15, 1176.0);
+        let warnings = session.airspace_warnings();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].headline, "TMA Innsbruck 324 m above");
+        let reading = session.view(now).airspace_proximity.unwrap();
+        assert_eq!(
+            reading.words,
+            "TMA Innsbruck · overhead · floor 324 m above"
+        );
+        assert_eq!(reading.place_words, "overhead");
+        assert!(reading.inside_outline);
+        assert_eq!(reading.id, warnings[0].id);
+        assert_eq!(reading.level, Some(AirspaceLevel::Near));
+        assert_eq!(reading.distance_m, warnings[0].distance_m);
+        assert_eq!(reading.bearing_deg, warnings[0].bearing_deg);
+        assert_eq!(reading.detail, warnings[0].detail);
+
+        // Over the area: its ceiling is below.
+        let (session, now) = standing(47.25, 11.15, 3250.0);
+        assert_eq!(
+            session.airspace_warnings()[0].headline,
+            "TMA Innsbruck 250 m below"
+        );
+        let reading = session.view(now).airspace_proximity.unwrap();
+        assert_eq!(
+            reading.words,
+            "TMA Innsbruck · underneath · ceiling 250 m below"
+        );
+
+        // In the control zone, 2.2 km from its northern edge: the reading
+        // names the zone and the nearest way out.
+        let (session, now) = standing(47.28, 11.35, 1200.0);
+        let warnings = session.airspace_warnings();
+        assert_eq!(warnings[0].headline, "Inside CTR Innsbruck");
+        let reading = session.view(now).airspace_proximity.unwrap();
+        assert_eq!(reading.words, "CTR Innsbruck · inside, edge 2.2 km N");
+        assert_eq!(reading.short_words, "inside, edge 2.2 km N");
+        assert_eq!(reading.height_words, "at your height");
+        assert_eq!(reading.in_height, AirspaceInHeight::AtHeight);
+        assert_eq!(reading.level, Some(AirspaceLevel::Inside));
+        assert_eq!(reading.distance_m, warnings[0].distance_m);
+        // The floor is the ground, wherever that is; the ceiling is known.
+        assert_eq!(reading.ceiling_m, Some(1500.0));
+        assert!(reading.floor_m <= 1200.0);
+
+        // "Seen": the zone is where it was, and the reading stays on it,
+        // marked as quieted.
+        let (zone, area) = (warnings[0].id.clone(), warnings[1].id.clone());
+        assert_eq!(warnings[1].name, "TMA Innsbruck");
+        session.acknowledge_airspace(zone.clone(), 10);
+        let reading = session.view(now).airspace_proximity.unwrap();
+        assert_eq!(
+            (reading.id.as_str(), reading.silenced),
+            (zone.as_str(), true)
+        );
+        session.unsilence_airspace(zone.clone());
+
+        // "Does not apply today": at once, before another position, the
+        // reading is about the next one, the area 300 m overhead.
+        session.ignore_airspace_today(zone.clone(), 3600);
+        let reading = session.view(now).airspace_proximity.unwrap();
+        assert_eq!(
+            reading.words,
+            "TMA Innsbruck · overhead · floor 300 m above"
+        );
+        assert_eq!(
+            (reading.level, reading.silenced),
+            (Some(AirspaceLevel::Near), false)
+        );
+        // With both set aside the reading is not empty: it is the zone
+        // again, marked.
+        session.ignore_airspace_today(area.clone(), 3600);
+        let reading = session.view(now).airspace_proximity.unwrap();
+        assert_eq!(
+            (reading.id.as_str(), reading.silenced),
+            (zone.as_str(), true)
+        );
+        assert_eq!(reading.level, Some(AirspaceLevel::Inside));
+        // And it is so after the next position too.
+        session.on_location(crate::LocationSample {
+            time_unix_s: now + 1.0,
+            lat: 47.28,
+            lon: 11.35,
+            altitude_m: Some(1200.0),
+            ground_speed_ms: None,
+            course_deg: None,
+        });
+        let reading = session.view(now + 1.0).airspace_proximity.unwrap();
+        assert_eq!(
+            (reading.id.as_str(), reading.silenced),
+            (zone.as_str(), true)
+        );
+        session.unsilence_airspace(zone.clone());
+        let reading = session.view(now + 1.0).airspace_proximity.unwrap();
+        assert_eq!(
+            (reading.id.as_str(), reading.silenced),
+            (zone.as_str(), false)
+        );
+
+        // Without airspace there is no reading.
+        session.use_airspace(None);
+        assert_eq!(session.view(now + 1.0).airspace_proximity, None);
+    }
+
+    #[test]
+    fn through_a_whole_flight_the_reading_never_says_less_than_the_warnings() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        core.import_airspace("zones.txt".to_owned(), FILE.as_bytes().to_vec(), NOW)
+            .unwrap();
+        let session = FlightSession::new(folder.path().to_str().unwrap().to_owned());
+        let replay = Replay::new(igc::write(&synthetic_flight())).unwrap();
+        // Before the airspace is handed over, and before a position.
+        assert_eq!(session.view(replay.now()).airspace_proximity, None);
+        session.use_airspace(Some(core.airspace().unwrap()));
+        assert_eq!(session.view(replay.now()).airspace_proximity, None);
+
+        // At the take-off the zone's edge is 3.7 km away: nothing to warn
+        // of, and a reading.
+        replay.advance(session.clone(), 60.0);
+        assert!(session.airspace_warnings().is_empty());
+        let reading = session.view(replay.now()).airspace_proximity.unwrap();
+        assert_eq!(reading.words, "CTR TEST · 3.7 km NW · at your height");
+
+        let (mut read_before_warned, mut read_and_warned) = (0, 0);
+        while replay.advance(session.clone(), 5.0) {
+            let reading = session.view(replay.now()).airspace_proximity;
+            let warnings = session.airspace_warnings();
+            match (&reading, warnings.first()) {
+                (None, None) => {}
+                // The reading is there before the first warning: from five
+                // kilometres, where a warning begins at two.
+                (Some(reading), None) => {
+                    read_before_warned += 1;
+                    assert_eq!(reading.name, "CTR TEST");
+                    assert_eq!(reading.level, None);
+                    assert!(
+                        reading.distance_m <= 5000.0 && reading.distance_m > 1900.0,
+                        "{}",
+                        reading.distance_m
+                    );
+                    assert!(
+                        reading.words.starts_with("CTR TEST · "),
+                        "{}",
+                        reading.words
+                    );
+                    assert!(
+                        reading.words.ends_with(" · at your height"),
+                        "{}",
+                        reading.words
+                    );
+                }
+                // While a warning is up the reading stays, and the two say
+                // the same of the zone.
+                (Some(reading), Some(warning)) => {
+                    read_and_warned += 1;
+                    assert_eq!(reading.id, warning.id);
+                    assert_eq!(reading.level, Some(warning.level));
+                    assert_eq!(reading.distance_m, warning.distance_m);
+                    assert_eq!(reading.bearing_deg, warning.bearing_deg);
+                    assert_eq!(reading.inside_outline, warning.inside_outline);
+                    assert_eq!(reading.uncertain, warning.uncertain);
+                }
+                (None, Some(warning)) => panic!("{} and no reading", warning.headline),
+            }
+        }
+        assert!(read_before_warned > 5, "{read_before_warned}");
+        assert!(read_and_warned > 5, "{read_and_warned}");
     }
 
     #[test]

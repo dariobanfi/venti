@@ -490,6 +490,96 @@ fn a_drop_zone_is_a_caution_only_when_flown_into() {
 }
 
 #[test]
+fn the_reading_beside_the_warnings_never_says_less_than_they_do() {
+    let index = airspace();
+    let near = Config::default().near;
+    // Flights that raise every kind of warning: into the control zone from
+    // the west, across its edge and back, alongside it, and north into the
+    // drop zone.
+    let legs = [
+        Leg {
+            start: destination(point(47.25, 11.2), 270.0, 3000.0).unwrap(),
+            course_deg: 90.0,
+            seconds: 320,
+        },
+        Leg {
+            start: destination(point(47.25, 11.2), 90.0, 150.0).unwrap(),
+            course_deg: 270.0,
+            seconds: 60,
+        },
+        Leg {
+            start: destination(point(47.3, 11.25), 0.0, 300.0).unwrap(),
+            course_deg: 90.0,
+            seconds: 60,
+        },
+        Leg {
+            start: destination(point(47.6, 11.25), 180.0, 900.0).unwrap(),
+            course_deg: 0.0,
+            seconds: 200,
+        },
+    ];
+    let mut warned = 0;
+    for leg in &legs {
+        let mut engine = WarningEngine::new(Config::default());
+        for second in 0..=leg.seconds {
+            let time = f64::from(second);
+            let position = destination(leg.start, leg.course_deg, 10.0 * time).unwrap();
+            let mut here = sample(time, position, 1200.0);
+            here.ground_speed_ms = Some(10.0);
+            here.course_deg = Some(leg.course_deg);
+            let warnings = engine.update(&index, &here).unwrap();
+            let reading = engine.proximity(&index, &here).unwrap();
+
+            // Class C begins at FL 100 over all of it, so there is always
+            // an airspace to read. It never is one that does not warn.
+            let reading = reading.expect("no reading under class C airspace");
+            assert_ne!(reading.policy, Policy::Free);
+            assert!(!["ECHO", "SECTOR"].contains(&reading.airspace.name.as_str()));
+
+            for warning in &warnings {
+                warned += 1;
+                // What the two say of one airspace is the same.
+                if warning.id() == &reading.airspace.id {
+                    assert_eq!(warning.horizontal, reading.horizontal);
+                    assert_eq!(warning.vertical, reading.vertical);
+                }
+                // A warning of an airspace to avoid that is within the
+                // "near" margin where the glider is now: the reading is
+                // about one that is as near, never about one further off.
+                let within = |ground_m: f64, height_m: f64| {
+                    ground_m <= near.horizontal_m && height_m <= near.vertical_m
+                };
+                if warning.policy == Policy::Avoid
+                    && within(
+                        warning.horizontal.separation_m(),
+                        warning.vertical.separation_m,
+                    )
+                {
+                    assert_eq!(reading.policy, Policy::Avoid);
+                    assert!(
+                        within(
+                            reading.horizontal.separation_m(),
+                            reading.vertical.separation_m
+                        ),
+                        "second {second}: {} is read while {} is near",
+                        reading.airspace.name,
+                        warning.airspace.name
+                    );
+                }
+            }
+            // In the drop zone the warning is about the drop zone, which is
+            // not closed, and the reading about the airspace to avoid: the
+            // class C overhead.
+            if level_of(&warnings, "DROP ZONE") == Some(Level::Inside) {
+                assert_eq!(reading.airspace.name, "UPPER");
+                assert!(reading.horizontal.inside);
+            }
+        }
+    }
+    assert!(warned > 400, "{warned}");
+}
+
+#[test]
 fn warnings_come_most_urgent_first() {
     let index = airspace();
     let mut engine = WarningEngine::new(Config::default());

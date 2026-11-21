@@ -44,6 +44,7 @@ use venti_domain::{Airspace, AirspaceId, GeoPoint};
 use crate::geometry::{bearing_deg, destination, inside_stretches};
 use crate::index::{AirspaceIndex, Horizontal, horizontal};
 use crate::policy::{Policy, PolicyTable};
+use crate::proximity::{Proximity, proximity};
 use crate::vertical::{Altitudes, PressureAltitude, VerticalStatus, vertical_status};
 
 /// What the cockpit knows at one moment.
@@ -121,6 +122,10 @@ pub struct Config {
     pub look_ahead_s: f64,
     /// The stretch of flight the direction of travel is taken from, seconds.
     pub velocity_window_s: f64,
+    /// How far over the ground the standing reading of the airspace that
+    /// matters next looks, metres: see [`WarningEngine::proximity`]. The
+    /// 5 km the owner's XCTrack layout has its proximity reading set to.
+    pub proximity_reach_m: f64,
     /// Which airspaces are warned about.
     pub policy: PolicyTable,
 }
@@ -143,6 +148,7 @@ impl Default for Config {
             hold_s: 10.0,
             look_ahead_s: 60.0,
             velocity_window_s: 20.0,
+            proximity_reach_m: 5000.0,
             policy: PolicyTable::paraglider(),
         }
     }
@@ -509,6 +515,49 @@ impl WarningEngine {
         self.set_aside_early.remove(airspace);
     }
 
+    /// The airspace that matters next at a sample, as a standing reading
+    /// for the time between warnings: out to [`Config::proximity_reach_m`]
+    /// over the ground, and `None` when no airspace that counts has its
+    /// outline that near. [`proximity`](crate::proximity()) says which one
+    /// it is among several.
+    ///
+    /// It is asked with the sample [`WarningEngine::update`] was just given
+    /// and changes nothing in the engine. The table, the margins and the
+    /// two measurements are the warnings' own, so for the same airspace the
+    /// reading and the warning agree in every number, and while a warning
+    /// is up there is a reading. An airspace the pilot set aside with
+    /// [`WarningEngine::ignore`] is the reading only when no other is within
+    /// reach; acknowledging a warning changes nothing here. A sample
+    /// `update` refuses is refused here too.
+    pub fn proximity<'a>(
+        &self,
+        index: &'a AirspaceIndex,
+        sample: &Sample,
+    ) -> Result<Option<Proximity<'a>>, SampleError> {
+        if !sample.time_s.is_finite() {
+            return Err(SampleError::Time);
+        }
+        if !sample.altitude_m.is_finite() {
+            return Err(SampleError::Altitude);
+        }
+        let now = sample.time_s;
+        let set_aside = |airspace: &AirspaceId| {
+            self.set_aside_early.contains_key(airspace)
+                || self
+                    .quiet
+                    .get(airspace)
+                    .and_then(|quiet| quiet.ignored_until)
+                    .is_some_and(|until| until > now)
+        };
+        Ok(proximity(
+            index,
+            &self.config,
+            sample.position,
+            &sample.altitudes(),
+            set_aside,
+        ))
+    }
+
     /// Speed in metres per second and direction in degrees: over the recent
     /// path where there is enough of it, else as the sample gives them.
     fn velocity(&mut self, sample: &Sample) -> Option<(f64, f64)> {
@@ -551,6 +600,15 @@ fn until(silence: Silence, now_s: f64) -> f64 {
     }
 }
 
+/// Whether a pilot this far from an airspace, over the ground and in
+/// height, is within a margin of it both ways, the margin widened by
+/// `extra`. The warnings' levels and the order of the standing reading are
+/// both made of this one check.
+pub(crate) fn within(ground_m: f64, height_m: f64, margin: Margin, extra: Margin) -> bool {
+    ground_m <= margin.horizontal_m + extra.horizontal_m
+        && height_m <= margin.vertical_m + extra.vertical_m
+}
+
 /// The level the pilot's position alone gives, with margins widened by `extra`.
 fn classify(
     config: &Config,
@@ -561,8 +619,12 @@ fn classify(
     extra: Margin,
 ) -> Option<Level> {
     let within = |margin: Margin| {
-        horizontal.separation_m() <= margin.horizontal_m + extra.horizontal_m
-            && vertical.separation_m <= margin.vertical_m + extra.vertical_m
+        within(
+            horizontal.separation_m(),
+            vertical.separation_m,
+            margin,
+            extra,
+        )
     };
     let nothing = Margin {
         horizontal_m: 0.0,

@@ -76,6 +76,7 @@ import fly.venti.core.OutlookDay
 import fly.venti.core.SiteOutlook
 import fly.venti.app.R
 import fly.venti.app.today.AirChart
+import fly.venti.app.today.NearbyLine
 import fly.venti.app.today.ThermalLine
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
@@ -238,6 +239,9 @@ private fun SiteHead(site: SiteView, day: OutlookDay?, isForTakingOff: Boolean, 
             Text(SiteWords.inALine(site), color = colours.textSecondary, modifier = Modifier.testTag("site-in-a-line"))
             day?.let { shown ->
                 Text(SiteWords.outlook(shown), color = colours.textSecondary, modifier = Modifier.testTag("site-outlook"))
+                // The wind near by where it is much stronger, under the
+                // day's own line: a note, and no part of the status.
+                NearbyLine(shown.nearby, style = MaterialTheme.typography.bodyMedium)
                 ThermalLine(shown)
             }
         }
@@ -644,6 +648,18 @@ private fun SitePage(
                                 }
                             }
                         }
+                    }
+                }
+            }
+            // What the layers of the picture and the wind near by are and
+            // are not, in the core's words, while the page shows them.
+            val layersNote = outlook?.layersNote.orEmpty().takeIf { day?.groundM != null }.orEmpty()
+            val nearbyNote = outlook?.nearbyNote.orEmpty().takeIf { day != null }.orEmpty()
+            if (layersNote.isNotEmpty() || nearbyNote.isNotEmpty()) {
+                item {
+                    Column(Modifier.testTag("site-air-notes")) {
+                        if (layersNote.isNotEmpty()) SectionFooter(layersNote, Modifier.testTag("site-layers-note"))
+                        if (nearbyNote.isNotEmpty()) SectionFooter(nearbyNote, Modifier.testTag("site-nearby-note"))
                     }
                 }
             }

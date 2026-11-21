@@ -494,6 +494,9 @@ private fun TakeoffCard(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit
             if (day.why.isNotEmpty()) {
                 Text(day.why, color = colours.textSecondary)
             }
+            // The wind near by where it is much stronger: a note under the
+            // day's own reason, and no part of the status.
+            NearbyLine(day.nearby, style = MaterialTheme.typography.bodyMedium)
             ThermalLine(day)
             Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
                 Metric(
@@ -552,6 +555,7 @@ private fun TakeoffRow(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit)
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            NearbyLine(day?.nearby.orEmpty())
             if (day != null && day.thermalWords.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
                     ThermalMark(day.climbMs)
@@ -650,7 +654,10 @@ private fun spoken(hour: OutlookHour): String {
         climb > 0 -> ", thermals of ${Format.oneDecimal(climb)} metres a second"
         else -> ", no thermals to climb in"
     }
-    return if (hour.why.isEmpty()) "$verdict$wind$thermals" else "$verdict: ${hour.why}$wind$thermals"
+    // What is much stronger near by in the hour, in the core's line: the
+    // strip has no room for it, a screen reader has.
+    val nearby = hour.nearby?.line.orEmpty().let { if (it.isEmpty()) "" else ". $it" }
+    return if (hour.why.isEmpty()) "$verdict$wind$thermals$nearby" else "$verdict: ${hour.why}$wind$thermals$nearby"
 }
 
 /**
@@ -664,6 +671,12 @@ private fun Foot(
     day: OutlookDay?,
 ) {
     val outlook = today.places.firstNotNullOfOrNull { it.outlook }
+    // What the wind near by is and is not, while some take-off's day has
+    // its line: the note of the first that has. The core names the squares
+    // it read for that take-off.
+    val nearbyNote = day?.let { shown ->
+        today.places.firstOrNull { place -> outlookDay(place, shown)?.nearby.orEmpty().isNotEmpty() }?.outlook?.nearbyNote
+    }.orEmpty()
     val style = MaterialTheme.typography.bodySmall
     val colour = Venti.colours.textSecondary
     Column(modifier = Modifier.fillMaxWidth().testTag("today-foot"), verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
@@ -676,6 +689,9 @@ private fun Foot(
                 style = style,
                 color = colour,
             )
+        }
+        if (nearbyNote.isNotEmpty()) {
+            Text(nearbyNote, style = style, color = colour, modifier = Modifier.testTag("today-nearby-note"))
         }
         Text(
             "Flyable, marginal and not flyable are what the forecast's wind, gusts, rain and cloud say by fixed " +

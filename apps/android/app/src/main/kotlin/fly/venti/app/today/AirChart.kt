@@ -2,12 +2,21 @@ package fly.venti.app.today
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -20,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -35,14 +45,18 @@ import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
 import fly.venti.core.ForecastWind
 import fly.venti.core.OutlookDay
+import kotlin.math.max
 
 /**
  * The air over a take-off through one day, as a picture: for every hour how
  * high the thermals go, as a column in the thermal scale's colour of the
  * climb with the climb over it; a cloud on the column where cumulus caps
- * them; the wind at the model's levels as arrows; the take-off's height as
- * a dashed line, and the model's own ground as a band at the foot.
- * Everything in it is the core's; [AirScale] places it.
+ * them; where the air is layered, a band across the hour, hatched for a
+ * stable layer and filled for an inversion; the wind at the model's levels
+ * as arrows; the take-off's height as a dashed line, and the model's own
+ * ground as a band at the foot. A tap on an hour says its layers and the
+ * wind near by in words under the picture. Everything in it is the core's;
+ * [AirScale] places it.
  */
 @Composable
 fun AirChart(day: OutlookDay, takeoffM: Double?, modifier: Modifier = Modifier) {
@@ -50,92 +64,151 @@ fun AirChart(day: OutlookDay, takeoffM: Double?, modifier: Modifier = Modifier) 
     val measurer = rememberTextMeasurer()
     val caption = MaterialTheme.typography.bodySmall.numbers
     val scale = AirScale.of(day, takeoffM) ?: return
+    // The hours can be looked at one by one where some hour has a layer or
+    // a wind near by to say: the first hour to come at first.
+    val hasDetail = day.hours.any(AirAroundWords::hasDetail)
+    var chosen by remember(day.startUnixS) { mutableIntStateOf(0) }
+    val shown = chosen.coerceIn(0, (day.hours.size - 1).coerceAtLeast(0))
     Column(modifier, verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
-        Canvas(
-            Modifier
-                .fillMaxWidth()
-                .height(CHART_HEIGHT)
-                .testTag("air-chart")
-                .semantics {
-                    contentDescription = "The air through the day"
-                    stateDescription = day.thermalLine.ifEmpty { "No estimate of the thermals" }
-                },
-        ) {
-            val quiet = caption.copy(color = colours.textSecondary)
-            val ink = caption.copy(color = colours.text)
-            val gutter = 40.dp.toPx()
-            val head = 22.dp.toPx()
-            val foot = 20.dp.toPx()
-            val plot = Rect(gutter, head, size.width, size.height - foot)
-            if (plot.width <= 0 || plot.height <= 0 || day.hours.isEmpty()) return@Canvas
-            fun y(metres: Double) = plot.top + scale.y(metres, plot.height)
+        Box(Modifier.fillMaxWidth().height(CHART_HEIGHT)) {
+            Canvas(
+                Modifier
+                    .matchParentSize()
+                    .testTag("air-chart")
+                    .semantics {
+                        contentDescription = "The air through the day"
+                        stateDescription = day.thermalLine.ifEmpty { "No estimate of the thermals" }
+                    },
+            ) {
+                val quiet = caption.copy(color = colours.textSecondary)
+                val ink = caption.copy(color = colours.text)
+                val gutter = GUTTER.toPx()
+                val head = 22.dp.toPx()
+                val foot = 20.dp.toPx()
+                val plot = Rect(gutter, head, size.width, size.height - foot)
+                if (plot.width <= 0 || plot.height <= 0 || day.hours.isEmpty()) return@Canvas
+                fun y(metres: Double) = plot.top + scale.y(metres, plot.height)
 
-            if (day.hours.any { (it.climbMs ?: 0.0) > 0 }) {
-                label(measurer, "m/s", quiet, Offset(plot.left - 6.dp.toPx(), head / 2), Anchor.Right)
-            }
-            for (line in scale.lines) {
-                drawLine(colours.border, Offset(plot.left, y(line)), Offset(plot.right, y(line)), 1.dp.toPx())
-                label(measurer, Format.metres(line), quiet, Offset(plot.left - 6.dp.toPx(), y(line)), Anchor.Right)
-            }
-            day.groundM?.let { ground ->
-                drawRect(colours.surfaceRaised, Offset(plot.left, y(ground)), Size(plot.width, plot.bottom - y(ground)))
-                drawLine(colours.borderStrong, Offset(plot.left, y(ground)), Offset(plot.right, y(ground)), 1.5.dp.toPx())
-            }
-            val slot = plot.width / day.hours.size
-            day.hours.forEachIndexed { index, hour ->
-                val middle = plot.left + slot * (index + 0.5f)
-                label(measurer, hour.hour, quiet, Offset(middle, plot.bottom + foot / 2), Anchor.Centre)
-                val top = hour.thermalTopM
-                val ground = day.groundM
-                if (top != null && ground != null && top > ground) {
-                    val width = slot * 0.62f
-                    val climb = hour.climbMs ?: 0.0
-                    drawRoundRect(
-                        colours.thermal[ThermalScale.step(climb)],
-                        Offset(middle - width / 2, y(top)),
-                        Size(width, y(ground) - y(top)),
-                        CornerRadius(3.dp.toPx()),
+                if (day.hours.any { (it.climbMs ?: 0.0) > 0 }) {
+                    label(measurer, "m/s", quiet, Offset(plot.left - 6.dp.toPx(), head / 2), Anchor.Right)
+                }
+                for (line in scale.lines) {
+                    drawLine(colours.border, Offset(plot.left, y(line)), Offset(plot.right, y(line)), 1.dp.toPx())
+                    label(measurer, Format.metres(line), quiet, Offset(plot.left - 6.dp.toPx(), y(line)), Anchor.Right)
+                }
+                day.groundM?.let { ground ->
+                    drawRect(colours.surfaceRaised, Offset(plot.left, y(ground)), Size(plot.width, plot.bottom - y(ground)))
+                    drawLine(colours.borderStrong, Offset(plot.left, y(ground)), Offset(plot.right, y(ground)), 1.5.dp.toPx())
+                }
+                val slot = plot.width / day.hours.size
+                day.hours.forEachIndexed { index, hour ->
+                    val middle = plot.left + slot * (index + 0.5f)
+                    label(
+                        measurer,
+                        hour.hour,
+                        if (hasDetail && index == shown) ink.copy(fontWeight = FontWeight.SemiBold) else quiet,
+                        Offset(middle, plot.bottom + foot / 2),
+                        Anchor.Centre,
                     )
-                    if (hour.thermalCloud) {
-                        // Cumulus: a flat-bottomed cloud standing on the column.
-                        val cloudTop = Offset(middle - slot * 0.42f, y(top) - 9.dp.toPx())
-                        val cloudSize = Size(slot * 0.84f, 9.dp.toPx())
-                        drawRoundRect(colours.surface, cloudTop, cloudSize, CornerRadius(4.5.dp.toPx()))
-                        drawRoundRect(colours.textSecondary, cloudTop, cloudSize, CornerRadius(4.5.dp.toPx()), style = Stroke(1.5.dp.toPx()))
+                    val top = hour.thermalTopM
+                    val ground = day.groundM
+                    if (top != null && ground != null && top > ground) {
+                        val width = slot * 0.62f
+                        val climb = hour.climbMs ?: 0.0
+                        drawRoundRect(
+                            colours.thermal[ThermalScale.step(climb)],
+                            Offset(middle - width / 2, y(top)),
+                            Size(width, y(ground) - y(top)),
+                            CornerRadius(3.dp.toPx()),
+                        )
+                        if (hour.thermalCloud) {
+                            // Cumulus: a flat-bottomed cloud standing on the column.
+                            val cloudTop = Offset(middle - slot * 0.42f, y(top) - 9.dp.toPx())
+                            val cloudSize = Size(slot * 0.84f, 9.dp.toPx())
+                            drawRoundRect(colours.surface, cloudTop, cloudSize, CornerRadius(4.5.dp.toPx()))
+                            drawRoundRect(colours.textSecondary, cloudTop, cloudSize, CornerRadius(4.5.dp.toPx()), style = Stroke(1.5.dp.toPx()))
+                        }
+                        if (climb > 0) {
+                            label(
+                                measurer,
+                                Format.oneDecimal(climb),
+                                ink.copy(fontWeight = FontWeight.SemiBold),
+                                Offset(middle, head / 2),
+                                Anchor.Centre,
+                            )
+                        }
                     }
-                    if (climb > 0) {
-                        label(
-                            measurer,
-                            Format.oneDecimal(climb),
-                            ink.copy(fontWeight = FontWeight.SemiBold),
-                            Offset(middle, head / 2),
-                            Anchor.Centre,
+                    // Where the air is layered in the hour, over the thermals'
+                    // column and under the arrows: cut where the picture ends,
+                    // and at the model's ground.
+                    for (layer in hour.layers) {
+                        val (bottom, layerTop) = scale.within(max(layer.bottomM, ground ?: layer.bottomM), layer.topM) ?: continue
+                        layerBand(
+                            Rect(middle - slot / 2, y(layerTop), middle + slot / 2, y(bottom)),
+                            layer.inversion,
+                            colours.textMuted,
+                        )
+                    }
+                    if (hasDetail && index == shown) {
+                        // The hour whose words stand under the picture.
+                        drawRect(
+                            colours.borderStrong,
+                            Offset(middle - slot / 2, plot.top),
+                            Size(slot, plot.height),
+                            style = Stroke(1.dp.toPx()),
+                        )
+                    }
+                    // The wind at 10 m above the model's ground, and at every
+                    // level well clear of it: the ones just above would lie on
+                    // top of one another.
+                    val lowest = hour.winds.firstOrNull()?.altitudeM
+                    for (level in hour.winds) {
+                        if (level.altitudeM != lowest && level.altitudeM <= (lowest ?: 0.0) + 300) continue
+                        if (level.altitudeM > scale.ceilingM) continue
+                        windArrow(level.wind, Offset(middle, y(level.altitudeM)), wide = slot >= 36.dp.toPx(), measurer, ink, colours.text)
+                    }
+                }
+                takeoffM?.let { takeoff ->
+                    drawLine(
+                        colours.text,
+                        Offset(plot.left, y(takeoff)),
+                        Offset(plot.right, y(takeoff)),
+                        1.5.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx())),
+                    )
+                    label(measurer, "Take-off", ink, Offset(plot.right - 2.dp.toPx(), y(takeoff) - 2.dp.toPx()), Anchor.BottomRight)
+                }
+            }
+            if (hasDetail) {
+                // The hours to tap, over the picture: each one element for a
+                // screen reader, which hears the hour's line and layers.
+                Row(Modifier.matchParentSize().padding(start = GUTTER)) {
+                    day.hours.forEachIndexed { index, hour ->
+                        val said = AirAroundWords.spoken(hour)
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .testTag("air-hour-$index")
+                                .selectable(selected = index == shown, role = Role.Tab, onClick = { chosen = index })
+                                .semantics {
+                                    contentDescription = "${hour.hour} o'clock"
+                                    if (said.isNotEmpty()) stateDescription = said
+                                },
                         )
                     }
                 }
-                // The wind at 10 m above the model's ground, and at every
-                // level well clear of it: the ones just above would lie on
-                // top of one another.
-                val lowest = hour.winds.firstOrNull()?.altitudeM
-                for (level in hour.winds) {
-                    if (level.altitudeM != lowest && level.altitudeM <= (lowest ?: 0.0) + 300) continue
-                    if (level.altitudeM > scale.ceilingM) continue
-                    windArrow(level.wind, Offset(middle, y(level.altitudeM)), wide = slot >= 36.dp.toPx(), measurer, ink, colours.text)
-                }
-            }
-            takeoffM?.let { takeoff ->
-                drawLine(
-                    colours.text,
-                    Offset(plot.left, y(takeoff)),
-                    Offset(plot.right, y(takeoff)),
-                    1.5.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx())),
-                )
-                label(measurer, "Take-off", ink, Offset(plot.right - 2.dp.toPx(), y(takeoff) - 2.dp.toPx()), Anchor.BottomRight)
             }
         }
+        if (hasDetail) {
+            day.hours.getOrNull(shown)?.let { HourAir(it) }
+        }
         Text(
-            AirChartWords.caption(hasTakeoff = takeoffM != null),
+            AirChartWords.caption(
+                hasTakeoff = takeoffM != null,
+                hasLayers = day.hours.any { it.layers.isNotEmpty() },
+                hasHours = hasDetail,
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = colours.textSecondary,
         )
@@ -144,15 +217,20 @@ fun AirChart(day: OutlookDay, takeoffM: Double?, modifier: Modifier = Modifier) 
 
 /** What the picture's marks are. */
 object AirChartWords {
-    fun caption(hasTakeoff: Boolean): String =
+    fun caption(hasTakeoff: Boolean, hasLayers: Boolean = false, hasHours: Boolean = false): String =
         "How high the thermals go hour by hour, in the colour of the climb to expect, with the climb in m/s over " +
             "each and a cloud where cumulus caps them. The arrows are the wind at the model's levels, in km/h. " +
+            (if (hasLayers) "A hatched band is a stable layer, a filled one an inversion. " else "") +
             (if (hasTakeoff) "The dashed line is the take-off. " else "") +
             "The band at the foot is the model's ground, which is smoother than the terrain. Heights in metres " +
-            "above sea level."
+            "above sea level." +
+            (if (hasHours) " Tap an hour for its layers and the wind near by in words." else "")
 }
 
 private val CHART_HEIGHT = VentiSpace.s8 * 4
+
+/** The room at the picture's left for the heights. */
+private val GUTTER = 40.dp
 
 private enum class Anchor { Right, Centre, BottomRight }
 

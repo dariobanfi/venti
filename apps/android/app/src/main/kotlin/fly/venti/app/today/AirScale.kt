@@ -20,6 +20,18 @@ data class AirScale(
     /** How far down a height lies in a picture this tall. */
     fun y(metres: Double, height: Float): Float = (height * (1 - (metres - floorM) / (ceilingM - floorM))).toFloat()
 
+    /**
+     * The part of a stretch of air between two heights that the picture
+     * reaches, lower height first: a layer that goes on above the ceiling
+     * or below the floor is cut there. `null` for one that lies wholly
+     * outside, and for one without any height.
+     */
+    fun within(bottomM: Double, topM: Double): Pair<Double, Double>? {
+        val bottom = max(bottomM, floorM)
+        val top = min(topM, ceilingM)
+        return if (top > bottom) bottom to top else null
+    }
+
     /** The heights that get a line: every 500 m, or every 1000 m where the picture spans more than 3000 m. */
     val lines: List<Double>
         get() {

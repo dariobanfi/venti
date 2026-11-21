@@ -190,6 +190,18 @@ class VentiUiTest {
         node.config.getOrNull(SemanticsProperties.StateDescription)?.contains(text) == true
     }
 
+    /** Something whose state, as a screen reader says it, holds this pattern. */
+    private fun sayingLike(pattern: String) = SemanticsMatcher("says something like \"$pattern\"") { node ->
+        node.config.getOrNull(SemanticsProperties.StateDescription)?.let { Regex(pattern).containsMatchIn(it) } == true
+    }
+
+    /** Something whose words, written or as a screen reader says them, hold this pattern. */
+    private fun worded(pattern: String) = SemanticsMatcher("is worded like \"$pattern\"") { node ->
+        val words = node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } +
+            node.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
+        words.any { Regex(pattern).containsMatchIn(it) }
+    }
+
     /** Lets the app run and the map finish drawing; see [TestDevice.letTheAppRun]. */
     private fun letTheMapDraw(seconds: Int = 4) {
         TestDevice.letTheAppRun(screen, seconds)
@@ -2608,6 +2620,161 @@ class VentiUiTest {
 
     @Test
     fun todayInDarkAppearance() = lookAtToday("dark", dark = true)
+
+    /**
+     * The air around and above a take-off, against Venti in development
+     * mode: its recorded forecast of late November has, with each place,
+     * the strongest wind among the forecast map's squares near by, and on
+     * its Sunday and Monday air that is layered in every hour. Today says
+     * with a day when the wind near by is much stronger than at a
+     * take-off, as a note and not as the status; the take-off's page marks
+     * each hour's layers in the picture of the day's air, says an hour's
+     * layers and the wind near by in words under it, and at its foot what
+     * both are and are not.
+     *
+     * A take-off's page speaks of its first day with flying hours, and by
+     * the development server's own clock that is the recorded Saturday, a
+     * stormy day whose air is mixed all the way up. So the test plays a
+     * server on the device in front of it that hands everything on but
+     * the clock (`GET /v1/health`), which it sets to an evening: the page
+     * then speaks of the day after. What is there is asserted by its
+     * pattern, never by a figure: the words and the figures are the
+     * core's. Skipped without a server.
+     */
+    private fun lookAtTheAirAroundATakeoff(
+        prefix: String,
+        dark: Boolean,
+        /** The evening the server's clock is set to: the page speaks of the day after. */
+        evening: String,
+        /** Whether that day is the one whose wind near by is much stronger: then the page has the line too, and an hour of it. */
+        theLineIsOnThePage: Boolean,
+        /** Whether that day's air has an inversion besides its stable layer. */
+        hasAnInversion: Boolean,
+    ) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        val clock = """{"status":"ok","version":"0.1.0","time":"$evening","forecasts":"available","registration":"open","sources":[]}"""
+        HoursHeldBack(checkNotNull(server), path = "/v1/health", refusal = 200 to clock).use { inFront ->
+            inFront.hours = HoursHeldBack.Hours.REFUSED
+            launch(dark = dark, onToday = true) { putExtra(LaunchOptions.SERVER, inFront.address) }
+            val status = described("Flyable") or described("Marginal") or described("Not flyable")
+            waitFor(hasTestTag("today-card") and status)
+
+            // The day's line, on the card or a row of the first day of the
+            // switch that has it: the hour, what is much stronger and
+            // where, and what the take-off itself has.
+            val words = """Much stronger near by at \d{1,2}:00: (gusts to|wind) \d+ km/h .+, \d+ km/h at the place"""
+            val line = (hasTestTag("today-card") or hasTestTag("today-row")) and worded(words)
+            val days = hasAnyAncestor(hasTestTag("today-days")) and isSelectable()
+            fun hasTheLine() = runCatching { waitFor(line, seconds = 10) }.isSuccess
+            var found = hasTheLine()
+            var day = 0
+            while (!found && day < screen.onAllNodes(days).fetchSemanticsNodes().size) {
+                screen.onAllNodes(days)[day].performScrollTo().performClick()
+                waitFor(hasTestTag("today-card") and status)
+                found = hasTheLine()
+                day += 1
+            }
+            assertTrue("No day of the recorded forecast has a much stronger wind near by.", found)
+            // The take-off with the line keeps a status of its own beside it.
+            assertTrue(exists(line and status))
+            screen.onAllNodes(line).onFirst().performScrollTo()
+            TestDevice.letTheAppRun(screen, 1)
+            keepScreenshot("$prefix-air-around-1-day-with-the-line")
+            // Another take-off as a row has it under what limits its day.
+            val row = hasTestTag("today-row") and worded(words)
+            if (runCatching { waitFor(row, seconds = 10) }.isSuccess) {
+                screen.onAllNodes(row).onFirst().performScrollTo()
+                TestDevice.letTheAppRun(screen, 1)
+                keepScreenshot("$prefix-air-around-1b-row-with-the-line")
+            }
+            // What the wind near by is and is not, at the foot.
+            screen.onNode(hasTestTag("today-nearby-note")).performScrollTo()
+            assertTrue(exists(hasTestTag("today-nearby-note") and hasText("changes no verdict", substring = true)))
+
+            // The take-off's own page, which speaks of its first day with
+            // flying hours: the line under that day's, where it is that day's.
+            screen.onAllNodes(line).onFirst().performScrollTo().performClick()
+            val page = hasTestTag("site-page")
+            waitFor(page)
+            waitFor(hasTestTag("site-outlook"))
+            assertEquals(theLineIsOnThePage, exists(hasAnyAncestor(hasTestTag("nearby-line")) and worded(words)))
+            TestDevice.letTheAppRun(screen, 1)
+            keepScreenshot("$prefix-air-around-2-site")
+            // The picture of the day's air, the sheet pulled up to its full height first.
+            screen.onNode(page).performTouchInput { swipeUp() }
+            TestDevice.letTheAppRun(screen, 1)
+            screen.onNode(page).performScrollToNode(hasTestTag("air-chart"))
+            waitFor(hasTestTag("air-hour-0"))
+            TestDevice.letTheAppRun(screen, 1)
+            keepScreenshot("$prefix-air-around-3-picture-with-layers")
+
+            // Hour by hour: a tap says the hour's layers and the strongest
+            // wind and gust near by with where they are, and a screen
+            // reader hears them on the hour itself.
+            val layered = """(Stable layer|Inversion) between \d+ and \d+ m: \d+\.\d °C( warmer)? per 100 m"""
+            val whereabouts = """^\d+ km/h (in the square around the place|\d+ km to the [a-z-]+)( over ground at \d+ m)?$"""
+            val gusts = hasTestTag("air-hour-figure") and described("Gusts near by") and sayingLike(whereabouts)
+            val wind = hasTestTag("air-hour-figure") and described("Wind near by") and sayingLike(whereabouts)
+            var withLayers = -1
+            var withAnInversion = -1
+            var withLine = -1
+            var hour = 0
+            while (exists(hasTestTag("air-hour-$hour"))) {
+                tap(hasTestTag("air-hour-$hour"))
+                waitFor(hasTestTag("air-hour-$hour") and isSelected())
+                if (exists(hasTestTag("air-hour-layer") and worded("^$layered$")) && exists(gusts) && exists(wind)) {
+                    withLayers = hour
+                    assertTrue(exists(hasTestTag("air-hour-$hour") and sayingLike("$layered.*\\. Gusts near by: \\d+ km/h")))
+                }
+                if (exists(hasTestTag("air-hour-layer") and worded("^Inversion between"))) withAnInversion = hour
+                if (withLine < 0 && exists(hasAnyAncestor(hasTestTag("air-hour-line")) and worded("^(Gusts to|Wind) \\d+ km/h"))) {
+                    withLine = hour
+                }
+                hour += 1
+            }
+            assertTrue("No hour of the day has both a layer and the wind near by.", withLayers >= 0)
+            assertEquals(hasAnInversion, withAnInversion >= 0)
+            assertEquals(theLineIsOnThePage, withLine >= 0)
+            // The hour that is much stronger near by, where the day has
+            // one; else one with an inversion, else the last with layers.
+            val looked = listOf(withLine, withAnInversion, withLayers).first { it >= 0 }
+            tap(hasTestTag("air-hour-$looked"))
+            waitFor(hasTestTag("air-hour-$looked") and isSelected())
+            screen.onNode(page).performScrollToNode(hasTestTag("air-hour"))
+            TestDevice.letTheAppRun(screen, 1)
+            keepScreenshot("$prefix-air-around-4-hour")
+
+            // What the layers and the wind near by are and are not, at the foot.
+            screen.onNode(page).performScrollToNode(hasTestTag("site-layers-note"))
+            assertTrue(exists(hasTestTag("site-layers-note") and hasText("true sounding", substring = true)))
+            assertTrue(exists(hasTestTag("site-nearby-note") and hasText("changes no verdict", substring = true)))
+            TestDevice.letTheAppRun(screen, 1)
+            keepScreenshot("$prefix-air-around-5-notes")
+            tap(hasText("Done"))
+            waitFor(hasTestTag("today-card"))
+        }
+    }
+
+    /** The recorded Monday: gusts near by that are much stronger than at a take-off, and stable air in every hour. */
+    @Test
+    fun aTakeoffSaysTheAirAroundAndAboveIt() = lookAtTheAirAroundATakeoff(
+        "light",
+        dark = false,
+        evening = "2026-11-22T16:00:00Z",
+        theLineIsOnThePage = true,
+        hasAnInversion = false,
+    )
+
+    /** The recorded Sunday: an inversion at the ground under stable air, and nothing much stronger near by. */
+    @Test
+    fun theAirAroundATakeoffInDarkAppearance() = lookAtTheAirAroundATakeoff(
+        "dark",
+        dark = true,
+        evening = "2026-11-21T16:00:00Z",
+        theLineIsOnThePage = false,
+        hasAnInversion = true,
+    )
 
     /**
      * A take-off of the pilot's own, against Venti in development mode:

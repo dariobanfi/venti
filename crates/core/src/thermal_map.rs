@@ -62,6 +62,11 @@ pub struct ThermalMapCell {
     pub scale_step: Option<u8>,
     /// The verdict in words: "Flyable", "Marginal", "Not flyable".
     pub status: String,
+    /// What speaks against the day there, in words: "Rain", "Gusts",
+    /// "Wind higher up". What its hours mostly have against them, without
+    /// a figure: the day has many hours. Empty on a flyable day, and
+    /// where the server does not say.
+    pub why: String,
     /// The kind of day in words: "Cross-country day". Empty without one.
     pub thermal_words: String,
     /// The thermals in a line: "1.8 m/s to a cloud base of 3250 m",
@@ -158,6 +163,12 @@ pub fn thermal_map(
     let fits = |day: &v1::ThermalMapDay| {
         [
             day.verdict.len(),
+            // A server older than the reasons sends none.
+            if day.why.is_empty() {
+                cells
+            } else {
+                day.why.len()
+            },
             day.thermals.len(),
             day.climb_ms.len(),
             day.top_m.len(),
@@ -295,10 +306,29 @@ fn square(
         thermals,
         scale_step: thermals.map(scale_step),
         status: verdict.words().to_owned(),
+        why: day
+            .why
+            .get(cell)
+            .copied()
+            .flatten()
+            .filter(|_| verdict != Flyability::Flyable)
+            .map_or_else(String::new, |reason| words_of(reason).to_owned()),
         thermal_words: thermals.map_or_else(String::new, |kind| kind.words().to_owned()),
         thermal_line: thermals.map_or_else(String::new, |kind| line(kind, climb_ms, top_m, cloud)),
         ground_m: ground_m.get(cell).copied().flatten().map(f64::from),
     })
+}
+
+/// What speaks against a day, in words.
+fn words_of(reason: v1::ThermalReason) -> &'static str {
+    match reason {
+        v1::ThermalReason::Rain => "Rain",
+        v1::ThermalReason::Wind => "Wind",
+        v1::ThermalReason::Gusts => "Gusts",
+        v1::ThermalReason::WindAloft => "Wind higher up",
+        v1::ThermalReason::CloudBase => "Cloud base near the ground",
+        v1::ThermalReason::Storms => "Showers or thunderstorms can grow",
+    }
 }
 
 /// A square's thermals in a line.
@@ -336,11 +366,13 @@ mod tests {
                  "cloud": [false, false, false]},
                 {"date": "2026-07-12", "whole": false,
                  "verdict": ["flyable", "not_flyable", null],
+                 "why": ["gusts", "wind_aloft", null],
                  "thermals": ["cross_country", "big", null],
                  "climb_ms": [1.8, 2.4, null], "top_m": [3250, 3400, null],
                  "cloud": [true, false, false]},
                 {"date": "2026-07-13", "whole": true,
                  "verdict": ["marginal", "flyable", "flyable"],
+                 "why": ["storms", null, null],
                  "thermals": ["weak", "weak", null],
                  "climb_ms": [0.3, 0.0, null], "top_m": [1800, null, null],
                  "cloud": [false, false, false]},
@@ -418,6 +450,9 @@ mod tests {
         let cell = &map.days[0].cells[1];
         assert_eq!(cell.verdict, Flyability::NotFlyable);
         assert_eq!(cell.status, "Not flyable");
+        assert_eq!(cell.why, "Wind higher up");
+        // A flyable day has nothing against it, whatever the answer holds.
+        assert_eq!(map.days[0].cells[0].why, "");
         assert_eq!(cell.thermals, None);
         assert_eq!(cell.scale_step, None);
         assert_eq!(cell.thermal_words, "");
@@ -430,6 +465,7 @@ mod tests {
         let map = map();
         let tomorrow = &map.days[1].cells;
         assert_eq!(tomorrow[0].status, "Marginal");
+        assert_eq!(tomorrow[0].why, "Showers or thunderstorms can grow");
         assert_eq!(tomorrow[0].thermal_words, "Weak thermals");
         assert_eq!(tomorrow[0].thermal_line, "0.3 m/s to 1800 m at best");
         assert_eq!(tomorrow[0].scale_step, Some(2));
@@ -438,6 +474,23 @@ mod tests {
         assert_eq!(tomorrow[2].status, "Flyable");
         assert_eq!(tomorrow[2].thermals, None);
         assert_eq!(tomorrow[2].scale_step, None);
+    }
+
+    #[test]
+    fn a_server_that_gives_no_reasons_is_read_without_them() {
+        // The last day of the sample has no list of reasons, as an older
+        // server's answer has none.
+        let map = map();
+        assert_eq!(map.days[2].cells.len(), 3);
+        assert!(map.days[2].cells.iter().all(|cell| cell.why.is_empty()));
+
+        // A list of reasons that does not fit the grid is no map.
+        let text = String::from_utf8(body()).unwrap();
+        let short = text.replace(r#""why": ["storms", null, null],"#, r#""why": ["storms"],"#);
+        assert!(matches!(
+            thermal_map(200, short.into_bytes(), 0, NOON),
+            Err(CoreError::Server { .. })
+        ));
     }
 
     #[test]

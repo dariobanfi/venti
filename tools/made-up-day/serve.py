@@ -20,7 +20,8 @@ It also answers `GET /v1/thermals` with a made-up thermal map in the
 server's wire format, so that a map of the kind of day shows every kind:
 a big day in the north-west, a cross-country day beside it, local
 thermals in the south-west, weak ones beside those, a marginal band in the
-east and a corner there that is not flyable, as patches of whole cells.
+east (by gusts) and a corner there that is not flyable (by rain), as
+patches of whole cells.
 Three days from today by the development server's clock (the `time` of its
 health answer, which is the clock the apps name "Today" by; its recorded
 forecasts are of other days), each a step weaker everywhere than the day
@@ -171,7 +172,7 @@ def made_up_map(real, today=None):
     today = today or datetime.date.fromisoformat(computed[:10])
     days = []
     for ahead in range(3):
-        verdicts, kinds, climbs, tops, clouds = [], [], [], [], []
+        verdicts, whys, kinds, climbs, tops, clouds = [], [], [], [], [], []
         for row in range(rows):
             for column in range(columns):
                 verdict, kind = patch(row, column, rows, columns)
@@ -179,6 +180,9 @@ def made_up_map(real, today=None):
                     kind = WEAKER[kind] if kind is not None else None
                 climb, top, cloud = KINDS[kind] if kind else (None, None, False)
                 verdicts.append(verdict)
+                # Rain in the corner that is not flyable, gusts where the
+                # day is marginal.
+                whys.append({"not_flyable": "rain", "marginal": "gusts"}.get(verdict))
                 kinds.append(kind)
                 climbs.append(climb)
                 tops.append(top)
@@ -187,6 +191,7 @@ def made_up_map(real, today=None):
             "date": (today + datetime.timedelta(days=ahead)).isoformat(),
             "whole": True,
             "verdict": verdicts,
+            "why": whys,
             "thermals": kinds,
             "climb_ms": climbs,
             "top_m": tops,

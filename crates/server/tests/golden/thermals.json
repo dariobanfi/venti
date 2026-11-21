@@ -26,6 +26,12 @@
         "not_flyable",
         "not_flyable"
       ],
+      "why": [
+        "rain",
+        "rain",
+        "rain",
+        "rain"
+      ],
       "thermals": [
         null,
         null,
@@ -59,6 +65,12 @@
         "flyable",
         "flyable",
         "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
       ],
       "thermals": [
         "weak",

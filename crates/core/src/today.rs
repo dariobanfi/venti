@@ -404,6 +404,8 @@ impl Judged<'_> {
         RatedHour {
             time: self.hour.time,
             verdict: self.verdict.into(),
+            // The take-off's reasons are kept in words, beside.
+            against: None,
             air: self.air,
             kind: self.thermals.map(Kind::from),
         }

@@ -135,6 +135,13 @@ pub struct ThermalMapDay {
     /// For each cell, whether the day can be flown by the air alone.
     /// `null` where the day has no hours for the cell.
     pub verdict: Vec<Option<ThermalVerdict>>,
+    /// For each cell, what speaks against the day: the thing met most
+    /// often among the hours that are no better than the day's verdict.
+    /// `null` on a flyable day and where the day has no hours. Left out
+    /// by a server older than this field; a client then has no reason to
+    /// show.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub why: Vec<Option<ThermalReason>>,
     /// For each cell, the kind of day its thermals make. `null` on a day
     /// that is not flyable, and where there is no estimate.
     pub thermals: Vec<Option<ThermalKind>>,
@@ -162,6 +169,24 @@ pub enum ThermalVerdict {
     Marginal,
     /// The forecast rules it out: rain, or too much wind.
     NotFlyable,
+}
+
+/// What a forecast has against a day.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThermalReason {
+    /// Rain or snow.
+    Rain,
+    /// The mean wind 10 m above the model's ground.
+    Wind,
+    /// The gusts there.
+    Gusts,
+    /// The wind at the model's levels above the ground.
+    WindAloft,
+    /// Convective cloud with its base at or just above the ground.
+    CloudBase,
+    /// Air in which showers or thunderstorms can grow.
+    Storms,
 }
 
 /// The kind of day a forecast's thermals make.
@@ -226,6 +251,7 @@ mod tests {
             "days": [{
                 "date": "2026-07-12", "whole": true,
                 "verdict": ["flyable", "not_flyable", null],
+                "why": [null, "wind_aloft", null],
                 "thermals": ["cross_country", null, null],
                 "climb_ms": [1.8, null, null],
                 "top_m": [3250, null, null],
@@ -240,6 +266,7 @@ mod tests {
         let day = &map.days[0];
         assert_eq!(day.date, NaiveDate::from_ymd_opt(2026, 7, 12).unwrap());
         assert_eq!(day.verdict[1], Some(ThermalVerdict::NotFlyable));
+        assert_eq!(day.why[1], Some(ThermalReason::WindAloft));
         assert_eq!(day.thermals[0], Some(ThermalKind::CrossCountry));
         assert_eq!(day.top_m[0], Some(3250));
         let written = serde_json::to_value(&map).unwrap();
@@ -247,5 +274,11 @@ mod tests {
             written,
             serde_json::from_str::<serde_json::Value>(text).unwrap()
         );
+
+        // An answer of a server that knows no reasons is read as one
+        // without any.
+        let older = text.replace(r#""why": [null, "wind_aloft", null],"#, "");
+        let map: ThermalMapResponse = serde_json::from_str(&older).unwrap();
+        assert!(map.days[0].why.is_empty());
     }
 }

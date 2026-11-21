@@ -107,6 +107,39 @@ pub enum Against {
     Storms,
 }
 
+/// What a day's hours mostly have against them: the kinds of [`Against`],
+/// without their figures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Reason {
+    /// Rain or snow.
+    Rain,
+    /// The mean wind at the ground.
+    Wind,
+    /// The gusts there.
+    Gusts,
+    /// The wind at the model's levels above the place.
+    WindAloft,
+    /// Convective cloud with its base at or just above the place.
+    CloudBase,
+    /// Air in which showers or thunderstorms can grow.
+    Storms,
+}
+
+impl Against {
+    /// The kind of thing this is, without its figure.
+    #[must_use]
+    pub fn reason(&self) -> Reason {
+        match self {
+            Self::Rain => Reason::Rain,
+            Self::Wind { .. } => Reason::Wind,
+            Self::Gusts { .. } => Reason::Gusts,
+            Self::WindAloft { .. } => Reason::WindAloft,
+            Self::CloudBaseBelow | Self::CloudBaseNear => Reason::CloudBase,
+            Self::Storms => Reason::Storms,
+        }
+    }
+}
+
 /// What the forecast has against an hour by the air alone, each with how
 /// much it counts, in a fixed order: the wind, the gusts, the wind higher
 /// up, the cloud base, storms. Rain ends the hour and stands alone.
@@ -230,6 +263,10 @@ pub struct RatedHour {
     pub time: DateTime<Utc>,
     /// Whether it can be flown.
     pub verdict: Verdict,
+    /// The worst thing the air has against it. None when nothing has, and
+    /// where the caller keeps its own account of what speaks against the
+    /// hour.
+    pub against: Option<Against>,
     /// What the model makes of its thermals, where it gives what that
     /// takes.
     pub air: Option<Convection>,
@@ -409,7 +446,7 @@ pub fn cell_hours(series: &ForecastSeries) -> Vec<RatedHour> {
                 .is_some_and(|(_, hours)| hours.contains(&hour.time))
         })
         .map(|hour| {
-            let (verdict, _) = worst(&against(hour, ground));
+            let (verdict, found) = worst(&against(hour, ground));
             let air = ground.and_then(|ground| convection(hour, ground));
             let kind = air
                 .zip(ground)
@@ -417,6 +454,7 @@ pub fn cell_hours(series: &ForecastSeries) -> Vec<RatedHour> {
             RatedHour {
                 time: hour.time,
                 verdict,
+                against: found,
                 air,
                 kind,
             }
@@ -436,6 +474,10 @@ pub struct CellDay {
     pub whole: bool,
     /// Whether the day can be flown, by the air alone.
     pub verdict: Verdict,
+    /// What speaks against the day: the thing met most often among the
+    /// hours that are no better than the day's verdict, and of equally
+    /// frequent ones the earliest. None on a flyable day.
+    pub why: Option<Reason>,
     /// What its thermals come to. None on a day that is not flyable, and
     /// where the model does not give what an estimate takes.
     pub thermals: Option<ThermalDay>,
@@ -458,6 +500,7 @@ pub fn cell_days(hours: &[RatedHour], cell: GeoPoint) -> Vec<CellDay> {
         let verdict = day_verdict(of_day);
         days.push(CellDay {
             date,
+            why: most_met(of_day, verdict),
             whole: daylight_hours(date, cell)
                 .iter()
                 .all(|needed| of_day.iter().any(|hour| hour.time == *needed)),
@@ -469,6 +512,29 @@ pub fn cell_days(hours: &[RatedHour], cell: GeoPoint) -> Vec<CellDay> {
         from = to;
     }
     days
+}
+
+/// What the hours of a day with this verdict mostly have against them.
+fn most_met(hours: &[RatedHour], verdict: Verdict) -> Option<Reason> {
+    if verdict == Verdict::Flyable {
+        return None;
+    }
+    let mut counts: Vec<(Reason, usize)> = Vec::new();
+    for reason in hours
+        .iter()
+        .filter(|hour| hour.verdict >= verdict)
+        .filter_map(|hour| hour.against.map(|against| against.reason()))
+    {
+        match counts.iter_mut().find(|(of, _)| *of == reason) {
+            Some((_, count)) => *count += 1,
+            None => counts.push((reason, 1)),
+        }
+    }
+    let most = counts.iter().map(|(_, count)| *count).max()?;
+    counts
+        .into_iter()
+        .find(|(_, count)| *count == most)
+        .map(|(reason, _)| reason)
 }
 
 /// A height to the nearest fifty metres: the estimate is no finer.
@@ -511,6 +577,7 @@ mod tests {
         RatedHour {
             time: at(hour),
             verdict,
+            against: None,
             air: Some(air),
             kind: kind_of_hour(&air, place_m, verdict),
         }
@@ -813,8 +880,35 @@ mod tests {
         let days = cell_days(&cell_hours(&series(hours)), cell());
         assert_eq!(days.len(), 1);
         assert_eq!(days[0].verdict, Verdict::NotFlyable);
+        assert_eq!(days[0].why, Some(Reason::Rain));
         assert_eq!(days[0].thermals, None);
         assert!(days[0].whole);
+    }
+
+    #[test]
+    fn a_day_says_what_its_hours_mostly_have_against_them() {
+        // Gusts in the morning, strong wind higher up from eleven on: a
+        // marginal day, and mostly by the wind higher up.
+        let hours: Vec<ForecastHour> = (0..24)
+            .map(|hour| {
+                let mut forecast = summer(at(hour), 450.0);
+                if hour < 11 {
+                    forecast.wind_gust_ms = Some(9.0);
+                } else {
+                    forecast.winds_aloft[0].wind_speed_ms = Some(11.0);
+                }
+                forecast
+            })
+            .collect();
+        let days = cell_days(&cell_hours(&series(hours)), cell());
+        assert_eq!(days[0].verdict, Verdict::Marginal);
+        assert_eq!(days[0].why, Some(Reason::WindAloft));
+
+        // A day with nothing against it names nothing.
+        let fine: Vec<ForecastHour> = (0..24).map(|hour| summer(at(hour), 450.0)).collect();
+        let days = cell_days(&cell_hours(&series(fine)), cell());
+        assert_eq!(days[0].verdict, Verdict::Flyable);
+        assert_eq!(days[0].why, None);
     }
 
     #[test]

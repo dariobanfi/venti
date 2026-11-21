@@ -33,10 +33,11 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use chrono::Duration;
 use venti_api_types::v1::{
-    THERMAL_GRID_DEG, ThermalGrid, ThermalKind, ThermalMapDay, ThermalMapResponse, ThermalVerdict,
+    THERMAL_GRID_DEG, ThermalGrid, ThermalKind, ThermalMapDay, ThermalMapResponse, ThermalReason,
+    ThermalVerdict,
 };
 use venti_domain::{BoundingBox, ForecastSeries, GeoPoint, ModelId, SourceId, Timestamp};
-use venti_flight::day::{self, Kind, RatedHour, Verdict};
+use venti_flight::day::{self, Kind, RatedHour, Reason, Verdict};
 
 use crate::clock::Clock;
 use crate::forecast::{Forecasts, Refusal};
@@ -386,6 +387,10 @@ impl ThermalMap {
                         .iter()
                         .map(|cell| cell.map(|day| verdict(day.verdict)))
                         .collect(),
+                    why: of_date
+                        .iter()
+                        .map(|cell| cell.and_then(|day| day.why).map(reason))
+                        .collect(),
                     thermals: of_date
                         .iter()
                         .map(|cell| thermals(cell).map(|found| kind(found.kind)))
@@ -439,6 +444,17 @@ fn verdict(verdict: Verdict) -> ThermalVerdict {
         Verdict::Flyable => ThermalVerdict::Flyable,
         Verdict::Marginal => ThermalVerdict::Marginal,
         Verdict::NotFlyable => ThermalVerdict::NotFlyable,
+    }
+}
+
+fn reason(reason: Reason) -> ThermalReason {
+    match reason {
+        Reason::Rain => ThermalReason::Rain,
+        Reason::Wind => ThermalReason::Wind,
+        Reason::Gusts => ThermalReason::Gusts,
+        Reason::WindAloft => ThermalReason::WindAloft,
+        Reason::CloudBase => ThermalReason::CloudBase,
+        Reason::Storms => ThermalReason::Storms,
     }
 }
 

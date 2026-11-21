@@ -1175,6 +1175,12 @@ The answer of the development mode, whole:
         "not_flyable",
         "not_flyable"
       ],
+      "why": [
+        "rain",
+        "rain",
+        "rain",
+        "rain"
+      ],
       "thermals": [
         null,
         null,
@@ -1208,6 +1214,12 @@ The answer of the development mode, whole:
         "flyable",
         "flyable",
         "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
       ],
       "thermals": [
         "weak",
@@ -1265,6 +1277,7 @@ A day holds its values in lists as long as the grid has cells, in the grid's ord
 | `date` | The day, by the sun at the cells: from one midnight by the sun to the next |
 | `whole` | Whether every cell that has a verdict was judged with all of the day's daylight hours. `false` on a day the runs at hand do not reach the whole of (the day ICON-D2's newest run ends in), and on today after a start of the server, when the hours before the run began are missing. Such a day is judged by the hours there are, which can make it look worse than it is |
 | `verdict` | Per cell `flyable`, `marginal` or `not_flyable`, by the air alone; `null` where the day has no hours for the cell |
+| `why` | Per cell what speaks against the day: `rain`, `wind` (the mean wind 10 m above the model's ground), `gusts`, `wind_aloft` (the wind at the model's levels within 1,500 m above the ground), `cloud_base` (convective cloud with its base at or just above the ground) or `storms` (air in which showers or thunderstorms can grow). It is the thing met most often among the hours that are no better than the day's verdict, and of equally frequent ones the earliest. `null` on a flyable day and where the day has no hours. Since 2026-11-21; a server older than that leaves the list out, and a client then shows no reason |
 | `thermals` | Per cell the kind of day: `weak`, `local`, `cross_country` or `big`. `null` on a day that is not flyable, and where there is no estimate |
 | `climb_ms` | Per cell the climb to expect, m/s to a tenth: the mean over the hours that make the kind of day, or the best hour's on a day of weak thermals. `null` where `thermals` is |
 | `top_m` | Per cell how high the thermals go, metres above mean sea level to the nearest fifty. `null` without thermals |

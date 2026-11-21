@@ -1,0 +1,14 @@
+[package]
+name = "venti-hdf5"
+description = "A bounded reader for the small part of HDF5 that the recorded radar products use."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+flate2.workspace = true
+
+[lints]
+workspace = true

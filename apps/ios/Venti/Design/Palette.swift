@@ -41,6 +41,17 @@ enum Palette {
     /// scale's darkest step: the best day and the worst would look alike.
     static var notFlyableOnMap: UIColor { UIColor(VentiTheme.light.textMuted) }
 
+    /// A flying site on the map: the dark of its pin, and of the outline
+    /// and the faint fill of a site that is mapped as an area.
+    static var siteOnMap: UIColor { UIColor(VentiTheme.light.primary) }
+
+    /// A take-off that says nothing to what the filter of the sites asks,
+    /// shown apart from the ones that fit: the pack's pair for something
+    /// that is not to be chosen (`.v-btn[disabled]`), the muted ink on the
+    /// raised surface.
+    static var siteUnsaidOnMap: UIColor { UIColor(VentiTheme.light.textMuted) }
+    static var siteUnsaidGroundOnMap: UIColor { UIColor(VentiTheme.light.surfaceRaised) }
+
     /// What has gone quiet on the map: an old reading, a glider nothing
     /// was heard of for a while.
     static var quietOnMap: UIColor { UIColor(VentiTheme.light.borderStrong) }

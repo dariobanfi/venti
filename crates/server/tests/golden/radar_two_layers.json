@@ -1,0 +1,78 @@
+{
+  "time": "2026-11-21T12:40:00Z",
+  "steps_mm_h": [
+    0.1,
+    0.2,
+    1.0,
+    4.0,
+    10.0,
+    30.0
+  ],
+  "unseen": 7,
+  "layers": [
+    {
+      "source": "dwd-radar-ry",
+      "west": 9.4,
+      "south": 46.291984,
+      "east": 17.2,
+      "north": 48.5,
+      "columns": 624,
+      "rows": 261,
+      "cadence_seconds": 300,
+      "frames": [
+        {
+          "time": "2026-11-21T11:35:00Z",
+          "interval_s": 300,
+          "path": "/v1/radar/dwd-radar-ry/20261121T1135Z.png",
+          "bytes": 4489
+        },
+        {
+          "time": "2026-11-21T11:40:00Z",
+          "interval_s": 300,
+          "path": "/v1/radar/dwd-radar-ry/20261121T1140Z.png",
+          "bytes": 4511
+        }
+      ]
+    },
+    {
+      "source": "geosphere-inca-rr",
+      "west": 9.4,
+      "south": 46.291984,
+      "east": 17.2,
+      "north": 48.5,
+      "columns": 624,
+      "rows": 261,
+      "cadence_seconds": 900,
+      "frames": [
+        {
+          "time": "2026-11-21T12:00:00Z",
+          "interval_s": 900,
+          "path": "/v1/radar/geosphere-inca-rr/20261121T1200Z.png",
+          "bytes": 5407
+        },
+        {
+          "time": "2026-11-21T12:15:00Z",
+          "interval_s": 900,
+          "path": "/v1/radar/geosphere-inca-rr/20261121T1215Z.png",
+          "bytes": 5200
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "dwd-radar-ry",
+      "provider": "Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben",
+      "url": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
+    },
+    {
+      "source": "geosphere-inca-rr",
+      "provider": "GeoSphere Austria",
+      "licence": "CC BY 4.0",
+      "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
+      "url": "https://data.hub.geosphere.at"
+    }
+  ]
+}

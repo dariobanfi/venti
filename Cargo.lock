@@ -2818,6 +2818,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "venti-hdf5"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+]
+
+[[package]]
 name = "venti-leagues"
 version = "0.1.0"
 dependencies = [
@@ -2901,6 +2908,7 @@ dependencies = [
  "venti-sources-dwd",
  "venti-sources-dwd-radar",
  "venti-sources-geosphere",
+ "venti-sources-geosphere-radar",
  "venti-sources-openaip",
  "venti-sources-openmeteo",
  "venti-sources-osm",
@@ -2962,6 +2970,7 @@ dependencies = [
  "flate2",
  "serde_json",
  "venti-domain",
+ "venti-hdf5",
  "venti-sources",
 ]
 
@@ -2973,6 +2982,18 @@ dependencies = [
  "serde",
  "serde_json",
  "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-geosphere-radar"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
+ "venti-hdf5",
  "venti-sources",
 ]
 

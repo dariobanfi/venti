@@ -36,6 +36,20 @@ final class SitesModel {
     /// Why the sites are missing, in words for the pilot.
     private(set) var problem: String?
 
+    /// What the pilot asks of the sites, on the map and in the list: kept
+    /// between launches where the model was given a place to keep it.
+    private(set) var choice: SitesChoice
+    /// Where the wind comes from that the wind station nearest to the
+    /// map's middle measured last, degrees: the direction of "Measured
+    /// now". Absent where no station near has a current one.
+    private(set) var measuredFromDeg: Double?
+    /// What the filter leaves of `sites`, with the core's words for it:
+    /// the sites that fit, and apart from them the take-offs whose source
+    /// does not say. The rule is the core's (`filterSites`); it is asked
+    /// when the sites, the choice or the wind change, not with every
+    /// drawing of a screen.
+    private(set) var filtered: SitesFiltered
+
     /// The server to ask. The app sets this to the one in the settings.
     @ObservationIgnored var server: () -> URL? = { nil }
 
@@ -43,9 +57,58 @@ final class SitesModel {
     /// The area the sites were asked for, from which server, and when.
     @ObservationIgnored private var answered: (area: Bounds, server: URL, at: Date)?
     @ObservationIgnored private var waiting: Task<Void, Never>?
+    /// Where the pilot's choice is kept between launches, if anywhere.
+    @ObservationIgnored private let store: UserDefaults?
 
-    init(transport: @escaping Transport = WindModel.fetch) {
+    /// - Parameter store: where the filter is kept as the pilot left it:
+    ///   the app's preferences. Without one, as in a unit test, it starts
+    ///   asking nothing and is kept nowhere.
+    init(transport: @escaping Transport = WindModel.fetch, store: UserDefaults? = nil) {
         self.transport = transport
+        self.store = store
+        let choice = store.map(SitesChoice.init(keptIn:)) ?? SitesChoice()
+        self.choice = choice
+        filtered = filterSites(sites: [], filter: choice.filter(measuredFromDeg: nil))
+    }
+
+    /// The pilot asks something else of the sites.
+    func choose(_ choice: SitesChoice) {
+        guard choice != self.choice else { return }
+        self.choice = choice
+        if let store {
+            choice.keep(in: store)
+        }
+        refilter()
+    }
+
+    /// The map says which wind its stations measured around its middle.
+    /// It changes what is shown only while the pilot asks for the wind
+    /// measured now.
+    func measured(fromDeg: Double?) {
+        guard fromDeg != measuredFromDeg else { return }
+        measuredFromDeg = fromDeg
+        if choice.wind == .measuredNow {
+            refilter()
+        }
+    }
+
+    /// The direction of the wind measured now around a place: that of the
+    /// nearest station, by the core's order, whose reading is current and
+    /// has a direction.
+    nonisolated static func measuredNow(stations: [WindStation], around place: Coordinate) -> Double? {
+        stationsNear(
+            stations: stations, place: place, elevationM: nil, wind: [],
+            withinM: .greatestFiniteMagnitude, atMost: UInt32(clamping: stations.count)
+        )
+        .lazy
+        .filter { $0.station.mark.symbol != .old }
+        .compactMap { $0.station.latest?.directionDeg }
+        .first
+    }
+
+    /// Asks the core what the filter leaves of the sites.
+    private func refilter() {
+        filtered = filterSites(sites: sites, filter: choice.filter(measuredFromDeg: measuredFromDeg))
     }
 
     /// The map says which part of it is in view. The server is asked
@@ -90,6 +153,7 @@ final class SitesModel {
             asOfUnixS = map.asOfUnixS
             answered = (area, server, Date())
             problem = nil
+            refilter()
         } catch is CancellationError {
             return
         } catch {
@@ -110,6 +174,7 @@ final class SitesModel {
             isWhole = false
             asOfUnixS = nil
             answered = nil
+            refilter()
         }
         problem = nil
     }

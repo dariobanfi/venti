@@ -86,7 +86,12 @@ enum Session {
             let airspace = AirspaceModel(core: core, remembersChoice: !LaunchOptions.isUnderTest)
             airspace.server = { wind.server }
             // Flying sites come from the same server as the wind.
-            let sites = SitesModel()
+            // What the pilot asks of them is kept between launches;
+            // a UI test can start with the filter asking nothing.
+            if LaunchOptions.showsAllSites {
+                SitesChoice().keep(in: .standard)
+            }
+            let sites = SitesModel(store: .standard)
             sites.server = { wind.server }
             // And the forecasts for the take-offs of the Today tab.
             // Today begins with the pilot's own take-offs, which the
@@ -316,6 +321,11 @@ enum LaunchOptions {
         }
         return (numbers[0], numbers[1], numbers[2])
     }
+
+    /// Starts with the filter of the flying sites asking nothing, and
+    /// keeps that: a UI test of the filter leaves it so for the tests
+    /// after it, whatever became of it. Preferences outlive a test.
+    static let showsAllSites = arguments.contains("--all-sites")
 
     /// Dark appearance whatever the device is set to, for screenshots.
     /// Normally the app follows the device.

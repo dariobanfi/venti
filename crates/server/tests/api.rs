@@ -246,6 +246,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "thermals.json",
         "thermal_hours_wind.json",
         "radar.json",
+        "radar_two_layers.json",
         "error_missing_bbox.json",
         "sign_in.json",
         "sessions.json",

@@ -14,6 +14,7 @@ use venti_sources_basemapat::BasemapAt;
 use venti_sources_dwd::Dwd10Min;
 use venti_sources_dwd_radar::DwdRadarRy;
 use venti_sources_geosphere::Tawes10Min;
+use venti_sources_geosphere_radar::GeosphereIncaRr;
 use venti_sources_openaip::OpenAip;
 use venti_sources_openmeteo::OpenMeteo;
 use venti_sources_osm::OsmFreeFlying;
@@ -157,28 +158,61 @@ pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
 /// registry holds adapters of its own for the same sources, made by
 /// [`registry_for`], for what a manifest says.
 pub fn radar_sources() -> Vec<Box<dyn RadarSource>> {
-    vec![Box::new(DwdRadarRy::new())]
+    vec![
+        Box::new(DwdRadarRy::new()),
+        Box::new(GeosphereIncaRr::new()),
+    ]
 }
 
 /// The radar frames recorded from the providers, as a fetcher of their
-/// own: the radar is collected by a service with a clock of its own, which
-/// in the development mode stands at the moment these were recorded.
+/// own: the radar is collected by a service with a clock of its own.
 pub fn recorded_radar_payloads() -> FixtureFetch {
-    FixtureFetch::new().with_all(venti_sources_dwd_radar::fixtures::recorded())
+    FixtureFetch::new()
+        .with_all(venti_sources_dwd_radar::fixtures::recorded())
+        .with_all(venti_sources_geosphere_radar::fixtures::recorded())
 }
 
-/// The moment the development mode's radar clock stands at: shortly after
-/// its frames were recorded, three days after the observations.
+/// The moment the development mode's radar clock stands at: 11:44 UTC on
+/// 2026-11-21, shortly after DWD's frames were recorded, three days after
+/// the observations.
 pub fn radar_recorded_at() -> Timestamp {
     venti_sources_dwd_radar::fixtures::recorded_at()
 }
 
-/// For how long the development mode's radar keeps a frame: from the
-/// moment up to which the recording holds none, to its clock. A real
-/// server keeps two hours; kept for as long here, the radar would ask for
-/// frames nobody recorded.
-pub fn radar_recorded_kept() -> chrono::Duration {
-    radar_recorded_at() - venti_sources_dwd_radar::fixtures::held_until()
+/// Whether the development mode has a radar source. It has DWD's alone.
+///
+/// The two sources were recorded an hour apart: DWD's frames, of 11:35
+/// and 11:40 UTC, at 11:44, and GeoSphere Austria's, of 12:00 and 12:15,
+/// at 12:39. One clock cannot stand shortly after both. At 11:44 the
+/// frames of GeoSphere Austria are of moments still to come. At 12:40
+/// DWD's newest frame is an hour old, and by the radar's own rule a
+/// source whose newest frame is older than three of its intervals has
+/// stopped publishing: its run is not healthy and the server's health is
+/// "degraded". Until both are recorded at one moment, the development
+/// mode keeps to the one whose recording its clock is of. A real server
+/// collects both, and the server's tests run both recordings through the
+/// service and the API, with the clock at [`radar_recorded_last_at`].
+pub fn radar_in_development_mode(source: &venti_domain::SourceId) -> bool {
+    source.as_str() == DwdRadarRy::new().manifest().id.as_str()
+}
+
+/// Shortly after the later of the two radar recordings: 12:40 UTC on
+/// 2026-11-21. No recorded frame is of a moment after it.
+pub fn radar_recorded_last_at() -> Timestamp {
+    venti_sources_dwd_radar::fixtures::recorded_at()
+        .max(venti_sources_geosphere_radar::fixtures::recorded_at())
+}
+
+/// The moment up to which a source's radar recording holds no frame. A
+/// radar over the recordings keeps a frame from then to its clock: a real
+/// server keeps two hours, and kept for as long here, the radar would ask
+/// for frames nobody recorded.
+pub fn radar_recorded_from(source: &venti_domain::SourceId) -> Timestamp {
+    if source.as_str() == GeosphereIncaRr::new().manifest().id.as_str() {
+        venti_sources_geosphere_radar::fixtures::held_until()
+    } else {
+        venti_sources_dwd_radar::fixtures::held_until()
+    }
 }
 
 /// The payloads recorded from every provider, as a fetcher that answers
@@ -356,7 +390,7 @@ mod tests {
             }
         }
         // A server that was told nothing has no forecast source.
-        assert_eq!(registry.manifests().count(), 7);
+        assert_eq!(registry.manifests().count(), 8);
         assert!(forecast_sources(&Providers::default()).unwrap().is_empty());
     }
 
@@ -372,7 +406,7 @@ mod tests {
     #[test]
     fn forecasts_are_there_only_when_the_server_is_told_where_from() {
         let told = registry_for(&Providers::recorded()).unwrap();
-        assert_eq!(told.manifests().count(), 8);
+        assert_eq!(told.manifests().count(), 9);
         let open_meteo = venti_domain::SourceId::new("open-meteo").unwrap();
         let manifest = told.manifest(&open_meteo, Kind::Forecasts).unwrap();
         assert_eq!(manifest.kinds, [Kind::Forecasts]);

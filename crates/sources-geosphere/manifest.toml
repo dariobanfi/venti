@@ -7,9 +7,15 @@ auth = "none"
 # The larger of the two answers of a run was 177 kB on 2026-11-19.
 max_response_kb = 4096
 
+# The service allows an address 5 requests a second and 240 an hour
+# ("A users requests are limited to 5 requests per second and 240 requests
+# per hour", the API's guide, Request Limit, read 2026-11-21). The radar
+# adapter geosphere-inca-rr asks the same service from the same address
+# and has 1 a second and 100 an hour of it; this one keeps within the
+# rest. A run here is two requests, twelve an hour.
 [rate_limit]
-per_second = 5
-per_hour = 240
+per_second = 4
+per_hour = 120
 
 [licence]
 name = "CC BY 4.0"

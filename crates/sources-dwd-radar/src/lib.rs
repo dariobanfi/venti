@@ -43,16 +43,15 @@
 //! the digits of its time alone, never from what the list says.
 
 pub mod fixtures;
-mod hdf5;
 mod projection;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use venti_domain::{RADAR_UNSEEN, RadarFrame, RadarGrid, Timestamp, rain_step};
+use venti_hdf5::{File, Value};
 use venti_sources::{
     Manifest, ParsedRadar, PlanCtx, RadarSource, RadarWanted, Request, Skipped, SourceError,
 };
 
-use crate::hdf5::{File, Value};
 use crate::projection::{Placement, PolarStereographic};
 
 /// The folder of RY on DWD's open-data server.
@@ -365,12 +364,6 @@ impl RadarSource for DwdRadarRy {
     }
 }
 
-/// Lets the crate's tests reach a group of a recorded frame.
-#[cfg(test)]
-pub(crate) fn object<'a>(file: &File<'a>, path: &[&str]) -> hdf5::Object<'a> {
-    file.object(path).expect("the recorded frame has the group")
-}
-
 #[cfg(test)]
 mod tests {
     use venti_domain::BoundingBox;
@@ -485,7 +478,8 @@ mod tests {
     fn a_recorded_frame_says_what_it_is_in_its_own_attributes() {
         let (_, body) = fixtures::frames()[1];
         let file = File::open(body).unwrap();
-        let attributes = |path: &[&str]| file.attributes(&object(&file, path)).unwrap();
+        let object = |path: &[&str]| file.object(path).expect("the recorded frame has the group");
+        let attributes = |path: &[&str]| file.attributes(&object(path)).unwrap();
         let text = |values: &[(String, Value)], name: &str| {
             values
                 .iter()
@@ -535,7 +529,7 @@ mod tests {
         let values = attributes(&["dataset1", "data1", "what"]);
         assert_eq!(text(&values, "quantity"), "RATE");
         let raw = file
-            .grid_u16(&object(&file, &["dataset1", "data1", "data"]), 1200, 1100)
+            .grid_u16(&object(&["dataset1", "data1", "data"]), 1200, 1100)
             .unwrap();
         assert_eq!(raw.len(), 1_320_000);
         // Nearly half of the picture no radar sees; the smallest rate
@@ -544,7 +538,7 @@ mod tests {
         assert_eq!(raw.iter().filter(|v| **v != 0).min(), Some(&12));
         // Asked for as a picture of another size, it is refused.
         let said = file
-            .grid_u16(&object(&file, &["dataset1", "data1", "data"]), 900, 900)
+            .grid_u16(&object(&["dataset1", "data1", "data"]), 900, 900)
             .unwrap_err();
         assert!(said.contains("not 900 rows of 900"), "{said}");
     }

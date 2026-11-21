@@ -199,9 +199,16 @@ struct VentiSegmented<Value: Hashable>: View {
         }
     }
 
+    /// The row that scrolls opens with the chosen one in view: of the
+    /// sixteen points of the compass the one chosen may stand far right.
     private var scrolling: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            segments(sharingTheWidth: false)
+        ScrollViewReader { row in
+            ScrollView(.horizontal, showsIndicators: false) {
+                segments(sharingTheWidth: false)
+            }
+            .onAppear {
+                row.scrollTo(selection, anchor: .center)
+            }
         }
         .clipShape(.capsule)
     }
@@ -225,6 +232,7 @@ struct VentiSegmented<Value: Hashable>: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isChosen ? .isSelected : [])
+                .id(option.value)
             }
         }
         .padding(3)

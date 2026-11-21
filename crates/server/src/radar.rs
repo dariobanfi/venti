@@ -103,7 +103,8 @@ pub trait Radar: Send + Sync {
 
 /// The radar service for what a server collects: `sources` are the radar
 /// adapters it has, `jobs` its plan. `None` when the plan holds no radar
-/// source. `kept` is for how long a frame is kept: [`KEPT`] on a server.
+/// source. `kept` is for how long a frame of a source is kept: [`KEPT`]
+/// on a server, for every source.
 ///
 /// A source's pictures cover the area of its job, which is the box around
 /// the regions that list it.
@@ -112,7 +113,7 @@ pub fn service_for<F>(
     sources: Vec<Box<dyn RadarSource>>,
     fetch: F,
     clock: Arc<dyn Clock>,
-    kept: Duration,
+    kept: impl Fn(&SourceId) -> Duration,
 ) -> Option<Arc<dyn Radar>>
 where
     F: Fetch + Send + 'static,
@@ -130,6 +131,7 @@ where
                 return None;
             };
             Some(Held {
+                kept: kept(&id),
                 source,
                 area,
                 grid,
@@ -145,7 +147,6 @@ where
         sources: planned,
         fetch,
         clock,
-        kept,
     }))
 }
 
@@ -154,6 +155,8 @@ struct Held {
     source: Box<dyn RadarSource>,
     area: BoundingBox,
     grid: RadarGrid,
+    /// For how long a frame of the source is kept.
+    kept: Duration,
     frames: Mutex<BTreeMap<Timestamp, Arc<Picture>>>,
 }
 
@@ -171,7 +174,6 @@ struct RadarService<F> {
     sources: Vec<Held>,
     fetch: F,
     clock: Arc<dyn Clock>,
-    kept: Duration,
 }
 
 impl<F: Fetch + Send> RadarService<F> {
@@ -183,7 +185,7 @@ impl<F: Fetch + Send> RadarService<F> {
 
     async fn run(&self, held: &Held) -> RadarRunReport {
         let now = self.clock.now();
-        let oldest_kept = now - self.kept;
+        let oldest_kept = now - held.kept;
         let newest_held = held.frames().keys().next_back().copied();
         let wanted = RadarWanted {
             after: newest_held.map_or(oldest_kept, |newest| newest.max(oldest_kept)),
@@ -438,7 +440,7 @@ mod tests {
             vec![Box::new(Fake(Manifest::from_toml(MANIFEST).unwrap()))],
             fetch(),
             Arc::new(FixedClock(now)),
-            KEPT,
+            |_| KEPT,
         )
         .unwrap()
     }
@@ -494,7 +496,7 @@ mod tests {
             vec![Box::new(Fake(Manifest::from_toml(MANIFEST).unwrap()))],
             fetch(),
             clock.clone(),
-            KEPT,
+            |_| KEPT,
         )
         .unwrap();
         block_on(radar.collect(&source)).unwrap();

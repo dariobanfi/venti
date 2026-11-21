@@ -12,8 +12,11 @@ struct OverviewMap: UIViewRepresentable {
     let stations: [WindStation]
     /// The airspaces to draw.
     let airspace: [AirspaceShape]
-    /// The flying sites to draw.
+    /// The flying sites to draw: those the filter of the sites leaves.
     var sites: [SiteView] = []
+    /// The take-offs that say nothing to what the filter asks: drawn
+    /// apart from the others, muted and without their names.
+    var unsaidSites: [SiteView] = []
     /// Other pilots in the air, to draw.
     var gliders: [LiveGlider] = []
     /// Where the pilot's groups plan to fly today and tomorrow, to mark.
@@ -115,7 +118,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.showHour(forecastHour, on: map)
         coordinator.showRadar(radar, on: map)
         coordinator.show(plans, on: map)
-        coordinator.show(sites, on: map)
+        coordinator.show(sites, unsaid: unsaidSites, on: map)
         coordinator.show(gliders, on: map)
         coordinator.showFollowed(followed, on: map)
         coordinator.show(outlines, on: map)
@@ -166,6 +169,11 @@ struct OverviewMap: UIViewRepresentable {
         private var drawnAirspace: [AirspaceShape]?
         private var sites: [SiteView] = []
         private var drawnSites: [SiteView]?
+        private var unsaidSites: [SiteView] = []
+        private var drawnUnsaidSites: [SiteView]?
+        /// The sites' areas that are drawn: those larger than their sign
+        /// at the map's scale.
+        private var drawnFields: [SiteFields.Field]?
         private var isStyleLoaded = false
         private var requested = false
         private var aerial = false
@@ -253,8 +261,9 @@ struct OverviewMap: UIViewRepresentable {
             drawFollowed(on: map)
         }
 
-        func show(_ sites: [SiteView], on map: MLNMapView) {
+        func show(_ sites: [SiteView], unsaid: [SiteView], on map: MLNMapView) {
             self.sites = sites
+            unsaidSites = unsaid
             drawSites(on: map)
         }
 
@@ -315,7 +324,14 @@ struct OverviewMap: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             photos?.update(from: mapView)
+            drawFields(on: mapView)
             tellRegion(of: mapView)
+        }
+
+        /// While the pilot zooms: a site's area comes when it has grown
+        /// larger than its sign, and goes when it is smaller again.
+        func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            drawFields(on: mapView)
         }
 
         func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
@@ -446,6 +462,8 @@ struct OverviewMap: UIViewRepresentable {
             for picture in SiteSymbols.all {
                 style.setImage(picture.image, forName: picture.name)
             }
+            // A site mapped as an area, under its sign.
+            SiteFields.add(to: style)
             let sites = MLNShapeSource(identifier: Self.sites, shape: empty, options: nil)
             style.addSource(sites)
             let signs = MLNSymbolStyleLayer(identifier: Self.sites, source: sites)
@@ -462,6 +480,8 @@ struct OverviewMap: UIViewRepresentable {
             signs.textHaloColor = NSExpression(forConstantValue: Palette.haloOnMap)
             signs.textHaloWidth = NSExpression(forConstantValue: 1.4)
             signs.textOptional = NSExpression(forConstantValue: true)
+            // The sites that fit lie over the ones shown apart.
+            signs.symbolSortKey = NSExpression(forKeyPath: "rank")
             signs.minimumZoomLevel = 9
             style.addLayer(signs)
 
@@ -588,23 +608,45 @@ struct OverviewMap: UIViewRepresentable {
         /// Draws the flying sites, once the style is there and only when
         /// they have changed.
         private func drawSites(on map: MLNMapView) {
-            guard isStyleLoaded, sites != drawnSites,
+            guard isStyleLoaded, sites != drawnSites || unsaidSites != drawnUnsaidSites,
                   let source = map.style?.source(withIdentifier: Self.sites) as? MLNShapeSource
             else { return }
             drawnSites = sites
-            source.shape = MLNShapeCollectionFeature(shapes: sites.map(Self.siteFeature))
+            drawnUnsaidSites = unsaidSites
+            source.shape = MLNShapeCollectionFeature(
+                shapes: unsaidSites.map { Self.siteFeature(for: $0, isUnsaid: true) }
+                    + sites.map { Self.siteFeature(for: $0) }
+            )
+            drawFields(on: map)
+        }
+
+        /// Draws the areas of the sites that are mapped as one, where
+        /// the map is close enough for an area to be larger than its
+        /// sign, and only when they have changed.
+        private func drawFields(on map: MLNMapView) {
+            guard isStyleLoaded, let style = map.style else { return }
+            let fields = SiteFields.fields(
+                fitting: sites, unsaid: unsaidSites,
+                metresPerPoint: map.metersPerPoint(atLatitude: map.centerCoordinate.latitude),
+                signPoints: SiteSymbols.size.width
+            )
+            guard fields != drawnFields else { return }
+            drawnFields = fields
+            SiteFields.show(fields, in: style)
         }
 
         /// One site as the map's symbol layer reads it. Only a name the
         /// source gives is written on the map: "Take-off" under every
-        /// take-off sign would say nothing.
-        static func siteFeature(for site: SiteView) -> MLNPointFeature {
+        /// take-off sign would say nothing. A take-off that says nothing
+        /// to what the filter asks has the muted pin and no name.
+        static func siteFeature(for site: SiteView, isUnsaid: Bool = false) -> MLNPointFeature {
             let feature = MLNPointFeature()
             feature.coordinate = site.position.location
             feature.attributes = [
                 "id": site.id,
-                "picture": site.kind.pictureName,
-                "label": site.isNamed ? site.name : "",
+                "picture": SiteSymbols.name(of: site.kind, isUnsaid: isUnsaid),
+                "label": site.isNamed && !isUnsaid ? site.name : "",
+                "rank": isUnsaid ? 0 : 1,
             ]
             return feature
         }

@@ -109,6 +109,7 @@ fn the_manifest_is_valid_and_keeps_runs_within_the_hourly_limit() {
     let manifest = source.manifest();
     assert_eq!(manifest.id.as_str(), "geosphere-tawes");
     assert_eq!(manifest.licence.family(), LicenceFamily::Open);
-    // 240 requests an hour at one run every ten minutes.
-    assert_eq!(manifest.requests_per_run(), Some(40));
+    // 120 requests an hour at one run every ten minutes: half of the 240
+    // the service allows an address, which the radar adapter shares.
+    assert_eq!(manifest.requests_per_run(), Some(20));
 }

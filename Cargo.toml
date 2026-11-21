@@ -15,9 +15,11 @@ venti-airspace = { path = "crates/airspace" }
 venti-api-types = { path = "crates/api-types" }
 venti-store = { path = "crates/store" }
 venti-sources = { path = "crates/sources" }
+venti-hdf5 = { path = "crates/hdf5" }
 venti-sources-dwd = { path = "crates/sources-dwd" }
 venti-sources-dwd-radar = { path = "crates/sources-dwd-radar" }
 venti-sources-geosphere = { path = "crates/sources-geosphere" }
+venti-sources-geosphere-radar = { path = "crates/sources-geosphere-radar" }
 venti-sources-openaip = { path = "crates/sources-openaip" }
 venti-sources-osm = { path = "crates/sources-osm" }
 venti-sources-basemapat = { path = "crates/sources-basemapat" }

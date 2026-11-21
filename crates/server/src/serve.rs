@@ -125,7 +125,7 @@ pub async fn serve(config: Config) -> Result<(), String> {
         adapters::radar_sources(),
         fetcher()?,
         clock.clone(),
-        radar::KEPT,
+        |_| radar::KEPT,
     );
     match &radar {
         Some(radar) => {

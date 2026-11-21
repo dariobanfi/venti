@@ -190,3 +190,186 @@ async fn a_server_without_a_radar_source_says_so() {
     let health: HealthResponse = get(&router, HEALTH_PATH).await.ok(StatusCode::OK);
     assert!(health.radar.is_empty());
 }
+
+/// A server as a real one is for the first region's two radar sources,
+/// over both recordings, an hour after DWD's and shortly after GeoSphere
+/// Austria's: the radar service with both adapters, and the API over it.
+async fn both_recordings() -> (axum::Router, std::sync::Arc<dyn venti_server::radar::Radar>) {
+    use std::sync::Arc;
+    use venti_server::api::{Api, Cors};
+    use venti_server::clock::FixedClock;
+    use venti_server::plan::Job;
+    use venti_sources::Kind;
+
+    let registry = adapters::registry();
+    let area = BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap();
+    let jobs: Vec<Job> = ["dwd-radar-ry", "geosphere-inca-rr"]
+        .into_iter()
+        .map(|source| Job {
+            source: venti_domain::SourceId::new(source).unwrap(),
+            kind: Kind::Radar,
+            area,
+        })
+        .collect();
+    let now = adapters::radar_recorded_last_at();
+    let radar = venti_server::radar::service_for(
+        &jobs,
+        adapters::radar_sources(),
+        adapters::recorded_radar_payloads(),
+        Arc::new(FixedClock(now)),
+        |source| now - adapters::radar_recorded_from(source),
+    )
+    .unwrap();
+    for job in &jobs {
+        let report = radar.collect(&job.source).await.unwrap();
+        assert!(report.failures.is_empty(), "{:?}", report.failures);
+        assert_eq!((report.requests, report.frames), (3, 2), "{}", job.source);
+        // GeoSphere Austria's newest run is 25 minutes old, as on any
+        // day. DWD's newest frame is an hour old here, because it was
+        // recorded an hour earlier: by the rule, a source that stopped.
+        assert_eq!(
+            report.is_healthy(),
+            job.source.as_str() == "geosphere-inca-rr"
+        );
+    }
+    let api = Api::new(
+        Arc::new(venti_store::MemoryStore::new()),
+        Arc::new(FixedClock(now)),
+        jobs.iter().map(|job| job.manifest(&registry)),
+        settings(),
+    )
+    .with_radar(radar.clone());
+    (api.router(&Cors::Origins(Vec::new())), radar)
+}
+
+#[tokio::test]
+async fn two_sources_are_two_layers_each_with_its_frames_and_its_credit() {
+    let (router, _) = both_recordings().await;
+
+    let radar: RadarResponse = get(&router, RADAR_PATH).await.ok(StatusCode::OK);
+
+    assert_eq!(radar.time, adapters::radar_recorded_last_at());
+    // Sorted by source, on the same grid, each with its own cadence.
+    let layers: Vec<(&str, u32, u32, u32)> = radar
+        .layers
+        .iter()
+        .map(|layer| {
+            (
+                layer.source.as_str(),
+                layer.cadence_seconds,
+                layer.columns,
+                layer.rows,
+            )
+        })
+        .collect();
+    assert_eq!(
+        layers,
+        [
+            ("dwd-radar-ry", 300, 624, 261),
+            ("geosphere-inca-rr", 900, 624, 261)
+        ]
+    );
+    let analysis = &radar.layers[1];
+    let paths: Vec<&str> = analysis.frames.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+        paths,
+        [
+            "/v1/radar/geosphere-inca-rr/20261121T1200Z.png",
+            "/v1/radar/geosphere-inca-rr/20261121T1215Z.png"
+        ]
+    );
+    assert!(analysis.frames.iter().all(|frame| frame.interval_s == 900));
+    assert_eq!(radar.layers[0].frames.len(), 2);
+
+    // Each source's own credit, in its own words.
+    let credits: Vec<(&str, &str)> = radar
+        .attributions
+        .iter()
+        .map(|credit| (credit.source.as_str(), credit.text.as_str()))
+        .collect();
+    assert_eq!(
+        credits,
+        [
+            (
+                "dwd-radar-ry",
+                "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben"
+            ),
+            (
+                "geosphere-inca-rr",
+                "Data source: GeoSphere Austria - https://data.hub.geosphere.at"
+            )
+        ]
+    );
+
+    assert_golden(&golden("radar_two_layers.json"), &radar);
+}
+
+#[tokio::test]
+async fn the_two_pictures_are_never_one_and_together_see_all_but_the_last_rows_middle() {
+    let (router, _) = both_recordings().await;
+    let radar: RadarResponse = get(&router, RADAR_PATH).await.ok(StatusCode::OK);
+
+    // The newest picture of each layer, a byte a pixel.
+    let mut pictures = Vec::new();
+    for layer in &radar.layers {
+        let answer = get(&router, &layer.frames[1].path).await;
+        assert_eq!(answer.status, StatusCode::OK);
+        let decoder = png::Decoder::new(std::io::Cursor::new(&answer.body));
+        let mut reader = decoder.read_info().unwrap();
+        let mut pixels = vec![0u8; reader.output_buffer_size().unwrap()];
+        reader.next_frame(&mut pixels).unwrap();
+        pictures.push(pixels);
+    }
+    let (radars, analysis) = (&pictures[0], &pictures[1]);
+    let cells = 624 * 261;
+    assert_eq!((radars.len(), analysis.len()), (cells, cells));
+
+    // How much of the first region's box each source sees, and both: the
+    // German radars 42.9 %, the analysis 99.93 %, and together the same
+    // 99.93 %, because what the analysis lacks no radar sees either.
+    let seen = |pixels: &[u8]| pixels.iter().filter(|p| **p != RADAR_UNSEEN).count();
+    let both = (0..cells)
+        .filter(|at| radars[*at] != RADAR_UNSEEN && analysis[*at] != RADAR_UNSEEN)
+        .count();
+    let either = (0..cells)
+        .filter(|at| radars[*at] != RADAR_UNSEEN || analysis[*at] != RADAR_UNSEEN)
+        .count();
+    assert_eq!(
+        (cells, seen(radars), seen(analysis), both, either),
+        (162_864, 69_885, 162_757, 69_885, 162_757)
+    );
+    // They are two pictures of two moments by two methods: where both
+    // see, they differ at some thousands of cells, and neither is made of
+    // the other.
+    let differ = (0..cells)
+        .filter(|at| radars[*at] != RADAR_UNSEEN && radars[*at] != analysis[*at])
+        .count();
+    assert!(differ > 1000, "{differ}");
+}
+
+#[tokio::test]
+async fn the_health_report_has_both_sources_each_with_its_newest_frames_age() {
+    let (router, _) = both_recordings().await;
+
+    let health: HealthResponse = get(&router, HEALTH_PATH).await.ok(StatusCode::OK);
+
+    let radar: Vec<(&str, u32, Option<i64>)> = health
+        .radar
+        .iter()
+        .map(|radar| {
+            (
+                radar.source.as_str(),
+                radar.frames,
+                radar.newest_frame_age_s,
+            )
+        })
+        .collect();
+    // 11:40 and 12:15, by a clock at 12:40.
+    assert_eq!(
+        radar,
+        [
+            ("dwd-radar-ry", 2, Some(3600)),
+            ("geosphere-inca-rr", 2, Some(1500))
+        ]
+    );
+}

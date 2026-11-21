@@ -2629,4 +2629,129 @@ final class VentiUITests: XCTestCase {
         aerial.tap()
         XCTAssertFalse(aerial.isSelected)
     }
+
+    /// The filter of the flying sites: take-offs for a wind from the
+    /// south, around the Tegernsee, where the development server has
+    /// take-offs that name their wind and take-offs that name none. The
+    /// filter says what it is and what it leaves, the map draws the ones
+    /// that fit and, muted, the ones that say nothing, the list has the
+    /// two apart, and the filter is kept for the next launch. Then a
+    /// landing field and a take-off that their source maps as areas,
+    /// close up. Skipped without a server.
+    func testTheSitesFilterShowsWhatFitsAndWhatSaysNothing() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        // Preferences outlive a test: whatever becomes of this one, the
+        // tests after it find a filter that asks nothing.
+        addTeardownBlock { @MainActor in
+            let app = XCUIApplication()
+            app.launchArguments = ["--ui-testing", "--all-sites", "--server", Self.nowhere]
+            app.launch()
+            app.terminate()
+        }
+        let valley = ["--server", server, "--map-at", "47.67,11.68,9.3"]
+        var app = launch(bundledMap: true, extra: valley + ["--all-sites"])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        setLayer("layer-sites", on: true, in: app)
+
+        // The filter, from its button under the one that lists the sites.
+        let filter = element("sites-filter", in: app)
+        XCTAssertTrue(filter.waitForExistence(timeout: 60))
+        XCTAssertFalse(element("sites-filter-line", in: app).exists)
+        filter.tap()
+        let uses = element("sites-shown", in: app)
+        XCTAssertTrue(uses.waitForExistence(timeout: 15))
+        uses.buttons["Take-offs"].tap()
+        // The sixteen points scroll: "S" is brought into the row.
+        let winds = element("sites-wind", in: app)
+        XCTAssertTrue(winds.waitForExistence(timeout: 10))
+        let south = winds.buttons["S"]
+        for _ in 0..<6 where !(south.exists && winds.frame.contains(south.frame)) {
+            winds.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+                .press(forDuration: 0.05, thenDragTo: winds.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)))
+            usleep(600_000)
+        }
+        south.tap()
+        XCTAssertTrue(south.isSelected)
+        // At half height, over the map it changes.
+        sleep(2)
+        keepScreenshot("sites-filter-1-control")
+
+        // The sheet opens at half height: pulled up, it shows what the
+        // filter is, what it leaves, what says nothing, and the note.
+        let leaves = element("sites-filter-words", in: app)
+        let window = app.windows.firstMatch
+        for _ in 0..<3 where !isOnScreen(leaves, in: app) {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+                .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+            usleep(800_000)
+        }
+        XCTAssertTrue(leaves.waitForExistence(timeout: 10))
+        XCTAssertEqual(element("sites-filter-on", in: app).label, "Take-offs for a wind from S")
+        let fits = leaves.label
+        XCTAssertNotNil(
+            fits.range(of: #"^[1-9][0-9]* of [0-9]+ take-offs? fits? a wind from S$"#, options: .regularExpression),
+            "What the filter leaves reads: \(fits)"
+        )
+        let unsaid = element("sites-filter-unsaid", in: app).label
+        XCTAssertNotNil(
+            unsaid.range(of: #"^[1-9][0-9]* take-offs? gives? no wind directions$"#, options: .regularExpression),
+            "What says nothing reads: \(unsaid)"
+        )
+        sleep(1)
+        keepScreenshot("sites-filter-1b-what-it-leaves")
+        app.buttons["Done"].tap()
+
+        // The map: the line of the filter with the same words, the
+        // take-offs that fit as ever, the ones that say nothing muted.
+        let line = element("sites-filter-line", in: app)
+        XCTAssertTrue(line.waitForExistence(timeout: 15))
+        XCTAssertTrue(line.label.contains("Take-offs for a wind from S"))
+        XCTAssertTrue(line.label.contains(fits))
+        XCTAssertTrue(line.label.contains(unsaid))
+        // The button says that a filter is on, and which.
+        XCTAssertEqual(filter.value as? String, "Take-offs for a wind from S")
+        sleep(3)
+        keepScreenshot("sites-filter-2-map")
+
+        // The list: the ones that fit under what the filter leaves, then
+        // the ones that say nothing under their heading and its sentence.
+        app.buttons["Flying sites"].tap()
+        XCTAssertTrue(app.navigationBars["Flying sites"].waitForExistence(timeout: 15))
+        XCTAssertTrue(element("site-row", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(saying(fits, in: app).exists)
+        XCTAssertTrue(saying(unsaid, in: app).exists)
+        XCTAssertTrue(element("site-row-unsaid", in: app).exists)
+        XCTAssertTrue(saying("They are shown apart, not left out.", in: app).exists)
+        sleep(1)
+        keepScreenshot("sites-filter-3-list")
+        app.buttons["Done"].tap()
+
+        // Kept as the pilot left it: the next launch, in the dark, has
+        // the same filter on.
+        app.terminate()
+        app = launch(bundledMap: true, dark: true, extra: valley)
+        let kept = element("sites-filter-line", in: app)
+        XCTAssertTrue(kept.waitForExistence(timeout: 90))
+        XCTAssertTrue(kept.label.contains("Take-offs for a wind from S"))
+        _ = app.buttons["Flying sites"].waitForExistence(timeout: 60)
+        sleep(4)
+        keepScreenshot("sites-filter-4-map-dark")
+        app.terminate()
+
+        // A landing field that its source maps as an area, close up: its
+        // outline under its sign. And a take-off's.
+        for (name, place) in [
+            ("sites-filter-5-landing-field", "47.6924,11.8865,15"),
+            ("sites-filter-6-takeoff-field", "47.6791,11.9051,16.5"),
+        ] {
+            app = launch(bundledMap: true, extra: ["--server", server, "--all-sites", "--map-at", place])
+            XCTAssertTrue(app.buttons["Flying sites"].waitForExistence(timeout: 90))
+            XCTAssertFalse(element("sites-filter-line", in: app).exists)
+            sleep(4)
+            keepScreenshot(name)
+            app.terminate()
+        }
+    }
 }

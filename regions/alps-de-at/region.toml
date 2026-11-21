@@ -44,9 +44,12 @@ sources = ["osm-free-flying"]
 [forecasts]
 sources = ["open-meteo"]
 
-# Rain radar: DWD's composite of the German radars, a frame every five
-# minutes. It sees Bavaria and the north of Tirol and Vorarlberg, and
-# nothing east of Passau or south of the main ridge: a layer of its own,
-# which says where it does not see.
+# Rain radar, in two layers that are never merged. DWD's composite of the
+# German radars, a frame every five minutes: it sees Bavaria and the north
+# of Tirol and Vorarlberg, and nothing east of Passau or south of the main
+# ridge, and says where it does not see. And the first step of GeoSphere
+# Austria's nowcast INCA, every quarter of an hour, some 22 minutes after
+# the quarter it is of: rain as a model puts it together from radars and
+# gauges, with a value everywhere in the region.
 [radar]
-sources = ["dwd-radar-ry"]
+sources = ["dwd-radar-ry", "geosphere-inca-rr"]

@@ -4,7 +4,8 @@
 //!
 //! A shell asks the server for the list of frames ([`radar_path`]) and
 //! hands the answer here ([`radar`]); out come the layers, one for each
-//! radar source and never merged, each with its frames. A frame is a
+//! radar source and never merged, each with its frames, in the order to
+//! draw them. A frame is a
 //! picture the shell fetches by the frame's `path`. Its pixels are steps
 //! of rain, not colours: the shell hands the picture and its own colours
 //! to [`radar_frame_image`] and gets back the same picture in those
@@ -39,7 +40,8 @@ const MAX_PICTURE_BYTES: usize = 4 * 1024 * 1024;
 
 /// After how many of its source's intervals the newest frame is too old
 /// to be shown as the rain of now: three, a quarter of an hour for a
-/// source that publishes every five minutes. It is the rule by which the
+/// source that publishes every five minutes and three for one that
+/// publishes every fifteen. It is the rule by which the
 /// server calls the source behind.
 const STALE_AFTER_INTERVALS: i64 = 3;
 
@@ -57,6 +59,24 @@ const STAND_IN: [(ThermalMapScale, u8); 6] = [
     (ThermalMapScale::Wind, 6),
     (ThermalMapScale::Wind, 7),
 ];
+
+/// What the core says of a source of the rain radar it knows: what its
+/// layer is, in words, and whether its pictures are an analysis (rain as
+/// a model puts it together from radars and gauges, a quarter of an hour
+/// and more old when it arrives) and not what radars measured minutes
+/// ago. A source it does not know is a radar's.
+const SOURCES: [(&str, &str, bool); 2] = [
+    ("dwd-radar-ry", "Germany's radars", false),
+    (
+        "geosphere-inca-rr",
+        "Austria's analysis of radar and gauges",
+        true,
+    ),
+];
+
+/// What a layer of a source is called when the core does not know the
+/// source.
+const SOME_RADAR: &str = "Rain radar";
 
 /// What each step of rain is called, from the first.
 const STEP_NAMES: [&str; 6] = [
@@ -87,7 +107,8 @@ pub struct RadarFrameView {
     /// The same in words: "10 minutes ago", "just now", "2 hours ago".
     pub age: String,
     /// What to write on the map while the frame is shown: "Rain radar,
-    /// 14:35, 10 minutes ago".
+    /// 14:35, 10 minutes ago", and for a frame of an analysis "Rain
+    /// analysis, 14:15, 25 minutes ago".
     pub label: String,
 }
 
@@ -98,6 +119,17 @@ pub struct RadarFrameView {
 pub struct RadarLayerView {
     /// The source, as the server names it: "dwd-radar-ry".
     pub source: String,
+    /// What the layer is, for the line that names it: "Germany's radars,
+    /// every 5 minutes", "Austria's analysis of radar and gauges, every 15
+    /// minutes".
+    pub what: String,
+    /// Whether this layer's pictures are to show what the source did not
+    /// see, as the quiet veil. True for the lowest layer that has a
+    /// picture, false for every layer drawn above it: there, hand
+    /// [`radar_frame_image`] a fully clear colour as `unseen`, or the veil
+    /// of a source that sees little would hide the rain of the layer
+    /// below. So a place is veiled only where no layer sees it.
+    pub draws_unseen: bool,
     /// The western edge of every picture of the layer, degrees.
     pub west: f64,
     /// The southern edge.
@@ -119,7 +151,8 @@ pub struct RadarLayerView {
     /// stands.
     pub stale: bool,
     /// "The newest radar picture is 25 minutes old. It is not the rain
-    /// of now." Empty unless `stale`.
+    /// of now." Empty unless `stale`. A source is judged by its own
+    /// cadence: too old is more than three of its intervals.
     pub stale_words: String,
     /// The source's credit. Show it with the layer, at the map. None if
     /// the server sent none.
@@ -148,7 +181,9 @@ pub struct RadarKey {
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct RadarView {
     /// One layer for each radar source the server has, each to be drawn
-    /// as a layer of its own with its own credit.
+    /// as a layer of its own with its own credit, in the order to draw
+    /// them: the first at the bottom, the last on top. A measured radar
+    /// picture lies above an analysis.
     pub layers: Vec<RadarLayerView>,
     /// The key, from the most rain down.
     pub key: Vec<RadarKey>,
@@ -191,12 +226,22 @@ pub fn radar(
         });
     }
     let now = now_unix_s.max(response.time.timestamp());
-    let layers = response
+    let mut layers: Vec<(bool, RadarLayerView)> = response
         .layers
         .iter()
         .take(MAX_LAYERS)
         .filter(|layer| is_sound(layer))
         .map(|layer| {
+            let known = SOURCES
+                .iter()
+                .find(|(source, _, _)| *source == layer.source.as_str());
+            let analysis = known.is_some_and(|(_, _, analysis)| *analysis);
+            // How a picture of the layer is spoken of.
+            let (name, picture) = if analysis {
+                ("Rain analysis", "picture of the analysis")
+            } else {
+                ("Rain radar", "radar picture")
+            };
             let frames: Vec<RadarFrameView> = layer
                 .frames
                 .iter()
@@ -204,27 +249,38 @@ pub fn radar(
                 .take(MAX_FRAMES)
                 .rev()
                 .filter(|frame| is_a_frames_path(&frame.path))
-                .map(|frame| frame_view(frame, utc_offset_s, now))
+                .map(|frame| frame_view(frame, name, utc_offset_s, now))
                 .collect();
-            let patience = STALE_AFTER_INTERVALS * i64::from(layer.cadence_seconds.clamp(60, 3600));
+            // Each source by its own cadence: a quarter of an hour for a
+            // radar of every five minutes, three for an analysis of every
+            // fifteen, which is 22 to 37 minutes old when all is well.
+            let cadence = i64::from(layer.cadence_seconds.clamp(60, 3600));
+            let patience = STALE_AFTER_INTERVALS * cadence;
+            let none_yet = if analysis {
+                "No picture of the analysis yet"
+            } else {
+                "No radar picture yet"
+            };
             let (line, stale, stale_words) = match frames.last() {
-                None => (
-                    "No radar picture yet".to_owned(),
-                    true,
-                    "No radar picture yet".to_owned(),
-                ),
+                None => (none_yet.to_owned(), true, none_yet.to_owned()),
                 Some(newest) if newest.age_s > patience => (
                     newest.label.clone(),
                     true,
                     format!(
-                        "The newest radar picture is {} old. It is not the rain of now.",
+                        "The newest {picture} is {} old. It is not the rain of now.",
                         span(newest.age_s)
                     ),
                 ),
                 Some(newest) => (newest.label.clone(), false, String::new()),
             };
-            RadarLayerView {
+            let view = RadarLayerView {
                 source: layer.source.to_string(),
+                what: format!(
+                    "{}, every {}",
+                    known.map_or(SOME_RADAR, |(_, what, _)| what),
+                    span(cadence)
+                ),
+                draws_unseen: false,
                 west: layer.west,
                 south: layer.south,
                 east: layer.east,
@@ -238,20 +294,53 @@ pub fn radar(
                     .iter()
                     .find(|attribution| attribution.source == layer.source)
                     .map(credit),
-            }
+            };
+            (analysis, view)
         })
         .collect();
+    // The order to draw them in, the first at the bottom: analyses, then
+    // what radars measured, each kind in the server's order.
+    layers.sort_by_key(|(analysis, _)| !*analysis);
+    let any_analysis = layers.iter().any(|(analysis, _)| *analysis);
+    let mut layers: Vec<RadarLayerView> = layers.into_iter().map(|(_, view)| view).collect();
+    // The veil of "not seen" is drawn once, by the lowest layer that has a
+    // picture to draw it in.
+    let veiled = layers
+        .iter()
+        .position(|layer| !layer.frames.is_empty())
+        .unwrap_or(0);
+    if let Some(layer) = layers.get_mut(veiled) {
+        layer.draws_unseen = true;
+    }
+
+    let mut note = "What the weather service's radars saw of the rain in the minutes before each \
+                    picture's time. It is no forecast, and says nothing of a shower that has not \
+                    formed yet. A radar looks from afar: beyond its range, and behind mountains, \
+                    it sees nothing, and such places are marked as not seen, which is not dry. In \
+                    the Alps a radar that stands north of them sees little behind the first \
+                    chains and nothing south of the main ridge."
+        .to_owned();
+    if any_analysis {
+        note.push_str(
+            " Austria's analysis is no radar picture: it is the first step of INCA, the nowcast \
+             of GeoSphere Austria, which puts the rain of a quarter of an hour together from \
+             radars and rain gauges on squares of a kilometre, and it arrives some 22 minutes \
+             after that quarter of an hour. That this first step is an analysis of the rain \
+             that fell, and not already a forecast, is still to verify with GeoSphere Austria.",
+        );
+    }
+    if layers.len() > 1 {
+        note.push_str(
+            " Where two layers see a place, the radar's picture lies on top, because it is \
+             minutes old and the analysis 22 to 37 minutes; a place is marked as not seen only \
+             where no layer sees it.",
+        );
+    }
     Ok(RadarView {
         layers,
         key: key(),
         unseen_words: "Not seen by the radar".to_owned(),
-        note: "What the weather service's radars saw of the rain in the minutes before each \
-               picture's time. It is no forecast, and says nothing of a shower that has not \
-               formed yet. A radar looks from afar: beyond its range, and behind mountains, \
-               it sees nothing, and such places are marked as not seen, which is not dry. In \
-               the Alps a radar that stands north of them sees little behind the first \
-               chains and nothing south of the main ridge."
-            .to_owned(),
+        note,
     })
 }
 
@@ -325,7 +414,12 @@ fn span(seconds: i64) -> String {
     }
 }
 
-fn frame_view(frame: &v1::RadarFrameRef, utc_offset_s: i32, now_unix_s: i64) -> RadarFrameView {
+fn frame_view(
+    frame: &v1::RadarFrameRef,
+    name: &str,
+    utc_offset_s: i32,
+    now_unix_s: i64,
+) -> RadarFrameView {
     let time = frame.time.timestamp();
     let age_s = (now_unix_s - time).max(0);
     let age = if age_s < 60 {
@@ -341,7 +435,7 @@ fn frame_view(frame: &v1::RadarFrameRef, utc_offset_s: i32, now_unix_s: i64) -> 
             "{} to {at}",
             clock(time - i64::from(frame.interval_s), utc_offset_s)
         ),
-        label: format!("Rain radar, {at}, {age}"),
+        label: format!("{name}, {at}, {age}"),
         clock: at,
         age_s,
         age,
@@ -533,6 +627,10 @@ mod tests {
         assert_eq!(newest.label, "Rain radar, 12:40, 4 minutes ago");
         assert_eq!(layer.frames[0].label, "Rain radar, 12:35, 9 minutes ago");
         assert_eq!(layer.line, "Rain radar, 12:40, 4 minutes ago");
+        // One layer says what it is, and draws its own veil.
+        assert_eq!(layer.what, "Germany's radars, every 5 minutes");
+        assert!(layer.draws_unseen);
+        assert!(!view.note.contains("analysis"));
         assert!(!layer.stale);
         assert_eq!(layer.stale_words, "");
         let credit = layer.credit.as_ref().unwrap();
@@ -541,6 +639,139 @@ mod tests {
             "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben"
         );
         assert_eq!(credit.licence, "CC BY 4.0");
+    }
+
+    /// The answer of a server with the first region's two sources, as
+    /// `crates/server/tests/golden/radar_two_layers.json` keeps it: both
+    /// recordings, by a clock at 12:40 UTC.
+    fn two_layers() -> serde_json::Value {
+        let mut answer: serde_json::Value = serde_json::from_str(ANSWER).unwrap();
+        answer["time"] = serde_json::json!("2026-11-21T12:40:00Z");
+        let mut analysis = answer["layers"][0].clone();
+        analysis["source"] = serde_json::json!("geosphere-inca-rr");
+        analysis["cadence_seconds"] = serde_json::json!(900);
+        analysis["frames"] = serde_json::json!([
+            {"time": "2026-11-21T12:00:00Z", "interval_s": 900,
+             "path": "/v1/radar/geosphere-inca-rr/20261121T1200Z.png", "bytes": 5407},
+            {"time": "2026-11-21T12:15:00Z", "interval_s": 900,
+             "path": "/v1/radar/geosphere-inca-rr/20261121T1215Z.png", "bytes": 5200}
+        ]);
+        answer["layers"].as_array_mut().unwrap().push(analysis);
+        answer["attributions"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "source": "geosphere-inca-rr", "provider": "GeoSphere Austria",
+                "licence": "CC BY 4.0",
+                "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
+                "url": "https://data.hub.geosphere.at"
+            }));
+        answer
+    }
+
+    #[test]
+    fn two_layers_come_in_the_order_to_draw_them_and_one_draws_the_veil() {
+        // 12:40 UTC, an hour after DWD's recording.
+        let now = NOW + 56 * 60;
+        let read = |answer: &serde_json::Value| {
+            radar(200, answer.to_string().into_bytes(), 3600, now).unwrap()
+        };
+        let view = read(&two_layers());
+
+        // The server sorts by source; the core gives the analysis first,
+        // to be drawn at the bottom, and the radars' picture on top.
+        let layers: Vec<(&str, &str, bool)> = view
+            .layers
+            .iter()
+            .map(|layer| {
+                (
+                    layer.source.as_str(),
+                    layer.what.as_str(),
+                    layer.draws_unseen,
+                )
+            })
+            .collect();
+        assert_eq!(
+            layers,
+            [
+                (
+                    "geosphere-inca-rr",
+                    "Austria's analysis of radar and gauges, every 15 minutes",
+                    true
+                ),
+                ("dwd-radar-ry", "Germany's radars, every 5 minutes", false)
+            ]
+        );
+        // Each with its own credit and its own words.
+        let (analysis, radars) = (&view.layers[0], &view.layers[1]);
+        assert_eq!(
+            analysis.credit.as_ref().unwrap().text,
+            "Data source: GeoSphere Austria - https://data.hub.geosphere.at"
+        );
+        assert!(
+            radars
+                .credit
+                .as_ref()
+                .unwrap()
+                .text
+                .starts_with("Datenbasis: Deutscher")
+        );
+        assert_eq!(analysis.frames[1].interval, "13:00 to 13:15");
+        assert_eq!(analysis.line, "Rain analysis, 13:15, 25 minutes ago");
+        assert_eq!(radars.line, "Rain radar, 12:40, 60 minutes ago");
+
+        // Each is judged by its own cadence. The analysis is 25 minutes
+        // old and that is how it comes; the radars' picture is an hour
+        // old, twelve of its intervals.
+        assert!(!analysis.stale);
+        assert!(radars.stale);
+        assert_eq!(
+            radars.stale_words,
+            "The newest radar picture is 60 minutes old. It is not the rain of now."
+        );
+        // The analysis is too old after three quarters of an hour.
+        let later = |minutes: i64| {
+            radar(
+                200,
+                two_layers().to_string().into_bytes(),
+                3600,
+                now + minutes * 60,
+            )
+            .unwrap()
+            .layers[0]
+                .clone()
+        };
+        assert!(!later(20).stale);
+        assert_eq!(
+            later(21).stale_words,
+            "The newest picture of the analysis is 46 minutes old. It is not the rain of now."
+        );
+
+        // The note says what the analysis is, what is still to verify,
+        // and how the two lie on each other.
+        assert!(view.note.contains("no forecast"));
+        assert!(view.note.contains("Austria's analysis is no radar picture"));
+        assert!(view.note.contains("still to verify with GeoSphere Austria"));
+        assert!(view.note.contains("the radar's picture lies on top"));
+        assert!(view.note.contains("not seen only where no layer sees it"));
+        assert!(!analysis.what.contains("verify") && !analysis.line.contains("verify"));
+
+        // A lowest layer without a picture cannot draw the veil: the
+        // next one does.
+        let mut empty = two_layers();
+        empty["layers"][1]["frames"] = serde_json::json!([]);
+        let view = read(&empty);
+        assert_eq!(view.layers[0].line, "No picture of the analysis yet");
+        let veils: Vec<bool> = view.layers.iter().map(|layer| layer.draws_unseen).collect();
+        assert_eq!(veils, [false, true]);
+
+        // A source the core does not know is a radar's, named plainly.
+        let mut unknown = two_layers();
+        unknown["layers"][1]["source"] = serde_json::json!("some-new-radar");
+        let view = read(&unknown);
+        assert_eq!(view.layers[1].what, "Rain radar, every 15 minutes");
+        assert_eq!(view.layers[0].source, "dwd-radar-ry");
+        assert!(view.layers[0].draws_unseen && !view.layers[1].draws_unseen);
     }
 
     #[test]

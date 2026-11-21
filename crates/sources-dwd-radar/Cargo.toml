@@ -9,11 +9,12 @@ publish.workspace = true
 
 [dependencies]
 venti-domain.workspace = true
+venti-hdf5.workspace = true
 venti-sources.workspace = true
 chrono.workspace = true
-flate2.workspace = true
 
 [dev-dependencies]
+flate2.workspace = true
 serde_json.workspace = true
 
 [lints]

@@ -39,6 +39,7 @@ struct MapScreen: View {
     @State private var showsStations = false
     @State private var chosenSite: ChosenSite?
     @State private var showsSites = false
+    @State private var showsSitesFilter = false
     @State private var chosenGlider: ChosenGlider?
     @State private var showsGliders = false
     /// The glider chosen in the list, to open once the list has closed.
@@ -77,7 +78,8 @@ struct MapScreen: View {
                 outlines: outlines,
                 stations: hidesWind ? [] : wind.stations,
                 airspace: hidesAirspace ? [] : airspaceInView,
-                sites: hidesSites ? [] : sites.sites,
+                sites: hidesSites ? [] : sites.filtered.fitting,
+                unsaidSites: hidesSites ? [] : sites.filtered.unsaid,
                 gliders: hidesPilots ? [] : live.gliders,
                 plans: groups.pins(),
                 followed: live.followed?.track ?? [],
@@ -85,6 +87,7 @@ struct MapScreen: View {
                 problem: $problem,
                 onRegion: { region in
                     self.region = region
+                    tellSitesTheWind(in: region)
                     wind.show(region)
                     sites.show(region)
                     live.show(region)
@@ -183,6 +186,17 @@ struct MapScreen: View {
                         showsSites = true
                     }
                 }
+                if showsSitesFilterButton {
+                    // Which of the sites the map and the list show.
+                    Button {
+                        showsSitesFilter = true
+                    } label: {
+                        Label("Filter the sites", systemImage: SitesFilterIcon.name)
+                    }
+                    .buttonStyle(.ventiRound(isOn: sites.filtered.isOn))
+                    .accessibilityValue(sites.filtered.isOn ? sites.filtered.filterWords : "")
+                    .accessibilityIdentifier("sites-filter")
+                }
                 if !live.gliders.isEmpty {
                     // Who is in the air on this part of the map, as a list.
                     mapButton("Pilots in the air", icon: Image("icon-live")) {
@@ -218,6 +232,9 @@ struct MapScreen: View {
                 }
                 if isRadarOn {
                     radarCard
+                }
+                if isSitesFilterOn {
+                    sitesFilterLine
                 }
                 credits
             }
@@ -311,6 +328,19 @@ struct MapScreen: View {
         .sheet(isPresented: $showsSites) {
             SiteList()
         }
+        // The filter of the sites, at half height first: the map above it
+        // changes as the pilot chooses.
+        .sheet(isPresented: $showsSitesFilter) {
+            SitesFilterSheet()
+                .presentationDetents([.medium, .large])
+        }
+        // The wind measured now, for the filter: read again when the
+        // stations have new readings.
+        .onChange(of: wind.stations) { _, _ in
+            if let region {
+                tellSitesTheWind(in: region)
+            }
+        }
         // Other pilots are asked for again every quarter of a minute
         // while the map is on screen, and not when it is not.
         .task(id: wind.address) {
@@ -371,6 +401,7 @@ struct MapScreen: View {
                 chosenAirspace = nil
                 showsStations = false
                 showsSites = false
+                showsSitesFilter = false
                 showsGliders = false
                 showsPlans = false
             }
@@ -535,6 +566,39 @@ struct MapScreen: View {
         showsRadar && wind.server != nil
     }
 
+    /// Whether the map shows what a filter of the sites leaves: a filter
+    /// is on, and so is the layer.
+    private var isSitesFilterOn: Bool {
+        sites.filtered.isOn && !hidesSites && wind.server != nil
+    }
+
+    /// The filter's button stands while the sites are on the map and
+    /// there are sites to choose among, or a filter that may hide them.
+    private var showsSitesFilterButton: Bool {
+        wind.server != nil && !hidesSites && (!sites.sites.isEmpty || sites.filtered.isOn)
+    }
+
+    /// The wind the station nearest to the map's middle measured last,
+    /// for the filter's "Measured now".
+    private func tellSitesTheWind(in region: Bounds) {
+        let middle = Coordinate(lat: (region.south + region.north) / 2, lon: (region.west + region.east) / 2)
+        sites.measured(fromDeg: SitesModel.measuredNow(stations: wind.stations, around: middle))
+    }
+
+    /// What the filter of the sites is and what it leaves, while one is
+    /// on: under the cards, in their manner, and a tap opens the filter.
+    private var sitesFilterLine: some View {
+        SitesFilterLine(filtered: sites.filtered) {
+            showsSitesFilter = true
+        }
+        .padding(.horizontal, VentiSpace.s3)
+        .padding(.vertical, VentiSpace.s1)
+        .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
+        .padding(.leading, VentiSpace.s4)
+        .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
+        .padding(.bottom, creditLine.isEmpty ? VentiSize.touch : 0)
+    }
+
     /// The rain radar's card, under the forecast map's where both are on.
     private var radarCard: some View {
         RadarCard(
@@ -547,7 +611,7 @@ struct MapScreen: View {
         )
         .padding(.leading, VentiSpace.s4)
         .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
-        .padding(.bottom, creditLine.isEmpty ? VentiSize.touch : 0)
+        .padding(.bottom, creditLine.isEmpty && !isSitesFilterOn ? VentiSize.touch : 0)
     }
 
     /// The day of the forecast map that is drawn, while the layer is on.
@@ -698,7 +762,7 @@ struct MapScreen: View {
         .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
         // Room under it for the map's credits button where there is no
         // line of credits beside that button.
-        .padding(.bottom, creditLine.isEmpty && !isRadarOn ? VentiSize.touch : 0)
+        .padding(.bottom, creditLine.isEmpty && !isRadarOn && !isSitesFilterOn ? VentiSize.touch : 0)
     }
 
     /// "2 flying plans marked", or nothing where the map marks none.

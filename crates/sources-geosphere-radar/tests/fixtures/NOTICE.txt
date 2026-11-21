@@ -1,0 +1,61 @@
+The files in this folder are data of GeoSphere Austria, from its Data Hub,
+https://data.hub.geosphere.at, dataset "nowcast-v1-15min-1km"
+(Kurzfristwettervorhersagen für Österreich, DOI 10.60669/ahad-4y43). The
+dataset's page, https://data.hub.geosphere.at/dataset/nowcast-v1-15min-1km,
+read on 2026-11-21, names its licence: "Creative Commons Namensnennung 4.0
+International". The Data Hub's legal page, https://data.hub.geosphere.at/legal
+(the German text is the binding one), read on the same day, says: "Soweit
+der/die Datenempfänger:in die von der GeoSphere Austria erstellten Daten
+verwendet, hat er/sie die GeoSphere Austria als Urheberin und
+Rechteinhaberin in folgender Weise nennen: „Datenquelle: GeoSphere Austria -
+https://data.hub.geosphere.at“." They are not covered by the licence of
+the code around them.
+
+They were recorded on 2026-11-21 from
+https://dataset.api.hub.geosphere.at/v1/grid/forecast/nowcast-v1-15min-1km,
+without an account or a key, with curl. Each is the whole answer to one
+request, unchanged:
+
+    metadata.json   GET .../nowcast-v1-15min-1km/metadata
+                    asked at 12:39:13 UTC, 1,588 bytes: the dataset's
+                    description and the six runs the service holds, by
+                    their reference times, 11:00 to 12:15 UTC
+
+    rr-202611211200.nc   407,953 bytes
+                    GET ...?parameters=rr&bbox=46.3,9.4,48.5,17.2
+                        &forecast_offset=1
+                        &start=2026-11-21T12:00&end=2026-11-21T12:00
+                        &output_format=netcdf
+                    asked at 12:39:13 UTC, answered some 14 seconds later
+
+    rr-202611211215.nc   407,258 bytes
+                    GET ...?parameters=rr&bbox=46.3,9.4,48.5,17.2
+                        &forecast_offset=0
+                        &start=2026-11-21T12:15&end=2026-11-21T12:15
+                        &output_format=netcdf
+                    asked at 12:39:28 UTC, answered some 7 seconds later
+
+Each of the two is the first step of one run of INCA's nowcast, the step at
+the run's own reference time: the precipitation sum "rr" in kg m-2 of the
+quarter of an hour that ends then, for the part of the model's grid of one
+kilometre (EPSG:31287, MGI / Austria Lambert) that the box of the first
+region asks for: 600 by 252 points, 151,200 values (the answer's header
+datapoint-count). The files are netCDF-4, which is HDF5. The box is asked
+for and not the whole domain because the service lets a request name one;
+the whole domain is 701 by 431 points.
+
+Not kept here, asked on the same day to learn how the service behaves:
+the list of all datasets, the metadata of inca-v1-1h-1km and
+inca-v2-1h-1km, the Data Hub's catalogue entries, four requests for a
+handful of points as GeoJSON, the list of runs twice more, and one first
+try at the NetCDF answer. Fourteen requests to the dataset service in
+all, these three among them; its own counter showed 11 used of the 240 an
+hour it allows.
+
+sha256:
+    31a95b46147b20f0ea9303b1fba1bd75f6f1eec19d01ab038d3a8f81e9741b4c  metadata.json
+    26513633c7825945fb284f5dddb497db7d64a881d575b69335611f6ae97ccf65  rr-202611211200.nc
+    12a22ec5a0bee2d292154bb9874b5299a900573f80af1d12335da1489f3e5557  rr-202611211215.nc
+
+A frame is an analysis: rain as a model put it together from radars and
+gauges. It is no statement that a place is dry, or that it can be flown.

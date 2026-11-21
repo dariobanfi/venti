@@ -1,0 +1,48 @@
+id = "geosphere-inca-rr"
+provider = "GeoSphere Austria"
+kinds = ["radar"]
+countries = ["AT"]
+# A run every quarter of an hour; the run of 12:15 UTC was listed between
+# 12:36:51 and 12:37:21 UTC on 2026-11-21: some 22 minutes after the
+# quarter of an hour it is of.
+cadence_seconds = 900
+auth = "none"
+# The list is 1.6 kB and a frame of the first region's box 407 kB
+# (2026-11-21); the values are 302 kB before they are packed.
+max_response_kb = 2048
+
+# "A users requests are limited to 5 requests per second and 240 requests
+# per hour" (the API's guide, Request Limit). The station adapter
+# geosphere-tawes asks the same service from the same address: the two
+# share the limit, 4 a second and 120 an hour for the stations, 1 and 100
+# here. A run asks for the list and for the runs the server does not hold:
+# two requests every quarter of an hour, seven after a start. One at a
+# time.
+[rate_limit]
+per_second = 1
+per_hour = 100
+
+[licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+# The Data Hub's legal page, whose German text is the binding one, asks
+# for "Datenquelle: GeoSphere Austria - https://data.hub.geosphere.at"
+# (read 2026-11-21). The credit here is its English wording, the one the
+# station adapter geosphere-tawes carries from the page's English version
+# (read 2026-11-18), so that one provider has one credit in the apps.
+attribution = "Data source: GeoSphere Austria - https://data.hub.geosphere.at"
+link = "https://data.hub.geosphere.at"
+constraints = [
+    "Users must accept GeoSphere Austria's general terms and the Data Hub terms of use.",
+    "The data is changed before it is shown (laid on another grid, a sum of a quarter of an hour turned into steps of rain rate): CC BY 4.0 asks to say so with the credit.",
+    "The forecast endpoints are 'prerelease' by the API's guide and may change without notice.",
+]
+verified_on = "2026-11-21"
+verified_from = [
+    "https://data.hub.geosphere.at/dataset/nowcast-v1-15min-1km",
+    "https://data.hub.geosphere.at/legal",
+    "https://dataset.api.hub.geosphere.at/v1/docs/user-guide/license.html",
+    "https://dataset.api.hub.geosphere.at/v1/docs/user-guide/request-limit.html",
+]

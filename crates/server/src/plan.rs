@@ -389,6 +389,7 @@ mod tests {
                 "awc-metar",
                 "dwd-10min",
                 "dwd-radar-ry",
+                "geosphere-inca-rr",
                 "geosphere-tawes",
                 "openaip",
                 "osm-free-flying",

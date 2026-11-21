@@ -18,7 +18,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: twelve stations, three of each of four sources, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three of South Tyrol and three airfields with what their services, asked three days later, gave for 18:50 UTC of that evening), and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has two frames, recorded from DWD on 2026-11-21 at 11:35 and 11:40 UTC, and a clock of its own that stands four minutes after the second ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: twelve stations, three of each of four sources, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three of South Tyrol and three airfields with what their services, asked three days later, gave for 18:50 UTC of that evening), and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has two frames, recorded from DWD on 2026-11-21 at 11:35 and 11:40 UTC, and a clock of its own that stands four minutes after the second; the first region's second radar source, GeoSphere Austria's analysis, was recorded an hour later and is not in this mode ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 Map regions are the one thing the mode does not carry inside it. It hands out those of a folder it is told, as a real server hands out those of its own, and none otherwise. The repository holds one region, the valley of the sample flight that the apps bundle:
 
@@ -1879,13 +1879,13 @@ The rain radar frames the server holds: what a weather service's radars saw of t
 | `time` | The server's clock when it answered. Count a frame's age against this, not against the device's clock, and write it on the map: a radar picture that is not dated is taken for the rain of now |
 | `steps_mm_h` | From how many millimetres an hour each step of rain begins, the first step first. The steps are Venti's and the same for every radar source: 0.1 is the least a product reports, 0.2, 1 and 4 are where the forecast map's light rain, rain and heavy rain begin, 10 and 30 are for the cores of showers and thunderstorms |
 | `unseen` | The value of a pixel the radar did not see |
-| `layers[]` | One layer for each radar source the server collects, sorted by source. **Layers are never merged**: two sources are two pictures, each with its own credit, and a client that shows both draws two layers. A source the server holds no frame of, after a start or while its provider does not answer, is a layer without frames |
+| `layers[]` | One layer for each radar source the server collects, sorted by source: for the first region two, `dwd-radar-ry` and `geosphere-inca-rr`. **Layers are never merged**: two sources are two pictures, each with its own credit, and a client that shows both draws two layers, on the same grid and in the same steps. The order here is by name and says nothing of which to draw on top; the core gives that order. A source the server holds no frame of, after a start or while its provider does not answer, is a layer without frames |
 | `layers[].west`, `south`, `east`, `north` | The edges of every picture of the layer, in degrees |
 | `layers[].columns`, `rows` | The size of a picture in pixels. The pixels are square in Web Mercator, the projection web maps are drawn in, so a picture lies right on such a map when its four corners are pinned to the four edges: top left `west`, `north`; top right `east`, `north`; bottom right `east`, `south`; bottom left `west`, `south`. The first region's is 624 by 261, a pixel an eightieth of a degree of longitude wide, which is 0.94 km at 47.5° N and as fine as the radar products are. A larger area gets a coarser grid: no side has more than 2048 pixels. `south` lies a little beyond the regions' edge, where the last row ends |
-| `layers[].cadence_seconds` | How often the source publishes a frame |
+| `layers[].cadence_seconds` | How often the source publishes a frame: 300 for DWD's composite, 900 for GeoSphere Austria's analysis. A frame is too old to be the rain of now after three of these, each source by its own |
 | `layers[].frames[]` | The frames held, the oldest first: at most 25, none older than two hours |
 | `layers[].frames[].time` | The end of the interval the frame is of |
-| `layers[].frames[].interval_s` | How long that interval is: a frame of 11:40 with 300 is the rain between 11:35 and 11:40 |
+| `layers[].frames[].interval_s` | How long that interval is: a frame of 11:40 with 300 is the rain between 11:35 and 11:40, one of 12:15 with 900 the rain between 12:00 and 12:15 |
 | `layers[].frames[].path` | Where the frame's picture is, on this server |
 | `layers[].frames[].bytes` | The size of the picture |
 | `attributions[]` | The credit of every source that has a layer in the answer. Show it with the layer: DWD asks for its credit "unmittelbar an der verwendeten DWD-Information", directly at the data |
@@ -1894,7 +1894,92 @@ The list may be kept for a minute (`Cache-Control: public, max-age=60`) and carr
 
 **What a radar does not see.** DWD's composite is what Germany's 17 radars see, 150 km around each. In the first region that is Bavaria and the north of Tirol and Vorarlberg; east of Passau and south of the main ridge of the Alps it sees nothing, and behind the first chains its beams are blocked by the mountains in front. Such places have the value `unseen` in every picture, which is not "no rain". And a frame is the rain that fell in its five minutes: it says nothing of a shower that has not formed yet.
 
-**In the development mode** the list has the two frames recorded from DWD's open-data server on 2026-11-21, of 11:35 and 11:40 UTC, a morning of light rain over the south of Bavaria. The radar's clock stands at 11:44 UTC of that day, three days after the clock of the observations: the newest frame is four minutes old.
+**The second layer is an analysis, not a radar picture.** `geosphere-inca-rr` is the first step of each run of INCA, GeoSphere Austria's nowcast: the rain of a quarter of an hour as a model puts it together from the Austrian radars and the rain gauges, on a grid of a kilometre, published some 22 minutes after that quarter of an hour. So its newest frame is 22 to 37 minutes old when all is well, where DWD's is one to six. It has a value at every point of its grid: of the first region's box it sees 99.93 % in the recorded frames (162,757 of 162,864 pixels), DWD's radars 42.9 % (69,885), and both together the same 99.93 %. *To verify* with the provider: that this first step is an analysis of the rain that fell and not already a forecast.
+
+**In the development mode** the list has the two frames recorded from DWD's open-data server on 2026-11-21, of 11:35 and 11:40 UTC, a morning of light rain over the south of Bavaria. The radar's clock stands at 11:44 UTC of that day, three days after the clock of the observations: the newest frame is four minutes old. That mode has DWD's layer alone. GeoSphere Austria's frames were recorded an hour later, of 12:00 and 12:15 UTC, and one clock cannot stand shortly after both: at 11:44 they are of moments still to come, and at 12:40 DWD's newest frame is an hour old, which the server's own rule calls a source that has stopped publishing.
+
+**With both sources** a server answers two layers. This is the answer of the radar service and the API over both recordings, by a clock at 12:40 UTC of that day, as the server's tests make it (`radar_two_layers.json`); it is not an answer of the development mode. DWD's newest frame is an hour old in it, because of when it was recorded, and GeoSphere Austria's 25 minutes.
+
+```json
+{
+  "time": "2026-11-21T12:40:00Z",
+  "steps_mm_h": [
+    0.1,
+    0.2,
+    1.0,
+    4.0,
+    10.0,
+    30.0
+  ],
+  "unseen": 7,
+  "layers": [
+    {
+      "source": "dwd-radar-ry",
+      "west": 9.4,
+      "south": 46.291984,
+      "east": 17.2,
+      "north": 48.5,
+      "columns": 624,
+      "rows": 261,
+      "cadence_seconds": 300,
+      "frames": [
+        {
+          "time": "2026-11-21T11:35:00Z",
+          "interval_s": 300,
+          "path": "/v1/radar/dwd-radar-ry/20261121T1135Z.png",
+          "bytes": 4489
+        },
+        {
+          "time": "2026-11-21T11:40:00Z",
+          "interval_s": 300,
+          "path": "/v1/radar/dwd-radar-ry/20261121T1140Z.png",
+          "bytes": 4511
+        }
+      ]
+    },
+    {
+      "source": "geosphere-inca-rr",
+      "west": 9.4,
+      "south": 46.291984,
+      "east": 17.2,
+      "north": 48.5,
+      "columns": 624,
+      "rows": 261,
+      "cadence_seconds": 900,
+      "frames": [
+        {
+          "time": "2026-11-21T12:00:00Z",
+          "interval_s": 900,
+          "path": "/v1/radar/geosphere-inca-rr/20261121T1200Z.png",
+          "bytes": 5407
+        },
+        {
+          "time": "2026-11-21T12:15:00Z",
+          "interval_s": 900,
+          "path": "/v1/radar/geosphere-inca-rr/20261121T1215Z.png",
+          "bytes": 5200
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "dwd-radar-ry",
+      "provider": "Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben",
+      "url": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
+    },
+    {
+      "source": "geosphere-inca-rr",
+      "provider": "GeoSphere Austria",
+      "licence": "CC BY 4.0",
+      "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
+      "url": "https://data.hub.geosphere.at"
+    }
+  ]
+}
+```
 
 ### `GET /v1/radar/{source}/{time}.png`
 

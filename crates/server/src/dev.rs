@@ -27,7 +27,10 @@
 //! The rain radar has the two frames recorded from DWD on 2026-11-21, of
 //! 11:35 and 11:40 UTC, collected by the service a real server has, whose
 //! clock stands at 11:44 UTC of that day: the newest frame is four minutes
-//! old.
+//! old. The region's second radar source, GeoSphere Austria's analysis, is
+//! left out of this mode: its frames were recorded an hour later, and one
+//! clock cannot stand shortly after both
+//! ([`adapters::radar_in_development_mode`]).
 //!
 //! Map imagery is answered from the tiles recorded from its providers, cut
 //! as a real server cuts them, and every other tile is "nothing here". With
@@ -728,7 +731,16 @@ pub async fn recorded_with_its_store(
     let pack = RegionPack::from_toml(FIRST_REGION).map_err(|e| e.to_string())?;
     pack.check_against(&registry).map_err(|e| e.to_string())?;
     let packs = [pack];
-    let jobs = plan::plan(&packs, &registry).map_err(|e| e.to_string())?;
+    // Of the region's radar sources this mode has the one whose recording
+    // its radar clock is of.
+    let jobs: Vec<plan::Job> = plan::plan(&packs, &registry)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|job| {
+            job.kind != venti_sources::Kind::Radar
+                || adapters::radar_in_development_mode(&job.source)
+        })
+        .collect();
 
     let store = Arc::new(MemoryStore::new());
     let now = adapters::recorded_at();
@@ -793,7 +805,7 @@ pub async fn recorded_with_its_store(
         adapters::radar_sources(),
         adapters::recorded_radar_payloads(),
         radar_clock,
-        adapters::radar_recorded_kept(),
+        |source| adapters::radar_recorded_at() - adapters::radar_recorded_from(source),
     )
     .ok_or("the first region lists no radar source")?;
 

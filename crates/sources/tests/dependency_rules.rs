@@ -166,7 +166,14 @@ fn crate_dependencies_point_inward() {
                 "venti-tools",
             ]),
             "venti-core-wasm" => Some(&["venti-core"]),
-            provider if is_provider(provider) => Some(&["venti-domain", "venti-sources"]),
+            // The reader of the HDF5 files that radar products come in
+            // stands alone: it knows bytes, no provider and no radar.
+            "venti-hdf5" => Some(&[]),
+            // A provider's crate, and the one file format two of them
+            // share a reader for.
+            provider if is_provider(provider) => {
+                Some(&["venti-domain", "venti-sources", "venti-hdf5"])
+            }
             _ => None,
         };
         if let Some(allowed) = allowed {

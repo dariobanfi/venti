@@ -20,16 +20,30 @@ enum SiteSymbols {
     }
 
     static var all: [Picture] {
-        SiteKind.all.map { kind in
-            Picture(name: kind.pictureName, image: picture(for: kind))
+        SiteKind.all.flatMap { kind in
+            [
+                Picture(name: kind.pictureName, image: picture(for: kind)),
+                Picture(name: name(of: kind, isUnsaid: true), image: picture(for: kind, isUnsaid: true)),
+            ]
         }
     }
 
-    static func picture(for kind: SiteKind) -> UIImage {
+    /// The name of a kind's picture: its own, or the muted one of a
+    /// take-off that says nothing to what the filter asks.
+    nonisolated static func name(of kind: SiteKind, isUnsaid: Bool) -> String {
+        isUnsaid ? kind.pictureName + "-unsaid" : kind.pictureName
+    }
+
+    /// - Parameter isUnsaid: the pin of a site shown apart from the ones
+    ///   that fit: the same pin in the pack's muted pair, without the
+    ///   dark and the cream that say "take off here".
+    static func picture(for kind: SiteKind, isUnsaid: Bool = false) -> UIImage {
         // The map is light in both appearances: the light theme's pair.
         let dark = UIColor(VentiTheme.light.primary)
         let cream = UIColor(VentiTheme.light.onPrimary)
-        let (ground, sign) = kind == .landing ? (cream, dark) : (dark, cream)
+        let (ground, sign) = isUnsaid
+            ? (Palette.siteUnsaidGroundOnMap, Palette.siteUnsaidOnMap)
+            : kind == .landing ? (cream, dark) : (dark, cream)
         return UIGraphicsImageRenderer(size: size).image { _ in
             let radius: CGFloat = 10
             let centre = CGPoint(x: size.width / 2, y: radius + 3)
@@ -89,19 +103,63 @@ struct SiteList: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var search = ""
+    @State private var showsFilter = false
 
     var body: some View {
+        let filtered = sites.filtered
+        let fitting = shown(filtered.fitting)
+        let unsaid = shown(filtered.unsaid)
         NavigationStack {
             VentiList {
+                // The filter in a line while one is on: it opens the filter.
+                if filtered.isOn {
+                    Section {
+                        Button {
+                            showsFilter = true
+                        } label: {
+                            Label(filtered.filterWords, systemImage: SitesFilterIcon.name)
+                        }
+                        .accessibilityIdentifier("sites-list-filter")
+                    }
+                }
+                // The sites that fit, under what the filter leaves.
                 Section {
-                    ForEach(shown, id: \.id) { site in
+                    ForEach(fitting, id: \.id) { site in
                         NavigationLink(value: site) {
                             SiteRow(site: site)
                         }
                         .accessibilityIdentifier("site-row")
                     }
+                } header: {
+                    if filtered.isOn {
+                        Text(filtered.words)
+                            .textCase(nil)
+                            .accessibilityIdentifier("sites-list-words")
+                    }
                 } footer: {
-                    if !sites.sites.isEmpty {
+                    if !sites.sites.isEmpty, unsaid.isEmpty {
+                        Text(footnote)
+                    }
+                }
+                // Apart from them, the take-offs whose source does not say
+                // what was asked: neither a fit nor left out.
+                if !unsaid.isEmpty {
+                    Section {
+                        Text(filtered.unsaidNote)
+                            .font(.venti(.footnote))
+                            .foregroundStyle(.venti(.textSecondary))
+                            .accessibilityIdentifier("sites-list-unsaid-note")
+                        ForEach(unsaid, id: \.id) { site in
+                            NavigationLink(value: site) {
+                                SiteRow(site: site)
+                            }
+                            .accessibilityIdentifier("site-row-unsaid")
+                        }
+                    } header: {
+                        Text(filtered.unsaidTitle)
+                            .textCase(nil)
+                            .accessibilityIdentifier("sites-list-unsaid")
+                    } footer: {
                         Text(footnote)
                     }
                 }
@@ -113,7 +171,7 @@ struct SiteList: View {
                         systemImage: "mappin.slash",
                         description: Text(sites.problem ?? "Zoom the map in on an area, and the sites its source knows there are listed.")
                     )
-                } else if shown.isEmpty {
+                } else if fitting.isEmpty, unsaid.isEmpty, !wanted.isEmpty {
                     ContentUnavailableView.search(text: search)
                 }
             }
@@ -123,11 +181,21 @@ struct SiteList: View {
             .navigationDestination(for: SiteView.self) { site in
                 SiteScreen(site: site)
             }
+            .navigationDestination(isPresented: $showsFilter) {
+                SitesFilterForm()
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         dismiss()
                     }
+                }
+                // The same filter as the map's.
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Filter the sites", systemImage: SitesFilterIcon.name) {
+                        showsFilter = true
+                    }
+                    .accessibilityIdentifier("sites-list-filter-button")
                 }
             }
         }
@@ -146,10 +214,15 @@ struct SiteList: View {
         return (lines + sites.credits.map(\.text)).joined(separator: "\n")
     }
 
+    /// What the pilot looks for by name.
+    private var wanted: String {
+        search.trimmingCharacters(in: .whitespaces)
+    }
+
     /// Those with a name first, by name; then the rest by what they are.
-    private var shown: [SiteView] {
-        let wanted = search.trimmingCharacters(in: .whitespaces)
-        return sites.sites
+    private func shown(_ sites: [SiteView]) -> [SiteView] {
+        let wanted = wanted
+        return sites
             .filter { wanted.isEmpty || $0.name.localizedCaseInsensitiveContains(wanted) }
             .sorted { first, second in
                 if first.isNamed != second.isNamed {

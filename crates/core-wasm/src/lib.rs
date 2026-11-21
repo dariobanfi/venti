@@ -58,6 +58,7 @@ use venti_core::{
     ThermalMapShapes, ThermalStripDay, TodayOrder, TodayStanding, TodayTakeoffs, TrackPoint,
     WindMap, WindSpan, WindStation,
 };
+use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{
     SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteCorrecting,
     SiteDraftRebased, SiteHistoryOffers, SiteOffers, SiteRevisionView, SiteWords, SitesRemoved,
@@ -465,6 +466,39 @@ impl Core {
         flight: Option<String>,
     ) -> Result<Ts<ServerRequest>, JsValue> {
         self.request(|core| core.site_confirm_request(id, day, today, note, flight))
+    }
+
+    /// The candidates of an answer (`siteCandidates`) that the pilot
+    /// signed in here took off at: each with the pilot's newest flight
+    /// from there, the entry's words and a draft at the pilot's own
+    /// take-off. Empty where the pilot may add no site and for a place set
+    /// aside. `utc_offset_s` is how far the browser's clock is ahead of
+    /// UTC, in seconds.
+    #[wasm_bindgen(js_name = candidateForPilot)]
+    pub fn candidate_for_pilot(
+        &self,
+        candidates: Ts<SiteCandidates>,
+        takes_sites_from_pilots: bool,
+        utc_offset_s: i32,
+    ) -> Result<Vec<Ts<CandidateOffer>>, JsValue> {
+        let candidates = from_js(&candidates)?;
+        let offers = self
+            .session
+            .call(|core| {
+                core.candidate_for_pilot(candidates, takes_sites_from_pilots, utc_offset_s)
+            })
+            .map_err(thrown)?;
+        offers.iter().map(to_js).collect()
+    }
+
+    /// Says "Not this one" of a candidate in this browser: it and any
+    /// candidate within 500 m of it are not offered again.
+    #[wasm_bindgen(js_name = candidateSetAside)]
+    pub fn candidate_set_aside(&self, position: Ts<Coordinate>) -> Result<(), JsValue> {
+        let position = from_js(&position)?;
+        self.session
+            .call(|core| core.candidate_set_aside(position))
+            .map_err(thrown)
     }
 
     /// Forgets the account in this browser. The flights in the logbook
@@ -1602,6 +1636,46 @@ pub fn site_confirmations_of(
     body: Vec<u8>,
 ) -> Result<Ts<SiteConfirmations>, JsValue> {
     to_js(&venti_core::site_confirmations_of(from_js(&site)?, status, body).map_err(thrown)?)
+}
+
+/// The path to `GET` for what the public flights that began at a site
+/// say about it. A site of any layer.
+#[wasm_bindgen(js_name = siteFlightsPath)]
+pub fn site_flights_path(id: String) -> Result<String, JsValue> {
+    venti_core::site_flights_path(id).map_err(thrown)
+}
+
+/// Reads the server's answer to `siteFlightsPath`: the count line, the
+/// twelve months, the season and the best flights as lines.
+#[wasm_bindgen(js_name = siteFlights)]
+pub fn site_flights(status: u16, body: Vec<u8>) -> Result<Ts<SiteFlights>, JsValue> {
+    to_js(&venti_core::site_flights(status, body).map_err(thrown)?)
+}
+
+/// The words around what flights say about a site: titles, and the
+/// switch of the map's layer of candidates.
+#[wasm_bindgen(js_name = siteFlightsWords)]
+pub fn site_flights_words() -> Result<Ts<SiteFlightsWords>, JsValue> {
+    to_js(&venti_core::site_flights_words())
+}
+
+/// The path and query to `GET` for the places in a part of the map where
+/// pilots take off and no site stands. Refused in words for a part wider
+/// or taller than 2 degrees.
+#[wasm_bindgen(js_name = siteCandidatesPath)]
+pub fn site_candidates_path(
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+) -> Result<String, JsValue> {
+    venti_core::site_candidates_path(south, west, north, east).map_err(thrown)
+}
+
+/// Reads the server's answer to `siteCandidatesPath`.
+#[wasm_bindgen(js_name = siteCandidates)]
+pub fn site_candidates(status: u16, body: Vec<u8>) -> Result<Ts<SiteCandidates>, JsValue> {
+    to_js(&venti_core::site_candidates(status, body).map_err(thrown)?)
 }
 
 /// What the form says when it corrects a given site, by the site's tier:

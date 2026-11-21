@@ -56,6 +56,7 @@ mod sites;
 mod station_air;
 mod statistics;
 mod storage;
+mod takeoffs;
 mod task;
 mod tendencies;
 mod terrain;
@@ -103,6 +104,7 @@ pub use site_offers::{
 pub use sites::*;
 pub use station_air::*;
 pub use statistics::*;
+pub use takeoffs::*;
 pub use task::*;
 pub use tendencies::*;
 pub use terrain::*;

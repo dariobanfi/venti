@@ -48,7 +48,7 @@ import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.PillShape
 import fly.venti.app.design.Venti
-import fly.venti.core.Observation
+import fly.venti.core.Tendency
 import fly.venti.core.Tendencies
 import kotlinx.coroutines.CancellationException
 
@@ -91,7 +91,7 @@ object TendenciesWords {
     const val SHOWS_IT_MOST = "The flight that shows it most"
 
     /** A card as TalkBack reads it: the title, then the words, which say what a bar's share is of. */
-    fun spoken(observation: Observation): String = "${observation.title}. ${observation.words}"
+    fun spoken(observation: Tendency): String = "${observation.title}. ${observation.words}"
 }
 
 /**
@@ -167,7 +167,7 @@ fun TendenciesScreen(logbook: LogbookModel, onOpen: (String) -> Unit, onBack: ()
  * since the words say the share.
  */
 @Composable
-private fun ObservationCard(observation: Observation, onOpen: (String) -> Unit) {
+private fun ObservationCard(observation: Tendency, onOpen: (String) -> Unit) {
     val colours = Venti.colours
     Surface(
         modifier = Modifier.fillMaxWidth().testTag("tendency"),

@@ -32,7 +32,7 @@ const MIN_AIRTIME_S: i64 = 2 * 3600;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
-pub enum ObservationKind {
+pub enum TendencyKind {
     /// Which way the pilot circles.
     Circling,
     /// How the pilot's thermals end.
@@ -51,9 +51,9 @@ pub enum ObservationKind {
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
-pub struct Observation {
+pub struct Tendency {
     /// What it is about.
-    pub kind: ObservationKind,
+    pub kind: TendencyKind,
     /// Its heading: "Which way you circle".
     pub title: String,
     /// What was measured, in a sentence.
@@ -77,7 +77,7 @@ pub struct Tendencies {
     /// The thermals in them.
     pub thermals: u32,
     /// What there is enough flying to say, in a fixed order.
-    pub observations: Vec<Observation>,
+    pub observations: Vec<Tendency>,
     /// What this is, for the foot of a screen.
     pub note: String,
 }
@@ -145,13 +145,13 @@ fn most(
 }
 
 fn observation(
-    kind: ObservationKind,
+    kind: TendencyKind,
     title: &str,
     words: String,
     share: Option<f64>,
     flight: Option<&FlightWithHabits>,
-) -> Observation {
-    Observation {
+) -> Tendency {
+    Tendency {
         kind,
         title: title.to_owned(),
         words,
@@ -164,7 +164,7 @@ fn observation(
 /// "Of 409 thermals circled one way, 337 went right and 72 left. 252 more
 /// were flown back and forth or were too short to say." The flight is the
 /// one with the most thermals circled the rarer way.
-fn circling(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observation> {
+fn circling(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Tendency> {
     let (left, right, rest) = (
         all.thermals_left,
         all.thermals_right,
@@ -208,7 +208,7 @@ fn circling(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observat
         most(flights, |habits| Some(f64::from(habits.thermals_right)))
     };
     Some(observation(
-        ObservationKind::Circling,
+        TendencyKind::Circling,
         "Which way you circle",
         words,
         (left + right > 0).then(|| f64::from(left) / f64::from(left + right)),
@@ -218,13 +218,13 @@ fn circling(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observat
 
 /// "In 12 of 34 thermals the last minute climbed at less than a third of
 /// the thermal's average."
-fn thermal_ends(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observation> {
+fn thermal_ends(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Tendency> {
     let (measured, weak) = (all.thermals_measured, all.thermals_ended_weak);
     if measured < MIN_MEASURED_THERMALS {
         return None;
     }
     Some(observation(
-        ObservationKind::ThermalEnds,
+        TendencyKind::ThermalEnds,
         "How your thermals end",
         format!(
             "In {} of {} thermals the last minute climbed at less than a third of the \
@@ -240,13 +240,13 @@ fn thermal_ends(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Obse
 }
 
 /// "On average 48 s between a thermal's highest point and leaving it."
-fn after_the_top(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observation> {
+fn after_the_top(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Tendency> {
     if all.thermals_measured < MIN_MEASURED_THERMALS {
         return None;
     }
     let average_s = all.after_the_top_s as f64 / f64::from(all.thermals_measured);
     Some(observation(
-        ObservationKind::AfterTheTop,
+        TendencyKind::AfterTheTop,
         "Time after the top",
         format!(
             "On average {} between a thermal's highest point and leaving it.",
@@ -262,7 +262,7 @@ fn after_the_top(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Obs
 
 /// "1.4 m/s on average over 12300 m gained in thermals; the best thermal
 /// gave 3.1 m/s."
-fn climb(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observation> {
+fn climb(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Tendency> {
     if all.thermals() < MIN_THERMALS || all.thermalling_s <= 0 {
         return None;
     }
@@ -276,7 +276,7 @@ fn climb(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observation
         words += &format!("; the best thermal gave {} m/s", one_decimal(best));
     }
     Some(observation(
-        ObservationKind::Climb,
+        TendencyKind::Climb,
         "Climbing",
         words + ".",
         None,
@@ -285,12 +285,12 @@ fn climb(flights: &[FlightWithHabits], all: &FlightHabits) -> Option<Observation
 }
 
 /// "7.2 to 1 over 86 km in 54 glides of a kilometre or more."
-fn glides(all: &FlightHabits) -> Option<Observation> {
+fn glides(all: &FlightHabits) -> Option<Tendency> {
     if all.glides < MIN_GLIDES || all.glide_height_lost_m <= 0 {
         return None;
     }
     Some(observation(
-        ObservationKind::Glides,
+        TendencyKind::Glides,
         "Gliding",
         format!(
             "{} to 1 over {} in {} glides of a kilometre or more.",
@@ -304,13 +304,13 @@ fn glides(all: &FlightHabits) -> Option<Observation> {
 }
 
 /// "38% of your airtime was spent in thermals."
-fn time_circling(all: &FlightHabits) -> Option<Observation> {
+fn time_circling(all: &FlightHabits) -> Option<Tendency> {
     if all.airtime_s < MIN_AIRTIME_S {
         return None;
     }
     let share = (all.thermalling_s as f64 / all.airtime_s as f64).clamp(0.0, 1.0);
     Some(observation(
-        ObservationKind::TimeCircling,
+        TendencyKind::TimeCircling,
         "Time circling",
         format!(
             "{:.0}% of your airtime was spent in thermals.",
@@ -418,7 +418,7 @@ mod tests {
         made_up_flight(&legs)
     }
 
-    fn find(tendencies: &Tendencies, kind: ObservationKind) -> Option<&Observation> {
+    fn find(tendencies: &Tendencies, kind: TendencyKind) -> Option<&Tendency> {
         tendencies
             .observations
             .iter()
@@ -480,7 +480,7 @@ mod tests {
         let tendencies = core.tendencies();
         assert_eq!((tendencies.flights, tendencies.thermals), (5, 11));
 
-        let circling = find(&tendencies, ObservationKind::Circling).unwrap();
+        let circling = find(&tendencies, TendencyKind::Circling).unwrap();
         assert_eq!(circling.title, "Which way you circle");
         assert_eq!(
             circling.words,
@@ -497,7 +497,7 @@ mod tests {
         let (_folder, core, _, dying) = five_flights();
         let tendencies = core.tendencies();
 
-        let ends = find(&tendencies, ObservationKind::ThermalEnds).unwrap();
+        let ends = find(&tendencies, TendencyKind::ThermalEnds).unwrap();
         assert_eq!(ends.title, "How your thermals end");
         assert_eq!(
             ends.words,
@@ -507,7 +507,7 @@ mod tests {
         assert!((ends.share.unwrap() - 3.0 / 11.0).abs() < 1e-9);
         assert_eq!(ends.flight_id.as_deref(), Some(dying.as_str()));
 
-        let top = find(&tendencies, ObservationKind::AfterTheTop).unwrap();
+        let top = find(&tendencies, TendencyKind::AfterTheTop).unwrap();
         assert_eq!(top.title, "Time after the top");
         // Three thermals of some 80 s after the top and eight of a few
         // seconds: some half a minute on average.
@@ -528,7 +528,7 @@ mod tests {
         let (_folder, core, newest, _) = five_flights();
         let tendencies = core.tendencies();
 
-        let climb = find(&tendencies, ObservationKind::Climb).unwrap();
+        let climb = find(&tendencies, TendencyKind::Climb).unwrap();
         assert_eq!(climb.title, "Climbing");
         assert!(
             climb.words.ends_with("; the best thermal gave 2.4 m/s."),
@@ -544,9 +544,9 @@ mod tests {
         assert_eq!(climb.flight_id.as_deref(), Some(newest.as_str()));
 
         // Seven glides of a kilometre: under the ten needed.
-        assert_eq!(find(&tendencies, ObservationKind::Glides), None);
+        assert_eq!(find(&tendencies, TendencyKind::Glides), None);
         // Some two and a half hours in the air.
-        let time = find(&tendencies, ObservationKind::TimeCircling).unwrap();
+        let time = find(&tendencies, TendencyKind::TimeCircling).unwrap();
         assert_eq!(time.title, "Time circling");
         let share = time.share.unwrap();
         assert!((0.2..0.5).contains(&share), "{share}");
@@ -569,7 +569,7 @@ mod tests {
         }
         let tendencies = core.tendencies();
 
-        let glides = find(&tendencies, ObservationKind::Glides).unwrap();
+        let glides = find(&tendencies, TendencyKind::Glides).unwrap();
         assert_eq!(glides.title, "Gliding");
         assert_eq!(glides.flight_id, None);
         let (ratio, rest) = glides.words.split_once(" to 1 over ").unwrap();
@@ -587,7 +587,7 @@ mod tests {
         assert!((40..=44).contains(&km), "{}", glides.words);
 
         // Twenty thermals, all to the right: no rarer way, no flight.
-        let circling = find(&tendencies, ObservationKind::Circling).unwrap();
+        let circling = find(&tendencies, TendencyKind::Circling).unwrap();
         assert_eq!(
             circling.words,
             "All 20 thermals circled one way went right."
@@ -595,7 +595,7 @@ mod tests {
         assert_eq!(circling.share, Some(0.0));
         assert_eq!(circling.flight_id, None);
         // None ended weak: no flight shows it.
-        let ends = find(&tendencies, ObservationKind::ThermalEnds).unwrap();
+        let ends = find(&tendencies, TendencyKind::ThermalEnds).unwrap();
         assert!(
             ends.words.starts_with("In 0 of 20 thermals"),
             "{}",
@@ -611,7 +611,7 @@ mod tests {
             core.import_flight(on_day(&synthetic_flight(), day))
                 .unwrap();
         }
-        let kinds: Vec<ObservationKind> = core
+        let kinds: Vec<TendencyKind> = core
             .tendencies()
             .observations
             .iter()
@@ -620,12 +620,12 @@ mod tests {
         assert_eq!(
             kinds,
             [
-                ObservationKind::Circling,
-                ObservationKind::ThermalEnds,
-                ObservationKind::AfterTheTop,
-                ObservationKind::Climb,
-                ObservationKind::Glides,
-                ObservationKind::TimeCircling,
+                TendencyKind::Circling,
+                TendencyKind::ThermalEnds,
+                TendencyKind::AfterTheTop,
+                TendencyKind::Climb,
+                TendencyKind::Glides,
+                TendencyKind::TimeCircling,
             ]
         );
     }

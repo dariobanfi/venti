@@ -72,7 +72,7 @@ struct HowYouFlyScreen: View {
     /// One observation: its title, its words, and a thin bar where it is a
     /// share. Read as one; the bar is left to the words, which say what
     /// the share is of.
-    private func card(_ observation: VentiCore.Observation) -> some View {
+    private func card(_ observation: Tendency) -> some View {
         VStack(alignment: .leading, spacing: VentiSpace.s2) {
             Text(observation.title)
                 .font(.ventiType(.heading))

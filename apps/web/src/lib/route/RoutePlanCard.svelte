@@ -1,7 +1,8 @@
 <!--
 	What a route drawn on the map comes to, in the core's words: its
 	sentence, what the route would score flown as drawn (the core's name for
-	it, "Closed FAI triangle", its distance and points), and each leg's
+	it, "Closed FAI triangle", its distance and points, and for a triangle
+	where it closes: "Closes within 1.6 km of the start: …"), and each leg's
 	length and direction. Under them "Undo", "Back to the start" and
 	"Clear". A card at the map's side on a wide screen, a card over the
 	map's foot on a narrow one, so that the map stays in reach of the finger.
@@ -58,6 +59,10 @@
 				<Metric caption="Points" value={text.points(score.points)} />
 				<Metric caption="Along the route" value={text.kilometres(plan?.distanceM ?? 0)} unit="km" />
 			</dl>
+			{#if plan?.closingCircle}
+				<!-- Where the triangle closes, the dashed ring on the map. -->
+				<p class="closing" data-closing-words>{plan.closingCircle.words}</p>
+			{/if}
 		</div>
 	{/if}
 
@@ -157,6 +162,12 @@
 		margin: 0;
 		font-size: var(--subheadline);
 		font-weight: 600;
+	}
+
+	.closing {
+		margin: 0;
+		font-size: var(--footnote);
+		color: var(--text-secondary);
 	}
 
 	.metrics {

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { routePlan } from '#lib/core/route-plan.ts';
 import { startCore } from '#lib/core/testing.ts';
-import { drawnLine, faiOutlines, numberedPlaces, scoredLine } from './on-map';
+import { closingOutline, drawnLine, faiOutlines, numberedPlaces, scoredLine } from './on-map';
 
 beforeAll(startCore);
 
@@ -37,5 +37,23 @@ describe('a planned route on the map', () => {
 		const scored = scoredLine(triangle).features[0].geometry as GeoJSON.LineString;
 		expect(scored.coordinates.length).toBeGreaterThanOrEqual(4);
 		expect(scoredLine(undefined).features).toEqual([]);
+	});
+});
+
+describe('a triangle’s closing circle on the map', () => {
+	it('is the core’s ring around the start, for three places and for a closed triangle', () => {
+		// Three places whose last comes back near the first make a triangle.
+		const back = { lat: 47.7, lon: 11.8 };
+		expect(routePlan([WALLBERG, EAST, NORTH]).closingCircle).toBeUndefined();
+		for (const places of [
+			[WALLBERG, EAST, back],
+			[WALLBERG, EAST, NORTH, WALLBERG]
+		]) {
+			const plan = routePlan(places);
+			const ring = closingOutline(plan).features[0].geometry as GeoJSON.LineString;
+			expect(ring.coordinates).toHaveLength(plan.closingCircle!.outline.length);
+			expect(plan.closingCircle!.words).toMatch(/^Closes within /);
+		}
+		expect(closingOutline(routePlan([WALLBERG, EAST])).features).toEqual([]);
 	});
 });

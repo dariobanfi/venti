@@ -429,6 +429,11 @@ export class CoreClient {
 		return this.#call('forgetGlideReach', undefined);
 	}
 
+	/** The cables around a place, as a map layer. Nothing if this site has no server. */
+	cables(place: Coordinate) {
+		return this.#call('cables', place);
+	}
+
 	/**
 	 * Marks a site as one of the pilot's own and keeps it in the browser:
 	 * the site as the core gave it, the credits of the answer it came from

@@ -21,8 +21,10 @@ export const CASING = '-aerial-casing';
 /**
  * The lines that get a casing: the logbook's tracks on the map tab, a
  * followed pilot's track, the route planner's drawn and scored lines, and
- * on a flight's page the scored route and the other flight's line, and the
- * edge of what a glide reaches. Each by the name of its outermost dark layer.
+ * on a flight's page the scored route and the other flight's line, the
+ * edge of what a glide reaches, the cables (both their solid and their
+ * dashed lines, which the casing carries unbroken) and the planned
+ * triangle's closing circle. Each by the name of its outermost dark layer.
  */
 export const CASED: readonly string[] = [
 	'logbook-tracks-edge',
@@ -31,7 +33,10 @@ export const CASED: readonly string[] = [
 	'route-scored-line',
 	'flight-route-line',
 	'other-track-edge',
-	'reach-edge-casing'
+	'reach-edge-casing',
+	'cables-line',
+	'cables-line-unmapped',
+	'route-closing-line'
 ];
 
 /** The casing of a line: solid, in the label halo's colour, hidden until the aerial view. */

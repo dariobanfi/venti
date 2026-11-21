@@ -5,11 +5,12 @@
  * all layers are on wherever that cannot be read.
  */
 
-export type MapLayer = 'wind' | 'airspace' | 'sites' | 'pilots';
+export type MapLayer = 'wind' | 'airspace' | 'cables' | 'sites' | 'pilots';
 
 export const MAP_LAYERS: readonly { layer: MapLayer; name: string }[] = [
 	{ layer: 'wind', name: 'Wind' },
 	{ layer: 'airspace', name: 'Airspace' },
+	{ layer: 'cables', name: 'Cables' },
 	{ layer: 'sites', name: 'Sites' },
 	{ layer: 'pilots', name: 'Pilots' }
 ];

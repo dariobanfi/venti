@@ -31,6 +31,7 @@ import type {
 	AirspaceOverPlace,
 	AirspaceShape,
 	Bounds,
+	CablesMap,
 	CandidateOffer,
 	GlideReach,
 	GlideReachSetting,
@@ -125,6 +126,7 @@ import type {
 } from './route-weather-source';
 import { type TodayAnswer, todayOrders, type TodaySource } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
+import type { CablesSource } from './cables-source';
 import type { GlideReachSource } from './glide-reach-source';
 import type { WindAnswer, WindSource } from './wind-source';
 
@@ -351,6 +353,11 @@ export interface Calls {
 	/** Lets go of the ground kept for the glide's reach: the area was cleared. */
 	forgetGlideReach: { given: undefined; answer: undefined };
 	/**
+	 * The cables around a place (power lines and ropeways), as the core
+	 * makes them a map layer. Nothing if this site has no server.
+	 */
+	cables: { given: Coordinate; answer: CablesMap | undefined };
+	/**
 	 * Marks a site as one of the pilot's own. Given the site as the core
 	 * gave it, the credits of the answer it came from, and the date of the
 	 * source's data by that answer.
@@ -563,6 +570,7 @@ export interface Answering {
 	radar: RadarSource;
 	routeWeather: RouteWeatherSource;
 	glideReach: GlideReachSource;
+	cables: CablesSource;
 }
 
 /** Does what a call asks of the core. */
@@ -586,7 +594,8 @@ export async function answer<Name extends CallName>(
 		thermals,
 		radar,
 		routeWeather,
-		glideReach
+		glideReach,
+		cables
 	}: Answering,
 	call: Name,
 	given: Calls[Name]['given']
@@ -662,6 +671,7 @@ export async function answer<Name extends CallName>(
 		routeWeather: (asked) => routeWeather.along(asked),
 		glideReach: (setting) => glideReach.reach(setting),
 		forgetGlideReach: () => glideReach.forget(),
+		cables: (place) => cables.around(place),
 		keepSite: ({ site, credits, asOfUnixS }) => session.keepSite(site, credits, asOfUnixS),
 		forgetSite: (id) => session.forgetSite(id),
 		isSiteKept: (id) => session.isSiteKept(id),

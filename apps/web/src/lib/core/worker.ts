@@ -7,6 +7,7 @@
 import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
 import { AlertsSource } from './alerts-source';
+import { CablesSource } from './cables-source';
 import { CommunitySource } from './community-source';
 import { ForecastSource } from './forecast-source';
 import { GroupsSource } from './groups-source';
@@ -79,7 +80,8 @@ const starting: Promise<Answering> = (async () => {
 			() => wind.now()
 		),
 		routeWeather: new RouteWeatherSource(() => wind.present()),
-		glideReach: new GlideReachSource()
+		glideReach: new GlideReachSource(),
+		cables: new CablesSource(() => wind.present())
 	};
 })();
 

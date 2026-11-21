@@ -1,18 +1,26 @@
 <!--
 	The map of the map tab: terrain, airspace, flying sites, live wind, the
-	gliders of other pilots, every flight in the logbook as a line, and the
-	pilot's own position when asked for.
+	gliders of other pilots, cables, every flight in the logbook as a line,
+	and the pilot's own position when asked for.
 -->
 <script lang="ts">
 	import { type AerialMaker, aerialMakers, photosCredit } from './aerial-credit';
-	import { addLine } from './casing';
+	import { addLine, CASING } from './casing';
 	import type { MapLayer } from './layers';
 	import type { ExpressionSpecification, ImageSource } from 'maplibre-gl';
 	import { onMount, untrack } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import { AIRSPACE_MIN_ZOOM } from '#lib/airspace/layers.ts';
+	import {
+		CABLES_MAPPED,
+		CABLES_SOURCE,
+		CABLES_UNMAPPED,
+		cableFeatures,
+		pixelsFromLine
+	} from '#lib/cables/on-map.ts';
 	import type {
 		Bounds,
+		CableLine,
 		Coordinate,
 		GlideReach,
 		LiveGlider,
@@ -28,6 +36,7 @@
 	import {
 		ACCENT_ON_MAP,
 		CLIMB_BANDS,
+		DANGER_ON_MAP,
 		INK_ON_MAP,
 		LABEL_ON_MAP,
 		PAPER_ON_MAP
@@ -51,9 +60,11 @@
 	} from '#lib/radar/radar-layer.ts';
 	import type { OnMap } from '#lib/radar/radar.svelte.ts';
 	import {
+		closingOutline,
 		drawnLine,
 		faiOutlines,
 		numberedPlaces,
+		ROUTE_CLOSING,
 		ROUTE_DOTS,
 		ROUTE_DRAWN,
 		ROUTE_FAI,
@@ -127,6 +138,13 @@
 		 * it, reaches in from each edge, in pixels.
 		 */
 		coveredByPage: { left: number; right: number; bottom: number };
+		/**
+		 * The cables to draw, while the map is close enough: power lines and
+		 * ropeways, solid where their height is mapped, dashed where not.
+		 */
+		cables?: readonly CableLine[];
+		/** Called with a cable's identifier when the pilot clicks on or close to its line. */
+		oncable?: (id: string) => void;
 		/** Where the airspace to draw comes from, once the app has it. */
 		airspace: AirspaceForMaps | undefined;
 		/** Whether the map keeps the pilot's position in its middle. */
@@ -236,6 +254,8 @@
 		others = [],
 		followed,
 		coveredByPage,
+		cables = [],
+		oncable,
 		airspace,
 		following = $bindable(),
 		coveredBottom,
@@ -337,6 +357,8 @@
 			(count) => onairspace(count)
 		);
 
+		addCables(module, map);
+
 		map.addSource('logbook-tracks', { type: 'geojson', data: NOTHING });
 		// A white edge keeps the lines readable over any ground colour.
 		addLine(map, module.line('logbook-tracks-edge', 'logbook-tracks', INK_ON_MAP, 5));
@@ -425,6 +447,8 @@
 			WIND,
 			SITES_SOURCE,
 			CANDIDATES_SOURCE,
+			CABLES_MAPPED,
+			CABLES_UNMAPPED,
 			THERMAL_SOURCE
 		]) {
 			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
@@ -439,6 +463,25 @@
 			paint: { 'circle-radius': 16, 'circle-color': ACCENT_ON_MAP, 'circle-opacity': 0.2 }
 		});
 		map.addLayer(module.dot('position-dot', 'position', 7, ACCENT_ON_MAP, PAPER_ON_MAP));
+	}
+
+	/**
+	 * The cables, over the airspace and under the flights: a line in the
+	 * pack's danger colour over the light casing that the aerial view
+	 * shows, solid where the cable's height is mapped and dashed where it
+	 * is not, as the phones draw them.
+	 */
+	function addCables(module: typeof import('./setup'), map: Map) {
+		map.addSource(CABLES_SOURCE, { type: 'geojson', data: NOTHING });
+		const mapped = module.line(CABLES_MAPPED, CABLES_SOURCE, DANGER_ON_MAP, 2);
+		addLine(map, { ...mapped, filter: ['!', ['get', 'dashed']] });
+		const unmapped = module.line(CABLES_UNMAPPED, CABLES_SOURCE, DANGER_ON_MAP, 2);
+		addLine(map, {
+			...unmapped,
+			layout: { 'line-join': 'round' },
+			filter: ['get', 'dashed'],
+			paint: { ...unmapped.paint, 'line-dasharray': [2, 1.5] }
+		});
 	}
 
 	/**
@@ -483,6 +526,14 @@
 	 */
 	function addRoute(module: typeof import('./setup'), map: Map) {
 		map.addSource(ROUTE_FAI, { type: 'geojson', data: NOTHING });
+		// Where a triangle closes: a thin dashed ring in the map's ink.
+		map.addSource(ROUTE_CLOSING, { type: 'geojson', data: NOTHING });
+		const closing = module.line('route-closing-line', ROUTE_CLOSING, INK_ON_MAP, 1.5);
+		addLine(map, {
+			...closing,
+			layout: { 'line-join': 'round' },
+			paint: { ...closing.paint, 'line-dasharray': [2, 2] }
+		});
 		const areas = module.line('route-fai-line', ROUTE_FAI, ACCENT_ON_MAP, 1.5);
 		map.addLayer({
 			...areas,
@@ -590,13 +641,15 @@
 			planAt(map, point);
 			return;
 		}
-		for (const [layers, open] of [
-			[[LIVE_SOURCE], onglider],
-			[OTHERS_LAYERS, (id: string) => onother?.(id)],
-			[[WIND], onstation],
-			[[SITES_SOURCE], onsite],
-			[[CANDIDATES_SOURCE], (key: string) => oncandidate?.(key)]
+		for (const [layers, open, chip] of [
+			[[LIVE_SOURCE], onglider, 'pilots'],
+			[OTHERS_LAYERS, (id: string) => onother?.(id), 'pilots'],
+			[[WIND], onstation, 'wind'],
+			[[SITES_SOURCE], onsite, 'sites'],
+			[[CANDIDATES_SOURCE], (key: string) => oncandidate?.(key), 'sites']
 		] as const) {
+			// A layer just switched off can still be in the frame drawn last.
+			if (hidden.includes(chip)) continue;
 			const hits = map.queryRenderedFeatures(
 				[
 					[point.x - REACH, point.y - REACH],
@@ -613,6 +666,12 @@
 				open(nearest.properties.id);
 				return;
 			}
+		}
+		// A cable on or near the pointer: the nearest line.
+		const cable = hidden.includes('cables') ? undefined : cableAt(map, point);
+		if (cable) {
+			oncable?.(cable);
+			return;
 		}
 		// Nothing else under the pointer: the square of the thermal map there.
 		const at = map.unproject([point.x, point.y]);
@@ -631,6 +690,26 @@
 			{ lat: at.lat, lon: at.lng },
 			!hidden.includes('airspace') && map.getZoom() >= AIRSPACE_MIN_ZOOM
 		);
+	}
+
+	/** The cable whose line passes nearest the pointer, within a finger's reach. */
+	function cableAt(map: Map, point: { x: number; y: number }): string | undefined {
+		const hits = map.queryRenderedFeatures(
+			[
+				[point.x - REACH, point.y - REACH],
+				[point.x + REACH, point.y + REACH]
+			],
+			{ layers: [CABLES_MAPPED, CABLES_UNMAPPED] }
+		);
+		let nearest: { id: string; pixels: number } | undefined;
+		for (const hit of hits) {
+			const id = hit.properties.id;
+			if (typeof id !== 'string' || hit.geometry.type !== 'LineString') continue;
+			const line = hit.geometry.coordinates.map((at) => map.project(at as [number, number]));
+			const pixels = pixelsFromLine(point, line);
+			if (pixels <= REACH && (!nearest || pixels < nearest.pixels)) nearest = { id, pixels };
+		}
+		return nearest?.id;
 	}
 
 	/**
@@ -692,12 +771,14 @@
 		setup.shapes(map, ROUTE_PLACES)?.setData(numberedPlaces(places, route?.departures));
 		setup.shapes(map, ROUTE_SCORED)?.setData(scoredLine(route?.plan));
 		setup.shapes(map, ROUTE_FAI)?.setData(faiOutlines(route?.plan));
+		setup.shapes(map, ROUTE_CLOSING)?.setData(closingOutline(route?.plan));
 		if (route) map.doubleClickZoom.disable();
 		else map.doubleClickZoom.enable();
 		// A map says nothing of what it draws; the browser tests read it here.
 		(globalThis as { ventiRoute?: unknown }).ventiRoute = {
 			places: places.length,
-			scored: route?.plan?.score?.route.length ?? 0
+			scored: route?.plan?.score?.route.length ?? 0,
+			closing: route?.plan?.closingCircle?.outline.length ?? 0
 		};
 	});
 
@@ -707,6 +788,7 @@
 	const LAYERS: Record<MapLayer, string[]> = {
 		wind: [WIND],
 		airspace: ['airspace-'],
+		cables: [CABLES_SOURCE],
 		sites: [SITES_SOURCE],
 		pilots: [LIVE_SOURCE, LIVE_TRACK_SOURCE, 'live-track', OTHERS_SOURCE]
 	};
@@ -719,7 +801,9 @@
 				starts.some((start) => layer.id.startsWith(start))
 			);
 			if (!mine) continue;
-			const hide = off.some((start) => layer.id.startsWith(start));
+			// A casing shows only over the photographs (`setAerial`).
+			const hide =
+				off.some((start) => layer.id.startsWith(start)) || (layer.id.endsWith(CASING) && !aerial);
 			map.setLayoutProperty(layer.id, 'visibility', hide ? 'none' : 'visible');
 		}
 	});
@@ -800,6 +884,25 @@
 			signs: sites.map((site) => site.id),
 			apart: sitesApart.map((site) => site.id),
 			areas: areas.features.map((area) => area.properties?.id)
+		};
+	});
+
+	// Draws the cables when they change, and none while the map is zoomed out.
+	$effect(() => {
+		if (!map || !setup) return;
+		const features = cableFeatures(cables);
+		setup.shapes(map, CABLES_SOURCE)?.setData(features);
+		// A map says nothing of what it draws; the browser tests read it
+		// here, with where each line's pylons stand on the screen now.
+		const shown = map;
+		(globalThis as { ventiCables?: unknown }).ventiCables = {
+			lines: features.features.map((feature) => feature.properties?.id),
+			dashed: features.features.filter((feature) => feature.properties?.dashed).length,
+			onScreen: (id: string) =>
+				cables
+					.find((line) => line.id === id)
+					?.points.map((point) => shown.project([point.lon, point.lat]))
+					.map(({ x, y }) => ({ x, y }))
 		};
 	});
 

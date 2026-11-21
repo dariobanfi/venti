@@ -19,6 +19,7 @@ import { MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
 import { RadarSource } from './radar-source';
 import { RouteWeatherSource } from './route-weather-source';
+import { CablesSource } from './cables-source';
 import { GlideReachSource } from './glide-reach-source';
 import { ThermalMapSource } from './thermal-map-source';
 import { sampleFlight, startCore } from './testing';
@@ -72,7 +73,8 @@ class SameProcess implements Channel {
 						thermals: new ThermalMapSource(async () => false),
 						radar: new RadarSource(async () => false),
 						routeWeather: new RouteWeatherSource(async () => false, unreachable, unreachable),
-						glideReach: new GlideReachSource(unreachable)
+						glideReach: new GlideReachSource(unreachable),
+						cables: new CablesSource(async () => false)
 					},
 					call,
 					given

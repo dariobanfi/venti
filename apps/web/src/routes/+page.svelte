@@ -1,7 +1,7 @@
 <!--
 	The map tab: terrain, live wind from the stations of this site's Venti
 	server, the flying sites it knows, the pilots who show where they fly,
-	the pilot's airspace and the pilot's own flights.
+	the pilot's airspace, the cables and the pilot's own flights.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
@@ -10,6 +10,7 @@
 	import { page } from '$app/state';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import { CablesModel } from '#lib/cables/model.svelte.ts';
 	import { accountHref, mapAroundIn, placeHref } from '#lib/app/routes.ts';
 	import type {
 		Bounds,
@@ -212,6 +213,7 @@
 	const CHIP_ICONS = {
 		wind: 'wind',
 		airspace: 'airspace',
+		cables: 'danger',
 		sites: 'pin',
 		pilots: 'glider'
 	} as const;
@@ -305,6 +307,34 @@
 			lon: (region.west + region.east) / 2
 		});
 	});
+
+	// --- Cables ---
+
+	/** The cables around the map's middle, asked for once the map rests close enough. */
+	const cables = new CablesModel((place) => app.cables(place));
+	$effect(() => {
+		if (view && !off.includes('cables') && app.account?.hasServer) {
+			cables.show(view.region, view.zoom);
+		}
+	});
+	/** The cables the map draws: none while their layer is off or the map is zoomed out. */
+	const cablesShown = $derived(off.includes('cables') ? [] : cables.lines);
+	/** The cable the pilot clicked, by its identifier: its sheet says what it is. */
+	let chosenCable = $state<string>();
+	const cable = $derived(chosenCable === undefined ? undefined : cables.line(chosenCable));
+	/** Whose a cable is: the credit of its source, by the start of its identifier. */
+	const cableCredit = $derived(
+		cable && cables.answer?.credits.find((credit) => cable.id.startsWith(`${credit.source}:`))
+	);
+	/** Whose the cables on the map are, in their providers' wording, while some are drawn. */
+	const cablesCredits = $derived(
+		cablesShown.length > 0 ? (cables.answer?.credits ?? []).map((credit) => credit.text) : []
+	);
+
+	function openCable(id: string) {
+		closeOthers();
+		chosenCable = id;
+	}
 
 	/** How many airspaces the map draws, or nothing while it is zoomed too far out for any. */
 	let airspaceDrawn = $state<number>();
@@ -584,6 +614,7 @@
 	});
 
 	function closeOthers() {
+		chosenCable = undefined;
 		chosenCandidate = undefined;
 		chosenPlace = undefined;
 		chosenSquare = undefined;
@@ -888,6 +919,8 @@
 		others={othersShown}
 		followed={followedTrack}
 		{coveredByPage}
+		cables={cablesShown}
+		oncable={openCable}
 		airspace={app.airspace}
 		coveredBottom={navigationHeight}
 		onproblem={(problem) =>
@@ -964,6 +997,11 @@
 	{#if airspaceDrawn !== undefined && !app.airspace?.isEmpty}
 		<p class="visually-hidden">
 			Airspace on this part of the map: {text.count(airspaceDrawn)}.
+		</p>
+	{/if}
+	{#if cablesShown.length > 0 && cables.answer}
+		<p class="visually-hidden">
+			Cables on this part of the map: {text.count(cablesShown.length)}. {cables.answer.limits}
 		</p>
 	{/if}
 	{#if view && places.known}
@@ -1276,6 +1314,30 @@
 				{/if}
 			</MapPanel>
 		{/if}
+		<!-- A cable clicked on the map: what it is, whose the data is, and
+		     what the layer cannot promise, in the core's words. -->
+		<MapPanel
+			shown={cable ? chosenCable : undefined}
+			title={cable?.name ?? cable?.words ?? ''}
+			wide={wide.current}
+			half
+			onclose={() => (chosenCable = undefined)}
+		>
+			{#if cable}
+				<div class="cable" data-cable={cable.id}>
+					{#if cable.name}<p class="cable-words">{cable.words}</p>{/if}
+					{#if cables.answer}<p class="cable-limits">{cables.answer.limits}</p>{/if}
+					{#if cableCredit}
+						<p class="cable-credit">
+							<a href={cableCredit.url} rel="noopener noreferrer" target="_blank"
+								>{cableCredit.text}</a
+							>
+							{#if cableCredit.notice}<span>{cableCredit.notice}</span>{/if}
+						</p>
+					{/if}
+				</div>
+			{/if}
+		</MapPanel>
 		<!-- An aircraft another network hears: a small sheet, with no flight to follow. -->
 		<MapPanel
 			shown={other ? chosenOther : undefined}
@@ -1316,6 +1378,9 @@
 		{/if}
 		{#if candidatesSaid}
 			<p class="notice" role="status">{candidatesSaid}</p>
+		{/if}
+		{#if cables.problem && cables.close && !off.includes('cables')}
+			<p class="notice" role="status">{cables.problem}</p>
 		{/if}
 		{#if inTheAir.othersSaid && !off.includes('pilots')}
 			<p class="notice" role="status">{inTheAir.othersSaid}</p>
@@ -1374,11 +1439,12 @@
 				{@render thermalCard(false)}
 			</div>
 		{/if}
-		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredits.length > 0 || othersCredits.length > 0}
+		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredits.length > 0 || othersCredits.length > 0 || cablesCredits.length > 0}
 			<p class="credits">
 				{#if photosCredit}<span>{photosCredit}</span>{/if}
 				{#if credits}<span>Wind: {credits}</span>{/if}
 				{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
+				{#each cablesCredits as credit (credit)}<span>Cables: {credit}</span>{/each}
 				{#if sitesCredit}<span>{sitesCredit}</span>{/if}
 				{#if forecastCredit}<span>{forecastCredit}</span>{/if}
 				{#each radarCredits as credit (credit)}<span>{credit}</span>{/each}
@@ -1708,6 +1774,34 @@
 		background: var(--surface);
 		box-shadow: var(--shadow-float);
 		pointer-events: auto;
+	}
+
+	/* A cable's sheet: its words, the layer's limits, its credit. */
+	.cable {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		font-size: var(--subheadline);
+	}
+
+	.cable p {
+		margin: 0;
+	}
+
+	.cable-limits,
+	.cable-credit {
+		color: var(--text-secondary);
+		font-size: var(--footnote);
+	}
+
+	.cable-credit {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+
+	.cable-credit a {
+		color: var(--link);
 	}
 
 	/* "Add a site here", under what lies over the place. */

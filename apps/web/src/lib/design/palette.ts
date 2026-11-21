@@ -47,6 +47,12 @@ export const MUTED_PAPER_ON_MAP = light(tokens.theme.light, 'surface-raised');
  */
 export const OTHER_ON_MAP = light(tokens.series.light, '4');
 
+/**
+ * A cable on the map, a hazard to fly into: the pack's danger colour,
+ * the same red as its alert and its prohibited airspace.
+ */
+export const DANGER_ON_MAP = light(tokens.theme.light, 'danger');
+
 /** The scored route: the same ink, let through a little so the map shows under it. */
 export const ROUTE_ON_MAP = `${INK_ON_MAP}b3`;
 

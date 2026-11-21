@@ -1,8 +1,8 @@
 /**
  * What the map draws of a route being planned: the line through its
  * places, the route as the core would score it, where a third place makes
- * an FAI triangle of the first leg, and the places with their numbers. As
- * the phones draw it.
+ * an FAI triangle of the first leg, the closing circle of a triangle, and
+ * the places with their numbers. As the phones draw it.
  */
 
 import type { Coordinate, RoutePlan } from '#lib/core/index.ts';
@@ -13,6 +13,7 @@ export const ROUTE_FAI = 'route-fai';
 export const ROUTE_DRAWN = 'route-drawn';
 export const ROUTE_SCORED = 'route-scored';
 export const ROUTE_PLACES = 'route-places';
+export const ROUTE_CLOSING = 'route-closing';
 
 /** The layer of the places' dots, which a pointer takes hold of to move one. */
 export const ROUTE_DOTS = 'route-places-dot';
@@ -57,6 +58,29 @@ export function faiOutlines(plan: RoutePlan | undefined): GeoJSON.FeatureCollect
 			properties: {}
 		}))
 	};
+}
+
+/**
+ * Where the drawn route makes a triangle, the circle around its start
+ * that the finish has to come into, as the core outlines it.
+ */
+export function closingOutline(plan: RoutePlan | undefined): GeoJSON.FeatureCollection {
+	const outline = plan?.closingCircle?.outline ?? [];
+	return outline.length < 2
+		? NOTHING
+		: {
+				type: 'FeatureCollection',
+				features: [
+					{
+						type: 'Feature',
+						geometry: {
+							type: 'LineString',
+							coordinates: outline.map((place) => [place.lon, place.lat])
+						},
+						properties: {}
+					}
+				]
+			};
 }
 
 /**

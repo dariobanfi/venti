@@ -21,6 +21,7 @@ import {
 	CoreClient,
 	type FlightView,
 	type ForecastView,
+	type CablesMap,
 	type GlideReach,
 	type GlideReachSetting,
 	type GroundUnderFlight,
@@ -218,6 +219,16 @@ export class App {
 	/** Lets go of the ground kept for the glide's reach. */
 	async forgetGlideReach(): Promise<void> {
 		await this.#core?.forgetGlideReach();
+	}
+
+	/**
+	 * The cables around a place, as the core makes them a map layer.
+	 * Nothing from a site without a server, or if the core could not start.
+	 */
+	async cables(place: Coordinate): Promise<CablesMap | undefined> {
+		if (!browser) return undefined;
+		await this.start();
+		return this.#core?.cables(place);
 	}
 
 	/** Numbers the questions about the ground under a flight. */

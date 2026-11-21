@@ -1,13 +1,20 @@
 //! Reporting: how a pilot tells whoever runs the server that a flight, a
-//! pilot's page or a live track should not be there.
+//! pilot's page, a live track, a group or a plan of a group should not be
+//! there.
 //!
 //! A report goes to the operator and to nobody else. The server does
 //! nothing by itself when one arrives, the pilot who is reported is not
-//! told, and nothing comes back to the one who reported. The operator
-//! sees who sent it, which the form has to say.
+//! told, nor is anyone in a group, and nothing comes back to the one who
+//! reported. The operator sees who sent it, which the form has to say.
+//!
+//! The form is the subject's: a group and a plan are words and no flight,
+//! so their forms leave the reason about a flight out and say what the
+//! operator is given to read. A shell asks for the form with what is
+//! reported ([`report_form_for`]) and shows what it gets.
 
 use venti_api_types::v1::{
-    self as api, MAX_REPORT_TEXT_LENGTH, ReportRequest, ReportResponse, parse_report_text,
+    self as api, GroupId, MAX_REPORT_TEXT_LENGTH, PlanId, ReportRequest, ReportResponse,
+    parse_report_text,
 };
 
 use crate::account::json_request;
@@ -42,6 +49,19 @@ pub enum ReportSubject {
     /// A flight shared while it is under way.
     LiveTrack {
         /// The track's identifier.
+        id: String,
+    },
+    /// A group the pilot is in. What is reported is its name.
+    Group {
+        /// The group's identifier on the server.
+        id: String,
+    },
+    /// A plan of a group the pilot is in. What is reported is its place
+    /// and its note.
+    Plan {
+        /// The identifier of the group the plan belongs to.
+        group_id: String,
+        /// The plan's identifier.
         id: String,
     },
 }
@@ -95,52 +115,135 @@ pub struct ReportForm {
     pub notice: String,
 }
 
-/// The reasons a report can give and what the pilot is told before
-/// sending one.
-#[uniffi::export]
-pub fn report_form() -> ReportForm {
-    let choice = |reason, title: &str, explanation: &str| ReportReasonChoice {
-        reason,
-        title: title.to_owned(),
-        explanation: explanation.to_owned(),
+/// The kinds of thing a form is written for.
+#[derive(Clone, Copy)]
+enum Reported {
+    /// A flight, a pilot's page or a live track: what a pilot shares with
+    /// everyone or by a link.
+    Shared,
+    /// A group: its name.
+    Group,
+    /// A plan of a group: its place and its note.
+    Plan,
+}
+
+/// What a reason is called in a form and what it means there. `None` for
+/// a reason that a report about this kind of thing cannot give.
+fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'static str)> {
+    use Reported::{Group, Plan, Shared};
+    Some(match (reason, reported) {
+        (ReportReason::Offensive, Shared) => (
+            "Insulting or threatening",
+            "A name, a glider's name or another text that insults, threatens or harasses.",
+        ),
+        (ReportReason::Offensive, Group) => (
+            "Insulting or threatening",
+            "The group's name insults, threatens or harasses.",
+        ),
+        (ReportReason::Offensive, Plan) => (
+            "Insulting or threatening",
+            "The plan's place or note insults, threatens or harasses.",
+        ),
+        (ReportReason::Impersonation, Shared) => (
+            "Pretends to be someone else",
+            "The account passes itself off as another person or as an organisation.",
+        ),
+        (ReportReason::Impersonation, Group) => (
+            "Pretends to be someone else",
+            "The name passes the group off as a club, a school or an organisation it is not.",
+        ),
+        (ReportReason::Impersonation, Plan) => (
+            "Pretends to be someone else",
+            "The plan passes itself off as another pilot's, a club's or an organisation's.",
+        ),
+        (ReportReason::Privacy, Shared) => (
+            "Shows something private",
+            "Something about a person who did not agree to it: someone else's flight, a name, where someone lives.",
+        ),
+        (ReportReason::Privacy, Group) => (
+            "Shows something private",
+            "The name says something about a person who did not agree to it.",
+        ),
+        (ReportReason::Privacy, Plan) => (
+            "Shows something private",
+            "The plan says something about a person who did not agree to it: a name, where someone lives.",
+        ),
+        (ReportReason::NotAFlight, Shared) => (
+            "Not a real flight",
+            "A track that is made up or altered, or that this pilot did not fly.",
+        ),
+        // A group and a plan are words and no flight.
+        (ReportReason::NotAFlight, Group | Plan) => return None,
+        (ReportReason::Spam, _) => (
+            "Advertising",
+            "Advertising, or something that has nothing to do with flying.",
+        ),
+        (ReportReason::Other, _) => ("Something else", "Say what in your own words."),
+    })
+}
+
+/// Every reason, in the order the server lists them.
+const REASONS: [ReportReason; 6] = [
+    ReportReason::Offensive,
+    ReportReason::Impersonation,
+    ReportReason::Privacy,
+    ReportReason::NotAFlight,
+    ReportReason::Spam,
+    ReportReason::Other,
+];
+
+fn form(reported: Reported) -> ReportForm {
+    let reasons = REASONS
+        .into_iter()
+        .filter_map(|reason| {
+            let (title, explanation) = choice(reason, reported)?;
+            Some(ReportReasonChoice {
+                reason,
+                title: title.to_owned(),
+                explanation: explanation.to_owned(),
+            })
+        })
+        .collect();
+    let notice = match reported {
+        Reported::Shared => {
+            "Whoever runs Venti reads the report and sees that it came from you. The pilot you report is not told, and no answer comes back."
+        }
+        Reported::Group => {
+            "Whoever runs Venti reads the report, with the group's name as it is now, and sees that it came from you. Nobody in the group is told, and no answer comes back."
+        }
+        Reported::Plan => {
+            "Whoever runs Venti reads the report, with the plan's place and note as they are now, and sees that it came from you. Nobody in the group is told, and no answer comes back."
+        }
     };
     ReportForm {
-        reasons: vec![
-            choice(
-                ReportReason::Offensive,
-                "Insulting or threatening",
-                "A name, a glider's name or another text that insults, threatens or harasses.",
-            ),
-            choice(
-                ReportReason::Impersonation,
-                "Pretends to be someone else",
-                "The account passes itself off as another person or as an organisation.",
-            ),
-            choice(
-                ReportReason::Privacy,
-                "Shows something private",
-                "Something about a person who did not agree to it: someone else's flight, a name, where someone lives.",
-            ),
-            choice(
-                ReportReason::NotAFlight,
-                "Not a real flight",
-                "A track that is made up or altered, or that this pilot did not fly.",
-            ),
-            choice(
-                ReportReason::Spam,
-                "Advertising",
-                "Advertising, or something that has nothing to do with flying.",
-            ),
-            choice(
-                ReportReason::Other,
-                "Something else",
-                "Say what in your own words.",
-            ),
-        ],
+        reasons,
         text_at_most: u32::try_from(MAX_REPORT_TEXT_LENGTH).unwrap_or(u32::MAX),
-        notice: "Whoever runs Venti reads the report and sees that it came from you. The pilot you report is not told, and no answer comes back."
-            .to_owned(),
+        notice: notice.to_owned(),
     }
+}
+
+/// The form for a report about a flight, a pilot's page or a live track:
+/// the reasons such a report can give and what the pilot is told before
+/// sending one. For a group or a plan, and for any subject a shell has in
+/// its hand, [`report_form_for`] is the one to ask.
+#[uniffi::export]
+pub fn report_form() -> ReportForm {
+    form(Reported::Shared)
+}
+
+/// The form for a report about `subject`: the reasons a report about such
+/// a thing can give, each with a line that says what it means there, and
+/// what the pilot is told before sending one. Which thing it is does not
+/// matter, only what kind: the form is read before anything is sent.
+#[uniffi::export]
+pub fn report_form_for(subject: ReportSubject) -> ReportForm {
+    form(match subject {
+        ReportSubject::Flight { .. }
+        | ReportSubject::Pilot { .. }
+        | ReportSubject::LiveTrack { .. } => Reported::Shared,
+        ReportSubject::Group { .. } => Reported::Group,
+        ReportSubject::Plan { .. } => Reported::Plan,
+    })
 }
 
 /// The request that sends a report. `text` is what the pilot wrote, and
@@ -148,8 +251,8 @@ pub fn report_form() -> ReportForm {
 ///
 /// # Errors
 ///
-/// When the text is too long, or missing where it is needed, or the
-/// subject has no address.
+/// When the text is too long, or missing where it is needed, the subject
+/// has no address, or the reason is one its form does not offer.
 #[uniffi::export]
 pub fn report_request(
     subject: ReportSubject,
@@ -168,15 +271,41 @@ pub fn report_request(
         ReportSubject::Flight { id } => api::ReportSubject::Flight(id),
         ReportSubject::Pilot { handle } => api::ReportSubject::Pilot(handle),
         ReportSubject::LiveTrack { id } => api::ReportSubject::LiveTrack(id),
+        ReportSubject::Group { id } => api::ReportSubject::Group(id),
+        ReportSubject::Plan { group_id, id } => api::ReportSubject::Plan(api::ReportedPlan {
+            group: group_id,
+            id,
+        }),
     };
-    let named = match &subject {
+    // The server's list of subjects, read to its end: a kind it gains has
+    // to be given words here before the core builds again.
+    let names_something = match &subject {
         api::ReportSubject::Flight(name)
         | api::ReportSubject::Pilot(name)
-        | api::ReportSubject::LiveTrack(name) => name,
+        | api::ReportSubject::LiveTrack(name) => !name.trim().is_empty(),
+        api::ReportSubject::Group(id) => id.parse::<GroupId>().is_ok(),
+        api::ReportSubject::Plan(plan) => {
+            plan.group.parse::<GroupId>().is_ok() && plan.id.parse::<PlanId>().is_ok()
+        }
     };
-    if named.trim().is_empty() {
+    if !names_something {
         return Err(CoreError::Server {
             message: "There is nothing here to report.".to_owned(),
+        });
+    }
+    let reason = match reason {
+        ReportReason::Offensive => api::ReportReason::Offensive,
+        ReportReason::Impersonation => api::ReportReason::Impersonation,
+        ReportReason::Privacy => api::ReportReason::Privacy,
+        ReportReason::NotAFlight => api::ReportReason::NotAFlight,
+        ReportReason::Spam => api::ReportReason::Spam,
+        ReportReason::Other => api::ReportReason::Other,
+    };
+    // The form for a group or a plan does not offer the reason about a
+    // flight, and the server would refuse it.
+    if !subject.reasons().contains(&reason) {
+        return Err(CoreError::Server {
+            message: "This reason is about a flight. Choose another.".to_owned(),
         });
     }
     json_request(
@@ -184,14 +313,7 @@ pub fn report_request(
         api::REPORTS_PATH,
         &ReportRequest {
             subject,
-            reason: match reason {
-                ReportReason::Offensive => api::ReportReason::Offensive,
-                ReportReason::Impersonation => api::ReportReason::Impersonation,
-                ReportReason::Privacy => api::ReportReason::Privacy,
-                ReportReason::NotAFlight => api::ReportReason::NotAFlight,
-                ReportReason::Spam => api::ReportReason::Spam,
-                ReportReason::Other => api::ReportReason::Other,
-            },
+            reason,
             text,
         },
         true,
@@ -207,12 +329,20 @@ pub fn report_request(
 #[uniffi::export]
 pub fn report_sent(status: u16, body: Vec<u8>) -> Result<String, CoreError> {
     // What is gone cannot be reported, and that is no failure of the
-    // pilot's: say so plainly. So for a day's worth of reports.
+    // pilot's: say so plainly. So for a day's worth of reports. A group
+    // and a plan that are gone have their words where every answer about
+    // a group gets them.
     let message = match (status, code(&body).as_deref()) {
         (_, Some("flight_not_found")) => Some("This flight is no longer there."),
         (_, Some("pilot_not_found")) => Some("This pilot is no longer there."),
         (_, Some("live_track_not_found")) => Some("This track is no longer there."),
         (429, _) => Some("You have sent many reports today. Try again tomorrow."),
+        // The core put the request together, so a server that cannot read
+        // it knows fewer kinds of subject than the app: it is from before
+        // groups and plans could be reported.
+        (_, Some("invalid_request")) => {
+            Some("This server cannot take this report. It may be older than the app.")
+        }
         _ => None,
     };
     if let Some(message) = message {
@@ -294,6 +424,214 @@ mod tests {
         );
     }
 
+    /// An example of the server's documentation, as its tests keep it.
+    fn golden(name: &str) -> serde_json::Value {
+        let path = format!(
+            "{}/../server/tests/golden/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    const GROUP: &str = "44444444444444444444444444";
+    const PLAN: &str = "77777777777777777777777777";
+
+    fn a_group() -> ReportSubject {
+        ReportSubject::Group {
+            id: GROUP.to_owned(),
+        }
+    }
+
+    fn a_plan() -> ReportSubject {
+        ReportSubject::Plan {
+            group_id: GROUP.to_owned(),
+            id: PLAN.to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_group_and_a_plan_are_reported_as_the_server_reads_them() {
+        // The two examples of the server's documentation, word for word.
+        let request = report_request(
+            a_group(),
+            ReportReason::Impersonation,
+            " This is not the club's group. The club has none here.\n".to_owned(),
+        )
+        .unwrap();
+        assert_eq!(
+            (request.method.as_str(), request.path.as_str()),
+            ("POST", "/v1/reports")
+        );
+        assert!(request.needs_token);
+        let body: serde_json::Value = serde_json::from_slice(&request.body.unwrap()).unwrap();
+        assert_eq!(body, golden("report_group_request.json"));
+        assert_eq!(body["subject"], serde_json::json!({ "group": GROUP }));
+
+        let request = report_request(
+            a_plan(),
+            ReportReason::Spam,
+            "An advertisement, not a plan.".to_owned(),
+        )
+        .unwrap();
+        // In the body, like every subject: a path is what a log names.
+        assert_eq!(request.path, "/v1/reports");
+        let body: serde_json::Value = serde_json::from_slice(&request.body.unwrap()).unwrap();
+        assert_eq!(body, golden("report_plan_request.json"));
+        assert_eq!(
+            body["subject"],
+            serde_json::json!({ "plan": { "group": GROUP, "id": PLAN } })
+        );
+
+        // What is no identifier names nothing, and is not sent.
+        for nothing in [
+            ReportSubject::Group { id: String::new() },
+            ReportSubject::Group {
+                id: "Mustergruppe".to_owned(),
+            },
+            ReportSubject::Plan {
+                group_id: GROUP.to_owned(),
+                id: " ".to_owned(),
+            },
+            ReportSubject::Plan {
+                group_id: "mine".to_owned(),
+                id: PLAN.to_owned(),
+            },
+        ] {
+            assert_eq!(
+                words(report_request(nothing, ReportReason::Spam, String::new())),
+                "There is nothing here to report."
+            );
+        }
+        // The reason about a flight is not one a group or a plan is
+        // reported for; neither form offers it.
+        for subject in [a_group(), a_plan()] {
+            assert_eq!(
+                words(report_request(
+                    subject,
+                    ReportReason::NotAFlight,
+                    String::new()
+                )),
+                "This reason is about a flight. Choose another."
+            );
+        }
+        // The rules about the pilot's own words are those of every report.
+        assert_eq!(
+            words(report_request(a_plan(), ReportReason::Other, String::new())),
+            "Say in a few words what is wrong."
+        );
+        assert_eq!(
+            words(report_request(
+                a_group(),
+                ReportReason::Spam,
+                "x".repeat(1001)
+            )),
+            "A report has room for 1000 characters. Shorten it."
+        );
+    }
+
+    #[test]
+    fn the_form_for_a_group_or_a_plan_says_what_is_read_and_leaves_flights_out() {
+        let flight = ReportSubject::Flight {
+            id: "fbyw03atd9qdt5bfe177ra1k94".to_owned(),
+        };
+        let pilot = ReportSubject::Pilot {
+            handle: "mara".to_owned(),
+        };
+        let track = ReportSubject::LiveTrack {
+            id: "33333333333333333333333333".to_owned(),
+        };
+        // What a pilot shares has the form it always had.
+        for shared in [flight, pilot, track] {
+            assert_eq!(report_form_for(shared), report_form());
+        }
+
+        let group = report_form_for(a_group());
+        let plan = report_form_for(a_plan());
+        for form in [&group, &plan] {
+            let listed: Vec<_> = form.reasons.iter().map(|choice| choice.reason).collect();
+            assert_eq!(
+                listed,
+                [
+                    ReportReason::Offensive,
+                    ReportReason::Impersonation,
+                    ReportReason::Privacy,
+                    ReportReason::Spam,
+                    ReportReason::Other,
+                ]
+            );
+            assert_eq!(form.text_at_most, 1000);
+            // A report is not anonymous, whatever it is about.
+            assert!(form.notice.contains("sees that it came from you"));
+            assert!(form.notice.contains("Nobody in the group is told"));
+            assert!(form.notice.ends_with("no answer comes back."));
+            for choice in &form.reasons {
+                assert!(!choice.title.is_empty() && choice.explanation.ends_with('.'));
+                assert!(!choice.explanation.contains("flight"), "{choice:?}");
+                assert!(!choice.explanation.contains("glider"), "{choice:?}");
+            }
+        }
+        // Each says what whoever runs the server is given to read.
+        assert_eq!(
+            group.notice,
+            "Whoever runs Venti reads the report, with the group's name as it is now, and sees that it came from you. Nobody in the group is told, and no answer comes back."
+        );
+        assert_eq!(
+            plan.notice,
+            "Whoever runs Venti reads the report, with the plan's place and note as they are now, and sees that it came from you. Nobody in the group is told, and no answer comes back."
+        );
+        assert_eq!(
+            group.reasons[0].explanation,
+            "The group's name insults, threatens or harasses."
+        );
+        assert_eq!(
+            plan.reasons[0].explanation,
+            "The plan's place or note insults, threatens or harasses."
+        );
+        // The names of the reasons are the same in every form.
+        let titles = |form: &ReportForm| -> Vec<String> {
+            form.reasons.iter().map(|c| c.title.clone()).collect()
+        };
+        assert_eq!(titles(&group), titles(&plan));
+        let shared = titles(&report_form());
+        assert!(titles(&group).iter().all(|title| shared.contains(title)));
+    }
+
+    #[test]
+    fn every_form_lists_the_reasons_the_server_takes_for_its_subject() {
+        let subjects = [
+            (
+                ReportSubject::Pilot {
+                    handle: "mara".to_owned(),
+                },
+                api::ReportSubject::Pilot("mara".to_owned()),
+            ),
+            (a_group(), api::ReportSubject::Group(GROUP.to_owned())),
+            (
+                a_plan(),
+                api::ReportSubject::Plan(api::ReportedPlan {
+                    group: GROUP.to_owned(),
+                    id: PLAN.to_owned(),
+                }),
+            ),
+        ];
+        for (ours, theirs) in subjects {
+            let form = report_form_for(ours.clone());
+            assert_eq!(form.reasons.len(), theirs.reasons().len(), "{ours:?}");
+            // Each sends the name the server's list has at the same place.
+            for (choice, reason) in form.reasons.iter().zip(theirs.reasons()) {
+                let text = if choice.reason == ReportReason::Other {
+                    "why"
+                } else {
+                    ""
+                };
+                let request = report_request(ours.clone(), choice.reason, text.to_owned()).unwrap();
+                let body: serde_json::Value =
+                    serde_json::from_slice(&request.body.unwrap()).unwrap();
+                assert_eq!(body["reason"], reason.name().unwrap(), "{ours:?}");
+            }
+        }
+    }
+
     #[test]
     fn a_report_the_server_would_refuse_is_refused_before_it_is_sent() {
         let flight = || ReportSubject::Flight {
@@ -365,6 +703,40 @@ mod tests {
                 br#"{"error":{"code":"unauthorized","message":"x"}}"#.to_vec()
             )),
             "This device is no longer signed in. Sign in again."
+        );
+    }
+
+    #[test]
+    fn a_group_or_a_plan_that_is_gone_and_a_server_that_knows_neither_are_said_in_words() {
+        // The pilot left the group or was removed, or the group is gone:
+        // the server does not say which, and neither do the words.
+        assert_eq!(
+            words(report_sent(
+                404,
+                br#"{"error":{"code":"group_not_found","message":"x"}}"#.to_vec()
+            )),
+            "This group is no longer there, or you are no longer in it."
+        );
+        assert_eq!(
+            words(report_sent(
+                404,
+                br#"{"error":{"code":"plan_not_found","message":"x"}}"#.to_vec()
+            )),
+            "This plan is no longer there."
+        );
+        // A server from before groups could be reported cannot read the
+        // subject, and says so as of any request it cannot read.
+        assert_eq!(
+            words(report_sent(
+                400,
+                br#"{"error":{"code":"invalid_request","message":"x"}}"#.to_vec()
+            )),
+            "This server cannot take this report. It may be older than the app."
+        );
+        // Stored, a report about either is answered like any other.
+        assert_eq!(
+            report_sent(201, br#"{"created":true}"#.to_vec()).unwrap(),
+            "Sent. Whoever runs Venti will read it."
         );
     }
 

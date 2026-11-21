@@ -1,4 +1,4 @@
-3 reports are open, oldest first.
+5 reports are open, oldest first.
 
 Report 0000000000000000000000rep1, open, made 2026-11-17 17:05 UTC
   About:        flight fbyw03atd9qdt5bfe177ra1k94 of mara (Mara Muster); now public
@@ -20,4 +20,21 @@ Report 0000000000000000000000rep3, open, made 2026-11-18 18:55 UTC
   Text:         Nobody is flying there. It is night.
   Reported by:  mara
 
-A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing and close-report.
+Report 0000000000000000000000rep4, open, made 2026-11-18 18:59 UTC
+  About:        group 44444444444444444444444444, which demo (Demo Pilot) kept when it was reported
+  Name then:    Mustergruppe
+  Now:          the same name; kept by demo (Demo Pilot), 3 members
+  Reason:       impersonation
+  Text:         This is not the club's group. The club has none here.
+  Reported by:  jonas
+
+Report 0000000000000000000000rep5, open, made 2026-11-18 19:03 UTC
+  About:        plan 77777777777777777777777777 of mara (Mara Muster), in group 44444444444444444444444444
+  Place then:   Beispielwiese
+  Note then:    A made-up plan. Ground handling if the wind allows, coffee if not.
+  Now:          the same words, for 2026-11-19 at 09:00; its group is called "Mustergruppe"
+  Reason:       spam
+  Text:         An advertisement, not a plan.
+  Reported by:  demo
+
+A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing, group, rename-group, remove-plan, remove-group and close-report.

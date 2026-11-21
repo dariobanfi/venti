@@ -18,9 +18,10 @@ use crate::{
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
     MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
-    ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
+    PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey,
+    ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet,
+    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
+    VisibilityChange,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -475,6 +476,38 @@ impl Store for TroubledStore {
     }
 
     async fn prune_plans(&self, _: NaiveDate) -> Result<u64, StoreError> {
+        self.fail().await
+    }
+
+    async fn any_group(&self, _: &str) -> Result<Option<GroupMembers>, StoreError> {
+        self.fail().await
+    }
+
+    async fn plans_of_any_group(
+        &self,
+        _: &str,
+        _: NaiveDate,
+    ) -> Result<Option<Vec<Plan>>, StoreError> {
+        self.fail().await
+    }
+
+    async fn any_plan(&self, _: &str, _: NaiveDate) -> Result<Option<Plan>, StoreError> {
+        self.fail().await
+    }
+
+    async fn rename_any_group(&self, _: &str, _: &str) -> Result<Option<GroupMembers>, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_plan(&self, _: &str, _: NaiveDate) -> Result<Option<Plan>, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_group(
+        &self,
+        _: &str,
+        _: NaiveDate,
+    ) -> Result<Option<RemovedGroup>, StoreError> {
         self.fail().await
     }
 

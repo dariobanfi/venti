@@ -1,0 +1,23 @@
+Group 44444444444444444444444444, made 2026-10-19 19:05 UTC
+  Name:         Mustergruppe
+  Kept by:      demo (Demo Pilot)
+  Members:      3, in the order they came in
+                demo (Demo Pilot)
+                mara (Mara Muster)
+                jonas (Jonas Beispiel)
+  Plans:        3
+
+Plan 66666666666666666666666666, for 2026-11-18 at 10:30, posted by demo (Demo Pilot); 3 pilots are in
+  Place:        Musterberg, Startplatz Ost
+  Position:     47.66420, 11.79670
+  Note:         A made-up plan of the development mode.
+                At the lift at half past ten, in the air by noon.
+
+Plan 77777777777777777777777777, for 2026-11-19 at 09:00, posted by mara (Mara Muster); 2 pilots are in
+  Place:        Beispielwiese
+  Note:         A made-up plan. Ground handling if the wind allows, coffee if not.
+
+Plan 88888888888888888888888888, for 2026-11-20, posted by jonas (Jonas Beispiel); 2 pilots are in
+  Place:        Musterberg
+
+This is what the members of the group see, and nobody else does. Nothing was changed: see `venti-server --help` for rename-group, remove-plan and remove-group.

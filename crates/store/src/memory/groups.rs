@@ -10,7 +10,7 @@ use crate::group::{check_details, check_group, check_name, check_plan};
 use crate::{
     Group, GroupCreation, GroupJoining, GroupMembers, GroupPilot, GroupRoom, KeeperAct,
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
-    PlanSaving, SecretHash, StoreError,
+    PlanSaving, RemovedGroup, SecretHash, StoreError,
 };
 
 #[derive(Debug, Default)]
@@ -563,5 +563,86 @@ impl Groups {
         let held = self.plans.len();
         self.plans.retain(|_, plan| plan.details.day >= before);
         (held - self.plans.len()) as u64
+    }
+
+    // What follows is for whoever runs the server: it asks for no account
+    // and answers for any group.
+
+    pub(super) fn any(&self, id: &str, accounts: &Accounts) -> Option<GroupMembers> {
+        self.groups
+            .get(id)
+            .map(|entry| entry.read_with_members(id, accounts))
+    }
+
+    pub(super) fn plans_of_any(
+        &self,
+        group_id: &str,
+        from: NaiveDate,
+        accounts: &Accounts,
+    ) -> Option<Vec<Plan>> {
+        self.groups.get(group_id)?;
+        let plans = self
+            .plans
+            .iter()
+            .filter(|(_, plan)| plan.group_id == group_id && plan.is_for(from, None))
+            .map(|(id, plan)| plan.read(id, accounts))
+            .collect();
+        Some(sorted(plans))
+    }
+
+    pub(super) fn any_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+        accounts: &Accounts,
+    ) -> Option<Plan> {
+        self.plans
+            .get(plan_id)
+            .filter(|plan| plan.details.day >= gone_before)
+            .map(|plan| plan.read(plan_id, accounts))
+    }
+
+    pub(super) fn rename_any(
+        &mut self,
+        id: &str,
+        name: &str,
+        accounts: &Accounts,
+    ) -> Result<Option<GroupMembers>, StoreError> {
+        check_name(name)?;
+        Ok(self.groups.get_mut(id).map(|entry| {
+            name.clone_into(&mut entry.name);
+            entry.read_with_members(id, accounts)
+        }))
+    }
+
+    pub(super) fn remove_plan(
+        &mut self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+        accounts: &Accounts,
+    ) -> Option<Plan> {
+        let plan = self.any_plan(plan_id, gone_before, accounts)?;
+        self.plans.remove(plan_id);
+        Some(plan)
+    }
+
+    pub(super) fn remove(
+        &mut self,
+        id: &str,
+        gone_before: NaiveDate,
+        accounts: &Accounts,
+    ) -> Option<RemovedGroup> {
+        let group = self.any(id, accounts)?;
+        let plans = self
+            .plans
+            .values()
+            .filter(|plan| plan.group_id == id && plan.details.day >= gone_before)
+            .count();
+        self.groups.remove(id);
+        self.plans.retain(|_, plan| plan.group_id != id);
+        Some(RemovedGroup {
+            group,
+            plans: count(plans),
+        })
     }
 }

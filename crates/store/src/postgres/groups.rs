@@ -20,6 +20,10 @@
 //! The database itself holds every writer to the rest: a group's keeper is
 //! one of its members, and what a member put into a group goes with the
 //! member (`0010_groups_and_plans.sql`).
+//!
+//! **Whoever runs the server asks as nobody.** The calls at the end of
+//! this file name no account and answer for any group. They take the same
+//! locks as a member's call that does the same.
 
 use std::collections::BTreeMap;
 
@@ -34,7 +38,7 @@ use crate::group::{can_name, check_details, check_group, check_name, check_plan,
 use crate::{
     Group, GroupCreation, GroupJoining, GroupMembers, GroupPilot, GroupRoom, KeeperAct,
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
-    PlanSaving, SecretHash, StoreError,
+    PlanSaving, RemovedGroup, SecretHash, StoreError,
 };
 
 /// Everything [`group_from`] reads: a group `g` and its keeper's account
@@ -473,19 +477,16 @@ pub(super) async fn get(
     id: &str,
     account_id: &str,
 ) -> Result<Option<GroupMembers>, StoreError> {
-    if !can_name(&[id, account_id]) {
+    if !can_name(&[account_id]) {
         return Ok(None);
     }
-    let tx = at_one_moment(client).await?;
-    let Some(mut group) = read_group(&tx, id).await? else {
-        return Ok(None);
+    // To an account that is not in it, the group is not there.
+    let is_in = |seen: &GroupMembers| {
+        seen.members
+            .iter()
+            .any(|member| member.account_id == account_id)
     };
-    let members = read_members(&tx, id).await?;
-    if !members.iter().any(|member| member.account_id == account_id) {
-        return Ok(None);
-    }
-    group.members = count(i64::try_from(members.len()).unwrap_or(i64::MAX));
-    Ok(Some(GroupMembers { group, members }))
+    Ok(any(client, id).await?.filter(is_in))
 }
 
 pub(super) async fn rename(
@@ -961,6 +962,16 @@ pub(super) async fn plans_of_group(
     if member.is_none() {
         return Ok(None);
     }
+    Ok(Some(plans_in(&tx, group_id, from, to).await?))
+}
+
+/// The plans of a group for the days asked for, with who is in on each.
+async fn plans_in(
+    tx: &Transaction<'_>,
+    group_id: &str,
+    from: NaiveDate,
+    to: Option<NaiveDate>,
+) -> Result<Vec<Plan>, StoreError> {
     let query = format!(
         "SELECT {PLAN_COLUMNS} {PLAN_FROM}
          WHERE p.group_id = $1 AND p.day >= $2 AND ($3::date IS NULL OR p.day <= $3)
@@ -972,7 +983,7 @@ pub(super) async fn plans_of_group(
         .await
         .map_err(db_error)?;
     let plans = rows.iter().map(plan_from).collect::<Result<_, _>>()?;
-    Ok(Some(with_pilots(&tx, plans).await?))
+    with_pilots(tx, plans).await
 }
 
 pub(super) async fn plans_for(
@@ -1013,4 +1024,140 @@ pub(super) async fn prune_plans(client: &Client, before: NaiveDate) -> Result<u6
         .execute("DELETE FROM group_plans WHERE day < $1", &[&bound(before)])
         .await
         .map_err(db_error)
+}
+
+// --- For whoever runs the server ------------------------------------------------
+
+pub(super) async fn any(client: &mut Client, id: &str) -> Result<Option<GroupMembers>, StoreError> {
+    if !can_name(&[id]) {
+        return Ok(None);
+    }
+    let tx = at_one_moment(client).await?;
+    let Some(mut group) = read_group(&tx, id).await? else {
+        return Ok(None);
+    };
+    let members = read_members(&tx, id).await?;
+    group.members = count(i64::try_from(members.len()).unwrap_or(i64::MAX));
+    Ok(Some(GroupMembers { group, members }))
+}
+
+pub(super) async fn plans_of_any(
+    client: &mut Client,
+    group_id: &str,
+    from: NaiveDate,
+) -> Result<Option<Vec<Plan>>, StoreError> {
+    if !can_name(&[group_id]) {
+        return Ok(None);
+    }
+    let tx = at_one_moment(client).await?;
+    let group = tx
+        .query_opt("SELECT 1 FROM groups WHERE id = $1", &[&group_id])
+        .await
+        .map_err(db_error)?;
+    if group.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(plans_in(&tx, group_id, from, None).await?))
+}
+
+pub(super) async fn any_plan(
+    client: &mut Client,
+    plan_id: &str,
+    gone_before: NaiveDate,
+) -> Result<Option<Plan>, StoreError> {
+    if !can_name(&[plan_id]) {
+        return Ok(None);
+    }
+    let tx = at_one_moment(client).await?;
+    let query = format!("SELECT {PLAN_COLUMNS} {PLAN_FROM} WHERE p.id = $1 AND p.day >= $2");
+    let statement = tx.prepare_cached(&query).await.map_err(db_error)?;
+    let row = tx
+        .query_opt(&statement, &[&plan_id, &bound(gone_before)])
+        .await
+        .map_err(db_error)?;
+    let Some(plan) = row.as_ref().map(plan_from).transpose()? else {
+        return Ok(None);
+    };
+    Ok(with_pilots(&tx, vec![plan]).await?.pop())
+}
+
+pub(super) async fn rename_any(
+    client: &mut Client,
+    id: &str,
+    name: &str,
+) -> Result<Option<GroupMembers>, StoreError> {
+    check_name(name)?;
+    if !can_name(&[id]) {
+        return Ok(None);
+    }
+    let tx = client.transaction().await.map_err(db_error)?;
+    if lock_group(&tx, id).await?.is_none() {
+        return Ok(None);
+    }
+    tx.execute("UPDATE groups SET name = $2 WHERE id = $1", &[&id, &name])
+        .await
+        .map_err(db_error)?;
+    let group = held_with_members(&tx, id).await?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(Some(group))
+}
+
+pub(super) async fn remove_plan(
+    client: &mut Client,
+    plan_id: &str,
+    gone_before: NaiveDate,
+) -> Result<Option<Plan>, StoreError> {
+    if !can_name(&[plan_id]) {
+        return Ok(None);
+    }
+    let tx = client.transaction().await.map_err(db_error)?;
+    // Held until it is gone, so that what is handed back is what went.
+    let there = tx
+        .query_opt(
+            "SELECT 1 FROM group_plans WHERE id = $1 AND day >= $2 FOR UPDATE",
+            &[&plan_id, &bound(gone_before)],
+        )
+        .await
+        .map_err(db_error)?;
+    if there.is_none() {
+        return Ok(None);
+    }
+    let plan = held_plan(&tx, plan_id).await?;
+    tx.execute("DELETE FROM group_plans WHERE id = $1", &[&plan_id])
+        .await
+        .map_err(db_error)?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(Some(plan))
+}
+
+pub(super) async fn remove(
+    client: &mut Client,
+    id: &str,
+    gone_before: NaiveDate,
+) -> Result<Option<RemovedGroup>, StoreError> {
+    if !can_name(&[id]) {
+        return Ok(None);
+    }
+    let tx = client.transaction().await.map_err(db_error)?;
+    if lock_group(&tx, id).await?.is_none() {
+        return Ok(None);
+    }
+    let group = held_with_members(&tx, id).await?;
+    let plans: i64 = tx
+        .query_one(
+            "SELECT count(*) FROM group_plans WHERE group_id = $1 AND day >= $2",
+            &[&id, &bound(gone_before)],
+        )
+        .await
+        .map_err(db_error)?
+        .get(0);
+    // Its members' places and its plans go with it.
+    tx.execute("DELETE FROM groups WHERE id = $1", &[&id])
+        .await
+        .map_err(db_error)?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(Some(RemovedGroup {
+        group,
+        plans: count(plans),
+    }))
 }

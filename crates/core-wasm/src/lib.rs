@@ -1288,16 +1288,26 @@ pub fn public_flight(status: u16, body: Vec<u8>) -> Result<Ts<PublicFlight>, JsV
     to_js(&venti_core::public_flight(status, body).map_err(thrown)?)
 }
 
-/// The reasons a report can give and what the pilot is told before
-/// sending one.
+/// The reasons a report about a flight, a pilot's page or a live track can
+/// give, and what the pilot is told before sending one. For a group or a
+/// plan, and for any subject at hand, `reportFormFor` is the one to ask.
 #[wasm_bindgen(js_name = reportForm)]
 pub fn report_form() -> Result<Ts<ReportForm>, JsValue> {
     to_js(&venti_core::report_form())
 }
 
+/// The form for a report about `subject`: the reasons a report about such
+/// a thing can give, each with what it means there, and what the pilot is
+/// told before sending one. A group and a plan have forms of their own.
+#[wasm_bindgen(js_name = reportFormFor)]
+pub fn report_form_for(subject: Ts<ReportSubject>) -> Result<Ts<ReportForm>, JsValue> {
+    to_js(&venti_core::report_form_for(from_js(&subject)?))
+}
+
 /// The request that tells whoever runs the server that a flight, a
-/// pilot's page or a live track should not be there. `text` is what the
-/// pilot wrote, and may be empty except with the reason "other".
+/// pilot's page, a live track, a group or a plan of a group should not be
+/// there. `text` is what the pilot wrote, and may be empty except with
+/// the reason "other".
 #[wasm_bindgen(js_name = reportRequest)]
 pub fn report_request(
     subject: Ts<ReportSubject>,

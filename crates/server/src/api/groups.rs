@@ -38,8 +38,8 @@ use venti_api_types::v1::{
 };
 use venti_domain::Timestamp;
 use venti_store::{
-    GroupCreation, GroupJoining, KeeperAct, MemberRemoval, NewGroup, NewPlan, PlanChange,
-    PlanDetails, PlanRemoval, PlanSaving, Store,
+    GroupCreation, GroupJoining, GroupMembers, KeeperAct, MemberRemoval, NewGroup, NewPlan,
+    PlanChange, PlanDetails, PlanRemoval, PlanSaving, Store,
 };
 
 use super::auth::Signed;
@@ -79,14 +79,16 @@ impl Groups {
 /// The answer for a group the asker is not in: no group has the
 /// identifier, or one has and the asker is no member of it. The two must
 /// not differ in anything.
-fn no_such_group() -> ApiError {
+pub(crate) fn no_such_group() -> ApiError {
     ApiError::missing(
         ErrorCode::GroupNotFound,
         "there is no group with this identifier that you are in",
     )
 }
 
-fn no_such_plan() -> ApiError {
+/// The answer for a plan its group does not have, which only a member of
+/// the group is given.
+pub(crate) fn no_such_plan() -> ApiError {
     ApiError::missing(
         ErrorCode::PlanNotFound,
         "the group has no plan with this identifier",
@@ -182,6 +184,48 @@ pub(crate) struct DayParams {
 }
 
 impl<S: Store> Api<S> {
+    /// A group with its members, as the asker reads it: what
+    /// `GET /v1/groups/{id}` shows a member, and that endpoint's answer
+    /// for everyone else. Text that is no identifier is the identifier of
+    /// no group.
+    pub(crate) async fn group_as_member(
+        &self,
+        id: &str,
+        signed: &Signed,
+    ) -> Result<GroupMembers, ApiError> {
+        let id = group_id(id)?;
+        self.store
+            .group(id.as_str(), &signed.account.id)
+            .await?
+            .ok_or_else(no_such_group)
+    }
+
+    /// One plan of a group, as the asker reads it: found in what
+    /// `GET /v1/groups/{id}/plans` lists for a member, from the first day
+    /// whose plans are still there. An account that is not in the group
+    /// is given that endpoint's answer, whatever the plan; text that is no
+    /// identifier is the identifier of no plan, which only a member is
+    /// told.
+    pub(crate) async fn plan_as_member(
+        &self,
+        group: &str,
+        plan: &str,
+        signed: &Signed,
+        now: Timestamp,
+    ) -> Result<venti_store::Plan, ApiError> {
+        let group = group_id(group)?;
+        let from = self.groups.limits.gone_before(now);
+        let listed = self
+            .store
+            .plans_of_group(group.as_str(), &signed.account.id, from, None)
+            .await?
+            .ok_or_else(no_such_group)?;
+        listed
+            .into_iter()
+            .find(|listed| listed.id == plan)
+            .ok_or_else(no_such_plan)
+    }
+
     /// The identifiers of a group and of one of its plans from a path. A
     /// plan's identifier of another form is the identifier of no plan,
     /// which only a member of the group is told.
@@ -402,12 +446,7 @@ pub(crate) async fn show<S: Store>(
     signed: Signed,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
-    let id = group_id(&id)?;
-    let seen = api
-        .store
-        .group(id.as_str(), &signed.account.id)
-        .await?
-        .ok_or_else(no_such_group)?;
+    let seen = api.group_as_member(&id, &signed).await?;
     let answer = wire::group_with_members(&seen)?;
     Ok(cache::private_json(StatusCode::OK, &answer))
 }

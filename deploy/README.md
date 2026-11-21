@@ -164,7 +164,7 @@ Where the addresses are hidden, everyone counts as one: thirty wrong passwords b
 
 ## Reports and taking things down
 
-A signed-in pilot can report a flight, a pilot's page or a live track to you, with one of six reasons and some words ([api.md](../docs/api.md#reports)). The server stores the report and does nothing else. You read the reports and decide, with these commands; there is no web page for it.
+A signed-in pilot can report a flight, a pilot's page or a live track to you, and a member of a group the group's name or one of its plans, with one of six reasons and some words ([api.md](../docs/api.md#reports)). The server stores the report and does nothing else. You read the reports and decide, with these commands; there is no web page for it.
 
 ```bash
 cd /opt/venti/deploy
@@ -176,6 +176,10 @@ docker compose exec server venti-server release <FLIGHT>
 docker compose exec server venti-server remove-live-track <TRACK>    # a track's identifier, or the link to its page
 docker compose exec server venti-server suspend-publishing <HANDLE>
 docker compose exec server venti-server resume-publishing <HANDLE>
+docker compose exec server venti-server group <GROUP>                # one group as its members see it; the identifier is in the report
+docker compose exec server venti-server rename-group <GROUP> --name "Flying friends"
+docker compose exec server venti-server remove-plan <PLAN>
+docker compose exec server venti-server remove-group <GROUP>
 ```
 
 Each command does one thing, takes effect at once, and says what it did and what it did not. One pointed at something that is not there says so and fails. None deletes a flight or an account, and none closes a report: taking a flight down and closing its report are two commands.
@@ -183,7 +187,7 @@ Each command does one thing, takes effect at once, and says what it did and what
 This is what `reports` prints, here for three made-up pilots:
 
 ```
-3 reports are open, oldest first.
+5 reports are open, oldest first.
 
 Report 0000000000000000000000rep1, open, made 2026-11-17 17:05 UTC
   About:        flight fbyw03atd9qdt5bfe177ra1k94 of mara (Mara Muster); now public
@@ -205,24 +209,47 @@ Report 0000000000000000000000rep3, open, made 2026-11-18 18:55 UTC
   Text:         Nobody is flying there. It is night.
   Reported by:  mara
 
-A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing and close-report.
+Report 0000000000000000000000rep4, open, made 2026-11-18 18:59 UTC
+  About:        group 44444444444444444444444444, which demo (Demo Pilot) kept when it was reported
+  Name then:    Mustergruppe
+  Now:          the same name; kept by demo (Demo Pilot), 3 members
+  Reason:       impersonation
+  Text:         This is not the club's group. The club has none here.
+  Reported by:  jonas
+
+Report 0000000000000000000000rep5, open, made 2026-11-18 19:03 UTC
+  About:        plan 77777777777777777777777777 of mara (Mara Muster), in group 44444444444444444444444444
+  Place then:   Beispielwiese
+  Note then:    A made-up plan. Ground handling if the wind allows, coffee if not.
+  Now:          the same words, for 2026-11-19 at 09:00; its group is called "Mustergruppe"
+  Reason:       spam
+  Text:         An advertisement, not a plan.
+  Reported by:  demo
+
+A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing, group, rename-group, remove-plan, remove-group and close-report.
 ```
 
 | Command | What it does | What it does not do |
 |---|---|---|
-| `reports` | Lists the open reports, oldest first: what is reported and whose, what it is now, the link to look at it (when `VENTI_PUBLIC_URL` is set), the reason, the reporter's words and handle. `--all` adds the closed ones with their notes | Changes nothing, writes nothing to the log |
+| `reports` | Lists the open reports, oldest first: what is reported and whose, what it is now, the link to look at it (when `VENTI_PUBLIC_URL` is set), of a group or a plan the words as they were reported, the reason, the reporter's words and handle. `--all` adds the closed ones with their notes | Changes nothing, writes nothing to the log |
 | `close-report <ID> --note TEXT` | Closes a report with your note of 1 to 1,000 characters. The same pilot can then report the same thing again | Tells nobody, and does nothing about what was reported |
 | `take-down <FLIGHT>` | Makes one flight private and keeps it so: its link shows no flight, it is in no list, and its pilot cannot share it again, also not by uploading the same file. The pilot's apps are told that it was taken down | Does not delete it, does not say why, and does not stop the pilot from uploading a changed file: for that, suspend publishing |
 | `release <FLIGHT>` | Lets the pilot share the flight again | Shares nothing |
 | `remove-live-track <TRACK>` | Deletes one live track with its positions and retires its identifier; its link shows no track | Does not stop the pilot's app, which goes on under a new identifier. Cannot be undone |
 | `suspend-publishing <HANDLE>` | The account can make nothing public: its public flights and live tracks become shared by link, and so does everything it sends from then on. Its apps are told | Does not delete, sign out or stop the account, and takes nothing from those who have a link |
 | `resume-publishing <HANDLE>` | Gives the ability back | Makes nothing public again |
+| `group <GROUP>` | Shows one group as its members see it: its name, who keeps it, who is in it, and its plans with their day, place and note. Of who is in on a plan it says how many | Changes nothing, writes nothing to the log. Lists no other group: there is no command that does |
+| `rename-group <GROUP> --name TEXT` | Gives the group another name of 1 to 60 characters, which its members see when their apps next ask | Tells nobody, and marks nothing: the group does not say who named it. Does not stop its keeper from naming it back: against that, remove the group |
+| `remove-plan <PLAN>` | Deletes one plan with who was in on it, as its author could | Tells nobody. Does not stop its author from posting it again. Cannot be undone |
+| `remove-group <GROUP>` | Deletes one group with its members' places in it, all its plans and its invite code, as its keeper could | Tells nobody, touches no account, and does not stop anyone from making a group again. Cannot be undone |
 
 - **Look at what was reported before you act.** The server checked nothing of it, and anyone with an account can send one.
-- **What `reports` prints is for your eyes.** It names who reported, and a live track's identifier is the key to where a person is. Do not paste it where others read.
-- **The pilot is told the fact and nothing else.** The server knows no email address. Why, the pilot learns only if you tell them some other way.
+- **What `reports` and `group` print is for your eyes.** `reports` names who reported, and a live track's identifier is the key to where a person is. `group` says who is in a group and where its members mean to be on a day, which nobody outside the group is shown anywhere else. Do not paste either where others read.
+- **A report about a group or a plan shows the words as they were reported**, and beside them what stands there now: a name, a place and a note can be changed or deleted a moment after the report. `Name then`, `Place then` and `Note then` are what the reporter saw; `Now` says whether it is still so, and what the plan says instead if it changed. Of a group the report names the pilot who kept it when it was reported.
+- **A pilot whose flight you took down or whose publishing you suspended is told the fact and nothing else.** The server knows no email address. Why, the pilot learns only if you tell them some other way.
+- **In a group nobody is told anything.** A group you renamed has the new name, and a plan or a group you removed is gone, as if its keeper or its author had done it: no app says that it was you, and the server keeps no trace that could. A keeper who finds the group renamed will not know by whom. Tell them some other way if you can.
 - **Nothing tells you that reports wait** except a daily line in the log, ``3 reports are open: `venti-server reports` lists them``. Look at the log, or run `reports`.
-- **Reports are kept** until closed and 90 days after (`VENTI_REPORT_DAYS`), and go with either account. They are in the dumps.
+- **Reports are kept** until closed and 90 days after (`VENTI_REPORT_DAYS`), and go with either account. They are in the dumps. With a report about a group goes the group's name as it was, and with one about a plan its place and its note: the only words of a plan that are kept past its day, and the only ones in a dump. Close such a report when you are done with it.
 - **What is allowed on your server is yours to say.** The project has written no rules of conduct yet ([plan.md](../docs/plan.md#needed-from-the-owner)).
 
 No command lists what you took down or suspended; these queries do:
@@ -237,10 +264,12 @@ SELECT handle, publishing_suspended_at FROM accounts WHERE publishing_suspended_
 
 Pilots make groups, which only their members see, and plan flying days in them ([api.md](../docs/api.md#groups)). There is nothing to set up.
 
-- **You see no group** through any command or the API. The database holds their names, members and plans, which say where people mean to be on a day: treat it as that. The log holds nothing of a group.
+- **You see a group when you point a command at it, and not otherwise.** A member who reports a group or a plan gives you its identifier, in what `reports` prints, and `group <GROUP>` shows that one group as its members see it ([above](#reports-and-taking-things-down)). No command lists the groups, and the API shows you none. The database holds every group's name, members and plans, which say where people mean to be on a day: treat it as that. The log holds nothing of a group.
+- **Its keeper clears up in a group**: deletes any plan, removes any member, renames it. `rename-group`, `remove-plan` and `remove-group` are for what a keeper does not clear up, and for a keeper who is the trouble. Nobody is told; the apps find out when they next ask.
 - **Invite codes are not in the database**, only their hashes. A keeper who lost one makes a new one in the app.
-- **Plans are removed two days after their day** (`VENTI_PLAN_DAYS`) and are not in the dumps; groups and members are.
-- **Nobody can report a group or a plan yet**, and no command removes one. Its keeper clears up in a group. If something must go all the same, do it in the database:
+- **Plans are removed two days after their day** (`VENTI_PLAN_DAYS`) and are not in the dumps; groups and members are. A plan that the API no longer shows is no plan to the commands either. What was reported of a plan stays with its report.
+
+No command lists every group, on purpose: such a list is every circle of pilots on the server at one glance, and whoever acts on a report has the identifier already. This statement does, for an operator who must:
 
 ```sql
 -- The groups, with who keeps each and how many members and plans it has.
@@ -249,25 +278,9 @@ SELECT g.id, g.name, k.handle AS keeper, g.created_at,
        (SELECT count(*) FROM group_plans p WHERE p.group_id = g.id) AS plans
 FROM groups g JOIN accounts k ON k.id = g.keeper_id
 ORDER BY g.created_at, g.id;
-
--- The plans of one group, with who is in on each.
-SELECT p.id, p.day, p.meet_at, p.place, a.handle AS posted_by,
-       (SELECT string_agg(i.handle, ', ' ORDER BY x.since, x.account_id)
-        FROM group_plan_pilots x JOIN accounts i ON i.id = x.account_id
-        WHERE x.plan_id = p.id) AS pilots_in
-FROM group_plans p JOIN accounts a ON a.id = p.author_id
-WHERE p.group_id = '<group>'
-ORDER BY p.day, p.meet_at NULLS LAST, p.created_at, p.id;
-
--- A new name for one group.
-UPDATE groups SET name = '<name>' WHERE id = '<group>';
--- One plan removed, with who was in on it.
-DELETE FROM group_plans WHERE id = '<plan>';
--- One group removed, with its members' places in it and all its plans. This cannot be undone.
-DELETE FROM groups WHERE id = '<group>';
 ```
 
-Do not delete rows of `group_members` by hand: the database refuses to remove a group's keeper, and a member's plans go with the row. Nobody is told; the apps find out when they next ask. These statements have not been run through `docker compose exec` on a real server *(to verify)*.
+No command takes a member out of a group either; that is its keeper's to do. Do not delete rows of `group_members` by hand: the database refuses to remove a group's keeper, and a member's plans go with the row. Neither the commands about groups nor this statement have been run through `docker compose exec` on a real server *(to verify)*.
 
 ## The connector
 
@@ -412,7 +425,7 @@ systemctl list-timers venti-backup.timer
 journalctl -u venti-backup.service --since yesterday
 ```
 
-- **A dump is personal data**: every account with its password hash, every flight, every report with its reporter's words, every group. The script keeps the backup folder readable by its owner only; wherever you copy dumps to must be as careful.
+- **A dump is personal data**: every account with its password hash, every flight, every report with its reporter's words and, of a group or a plan that was reported, the name or the place and note as they were, every group. The script keeps the backup folder readable by its owner only; wherever you copy dumps to must be as careful.
 - **Two things are left out on purpose**: live tracks, which the server removes 48 hours after a flight (`VENTI_LIVE_HOURS`), and the plans of groups. After a restore neither is there.
 - **The dumps live on the same machine as the database.** They do not protect against losing the machine. Copy `deploy/backups` somewhere else, encrypted, by whatever means are at hand; where that copy goes is the owner's decision.
 - **A deleted account lives on in older dumps**, fourteen days by default. If you restore a dump, delete again the accounts and flights that were deleted after it was taken.

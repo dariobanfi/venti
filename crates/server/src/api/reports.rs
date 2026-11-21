@@ -1,21 +1,29 @@
 //! Reports: a signed-in pilot tells whoever runs the server that a flight,
-//! a pilot's page or a live track should not be there.
+//! a pilot's page, a live track, a group or a plan of a group should not
+//! be there.
 //!
 //! A report is stored and nothing else happens: no flight is hidden, no
-//! account is touched, nobody is told. Whoever runs the server reads the
-//! reports with `venti-server reports` and decides ([`crate::moderation`]).
+//! account is touched, no group is changed, nobody is told. Whoever runs
+//! the server reads the reports with `venti-server reports` and decides
+//! ([`crate::moderation`]).
 //!
 //! **Nobody learns from the server who reported them.** The API has no way
 //! to read a report back, to list them or to count them, and the pilot who
-//! is reported is told nothing. What a reporter may report is what that
-//! reporter may see, and a thing they may not see gets the answer it gets
-//! everywhere: reporting is no way to find out whether a private flight or
-//! a quiet account exists.
+//! is reported is told nothing, nor is anyone in a group. What a reporter
+//! may report is what that reporter may see, and a thing they may not see
+//! gets the answer it gets everywhere: reporting is no way to find out
+//! whether a private flight, a quiet account or a group one is not in
+//! exists.
+//!
+//! **A group's name and a plan's words are kept with the report**, as the
+//! reporter saw them at that moment: both can be changed or be gone before
+//! anyone reads the report. Nothing else of a group or a plan is.
 //!
 //! **Nothing of a report reaches the log.** What is reported is named in
 //! the body, which is never logged, and not in the path: the identifier of
-//! a live track is the key to it. No line is written for a report, and no
-//! error message repeats a part of one.
+//! a live track is the key to it, and a group is its members' alone. No
+//! line is written for a report, and no error message repeats a part of
+//! one.
 
 use std::sync::Arc;
 
@@ -30,7 +38,7 @@ use venti_store::{NewReport, ReportSaved, Store};
 
 use super::auth::{Signed, Viewer};
 use super::error::ApiError;
-use super::{Api, body, cache, flights, live, pilots};
+use super::{Api, body, cache, flights, groups, live, pilots};
 use crate::accounts::secret;
 use crate::accounts::throttle::Counted;
 
@@ -61,13 +69,18 @@ pub(crate) async fn create<S: Store>(
     })?;
 
     let request: ReportRequest = body::json(&headers, &body)?;
-    let reason = request.reason.name().ok_or_else(|| {
-        let known: Vec<&str> = ReportReason::ALL
-            .iter()
-            .filter_map(|reason| reason.name())
-            .collect();
-        invalid(format!("reason must be one of {}", known.join(", ")))
-    })?;
+    // The reasons a report about this kind of subject can give. Which of
+    // them apply is said by the kind alone, before anything is looked up:
+    // the refusal tells nothing about the subject.
+    let reasons = request.subject.reasons();
+    let reason = request
+        .reason
+        .name()
+        .filter(|_| reasons.contains(&request.reason))
+        .ok_or_else(|| {
+            let known: Vec<&str> = reasons.iter().filter_map(|reason| reason.name()).collect();
+            invalid(format!("reason must be one of {}", known.join(", ")))
+        })?;
     let text = parse_report_text(request.text.as_deref().unwrap_or_default())
         .map_err(|error| invalid(error.to_string()))?;
     if request.reason == ReportReason::Other && text.is_none() {
@@ -76,9 +89,10 @@ pub(crate) async fn create<S: Store>(
         ));
     }
 
-    // What is reported, as the reporter may see it. Each of the three is
+    // What is reported, as the reporter may see it. Each of the five is
     // found as the endpoint that shows it finds it, and what that endpoint
-    // would not show is not there to report.
+    // would not show is not there to report. A group and a plan are shown
+    // to the members of the group and to nobody else.
     let (about_account_id, subject, gone) = match &request.subject {
         ReportSubject::Flight(id) => {
             let viewer = Viewer(Some(signed.clone()));
@@ -95,6 +109,30 @@ pub(crate) async fn create<S: Store>(
             let track = api.live_track(id, now).await?;
             let subject = venti_store::ReportSubject::LiveTrack(track.id);
             (track.account_id, subject, live::no_such_track())
+        }
+        ReportSubject::Group(id) => {
+            // The report is about the group as its keeper keeps it, and
+            // takes the name along as it stands.
+            let group = api.group_as_member(id, &signed).await?.group;
+            let subject = venti_store::ReportSubject::Group {
+                id: group.id,
+                name: group.name,
+            };
+            (group.keeper.account_id, subject, groups::no_such_group())
+        }
+        ReportSubject::Plan(named) => {
+            // Of a plan the report takes the words along, and nothing of
+            // when, where on the map or with whom.
+            let plan = api
+                .plan_as_member(&named.group, &named.id, &signed, now)
+                .await?;
+            let subject = venti_store::ReportSubject::Plan {
+                id: plan.id,
+                group_id: plan.group_id,
+                place: plan.details.place,
+                note: plan.details.note,
+            };
+            (plan.author.account_id, subject, groups::no_such_plan())
         }
     };
 

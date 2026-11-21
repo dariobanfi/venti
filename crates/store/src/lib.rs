@@ -26,7 +26,7 @@
 //!   for a flying day;
 //! - what whoever runs the server needs to answer for what is shared on
 //!   it: the [`Report`]s pilots send, and what the operator did about a
-//!   flight, a live track or an account.
+//!   flight, a live track, an account, a group or a plan.
 //!
 //! It knows nothing about providers, about HTTP or about how a password or
 //! a flight file is read: it is handed hashes and finished records.
@@ -66,7 +66,7 @@ pub use forecast::{ForecastModel, ThermalPart};
 pub use group::{
     Group, GroupCreation, GroupJoining, GroupMembers, GroupPilot, GroupRoom, KeeperAct,
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
-    PlanSaving,
+    PlanSaving, RemovedGroup,
 };
 pub use live::{
     LiveBatch, LiveFix, LiveFixAt, LiveKept, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
@@ -425,7 +425,8 @@ pub trait Store: Send + Sync + 'static {
     /// Removes an account and everything that belongs to it: its password,
     /// its sessions, its flights and their files, the record of the
     /// flights it deleted, its live tracks and the identifiers they used,
-    /// the reports it made and the reports about it, and what it put into
+    /// the reports it made and the reports about it, with the words those
+    /// kept of its plans and of groups it kept, and what it put into
     /// groups: the plans it posted and its word on the plans of others.
     /// Nothing is kept. Its handle is free again.
     ///
@@ -997,6 +998,74 @@ pub trait Store: Send + Sync + 'static {
         before: NaiveDate,
     ) -> impl Future<Output = Result<u64, StoreError>> + Send;
 
+    // --- Groups and plans, for whoever runs the server ---------------------
+
+    /// A group with its members, whoever is in it. `None` if there is no
+    /// such group.
+    ///
+    /// This call and the five after it are for whoever runs the server,
+    /// and for nothing that a pilot's request reaches. They name no
+    /// account that asks, so they answer for every group: every other call
+    /// about a group does name one, and tells an account that is not in
+    /// the group nothing.
+    fn any_group(
+        &self,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<GroupMembers>, StoreError>> + Send;
+
+    /// The plans of a group for every day from `from` on, whoever is in
+    /// the group, in the order of [`Plan::key`]. `None` if there is no
+    /// such group. For whoever runs the server; see [`Store::any_group`].
+    fn plans_of_any_group(
+        &self,
+        group_id: &str,
+        from: NaiveDate,
+    ) -> impl Future<Output = Result<Option<Vec<Plan>>, StoreError>> + Send;
+
+    /// The plan with this identifier, whichever group it is in. `None` if
+    /// there is none, or none any more: a plan for a day before
+    /// `gone_before` is gone. For whoever runs the server; see
+    /// [`Store::any_group`].
+    fn any_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<Option<Plan>, StoreError>> + Send;
+
+    /// Gives a group a new name, whoever keeps it. Returns the group as it
+    /// then is; `None` if there is no such group. For whoever runs the
+    /// server; see [`Store::any_group`].
+    ///
+    /// Nothing else about the group changes: who keeps it, who is in it,
+    /// its invite code and its plans are as they were, and nothing records
+    /// who named it. Its keeper may name it again.
+    fn rename_any_group(
+        &self,
+        id: &str,
+        name: &str,
+    ) -> impl Future<Output = Result<Option<GroupMembers>, StoreError>> + Send;
+
+    /// Removes a plan with who was in, whoever posted it, as its author's
+    /// own deletion would. Returns the plan as it was; `None` if there is
+    /// none, or none any more by `gone_before`. For whoever runs the
+    /// server; see [`Store::any_group`].
+    fn remove_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<Option<Plan>, StoreError>> + Send;
+
+    /// Removes a group with its members' places in it and all its plans,
+    /// whoever keeps it, as its keeper's own deletion would. Returns what
+    /// went, counting the plans for days from `gone_before` on; `None` if
+    /// there is no such group. For whoever runs the server; see
+    /// [`Store::any_group`].
+    fn remove_group(
+        &self,
+        id: &str,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<Option<RemovedGroup>, StoreError>> + Send;
+
     // --- Reports ----------------------------------------------------------
 
     /// Stores a report, unless its reporter has an open report about the
@@ -1005,7 +1074,8 @@ pub trait Store: Send + Sync + 'static {
     ///
     /// The store does not ask whether the subject exists or may be seen by
     /// the reporter: that is the caller's to know. It does ask for both
-    /// accounts.
+    /// accounts. A report about a group or a plan is handed the words it
+    /// is to keep ([`ReportSubject`]) and looks nothing up.
     fn save_report(
         &self,
         new: &NewReport,
@@ -1016,8 +1086,9 @@ pub trait Store: Send + Sync + 'static {
     /// is the [`Report::key`] of the last report of the page before;
     /// `None` starts at the oldest. At most `limit` are returned.
     ///
-    /// Each report names the accounts as they are now. This is for whoever
-    /// runs the server: nothing here is ever shown to a pilot.
+    /// Each report names the accounts as they are now, and a group or a
+    /// plan with the words it had when it was reported. This is for
+    /// whoever runs the server: nothing here is ever shown to a pilot.
     fn reports(
         &self,
         listing: ReportListing,

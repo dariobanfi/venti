@@ -1,16 +1,20 @@
 //! What whoever runs the server does about what is shared on it, from the
 //! command line.
 //!
-//! Pilots report flights, pilots' pages and live tracks through the API
-//! ([`crate::api`]). A report is stored and nothing else happens. These
-//! subcommands are how the operator reads the reports and acts:
+//! Pilots report flights, pilots' pages, live tracks, groups and the plans
+//! of groups through the API ([`crate::api`]). A report is stored and
+//! nothing else happens. These subcommands are how the operator reads the
+//! reports and acts:
 //!
 //! - `reports` lists them, `close-report` closes one with a note;
 //! - `take-down` makes a flight private and keeps it so, `release` lets
 //!   it go;
 //! - `remove-live-track` removes a live track and retires its identifier;
 //! - `suspend-publishing` takes from an account the ability to make
-//!   anything public, `resume-publishing` gives it back.
+//!   anything public, `resume-publishing` gives it back;
+//! - `group` shows one group with its members and its plans,
+//!   `rename-group` gives it another name, `remove-plan` removes one of
+//!   its plans and `remove-group` the group with everything in it.
 //!
 //! There is no web page for any of this, and the API offers none of it:
 //! whoever can run this program on the server's machine, with the server's
@@ -20,24 +24,37 @@
 //! API, as a flight that says since when it is taken down and an account
 //! that says since when it may not publish.
 //!
+//! What is done about a group is the keeper's own doing, done by someone
+//! else, as removing a live track is its pilot's own deletion: the name is
+//! another, the plan or the group is gone, and nothing in the API says by
+//! whom. A group that is gone leaves nothing behind that could say so, and
+//! the server keeps no list of who was in one.
+//!
 //! What a command prints is for the operator's eyes. It names reporters,
-//! which the API never does, and the identifiers of live tracks, which are
-//! the keys to them: none of it goes to the server's log.
+//! which the API never does, the identifiers of live tracks, which are the
+//! keys to them, and who is in a group and where its members mean to be,
+//! which is nobody's business but theirs: none of it goes to the server's
+//! log.
 
 use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use venti_api_types::v1::{FlightId, Handle, LiveTrackId, live_page_path, share_path};
+use chrono::NaiveDate;
+use venti_api_types::v1::{
+    FlightId, GroupId, GroupTextError, Handle, LiveTrackId, PlanId, format_day, live_page_path,
+    parse_group_name, share_path,
+};
 use venti_domain::Timestamp;
 use venti_store::{
-    Flight, LiveVisibility, PgStore, Report, ReportClosing, ReportListing, ReportSubject, Store,
-    Visibility,
+    Flight, GroupMembers, GroupPilot, LiveVisibility, PgStore, Plan, Report, ReportClosing,
+    ReportListing, ReportSubject, Store, Visibility,
 };
 
 use crate::accounts::secret;
 use crate::clock::{Clock, SystemClock};
 use crate::config::Config;
+use crate::groups;
 
 /// The most characters a closing note may have. It is the operator's own
 /// text; the bound is what keeps a slip of the hand out of the table.
@@ -86,6 +103,28 @@ pub enum Action {
         /// The account's handle.
         handle: String,
     },
+    /// Show one group, with its members and its plans.
+    Group {
+        /// The group's identifier.
+        group: String,
+    },
+    /// Give a group another name.
+    RenameGroup {
+        /// The group's identifier.
+        group: String,
+        /// The name it is to have.
+        name: String,
+    },
+    /// Remove one plan of a group, with who was in on it.
+    RemovePlan {
+        /// The plan's identifier.
+        plan: String,
+    },
+    /// Remove a group, with its members' places in it and all its plans.
+    RemoveGroup {
+        /// The group's identifier.
+        group: String,
+    },
 }
 
 /// What `venti-server` was asked to do as the operator.
@@ -132,6 +171,9 @@ pub struct Site<'a> {
     pub public_url: Option<&'a str>,
     /// For how many hours a live track is kept after its newest position.
     pub live_hours: u32,
+    /// For how many days a plan is kept after its day. A plan that the
+    /// API no longer shows is no plan to these commands either.
+    pub plan_days: u32,
 }
 
 /// Text from a pilot or an account as a terminal may show it on one line:
@@ -160,6 +202,49 @@ fn who(handle: &str, name: &str) -> String {
     format!("{} ({})", on_one_line(handle), on_one_line(name))
 }
 
+fn member(pilot: &GroupPilot) -> String {
+    who(&pilot.handle, &pilot.display_name)
+}
+
+/// A name, a place or another line a pilot typed, between quotation marks
+/// for a sentence.
+fn quoted(text: &str) -> String {
+    format!("\"{}\"", on_one_line(text))
+}
+
+/// How wide the names in front of a report's and a group's lines are.
+const LABEL_WIDTH: usize = 14;
+
+/// Adds text a pilot typed to a block under a label, line by line, and
+/// nothing in it that a terminal acts on.
+fn labelled(block: &mut String, label: &str, text: &str) {
+    let mut lines = text.lines();
+    let first = lines.next().unwrap_or_default();
+    let _ = write!(block, "\n  {label:<LABEL_WIDTH$}{}", on_one_line(first));
+    for line in lines {
+        let _ = write!(block, "\n  {:<LABEL_WIDTH$}{}", "", on_one_line(line));
+    }
+}
+
+fn counted(count: usize, one: &str, several: &str) -> String {
+    match count {
+        1 => format!("1 {one}"),
+        count => format!("{count} {several}"),
+    }
+}
+
+/// How many pilots are in on a plan, or were: the number and not who.
+fn in_on_it(plan: &Plan, still: bool) -> String {
+    match (plan.pilots_in.len(), still) {
+        (0, true) => "nobody is in".to_owned(),
+        (0, false) => "nobody was in on it".to_owned(),
+        (1, true) => "1 pilot is in".to_owned(),
+        (1, false) => "1 pilot was in on it".to_owned(),
+        (count, true) => format!("{count} pilots are in"),
+        (count, false) => format!("{count} pilots were in on it"),
+    }
+}
+
 fn pilot_of(flight: &Flight) -> String {
     who(&flight.pilot_handle, &flight.pilot_name)
 }
@@ -180,8 +265,10 @@ pub async fn perform(
     action: &Action,
 ) -> Result<Outcome, String> {
     let failed = |error: venti_store::StoreError| format!("the database failed: {error}");
+    // The first day whose plans are still there, as the API reckons it.
+    let gone_before = groups::gone_before(clock.now(), site.plan_days);
     match action {
-        Action::Reports { all } => list(store, site, *all).await.map_err(failed),
+        Action::Reports { all } => list(store, site, gone_before, *all).await.map_err(failed),
         Action::CloseReport { id, note } => {
             let note = note.trim();
             if note.is_empty() || note.chars().count() > MAX_NOTE_LENGTH {
@@ -364,7 +451,184 @@ pub async fn perform(
                 )),
             })
         }
+        Action::Group { group } => {
+            let Ok(id) = group.trim().parse::<GroupId>() else {
+                return Ok(Outcome::nothing(no_group_identifier(group)));
+            };
+            let Some(seen) = store.any_group(id.as_str()).await.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_group(&id)));
+            };
+            let plans = store.plans_of_any_group(id.as_str(), gone_before).await;
+            // A group that went between the two questions has no plans.
+            let plans = plans.map_err(failed)?.unwrap_or_default();
+            Ok(Outcome::found(shown_group(&seen, &plans)))
+        }
+        Action::RenameGroup { group, name } => {
+            let name = parse_group_name(name).map_err(|error| match error {
+                GroupTextError::Empty => "a group's name must not be empty".to_owned(),
+                GroupTextError::TooLong(most) => {
+                    format!("a group's name is one line of at most {most} characters")
+                }
+            })?;
+            let Ok(id) = group.trim().parse::<GroupId>() else {
+                return Ok(Outcome::nothing(no_group_identifier(group)));
+            };
+            let Some(before) = store.any_group(id.as_str()).await.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_group(&id)));
+            };
+            if before.group.name == name {
+                return Ok(Outcome::found(format!(
+                    "Group {id} is called {} already. Nothing changed.",
+                    quoted(&name)
+                )));
+            }
+            let renamed = store.rename_any_group(id.as_str(), &name).await;
+            let Some(now) = renamed.map_err(failed)? else {
+                return Ok(Outcome::nothing(format!(
+                    "Group {id} was deleted a moment ago. Nothing was renamed."
+                )));
+            };
+            Ok(Outcome::found(format!(
+                "Group {id}, kept by {}, was called {} and is called {} now, for its {} and \
+                 for nobody else.\n\
+                 Nobody is told, and nothing says who renamed it: the members' apps show the \
+                 new name when they next ask. Its keeper can rename it again; against a \
+                 keeper who names it back, `venti-server remove-group {id}` is what there \
+                 is.\n\
+                 Nothing else changed: its members, its plans and its invite code are as \
+                 they were, and no report was closed.",
+                member(&now.group.keeper),
+                quoted(&before.group.name),
+                quoted(&now.group.name),
+                counted(now.members.len(), "member", "members"),
+            )))
+        }
+        Action::RemovePlan { plan } => {
+            let Ok(id) = plan.trim().parse::<PlanId>() else {
+                return Ok(Outcome::nothing(format!(
+                    "{:?} is not the identifier of a plan: an identifier is 26 characters, as \
+                     `venti-server reports` and `venti-server group` print it",
+                    on_one_line(plan)
+                )));
+            };
+            let removed = store.remove_plan(id.as_str(), gone_before).await;
+            let Some(plan) = removed.map_err(failed)? else {
+                return Ok(Outcome::nothing(format!(
+                    "There is no plan with the identifier {id}: none ever was, it was \
+                     deleted or removed, it went with its author or its group, or its day is \
+                     more than {} days gone by.",
+                    site.plan_days
+                )));
+            };
+            Ok(Outcome::found(format!(
+                "The plan {id} of {} in group {} is removed: for {}, at {}; {}.\n\
+                 To the members of the group it is as if its author had deleted it: it is in \
+                 no list, and nobody is told that it was removed or by whom.\n\
+                 This cannot be undone. It does not stop its author from posting it again; \
+                 the group's keeper can remove a member from the group. Nothing else of the \
+                 group changed, and no report was closed.",
+                member(&plan.author),
+                on_one_line(&plan.group_id),
+                format_day(plan.details.day),
+                quoted(&plan.details.place),
+                in_on_it(&plan, false),
+            )))
+        }
+        Action::RemoveGroup { group } => {
+            let Ok(id) = group.trim().parse::<GroupId>() else {
+                return Ok(Outcome::nothing(no_group_identifier(group)));
+            };
+            let removed = store.remove_group(id.as_str(), gone_before).await;
+            let Some(removed) = removed.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_group(&id)));
+            };
+            let was = &removed.group;
+            Ok(Outcome::found(format!(
+                "Group {id} {}, kept by {}, is removed, with the places of its {} in it and \
+                 its {}. Its invite code lets nobody in.\n\
+                 To those who were in it, it is as if its keeper had deleted it: it is in \
+                 none of their lists, and nobody is told that it was removed or by whom.\n\
+                 This cannot be undone. It does not stop anyone from making a group again. \
+                 No account was touched, and no report was closed.",
+                quoted(&was.group.name),
+                member(&was.group.keeper),
+                counted(was.members.len(), "member", "members"),
+                counted(removed.plans as usize, "plan", "plans"),
+            )))
+        }
     }
+}
+
+fn no_group_identifier(text: &str) -> String {
+    format!(
+        "{:?} is not the identifier of a group: an identifier is 26 characters, as \
+         `venti-server reports` prints it",
+        on_one_line(text)
+    )
+}
+
+fn no_group(id: &GroupId) -> String {
+    format!(
+        "There is no group with the identifier {id}: none ever was, its keeper deleted it, \
+         its last member left, or it was removed."
+    )
+}
+
+/// When a plan is for, and when its pilots meet if it says.
+fn day_of(plan: &Plan) -> String {
+    let day = format_day(plan.details.day);
+    match plan.details.meet_at {
+        Some(time) => format!("{day} at {}", time.format("%H:%M")),
+        None => day,
+    }
+}
+
+/// One group as its members see it, as text: who is in it, and its plans
+/// with what they say. Of who is in on a plan it says how many.
+fn shown_group(seen: &GroupMembers, plans: &[Plan]) -> String {
+    let group = &seen.group;
+    let mut said = format!(
+        "Group {}, made {}",
+        on_one_line(&group.id),
+        day_and_time(group.created_at)
+    );
+    labelled(&mut said, "Name:", &group.name);
+    labelled(&mut said, "Kept by:", &member(&group.keeper));
+    let members: Vec<String> = seen.members.iter().map(member).collect();
+    labelled(
+        &mut said,
+        "Members:",
+        &format!("{}, in the order they came in", members.len()),
+    );
+    labelled(&mut said, "", &members.join("\n"));
+    let how_many = match plans.len() {
+        0 => "none".to_owned(),
+        count => count.to_string(),
+    };
+    labelled(&mut said, "Plans:", &how_many);
+    for plan in plans {
+        let _ = write!(
+            said,
+            "\n\nPlan {}, for {}, posted by {}; {}",
+            on_one_line(&plan.id),
+            day_of(plan),
+            member(&plan.author),
+            in_on_it(plan, true),
+        );
+        labelled(&mut said, "Place:", &plan.details.place);
+        if let Some(position) = plan.details.position {
+            let degrees = format!("{:.5}, {:.5}", position.lat(), position.lon());
+            labelled(&mut said, "Position:", &degrees);
+        }
+        if let Some(note) = &plan.details.note {
+            labelled(&mut said, "Note:", note);
+        }
+    }
+    said.push_str(
+        "\n\nThis is what the members of the group see, and nobody else does. Nothing was \
+         changed: see `venti-server --help` for rename-group, remove-plan and remove-group.",
+    );
+    said
 }
 
 fn no_flight_address(text: &str) -> String {
@@ -397,6 +661,7 @@ async fn account(
 async fn list(
     store: &impl Store,
     site: Site<'_>,
+    gone_before: NaiveDate,
     all: bool,
 ) -> Result<Outcome, venti_store::StoreError> {
     let listing = if all {
@@ -425,27 +690,116 @@ async fn list(
     };
     for report in &reports {
         said.push_str("\n\n");
-        said.push_str(&described(store, site, report).await?);
+        said.push_str(&described(store, site, gone_before, report).await?);
     }
     if !reports.is_empty() {
         said.push_str(
             "\n\nA report is one pilot's word about another. Nothing was done about any of \
              them: see `venti-server --help` for take-down, remove-live-track, \
-             suspend-publishing and close-report.",
+             suspend-publishing, group, rename-group, remove-plan, remove-group and \
+             close-report.",
         );
     }
     Ok(Outcome::found(said))
+}
+
+/// What a group that was reported is now, in a line.
+async fn group_now(
+    store: &impl Store,
+    id: &str,
+    name_then: &str,
+) -> Result<String, venti_store::StoreError> {
+    let Some(seen) = store.any_group(id).await? else {
+        return Ok("gone".to_owned());
+    };
+    let name = if seen.group.name == name_then {
+        "the same name".to_owned()
+    } else {
+        format!("called {}", quoted(&seen.group.name))
+    };
+    Ok(format!(
+        "{name}; kept by {}, {}",
+        member(&seen.group.keeper),
+        counted(seen.members.len(), "member", "members"),
+    ))
+}
+
+/// What a plan that was reported is now, in a line; and its words as they
+/// are, if they are no longer what was reported.
+async fn plan_now(
+    store: &impl Store,
+    gone_before: NaiveDate,
+    (id, group_id): (&str, &str),
+    (place_then, note_then): (&str, Option<&str>),
+) -> Result<(String, Option<Plan>), venti_store::StoreError> {
+    let group = match store.any_group(group_id).await? {
+        Some(seen) => format!("its group is called {}", quoted(&seen.group.name)),
+        None => "its group is gone".to_owned(),
+    };
+    let Some(plan) = store.any_plan(id, gone_before).await? else {
+        return Ok((format!("gone; {group}"), None));
+    };
+    let same = plan.details.place == place_then && plan.details.note.as_deref() == note_then;
+    let (words, changed) = if same {
+        ("the same words", None)
+    } else {
+        ("other words", Some(plan.clone()))
+    };
+    Ok((format!("{words}, for {}; {group}", day_of(&plan)), changed))
 }
 
 /// One report as a block of lines, with what its subject is now.
 async fn described(
     store: &impl Store,
     site: Site<'_>,
+    gone_before: NaiveDate,
     report: &Report,
 ) -> Result<String, venti_store::StoreError> {
     let about = who(&report.about_handle, &report.about_name);
     let link = |path: String| site.public_url.map(|url| format!("{url}{path}"));
+    // What a report about a group or a plan kept of it, and what it is
+    // now: lines of their own under the first.
+    let mut kept = String::new();
     let (subject, address) = match &report.subject {
+        ReportSubject::Group { id, name } => {
+            labelled(&mut kept, "Name then:", name);
+            labelled(&mut kept, "Now:", &group_now(store, id, name).await?);
+            (
+                format!(
+                    "group {}, which {about} kept when it was reported",
+                    on_one_line(id)
+                ),
+                None,
+            )
+        }
+        ReportSubject::Plan {
+            id,
+            group_id,
+            place,
+            note,
+        } => {
+            labelled(&mut kept, "Place then:", place);
+            if let Some(note) = note {
+                labelled(&mut kept, "Note then:", note);
+            }
+            let words = (place.as_str(), note.as_deref());
+            let (now, changed) = plan_now(store, gone_before, (id, group_id), words).await?;
+            labelled(&mut kept, "Now:", &now);
+            if let Some(plan) = changed {
+                labelled(&mut kept, "Place now:", &plan.details.place);
+                if let Some(note) = &plan.details.note {
+                    labelled(&mut kept, "Note now:", note);
+                }
+            }
+            (
+                format!(
+                    "plan {} of {about}, in group {}",
+                    on_one_line(id),
+                    on_one_line(group_id)
+                ),
+                None,
+            )
+        }
         ReportSubject::Flight(id) => {
             let now = match store.flight(id).await? {
                 Some(flight) if flight.taken_down_at.is_some() => "taken down",
@@ -498,25 +852,15 @@ async fn described(
     if let Some(address) = address {
         let _ = write!(block, "\n                {address}");
     }
-    let _ = write!(block, "\n  Reason:       {}", on_one_line(&report.reason));
+    block.push_str(&kept);
+    labelled(&mut block, "Reason:", &report.reason);
     if let Some(text) = &report.text {
-        // The reporter's own words, line by line, and nothing in them
-        // that a terminal acts on.
-        let mut lines = text.lines();
-        if let Some(first) = lines.next() {
-            let _ = write!(block, "\n  Text:         {}", on_one_line(first));
-        }
-        for line in lines {
-            let _ = write!(block, "\n                {}", on_one_line(line));
-        }
+        // The reporter's own words.
+        labelled(&mut block, "Text:", text);
     }
-    let _ = write!(
-        block,
-        "\n  Reported by:  {}",
-        on_one_line(&report.reporter_handle)
-    );
+    labelled(&mut block, "Reported by:", &report.reporter_handle);
     if let Some(closed) = &report.closed {
-        let _ = write!(block, "\n  Note:         {}", on_one_line(&closed.note));
+        labelled(&mut block, "Note:", &closed.note);
     }
     Ok(block)
 }
@@ -541,6 +885,7 @@ pub async fn run(args: Args) -> ExitCode {
     let site = Site {
         public_url: config.public_url.as_ref().map(|url| url.as_str()),
         live_hours: config.retention.live_hours,
+        plan_days: config.retention.plan_days,
     };
     match perform(&store, &SystemClock, site, &args.action).await {
         Ok(outcome) => {

@@ -3,22 +3,28 @@
 //! through the operator's commands for the rest.
 //!
 //! What must not happen is tested here too: a report that tells of
-//! something its reporter may not see, anything that tells a pilot that
-//! they were reported, a flight that was taken down coming back, and an
-//! account that may not publish getting something into a list.
+//! something its reporter may not see, a group one is not in among them,
+//! anything that tells a pilot or the members of a group that they were
+//! reported, a flight that was taken down coming back, and an account
+//! that may not publish getting something into a list.
 
 use std::sync::Arc;
 
 use axum::Router;
 use axum::http::{Method, StatusCode, header};
-use chrono::Duration;
+use chrono::{Duration, NaiveDate};
 use venti_api_types::v1::{
-    ACCOUNT_PATH, AccountResponse, ErrorCode, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, Flight,
-    FlightChangesResponse, FlightId, FlightResponse, FlightsResponse, LIVE_POSITIONS_PATH, LiveFix,
+    ACCOUNT_PATH, AccountResponse, CreateGroupRequest, CreateGroupResponse, ErrorCode,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, Flight, FlightChangesResponse, FlightId, FlightResponse,
+    FlightsResponse, GROUP_JOIN_PATH, GROUPS_PATH, GroupId, GroupInviteCode, GroupResponse,
+    GroupsResponse, Handle, JoinGroupRequest, JoinGroupResponse, LIVE_POSITIONS_PATH, LiveFix,
     LivePositionsRequest, LivePositionsResponse, LiveTracksResponse, LiveVisibility,
-    MAX_REPORT_TEXT_LENGTH, PUBLIC_FLIGHTS_PATH, PilotResponse, REPORTS_PATH, ReportReason,
-    ReportRequest, ReportResponse, ReportSubject, SESSIONS_PATH, SignInResponse,
-    UpdateFlightRequest, Visibility, flight_file_path, flight_path, share_image_path, share_path,
+    MAX_REPORT_TEXT_LENGTH, PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH, PilotResponse, Plan,
+    PlanBoardResponse, PlanRequest, PlanResponse, PlansResponse, REPORTS_PATH, ReportReason,
+    ReportRequest, ReportResponse, ReportSubject, ReportedPlan, SESSIONS_PATH, SignInResponse,
+    UpdateFlightRequest, UpdateGroupRequest, Visibility, flight_file_path, flight_path,
+    group_member_path, group_path, group_plans_path, plan_in_path, plan_path, share_image_path,
+    share_path,
 };
 use venti_domain::GeoPoint;
 use venti_server::accounts::Limits;
@@ -26,7 +32,8 @@ use venti_server::adapters;
 use venti_server::api::{Api, Cors, Settings};
 use venti_server::clock::Clock;
 use venti_server::dev::{
-    DEMO_HANDLE, DEMO_LIVE_FLYING, DEMO_LIVE_LINK, DEMO_PASSWORD, DEMO_PILOTS, DEMO_TOKEN,
+    DEMO_GROUP, DEMO_GROUP_CODE, DEMO_GROUP_NAME, DEMO_HANDLE, DEMO_LIVE_FLYING, DEMO_LIVE_LINK,
+    DEMO_OTHER_GROUP, DEMO_OTHER_PLAN, DEMO_PASSWORD, DEMO_PILOTS, DEMO_PLANS, DEMO_TOKEN,
 };
 use venti_server::live;
 use venti_server::moderation::{Action, Outcome, Site, perform};
@@ -55,6 +62,7 @@ fn site() -> Site<'static> {
     Site {
         public_url: Some(PUBLIC_URL),
         live_hours: 48,
+        plan_days: 2,
     }
 }
 
@@ -743,9 +751,10 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
     assert_eq!(nothing.said, "No report is open.");
     assert!(nothing.found);
 
-    // Three reports with identifiers of this test's choosing, so that what
-    // is printed is the same every time: about a flight, a pilot's page
-    // and a live track.
+    // Five reports with identifiers of this test's choosing, so that what
+    // is printed is the same every time: about a flight, a pilot's page, a
+    // live track, a group and a plan. The last two carry the words that
+    // were reported, as the endpoint puts them there.
     let account = |handle: &'static str| {
         let store = store.clone();
         async move { store.account(handle).await.unwrap().unwrap().id }
@@ -757,6 +766,11 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
     );
     let flight = first_public_flight(&router, "mara").await;
     let made_at = adapters::recorded_at();
+    let plan = store
+        .any_plan(DEMO_PLANS[1], NaiveDate::MIN)
+        .await
+        .unwrap()
+        .unwrap();
     let reports = [
         NewReport {
             id: "0000000000000000000000rep1".to_owned(),
@@ -780,10 +794,36 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
             id: "0000000000000000000000rep3".to_owned(),
             created_at: made_at - Duration::minutes(10),
             reporter_id: account("mara").await,
-            about_account_id: demo,
+            about_account_id: demo.clone(),
             subject: venti_store::ReportSubject::LiveTrack(DEMO_LIVE_FLYING.to_owned()),
             reason: "other".to_owned(),
             text: Some("Nobody is flying there. It is night.".to_owned()),
+        },
+        NewReport {
+            id: "0000000000000000000000rep4".to_owned(),
+            created_at: made_at - Duration::minutes(6),
+            reporter_id: account("jonas").await,
+            about_account_id: demo.clone(),
+            subject: venti_store::ReportSubject::Group {
+                id: DEMO_GROUP.to_owned(),
+                name: DEMO_GROUP_NAME.to_owned(),
+            },
+            reason: "impersonation".to_owned(),
+            text: Some("This is not the club's group. The club has none here.".to_owned()),
+        },
+        NewReport {
+            id: "0000000000000000000000rep5".to_owned(),
+            created_at: made_at - Duration::minutes(2),
+            reporter_id: demo,
+            about_account_id: account("mara").await,
+            subject: venti_store::ReportSubject::Plan {
+                id: plan.id.clone(),
+                group_id: plan.group_id.clone(),
+                place: plan.details.place.clone(),
+                note: plan.details.note.clone(),
+            },
+            reason: "spam".to_owned(),
+            text: Some("An advertisement, not a plan.".to_owned()),
         },
     ];
     for new in &reports {
@@ -795,7 +835,7 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
     assert_golden_text("operator_reports.txt", &format!("{}\n", listed.said));
     // It names who reported, what, and why, and gives the links.
     for expected in [
-        "3 reports are open, oldest first.",
+        "5 reports are open, oldest first.",
         "Report 0000000000000000000000rep1, open, made 2026-11-17 17:05 UTC",
         &format!("flight {flight} of mara (Mara Muster); now public"),
         &format!("https://venti.example/f/{flight}"),
@@ -805,6 +845,14 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
         "the page of mara (Mara Muster)",
         "live track 11111111111111111111111111 of demo (Demo Pilot); now on everyone's map",
         "https://venti.example/live/11111111111111111111111111",
+        // A group and a plan: what was reported, and what it is now.
+        "group 44444444444444444444444444, which demo (Demo Pilot) kept when it was reported",
+        "  Name then:    Mustergruppe\n  Now:          the same name; kept by demo (Demo Pilot), 3 members",
+        "plan 77777777777777777777777777 of mara (Mara Muster), in group 44444444444444444444444444",
+        "  Place then:   Beispielwiese\n  Note then:    A made-up plan. Ground handling if the wind allows, coffee if not.",
+        "  Now:          the same words, for 2026-11-19 at 09:00; its group is called \"Mustergruppe\"",
+        "  Reported by:  jonas",
+        "rename-group, remove-plan, remove-group and close-report",
     ] {
         assert!(
             listed.said.contains(expected),
@@ -836,12 +884,12 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
     );
     assert_eq!(first_public_flight(&router, "mara").await, flight);
     let open = operator(&store, &clock, Action::Reports { all: false }).await;
-    assert!(open.said.starts_with("2 reports are open"));
+    assert!(open.said.starts_with("4 reports are open"));
     assert!(!open.said.contains(report1));
     let all = operator(&store, &clock, Action::Reports { all: true }).await;
     assert!(
         all.said
-            .starts_with("3 reports, 2 of them open, oldest first.")
+            .starts_with("5 reports, 4 of them open, oldest first.")
     );
     assert!(all.said.contains(
         "Report 0000000000000000000000rep1, closed 2026-11-18 19:10 UTC, made 2026-11-17 17:05 UTC"
@@ -877,7 +925,7 @@ async fn whoever_runs_the_server_reads_the_reports_and_closes_them() {
 
     // What a pilot wrote is printed without anything a terminal acts on.
     let hostile = NewReport {
-        id: "0000000000000000000000rep4".to_owned(),
+        id: "0000000000000000000000rep6".to_owned(),
         created_at: made_at,
         text: Some("first\u{1b}[2J\rline\nsecond\u{7} line".to_owned()),
         ..reports[1].clone()
@@ -1313,6 +1361,1104 @@ async fn a_live_track_whoever_runs_the_server_removed_is_gone_for_good() {
     }
 }
 
+// --- Reporting a group and a plan ---------------------------------------------------------
+
+/// An identifier of the right form that nothing has.
+const NOBODYS: &str = "0123456789abcdefghjkmnpqrs";
+
+fn about_group(group: &str) -> ReportRequest {
+    about(ReportSubject::Group(group.to_owned()))
+}
+
+fn about_plan(group: &str, plan: &str) -> ReportRequest {
+    about(ReportSubject::Plan(ReportedPlan {
+        group: group.to_owned(),
+        id: plan.to_owned(),
+    }))
+}
+
+/// Makes a group and returns it with its invite code.
+async fn make_group(router: &Router, token: &str, name: &str) -> CreateGroupResponse {
+    let request = CreateGroupRequest {
+        name: name.to_owned(),
+    };
+    ask(Method::POST, GROUPS_PATH)
+        .token(token)
+        .json(&request)
+        .send(router)
+        .await
+        .ok(StatusCode::CREATED)
+}
+
+async fn try_join(router: &Router, token: &str, code: &str) -> Answer {
+    let request = JoinGroupRequest {
+        code: GroupInviteCode::new(code),
+    };
+    ask(Method::POST, GROUP_JOIN_PATH)
+        .token(token)
+        .json(&request)
+        .send(router)
+        .await
+}
+
+async fn come_in(router: &Router, token: &str, code: &GroupInviteCode) {
+    let joined: JoinGroupResponse = try_join(router, token, code.expose())
+        .await
+        .ok(StatusCode::CREATED);
+    assert!(joined.joined);
+}
+
+/// A plan for a day of November 2026.
+fn a_plan(day: u32, place: &str, note: Option<&str>) -> PlanRequest {
+    PlanRequest {
+        day: NaiveDate::from_ymd_opt(2026, 11, day).unwrap(),
+        place: place.to_owned(),
+        position: None,
+        meet_at: None,
+        note: note.map(str::to_owned),
+    }
+}
+
+async fn post_plan(router: &Router, token: &str, group: &GroupId, plan: &PlanRequest) -> Plan {
+    let posted: PlanResponse = ask(Method::POST, &group_plans_path(group))
+        .token(token)
+        .json(plan)
+        .send(router)
+        .await
+        .ok(StatusCode::CREATED);
+    posted.plan
+}
+
+async fn seen_group(router: &Router, token: &str, group: &GroupId) -> GroupResponse {
+    ask(Method::GET, &group_path(group))
+        .token(token)
+        .send(router)
+        .await
+        .ok(StatusCode::OK)
+}
+
+/// The identifiers of a group's plans, as a member is given them from the
+/// first of November on.
+async fn plans_of(router: &Router, token: &str, group: &GroupId) -> Vec<String> {
+    let path = format!("{}?from=2026-11-01", group_plans_path(group));
+    let listed: PlansResponse = ask(Method::GET, &path)
+        .token(token)
+        .send(router)
+        .await
+        .ok(StatusCode::OK);
+    listed
+        .plans
+        .into_iter()
+        .map(|plan| plan.id.to_string())
+        .collect()
+}
+
+async fn sign_in(router: &Router, handle: &str) -> String {
+    let signed_in: SignInResponse = try_sign_in(router, handle, DEMO_PASSWORD)
+        .await
+        .ok(StatusCode::CREATED);
+    signed_in.token
+}
+
+fn demo_group() -> GroupId {
+    DEMO_GROUP.parse().unwrap()
+}
+
+#[tokio::test]
+async fn a_member_reports_a_group_and_a_plan_of_it() {
+    let (router, store) = recorded_with_its_store().await;
+    let [mara, jonas] = DEMO_PILOTS.map(|pilot| pilot.handle);
+    let jonas_token = sign_in(&router, jonas).await;
+    let group = demo_group();
+    let before = (
+        seen_group(&router, DEMO_TOKEN, &group).await,
+        plans_of(&router, DEMO_TOKEN, &group).await,
+    );
+
+    // Jonas reports the group, which the demo account keeps. This is an
+    // example of the documentation.
+    let request = ReportRequest {
+        subject: ReportSubject::Group(DEMO_GROUP.to_owned()),
+        reason: ReportReason::Impersonation,
+        text: Some("This is not the club's group. The club has none here.".to_owned()),
+    };
+    assert_golden(&golden("report_group_request.json"), &request);
+    let answer = report(&router, &jonas_token, &request).await;
+    let stored: ReportResponse = answer.ok(StatusCode::CREATED);
+    assert!(stored.created);
+    answer.is_private();
+    // The demo account reports a plan of Mara's: the other example.
+    let request = ReportRequest {
+        subject: ReportSubject::Plan(ReportedPlan {
+            group: DEMO_GROUP.to_owned(),
+            id: DEMO_PLANS[1].to_owned(),
+        }),
+        reason: ReportReason::Spam,
+        text: Some("An advertisement, not a plan.".to_owned()),
+    };
+    assert_golden(&golden("report_plan_request.json"), &request);
+    let answer = report(&router, DEMO_TOKEN, &request).await;
+    assert!(answer.ok::<ReportResponse>(StatusCode::CREATED).created);
+    answer.is_private();
+
+    // Either reported again is the same report, whatever it says this time.
+    for (token, again) in [
+        (jonas_token.as_str(), about_group(DEMO_GROUP)),
+        (DEMO_TOKEN, about_plan(DEMO_GROUP, DEMO_PLANS[1])),
+    ] {
+        let known: ReportResponse = report(&router, token, &again).await.ok(StatusCode::OK);
+        assert!(!known.created);
+    }
+    // A keeper may report the group they keep and an author their own
+    // plan: each is one more report to read.
+    for own in [
+        about_group(DEMO_GROUP),
+        about_plan(DEMO_GROUP, DEMO_PLANS[0]),
+    ] {
+        report(&router, DEMO_TOKEN, &own)
+            .await
+            .ok::<ReportResponse>(StatusCode::CREATED);
+    }
+
+    // What waits for whoever runs the server: the group with its name and
+    // the account that keeps it, the plan with its words and its author.
+    // Nothing else of either was kept.
+    let reports = store.reports(ReportListing::Open, None, 10).await.unwrap();
+    assert_eq!(reports.len(), 4);
+    let of = |reporter: &str, kind: &str| {
+        reports
+            .iter()
+            .find(|report| report.reporter_handle == reporter && report.subject.kind() == kind)
+            .unwrap_or_else(|| panic!("no report of {reporter} about a {kind}"))
+    };
+    let about_the_group = of(jonas, "group");
+    assert_eq!(about_the_group.about_handle, DEMO_HANDLE);
+    assert_eq!(
+        about_the_group.subject,
+        venti_store::ReportSubject::Group {
+            id: DEMO_GROUP.to_owned(),
+            name: DEMO_GROUP_NAME.to_owned(),
+        }
+    );
+    assert_eq!(about_the_group.reason, "impersonation");
+    let about_the_plan = reports
+        .iter()
+        .find(|report| report.subject.id() == DEMO_PLANS[1])
+        .unwrap();
+    assert_eq!(about_the_plan.reporter_handle, DEMO_HANDLE);
+    assert_eq!(about_the_plan.about_handle, mara);
+    assert_eq!(
+        about_the_plan.subject,
+        venti_store::ReportSubject::Plan {
+            id: DEMO_PLANS[1].to_owned(),
+            group_id: DEMO_GROUP.to_owned(),
+            place: "Beispielwiese".to_owned(),
+            note: Some(
+                "A made-up plan. Ground handling if the wind allows, coffee if not.".to_owned()
+            ),
+        }
+    );
+    assert_eq!(
+        about_the_plan.text.as_deref(),
+        Some("An advertisement, not a plan.")
+    );
+    // And nothing else happened: the group and its plans are as they were.
+    let after = (
+        seen_group(&router, DEMO_TOKEN, &group).await,
+        plans_of(&router, DEMO_TOKEN, &group).await,
+    );
+    assert_eq!(after, before);
+
+    // A group and a plan are words and no flight: the reason about a
+    // flight is none of theirs, nor is a reason nobody knows. The refusal
+    // is the same whether there is such a group or not.
+    for subject in [
+        ReportSubject::Group(DEMO_GROUP.to_owned()),
+        ReportSubject::Group(NOBODYS.to_owned()),
+        ReportSubject::Plan(ReportedPlan {
+            group: DEMO_GROUP.to_owned(),
+            id: DEMO_PLANS[2].to_owned(),
+        }),
+    ] {
+        let wrong = ReportRequest {
+            subject,
+            reason: ReportReason::NotAFlight,
+            text: None,
+        };
+        let said = report(&router, DEMO_TOKEN, &wrong)
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidReport);
+        assert_eq!(
+            said,
+            "reason must be one of offensive, impersonation, privacy, spam, other"
+        );
+    }
+    let unknown = format!(r#"{{"subject":{{"group":"{DEMO_GROUP}"}},"reason":"airspace"}}"#);
+    let said = ask(Method::POST, REPORTS_PATH)
+        .token(DEMO_TOKEN)
+        .header(header::CONTENT_TYPE, "application/json")
+        .bytes(unknown)
+        .send(&router)
+        .await
+        .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidReport);
+    assert!(!said.contains("not_a_flight") && !said.contains(DEMO_GROUP));
+    // "Other" says in its text what it is about, as for every report.
+    let wordless = ReportRequest {
+        reason: ReportReason::Other,
+        ..about_plan(DEMO_GROUP, DEMO_PLANS[2])
+    };
+    report(&router, DEMO_TOKEN, &wordless)
+        .await
+        .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidReport);
+    // Not the JSON a report is: a plan without its group, and a group
+    // that is more than an identifier.
+    for text in [
+        format!(
+            r#"{{"subject":{{"plan":"{}"}},"reason":"spam"}}"#,
+            DEMO_PLANS[1]
+        ),
+        format!(
+            r#"{{"subject":{{"plan":{{"id":"{}"}}}},"reason":"spam"}}"#,
+            DEMO_PLANS[1]
+        ),
+        format!(r#"{{"subject":{{"group":["{DEMO_GROUP}"]}},"reason":"spam"}}"#),
+    ] {
+        let said = ask(Method::POST, REPORTS_PATH)
+            .token(DEMO_TOKEN)
+            .header(header::CONTENT_TYPE, "application/json")
+            .bytes(text)
+            .send(&router)
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest);
+        assert!(!said.contains(DEMO_PLANS[1]) && !said.contains(DEMO_GROUP));
+    }
+    let open = store.reports(ReportListing::Open, None, 10).await.unwrap();
+    assert_eq!(open.len(), 4);
+}
+
+#[tokio::test]
+async fn a_group_one_is_not_in_is_not_there_to_report() {
+    let (router, store, clock) = open_server();
+    let keeper = sign_up(&router, "keeper").await.token;
+    let member = sign_up(&router, "member").await.token;
+    let outsider = sign_up(&router, "outsider").await.token;
+    let removed = sign_up(&router, "removed").await.token;
+    let leaver = sign_up(&router, "leaver").await.token;
+    let made = make_group(&router, &keeper, "Mustergruppe").await;
+    for token in [&member, &removed, &leaver] {
+        come_in(&router, token, &made.invite_code).await;
+    }
+    let group = made.group.id.clone();
+    let plan = post_plan(
+        &router,
+        &member,
+        &group,
+        &a_plan(19, "Musterberg", Some("Bring a radio.")),
+    )
+    .await;
+    // A group of the outsider's own, with a plan: another group's plan.
+    let others = make_group(&router, &outsider, "Beispielgruppe").await;
+    let elsewhere = post_plan(
+        &router,
+        &outsider,
+        &others.group.id,
+        &a_plan(19, "Beispielwiese", None),
+    )
+    .await;
+    // One was in the group and was removed, one was in it and left.
+    for (token, handle) in [(&keeper, "removed"), (&leaver, "leaver")] {
+        let path = group_member_path(&group, &Handle::new(handle).unwrap());
+        let gone = ask(Method::DELETE, &path).token(token).send(&router).await;
+        assert_eq!(gone.status, StatusCode::NO_CONTENT);
+    }
+
+    for (who, token) in [
+        ("an outsider", &outsider),
+        ("a removed member", &removed),
+        ("a member who left", &leaver),
+    ] {
+        // The group answers a report exactly as an identifier nothing
+        // has: in status, in every header and in every byte. Reporting is
+        // no way to find a group.
+        let for_the_group = report(&router, token, &about_group(group.as_str())).await;
+        let for_no_group = report(&router, token, &about_group(NOBODYS)).await;
+        let said = for_the_group.error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+        assert!(
+            !said.contains(group.as_str()) && !said.contains("Mustergruppe"),
+            "{said}"
+        );
+        assert_eq!(
+            observable(&for_the_group),
+            observable(&for_no_group),
+            "{who}"
+        );
+        // It is the answer reading the group gives them.
+        let reading = ask(Method::GET, &group_path(&group))
+            .token(token)
+            .send(&router)
+            .await;
+        assert_eq!(for_the_group.body, reading.body, "{who}");
+        // And a plan answers as the group does, whether there is such a
+        // plan or not: who is not in a group never learns of one.
+        for (in_group, named) in [
+            (group.as_str(), plan.id.as_str()),
+            (group.as_str(), NOBODYS),
+            (group.as_str(), "x"),
+            (NOBODYS, plan.id.as_str()),
+            (NOBODYS, NOBODYS),
+        ] {
+            let answer = report(&router, token, &about_plan(in_group, named)).await;
+            assert_eq!(
+                observable(&answer),
+                observable(&for_no_group),
+                "{who}: a plan {named} of {in_group}"
+            );
+        }
+    }
+    // The comparison means something: to a member the group is there, and
+    // a member is told when it has no such plan. A plan of another group
+    // is no plan of this one, also for someone who is in both.
+    come_in(&router, &member, &others.invite_code).await;
+    let no_plan = ask(
+        Method::PUT,
+        &plan_in_path(&group, &NOBODYS.parse().unwrap()),
+    )
+    .token(&member)
+    .send(&router)
+    .await;
+    for nothing in [NOBODYS, "x", "", "../account", elsewhere.id.as_str()] {
+        let answer = report(&router, &member, &about_plan(group.as_str(), nothing)).await;
+        let said = answer.error(StatusCode::NOT_FOUND, ErrorCode::PlanNotFound);
+        assert!(!said.contains("account"), "{said}");
+        assert_eq!(
+            answer.body, no_plan.body,
+            "as the plan's own address answers"
+        );
+    }
+    // Text that is no identifier is the identifier of no group.
+    for odd in [
+        "",
+        "x",
+        "../account",
+        "x' OR '1'='1",
+        &NOBODYS.to_uppercase(),
+    ] {
+        let answer = report(&router, &member, &about_group(odd)).await;
+        let said = answer.error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+        assert!(!said.contains("account") && !said.contains("OR"), "{said}");
+    }
+    let kept = store.reports(ReportListing::All, None, 10).await.unwrap();
+    assert!(kept.is_empty(), "none of that is a report");
+
+    // A member reports the group and the plan, a keeper too.
+    for (token, request) in [
+        (&member, about_group(group.as_str())),
+        (&member, about_plan(group.as_str(), plan.id.as_str())),
+        (&keeper, about_plan(group.as_str(), plan.id.as_str())),
+    ] {
+        report(&router, token, &request)
+            .await
+            .ok::<ReportResponse>(StatusCode::CREATED);
+    }
+    // Whoever comes in with the code is a member, and reports like one.
+    let code: venti_api_types::v1::GroupInviteResponse = ask(
+        Method::POST,
+        &venti_api_types::v1::group_invite_path(&group),
+    )
+    .token(&keeper)
+    .send(&router)
+    .await
+    .ok(StatusCode::OK);
+    come_in(&router, &outsider, &code.invite_code).await;
+    report(&router, &outsider, &about_group(group.as_str()))
+        .await
+        .ok::<ReportResponse>(StatusCode::CREATED);
+    // Who leaves is told nothing from then on, of the group or of the
+    // report they made.
+    let path = group_member_path(&group, &Handle::new("member").unwrap());
+    let left = ask(Method::DELETE, &path)
+        .token(&member)
+        .send(&router)
+        .await;
+    assert_eq!(left.status, StatusCode::NO_CONTENT);
+    let again = report(&router, &member, &about_group(group.as_str())).await;
+    again.error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+    let nothing = report(&router, &member, &about_group(NOBODYS)).await;
+    assert_eq!(observable(&again), observable(&nothing));
+
+    // A plan whose day lies further back than plans are kept is gone,
+    // also for a report: a plan for the 19th on the 22nd. The member who
+    // posted it left, and it went with them; another stands for it.
+    let old = post_plan(&router, &keeper, &group, &a_plan(19, "Musterberg", None)).await;
+    clock.advance(Duration::days(4));
+    let answer = report(
+        &router,
+        &outsider,
+        &about_plan(group.as_str(), old.id.as_str()),
+    )
+    .await;
+    answer.error(StatusCode::NOT_FOUND, ErrorCode::PlanNotFound);
+    let reports = store.reports(ReportListing::All, None, 10).await.unwrap();
+    assert_eq!(reports.len(), 4);
+}
+
+#[tokio::test]
+async fn a_report_about_a_group_counts_like_any_other() {
+    let clock = TestClock::new();
+    let strict = Settings {
+        limits: Limits {
+            reports_per_day: 4,
+            ..Limits::default()
+        },
+        ..settings()
+    };
+    let (router, store) = server(strict, &clock);
+    let anna = sign_up(&router, "anna").await.token;
+    let dario = sign_up(&router, "dario").await.token;
+    let made = make_group(&router, &anna, "Mustergruppe").await;
+    let group = made.group.id.clone();
+    let plan = post_plan(&router, &anna, &group, &a_plan(19, "Musterberg", None)).await;
+
+    // Four a day, whatever becomes of them: a group one is not in, a plan
+    // of it, an identifier nothing has, and a reason that is none for a
+    // group. Trying identifiers here is no cheaper than anywhere else.
+    report(&router, &dario, &about_group(group.as_str()))
+        .await
+        .error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+    report(
+        &router,
+        &dario,
+        &about_plan(group.as_str(), plan.id.as_str()),
+    )
+    .await
+    .error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+    report(&router, &dario, &about_group(NOBODYS))
+        .await
+        .error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+    let wrong = ReportRequest {
+        reason: ReportReason::NotAFlight,
+        ..about_group(group.as_str())
+    };
+    report(&router, &dario, &wrong)
+        .await
+        .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidReport);
+    // The fifth is refused before it is read, and says nothing of the
+    // group: the answer is the same for a group that is there and one
+    // that is not.
+    let refused = report(&router, &dario, &about_group(group.as_str())).await;
+    refused.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    assert_eq!(refused.header(header::RETRY_AFTER), "86400");
+    let nowhere = report(&router, &dario, &about_group(NOBODYS)).await;
+    assert_eq!(observable(&refused), observable(&nowhere));
+    // Coming into the group does not give the day back.
+    come_in(&router, &dario, &made.invite_code).await;
+    report(&router, &dario, &about_group(group.as_str()))
+        .await
+        .error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    // A member's own day is their own, and holds as many.
+    for (request, status) in [
+        (about_group(group.as_str()), StatusCode::CREATED),
+        (about_group(group.as_str()), StatusCode::OK),
+        (
+            about_plan(group.as_str(), plan.id.as_str()),
+            StatusCode::CREATED,
+        ),
+        (about_plan(group.as_str(), NOBODYS), StatusCode::NOT_FOUND),
+    ] {
+        assert_eq!(report(&router, &anna, &request).await.status, status);
+    }
+    report(&router, &anna, &about_group(group.as_str()))
+        .await
+        .error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    let kept = store.reports(ReportListing::All, None, 10).await.unwrap();
+    assert_eq!(kept.len(), 2);
+    // The next day Dario, who is in the group now, reports it.
+    clock.advance(Duration::days(1) + Duration::seconds(1));
+    report(&router, &dario, &about_group(group.as_str()))
+        .await
+        .ok::<ReportResponse>(StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn nothing_tells_the_members_of_a_group_that_it_was_reported() {
+    let (router, store, clock) = open_server();
+    let anna = sign_up(&router, "anna").await.token;
+    let bernd = sign_up(&router, "bernd").await.token;
+    let dario = sign_up(&router, "dario").await.token;
+    let made = make_group(&router, &anna, "Mustergruppe").await;
+    for token in [&bernd, &dario] {
+        come_in(&router, token, &made.invite_code).await;
+    }
+    let group = made.group.id.clone();
+    let plan = post_plan(
+        &router,
+        &bernd,
+        &group,
+        &a_plan(19, "Musterberg", Some("Bring a radio.")),
+    )
+    .await;
+
+    // Everything the group's keeper and the plan's author can ask the
+    // server, each with their own token.
+    let mut questions: Vec<(String, &str)> = Vec::new();
+    for token in [anna.as_str(), bernd.as_str()] {
+        for path in [
+            ACCOUNT_PATH.to_owned(),
+            SESSIONS_PATH.to_owned(),
+            FLIGHTS_PATH.to_owned(),
+            FLIGHT_CHANGES_PATH.to_owned(),
+            GROUPS_PATH.to_owned(),
+            group_path(&group),
+            group_plans_path(&group),
+            format!("{}?from=2026-11-01", group_plans_path(&group)),
+            PLAN_BOARD_PATH.to_owned(),
+            format!("{PLAN_BOARD_PATH}?from=2026-11-19&to=2026-11-19"),
+        ] {
+            questions.push((path, token));
+        }
+    }
+    let ask_all = || async {
+        let mut answers = Vec::new();
+        for (path, token) in &questions {
+            let answer = ask(Method::GET, path).token(token).send(&router).await;
+            assert_eq!(answer.status, StatusCode::OK, "{path}");
+            answers.push(observable(&answer));
+        }
+        answers
+    };
+    let before = ask_all().await;
+
+    // Dario reports the group and the plan, in words that stand nowhere
+    // else.
+    for subject in [
+        ReportSubject::Group(group.to_string()),
+        ReportSubject::Plan(ReportedPlan {
+            group: group.to_string(),
+            id: plan.id.to_string(),
+        }),
+    ] {
+        let request = ReportRequest {
+            subject,
+            reason: ReportReason::Impersonation,
+            text: Some("Zanzibar marmalade".to_owned()),
+        };
+        report(&router, &dario, &request)
+            .await
+            .ok::<ReportResponse>(StatusCode::CREATED);
+    }
+    let open = store.reports(ReportListing::Open, None, 10).await.unwrap();
+    assert_eq!(open.len(), 2);
+
+    // Every answer is what it was, in status, headers and body: nothing
+    // says that there is a report, let alone whose.
+    let after = ask_all().await;
+    for ((path, _), (before, after)) in questions.iter().zip(before.iter().zip(&after)) {
+        assert_eq!(before, after, "{path}");
+        let body = String::from_utf8_lossy(&after.2);
+        for told in ["Zanzibar", "impersonation", "report"] {
+            assert!(!body.contains(told), "{path} says {told:?}");
+        }
+    }
+    // What they do in the group is answered as before as well: the author
+    // says that they are in, and takes it back.
+    for method in [Method::DELETE, Method::PUT] {
+        let answer = ask(method, &plan_in_path(&group, &plan.id))
+            .token(&bernd)
+            .send(&router)
+            .await;
+        let now: PlanResponse = answer.ok(StatusCode::OK);
+        assert_eq!(now.plan.place, "Musterberg");
+    }
+    // Closing the reports tells nobody either.
+    for listed in open {
+        let closing = Action::CloseReport {
+            id: listed.id,
+            note: "Looked at it. Nothing to do.".to_owned(),
+        };
+        assert!(operator(&store, &clock, closing).await.found);
+    }
+    assert_eq!(ask_all().await, before);
+}
+
+// --- What whoever runs the server does about a group ------------------------------------
+
+#[tokio::test]
+async fn the_reports_say_what_was_reported_also_when_it_is_changed_or_gone() {
+    let (router, store, clock) = open_server();
+    let anna = sign_up(&router, "anna").await.token;
+    let bernd = sign_up(&router, "bernd").await.token;
+    let dario = sign_up(&router, "dario").await.token;
+    let made = make_group(&router, &anna, "Zanzibar flyers").await;
+    for token in [&bernd, &dario] {
+        come_in(&router, token, &made.invite_code).await;
+    }
+    let group = made.group.id.clone();
+    let words = a_plan(
+        19,
+        "Marmalade hill",
+        Some("Bring the quotient.\nAnd a radio."),
+    );
+    let plan = post_plan(&router, &bernd, &group, &words).await;
+    report(&router, &dario, &about_group(group.as_str()))
+        .await
+        .ok::<ReportResponse>(StatusCode::CREATED);
+    clock.advance(Duration::minutes(1));
+    let about_the_plan = about_plan(group.as_str(), plan.id.as_str());
+    report(&router, &dario, &about_the_plan)
+        .await
+        .ok::<ReportResponse>(StatusCode::CREATED);
+    let listed = || async {
+        operator(&store, &clock, Action::Reports { all: false })
+            .await
+            .said
+    };
+    let says = |said: &str, expected: &[&str]| {
+        for expected in expected {
+            assert!(said.contains(expected), "{expected}\n{said}");
+        }
+    };
+
+    // As reported: the words, who they are whose, and that they still
+    // stand.
+    let said = listed().await;
+    says(
+        &said,
+        &[
+            &format!("group {group}, which anna (Pilot anna) kept when it was reported"),
+            "  Name then:    Zanzibar flyers\n  Now:          the same name; kept by anna (Pilot anna), 3 members",
+            &format!("plan {} of bernd (Pilot bernd), in group {group}", plan.id),
+            "  Place then:   Marmalade hill\n  Note then:    Bring the quotient.\n                And a radio.\n  Now:          the same words, for 2026-11-19; its group is called \"Zanzibar flyers\"",
+            "  Reported by:  dario",
+        ],
+    );
+    assert!(!said.contains("Place now:"), "{said}");
+
+    // The keeper gives the group another name and hands it on, and the
+    // author makes the plan say something else. The reports keep what was
+    // reported, and say beside it what stands there now.
+    let renamed = ask(Method::PATCH, &group_path(&group))
+        .token(&anna)
+        .json(&UpdateGroupRequest {
+            name: "Harmless".to_owned(),
+        })
+        .send(&router)
+        .await;
+    assert_eq!(renamed.status, StatusCode::OK);
+    let handed = ask(Method::PUT, &venti_api_types::v1::group_keeper_path(&group))
+        .token(&anna)
+        .json(&venti_api_types::v1::HandOverGroupRequest {
+            handle: "bernd".to_owned(),
+        })
+        .send(&router)
+        .await;
+    assert_eq!(handed.status, StatusCode::OK);
+    let changed = ask(Method::PUT, &plan_path(&group, &plan.id))
+        .token(&bernd)
+        .json(&a_plan(20, "Elsewhere", None))
+        .send(&router)
+        .await;
+    assert_eq!(changed.status, StatusCode::OK);
+    let said = listed().await;
+    says(
+        &said,
+        &[
+            &format!("group {group}, which anna (Pilot anna) kept when it was reported"),
+            "  Name then:    Zanzibar flyers\n  Now:          called \"Harmless\"; kept by bernd (Pilot bernd), 3 members",
+            "  Place then:   Marmalade hill\n  Note then:    Bring the quotient.\n                And a radio.\n  Now:          other words, for 2026-11-20; its group is called \"Harmless\"\n  Place now:    Elsewhere\n  Reason:",
+        ],
+    );
+    assert!(!said.contains("Note now:"), "{said}");
+    // A note that it has now is shown as well.
+    let noted = ask(Method::PUT, &plan_path(&group, &plan.id))
+        .token(&bernd)
+        .json(&a_plan(20, "Elsewhere", Some("Nothing to see.")))
+        .send(&router)
+        .await;
+    assert_eq!(noted.status, StatusCode::OK);
+    says(
+        &listed().await,
+        &["  Place now:    Elsewhere\n  Note now:     Nothing to see.\n  Reason:"],
+    );
+
+    // The author deletes the plan, and then the keeper the group. The
+    // words that were reported are still there to read.
+    let deleted = ask(Method::DELETE, &plan_path(&group, &plan.id))
+        .token(&bernd)
+        .send(&router)
+        .await;
+    assert_eq!(deleted.status, StatusCode::NO_CONTENT);
+    says(
+        &listed().await,
+        &[
+            "  Note then:    Bring the quotient.\n                And a radio.\n  Now:          gone; its group is called \"Harmless\"",
+        ],
+    );
+    let deleted = ask(Method::DELETE, &group_path(&group))
+        .token(&bernd)
+        .send(&router)
+        .await;
+    assert_eq!(deleted.status, StatusCode::NO_CONTENT);
+    let said = listed().await;
+    assert!(said.starts_with("2 reports are open"), "{said}");
+    says(
+        &said,
+        &[
+            "  Name then:    Zanzibar flyers\n  Now:          gone\n",
+            "  Place then:   Marmalade hill",
+            "  Now:          gone; its group is gone\n",
+        ],
+    );
+
+    // What a pilot typed is printed without anything a terminal acts on.
+    // The API lets none of it in; a report that holds it is made past it.
+    let account = |handle: &'static str| {
+        let store = store.clone();
+        async move { store.account(handle).await.unwrap().unwrap().id }
+    };
+    let hostile = [
+        venti_store::ReportSubject::Group {
+            id: "g".repeat(26),
+            name: "first\u{1b}[2J\rname".to_owned(),
+        },
+        venti_store::ReportSubject::Plan {
+            id: "p".repeat(26),
+            group_id: "g\u{7}".repeat(13),
+            place: "a\u{1b}place".to_owned(),
+            note: Some("one\u{9b}\ntwo\u{7}".to_owned()),
+        },
+    ];
+    for (number, subject) in hostile.into_iter().enumerate() {
+        let new = NewReport {
+            id: format!("0000000000000000000000bad{number}"),
+            created_at: Clock::now(&clock),
+            reporter_id: account("dario").await,
+            about_account_id: account("anna").await,
+            subject,
+            reason: "other".to_owned(),
+            text: None,
+        };
+        assert_eq!(store.save_report(&new).await.unwrap(), ReportSaved::Stored);
+    }
+    let said = listed().await;
+    says(
+        &said,
+        &[
+            "  Name then:    first?[2J?name",
+            "  Place then:   a?place\n  Note then:    one?\n                two?",
+            "in group g?g?g?",
+        ],
+    );
+    for acted_on in ['\u{1b}', '\u{7}', '\u{9b}', '\r'] {
+        assert!(!said.contains(acted_on), "{acted_on:?}");
+    }
+}
+
+#[tokio::test]
+async fn whoever_runs_the_server_looks_at_a_group_renames_it_and_removes_from_it() {
+    let (router, store) = recorded_with_its_store().await;
+    let clock = TestClock::new();
+    let [mara, jonas] = DEMO_PILOTS.map(|pilot| pilot.handle);
+    let (mara, jonas) = (sign_in(&router, mara).await, sign_in(&router, jonas).await);
+    let group = demo_group();
+    let members = [DEMO_TOKEN, mara.as_str(), jonas.as_str()];
+    // Two reports, to see what the list says of them afterwards.
+    report(&router, &jonas, &about_group(DEMO_GROUP))
+        .await
+        .ok::<ReportResponse>(StatusCode::CREATED);
+    report(&router, DEMO_TOKEN, &about_plan(DEMO_GROUP, DEMO_PLANS[1]))
+        .await
+        .ok::<ReportResponse>(StatusCode::CREATED);
+    let before = seen_group(&router, &mara, &group).await;
+
+    // Looking at one group: what its members see, and of who is in on a
+    // plan the number.
+    let look = Action::Group {
+        group: format!(" {DEMO_GROUP}\n"),
+    };
+    let shown = operator(&store, &clock, look).await;
+    assert!(shown.found, "{}", shown.said);
+    assert_golden_text("operator_group.txt", &format!("{}\n", shown.said));
+    for expected in [
+        "Group 44444444444444444444444444, made 2026-10-19 19:05 UTC",
+        "  Name:         Mustergruppe",
+        "  Kept by:      demo (Demo Pilot)",
+        "  Members:      3, in the order they came in\n                demo (Demo Pilot)\n                mara (Mara Muster)\n                jonas (Jonas Beispiel)",
+        "  Plans:        3",
+        "Plan 66666666666666666666666666, for 2026-11-18 at 10:30, posted by demo (Demo Pilot); 3 pilots are in",
+        "  Place:        Musterberg, Startplatz Ost\n  Position:     47.66420, 11.79670\n  Note:         A made-up plan of the development mode.\n                At the lift at half past ten, in the air by noon.",
+        "Plan 88888888888888888888888888, for 2026-11-20, posted by jonas (Jonas Beispiel); 2 pilots are in\n  Place:        Musterberg\n",
+        "Nothing was changed",
+    ] {
+        assert!(shown.said.contains(expected), "{expected}\n{}", shown.said);
+    }
+    assert_eq!(seen_group(&router, &mara, &group).await, before);
+    for nothing in [NOBODYS, "demo", "", DEMO_PLANS[0], "x' OR '1'='1"] {
+        let look = Action::Group {
+            group: nothing.to_owned(),
+        };
+        let outcome = operator(&store, &clock, look).await;
+        assert!(!outcome.found, "{nothing:?}: {}", outcome.said);
+    }
+
+    // Another name, cleaned as a keeper's would be.
+    let rename = |name: &str| Action::RenameGroup {
+        group: DEMO_GROUP.to_owned(),
+        name: name.to_owned(),
+    };
+    let renamed = operator(&store, &clock, rename("  Neuer\tName ")).await;
+    assert!(renamed.found, "{}", renamed.said);
+    assert!(
+        renamed.said.starts_with(
+            "Group 44444444444444444444444444, kept by demo (Demo Pilot), was called \
+             \"Mustergruppe\" and is called \"Neuer Name\" now, for its 3 members and for \
+             nobody else.\n"
+        ),
+        "{}",
+        renamed.said
+    );
+    assert!(renamed.said.contains("Nobody is told"));
+    assert!(renamed.said.contains("no report was closed"));
+    // Every member reads the new name, where a group is named, and
+    // nothing else about the group changed: nothing says who renamed it.
+    let mut expected = before.clone();
+    expected.group.name = "Neuer Name".to_owned();
+    for token in members {
+        assert_eq!(seen_group(&router, token, &group).await, expected);
+        let mine: GroupsResponse = ask(Method::GET, GROUPS_PATH)
+            .token(token)
+            .send(&router)
+            .await
+            .ok(StatusCode::OK);
+        assert!(mine.groups.contains(&expected.group));
+    }
+    assert_eq!(plans_of(&router, &jonas, &group).await, DEMO_PLANS);
+    // The same name again changes nothing, and what is no name is none.
+    let again = operator(&store, &clock, rename("Neuer Name")).await;
+    assert!(again.found);
+    assert!(
+        again
+            .said
+            .contains("is called \"Neuer Name\" already. Nothing changed.")
+    );
+    let too_long = "x".repeat(61);
+    for no_name in ["", " \n\t ", "\u{200b}", too_long.as_str()] {
+        let refused = perform(&*store, &clock, site(), &rename(no_name)).await;
+        let said = refused.unwrap_err();
+        assert!(said.starts_with("a group's name"), "{said}");
+    }
+    let nowhere = Action::RenameGroup {
+        group: NOBODYS.to_owned(),
+        name: "Nobody's".to_owned(),
+    };
+    assert!(!operator(&store, &clock, nowhere).await.found);
+    // Its keeper names it again, as before.
+    let back = ask(Method::PATCH, &group_path(&group))
+        .token(DEMO_TOKEN)
+        .json(&UpdateGroupRequest {
+            name: DEMO_GROUP_NAME.to_owned(),
+        })
+        .send(&router)
+        .await;
+    assert_eq!(back.ok::<GroupResponse>(StatusCode::OK), before);
+
+    // One plan removed, by its identifier.
+    let in_on = |plan: &str| {
+        let path = plan_in_path(&group, &plan.parse().unwrap());
+        let (router, token) = (router.clone(), jonas.clone());
+        async move { ask(Method::PUT, &path).token(&token).send(&router).await }
+    };
+    let never_was = observable(&in_on(NOBODYS).await);
+    let remove = |plan: &str| Action::RemovePlan {
+        plan: plan.to_owned(),
+    };
+    let removed = operator(&store, &clock, remove(DEMO_PLANS[1])).await;
+    assert!(removed.found, "{}", removed.said);
+    assert!(
+        removed.said.starts_with(
+            "The plan 77777777777777777777777777 of mara (Mara Muster) in group \
+             44444444444444444444444444 is removed: for 2026-11-19, at \"Beispielwiese\"; 2 \
+             pilots were in on it.\n"
+        ),
+        "{}",
+        removed.said
+    );
+    assert!(removed.said.contains("This cannot be undone."));
+    assert!(removed.said.contains("no report was closed"));
+    // To the group's members it is a plan that is not there, as one that
+    // never was: in status, in every header and in every byte.
+    assert_eq!(observable(&in_on(DEMO_PLANS[1]).await), never_was);
+    for token in members {
+        assert_eq!(
+            plans_of(&router, token, &group).await,
+            [DEMO_PLANS[0], DEMO_PLANS[2]]
+        );
+        let board: PlanBoardResponse =
+            ask(Method::GET, &format!("{PLAN_BOARD_PATH}?from=2026-11-01"))
+                .token(token)
+                .send(&router)
+                .await
+                .ok(StatusCode::OK);
+        assert!(
+            board
+                .plans
+                .iter()
+                .all(|plan| plan.id.as_str() != DEMO_PLANS[1])
+        );
+    }
+    assert_eq!(seen_group(&router, &mara, &group).await, before);
+    // Its author posts again, if she likes: nothing stops that.
+    post_plan(&router, &mara, &group, &a_plan(21, "Beispielwiese", None)).await;
+    // There is nothing to remove twice, and what is no plan is none.
+    for nothing in [DEMO_PLANS[1], NOBODYS, DEMO_GROUP, "x", ""] {
+        let outcome = operator(&store, &clock, remove(nothing)).await;
+        assert!(!outcome.found, "{nothing:?}: {}", outcome.said);
+    }
+    // A plan of another group goes by its identifier alone.
+    let other = operator(&store, &clock, remove(DEMO_OTHER_PLAN)).await;
+    assert!(other.found && other.said.contains(DEMO_OTHER_GROUP));
+    assert!(other.said.contains("2 pilots were in on it."));
+
+    // The list of reports says what became of what was reported.
+    let listed = operator(&store, &clock, Action::Reports { all: false }).await;
+    assert!(listed.said.contains(
+        "  Place then:   Beispielwiese\n  Note then:    A made-up plan. Ground handling if the \
+         wind allows, coffee if not.\n  Now:          gone; its group is called \"Mustergruppe\""
+    ));
+
+    // The group removed, with all that is in it.
+    let no_group = |token: &str| {
+        let (router, token) = (router.clone(), token.to_owned());
+        async move {
+            let nobodys = group_path(&NOBODYS.parse().unwrap());
+            observable(&ask(Method::GET, &nobodys).token(&token).send(&router).await)
+        }
+    };
+    let remove = |group: &str| Action::RemoveGroup {
+        group: group.to_owned(),
+    };
+    let removed = operator(&store, &clock, remove(DEMO_GROUP)).await;
+    assert!(removed.found, "{}", removed.said);
+    assert!(
+        removed.said.starts_with(
+            "Group 44444444444444444444444444 \"Mustergruppe\", kept by demo (Demo Pilot), is \
+             removed, with the places of its 3 members in it and its 3 plans. Its invite code \
+             lets nobody in.\n"
+        ),
+        "{}",
+        removed.said
+    );
+    assert!(
+        removed
+            .said
+            .contains("No account was touched, and no report was closed.")
+    );
+    // To everyone who was in it, it answers as a group that never was, and
+    // it is in none of their lists.
+    for token in members {
+        let gone = ask(Method::GET, &group_path(&group))
+            .token(token)
+            .send(&router)
+            .await;
+        gone.error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+        assert_eq!(observable(&gone), no_group(token).await);
+        let plans = ask(Method::GET, &group_plans_path(&group))
+            .token(token)
+            .send(&router)
+            .await;
+        plans.error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+        let mine: GroupsResponse = ask(Method::GET, GROUPS_PATH)
+            .token(token)
+            .send(&router)
+            .await
+            .ok(StatusCode::OK);
+        assert!(mine.groups.iter().all(|listed| listed.id != group));
+    }
+    // Its code lets nobody in, and the accounts are as they were: the
+    // other group is where it was, with Mara keeping it.
+    let newcomer = sign_up(&router, "newcomer").await.token;
+    try_join(&router, &newcomer, DEMO_GROUP_CODE)
+        .await
+        .error(StatusCode::FORBIDDEN, ErrorCode::InvalidGroupInvite);
+    for handle in [DEMO_HANDLE, "mara", "jonas"] {
+        assert!(store.account(handle).await.unwrap().is_some(), "{handle}");
+    }
+    let other = seen_group(&router, &mara, &DEMO_OTHER_GROUP.parse().unwrap()).await;
+    assert_eq!(other.group.keeper.handle.as_str(), "mara");
+    // The reports are open still, and say that it is gone.
+    let listed = operator(&store, &clock, Action::Reports { all: false }).await;
+    assert!(listed.said.starts_with("2 reports are open"));
+    assert!(
+        listed
+            .said
+            .contains("  Name then:    Mustergruppe\n  Now:          gone\n")
+    );
+    assert!(
+        listed
+            .said
+            .contains("  Now:          gone; its group is gone\n")
+    );
+    // There is nothing to remove twice, and what is no group is none.
+    for nothing in [DEMO_GROUP, NOBODYS, "demo", DEMO_PLANS[0], ""] {
+        let outcome = operator(&store, &clock, remove(nothing)).await;
+        assert!(!outcome.found, "{nothing:?}: {}", outcome.said);
+        assert!(!outcome.said.contains("is removed"), "{}", outcome.said);
+    }
+}
+
+#[tokio::test]
+async fn a_plan_whose_day_is_gone_is_no_plan_to_whoever_runs_the_server_either() {
+    let (router, store, clock) = open_server();
+    let anna = sign_up(&router, "anna").await.token;
+    let made = make_group(&router, &anna, "Mustergruppe").await;
+    let group = made.group.id.clone();
+    let old = post_plan(&router, &anna, &group, &a_plan(18, "Musterberg", None)).await;
+    let new = post_plan(&router, &anna, &group, &a_plan(21, "Beispielwiese", None)).await;
+    report(&router, &anna, &about_plan(group.as_str(), old.id.as_str()))
+        .await
+        .ok::<ReportResponse>(StatusCode::CREATED);
+
+    // Three days later the plan for the 18th is in no answer of the API,
+    // whether or not the hourly cleanup has come by. The commands go by
+    // the same reckoning: it is not shown, not counted and not removed.
+    clock.advance(Duration::days(3));
+    assert_eq!(plans_of(&router, &anna, &group).await, [new.id.as_str()]);
+    let look = Action::Group {
+        group: group.to_string(),
+    };
+    let shown = operator(&store, &clock, look).await;
+    assert!(shown.said.contains("  Plans:        1"), "{}", shown.said);
+    assert!(!shown.said.contains(old.id.as_str()), "{}", shown.said);
+    let listed = operator(&store, &clock, Action::Reports { all: false }).await;
+    assert!(
+        listed.said.contains(
+            "  Place then:   Musterberg\n  Now:          gone; its group is called \"Mustergruppe\""
+        ),
+        "{}",
+        listed.said
+    );
+    let remove = Action::RemovePlan {
+        plan: old.id.to_string(),
+    };
+    let outcome = operator(&store, &clock, remove).await;
+    assert!(!outcome.found);
+    assert!(
+        outcome.said.contains("its day is more than 2 days gone by"),
+        "{}",
+        outcome.said
+    );
+    let removed = Action::RemoveGroup {
+        group: group.to_string(),
+    };
+    let removed = operator(&store, &clock, removed).await;
+    assert!(
+        removed
+            .said
+            .contains("the places of its 1 member in it and its 1 plan."),
+        "{}",
+        removed.said
+    );
+}
+
 // --- A store in trouble ---------------------------------------------------------------
 
 #[tokio::test]
@@ -1348,6 +2494,19 @@ async fn a_database_that_is_down_is_said_to_be_down() {
         Action::RemoveLiveTrack {
             track: "c".repeat(26),
         },
+        Action::Group {
+            group: "c".repeat(26),
+        },
+        Action::RenameGroup {
+            group: "c".repeat(26),
+            name: "Another name".to_owned(),
+        },
+        Action::RemovePlan {
+            plan: "c".repeat(26),
+        },
+        Action::RemoveGroup {
+            group: "c".repeat(26),
+        },
     ] {
         let failed = perform(&*store, &clock, site(), &action).await.unwrap_err();
         assert!(failed.starts_with("the database failed"), "{failed}");
@@ -1380,6 +2539,10 @@ fn the_operators_guide_shows_the_commands_as_they_are() {
         "remove-live-track",
         "suspend-publishing",
         "resume-publishing",
+        "group",
+        "rename-group",
+        "remove-plan",
+        "remove-group",
     ];
     for command in commands {
         let in_the_guide = format!("docker compose exec server venti-server {command}");
@@ -1398,4 +2561,64 @@ fn the_operators_guide_shows_the_commands_as_they_are() {
             "the guide names `{command}`, which the program does not have"
         );
     }
+}
+
+// --- Who may ask as nobody ------------------------------------------------------------------
+
+/// The Rust files under a folder, however deep.
+fn sources_under(folder: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(folder).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            sources_under(&path, found);
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            found.push(path);
+        }
+    }
+}
+
+/// The store answers a few calls for whoever runs the server without
+/// asking who asks: about any flight, any live track, any account, and
+/// since 2026-11-21 about any group and any plan. A request handler that
+/// reached one of them would show or change a group for someone who is
+/// not in it. Only the operator's commands may call them.
+#[test]
+fn only_the_operators_commands_ask_the_store_as_nobody() {
+    let calls = [
+        ".any_group(",
+        ".plans_of_any_group(",
+        ".any_plan(",
+        ".rename_any_group(",
+        ".remove_plan(",
+        ".remove_group(",
+        ".take_down_flight(",
+        ".release_flight(",
+        ".remove_live_track(",
+        ".suspend_publishing(",
+        ".resume_publishing(",
+    ];
+    let folder = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    sources_under(&folder, &mut files);
+    assert!(files.len() > 40, "{} files", files.len());
+    let mut commands = 0;
+    for file in files {
+        let text = std::fs::read_to_string(&file).unwrap();
+        if file.ends_with("moderation.rs") {
+            // Each of them is something a command does.
+            for call in calls {
+                assert!(text.contains(call), "no command calls {call}");
+            }
+            commands += 1;
+            continue;
+        }
+        for call in calls {
+            assert!(
+                !text.contains(call),
+                "{} calls {call}, which is for whoever runs the server",
+                file.display()
+            );
+        }
+    }
+    assert_eq!(commands, 1, "the commands are in one file");
 }

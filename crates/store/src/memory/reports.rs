@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use venti_domain::Timestamp;
 
 use super::accounts::Accounts;
-use crate::report::{check, check_note};
+use crate::report::{check, check_note, is_the_same_report};
 use crate::{
     NewReport, Report, ReportClosing, ReportClosure, ReportKey, ReportListing, ReportSaved,
     StoreError,
@@ -53,12 +53,10 @@ impl Reports {
         if !both_there {
             return Ok(ReportSaved::NoSuchAccount);
         }
-        let already_open = self.reports.values().any(|entry| {
-            entry.closed.is_none()
-                && entry.new.reporter_id == new.reporter_id
-                && entry.new.about_account_id == new.about_account_id
-                && entry.new.subject == new.subject
-        });
+        let already_open = self
+            .reports
+            .values()
+            .any(|entry| entry.closed.is_none() && is_the_same_report(&entry.new, new));
         if already_open {
             return Ok(ReportSaved::AlreadyOpen);
         }

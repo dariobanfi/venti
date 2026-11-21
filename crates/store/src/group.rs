@@ -9,6 +9,11 @@
 //! When they leave, when the keeper removes them or when their account is
 //! deleted, the plans they posted there go, and so does their word on the
 //! plans of others.
+//!
+//! Whoever runs the server is no member and is not asked for an account:
+//! the few calls made for the operator ([`Store::any_group`](crate::Store::any_group)
+//! and those listed with it) answer for any group. No request of a pilot's
+//! reaches one of them.
 
 use chrono::{NaiveDate, NaiveTime};
 use venti_domain::{GeoPoint, Timestamp};
@@ -199,6 +204,17 @@ pub enum KeeperAct<T> {
     NoSuchMember,
     /// There is no such group, or the asker is not in it.
     NoSuchGroup,
+}
+
+/// A group that whoever runs the server removed
+/// ([`Store::remove_group`](crate::Store::remove_group)), as it was at
+/// that moment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemovedGroup {
+    /// The group with its members.
+    pub group: GroupMembers,
+    /// How many plans went with it, those of days gone by not counted.
+    pub plans: u32,
 }
 
 /// What a plan says.

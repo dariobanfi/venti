@@ -6,13 +6,16 @@
 //! has room for, a pilot coming in under a code that was replaced, a group
 //! without a keeper, and anything a pilot put into a group outlasting
 //! their place in it.
+//!
+//! At the end is what a store does for whoever runs the server, who is in
+//! no group and reads, renames and removes all the same.
 
 use chrono::{NaiveDate, NaiveTime};
 use venti_domain::{GeoPoint, Timestamp};
 use venti_store::{
     Account, Group, GroupCreation, GroupJoining, GroupMembers, GroupPilot, GroupRoom, KeeperAct,
     MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
-    PlanSaving, SecretHash, Store, StoreError,
+    PlanSaving, RemovedGroup, SecretHash, Store, StoreError,
 };
 
 use super::accounts::{create, id, secret};
@@ -1716,4 +1719,254 @@ pub(crate) async fn plans_of_days_gone_by_are_gone_and_then_removed(store: &impl
     assert_eq!((keeper.as_str(), members.len()), ("dario", 2));
     assert_eq!(store.prune_plans(day(30)).await.unwrap(), 3);
     assert!(plans(store, "g1", &dario, day(1)).await.unwrap().is_empty());
+}
+
+// --- For whoever runs the server ---------------------------------------------------
+
+pub(crate) async fn whoever_runs_the_server_reads_any_group_and_its_plans(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    make(store, "g1", &dario, 1, at(10, 0)).await;
+    come_in(store, &anna, 1, at(10, 5)).await;
+    make(store, "g2", &bernd, 2, at(10, 10)).await;
+    plan_on(store, "p16", "g1", &anna, (16, None), 0).await;
+    plan_on(store, "p18", "g1", &anna, (18, clock(9, 30)), 5).await;
+    plan_on(store, "p19", "g1", &dario, (19, None), 10).await;
+    set_in(store, ("g1", "p18"), &dario, true, at(12, 30)).await;
+    let g1 = id("g1");
+
+    // The group as its members read it, for a caller that is in no group
+    // and names no account.
+    let seen = store.any_group(&g1).await.unwrap().unwrap();
+    assert_eq!(read(store, "g1", &anna).await, Some(seen.clone()));
+    assert_eq!(seen.group.keeper, pilot(&dario));
+    assert_eq!(seen.members, [pilot(&dario), pilot(&anna)]);
+    let other = store.any_group(&id("g2")).await.unwrap().unwrap();
+    assert_eq!(other.members, [pilot(&bernd)]);
+
+    // Its plans from a day on, in the order its members get them, with who
+    // is in on each; and one plan by its identifier alone.
+    let listed = store.plans_of_any_group(&g1, day(1)).await.unwrap();
+    let as_a_member = store
+        .plans_of_group(&g1, &dario.id, day(1), None)
+        .await
+        .unwrap();
+    assert_eq!(listed, as_a_member);
+    let listed = listed.unwrap();
+    let names: Vec<String> = listed.iter().map(|plan| short(&plan.id)).collect();
+    assert_eq!(names, ["p16", "p18", "p19"]);
+    assert_eq!(who_is_in(&listed[1]), ["anna", "dario"]);
+    let from_the_18th = store.plans_of_any_group(&g1, day(18)).await.unwrap();
+    assert_eq!(from_the_18th.unwrap(), listed[1..]);
+    let none = store.plans_of_any_group(&id("g2"), day(1)).await.unwrap();
+    assert_eq!(none, Some(Vec::new()));
+    let plan = store.any_plan(&id("p18"), day(1)).await.unwrap();
+    assert_eq!(plan.as_ref(), Some(&listed[1]));
+    // A plan for a day that is gone is no plan, though it is still stored.
+    assert_eq!(store.any_plan(&id("p16"), day(17)).await.unwrap(), None);
+    assert_eq!(
+        store.any_plan(&id("p16"), day(16)).await.unwrap().as_ref(),
+        Some(&listed[0])
+    );
+
+    // What names nothing is nothing, and no error.
+    let long = "x".repeat(100_000);
+    for nothing in [
+        id("g9").as_str(),
+        "",
+        "\0",
+        "0000000000000000000000000\0",
+        "g1' OR '1'='1",
+        long.as_str(),
+    ] {
+        let shown = &nothing[..nothing.len().min(40)];
+        assert_eq!(store.any_group(nothing).await.unwrap(), None, "{shown:?}");
+        let plans = store.plans_of_any_group(nothing, day(1)).await.unwrap();
+        assert_eq!(plans, None, "{shown:?}");
+        let plan = store.any_plan(nothing, day(1)).await.unwrap();
+        assert_eq!(plan, None, "{shown:?}");
+    }
+    // A group's identifier is no plan's, and a plan's no group's.
+    assert_eq!(store.any_plan(&g1, day(1)).await.unwrap(), None);
+    assert_eq!(store.any_group(&id("p18")).await.unwrap(), None);
+
+    // Reading changed nothing.
+    assert_eq!(read(store, "g1", &dario).await, Some(seen));
+    assert_eq!(
+        plans(store, "g1", &anna, day(1)).await.unwrap(),
+        ["p16", "p18", "p19"]
+    );
+}
+
+pub(crate) async fn whoever_runs_the_server_renames_a_group_and_removes_a_plan(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    make(store, "g1", &dario, 1, at(10, 0)).await;
+    come_in(store, &anna, 1, at(10, 5)).await;
+    make(store, "g2", &bernd, 2, at(10, 10)).await;
+    plan_on(store, "p16", "g1", &anna, (16, None), 0).await;
+    let p18 = plan_on(store, "p18", "g1", &anna, (18, clock(9, 30)), 5).await;
+    plan_on(store, "p19", "g1", &dario, (19, None), 10).await;
+    plan_on(store, "q19", "g2", &bernd, (19, None), 15).await;
+    set_in(store, ("g1", "p18"), &dario, true, at(12, 30)).await;
+    let g1 = id("g1");
+    let before = read(store, "g1", &dario).await.unwrap();
+
+    // A new name, whoever keeps the group. Nothing else about it changes.
+    let renamed = store
+        .rename_any_group(&g1, "Thermik & «Kuchen» <b>")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(renamed.group.name, "Thermik & «Kuchen» <b>");
+    let expected = GroupMembers {
+        group: Group {
+            name: renamed.group.name.clone(),
+            ..before.group.clone()
+        },
+        members: before.members.clone(),
+    };
+    assert_eq!(renamed, expected);
+    for member in [&dario, &anna] {
+        assert_eq!(read(store, "g1", member).await, Some(expected.clone()));
+    }
+    assert_eq!(
+        plans(store, "g1", &anna, day(1)).await.unwrap(),
+        ["p16", "p18", "p19"]
+    );
+    // Its code lets a pilot in as before, and its keeper names it again
+    // if they like.
+    come_in(store, &bernd, 1, at(13, 0)).await;
+    let again = store.rename_group(&g1, &dario.id, "Group g1").await;
+    assert!(matches!(again.unwrap(), KeeperAct::Done(seen) if seen.group.name == "Group g1"));
+    // A name no store keeps is refused, and what is no group is none.
+    let zero = store.rename_any_group(&g1, "a\0").await;
+    assert!(matches!(zero, Err(StoreError::Invalid(_))), "{zero:?}");
+    for nothing in [id("g9"), id("p18"), String::new(), "a\0b".to_owned()] {
+        let renamed = store.rename_any_group(&nothing, "Nobody's").await.unwrap();
+        assert_eq!(renamed, None, "{nothing:?}");
+    }
+    assert_eq!(
+        read(store, "g2", &bernd).await.unwrap().group.name,
+        "Group g2"
+    );
+
+    // A plan is removed, whoever posted it, and handed back as it was.
+    let with_dario_in = Plan {
+        pilots_in: vec![pilot(&anna), pilot(&dario)],
+        ..p18
+    };
+    let removed = store.remove_plan(&id("p18"), day(1)).await.unwrap();
+    assert_eq!(removed, Some(with_dario_in));
+    // To its members it is as if its author had deleted it: in no list,
+    // and no plan to change, to delete or to be in on.
+    assert_eq!(
+        plans(store, "g1", &dario, day(1)).await.unwrap(),
+        ["p16", "p19"]
+    );
+    assert_eq!(board(store, &anna).await, ["p16", "p19"]);
+    let said = store
+        .set_plan_in(&g1, &id("p18"), &dario.id, true, at(14, 0), day(1))
+        .await
+        .unwrap();
+    assert_eq!(said, PlanChange::NoSuchPlan);
+    let deleted = store
+        .delete_plan(&g1, &id("p18"), &anna.id, day(1))
+        .await
+        .unwrap();
+    assert_eq!(deleted, PlanRemoval::NoSuchPlan);
+    assert_eq!(store.any_plan(&id("p18"), day(1)).await.unwrap(), None);
+    // Nothing keeps its author from posting again, under that identifier
+    // too, with nobody else in.
+    let anew = plan_on(store, "p18", "g1", &anna, (18, None), 40).await;
+    assert_eq!(who_is_in(&anew), ["anna"]);
+
+    // A plan whose day is gone is not there to remove, and is not removed.
+    assert_eq!(store.remove_plan(&id("p16"), day(17)).await.unwrap(), None);
+    assert!(store.any_plan(&id("p16"), day(1)).await.unwrap().is_some());
+    // Nor is what is no plan; and nothing else went.
+    for nothing in [id("p99"), g1.clone(), String::new(), "a\0b".to_owned()] {
+        let removed = store.remove_plan(&nothing, day(1)).await.unwrap();
+        assert_eq!(removed, None, "{nothing:?}");
+    }
+    assert_eq!(
+        plans(store, "g1", &dario, day(1)).await.unwrap(),
+        ["p16", "p18", "p19"]
+    );
+    assert_eq!(plans(store, "g2", &bernd, day(1)).await.unwrap(), ["q19"]);
+    assert_eq!(read(store, "g1", &dario).await.unwrap().members.len(), 3);
+}
+
+pub(crate) async fn whoever_runs_the_server_removes_a_group_with_its_plans(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    let stranger = create(store, "stranger").await;
+    make(store, "g1", &dario, 1, at(10, 0)).await;
+    come_in(store, &anna, 1, at(10, 5)).await;
+    come_in(store, &bernd, 1, at(10, 10)).await;
+    make(store, "g2", &bernd, 2, at(10, 15)).await;
+    come_in(store, &anna, 2, at(10, 20)).await;
+    plan_on(store, "p16", "g1", &anna, (16, None), 0).await;
+    plan_on(store, "p18", "g1", &anna, (18, None), 5).await;
+    plan_on(store, "p19", "g1", &dario, (19, None), 10).await;
+    plan_on(store, "q19", "g2", &bernd, (19, None), 15).await;
+    set_in(store, ("g1", "p19"), &bernd, true, at(12, 30)).await;
+    let g1 = id("g1");
+    let before = read(store, "g1", &anna).await.unwrap();
+
+    // Removed, whoever keeps it, and handed back as it was. Of its plans
+    // those of days that are gone are not counted.
+    let removed = store.remove_group(&g1, day(17)).await.unwrap();
+    assert_eq!(
+        removed,
+        Some(RemovedGroup {
+            group: before,
+            plans: 2,
+        })
+    );
+
+    // To everyone who was in it, it is as if its keeper had deleted it:
+    // no group, in no list, with no plan, and its code lets nobody in.
+    for member in [&dario, &anna, &bernd] {
+        assert_eq!(read(store, "g1", member).await, None);
+        assert_eq!(plans(store, "g1", member, day(1)).await, None);
+        assert!(!groups_of(store, member).await.contains(&"g1".to_owned()));
+    }
+    assert!(groups_of(store, &dario).await.is_empty());
+    assert!(board(store, &dario).await.is_empty());
+    assert_eq!(store.any_group(&g1).await.unwrap(), None);
+    assert_eq!(store.plans_of_any_group(&g1, day(1)).await.unwrap(), None);
+    for plan in ["p16", "p18", "p19"] {
+        assert_eq!(store.any_plan(&id(plan), day(1)).await.unwrap(), None);
+    }
+    let gone = store
+        .join_group(&stranger.id, &code(1), &ROOM, at(13, 0))
+        .await
+        .unwrap();
+    assert_eq!(gone, GroupJoining::NoSuchInvite);
+    // The accounts are as they were, and so is the other group.
+    for handle in ["dario", "anna", "bernd"] {
+        assert!(store.account(handle).await.unwrap().is_some(), "{handle}");
+    }
+    assert_eq!(groups_of(store, &anna).await, ["g2"]);
+    assert_eq!(board(store, &bernd).await, ["q19"]);
+    let (keeper, members) = keeper_and_members(store, "g2", &anna).await;
+    assert_eq!((keeper.as_str(), members.len()), ("bernd", 2));
+
+    // There is nothing to remove twice, and what is no group is none.
+    for nothing in [g1.clone(), id("q19"), String::new(), "a\0b".to_owned()] {
+        let removed = store.remove_group(&nothing, day(1)).await.unwrap();
+        assert_eq!(removed, None, "{nothing:?}");
+    }
+    assert_eq!(groups_of(store, &bernd).await, ["g2"]);
+    // Its identifier, its code and its plans' identifiers are free again.
+    make(store, "g1", &anna, 1, at(14, 0)).await;
+    plan_on(store, "p19", "g1", &anna, (19, None), 30).await;
+    // A group with one member and no plan goes the same way.
+    let alone = store.remove_group(&g1, day(1)).await.unwrap().unwrap();
+    assert_eq!((alone.group.members.len(), alone.plans), (1, 1));
+    assert!(store.account("anna").await.unwrap().is_some());
 }

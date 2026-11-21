@@ -1,19 +1,22 @@
 //! What every store must do for whoever runs the server: keep the reports
-//! pilots send, take a flight down and keep it down, remove a live track,
-//! and suspend an account's publishing.
+//! pilots send, with the words of a group or a plan that was reported,
+//! take a flight down and keep it down, remove a live track, and suspend
+//! an account's publishing. What it does about a group and a plan is with
+//! the groups (`groups.rs`).
 
-use chrono::Duration;
+use chrono::{Duration, NaiveDate, NaiveTime};
 use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
-    Account, Flight, Listing, LiveBatch, LiveFix, LiveKept, LiveRoom, LiveSaved, LiveVisibility,
-    NewFlight, NewReport, PublicFlights, PublicOrder, Report, ReportClosing, ReportClosure,
-    ReportListing, ReportSaved, ReportSubject, Room, Saved, Store, StoreError, Suspension,
-    Visibility, VisibilityChange,
+    Account, Flight, KeeperAct, Listing, LiveBatch, LiveFix, LiveKept, LiveRoom, LiveSaved,
+    LiveVisibility, NewFlight, NewReport, PlanChange, PlanDetails, PlanRemoval, PublicFlights,
+    PublicOrder, Report, ReportClosing, ReportClosure, ReportListing, ReportSaved, ReportSubject,
+    Room, Saved, Store, StoreError, Suspension, Visibility, VisibilityChange,
 };
 
 use super::accounts::{create, id};
 use super::at;
 use super::flights::{new_flight, put};
+use super::groups::{come_in, day, make, new_plan, plan_on, post};
 
 // --- Helpers -------------------------------------------------------------
 
@@ -833,4 +836,322 @@ pub(crate) async fn a_report_goes_with_either_of_its_accounts(store: &impl Store
 
     store.delete_account(&anna.id).await.unwrap();
     assert!(names(store, ReportListing::All).await.is_empty());
+}
+
+// --- Reports about a group and about a plan ---------------------------------------
+
+/// A group as a report names it, with the name it had when it was
+/// reported.
+fn group_named(group: &str, name: &str) -> ReportSubject {
+    ReportSubject::Group {
+        id: id(group),
+        name: name.to_owned(),
+    }
+}
+
+/// A plan of group `g1` as a report names it, with the words it had when
+/// it was reported.
+fn plan_saying(plan: &str, place: &str, note: Option<&str>) -> ReportSubject {
+    ReportSubject::Plan {
+        id: id(plan),
+        group_id: id("g1"),
+        place: place.to_owned(),
+        note: note.map(str::to_owned),
+    }
+}
+
+pub(crate) async fn a_report_about_a_group_or_a_plan_keeps_its_words(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    make(store, "g1", &dario, 1, at(10, 0)).await;
+    come_in(store, &anna, 1, at(10, 5)).await;
+    come_in(store, &bernd, 1, at(10, 10)).await;
+    // A plan with everything a plan can say, in words that are no query
+    // and no markup, and one that says as little as a plan may.
+    let details = PlanDetails {
+        day: day(19),
+        place: "Musterberg – «Ost» <b>".to_owned(),
+        position: Some(GeoPoint::new(47.66, 11.80).unwrap()),
+        meet_at: NaiveTime::from_hms_opt(9, 30, 0),
+        note: Some("Erste Zeile\n'; DROP TABLE reports;-- 山 🪂".to_owned()),
+    };
+    post(
+        store,
+        &new_plan("p1", "g1", &anna, details.clone(), at(12, 0)),
+    )
+    .await;
+    plan_on(store, "p2", "g1", &anna, (20, None), 5).await;
+    let (g1, p1) = (id("g1"), id("p1"));
+
+    // Bernd and Anna report the group, which Dario keeps, by the name it
+    // has; Dario reports two plans of Anna's, by what they say.
+    let group = group_named("g1", "Group g1");
+    let plan = plan_saying("p1", &details.place, details.note.as_deref());
+    let noteless = plan_saying("p2", "Musterberg", None);
+    stored(
+        store,
+        &report("r1", &bernd, &dario, group.clone(), at(13, 0)),
+    )
+    .await;
+    stored(
+        store,
+        &report("r2", &dario, &anna, plan.clone(), at(13, 10)),
+    )
+    .await;
+    let wordless = NewReport {
+        text: None,
+        ..report("r3", &dario, &anna, noteless.clone(), at(13, 20))
+    };
+    stored(store, &wordless).await;
+    stored(
+        store,
+        &report("r4", &anna, &dario, group.clone(), at(13, 30)),
+    )
+    .await;
+
+    // Each is read back with those words, the account it is about and
+    // nothing else of the group or the plan: no day, no time, no position.
+    let reports = store.reports(ReportListing::Open, None, 10).await.unwrap();
+    assert_eq!(reports.len(), 4);
+    assert_eq!(
+        reports[0],
+        Report {
+            id: id("r1"),
+            created_at: at(13, 0),
+            reporter_handle: "bernd".to_owned(),
+            about_account_id: dario.id.clone(),
+            about_handle: "dario".to_owned(),
+            about_name: "Pilot dario".to_owned(),
+            subject: group.clone(),
+            reason: "offensive".to_owned(),
+            text: Some("What bernd says about it".to_owned()),
+            closed: None,
+        }
+    );
+    assert_eq!(reports[1].subject, plan);
+    assert_eq!(reports[1].about_handle, "anna");
+    assert_eq!(reports[1].reporter_handle, "dario");
+    assert_eq!(reports[2].subject, noteless);
+    assert_eq!(reports[2].text, None);
+    assert_eq!(reports[3].subject, group);
+
+    // What was reported is changed: the keeper gives the group another
+    // name, and the author makes the plan say something else.
+    let renamed = store.rename_group(&g1, &dario.id, "Harmlos").await.unwrap();
+    assert!(matches!(renamed, KeeperAct::Done(_)), "{renamed:?}");
+    let harmless = PlanDetails {
+        place: "Anderswo".to_owned(),
+        note: None,
+        ..details.clone()
+    };
+    let changed = store
+        .change_plan(&g1, &p1, &anna.id, &harmless, at(14, 0), NaiveDate::MIN)
+        .await
+        .unwrap();
+    assert!(matches!(changed, PlanChange::Now(_)), "{changed:?}");
+    let kept = store.reports(ReportListing::Open, None, 10).await.unwrap();
+    assert_eq!(kept, reports, "a report says what was reported");
+    // Then it is gone: the plan deleted by its author, the group with the
+    // other plan removed. The reports are as they were.
+    let deleted = store
+        .delete_plan(&g1, &p1, &anna.id, NaiveDate::MIN)
+        .await
+        .unwrap();
+    assert_eq!(deleted, PlanRemoval::Removed);
+    assert!(
+        store
+            .remove_group(&g1, NaiveDate::MIN)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    let kept = store.reports(ReportListing::All, None, 10).await.unwrap();
+    assert_eq!(kept, reports);
+    // A report about what is gone is closed and removed like any other.
+    let closing = store.close_report(&id("r3"), "Gone.", at(15, 0)).await;
+    assert_eq!(closing.unwrap(), ReportClosing::Closed);
+    assert_eq!(names(store, ReportListing::Open).await, ["r1", "r2", "r4"]);
+    assert_eq!(store.prune_reports(at(16, 0)).await.unwrap(), 1);
+
+    // Words with a zero byte in them are refused, wherever they stand.
+    let zero = "a\0b";
+    for (name, subject) in [
+        ("z1", group_named(zero, "Group")),
+        ("z2", group_named("g2", zero)),
+        ("z3", plan_saying(zero, "Musterberg", None)),
+        ("z4", plan_saying("p3", zero, None)),
+        ("z5", plan_saying("p3", "Musterberg", Some(zero))),
+        (
+            "z6",
+            ReportSubject::Plan {
+                id: id("p3"),
+                group_id: zero.to_owned(),
+                place: "Musterberg".to_owned(),
+                note: None,
+            },
+        ),
+    ] {
+        let refused = store
+            .save_report(&report(name, &bernd, &dario, subject, at(16, 0)))
+            .await;
+        assert!(
+            matches!(refused, Err(StoreError::Invalid(_))),
+            "{name}: {refused:?}"
+        );
+    }
+    assert_eq!(names(store, ReportListing::All).await, ["r1", "r2", "r4"]);
+
+    // A report goes with either of its accounts, and the words it kept
+    // with it: with the plan's author, with whoever reported, and with the
+    // account that kept the group when it was reported.
+    store.delete_account(&anna.id).await.unwrap();
+    assert_eq!(names(store, ReportListing::All).await, ["r1"]);
+    store.delete_account(&dario.id).await.unwrap();
+    assert!(names(store, ReportListing::All).await.is_empty());
+}
+
+pub(crate) async fn one_open_report_about_a_group_whoever_keeps_it(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    make(store, "g1", &dario, 1, at(10, 0)).await;
+    come_in(store, &anna, 1, at(10, 5)).await;
+    come_in(store, &bernd, 1, at(10, 10)).await;
+    plan_on(store, "p1", "g1", &anna, (19, None), 0).await;
+    let g1 = id("g1");
+    let already_open = |new: NewReport| async move {
+        assert_eq!(
+            store.save_report(&new).await.unwrap(),
+            ReportSaved::AlreadyOpen,
+            "{}",
+            short(&new.id)
+        );
+    };
+
+    // Bernd reports the group while Dario keeps it.
+    let first = report(
+        "r1",
+        &bernd,
+        &dario,
+        group_named("g1", "Group g1"),
+        at(13, 0),
+    );
+    stored(store, &first).await;
+    // Reported again it is the same report, whatever the group is called
+    // by then.
+    let renamed = store.rename_group(&g1, &dario.id, "Other").await.unwrap();
+    assert!(matches!(renamed, KeeperAct::Done(_)), "{renamed:?}");
+    let other_name = group_named("g1", "Other");
+    already_open(report("r1b", &bernd, &dario, other_name.clone(), at(13, 5))).await;
+    // And whoever keeps it by then: the keeping passes to Anna, and the
+    // group is still the same thing to report.
+    let handed = store.hand_over_group(&g1, &dario.id, "anna").await.unwrap();
+    assert!(matches!(handed, KeeperAct::Done(_)), "{handed:?}");
+    already_open(report("r1c", &bernd, &anna, other_name.clone(), at(13, 10))).await;
+    let reports = store.reports(ReportListing::All, None, 10).await.unwrap();
+    assert_eq!(reports.len(), 1);
+    assert_eq!(reports[0].subject, group_named("g1", "Group g1"));
+    assert_eq!(reports[0].about_handle, "dario");
+
+    // Someone else's report about the group is another report, and so is
+    // the keeper's own. A plan and a flight with the same letters are
+    // other things.
+    stored(
+        store,
+        &report("r2", &dario, &anna, other_name.clone(), at(13, 20)),
+    )
+    .await;
+    stored(
+        store,
+        &report("r3", &anna, &anna, other_name.clone(), at(13, 30)),
+    )
+    .await;
+    let plan_of_the_same_letters = plan_saying("g1", "Musterberg", None);
+    stored(
+        store,
+        &report("r4", &bernd, &anna, plan_of_the_same_letters, at(13, 40)),
+    )
+    .await;
+    let flight_of_the_same_letters = ReportSubject::Flight(g1.clone());
+    stored(
+        store,
+        &report("r5", &bernd, &anna, flight_of_the_same_letters, at(13, 50)),
+    )
+    .await;
+    // Another group is another thing.
+    stored(
+        store,
+        &report("r6", &bernd, &anna, group_named("g2", "Other"), at(14, 0)),
+    )
+    .await;
+
+    // A plan is one thing as well, whatever it says by the time it is
+    // reported again.
+    stored(
+        store,
+        &report(
+            "r7",
+            &bernd,
+            &anna,
+            plan_saying("p1", "Musterberg", None),
+            at(14, 10),
+        ),
+    )
+    .await;
+    already_open(report(
+        "r7b",
+        &bernd,
+        &anna,
+        plan_saying("p1", "Anderswo", Some("And a note.")),
+        at(14, 15),
+    ))
+    .await;
+
+    // Once the first report is closed, Bernd can report the group anew,
+    // and that report is about the group as it is then.
+    store
+        .close_report(&id("r1"), "Renamed.", at(15, 0))
+        .await
+        .unwrap();
+    stored(
+        store,
+        &report("r8", &bernd, &anna, other_name.clone(), at(15, 10)),
+    )
+    .await;
+    assert_eq!(
+        names(store, ReportListing::Open).await,
+        ["r2", "r3", "r4", "r5", "r6", "r7", "r8"]
+    );
+
+    // Reports that race for one group are kept once, also when they do not
+    // agree on who keeps it: the keeping can change hands at that moment.
+    make(store, "g3", &dario, 3, at(16, 0)).await;
+    let attempt = |name: &'static str, keeper: &Account| {
+        let new = report(
+            name,
+            &bernd,
+            keeper,
+            group_named("g3", "Group g3"),
+            at(16, 5),
+        );
+        async move { store.save_report(&new).await.unwrap() }
+    };
+    let (a, b, c, d) = tokio::join!(
+        attempt("ra", &dario),
+        attempt("rb", &anna),
+        attempt("rc", &dario),
+        attempt("rd", &anna)
+    );
+    let results = [a, b, c, d];
+    let stored = results
+        .iter()
+        .filter(|saved| **saved == ReportSaved::Stored)
+        .count();
+    let already = results
+        .iter()
+        .filter(|saved| **saved == ReportSaved::AlreadyOpen)
+        .count();
+    assert_eq!((stored, already), (1, 3), "{results:?}");
+    assert_eq!(names(store, ReportListing::Open).await.len(), 8);
 }

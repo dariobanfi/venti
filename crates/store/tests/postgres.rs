@@ -171,7 +171,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         .await
         .unwrap();
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
-    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 }
 
 #[tokio::test]
@@ -756,6 +756,169 @@ async fn a_database_from_before_groups_is_upgraded_in_place() {
         matches!(joined, venti_store::GroupJoining::Joined(group) if group.members == 2),
         "the group takes a second member"
     );
+}
+
+#[tokio::test]
+async fn a_database_from_before_groups_could_be_reported_is_upgraded_in_place() {
+    let Some(url) = fresh_schema("upgrade_from_11").await else {
+        return;
+    };
+    // A database as the server left it while a report was about a flight,
+    // a page or a live track: with three accounts, an open report of each
+    // kind and a closed one.
+    let old = look(&url).await;
+    for migration in BEFORE_GROUPS.into_iter().chain([
+        include_str!("../migrations/0010_groups_and_plans.sql"),
+        include_str!("../migrations/0011_thermal_map_parts.sql"),
+    ]) {
+        old.batch_execute(migration).await.unwrap();
+    }
+    old.batch_execute(
+        "CREATE TABLE schema_migrations (
+             version    integer PRIMARY KEY,
+             name       text NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+         );
+         INSERT INTO schema_migrations (version, name)
+             SELECT n, 'migration ' || n FROM generate_series(1, 11) AS n;
+         INSERT INTO accounts (id, handle, display_name, created_at) VALUES
+             ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00'),
+             ('0000000000000000000000anna', 'anna', 'Anna A.', '2026-11-18 09:00+00'),
+             ('000000000000000000000bernd', 'bernd', 'Bernd B.', '2026-11-18 09:00+00');
+         INSERT INTO reports
+             (id, created_at, reporter_id, about_account_id, kind, subject_id, reason,
+              reporter_text, closed_at, closing_note)
+         VALUES
+             ('000000000000000000000000r1', '2026-11-18 12:00+00', '000000000000000000000dario',
+              '0000000000000000000000anna', 'flight', '0000000000000000000flight1',
+              'not_a_flight', 'Not hers.', NULL, NULL),
+             ('000000000000000000000000r2', '2026-11-18 12:10+00', '000000000000000000000dario',
+              '0000000000000000000000anna', 'pilot', '', 'impersonation', NULL, NULL, NULL),
+             ('000000000000000000000000r3', '2026-11-18 12:20+00', '0000000000000000000000anna',
+              '000000000000000000000dario', 'live_track', '00000000000000000000track1',
+              'other', 'It is night.', '2026-11-18 13:00+00', 'Looked at it.');",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+
+    // The reports that were there are read as they were.
+    let all = venti_store::ReportListing::All;
+    let reports = store.reports(all, None, 10).await.unwrap();
+    let subjects: Vec<_> = reports
+        .iter()
+        .map(|report| report.subject.clone())
+        .collect();
+    assert_eq!(
+        subjects,
+        [
+            venti_store::ReportSubject::Flight("0000000000000000000flight1".to_owned()),
+            venti_store::ReportSubject::Pilot,
+            venti_store::ReportSubject::LiveTrack("00000000000000000000track1".to_owned()),
+        ]
+    );
+    assert_eq!(reports[0].text.as_deref(), Some("Not hers."));
+    assert_eq!(
+        reports[2]
+            .closed
+            .as_ref()
+            .map(|closed| closed.note.as_str()),
+        Some("Looked at it.")
+    );
+    // The same thing reported again is still the same report.
+    let dario = store.account("dario").await.unwrap().unwrap();
+    let anna = store.account("anna").await.unwrap().unwrap();
+    let now = chrono::DateTime::from_timestamp(1_795_100_000, 0).unwrap();
+    let report = |id: &str, subject: venti_store::ReportSubject| venti_store::NewReport {
+        id: id.to_owned(),
+        created_at: now,
+        reporter_id: dario.id.clone(),
+        about_account_id: anna.id.clone(),
+        subject,
+        reason: "spam".to_owned(),
+        text: None,
+    };
+    let again = report(
+        "000000000000000000000000r4",
+        venti_store::ReportSubject::Flight("0000000000000000000flight1".to_owned()),
+    );
+    assert_eq!(
+        store.save_report(&again).await.unwrap(),
+        venti_store::ReportSaved::AlreadyOpen
+    );
+    // And a group and a plan can be reported, with their words.
+    let group = venti_store::ReportSubject::Group {
+        id: "0000000000000000000000000g".to_owned(),
+        name: "Mustergruppe".to_owned(),
+    };
+    let plan = venti_store::ReportSubject::Plan {
+        id: "0000000000000000000000000p".to_owned(),
+        group_id: "0000000000000000000000000g".to_owned(),
+        place: "Musterberg".to_owned(),
+        note: None,
+    };
+    for (id, subject) in [
+        ("000000000000000000000000r5", group.clone()),
+        ("000000000000000000000000r6", plan.clone()),
+    ] {
+        assert_eq!(
+            store.save_report(&report(id, subject)).await.unwrap(),
+            venti_store::ReportSaved::Stored
+        );
+    }
+    let reports = store.reports(all, None, 10).await.unwrap();
+    assert_eq!(reports.len(), 5);
+    assert_eq!(reports[3].subject, group);
+    assert_eq!(reports[4].subject, plan);
+
+    // The database itself holds every writer to what each kind keeps: a
+    // group its name, a plan its place and its group, and nothing else
+    // any words of that sort. A kind nobody knows is refused as before.
+    let insert = |kind: &'static str, columns: &'static str, values: &'static str| {
+        format!(
+            "INSERT INTO reports
+                 (id, created_at, reporter_id, about_account_id, kind, subject_id, reason{columns})
+             VALUES ('00000000000000000000000bad', now(), '000000000000000000000dario',
+                     '000000000000000000000bernd', '{kind}', 'x', 'spam'{values})"
+        )
+    };
+    for (kind, columns, values) in [
+        ("group", "", ""),
+        ("group", ", reported_place, group_id", ", 'Musterberg', 'g'"),
+        ("plan", "", ""),
+        ("plan", ", reported_place", ", 'Musterberg'"),
+        ("plan", ", group_id", ", 'g'"),
+        ("plan", ", reported_name", ", 'Mustergruppe'"),
+        ("flight", ", reported_name", ", 'Mustergruppe'"),
+        ("pilot", ", reported_place, group_id", ", 'Musterberg', 'g'"),
+        ("live_track", ", reported_note", ", 'A note.'"),
+        (
+            "group",
+            ", reported_name, reported_note",
+            ", 'Mustergruppe', 'A note.'",
+        ),
+        ("site", "", ""),
+    ] {
+        let refused = old.batch_execute(&insert(kind, columns, values)).await;
+        let code = refused
+            .expect_err(kind)
+            .code()
+            .map(|code| code.code().to_owned());
+        assert_eq!(code.as_deref(), Some("23514"), "{kind}{columns}");
+    }
+    // One open report per reporter and group, whoever keeps the group,
+    // also for a writer that is not the store.
+    let second = insert("group", ", reported_name", ", 'Mustergruppe'")
+        .replace("'x'", "'0000000000000000000000000g'");
+    let refused = old.batch_execute(&second).await.expect_err("a second");
+    assert_eq!(refused.code().map(|code| code.code()), Some("23505"));
+    let count: i64 = old
+        .query_one("SELECT count(*) FROM reports", &[])
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(count, 5, "nothing of that was stored");
 }
 
 #[tokio::test]

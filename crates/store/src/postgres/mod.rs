@@ -29,9 +29,10 @@ use crate::{
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
     MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
-    ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, batch,
+    PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey,
+    ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet,
+    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
+    VisibilityChange, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -926,6 +927,50 @@ impl Store for PgStore {
 
     async fn prune_plans(&self, before: NaiveDate) -> Result<u64, StoreError> {
         groups::prune_plans(&self.client().await?, before).await
+    }
+
+    async fn any_group(&self, id: &str) -> Result<Option<GroupMembers>, StoreError> {
+        groups::any(&mut self.client().await?, id).await
+    }
+
+    async fn plans_of_any_group(
+        &self,
+        group_id: &str,
+        from: NaiveDate,
+    ) -> Result<Option<Vec<Plan>>, StoreError> {
+        groups::plans_of_any(&mut self.client().await?, group_id, from).await
+    }
+
+    async fn any_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<Plan>, StoreError> {
+        groups::any_plan(&mut self.client().await?, plan_id, gone_before).await
+    }
+
+    async fn rename_any_group(
+        &self,
+        id: &str,
+        name: &str,
+    ) -> Result<Option<GroupMembers>, StoreError> {
+        groups::rename_any(&mut self.client().await?, id, name).await
+    }
+
+    async fn remove_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<Plan>, StoreError> {
+        groups::remove_plan(&mut self.client().await?, plan_id, gone_before).await
+    }
+
+    async fn remove_group(
+        &self,
+        id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<RemovedGroup>, StoreError> {
+        groups::remove(&mut self.client().await?, id, gone_before).await
     }
 
     async fn save_report(&self, new: &NewReport) -> Result<ReportSaved, StoreError> {

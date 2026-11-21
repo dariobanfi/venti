@@ -149,6 +149,11 @@ macro_rules! store_suite {
             only_the_author_changes_a_plan_and_the_keeper_deletes_any,
             a_group_holds_no_more_plans_than_it_has_room_for,
             plans_of_days_gone_by_are_gone_and_then_removed,
+            whoever_runs_the_server_reads_any_group_and_its_plans,
+            whoever_runs_the_server_renames_a_group_and_removes_a_plan,
+            whoever_runs_the_server_removes_a_group_with_its_plans,
+            a_report_about_a_group_or_a_plan_keeps_its_words,
+            one_open_report_about_a_group_whoever_keeps_it,
         );
     };
     (@tests $make:path; $($name:ident),* $(,)?) => {

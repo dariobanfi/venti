@@ -1,0 +1,10 @@
+{
+  "subject": {
+    "plan": {
+      "group": "44444444444444444444444444",
+      "id": "77777777777777777777777777"
+    }
+  },
+  "reason": "spam",
+  "text": "An advertisement, not a plan."
+}

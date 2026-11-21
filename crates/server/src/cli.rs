@@ -71,6 +71,24 @@ usage: venti-server <command>
   resume-publishing <HANDLE> [--config FILE]
       Give it back. Makes nothing public again.
 
+  group <GROUP> [--config FILE]
+      Show one group as its members see it: its name, who keeps it, who
+      is in it, and its plans. GROUP is the group's identifier, as
+      reports prints it. Changes nothing.
+
+  rename-group <GROUP> --name TEXT [--config FILE]
+      Give a group another name. Tells nobody; its keeper can rename it
+      again.
+
+  remove-plan <PLAN> [--config FILE]
+      Remove one plan of a group, with who was in on it. PLAN is the
+      plan's identifier, as reports and group print it. Tells nobody, and
+      cannot be undone.
+
+  remove-group <GROUP> [--config FILE]
+      Remove a group with its members' places in it and all its plans.
+      Touches no account, tells nobody, and cannot be undone.
+
   ingest <region.toml> [--source ID] [--archive DIR] [--json]
       Run a region's sources once against the live providers and print a
       health line for each. Stores nothing. Fails when a source delivers
@@ -105,8 +123,8 @@ pub enum Command {
     Ingest(oneshot::Args),
     /// Make invite codes.
     Invite(invite::Args),
-    /// Read the reports, or act on a flight, a live track or an account,
-    /// as whoever runs the server.
+    /// Read the reports, or act on a flight, a live track, an account, a
+    /// group or a plan, as whoever runs the server.
     Moderate(moderation::Args),
     /// Analyse the flight file on standard input.
     Derive,
@@ -126,7 +144,8 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         "ingest" => parse_ingest(args),
         "invite" => parse_invite(args),
         "reports" | "close-report" | "take-down" | "release" | "remove-live-track"
-        | "suspend-publishing" | "resume-publishing" => parse_moderation(&command, args),
+        | "suspend-publishing" | "resume-publishing" | "group" | "rename-group" | "remove-plan"
+        | "remove-group" => parse_moderation(&command, args),
         "derive" => match args.next() {
             None => Ok(Command::Derive),
             Some(other) => Err(format!("derive does not take {other:?}")),
@@ -245,7 +264,8 @@ fn parse_invite(mut args: impl Iterator<Item = String>) -> Result<Command, Strin
 }
 
 /// Reads one of the operator's subcommands: the one thing each is pointed
-/// at, `--config`, and what only one of them takes (`--all`, `--note`).
+/// at, `--config`, and what only one of them takes (`--all`, `--note`,
+/// `--name`).
 fn parse_moderation(
     command: &str,
     mut args: impl Iterator<Item = String>,
@@ -254,11 +274,13 @@ fn parse_moderation(
     let mut target = None;
     let mut all = false;
     let mut note = None;
+    let mut name = None;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--config" => config = Some(PathBuf::from(value("--config", &mut args)?)),
             "--all" if command == "reports" => all = true,
             "--note" if command == "close-report" => note = Some(value("--note", &mut args)?),
+            "--name" if command == "rename-group" => name = Some(value("--name", &mut args)?),
             _ if arg.starts_with("--") => return Err(format!("{command} does not take {arg:?}")),
             _ if command == "reports" => return Err(format!("reports does not take {arg:?}")),
             _ if target.is_none() => target = Some(arg),
@@ -290,6 +312,19 @@ fn parse_moderation(
         },
         "resume-publishing" => Action::ResumePublishing {
             handle: target("an account's handle")?,
+        },
+        "group" => Action::Group {
+            group: target("a group's identifier")?,
+        },
+        "rename-group" => Action::RenameGroup {
+            group: target("a group's identifier")?,
+            name: name.ok_or("rename-group needs --name with the name the group is to have")?,
+        },
+        "remove-plan" => Action::RemovePlan {
+            plan: target("a plan's identifier")?,
+        },
+        "remove-group" => Action::RemoveGroup {
+            group: target("a group's identifier")?,
         },
         other => return Err(format!("unknown command {other:?}")),
     };
@@ -529,6 +564,49 @@ mod tests {
             moderate("take-down x --config f.toml").unwrap().config,
             Some(PathBuf::from("f.toml"))
         );
+        // What is done about a group and a plan: each by an identifier, as
+        // `reports` prints it.
+        let group = "44444444444444444444444444".to_owned();
+        assert_eq!(
+            action("group 44444444444444444444444444"),
+            Action::Group {
+                group: group.clone()
+            }
+        );
+        assert_eq!(
+            action("remove-plan 77777777777777777777777777"),
+            Action::RemovePlan {
+                plan: "7".repeat(26)
+            }
+        );
+        assert_eq!(
+            action("remove-group 44444444444444444444444444"),
+            Action::RemoveGroup {
+                group: group.clone()
+            }
+        );
+        // A name is one argument, whatever stands in it.
+        let renaming = parse(
+            [
+                "rename-group",
+                "44444444444444444444444444",
+                "--name",
+                "Flying --all weekend",
+                "--config",
+                "f.toml",
+            ]
+            .map(str::to_owned),
+        );
+        assert_eq!(
+            renaming,
+            Ok(Command::Moderate(moderation::Args {
+                config: Some(PathBuf::from("f.toml")),
+                action: Action::RenameGroup {
+                    group,
+                    name: "Flying --all weekend".to_owned(),
+                },
+            }))
+        );
 
         for mistake in [
             "reports demo",
@@ -547,6 +625,20 @@ mod tests {
             "resume-publishing --config",
             "suspend mara",
             "delete-account mara",
+            "group",
+            "group a b",
+            "group a --name b",
+            "groups",
+            "rename-group",
+            "rename-group 44444444444444444444444444",
+            "rename-group --name x",
+            "rename-group 44444444444444444444444444 --name",
+            "rename-group 44444444444444444444444444 --note x",
+            "remove-plan",
+            "remove-plan a b",
+            "remove-group",
+            "remove-group a --all",
+            "remove-member mara",
         ] {
             assert!(parse_line(mistake).is_err(), "{mistake}");
         }
@@ -559,6 +651,10 @@ mod tests {
             "remove-live-track <TRACK>",
             "suspend-publishing <HANDLE>",
             "resume-publishing <HANDLE>",
+            "group <GROUP>",
+            "rename-group <GROUP> --name TEXT",
+            "remove-plan <PLAN>",
+            "remove-group <GROUP>",
         ] {
             assert!(USAGE.contains(command), "{command}");
         }

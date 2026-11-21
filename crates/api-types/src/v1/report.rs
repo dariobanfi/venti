@@ -1,9 +1,11 @@
 //! Reports: how a signed-in pilot tells whoever runs the server that a
-//! flight, a pilot's page or a live track should not be there.
+//! flight, a pilot's page, a live track, a group or a plan of a group
+//! should not be there.
 //!
 //! A report is read by the operator and by nobody else. The server does
 //! nothing by itself when one arrives, and it never tells the pilot who
-//! was reported that there is a report, or who made it.
+//! was reported, or the members of a group, that there is a report, or who
+//! made it.
 
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +14,14 @@ use super::text;
 /// The most characters the text of a report may have.
 pub const MAX_REPORT_TEXT_LENGTH: usize = 1000;
 
-/// What a report is about. Exactly one of the three.
+/// What a report is about. Exactly one of the five.
+///
+/// The list is closed, and a subject travels one way only, from a client
+/// to the server: no answer carries one. A server that is sent a kind of
+/// subject it does not know cannot read the request, answers
+/// [`ErrorCode::InvalidRequest`](super::ErrorCode::InvalidRequest) and
+/// stores nothing. That is what a server from before groups could be
+/// reported says to a report about a group or a plan.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReportSubject {
@@ -23,6 +32,37 @@ pub enum ReportSubject {
     Pilot(String),
     /// A live track, by its identifier, which is also the end of its link.
     LiveTrack(String),
+    /// A group the reporter is in, by its identifier. What is reported is
+    /// its name, which is all of a group that is words.
+    Group(String),
+    /// A plan of a group the reporter is in. What is reported is its
+    /// place and its note.
+    Plan(ReportedPlan),
+}
+
+/// A plan, as a report names it: by its identifier and its group's, which
+/// is how every request about a plan names it (`/v1/groups/{id}/plans/{plan}`).
+/// A [`Plan`](super::Plan) carries both.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ReportedPlan {
+    /// The identifier of the group the plan was posted to.
+    pub group: String,
+    /// The plan's identifier.
+    pub id: String,
+}
+
+impl ReportSubject {
+    /// The reasons a report about this kind of subject can give, in the
+    /// order a form lists them. A server refuses any other.
+    ///
+    /// A group and a plan are words and no flight, so
+    /// [`ReportReason::NotAFlight`] is not among theirs.
+    pub fn reasons(&self) -> &'static [ReportReason] {
+        match self {
+            Self::Flight(_) | Self::Pilot(_) | Self::LiveTrack(_) => &ReportReason::ALL,
+            Self::Group(_) | Self::Plan(_) => &ReportReason::ABOUT_WORDS,
+        }
+    }
 }
 
 /// Why something is reported.
@@ -56,11 +96,23 @@ pub enum ReportReason {
 
 impl ReportReason {
     /// The reasons a report can give, in the order a form lists them.
+    /// Which of them a report about one kind of subject can give is said
+    /// by [`ReportSubject::reasons`].
     pub const ALL: [Self; 6] = [
         Self::Offensive,
         Self::Impersonation,
         Self::Privacy,
         Self::NotAFlight,
+        Self::Spam,
+        Self::Other,
+    ];
+
+    /// The reasons a report about a group or a plan can give: all but the
+    /// one that is about a flight.
+    pub const ABOUT_WORDS: [Self; 5] = [
+        Self::Offensive,
+        Self::Impersonation,
+        Self::Privacy,
         Self::Spam,
         Self::Other,
     ];
@@ -169,6 +221,89 @@ mod tests {
             r#"{"subject":{"pilot":"demo"}}"#,
         ] {
             assert!(serde_json::from_str::<ReportRequest>(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_group_is_named_by_its_identifier_and_a_plan_with_its_group() {
+        let group = ReportRequest {
+            subject: ReportSubject::Group("44444444444444444444444444".to_owned()),
+            reason: ReportReason::Offensive,
+            text: None,
+        };
+        let json = serde_json::to_value(&group).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "subject": { "group": "44444444444444444444444444" },
+                "reason": "offensive"
+            })
+        );
+        assert_eq!(
+            serde_json::from_value::<ReportRequest>(json).unwrap(),
+            group
+        );
+
+        let plan = ReportRequest {
+            subject: ReportSubject::Plan(ReportedPlan {
+                group: "44444444444444444444444444".to_owned(),
+                id: "77777777777777777777777777".to_owned(),
+            }),
+            reason: ReportReason::Spam,
+            text: Some("An advertisement, not a plan.".to_owned()),
+        };
+        let json = serde_json::to_value(&plan).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "subject": { "plan": {
+                    "group": "44444444444444444444444444",
+                    "id": "77777777777777777777777777"
+                } },
+                "reason": "spam",
+                "text": "An advertisement, not a plan."
+            })
+        );
+        assert_eq!(serde_json::from_value::<ReportRequest>(json).unwrap(), plan);
+
+        // A plan without its group, a plan by its identifier alone, and a
+        // group that is more than an identifier are no subjects.
+        for bad in [
+            r#"{"subject":{"plan":"77777777777777777777777777"},"reason":"spam"}"#,
+            r#"{"subject":{"plan":{"id":"77777777777777777777777777"}},"reason":"spam"}"#,
+            r#"{"subject":{"plan":{"group":"44444444444444444444444444"}},"reason":"spam"}"#,
+            r#"{"subject":{"group":{"id":"44444444444444444444444444"}},"reason":"spam"}"#,
+            r#"{"subject":{"group":"a","plan":{"group":"a","id":"b"}},"reason":"spam"}"#,
+        ] {
+            assert!(serde_json::from_str::<ReportRequest>(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_group_and_a_plan_take_every_reason_but_the_one_about_a_flight() {
+        let about = |subject: &ReportSubject| subject.reasons().to_vec();
+        for subject in [
+            ReportSubject::Flight("a".to_owned()),
+            ReportSubject::Pilot("a".to_owned()),
+            ReportSubject::LiveTrack("a".to_owned()),
+        ] {
+            assert_eq!(about(&subject), ReportReason::ALL);
+        }
+        let plan = ReportSubject::Plan(ReportedPlan {
+            group: "a".to_owned(),
+            id: "b".to_owned(),
+        });
+        for subject in [ReportSubject::Group("a".to_owned()), plan] {
+            let reasons = about(&subject);
+            assert_eq!(reasons, ReportReason::ABOUT_WORDS);
+            assert!(!reasons.contains(&ReportReason::NotAFlight));
+            assert!(!reasons.contains(&ReportReason::Unknown));
+            // In the order of the whole list, and nothing that is not on it.
+            let of_all: Vec<ReportReason> = ReportReason::ALL
+                .into_iter()
+                .filter(|reason| *reason != ReportReason::NotAFlight)
+                .collect();
+            assert_eq!(reasons, of_all);
         }
     }
 

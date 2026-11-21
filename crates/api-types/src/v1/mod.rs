@@ -118,7 +118,7 @@ pub use maps::{
 pub use observations::{ObservationsResponse, Reading};
 pub use report::{
     MAX_REPORT_TEXT_LENGTH, ReportReason, ReportRequest, ReportResponse, ReportSubject,
-    ReportTextError, parse_report_text,
+    ReportTextError, ReportedPlan, parse_report_text,
 };
 pub use request::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AirspaceRequest, BboxError,

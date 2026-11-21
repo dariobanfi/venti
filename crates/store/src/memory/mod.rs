@@ -20,10 +20,10 @@ use crate::{
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
     MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
-    ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
-    airspace, batch, forecast, site,
+    PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey,
+    ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet,
+    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
+    VisibilityChange, airspace, batch, forecast, site,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -881,6 +881,58 @@ impl Store for MemoryStore {
 
     async fn prune_plans(&self, before: NaiveDate) -> Result<u64, StoreError> {
         Ok(self.lock().groups.prune_plans(before))
+    }
+
+    async fn any_group(&self, id: &str) -> Result<Option<GroupMembers>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.groups.any(id, &inner.accounts))
+    }
+
+    async fn plans_of_any_group(
+        &self,
+        group_id: &str,
+        from: NaiveDate,
+    ) -> Result<Option<Vec<Plan>>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.groups.plans_of_any(group_id, from, &inner.accounts))
+    }
+
+    async fn any_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<Plan>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.groups.any_plan(plan_id, gone_before, &inner.accounts))
+    }
+
+    async fn rename_any_group(
+        &self,
+        id: &str,
+        name: &str,
+    ) -> Result<Option<GroupMembers>, StoreError> {
+        let inner = &mut *self.lock();
+        inner.groups.rename_any(id, name, &inner.accounts)
+    }
+
+    async fn remove_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<Plan>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .groups
+            .remove_plan(plan_id, gone_before, &inner.accounts))
+    }
+
+    async fn remove_group(
+        &self,
+        id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<RemovedGroup>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner.groups.remove(id, gone_before, &inner.accounts))
     }
 
     async fn save_report(&self, new: &NewReport) -> Result<ReportSaved, StoreError> {

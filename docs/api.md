@@ -3028,8 +3028,9 @@ What a client has to know:
 - **Limits.** An account is in at most 20 groups, those it keeps included. A group has at most 50 members and holds at most 100 plans at a time. An account makes at most 10 groups a day, tries at most 20 invite codes a day, and posts or changes at most 50 plans a day, whatever becomes of each attempt; after that the answer is `429` with `rate_limited` and a `Retry-After` header. The counts are in the server's memory, like the others, and the development mode has none of the three.
 - **Every answer is made for one account**: `Cache-Control: no-store` and no `ETag`, like every answer to a request with a token.
 - **Text that pilots type** (a group's name, a plan's place and note) is cleaned before it is kept and never refused for a character in it: control characters go, and so do the characters that hide text or turn its direction round. Show it as text and never as markup. `venti_api_types::v1::parse_group_name`, `parse_plan_place` and `parse_plan_note` do on the device what the server does, for a client that wants to count while the pilot types.
+- **A member can report the group's name, or a plan, to whoever runs the server**, with [`POST /v1/reports`](#post-v1reports). Nobody in the group is told. What the person who runs the server can then do in a group, and what that looks like from an app, is said [further down](#what-whoever-runs-the-server-can-do): give the group another name, remove a plan, remove the group. Each looks exactly as if the keeper or the plan's author had done it.
 
-Not built: a way to report a group or a plan to whoever runs the server ([Reports](#reports) says why), a link that carries the code, finding a group by name, more than one keeper, chat, events, and anything that tells a member that something happened in a group. A client asks.
+Not built: a link that carries the code, finding a group by name, more than one keeper, chat, events, and anything that tells a member that something happened in a group. A client asks.
 
 A group, in every answer that carries one:
 
@@ -3266,7 +3267,7 @@ What a client has to know:
 - **The place** is a name the pilot types, one line of at most 80 characters, and a position if the pilot marked one. The server looks neither up and adds nothing to them. A client offers a field to type in and, if it likes, a map to tap on. It does not fill a plan from the [flying sites](#get-v1sitesbboxwestsoutheastnorth) the server serves: their names and positions are OpenStreetMap's under a share-alike licence, a plan is its pilot's own, and data of the two kinds is not put into one record.
 - **Who is in** is the list `in`, in the order in which the members said so. Whoever posts a plan is in from the start and can take that back like anyone else; the plan stays.
 - **Changing a plan** is its author's alone, and a plan is sent whole: what a change leaves out, the plan no longer has. Who is in stays as it is. Deleting a plan is its author's and the keeper's.
-- **A plan is kept for 2 days after its day**, by the server's date in UTC, and then removed: a plan for the 18th is there on the 19th and the 20th and gone on the 21st. From that moment it is in no answer and cannot be changed, whether or not the server has got round to deleting the row, which it does within the hour. Whoever runs a server can set another number of days (`retention.plan_days`). A plan is in no backup the server's own script makes.
+- **A plan is kept for 2 days after its day**, by the server's date in UTC, and then removed: a plan for the 18th is there on the 19th and the 20th and gone on the 21st. From that moment it is in no answer and cannot be changed, whether or not the server has got round to deleting the row, which it does within the hour. Whoever runs a server can set another number of days (`retention.plan_days`). A plan is in no backup the server's own script makes. One thing outlasts it: the place and the note of a plan that a member [reported](#reports), which are kept with the report.
 - **A plan is taken for a day** from the day before the server's date to a year after it. The day before, because west of Greenwich that day is not over when the server's is. A later day is refused with `invalid_plan`. The development mode takes any day from 17 November 2026 on.
 - **The order of a list**: by day; within a day by `meet_at`, with the plans that have none last; then in the order in which they were posted.
 
@@ -3540,17 +3541,20 @@ Need a token, and take no body. `PUT` says that the asker is in on the plan; `DE
 
 ## Reports
 
-A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track. That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
+A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track, and in a group the pilot is in, the group's name or one of its plans. That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, no group is changed, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
 
 What a client has to know:
 
-- **Nobody learns from the server who reported them.** The API has no way to read a report back, to list reports or to count them, not for the reporter and not for the pilot who was reported. No answer to the reported pilot changes in anything when a report arrives or is closed.
+- **Nobody learns from the server who reported them.** The API has no way to read a report back, to list reports or to count them, not for the reporter and not for the pilot who was reported. No answer to the reported pilot changes in anything when a report arrives or is closed, and none to the keeper or to any member of a group that was reported.
 - **Whoever runs the server does see who reported.** The report is kept with the reporter's handle, and the operator reads it beside the report. Say so where the report is written: a report is not anonymous.
-- **What can be reported is what the reporter can see**: a public flight, a flight or a live track the reporter has the link to, the page of a pilot who has one, and anything of the reporter's own. Everything else gets the answer it gets everywhere, `404` in the same words, so that reporting is no way to find out whether a private flight or a quiet account exists.
+- **What can be reported is what the reporter can see**: a public flight, a flight or a live track the reporter has the link to, the page of a pilot who has one, a group the reporter is in and the plans of such a group, and anything of the reporter's own. Everything else gets the answer it gets everywhere, `404` in the same words, so that reporting is no way to find out whether a private flight, a quiet account or a group one is not in exists.
 - **One open report about one thing.** While an account has an open report about a thing, a second one about the same thing stores nothing and changes nothing, whatever reason and text it has: `200` with `"created": false`. Once the operator has closed the first, the thing can be reported again.
 - **Nothing comes back.** The reporter is not told what was decided, and cannot ask. The server knows no address to write to.
 - **Reports are counted**: an account may send 20 in a day. See the errors below.
-- **A group and a plan cannot be reported.** The name of a [group](#groups) and the place and note of a plan are text that other people read, and a report has no subject for them yet. Two things are missing, and neither is on the server alone. A report's subject is a closed list in the wire format, and the apps' shared core reads that list to the end: a new kind of subject has to arrive there in the same change. And whoever runs the server has no command that removes a plan or renames a group, so a report could be read and not acted on. Until both exist, what a member can do about a group is what the group itself offers: the keeper deletes any plan and removes any member, and every member can leave.
+- **A group and a plan are reported by a member of the group**, any member: the keeper has no say in it and is not told. What is reported of a [group](#groups) is its name, and of a [plan](#plans-for-a-flying-day) its place and its note: the text that other people read. To an account that is not in the group, a report about it or about a plan of it is answered `404` with `group_not_found`, in status, in every header and in every byte the answer for an identifier that no group has; it holds for a pilot who was never in the group, for one who left and for one who was removed.
+- **A report about a group or a plan takes the words along.** A name, a place and a note can be changed or deleted a moment after they were reported, so the server keeps, with the report, the group's name or the plan's place and note as they stood when the report was made. Nothing else is copied: not who is in the group, and of a plan neither its day, its time, its position nor who was in on it. The copy is kept as long as the report and goes with it. It is the one place where words of a plan outlast the two days a plan is kept, and the one place where they are in a backup. Say so where the report is written.
+- **A report is about an account as well**: the pilot of a flight, a page or a live track, the author of a plan, and for a group the member who keeps it at that moment. A report is removed when that account or the reporter's is deleted.
+- **A server from before 2026-11-21 knows three kinds of subject.** The list of subjects is closed: a server that is sent a kind it does not know cannot read the request and answers `400` with `invalid_request`, and stores nothing. A client that gets this answer to a report about a group or a plan is talking to an older server.
 
 ### `POST /v1/reports`
 
@@ -3577,23 +3581,50 @@ The body of that request:
 
 | Field | Meaning |
 |---|---|
-| `subject` | What is reported: an object with exactly one of the three members below |
+| `subject` | What is reported: an object with exactly one of the five members below |
 | `subject.flight` | A flight, by its address: the `id` of the flight, which is the end of its share link |
 | `subject.pilot` | A pilot's page, by the pilot's handle, in upper or lower case |
 | `subject.live_track` | A live track, by its identifier, which is the end of its link |
+| `subject.group` | A group the reporter is in, by its `id` |
+| `subject.plan` | A plan of a group the reporter is in: an object with `group`, the group's `id`, and `id`, the plan's. A plan is named with its group here as in every path about a plan, and the `plan` of every answer carries both |
 | `reason` | Why; one of the values below |
 | `text` | What the reporter wants to add, in their own words: at most 1,000 characters. May be left out, except with the reason `other` |
+
+A report about a group, and one about a plan. The first is sent by `jonas`, the second by the demo account, about the development mode's group and a plan `mara` posted in it:
+
+```json
+{
+  "subject": {
+    "group": "44444444444444444444444444"
+  },
+  "reason": "impersonation",
+  "text": "This is not the club's group. The club has none here."
+}
+```
+
+```json
+{
+  "subject": {
+    "plan": {
+      "group": "44444444444444444444444444",
+      "id": "77777777777777777777777777"
+    }
+  },
+  "reason": "spam",
+  "text": "An advertisement, not a plan."
+}
+```
 
 | `reason` | Meaning |
 |---|---|
 | `offensive` | A name, a glider's name or another text that insults, threatens or harasses |
-| `impersonation` | The account passes itself off as another person or as an organisation |
+| `impersonation` | The account passes itself off as another person or as an organisation; a group, as a club or an organisation it is not |
 | `privacy` | It shows something about a person who did not agree to that: a flight that is someone else's, a name, where someone lives |
-| `not_a_flight` | The flight was not flown as it is shown: a track that is made up or altered, or not this pilot's own |
+| `not_a_flight` | The flight was not flown as it is shown: a track that is made up or altered, or not this pilot's own. Not a reason for a group or a plan |
 | `spam` | Advertising, or something that has nothing to do with flying |
 | `other` | Anything else. The report must then say what, in `text` |
 
-The list is short on purpose and is the server's: a reason that is not on it is refused, so a client offers these six and no field for another. There is no reason for "flew through airspace": a report is about what should not be shown, not about how someone flew. `venti_api_types::v1::ReportReason::ALL` is the list in the order a form shows it.
+The list is short on purpose and is the server's: a reason that is not on it is refused, so a client offers these six and no field for another. For a group or a plan it offers five: `not_a_flight` is about a flight, and the server refuses it for words. There is no reason for "flew through airspace": a report is about what should not be shown, not about how someone flew. `venti_api_types::v1::ReportReason::ALL` is the list in the order a form shows it, and `ReportSubject::reasons` the part of it that a report about one kind of subject can give.
 
 **The text** is cleaned before it is kept and never refused for what stands in it: line breaks stay, every other control character goes, and so do the characters that hide text or turn its direction round; white space at both ends goes. What is left is counted, and more than 1,000 characters is refused. `venti_api_types::v1::parse_report_text` does the same on the device, for a client that wants to count while the pilot types. The text is read by whoever runs the server and by nobody else.
 
@@ -3613,12 +3644,14 @@ The answer carries `Cache-Control: no-store`, like every answer to a request wit
 
 | Status | Code | When |
 |---|---|---|
-| 400 | `invalid_report` | `reason` is not one of the six, `text` has more than 1,000 characters after cleaning, or `reason` is `other` and nothing is left of `text`. `message` says which, and repeats nothing that was sent |
-| 400 | `invalid_request` | The body is not JSON of this shape: no `subject`, two subjects in one, a kind of subject the server does not know, no `reason` |
+| 400 | `invalid_report` | `reason` is not one of the six, or is `not_a_flight` for a group or a plan; `text` has more than 1,000 characters after cleaning; or `reason` is `other` and nothing is left of `text`. `message` says which, and repeats nothing that was sent. Whether the reason fits is decided by the kind of subject alone, before anything is looked up |
+| 400 | `invalid_request` | The body is not JSON of this shape: no `subject`, two subjects in one, a kind of subject the server does not know, a plan without its group, no `reason` |
 | 401 | `unauthorized` | No valid token |
 | 404 | `flight_not_found` | `subject.flight` is no flight the reporter may see: nobody's address, text that is no address, or another pilot's private flight. The answer is the one `GET /v1/flights/{id}` gives the reporter |
 | 404 | `pilot_not_found` | `subject.pilot` is the handle of nobody, or of a pilot who shares nothing publicly and so has no page |
 | 404 | `live_track_not_found` | `subject.live_track` leads to no live track: none ever, deleted, or removed for its age |
+| 404 | `group_not_found` | `subject.group`, or the `group` of `subject.plan`, is no group the reporter is in: nobody's identifier, text that is no identifier, or a group the reporter is not, or no longer, a member of. The answer is the one `GET /v1/groups/{id}` gives the reporter, and it is given whatever `subject.plan.id` says |
+| 404 | `plan_not_found` | The reporter is in the group, and it has no plan with this identifier: none ever, deleted, gone with its author, a plan of another group, or one whose day lies further back than plans are kept |
 | 413 | `payload_too_large` | The body is larger than 16 kB |
 | 415 | `unsupported_media_type` | The request does not say `Content-Type: application/json`. Such a request is not counted |
 | 429 | `rate_limited` | The account has sent 20 reports within a day. `Retry-After` says when the day is over, in seconds; asking again in between does not put it off |
@@ -3629,7 +3662,7 @@ The answer carries `Cache-Control: no-store`, like every answer to a request wit
 
 ## What whoever runs the server can do
 
-The person who runs a server reads the reports and can do four things about what is shared on it. They do them by hand, with commands on the server's own machine ([deploy/README.md](../deploy/README.md#reports-and-taking-things-down)); the API offers none of them, and the server does none of them by itself. This is what each looks like from an app.
+The person who runs a server reads the reports and can do seven things about what is shared on it, three of them in a group. They do them by hand, with commands on the server's own machine ([deploy/README.md](../deploy/README.md#reports-and-taking-things-down)); the API offers none of them, and the server does none of them by itself. This is what each looks like from an app.
 
 **Take a flight down.** The flight becomes `private` and stays so until the operator releases it.
 
@@ -3709,7 +3742,15 @@ This is the demo account's public flight after it was taken down, as its pilot r
 
 **Close a report**, with a note of their own. That changes nothing an app can see.
 
-None of the four deletes a flight or an account, and none tells anyone anything beyond what is said here.
+**Give a group another name.** Every answer that carries the [group](#groups) has the new name from that moment, as after `PATCH /v1/groups/{id}`. Nothing in any answer says that it was not the keeper who renamed it, or when; the keeper can rename it again.
+
+**Remove a plan.** The plan is gone with who was in on it, exactly as if its author or the keeper had deleted it: it is in no list, and a request that names it is `404` with `plan_not_found`. Its author can post it again.
+
+**Remove a group.** The group is gone with its members' places in it, its plans and its invite code, exactly as if its keeper had deleted it: to everyone who was in it, it is `404` with `group_not_found` on every request, the answer for an identifier no group has, and it is in none of their lists. No account is touched.
+
+The three in a group differ from a flight that was taken down in one thing: the server says nothing about them, not even that they happened. A flight that was taken down stays its pilot's, and the pilot runs into a refusal that has to say what stands in the way. A plan or a group that is removed leaves nothing behind that could say anything, the server keeps no record of who was in a group that is gone, and a group tells its members of nothing that happens in it, whoever did it: a client asks. An app that finds a group renamed or gone cannot tell who did it, and should not guess.
+
+None of the seven deletes a flight or an account, and none tells anyone anything beyond what is said here.
 
 ## The page a shared flight has
 
@@ -3774,4 +3815,4 @@ One tile of the Web Mercator scheme every web map uses: zoom `z`, column `x` fro
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps (of the thermal map the server's side is here since 2026-11-21, and no app draws it yet), pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here; since 2026-11-20 the iPhone and the Android app send them, and those two and the web app draw the public ones on their maps. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app send them. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app show them. Not built for them: reporting a group or a plan, a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps (of the thermal map the server's side is here since 2026-11-21, and no app draws it yet), pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here; since 2026-11-20 the iPhone and the Android app send them, and those two and the web app draw the public ones on their maps. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app send them about a flight, a pilot's page and a live track. A group and a plan can be reported since 2026-11-21, on the server and in the apps' shared core; no app offers it yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app show them. Not built for them: a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

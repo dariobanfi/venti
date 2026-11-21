@@ -2,7 +2,9 @@
 //! it must never write there: who reported, whom, what, why, or a word of
 //! what the reporter wrote. A report is one person's word about another,
 //! and for a live track or a flight shared by link the thing reported is
-//! named by the key to it.
+//! named by the key to it. A group and a plan are their members' alone:
+//! not their identifiers, not a word of a name, a place or a note, as
+//! reported or as whoever runs the server left them.
 //!
 //! Like `live_log.rs`, this test has a file, and so a process, to itself: it
 //! collects the log of its own thread, and the logging library decides once
@@ -14,8 +16,10 @@ use std::sync::{Arc, Mutex};
 use axum::http::{Method, StatusCode, header};
 use chrono::Duration;
 use venti_api_types::v1::{
-    ErrorCode, LIVE_POSITIONS_PATH, LiveFix, LivePositionsRequest, LiveVisibility, REPORTS_PATH,
-    ReportReason, ReportRequest, ReportResponse, ReportSubject, Visibility,
+    CreateGroupRequest, CreateGroupResponse, ErrorCode, GROUP_JOIN_PATH, GROUPS_PATH,
+    JoinGroupRequest, JoinGroupResponse, LIVE_POSITIONS_PATH, LiveFix, LivePositionsRequest,
+    LiveVisibility, PlanRequest, PlanResponse, REPORTS_PATH, ReportReason, ReportRequest,
+    ReportResponse, ReportSubject, ReportedPlan, Visibility, group_plans_path,
 };
 use venti_domain::GeoPoint;
 use venti_server::accounts::Limits;
@@ -46,12 +50,20 @@ impl Write for Captured {
 /// Words that stand nowhere else in this test or in the server.
 const WORDS: &str = "Zanzibar marmalade quotient";
 
+/// More of them: in the name of the group that is reported, in the place
+/// and the note of its plan, and in the name whoever runs the server
+/// gives the group.
+const NAME: &str = "Okavango";
+const PLACE: &str = "Timbuktu";
+const NOTE: &str = "Kathmandu";
+const NEW_NAME: &str = "Samarkand";
+
 #[tokio::test]
 async fn nothing_of_a_report_reaches_the_log() {
     let clock = TestClock::new();
     let strict = Settings {
         limits: Limits {
-            reports_per_day: 12,
+            reports_per_day: 20,
             ..Limits::default()
         },
         ..settings()
@@ -85,6 +97,40 @@ async fn nothing_of_a_report_reaches_the_log() {
         .send(&router)
         .await;
     assert_eq!(begun.status, StatusCode::CREATED);
+    // A group that the reported pilot keeps and the reporter is in, with a
+    // plan; and a pilot who is in no group.
+    let outsider = sign_up(&router, "xq_outsider").await.token;
+    let made: CreateGroupResponse = ask(Method::POST, GROUPS_PATH)
+        .token(&reported)
+        .json(&CreateGroupRequest {
+            name: format!("{NAME} flyers"),
+        })
+        .send(&router)
+        .await
+        .ok(StatusCode::CREATED);
+    let group = made.group.id.clone();
+    let joined: JoinGroupResponse = ask(Method::POST, GROUP_JOIN_PATH)
+        .token(&reporter)
+        .json(&JoinGroupRequest {
+            code: made.invite_code.clone(),
+        })
+        .send(&router)
+        .await
+        .ok(StatusCode::CREATED);
+    assert!(joined.joined);
+    let posted: PlanResponse = ask(Method::POST, &group_plans_path(&group))
+        .token(&reported)
+        .json(&PlanRequest {
+            day: chrono::NaiveDate::from_ymd_opt(2026, 11, 19).unwrap(),
+            place: format!("{PLACE} hill"),
+            position: None,
+            meet_at: None,
+            note: Some(format!("Bring the {NOTE}.")),
+        })
+        .send(&router)
+        .await
+        .ok(StatusCode::CREATED);
+    let plan = posted.plan.id.clone();
 
     let captured = Captured::default();
     let writer = captured.clone();
@@ -147,6 +193,35 @@ async fn nothing_of_a_report_reaches_the_log() {
         .await
         .ok::<ReportResponse>(StatusCode::CREATED);
 
+    // Reports about the group and about its plan: stored, sent again,
+    // from a pilot who is not in the group, about a plan the group does
+    // not have, and with the reason that is about a flight.
+    let the_group = ReportSubject::Group(group.to_string());
+    let the_plan = ReportSubject::Plan(ReportedPlan {
+        group: group.to_string(),
+        id: plan.to_string(),
+    });
+    for subject in [&the_group, &the_plan] {
+        let stored = send(&reporter, about(subject.clone(), ReportReason::Privacy)).await;
+        assert!(stored.ok::<ReportResponse>(StatusCode::CREATED).created);
+        let again = send(&reporter, about(subject.clone(), ReportReason::Privacy)).await;
+        assert!(!again.ok::<ReportResponse>(StatusCode::OK).created);
+        send(&outsider, about(subject.clone(), ReportReason::Privacy))
+            .await
+            .error(StatusCode::NOT_FOUND, ErrorCode::GroupNotFound);
+        let said = send(&reporter, about(subject.clone(), ReportReason::NotAFlight))
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidReport);
+        assert!(!said.contains(group.as_str()), "{said}");
+    }
+    let no_plan = ReportSubject::Plan(ReportedPlan {
+        group: group.to_string(),
+        id: "d".repeat(26),
+    });
+    send(&reporter, about(no_plan, ReportReason::Privacy))
+        .await
+        .error(StatusCode::NOT_FOUND, ErrorCode::PlanNotFound);
+
     // Reports that are not: about nothing, with a reason nobody knows,
     // with too many words, in a body that is no report and names the
     // flight, and from nobody.
@@ -207,11 +282,21 @@ async fn nothing_of_a_report_reaches_the_log() {
     let site = Site {
         public_url: Some(common::PUBLIC_URL),
         live_hours: 48,
+        plan_days: 2,
     };
     let listed = perform(&*store, &clock, site, &Action::Reports { all: true })
         .await
         .unwrap();
     assert!(listed.said.contains(WORDS) && listed.said.contains("xq_reporter"));
+    // The list says what was reported of the group and of the plan.
+    for printed in [NAME, PLACE, NOTE, group.as_str(), plan.as_str()] {
+        assert!(listed.said.contains(printed), "{printed}");
+    }
+    let shown = Action::Group {
+        group: group.to_string(),
+    };
+    let shown = perform(&*store, &clock, site, &shown).await.unwrap();
+    assert!(shown.said.contains(PLACE) && shown.said.contains("xq_reporter"));
     for action in [
         Action::TakeDown {
             flight: flight.id.to_string(),
@@ -222,8 +307,35 @@ async fn nothing_of_a_report_reaches_the_log() {
         Action::SuspendPublishing {
             handle: "xq_reported".to_owned(),
         },
+        Action::RenameGroup {
+            group: group.to_string(),
+            name: format!("{NEW_NAME} flyers"),
+        },
+        Action::RemovePlan {
+            plan: plan.to_string(),
+        },
+        Action::RemoveGroup {
+            group: group.to_string(),
+        },
+        Action::Reports { all: false },
     ] {
-        assert!(perform(&*store, &clock, site, &action).await.unwrap().found);
+        let outcome = perform(&*store, &clock, site, &action).await.unwrap();
+        assert!(outcome.found, "{}", outcome.said);
+    }
+    // What is pointed at nothing says so, to the terminal alone.
+    for action in [
+        Action::Group {
+            group: group.to_string(),
+        },
+        Action::RemovePlan {
+            plan: plan.to_string(),
+        },
+        Action::RemoveGroup {
+            group: format!("{NAME} flyers"),
+        },
+    ] {
+        let outcome = perform(&*store, &clock, site, &action).await.unwrap();
+        assert!(!outcome.found, "{}", outcome.said);
     }
 
     // And a database that is away, which the log does hear about.
@@ -261,6 +373,18 @@ async fn nothing_of_a_report_reaches_the_log() {
         ("a word of the reporter's text", "marmalade"),
         ("a reason", "impersonation"),
         ("a reason that is none", "quotient"),
+        ("the identifier of the reported group", group.as_str()),
+        ("the identifier of the reported plan", plan.as_str()),
+        (
+            "the identifier of a plan that was reported in vain",
+            "dddddddddddddddddddddddddd",
+        ),
+        ("a word of the reported group's name", NAME),
+        ("a word of the reported plan's place", PLACE),
+        ("a word of the reported plan's note", NOTE),
+        ("a word of the name the group was given", NEW_NAME),
+        ("the handle of who reported a group in vain", "xq_outsider"),
+        ("a reason given for the group", "privacy"),
     ] {
         assert!(!log.contains(secret), "{what} is in the log:\n{log}");
     }

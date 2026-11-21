@@ -12,6 +12,8 @@ struct Reported: Identifiable {
         case .flight(let id): "flight \(id)"
         case .pilot(let handle): "pilot \(handle)"
         case .liveTrack(let id): "track \(id)"
+        case .group(let id): "group \(id)"
+        case .plan(_, let id): "plan \(id)"
         }
     }
 

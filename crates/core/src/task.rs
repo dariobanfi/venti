@@ -14,7 +14,7 @@ use std::io;
 use venti_domain::GeoPoint;
 use venti_flight::geodesy::Earth;
 use venti_flight::live::Wind;
-use venti_flight::live::navigation::{Glider, Target};
+use venti_flight::live::navigation::{Glides, Target};
 use venti_flight::task::glide;
 use venti_flight::task::progress::{Fix, Phase, TaskEvent, TaskFlight, TaskStatus};
 use venti_flight::task::route::Zone;
@@ -864,7 +864,7 @@ impl TaskFlown {
         ground_speed_ms: Option<f64>,
         circling: bool,
         wind: Option<Wind>,
-        glider: &Glider,
+        glider: &impl Glides,
     ) -> Option<TaskReadings> {
         let (fix, status) = self.status.as_ref()?;
         let task = self.flight.task();
@@ -1071,6 +1071,7 @@ impl TaskFlown {
 mod tests {
     use super::*;
     use crate::storage::testing::on_every_storage;
+    use venti_flight::live::navigation::Glider;
 
     /// A made-up task in the form a file has it: a launch, a start
     /// cylinder to leave, a turnpoint, and a goal line with the end of the

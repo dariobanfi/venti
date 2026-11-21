@@ -335,6 +335,7 @@ mod tests {
             index: 0,
             distance_m: 400.0,
             above_m: Some(60.0),
+            arrival_above_m: Some(60.0),
             height_mapped: true,
         };
         assert_eq!(
@@ -344,6 +345,7 @@ mod tests {
         let below = CableAhead {
             distance_m: 0.0,
             above_m: Some(-30.0),
+            arrival_above_m: Some(-30.0),
             height_mapped: false,
             ..found
         };

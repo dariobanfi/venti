@@ -312,7 +312,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 
 **Wind from ground-speed differences in straight flight, with no sensor.**
 - *How, publicly:* XCTrack does not do it. Wind comes from circles only (T-974); the manual says of every wind reading that it needs a full circle (W-air, W-xc2).
-- *Venti:* nothing. The fit in `live/wind.rs` needs nearly a whole circle.
+- *Venti:* since 2026-11-22, `GlideWindEstimator` in `live/wind.rs`: the same circle fitted to the last minute of glide, taken when the heading has swept 120° or more, never from a straight line, and trusted less than a circle's wind. The cockpit goes by whichever is trusted more now and says which and how old (`CockpitView::wind_words`, `wind_source`). Tested on made-up turns with noise; not on recorded flights, and not flown.
 - *Gap against XCTrack:* none. For Venti it would be a step beyond: on a long glide the wind is a memory (`wind_age_s`). Without an airspeed it can only be had from turns of part of a circle, with a known airspeed. *Medium, and to prove on recorded flights before it is shown.*
 
 **Wind and airspeed from an instrument.**
@@ -329,12 +329,12 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 **Airspeed and heading, estimated.**
 - *For the pilot:* an airspeed reading without a probe, and a heading for the compass, the map and the thermal page.
 - *How, publicly:* airspeed is the speed over the ground with the computed wind taken out, so it shows what the pilot does with brake and bar; heading is worked out from the track over the ground and the wind. A compass, the phone's or an instrument's, can be taken for the heading instead; the manual advises against it for its lag and its need of calibration (W-fly, W-nav1, A-p4). The web interface hands out `heading`, `airspeed` and `speedComputed` (X-js).
-- *Venti:* `live/computer.rs` works out the direction through the air for its circling rule once a wind is known, and `live/wind.rs` gives the airspeed of the circle. Neither is a reading in `CockpitView`.
+- *Venti:* since 2026-11-22 both are readings, each marked as an estimate (`CockpitView::airspeed_ms` and `heading_deg` with their words, from `live/air.rs`), absent without a wind and with one older than twenty minutes. On no screen yet.
 - *Gap:* two readings, each absent without a wind and marked with the wind's age. *Small.*
 
 **Carried backwards.**
 - *How, publicly:* the speed reading can mark flying backwards, as an option (X-log, 0.9.7 and 0.9.7.6); a developer says the compass is used for this warning and for nothing else in the wind (T-974).
-- *Venti:* `CockpitView::strong_wind` says beforehand that the wind last measured leaves less than 10 km/h of way into it.
+- *Venti:* `CockpitView::strong_wind` says beforehand that the wind last measured leaves less than 10 km/h of way into it. Since 2026-11-22 `carried_back` says it when it happens on a glide, as a deduction from the wind estimate: "The wind carries you back: 4 km/h backwards".
 - *Gap:* saying it when it happens: the course over the ground lies opposite the heading. With a compass that is certain; from the wind estimate it is a deduction. *Small.*
 
 ### Thermals
@@ -363,7 +363,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 
 **The glider's performance.**
 - *How, publicly:* two numbers the pilot enters, trim speed and glide ratio; they feed the glide marks on the maps, the side view and the altitudes of arrival (A-p1). No polar, no MacCready setting, no speed to fly, no bugs or ballast: asked for since 2022 and open (T-807 with sixteen votes, T-862, T-1220).
-- *Venti:* the same two numbers (`live/navigation.rs`).
+- *Venti:* the same two numbers (`live/navigation.rs`). Since 2026-11-22 also a polar for the pilot who sets one (`live/polar.rs`): a class's numbers or trim and top speed with their sinks, netto, and a speed to fly as a hint in words; glides are then worked out at the speed that carries furthest in the wind. The classes' numbers are ours, *to verify with pilots*.
 - *Gap against XCTrack:* none. Beyond: a polar of three points gives the best glide in a head or tail wind and a speed to fly; bugs and ballast are a sailplane's matter and of no use to a paraglider. *Medium; needs each wing's polar, which makers rarely publish, so a pilot's own flights would have to supply it.*
 
 **Glide ratio now.** Over an averaging time the pilot sets; shown as the vario instead while climbing (W-fly). Venti: `CockpitView::glide_ratio`, over the last quarter minute. Gap: the time is fixed. *Small.*
@@ -372,7 +372,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 - *For the pilot:* for the next turnpoint, the end of the speed section, the goal or a waypoint: the glide ratio needed, with a reserve of height the pilot sets, and the height left on arrival (W-nav2, W-comp2).
 - *How, publicly:* arrival height from the satellite altitude, the configured glide ratio and trim speed and the present wind, along the shortest way through the cylinders still to round, less a fixed 15 m for each of them (W-comp2). It can be shown above ground, above sea level, or as the height the leg costs (W-nav1). The glide needed is measured to the nearest point that counts, against the ground's height there when terrain is loaded, not the waypoint's (T-1148, a developer's answer of 2024-09-30); from 1.0.4 the waypoint's height is taken when terrain is missing (X-log). Each reading chooses its target: the centre, the optimised point or the nearest point of the cylinder (W-nav1, W-nav2).
 - *Venti:* `live/navigation.rs` (required and expected glide, arrival height, time, whether a wind was known, ground in the way) and `task/glide.rs` (leg by leg along the shortest way, in the wind); `CockpitView::task_readings` for the next turnpoint and goal.
-- *Gap:* the allowance per turnpoint; a reserve the pilot sets in the glide needed; the reading for the end of the speed section; a choice of height above ground or above sea level. *Small.*
+- *Gap:* the allowance per turnpoint and the choice of speed for an arrival time are in the engine since 2026-11-22 (`task/glide.rs`: `allowance_m`, `ArrivalSpeed`, `time_to_s`) and in no reading yet; a reserve the pilot sets in the glide needed; the reading for the end of the speed section; a choice of height above ground or above sea level. *Small.*
 
 **Time of arrival.** Worked out from a speed the pilot chooses: speed over the ground, airspeed with the wind taken into account, trim speed with the wind, or the flight's cross-country speed so far, each over an averaging time (W-nav1). Venti: trim speed in the wind only (`time_to_go_s`). Gap: the other three. *Small.*
 
@@ -383,7 +383,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 
 **Height above ground and terrain.** Satellite altitude less the height of the ground from downloaded terrain files (W-fly); terrain also serves the side view, the glide needed (above) and the landing rule (below). Venti: `flight/terrain.rs`, `CockpitView::height_above_ground_m`. No gap.
 
-**Landings within reach.** Not found in XCTrack: a nearest-landing reading is an open request (T-486, 2019; T-1301, 2026). The "nearest airfield" in the Widgets table above is *to verify*. Venti: the landing among the pilot's waypoints it would arrive highest above, with ridges in the way counted. Beyond.
+**Landings within reach.** Not found in XCTrack: a nearest-landing reading is an open request (T-486, 2019; T-1301, 2026). The "nearest airfield" in the Widgets table above is *to verify*. Venti: the landing among the pilot's waypoints it would arrive highest above, with ridges in the way counted; and since 2026-11-22 a standing reading of the nearest landing within glide in the wind, with a caution when none is (`live/landing.rs`, `CockpitView::nearest_landing`). Beyond.
 
 ### Airspace and obstacles
 
@@ -409,7 +409,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 **Obstacles.**
 - *How, publicly:* cables and the like by country from XContest's service. The time to reach one is worked out with the worse of the configured and the present glide ratio and the faster of the configured and the present speed; the area looked at is widened and leans to the side the glider is turning; within a time window the pilot sets, an alert comes if the glider would arrive lower than the obstacle's height plus a margin. The map can zoom in by itself while one is near (A-p2, W-xc1; X-log, 0.9.9 and 0.9.10.1).
 - *Venti:* `flight/cables.rs`: a cable within a margin of the straight course of the next 30 s, with the glider less than 100 m above the cable's height over the ground, or below it.
-- *Gap:* ours compares heights now, not at arrival: a glider sinking toward a cable from well above is warned late, and one in a turn is looked at along a straight line. The map's zoom. *Medium for the rule; the data beyond Tirol is the larger part.*
+- *Gap:* since 2026-11-22 the rule compares the height at arrival, on the worse of the present glide and the glider's own in the wind, and looks wider on the side of the turn. Still open: the map's zoom, and the data beyond Tirol, which is the larger part.
 
 ### A competition task
 
@@ -447,7 +447,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 - *Venti:* `LiveScore::closing`: the circle by XContest's 5%, the distance to its edge, the score closed.
 - *Gap:* a direction to the circle's nearest point as the thing to navigate by, then the take-off. *Small.*
 
-**Average cross-country speed.** The scored distance over three turnpoints divided by the time since take-off (W-xc3). Venti: nothing in the view. *Small.*
+**Average cross-country speed.** The scored distance over three turnpoints divided by the time since take-off (W-xc3). Venti: in the engine since 2026-11-22 (`scoring::average_speed_ms`, with `Scores::free_distance_m` and the legs' lengths and shares in `scoring::legs`); nothing in the view. *Small.*
 
 **Direction of travel.** A direction for the top of a map or compass that changes only when the glider has made more than 3 km in 20 minutes and has flown straight for about two minutes, so that circling does not turn the map (W-air, W-nav1). The map can also put the glider off centre, toward the back, when its speed over 20 minutes is like its cross-country speed (W-xc1). Venti: nothing. *Small; it belongs with map rotation.*
 
@@ -466,7 +466,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 
 - *How, publicly:* one QNH for the whole app since 0.9.6 (X-log). It is set from the satellite altitude on the ground before take-off, by hand, or in the paid version from the nearest airport's METAR or weather station at start and about hourly (A-p1, W-fly, W-air). Readings: satellite altitude; barometric altitude at the QNH or at 1013.25 hPa; flight level; height above ground; height above take-off (W-fly).
 - *Venti:* `live/atmosphere.rs` gives pressure altitude; the cockpit has one "best altitude". No QNH, no flight level reading.
-- *Gap:* a QNH worked out on the ground from the terrain's height under the glider (better than the satellite's), corrected by hand, and optionally from a METAR; the altitude at QNH for airspace limits above sea level; a flight level reading near airspace given in flight levels. *Medium. METARs are already read on the server (`sources-awc`).*
+- *Gap:* since 2026-11-22 a QNH is worked out on the ground from the terrain's height under the glider, or set by hand, and the altitude at it is a reading (`CockpitView::qnh_hpa`, `qnh_altitude_m`). Still open: the airspace warnings measuring limits above sea level at it (the watch takes one altitude for those and for limits above ground: decision log), a QNH from a METAR, a flight level reading. *Medium.*
 
 ### Sound
 
@@ -479,7 +479,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 
 - *How, publicly:* a take-off speed the pilot can set, to be quicker or to keep the receiver's wandering from starting a flight (A-p3; X-log, 0.6.0-382); made "less prone" to false take-offs in 2023 (X-log, 0.9.10). Position sharing begins with a "significant flight": 150 m above ground for more than two minutes (A-live). Landing: automatic, "based on speed and lift" (A-p3), and by a developer's word on the flight's top speed, the wind and the height above ground (T-45, 2017-08-30), stricter high above ground and in strong wind (X-log, 0.5); a glider parked in wind at 400 m was taken for landed where terrain was not loaded (T-741). Or manual, where the app asks "landed or still flying"; or none, for hike and fly (A-p3; X-log, 0.6.0-263). After an automatic landing a new take-off starts a new file (A-p3).
 - *Venti:* `live/computer.rs`: take-off at 4 m/s held for 5 s, or 25 m of steady height change in 30 s; landing below 2 m/s without climbing or sinking for 20 s, taken back if the glider flies again within two minutes.
-- *Gap:* the landing rule does not look at the height above ground, which the core has; no asking mode and no never-land mode. *Small.*
+- *Gap:* since 2026-11-22 the landing rule waits five minutes in place of twenty seconds while the ground is known to lie more than 50 m below, and a minute in a wind of 18 km/h or more; a never-land mode is there (`FlightSession::set_never_land`). No asking mode. Not flown.
 
 ### Events and what they set off
 

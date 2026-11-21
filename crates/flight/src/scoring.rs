@@ -96,17 +96,77 @@ pub struct Scores {
     /// The triangle that scores the most, if the track has one that
     /// counts.
     pub triangle: Option<Score>,
+    /// The free distance through up to three turnpoints, metres, also
+    /// where a triangle scores more: what the average cross-country
+    /// speed is taken over.
+    pub free_distance_m: f64,
 }
 
 /// Scores a track as [`score`] does and keeps its best triangle too.
 pub fn scores(fixes: &[Fix]) -> Option<Scores> {
     let free = free_flight(fixes)?;
     let triangle = triangle(fixes);
+    let free_distance_m = free.distance_m;
     let best = match &triangle {
         Some(triangle) if triangle.points > free.points => triangle.clone(),
         _ => free,
     };
-    Some(Scores { best, triangle })
+    Some(Scores {
+        best,
+        triangle,
+        free_distance_m,
+    })
+}
+
+/// One leg of a scored route.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Leg {
+    /// Its length, metres.
+    pub length_m: f64,
+    /// Its share of the whole: of a triangle's perimeter, or of a free
+    /// flight's distance. An FAI triangle has no leg under 0.28.
+    pub share: f64,
+}
+
+/// The legs of a scored route: for a triangle its three sides, from the
+/// first turnpoint to the second, on to the third and back to the first;
+/// for a free flight the stretches between its points in flight order.
+/// Empty when the route's fixes are not in `fixes`.
+pub fn legs(score: &Score, fixes: &[Fix]) -> Vec<Leg> {
+    let Some(points) = score
+        .route
+        .iter()
+        .map(|index| fixes.get(*index).map(|fix| fix.position))
+        .collect::<Option<Vec<GeoPoint>>>()
+    else {
+        return Vec::new();
+    };
+    let lengths: Vec<f64> = match (score.kind, points.as_slice()) {
+        (RouteKind::FreeFlight, points) => points
+            .windows(2)
+            .map(|pair| pair[0].distance_m(pair[1]))
+            .collect(),
+        (_, [_, a, b, c, _]) => vec![a.distance_m(*b), b.distance_m(*c), c.distance_m(*a)],
+        _ => Vec::new(),
+    };
+    let whole: f64 = lengths.iter().sum();
+    if whole <= 0.0 {
+        return Vec::new();
+    }
+    lengths
+        .into_iter()
+        .map(|length_m| Leg {
+            length_m,
+            share: length_m / whole,
+        })
+        .collect()
+}
+
+/// The average cross-country speed, metres per second: the free distance
+/// through up to three turnpoints over the time since take-off. `None`
+/// in the first minute, when a few metres make a speed of nothing.
+pub fn average_speed_ms(free_distance_m: f64, since_takeoff_s: f64) -> Option<f64> {
+    (since_takeoff_s >= 60.0).then(|| free_distance_m / since_takeoff_s)
 }
 
 /// Where a triangle closes: the circle around its start that its finish
@@ -497,5 +557,29 @@ mod tests {
     fn too_short_a_track_has_no_score() {
         assert_eq!(score(&[]), None);
         assert_eq!(score(&track_through(&[(0.0, 0.0)])), None);
+    }
+
+    #[test]
+    fn a_scored_route_has_legs_that_share_the_whole() {
+        // Twenty kilometres a side.
+        let track = track_through(&[(0.0, 0.0), (20.0, 0.0), (10.0, 17.3), (0.0, 0.0)]);
+        let scores = scores(&track).unwrap();
+        let triangle = scores.triangle.as_ref().unwrap();
+        let sides = legs(triangle, &track);
+        assert_eq!(sides.len(), 3);
+        assert!((sides.iter().map(|leg| leg.share).sum::<f64>() - 1.0).abs() < 1e-9);
+        let perimeter: f64 = sides.iter().map(|leg| leg.length_m).sum();
+        assert!((perimeter - triangle.distance_m - triangle.closing_m.unwrap()).abs() < 1.0);
+        // An FAI triangle: no side under 28%.
+        assert_eq!(triangle.kind, RouteKind::FaiTriangle);
+        assert!(sides.iter().all(|leg| leg.share >= 0.28), "{sides:?}");
+        // The free distance is kept beside the triangle that scores more.
+        assert!(
+            scores.free_distance_m > 30_000.0,
+            "{}",
+            scores.free_distance_m
+        );
+        assert_eq!(average_speed_ms(36_000.0, 3_600.0), Some(10.0));
+        assert_eq!(average_speed_ms(100.0, 30.0), None);
     }
 }

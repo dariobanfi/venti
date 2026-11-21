@@ -5,9 +5,12 @@
 //! flight. Because nothing here reads a clock or a sensor, a recorded flight
 //! replayed through it gives exactly what the pilot saw in the air.
 
+pub mod air;
 pub mod atmosphere;
 mod computer;
+pub mod landing;
 pub mod navigation;
+pub mod polar;
 pub mod range;
 pub mod thermal;
 pub mod tone;
@@ -15,8 +18,9 @@ pub mod vario;
 pub mod wind;
 
 pub use computer::{
-    Config, FlightComputer, HeightWind, LiveState, Phase, PositionSample, Thermal, ThermalMark,
-    TrailPoint, VarioSource, WIND_BAND_M,
+    AltitudeSource, Config, FlightComputer, HeightWind, LiveState, Phase, PositionSample,
+    QnhSource, Thermal, ThermalMark, TrailPoint, VarioSource, WIND_BAND_M, WIND_HALF_LIFE_S,
+    WindEstimate,
 };
 pub use thermal::{LiftCentre, LiftPoint, ThermalPicture};
-pub use wind::{Wind, WindFix};
+pub use wind::{Wind, WindFix, WindSource};

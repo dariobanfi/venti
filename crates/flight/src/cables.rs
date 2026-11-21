@@ -10,10 +10,23 @@
 //!   where its track and ground speed take it in [`LOOK_AHEAD_S`]. The
 //!   course is a straight line: a glider that circles has the cables
 //!   around it within the margin of its short course, and no more.
-//! - **Up and down.** The glider is less than [`MARGIN_ABOVE_M`] above the
-//!   cable's height above the ground, or below it. The cable's height is
-//!   the one its source maps; where none is mapped it is the height
+//! - **Up and down.** The glider arrives less than [`MARGIN_ABOVE_M`]
+//!   above the cable's height above the ground, or below it. Arriving
+//!   means: its height now, less what the glide costs over the distance
+//!   to where it comes within the margin of the cable, at the glide
+//!   ratio over the ground the caller gives ([`Glider::glide_over_ground`]:
+//!   the worse of the glide it is making and its own glide in the wind).
+//!   A glider that sinks toward a cable from well above is thus warned
+//!   while it is still high. Without a glide ratio the height now is
+//!   taken, as the rule did before 2026-11-22. The cable's height is the
+//!   one its source maps; where none is mapped it is the height
 //!   [`assumed_height_m`] gives its kind.
+//! - **Toward the turn.** A glider that turns is looked at wider on the
+//!   side it turns to: there the margin across grows with the distance
+//!   along the course by as much as the turn carries the glider off the
+//!   straight line in that time, the turn taken as held, and by no more
+//!   than the distance itself. The other side keeps the plain margin.
+//!   Rates of turn under [`TURNING_DEG_S`] do not count.
 //!
 //! The distance is how far along the course the glider first comes within
 //! the margin of the cable, measured in steps of [`STEP_M`]: zero when it
@@ -55,6 +68,13 @@ pub const LOOK_AHEAD_S: f64 = 30.0;
 
 /// The steps in which the course is walked, in metres.
 pub const STEP_M: f64 = 25.0;
+
+/// A turn counts from this rate on, degrees per second: under it the
+/// course wanders as every course does.
+pub const TURNING_DEG_S: f64 = 1.0;
+
+/// And no faster than this is taken: a spiral is not looked ahead of.
+const TURNING_AT_MOST_DEG_S: f64 = 20.0;
 
 /// Below this ground speed, in metres per second, the glider is taken to
 /// stand: only the cables within the margin of where it is count.
@@ -111,6 +131,13 @@ pub struct Glider {
     pub track_deg: f64,
     /// Its speed over the ground, in metres per second.
     pub ground_speed_m_s: f64,
+    /// Metres forward over the ground for each metre of height it loses
+    /// on this course: the worse of the glide it makes now and its own
+    /// glide in this wind. `None` compares the height now.
+    pub glide_over_ground: Option<f64>,
+    /// How fast its course turns, degrees per second, positive to the
+    /// right. Zero looks straight ahead.
+    pub turn_rate_deg_s: f64,
 }
 
 /// A cable that lies ahead.
@@ -125,6 +152,11 @@ pub struct CableAhead {
     /// cable, in metres: negative when it is below. `None` when the
     /// glider's height above the ground is not known.
     pub above_m: Option<f64>,
+    /// How far above that height the glider arrives where it comes
+    /// within the margin of the cable, in metres, on its glide: negative
+    /// when it arrives below. It is what the rule goes by. The same as
+    /// `above_m` without a glide ratio or at no distance.
+    pub arrival_above_m: Option<f64>,
     /// Whether the cable's height is its source's, not the kind's.
     pub height_mapped: bool,
 }
@@ -152,9 +184,35 @@ pub fn cable_ahead(glider: &Glider, wires: &[Wire<'_>]) -> Option<CableAhead> {
             (along, (east * along, north * along))
         })
         .collect();
+    // The turn: how far it carries the glider to its side of the straight
+    // course by a distance along it, the turn taken as held.
+    let turn = glider.turn_rate_deg_s;
+    let turning = turn.is_finite() && turn.abs() >= TURNING_DEG_S && reach_m > 0.0;
+    let widen = |along: f64| {
+        if turning {
+            let rate = turn.abs().min(TURNING_AT_MOST_DEG_S).to_radians();
+            (along * along * rate / (2.0 * glider.ground_speed_m_s)).min(along)
+        } else {
+            0.0
+        }
+    };
+    // Whether a point lies within the margin of a place on the course:
+    // the plain margin, and the wider one on the side of the turn.
+    let within = |along: f64, at: (f64, f64), span: &[(f64, f64)]| {
+        let nearest = nearest_on_span(at, span[0], span[1]);
+        let (to_east, to_north) = (nearest.0 - at.0, nearest.1 - at.1);
+        // Positive to the right of the course.
+        let to_the_right = to_east * north - to_north * east;
+        let on_turn_side = turning && to_the_right * turn > 0.0;
+        let margin = MARGIN_ACROSS_M + if on_turn_side { widen(along) } else { 0.0 };
+        to_east.hypot(to_north) <= margin
+    };
+    let glide = glider
+        .glide_over_ground
+        .filter(|glide| glide.is_finite() && *glide > 0.0);
     // A cable whose every point is farther than this from the glider
     // cannot come within the margin of the course.
-    let far_m = reach_m + MARGIN_ACROSS_M;
+    let far_m = reach_m + MARGIN_ACROSS_M + widen(reach_m);
 
     let mut nearest: Option<CableAhead> = None;
     for (index, wire) in wires.iter().enumerate() {
@@ -164,7 +222,10 @@ pub fn cable_ahead(glider: &Glider, wires: &[Wire<'_>]) -> Option<CableAhead> {
         let above_m = glider
             .height_above_ground_m
             .map(|height| height - wire.height_m());
-        if above_m.is_some_and(|above| above >= MARGIN_ABOVE_M) {
+        // So high that even the glide over the whole course leaves the
+        // margin: no need to look where the cable is.
+        let lost_at_most = glide.map_or(0.0, |glide| reach_m / glide);
+        if above_m.is_some_and(|above| above - lost_at_most >= MARGIN_ABOVE_M) {
             continue;
         }
         let points: Vec<(f64, f64)> = wire.line.iter().map(|p| sheet.flat(*p)).collect();
@@ -174,18 +235,24 @@ pub fn cable_ahead(glider: &Glider, wires: &[Wire<'_>]) -> Option<CableAhead> {
         if !near {
             continue;
         }
-        let first = course.iter().find(|(_, at)| {
-            points
-                .windows(2)
-                .any(|span| distance_to_span(*at, span[0], span[1]) <= MARGIN_ACROSS_M)
-        });
+        let first = course
+            .iter()
+            .find(|(along, at)| points.windows(2).any(|span| within(*along, *at, span)));
         let Some((distance_m, _)) = first else {
             continue;
         };
+        // The height the glider has left over the cable when it gets
+        // there on its glide.
+        let arrival_above_m =
+            above_m.map(|above| above - glide.map_or(0.0, |glide| distance_m / glide));
+        if arrival_above_m.is_some_and(|above| above >= MARGIN_ABOVE_M) {
+            continue;
+        }
         let found = CableAhead {
             index,
             distance_m: *distance_m,
             above_m,
+            arrival_above_m,
             height_mapped: wire.height_m.is_some(),
         };
         let closer = nearest.is_none_or(|best| {
@@ -224,6 +291,13 @@ impl Sheet {
 
 /// How far a point lies from a straight span between two others.
 fn distance_to_span(point: (f64, f64), from: (f64, f64), to: (f64, f64)) -> f64 {
+    let nearest = nearest_on_span(point, from, to);
+    (point.0 - nearest.0).hypot(point.1 - nearest.1)
+}
+
+/// The place on a straight span between two points that lies nearest to
+/// a third.
+fn nearest_on_span(point: (f64, f64), from: (f64, f64), to: (f64, f64)) -> (f64, f64) {
     let (dx, dy) = (to.0 - from.0, to.1 - from.1);
     let length2 = dx * dx + dy * dy;
     let along = if length2 == 0.0 {
@@ -231,7 +305,7 @@ fn distance_to_span(point: (f64, f64), from: (f64, f64), to: (f64, f64)) -> f64 
     } else {
         (((point.0 - from.0) * dx + (point.1 - from.1) * dy) / length2).clamp(0.0, 1.0)
     };
-    (point.0 - from.0 - along * dx).hypot(point.1 - from.1 - along * dy)
+    (from.0 + along * dx, from.1 + along * dy)
 }
 
 #[cfg(test)]
@@ -259,7 +333,86 @@ mod tests {
             height_above_ground_m: Some(80.0),
             track_deg: 0.0,
             ground_speed_m_s: 10.0,
+            glide_over_ground: None,
+            turn_rate_deg_s: 0.0,
         }
+    }
+
+    #[test]
+    fn a_glider_sinking_toward_a_line_from_well_above_is_warned_while_still_high() {
+        // 200 m above the ground, the line taken at 40 m: 160 m above it
+        // now, which the height now lets pass.
+        let line = across(400.0);
+        let high = Glider {
+            height_above_ground_m: Some(200.0),
+            ..glider()
+        };
+        assert_eq!(cable_ahead(&high, &[wire(&line, None)]), None);
+        // Sinking at a glide of 3 over the ground, in sink or a head
+        // wind: the 250 m to the line cost 83 m, and it arrives 77 m
+        // above the line, inside the margin of 100.
+        let sinking = Glider {
+            glide_over_ground: Some(3.0),
+            ..high
+        };
+        let found = cable_ahead(&sinking, &[wire(&line, None)]).unwrap();
+        assert_eq!(found.distance_m, 250.0);
+        assert_eq!(found.above_m, Some(160.0));
+        assert!(
+            (found.arrival_above_m.unwrap() - 76.7).abs() < 0.1,
+            "{found:?}"
+        );
+        // On a glide of 8 it arrives 129 m above: not ahead.
+        let gliding = Glider {
+            glide_over_ground: Some(8.0),
+            ..high
+        };
+        assert_eq!(cable_ahead(&gliding, &[wire(&line, None)]), None);
+        // A line within the margin now is judged by the height now.
+        let here = across(100.0);
+        let found = cable_ahead(
+            &Glider {
+                height_above_ground_m: Some(120.0),
+                ..sinking
+            },
+            &[wire(&here, None)],
+        )
+        .unwrap();
+        assert_eq!(found.distance_m, 0.0);
+        assert_eq!(found.arrival_above_m, found.above_m);
+    }
+
+    #[test]
+    fn a_turning_glider_is_looked_at_wider_on_the_side_it_turns_to() {
+        // A line from south to north, 260 m east of the course: outside
+        // the margin of 150 for a glider flying straight north.
+        let east = [at(260.0, -500.0), at(260.0, 2000.0)];
+        let west = [at(-260.0, -500.0), at(-260.0, 2000.0)];
+        assert_eq!(cable_ahead(&glider(), &[wire(&east, None)]), None);
+        // Turning right at 6 degrees a second, at 10 m/s: after 150 m the
+        // turn has carried it 118 m to the right, and the line is within
+        // the widened margin.
+        let right = Glider {
+            turn_rate_deg_s: 6.0,
+            ..glider()
+        };
+        let found = cable_ahead(&right, &[wire(&east, None)]).unwrap();
+        assert!((125.0..=175.0).contains(&found.distance_m), "{found:?}");
+        // The line on the other side stays out, and turning left it is
+        // the other way round.
+        assert_eq!(cable_ahead(&right, &[wire(&west, None)]), None);
+        let left = Glider {
+            turn_rate_deg_s: -6.0,
+            ..glider()
+        };
+        assert!(cable_ahead(&left, &[wire(&west, None)]).is_some());
+        assert_eq!(cable_ahead(&left, &[wire(&east, None)]), None);
+        // A course that wanders by half a degree a second is straight.
+        let wandering = Glider {
+            turn_rate_deg_s: 0.5,
+            ..glider()
+        };
+        assert_eq!(cable_ahead(&wandering, &[wire(&east, None)]), None);
     }
 
     /// A power line from west to east, so many metres north.

@@ -15,7 +15,7 @@ use venti_domain::GeoPoint;
 
 use crate::geodesy::Earth;
 use crate::live::Wind;
-use crate::live::navigation::{Glider, glide_over_ground};
+use crate::live::navigation::Glides;
 
 /// How far it is to a point of the way, and what getting there costs.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -28,6 +28,55 @@ pub struct GlideTo {
     pub time_s: f64,
 }
 
+/// The height kept back for every turnpoint still to round before a
+/// place, metres: rounding a cylinder costs a turn, and a line through
+/// its edge is never flown exactly. XCTrack's manual, as its makers'
+/// partner publishes it, takes a fixed 15 m for each (read 2026-11-21
+/// through a condensing reader: *to check against the page itself*).
+pub const TURNPOINT_ALLOWANCE_M: f64 = 15.0;
+
+/// The height kept back on the way to a place with `turnpoints_before`
+/// turnpoints still to round before it, metres.
+pub fn allowance_m(turnpoints_before: usize) -> f64 {
+    TURNPOINT_ALLOWANCE_M * turnpoints_before as f64
+}
+
+/// Which speed a time of arrival is worked out from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ArrivalSpeed {
+    /// The speed made along the task so far: the speed section's average,
+    /// and before there is one the speed over the ground.
+    #[default]
+    Average,
+    /// The speed over the ground now.
+    Current,
+    /// The glider's own speed in the wind along the shortest way: trim
+    /// speed, or with a polar the speed that carries furthest.
+    TrimInWind,
+}
+
+/// How long the way to a place takes at the speed chosen, seconds.
+/// `in_wind_s` is the time of [`along_way`] to the place. `None` when
+/// the speed chosen is not known or under a walking pace.
+pub fn time_to_s(
+    choice: ArrivalSpeed,
+    distance_m: f64,
+    average_ms: Option<f64>,
+    current_ms: Option<f64>,
+    in_wind_s: Option<f64>,
+) -> Option<f64> {
+    let at = |speed: Option<f64>| {
+        speed
+            .filter(|speed| *speed > 1.0)
+            .map(|speed| distance_m / speed)
+    };
+    match choice {
+        ArrivalSpeed::Average => at(average_ms.or(current_ms)),
+        ArrivalSpeed::Current => at(current_ms),
+        ArrivalSpeed::TrimInWind => in_wind_s,
+    }
+}
+
 /// Works out the glide from `from` along `way`, one entry for each point
 /// of the way in its order: the distance, height and time to it, counted
 /// from `from`. `None` when the wind lets the glider make no way on one
@@ -37,9 +86,8 @@ pub fn along_way(
     from: GeoPoint,
     way: &[GeoPoint],
     wind: Option<Wind>,
-    glider: &Glider,
+    glider: &impl Glides,
 ) -> Option<Vec<GlideTo>> {
-    let sink_ms = glider.trim_speed_ms / glider.glide_ratio;
     let mut sum = GlideTo {
         distance_m: 0.0,
         height_lost_m: 0.0,
@@ -51,11 +99,10 @@ pub fn along_way(
         let course = earth.course(last, *point);
         // A leg of no length costs nothing, whatever the wind.
         if course.distance_m > 0.5 {
-            let glide = glide_over_ground(course.bearing_deg, wind, glider)?;
-            let height = course.distance_m / glide;
+            let made = glider.on_course(course.bearing_deg, wind)?;
             sum.distance_m += course.distance_m;
-            sum.height_lost_m += height;
-            sum.time_s += height / sink_ms;
+            sum.height_lost_m += course.distance_m / made.glide();
+            sum.time_s += course.distance_m / made.ground_speed_ms;
         }
         out.push(sum);
         last = *point;
@@ -66,6 +113,7 @@ pub fn along_way(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::live::navigation::Glider;
 
     fn point(lat: f64, lon: f64) -> GeoPoint {
         GeoPoint::new(lat, lon).unwrap()
@@ -135,5 +183,26 @@ mod tests {
         // Standing on the point: nothing to fly, whatever the wind.
         let here = along_way(Earth::FaiSphere, from, &[from], gale, &GLIDER).unwrap();
         assert_eq!(here[0].height_lost_m, 0.0);
+    }
+
+    #[test]
+    fn an_arrival_time_follows_the_speed_chosen_and_each_turnpoint_keeps_height_back() {
+        // 12 km: at an average of 8 m/s, at 12 m/s now, in 20 minutes at
+        // trim in the wind.
+        let time = |choice| time_to_s(choice, 12_000.0, Some(8.0), Some(12.0), Some(1_200.0));
+        assert_eq!(time(ArrivalSpeed::Average), Some(1_500.0));
+        assert_eq!(time(ArrivalSpeed::Current), Some(1_000.0));
+        assert_eq!(time(ArrivalSpeed::TrimInWind), Some(1_200.0));
+        // No average yet: the speed now. Standing still: no time.
+        assert_eq!(
+            time_to_s(ArrivalSpeed::Average, 12_000.0, None, Some(12.0), None),
+            Some(1_000.0)
+        );
+        assert_eq!(
+            time_to_s(ArrivalSpeed::Current, 12_000.0, Some(8.0), Some(0.4), None),
+            None
+        );
+        assert_eq!(allowance_m(0), 0.0);
+        assert_eq!(allowance_m(3), 45.0);
     }
 }

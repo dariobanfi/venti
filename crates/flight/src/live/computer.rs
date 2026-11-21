@@ -4,11 +4,12 @@ use std::collections::VecDeque;
 
 use venti_domain::GeoPoint;
 
-use super::atmosphere::pressure_altitude_m;
+use super::air::{self, ThroughTheAir};
+use super::atmosphere::{self, pressure_altitude_m};
 use super::navigation::bearing_deg;
 use super::thermal::{self, ThermalPicture};
 use super::vario::VarioFilter;
-use super::wind::{Wind, WindEstimator, WindFix};
+use super::wind::{GlideWindEstimator, Wind, WindEstimator, WindFix, WindSource};
 
 /// The settings of the flight computer.
 ///
@@ -71,6 +72,30 @@ pub struct Config {
     pub circling_min_climb_ms: f64,
     /// Seconds of track kept for drawing behind the glider.
     pub trail_s: f64,
+    /// Where the height of the ground under the glider is known
+    /// ([`FlightComputer::ground`]), a glider higher over it than this,
+    /// metres, has not landed after `landing_hold_s`, however still it
+    /// stands: it is parked in the wind. It counts as landed only after
+    /// `landing_high_hold_s`, which no glider stands still in the air
+    /// for; that long, because a height over the ground is the
+    /// difference of two heights that are each off by tens of metres in
+    /// a narrow valley, and a flight must end some time. Fifty metres
+    /// are more than the satellites and the terrain together are usually
+    /// wrong by. Ours; to verify in the air.
+    pub landing_height_m: f64,
+    /// See `landing_height_m`.
+    pub landing_high_hold_s: f64,
+    /// In a wind of at least this speed, metres per second, measured
+    /// within the last twenty minutes, a glider can stand still over the
+    /// ground while it flies, and the landing rule waits
+    /// `landing_windy_hold_s` in place of `landing_hold_s`.
+    pub landing_windy_ms: f64,
+    /// See `landing_windy_ms`.
+    pub landing_windy_hold_s: f64,
+    /// Never to take the flight for landed: for hike and fly, where the
+    /// pilot lands, packs, walks on and takes off again within one
+    /// flight's recording. The flight then ends when the pilot ends it.
+    pub never_land: bool,
 }
 
 impl Default for Config {
@@ -89,6 +114,11 @@ impl Default for Config {
             turn_window_s: 30.0,
             circling_min_climb_ms: -0.5,
             trail_s: 180.0,
+            landing_height_m: 50.0,
+            landing_high_hold_s: 300.0,
+            landing_windy_ms: 5.0,
+            landing_windy_hold_s: 60.0,
+            never_land: false,
         }
     }
 }
@@ -194,6 +224,61 @@ pub struct HeightWind {
     pub climb_ms: Option<f64>,
 }
 
+/// The wind the computer goes by, with what is known about it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WindEstimate {
+    /// The wind.
+    pub wind: Wind,
+    /// The speed through the air it was measured at, metres per second.
+    pub airspeed_ms: f64,
+    /// How far it was trusted when it was measured, above 0 and up to 1
+    /// ([`WindFix::quality`]).
+    pub quality: f64,
+    /// Whether it comes from circles or from a turn on a glide.
+    pub source: WindSource,
+    /// When it was measured, seconds since 1970-01-01 UTC.
+    pub measured_s: f64,
+}
+
+/// A wind loses half its trust in this many seconds: after five minutes
+/// the glider is somewhere else, and often at another height.
+pub const WIND_HALF_LIFE_S: f64 = 300.0;
+
+impl WindEstimate {
+    /// How far it is trusted at `now_s`: its quality, halved every
+    /// [`WIND_HALF_LIFE_S`].
+    pub fn trust(&self, now_s: f64) -> f64 {
+        self.quality * 0.5_f64.powf((now_s - self.measured_s).max(0.0) / WIND_HALF_LIFE_S)
+    }
+}
+
+/// Where the altitude the computer reports comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AltitudeSource {
+    /// A pressure sensor, levelled to the satellites' altitude over the
+    /// last minutes: as smooth as the one and as true as the other.
+    Pressure,
+    /// The satellites alone.
+    Satellite,
+}
+
+/// Where the QNH comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QnhSource {
+    /// From the pressure on the ground before take-off and the height of
+    /// the ground there.
+    Ground,
+    /// Set by the pilot.
+    Hand,
+}
+
+/// A wind older than this, seconds, does not make the landing rule wait
+/// longer: twenty minutes.
+const LANDING_WIND_FRESH_S: f64 = 20.0 * 60.0;
+
+/// The rate of turn is taken over this many seconds.
+const TURN_RATE_OVER_S: f64 = 4.0;
+
 /// The height of one band of [`HeightWind`], metres.
 pub const WIND_BAND_M: f64 = 200.0;
 
@@ -283,10 +368,31 @@ pub struct LiveState {
     /// Metres forward per metre of height lost over the last quarter
     /// minute. `None` when not losing height.
     pub glide_ratio: Option<f64>,
-    /// The wind, from the last time the glider circled.
+    /// The wind the computer goes by: from the last circles, or from a
+    /// turn on a glide since, whichever is trusted more now
+    /// ([`WindEstimate::trust`]).
     pub wind: Option<Wind>,
-    /// When that was, seconds since 1970-01-01 UTC.
+    /// When that was measured, seconds since 1970-01-01 UTC.
     pub wind_measured_s: Option<f64>,
+    /// The same wind with its source and how far it was trusted.
+    pub wind_estimate: Option<WindEstimate>,
+    /// The glider through the air, estimated from its way over the
+    /// ground and that wind: airspeed, heading, and whether the wind
+    /// carries it backwards. `None` without a wind or a velocity.
+    pub air: Option<ThroughTheAir>,
+    /// How fast the course over the ground turns, degrees per second,
+    /// positive to the right, over the last four seconds. `None` while
+    /// the glider hardly moves.
+    pub turn_rate_deg_s: Option<f64>,
+    /// Where `altitude_m` comes from.
+    pub altitude_source: Option<AltitudeSource>,
+    /// The QNH, hectopascals, once there is one, and where it comes
+    /// from.
+    pub qnh: Option<(f64, QnhSource)>,
+    /// What an altimeter set to that QNH shows, metres: the altitude
+    /// airspace limits above sea level are flown by. `None` without a
+    /// QNH or a fresh pressure.
+    pub qnh_altitude_m: Option<f64>,
     /// Whether the glider is circling in lift.
     pub circling: bool,
     /// The wind in each band of height the glider has circled in, the
@@ -356,8 +462,15 @@ pub struct FlightComputer {
     circled: (f64, f64, u32),
     thermals: VecDeque<ThermalMark>,
     wind: WindEstimator,
-    /// When the wind was last measured.
-    wind_measured_s: Option<f64>,
+    /// The estimate from turns on a glide.
+    glide_wind: GlideWindEstimator,
+    /// The wind gone by: the latest circle's, or a glide's that was
+    /// trusted more than what stood when it came.
+    wind_now: Option<WindEstimate>,
+    /// The height of the ground under the glider as last told, and when.
+    ground: Option<(f64, f64)>,
+    /// The QNH and where it comes from.
+    qnh: Option<(f64, QnhSource)>,
     /// The last moment the glider was known to be turning, and its
     /// altitude then: where the climb of a band of height was counted to.
     band_mark: Option<(f64, f64)>,
@@ -427,7 +540,10 @@ impl FlightComputer {
             thermals: VecDeque::new(),
             winds: Vec::new(),
             wind: WindEstimator::new(),
-            wind_measured_s: None,
+            glide_wind: GlideWindEstimator::new(),
+            wind_now: None,
+            ground: None,
+            qnh: None,
             band_mark: None,
             max_altitude_m: None,
             trail: VecDeque::new(),
@@ -451,6 +567,58 @@ impl FlightComputer {
     pub fn restart_pressure(&mut self) {
         self.pressure_filter = VarioFilter::new(0.4, 1.0);
         self.pressure_offset_m = None;
+    }
+
+    /// Says how high the ground under the glider is, metres above mean
+    /// sea level, or with `None` that it is not known. Tell it before
+    /// each position: the landing rule looks at the height over it, and
+    /// on the ground before take-off the QNH is taken from it.
+    pub fn ground(&mut self, time_s: f64, elevation_m: Option<f64>) {
+        self.ground = elevation_m
+            .filter(|elevation| elevation.is_finite())
+            .map(|elevation| (time_s, elevation));
+        // The QNH: before take-off the glider stands on that ground, and
+        // the pressure there with its height gives the setting. It
+        // follows the pressure until the take-off and then stands for the
+        // flight. A setting made by hand is left alone.
+        if self.phase == Phase::Ground
+            && !matches!(self.qnh, Some((_, QnhSource::Hand)))
+            && let Some((_, elevation)) = self.ground
+            && let Some(pressure_altitude) = self.fresh_pressure_altitude(time_s)
+        {
+            let measured = atmosphere::qnh_hpa(pressure_altitude, elevation);
+            if atmosphere::QNH_HPA.contains(&measured) {
+                let followed = match self.qnh {
+                    Some((qnh, _)) => qnh + (measured - qnh) / 10.0,
+                    None => measured,
+                };
+                self.qnh = Some((followed, QnhSource::Ground));
+            }
+        }
+    }
+
+    /// Sets the QNH by hand, hectopascals, or with `None` takes a setting
+    /// made by hand away: the QNH is then taken from the ground again
+    /// while the glider stands on it, and is absent until then. A value
+    /// no sea level has had is ignored.
+    pub fn set_qnh(&mut self, qnh_hpa: Option<f64>) {
+        match qnh_hpa {
+            Some(qnh) if atmosphere::QNH_HPA.contains(&qnh) => {
+                self.qnh = Some((qnh, QnhSource::Hand));
+            }
+            Some(_) => {}
+            None => {
+                if matches!(self.qnh, Some((_, QnhSource::Hand))) {
+                    self.qnh = None;
+                }
+            }
+        }
+    }
+
+    /// Sets whether the flight is never taken for landed
+    /// ([`Config::never_land`]).
+    pub fn set_never_land(&mut self, never_land: bool) {
+        self.config.never_land = never_land;
     }
 
     /// Takes a climb rate computed by an external instrument.
@@ -524,8 +692,34 @@ impl FlightComputer {
                 self.velocities.pop_front();
             }
             let measured = self.wind.add(now, east, north);
-            if measured.is_some() {
-                self.wind_measured_s = Some(now);
+            if let Some(fix) = measured {
+                // A circle's wind always stands: it is the better
+                // measurement and the newest.
+                self.wind_now = Some(WindEstimate {
+                    wind: fix.wind,
+                    airspeed_ms: fix.airspeed_ms,
+                    quality: fix.quality,
+                    source: WindSource::Circling,
+                    measured_s: now,
+                });
+                self.glide_wind.clear();
+            } else if self.phase == Phase::Flying && !self.circling {
+                // On the glide: a turn of part of a circle gives a wind
+                // too. It is taken when it is trusted more than what
+                // stands has left of its trust.
+                if let Some(fix) = self.glide_wind.add(now, east, north)
+                    && self
+                        .wind_now
+                        .is_none_or(|standing| fix.quality > standing.trust(now))
+                {
+                    self.wind_now = Some(WindEstimate {
+                        wind: fix.wind,
+                        airspeed_ms: fix.airspeed_ms,
+                        quality: fix.quality,
+                        source: WindSource::Glide,
+                        measured_s: now,
+                    });
+                }
             }
             if let (Some(fix), Some(altitude)) = (measured, altitude) {
                 self.note_wind(now, altitude, fix);
@@ -614,8 +808,27 @@ impl FlightComputer {
             ground_speed_ms: velocity.map(|velocity| velocity.speed_ms),
             course_deg: velocity.map(|velocity| velocity.course_deg),
             glide_ratio: self.glide_ratio().filter(|_| self.has_position(now_s)),
-            wind: self.wind.wind(),
-            wind_measured_s: self.wind_measured_s,
+            wind: self.wind_now.map(|estimate| estimate.wind),
+            wind_measured_s: self.wind_now.map(|estimate| estimate.measured_s),
+            wind_estimate: self.wind_now,
+            air: velocity
+                .zip(self.wind_now)
+                .and_then(|(velocity, estimate)| {
+                    air::through_the_air(velocity.speed_ms, velocity.course_deg, estimate.wind)
+                }),
+            turn_rate_deg_s: self.turn_rate_deg_s().filter(|_| self.has_position(now_s)),
+            altitude_source: altitude.map(|_| {
+                match (self.fresh_pressure_altitude(now_s), self.pressure_offset_m) {
+                    (Some(_), Some(_)) => AltitudeSource::Pressure,
+                    _ => AltitudeSource::Satellite,
+                }
+            }),
+            qnh: self.qnh,
+            qnh_altitude_m: self.qnh.zip(self.fresh_pressure_altitude(now_s)).map(
+                |((qnh, _), pressure_altitude)| {
+                    atmosphere::altitude_at_qnh_m(pressure_altitude, qnh)
+                },
+            ),
             winds: self.winds.iter().map(WindBand::wind).collect(),
             circling: self.circling,
             thermal: self.thermal,
@@ -624,7 +837,7 @@ impl FlightComputer {
                     self.trail.iter().copied(),
                     thermal.entered_s - PICTURE_LEAD_S,
                     now_s,
-                    self.wind.wind(),
+                    self.wind_now.map(|estimate| estimate.wind),
                 )
             }),
             thermals: self.thermals.iter().copied().collect(),
@@ -785,13 +998,36 @@ impl FlightComputer {
             total.abs()
         };
         let over_the_ground = turned((0.0, 0.0));
-        match self.wind.wind() {
+        match self.wind_now.map(|estimate| estimate.wind) {
             Some(wind) => {
                 let (sin, cos) = wind.from_deg.to_radians().sin_cos();
                 over_the_ground.max(turned((-wind.speed_ms * sin, -wind.speed_ms * cos)))
             }
             None => over_the_ground,
         }
+    }
+
+    /// How fast the course over the ground turns, degrees per second,
+    /// positive to the right: the newest velocity against the one from
+    /// four seconds before.
+    fn turn_rate_deg_s(&self) -> Option<f64> {
+        let &(now, east, north) = self.velocities.back()?;
+        let &(then, east_then, north_then) = self
+            .velocities
+            .iter()
+            .rev()
+            .find(|&&(time, _, _)| time <= now - TURN_RATE_OVER_S)?;
+        let seconds = now - then;
+        if seconds > 2.0 * TURN_RATE_OVER_S
+            || east.hypot(north) <= 1.0
+            || east_then.hypot(north_then) <= 1.0
+        {
+            return None;
+        }
+        let course = |east: f64, north: f64| east.atan2(north).to_degrees();
+        let turned =
+            (course(east, north) - course(east_then, north_then) + 540.0).rem_euclid(360.0) - 180.0;
+        Some(turned / seconds)
     }
 
     fn update_circling(&mut self, now: f64, altitude: Option<f64>) {
@@ -935,9 +1171,29 @@ impl FlightComputer {
                     && self
                         .average_climb(10.0)
                         .is_none_or(|climb| climb.abs() < 0.5);
+                // How long it has to stand still to count as landed:
+                // longer in a wind it can park in, and far longer while
+                // the ground is known to be well below it.
+                let above_ground = self
+                    .ground
+                    .filter(|&(told, _)| (0.0..=POSITION_STALE_S).contains(&(now - told)))
+                    .zip(altitude)
+                    .map(|((_, ground), altitude)| altitude - ground);
+                let windy = self.wind_now.is_some_and(|estimate| {
+                    now - estimate.measured_s <= LANDING_WIND_FRESH_S
+                        && estimate.wind.speed_ms >= self.config.landing_windy_ms
+                });
+                let hold_s =
+                    if above_ground.is_some_and(|above| above > self.config.landing_height_m) {
+                        self.config.landing_high_hold_s
+                    } else if windy {
+                        self.config.landing_windy_hold_s
+                    } else {
+                        self.config.landing_hold_s
+                    };
                 if still {
                     let since = *self.condition_since.get_or_insert(here);
-                    if now - since.time_s >= self.config.landing_hold_s {
+                    if now - since.time_s >= hold_s && !self.config.never_land {
                         self.phase = Phase::Landed;
                         self.landing_time_s = Some(since.time_s);
                         self.condition_since = None;
@@ -1571,5 +1827,226 @@ mod tests {
         }
         let state = computer.state(340.0);
         assert_eq!(state.phase, Phase::Flying, "{state:?}");
+    }
+
+    /// A computer flown by hand: one position a second from a receiver
+    /// that measures speed and course, with the pressure altitude.
+    struct Flown {
+        computer: FlightComputer,
+        time: f64,
+        east_m: f64,
+        north_m: f64,
+        altitude_m: f64,
+        /// How far the ground is told to lie under the glider, if it is.
+        over_ground_m: Option<f64>,
+    }
+
+    impl Flown {
+        fn new() -> Self {
+            Self {
+                computer: FlightComputer::new(Config::default()),
+                time: 1_000_000.0,
+                east_m: 0.0,
+                north_m: 0.0,
+                altitude_m: 2_000.0,
+                over_ground_m: None,
+            }
+        }
+
+        /// Flies `seconds` at the velocity over the ground and the climb
+        /// `at` gives for each second.
+        fn fly(&mut self, seconds: u32, at: impl Fn(f64) -> (f64, f64, f64)) -> LiveState {
+            for second in 0..seconds {
+                let (east, north, climb) = at(f64::from(second));
+                self.time += 1.0;
+                self.east_m += east;
+                self.north_m += north;
+                self.altitude_m += climb;
+                if let Some(over) = self.over_ground_m {
+                    self.computer
+                        .ground(self.time, Some(self.altitude_m - over));
+                }
+                self.computer.pressure_altitude(self.time, self.altitude_m);
+                self.computer.position(PositionSample {
+                    time_s: self.time,
+                    position: GeoPoint::new(
+                        47.0 + self.north_m / M_PER_DEG_LAT,
+                        11.0 + self.east_m / (M_PER_DEG_LAT * 47.0_f64.to_radians().cos()),
+                    )
+                    .unwrap(),
+                    altitude_m: Some(self.altitude_m),
+                    ground_speed_ms: Some(east.hypot(north)),
+                    course_deg: Some(east.atan2(north).to_degrees().rem_euclid(360.0)),
+                });
+            }
+            self.computer.state(self.time)
+        }
+
+        /// Pointing `heading_deg` at 10 m/s through the air in a wind
+        /// blowing toward `wind`.
+        fn through_air(heading_deg: f64, wind: (f64, f64), climb: f64) -> (f64, f64, f64) {
+            let (sin, cos) = heading_deg.to_radians().sin_cos();
+            (10.0 * sin + wind.0, 10.0 * cos + wind.1, climb)
+        }
+
+        /// A glide north, three circles, and a glide north again, all in
+        /// a wind blowing toward `wind`.
+        fn take_off_and_circle(&mut self, wind: (f64, f64)) -> LiveState {
+            self.fly(30, |_| Self::through_air(0.0, wind, -1.2));
+            self.fly(84, |second| {
+                Self::through_air(360.0 * second / 28.0, wind, 2.0)
+            });
+            self.fly(60, |_| Self::through_air(0.0, wind, -1.2))
+        }
+    }
+
+    #[test]
+    fn a_turn_on_a_glide_gives_a_wind_once_the_circles_wind_has_aged() {
+        let mut flown = Flown::new();
+        let after = flown.take_off_and_circle((4.0, 0.0));
+        let estimate = after.wind_estimate.unwrap();
+        assert_eq!(estimate.source, WindSource::Circling);
+        assert!((estimate.wind.from_deg - 270.0).abs() < 3.0, "{estimate:?}");
+        assert!((estimate.wind.speed_ms - 4.0).abs() < 0.3, "{estimate:?}");
+        // The glider through the air: 10 m/s, pointing north, while its
+        // course over the ground lies 22 degrees east of north.
+        let air = after.air.unwrap();
+        assert!((air.airspeed_ms - 10.0).abs() < 0.4, "{air:?}");
+        assert!(air.heading_deg < 3.0 || air.heading_deg > 357.0, "{air:?}");
+        assert!((after.course_deg.unwrap() - 21.8).abs() < 0.5);
+        assert_eq!(air.backwards_ms, None);
+
+        // A turn through 150 degrees a minute after the circles, in a
+        // wind that has changed: the circles' wind is still trusted more,
+        // and stands.
+        let turn = |wind: (f64, f64)| {
+            move |second: f64| Flown::through_air((5.0 * second).min(150.0), wind, -1.2)
+        };
+        let mut soon = Flown::new();
+        soon.take_off_and_circle((4.0, 0.0));
+        let turning = soon.fly(15, turn((-3.0, -3.0)));
+        // Five degrees a second through the air; over the ground, with
+        // the wind from the side, a little more.
+        let rate = turning.turn_rate_deg_s.unwrap();
+        assert!((2.0..12.0).contains(&rate), "{rate}");
+        let state = soon.fly(45, |second| turn((-3.0, -3.0))(second + 15.0));
+        assert_eq!(state.wind_estimate.unwrap().source, WindSource::Circling);
+        assert!(!state.circling);
+
+        // Ten minutes of straight glide later the same turn is taken:
+        // the wind is the new one, from the north-east, and it says where
+        // it comes from and when.
+        let straight = flown.fly(600, |_| Flown::through_air(0.0, (-3.0, -3.0), -1.2));
+        assert_eq!(straight.wind_estimate.unwrap().source, WindSource::Circling);
+        assert!(flown.time - straight.wind_measured_s.unwrap() > 600.0);
+        let state = flown.fly(60, turn((-3.0, -3.0)));
+        let estimate = state.wind_estimate.unwrap();
+        assert_eq!(estimate.source, WindSource::Glide, "{estimate:?}");
+        assert!((estimate.wind.from_deg - 45.0).abs() < 3.0, "{estimate:?}");
+        assert!(
+            (estimate.wind.speed_ms - 18.0_f64.sqrt()).abs() < 0.3,
+            "{estimate:?}"
+        );
+        assert!(flown.time - state.wind_measured_s.unwrap() < 45.0);
+        assert!(estimate.quality < 0.5, "{estimate:?}");
+        // And straight flight after it invents nothing.
+        let turned_at = flown.time;
+        let later = flown.fly(300, |_| Flown::through_air(150.0, (-3.0, -3.0), -1.2));
+        let kept = later.wind_estimate.unwrap();
+        assert_eq!(kept.source, WindSource::Glide);
+        assert!((kept.wind.from_deg - 45.0).abs() < 3.0, "{kept:?}");
+        // Nothing was measured once the turn had left the minute looked
+        // back on.
+        assert!(kept.measured_s <= turned_at + 60.0, "{kept:?}");
+    }
+
+    #[test]
+    fn a_glider_parked_in_the_wind_high_over_the_ground_has_not_landed() {
+        let parked = |_: f64| (0.3, 0.2, 0.0);
+        // By the speed over the ground alone, as the rule was: landed
+        // within half a minute.
+        let mut blind = Flown::new();
+        blind.fly(60, |_| (0.0, 10.0, -1.0));
+        assert_eq!(blind.fly(40, parked).phase, Phase::Landed);
+
+        // With the ground known to lie 400 m below: flying, for minutes.
+        let mut high = Flown::new();
+        high.over_ground_m = Some(400.0);
+        high.fly(60, |_| (0.0, 10.0, -1.0));
+        assert_eq!(high.fly(240, parked).phase, Phase::Flying);
+        // Five minutes without a metre of way or height is no flying.
+        assert_eq!(high.fly(80, parked).phase, Phase::Landed);
+
+        // With the ground five metres below: landed as before.
+        let mut low = Flown::new();
+        low.over_ground_m = Some(5.0);
+        low.fly(60, |_| (0.0, 10.0, -1.0));
+        let state = low.fly(40, parked);
+        assert_eq!(state.phase, Phase::Landed);
+
+        // In a wind of 6 m/s, measured a few minutes ago, and no ground
+        // known: the rule waits a minute, not twenty seconds.
+        let mut windy = Flown::new();
+        windy.take_off_and_circle((6.0, 0.0));
+        assert_eq!(windy.fly(40, parked).phase, Phase::Flying);
+        assert_eq!(windy.fly(30, parked).phase, Phase::Landed);
+
+        // Hike and fly: never landed, whatever the glider does.
+        let mut walking = Flown::new();
+        walking.computer.set_never_land(true);
+        walking.over_ground_m = Some(2.0);
+        walking.fly(60, |_| (0.0, 10.0, -1.0));
+        let state = walking.fly(900, parked);
+        assert_eq!(state.phase, Phase::Flying);
+        assert_eq!(state.landing_time_s, None);
+    }
+
+    #[test]
+    fn the_qnh_is_taken_on_the_ground_before_take_off_and_stands_for_the_flight() {
+        let mut computer = FlightComputer::new(Config::default());
+        let here = GeoPoint::new(47.0, 11.0).unwrap();
+        let stand = |computer: &mut FlightComputer, time: f64, ground: Option<f64>| {
+            // 850 hPa at a take-off 1,500 m up.
+            computer.pressure(time, 850.0);
+            computer.ground(time, ground);
+            computer.position(PositionSample {
+                time_s: time,
+                position: here,
+                altitude_m: Some(1_510.0),
+                ground_speed_ms: Some(0.0),
+                course_deg: Some(0.0),
+            });
+        };
+        stand(&mut computer, 0.0, None);
+        let state = computer.state(0.0);
+        assert_eq!(state.qnh, None);
+        assert_eq!(state.qnh_altitude_m, None);
+        assert_eq!(state.altitude_source, Some(AltitudeSource::Pressure));
+
+        for second in 1..=10 {
+            stand(&mut computer, f64::from(second), Some(1_500.0));
+        }
+        let state = computer.state(10.0);
+        let (qnh, source) = state.qnh.unwrap();
+        assert_eq!(source, QnhSource::Ground);
+        assert!((qnh - 1018.5).abs() < 0.5, "{qnh}");
+        assert!(
+            (state.qnh_altitude_m.unwrap() - 1_500.0).abs() < 1.0,
+            "{state:?}"
+        );
+
+        // By hand it is what the pilot says, and the ground no longer
+        // moves it; taken away, the ground gives it again.
+        computer.set_qnh(Some(1013.25));
+        stand(&mut computer, 11.0, Some(1_500.0));
+        let state = computer.state(11.0);
+        assert_eq!(state.qnh, Some((1013.25, QnhSource::Hand)));
+        assert!((state.qnh_altitude_m.unwrap() - state.pressure_altitude_m.unwrap()).abs() < 0.01);
+        computer.set_qnh(Some(300.0));
+        assert_eq!(computer.state(11.0).qnh, Some((1013.25, QnhSource::Hand)));
+        computer.set_qnh(None);
+        assert_eq!(computer.state(11.0).qnh, None);
+        stand(&mut computer, 12.0, Some(1_500.0));
+        assert_eq!(computer.state(12.0).qnh.unwrap().1, QnhSource::Ground);
     }
 }

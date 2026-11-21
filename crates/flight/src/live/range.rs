@@ -24,7 +24,7 @@
 
 use venti_domain::GeoPoint;
 
-use super::navigation::{self, Glider};
+use super::navigation::{self, Glides};
 use super::wind::Wind;
 use crate::geodesy::Earth;
 use crate::terrain::Terrain;
@@ -93,7 +93,7 @@ pub fn range(
     position: GeoPoint,
     altitude_m: f64,
     wind: Option<Wind>,
-    glider: &Glider,
+    glider: &impl Glides,
     reserve_m: f64,
 ) -> Option<Vec<Edge>> {
     let under = terrain.elevation_m(position)?;
@@ -136,7 +136,7 @@ pub fn reach(
     position: GeoPoint,
     altitude_m: f64,
     wind: Option<Wind>,
-    glider: &Glider,
+    glider: &impl Glides,
     reserve_m: f64,
 ) -> Option<Reach> {
     let ground_m = terrain.elevation_m(position)?;
@@ -167,7 +167,7 @@ fn edges(
     altitude_m: f64,
     under: f64,
     wind: Option<Wind>,
-    glider: &Glider,
+    glider: &impl Glides,
     reserve_m: f64,
     at_most_m: impl Fn(f64) -> f64,
 ) -> Vec<Edge> {
@@ -256,8 +256,9 @@ fn follow(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+    use crate::live::navigation::Glider;
     use crate::terrain::TileAddress;
 
     /// A glider that trims at 10 m/s with a glide of 8.

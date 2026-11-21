@@ -39,9 +39,12 @@ use venti_domain::GeoPoint;
 use venti_flight::fai;
 use venti_flight::geodesy::Earth;
 use venti_flight::igc::{self, Fix, IgcFile};
-use venti_flight::live::navigation::{self, Glider, Target};
+use venti_flight::live::landing::{self, NearestLanding};
+use venti_flight::live::navigation::{self, Glider, Performance, Target};
+use venti_flight::live::polar::{GliderClass, Polar};
 use venti_flight::live::{
-    self, FlightComputer, Phase, PositionSample, VarioSource, atmosphere, tone,
+    self, AltitudeSource, FlightComputer, Phase, PositionSample, QnhSource, VarioSource,
+    WindSource, atmosphere, tone,
 };
 use venti_flight::scoring;
 use venti_flight::sun;
@@ -78,6 +81,13 @@ pub struct CableWarning {
     pub height_mapped: bool,
     /// Whether the pilot has silenced it.
     pub silenced: bool,
+    /// How far above the cable's height the glider arrives at it on its
+    /// glide, metres, negative below: what the rule goes by since
+    /// 2026-11-22. A glider well above a cable now and sinking toward it
+    /// is warned by this. `None` when the height above the ground is not
+    /// known.
+    #[uniffi(default = None)]
+    pub arrival_above_m: Option<f64>,
 }
 
 /// The cables a session watches for.
@@ -94,6 +104,7 @@ struct CableWatch {
 }
 
 impl CableWatch {
+    #[allow(clippy::too_many_arguments)]
     fn feed(
         &mut self,
         now_unix_s: f64,
@@ -101,6 +112,8 @@ impl CableWatch {
         height_above_ground_m: Option<f64>,
         track_deg: Option<f64>,
         ground_speed_m_s: Option<f64>,
+        glide_over_ground: Option<f64>,
+        turn_rate_deg_s: Option<f64>,
     ) {
         self.now_unix_s = now_unix_s;
         self.silenced.retain(|(_, until)| *until > now_unix_s);
@@ -119,8 +132,11 @@ impl CableWatch {
             } else {
                 0.0
             },
+            glide_over_ground,
+            turn_rate_deg_s: turn_rate_deg_s.unwrap_or(0.0),
         };
         self.warning = set.ahead(&glider).map(|(found, id, words)| CableWarning {
+            arrival_above_m: found.arrival_above_m,
             silenced: self.silenced.iter().any(|(silenced, _)| *silenced == id),
             kind: set.kind_of(found.index),
             id,
@@ -479,6 +495,149 @@ pub struct CockpitView {
     /// until there is a position.
     #[uniffi(default = None)]
     pub task_readings: Option<TaskReadings>,
+    /// Where the wind comes from: the last circles, or a turn on a glide
+    /// since. Absent without a wind.
+    #[uniffi(default = None)]
+    pub wind_source: Option<WindSourceKind>,
+    /// The wind in a line, with where it comes from and how old it is:
+    /// "11 km/h from W, from your last glide, 2 min old", "14 km/h from
+    /// NE, from your last circles, under a minute old". Absent without a
+    /// wind.
+    #[uniffi(default = None)]
+    pub wind_words: Option<String>,
+    /// The glider's speed through the air, estimated: its velocity over
+    /// the ground less the wind. Absent on the ground, without a wind,
+    /// with a wind older than twenty minutes, and where the result is no
+    /// speed a glider flies. An estimate, as good as the wind is.
+    #[uniffi(default = None)]
+    pub airspeed_ms: Option<f64>,
+    /// The same as a reading that says it is an estimate: "about 36
+    /// km/h".
+    #[uniffi(default = None)]
+    pub airspeed_words: Option<String>,
+    /// The direction the glider points in, estimated the same way, and
+    /// absent with the airspeed.
+    #[uniffi(default = None)]
+    pub heading_deg: Option<f64>,
+    /// The same as a reading: "about 350° N".
+    #[uniffi(default = None)]
+    pub heading_words: Option<String>,
+    /// Said while the wind carries the glider backwards on a glide: it
+    /// moves over the ground against the direction it points in, by that
+    /// estimate. "The wind carries you back: 4 km/h backwards". Absent
+    /// otherwise, and while circling, where every circle has a half that
+    /// is flown backwards in such a wind.
+    #[uniffi(default = None)]
+    pub carried_back: Option<String>,
+    /// The nearest landing within glide, among the landings handed over
+    /// with [`FlightSession::use_landings`], or the caution that none is.
+    /// Absent on the ground, without landings and without a height.
+    #[uniffi(default = None)]
+    pub nearest_landing: Option<LandingReading>,
+    /// How fast the air itself rises or sinks, metres per second: the
+    /// climb with the polar's sink at the estimated airspeed given back.
+    /// Only for a pilot who has set a glider class or a polar
+    /// ([`FlightSession::set_glider_class`], [`FlightSession::set_polar`]),
+    /// only on a glide that is not turning, and absent with the airspeed.
+    #[uniffi(default = None)]
+    pub netto_ms: Option<f64>,
+    /// The same as a reading: "air −1.3 m/s", "air +0.4 m/s".
+    #[uniffi(default = None)]
+    pub netto_words: Option<String>,
+    /// The speed to fly on this glide, as a hint in words. Absent as the
+    /// netto is.
+    #[uniffi(default = None)]
+    pub speed_to_fly: Option<SpeedToFlyView>,
+    /// Where the altitude comes from, said plainly: "Altitude from the
+    /// pressure sensor, levelled to GPS", "Altitude from GPS". Absent
+    /// without an altitude.
+    #[uniffi(default = None)]
+    pub altitude_source_words: Option<String>,
+    /// The QNH, hectopascals: taken on the ground before take-off from
+    /// the pressure and the height of the ground there, or set by hand
+    /// ([`FlightSession::set_qnh`]). Absent without a pressure sensor,
+    /// and until the session has stood on ground whose height it holds.
+    #[uniffi(default = None)]
+    pub qnh_hpa: Option<f64>,
+    /// What an altimeter set to that QNH shows now, metres: the altitude
+    /// airspace limits above sea level are written for. It differs from
+    /// `altitude_m` by what the day's temperature does to an altimeter.
+    #[uniffi(default = None)]
+    pub qnh_altitude_m: Option<f64>,
+    /// The QNH as a reading: "QNH 1018 hPa, from the ground at take-off",
+    /// "QNH 1021 hPa, set by hand".
+    #[uniffi(default = None)]
+    pub qnh_words: Option<String>,
+    /// Whether the flight is never taken for landed
+    /// ([`FlightSession::set_never_land`]): the pilot ends it.
+    #[uniffi(default = false)]
+    pub never_lands: bool,
+}
+
+/// Where a wind was measured.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum WindSourceKind {
+    /// Around nearly a whole circle.
+    Circling,
+    /// In a turn of a third of a circle or more on a glide: less sure.
+    Glide,
+}
+
+/// The class a paraglider is certified in, for a polar to start from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum GliderClassKind {
+    /// EN A.
+    A,
+    /// EN B.
+    B,
+    /// EN C.
+    C,
+    /// EN D.
+    D,
+    /// CCC.
+    Ccc,
+}
+
+/// The speed to fly on a glide, by the polar the pilot has set, the
+/// estimated head wind and the air's rise or fall. A hint: the airspeed
+/// it is worked out from is itself an estimate, so the cockpit says what
+/// to do and why, not a number to hold.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct SpeedToFlyView {
+    /// "Speed up: sinking air and head wind", "Speed up: head wind",
+    /// "Trim: you are in rising air", "Trim: tail wind", "Trim".
+    pub words: String,
+    /// How much speed bar: 0 at trim, 1 at the polar's top speed.
+    pub bar: f64,
+    /// Whether the hint is to speed up: a quarter of the bar or more.
+    pub speed_up: bool,
+}
+
+/// The nearest landing within glide, as a standing reading.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct LandingReading {
+    /// Whether a landing is within glide. When false this is a caution,
+    /// and the place named, if any, is the one that misses by least.
+    pub within_glide: bool,
+    /// Which of the landings handed over it is, counted from zero.
+    pub index: Option<u32>,
+    /// Its name.
+    pub name: Option<String>,
+    /// How far it is, metres.
+    pub distance_m: Option<f64>,
+    /// The direction to it, degrees clockwise from north.
+    pub bearing_deg: Option<f64>,
+    /// How far above it the glide is expected to end, metres; negative
+    /// when it comes down before it.
+    pub arrival_height_m: Option<f64>,
+    /// Where the straight glide to it meets the ground first, metres
+    /// from the glider.
+    pub ground_in_the_way_m: Option<f64>,
+    /// "Landing Musterwiese: 2.1 km, +340 m"; "No landing within glide:
+    /// Musterwiese 6.2 km, 180 m short"; "No landing within glide:
+    /// Musterwiese 3.0 km, a ridge in the way"; "No landing within
+    /// glide".
+    pub words: String,
 }
 
 /// How the flight scores as a cross-country flight so far, by the same
@@ -723,6 +882,17 @@ struct Inner {
     /// navigates back to the take-off.
     target: Option<Target>,
     glider: Glider,
+    /// The polar, once the pilot has set a glider class or a polar.
+    /// Without one nothing of netto or speed to fly is worked out.
+    polar: Option<Polar>,
+    /// The landings to keep a standing reading of, and the reading of
+    /// the latest position.
+    landings: Vec<Target>,
+    landing: Option<LandingReading>,
+    /// Whether the flight is never taken for landed.
+    never_land: bool,
+    /// The QNH the pilot set by hand.
+    qnh_by_hand: Option<f64>,
     /// The airspace warnings, once the shell has handed over the airspace.
     watch: Option<AirspaceWatch>,
     /// The cables to watch for, once the shell has handed them over, and
@@ -805,9 +975,20 @@ impl Inner {
             fixes: VecDeque::new(),
         });
         self.computer = FlightComputer::new(live::Config::default());
+        self.computer.set_never_land(self.never_land);
+        self.computer.set_qnh(self.qnh_by_hand);
         self.flown.clear();
         self.score = None;
         self.longest = None;
+    }
+
+    /// How the glider glides: by its polar where the pilot has set one,
+    /// else by trim speed and glide ratio.
+    fn performance(&self) -> Performance {
+        match self.polar {
+            Some(polar) => Performance::Polar(polar),
+            None => Performance::Trim(self.glider),
+        }
     }
 
     /// Takes an altitude on the standard atmosphere from a pressure sensor.
@@ -856,6 +1037,11 @@ impl FlightSession {
                 last_position_s: None,
                 target: None,
                 glider: Glider::default(),
+                polar: None,
+                landings: Vec::new(),
+                landing: None,
+                never_land: false,
+                qnh_by_hand: None,
                 watch: None,
                 cables: CableWatch::default(),
                 terrain: None,
@@ -1128,7 +1314,7 @@ impl FlightSession {
                         position: there,
                         elevation_m: None,
                     },
-                    &inner.glider,
+                    &inner.performance(),
                 )
                 .expected_glide
                 .filter(|glide| glide.is_finite() && *glide > 0.0);
@@ -1281,7 +1467,7 @@ impl FlightSession {
                     place,
                     position,
                     &state,
-                    &inner.glider,
+                    &inner.performance(),
                     inner.terrain.as_deref(),
                 )
             })
@@ -1305,7 +1491,7 @@ impl FlightSession {
                 position,
                 altitude_m,
                 state.wind,
-                &inner.glider,
+                &inner.performance(),
                 REACH_RESERVE_M,
             )
         })?;
@@ -1350,7 +1536,7 @@ impl FlightSession {
                     place,
                     position,
                     &state,
-                    &inner.glider,
+                    &inner.performance(),
                     inner.terrain.as_deref(),
                 )
             })
@@ -1456,6 +1642,85 @@ impl FlightSession {
         }
     }
 
+    /// Sets the glider's polar from its class, for a pilot who wants
+    /// netto and a speed to fly: [`CockpitView::netto_ms`] and
+    /// [`CockpitView::speed_to_fly`] are worked out from then on, and
+    /// glides (arrival heights, the glide range, a task's altitude
+    /// needed) are flown at the speed that carries furthest in the wind
+    /// in place of trim speed. `None` takes the polar away, which is how
+    /// a session begins: nothing of it shows unless the pilot asks. The
+    /// classes' numbers are the project's own, to verify with pilots
+    /// (`venti_flight::live::polar`).
+    pub fn set_glider_class(&self, class: Option<GliderClassKind>) {
+        self.lock().polar = class.map(|class| {
+            Polar::for_class(match class {
+                GliderClassKind::A => GliderClass::A,
+                GliderClassKind::B => GliderClass::B,
+                GliderClassKind::C => GliderClass::C,
+                GliderClassKind::D => GliderClass::D,
+                GliderClassKind::Ccc => GliderClass::Ccc,
+            })
+        });
+    }
+
+    /// Sets the glider's polar from the pilot's own numbers: trim speed
+    /// with the sink at it and top speed with the sink at it, metres per
+    /// second, the best glide in still air taken to be at trim. Returns
+    /// whether they make a polar; if not, nothing changes.
+    pub fn set_polar(
+        &self,
+        trim_speed_ms: f64,
+        trim_sink_ms: f64,
+        max_speed_ms: f64,
+        max_sink_ms: f64,
+    ) -> bool {
+        let polar =
+            Polar::from_trim_and_max(trim_speed_ms, trim_sink_ms, max_speed_ms, max_sink_ms);
+        if let Some(polar) = polar {
+            self.lock().polar = Some(polar);
+        }
+        polar.is_some()
+    }
+
+    /// Hands the session the landing fields to keep a standing reading
+    /// of ([`CockpitView::nearest_landing`]): the landings among the
+    /// sites the app holds around the glider, and the pilot's own. A
+    /// place without a height takes the terrain's. An empty list takes
+    /// the reading away.
+    pub fn use_landings(&self, landings: Vec<TargetPlace>) {
+        let mut inner = self.lock();
+        inner.landings = landings
+            .into_iter()
+            .filter_map(|place| {
+                Some(Target {
+                    name: place.name,
+                    position: GeoPoint::new(place.position.lat, place.position.lon).ok()?,
+                    elevation_m: place.elevation_m.filter(|elevation| elevation.is_finite()),
+                })
+            })
+            .collect();
+        inner.landing = None;
+    }
+
+    /// For hike and fly: with `true` the flight is never taken for
+    /// landed, so that landing, packing, walking on and taking off again
+    /// stay one recording. The pilot then ends the session by hand.
+    pub fn set_never_land(&self, never_land: bool) {
+        let mut inner = self.lock();
+        inner.never_land = never_land;
+        inner.computer.set_never_land(never_land);
+    }
+
+    /// Sets the QNH by hand, hectopascals; `None` goes back to the QNH
+    /// taken on the ground before take-off. A value no sea level has had
+    /// is ignored.
+    pub fn set_qnh(&self, qnh_hpa: Option<f64>) {
+        let mut inner = self.lock();
+        inner.qnh_by_hand = qnh_hpa.filter(|qnh| atmosphere::QNH_HPA.contains(qnh));
+        let by_hand = inner.qnh_by_hand;
+        inner.computer.set_qnh(by_hand);
+    }
+
     /// The way to the chosen place, or to the take-off when none is
     /// chosen. `None` until there is a position, and on the ground before
     /// a take-off when no place is chosen.
@@ -1469,7 +1734,7 @@ impl FlightSession {
             state.altitude_m,
             state.wind,
             &target,
-            &inner.glider,
+            &inner.performance(),
         );
         let ground_in_the_way_m = ground_in_the_way(
             inner.terrain.as_deref(),
@@ -1503,6 +1768,13 @@ impl FlightSession {
             return;
         };
         let mut inner = self.lock();
+        // The ground first: the landing rule looks at the height over it,
+        // and before take-off the QNH is taken from it.
+        let ground_m = inner
+            .terrain
+            .as_ref()
+            .and_then(|terrain| terrain.elevation_at(position));
+        inner.computer.ground(sample.time_unix_s, ground_m);
         inner.computer.position(PositionSample {
             time_s: sample.time_unix_s,
             position,
@@ -1566,11 +1838,17 @@ impl FlightSession {
             }
             share.set_landed(state.phase == Phase::Landed);
         }
-        let ground_m = inner
-            .terrain
-            .as_ref()
-            .and_then(|terrain| terrain.elevation_at(position));
         inner.ground_m = ground_m;
+        inner.landing = nearest_landing_reading(&inner, position, &state);
+        // The glide the cable rule goes by: the worse of the glide the
+        // glider makes now and its own in this wind on this course.
+        let own_glide = state.course_deg.and_then(|course| {
+            navigation::glide_over_ground(course, state.wind, &inner.performance())
+        });
+        let cable_glide = match (state.glide_ratio, own_glide) {
+            (Some(now), Some(own)) => Some(now.min(own)),
+            (now, own) => now.or(own),
+        };
         inner.cables.feed(
             sample.time_unix_s,
             position,
@@ -1580,6 +1858,8 @@ impl FlightSession {
                 .map(|(up, ground)| up - ground),
             state.course_deg,
             state.ground_speed_ms,
+            cable_glide,
+            state.turn_rate_deg_s,
         );
         if let Some(watch) = inner.watch.as_mut() {
             watch.feed(
@@ -1769,6 +2049,27 @@ impl FlightSession {
             .filter(|_| inner.by_itself && state.phase == Phase::Landed)
             .map(|landed| (landed + SAVE_AFTER_LANDING_S - now_unix_s).max(0.0).ceil() as i64);
         let waited_s = inner.lead.as_ref().map(|lead| now_unix_s - lead.since_s);
+        // The glider through the air, where the wind is fresh enough to
+        // say it from.
+        let wind_age_s = state
+            .wind_measured_s
+            .map(|measured| (now_unix_s - measured).max(0.0));
+        let air = state
+            .air
+            .filter(|_| state.phase == Phase::Flying)
+            .filter(|_| wind_age_s.is_some_and(|age| age <= STRONG_WIND_FRESH_S));
+        // Netto and the speed to fly: only with a polar, and only on a
+        // glide that is not turning.
+        let gliding = !state.circling
+            && state
+                .turn_rate_deg_s
+                .is_none_or(|rate| rate.abs() < NETTO_TURN_AT_MOST_DEG_S);
+        let netto = inner
+            .polar
+            .zip(air)
+            .zip(state.climb_ms)
+            .filter(|_| gliding)
+            .map(|((polar, air), climb)| (polar, air, polar.netto_ms(climb, air.airspeed_ms)));
         let over = if saves_in_s == Some(0) {
             Some(SessionOver::Landed)
         } else if waited_s.is_some_and(|waited| waited >= WAIT_FOR_TAKEOFF_S) {
@@ -1822,9 +2123,7 @@ impl FlightSession {
                 from_deg: wind.from_deg,
                 speed_ms: wind.speed_ms,
             }),
-            wind_age_s: state
-                .wind_measured_s
-                .map(|measured| (now_unix_s - measured).max(0.0)),
+            wind_age_s,
             strong_wind: state
                 .wind
                 .zip(state.wind_measured_s)
@@ -1904,11 +2203,185 @@ impl FlightSession {
                     state.ground_speed_ms,
                     state.circling,
                     state.wind,
-                    &inner.glider,
+                    &inner.performance(),
                 )
             }),
+            wind_source: state.wind_estimate.map(|estimate| match estimate.source {
+                WindSource::Circling => WindSourceKind::Circling,
+                WindSource::Glide => WindSourceKind::Glide,
+            }),
+            wind_words: state
+                .wind_estimate
+                .map(|estimate| wind_in_words(&estimate, now_unix_s)),
+            airspeed_ms: air.map(|air| air.airspeed_ms),
+            airspeed_words: air.map(|air| format!("about {:.0} km/h", air.airspeed_ms * 3.6)),
+            heading_deg: air.map(|air| air.heading_deg),
+            heading_words: air.map(|air| format!("about {}", course_in_words(air.heading_deg))),
+            carried_back: air
+                .filter(|_| !state.circling)
+                .and_then(|air| air.backwards_ms)
+                .map(carried_back_in_words),
+            nearest_landing: inner
+                .landing
+                .clone()
+                .filter(|_| state.phase == Phase::Flying),
+            netto_ms: netto.map(|(_, _, netto)| netto),
+            netto_words: netto
+                .map(|(_, _, netto)| format!("air {netto:+.1} m/s").replace('-', "−")),
+            speed_to_fly: netto.map(|(polar, air, netto)| {
+                speed_to_fly_view(&polar.speed_to_fly(air.head_wind_ms, netto, 0.0))
+            }),
+            altitude_source_words: state.altitude_source.map(|source| {
+                match source {
+                    AltitudeSource::Pressure => {
+                        "Altitude from the pressure sensor, levelled to GPS"
+                    }
+                    AltitudeSource::Satellite => "Altitude from GPS",
+                }
+                .to_owned()
+            }),
+            qnh_hpa: state.qnh.map(|(qnh, _)| qnh),
+            qnh_altitude_m: state.qnh_altitude_m,
+            qnh_words: state.qnh.map(|(qnh, source)| {
+                format!(
+                    "QNH {qnh:.0} hPa, {}",
+                    match source {
+                        QnhSource::Ground => "from the ground at take-off",
+                        QnhSource::Hand => "set by hand",
+                    }
+                )
+            }),
+            never_lands: inner.never_land,
         }
     }
+}
+
+/// Netto and the speed to fly are given while the course turns slower
+/// than this, degrees per second: in a turn a glider sinks faster than
+/// its polar says.
+const NETTO_TURN_AT_MOST_DEG_S: f64 = 3.0;
+
+/// From this share of the speed bar on the hint is to speed up.
+const SPEED_UP_FROM_BAR: f64 = 0.25;
+
+/// "11 km/h from W, from your last glide, 2 min old".
+fn wind_in_words(estimate: &live::WindEstimate, now_unix_s: f64) -> String {
+    let age_s = (now_unix_s - estimate.measured_s).max(0.0);
+    let minutes = (age_s / 60.0).floor() as i64;
+    let age = match minutes {
+        0 => "under a minute old".to_owned(),
+        1..=59 => format!("{minutes} min old"),
+        _ => format!("{} h {:02} min old", minutes / 60, minutes % 60),
+    };
+    format!(
+        "{:.0} km/h from {}, from your last {}, {age}",
+        estimate.wind.speed_ms * 3.6,
+        compass(estimate.wind.from_deg),
+        match estimate.source {
+            WindSource::Circling => "circles",
+            WindSource::Glide => "glide",
+        }
+    )
+}
+
+/// "The wind carries you back: 4 km/h backwards".
+fn carried_back_in_words(backwards_ms: f64) -> String {
+    format!(
+        "The wind carries you back: {:.0} km/h backwards",
+        (backwards_ms * 3.6).round().max(1.0)
+    )
+}
+
+/// The speed to fly as a hint in words.
+fn speed_to_fly_view(speed: &live::polar::SpeedToFly) -> SpeedToFlyView {
+    let speed_up = speed.bar >= SPEED_UP_FROM_BAR;
+    let words = if speed.rising_air {
+        "Trim: you are in rising air".to_owned()
+    } else if speed_up {
+        match (speed.sinking_air, speed.head_wind) {
+            (true, true) => "Speed up: sinking air and head wind",
+            (true, false) => "Speed up: sinking air",
+            (false, true) => "Speed up: head wind",
+            (false, false) => "Speed up",
+        }
+        .to_owned()
+    } else if speed.tail_wind {
+        "Trim: tail wind".to_owned()
+    } else {
+        "Trim".to_owned()
+    };
+    SpeedToFlyView {
+        words,
+        bar: speed.bar,
+        speed_up,
+    }
+}
+
+/// The standing reading of the nearest landing within glide, for the
+/// position just taken. `None` on the ground, without landings, and
+/// without a height.
+fn nearest_landing_reading(
+    inner: &Inner,
+    position: GeoPoint,
+    state: &live::LiveState,
+) -> Option<LandingReading> {
+    if state.phase != Phase::Flying || inner.landings.is_empty() {
+        return None;
+    }
+    let altitude_m = state.altitude_m?;
+    let find = |terrain: Option<&venti_flight::terrain::Terrain>| {
+        landing::nearest_landing(
+            terrain,
+            position,
+            altitude_m,
+            state.wind,
+            &inner.performance(),
+            &inner.landings,
+            landing::RESERVE_M,
+        )
+    };
+    let found = match inner.terrain.as_ref() {
+        Some(terrain) => terrain.with(|terrain| find(Some(terrain))),
+        None => find(None),
+    }?;
+    let (within_glide, reach) = match found {
+        NearestLanding::Within(reach) => (true, Some(reach)),
+        NearestLanding::NoneWithin(reach) => (false, reach),
+    };
+    let name = reach.map(|reach| inner.landings[reach.index].name.clone());
+    let words = match (within_glide, reach, name.as_deref()) {
+        (true, Some(reach), Some(name)) => format!(
+            "Landing {name}: {:.1} km, {:+.0} m",
+            reach.distance_m / 1000.0,
+            reach.arrival_height_m.unwrap_or(0.0)
+        ),
+        (_, Some(reach), Some(name)) => {
+            let km = reach.distance_m / 1000.0;
+            match (reach.ground_in_the_way_m, reach.arrival_height_m) {
+                (Some(_), _) => {
+                    format!("No landing within glide: {name} {km:.1} km, a ridge in the way")
+                }
+                (None, Some(arrival)) => format!(
+                    "No landing within glide: {name} {km:.1} km, {:.0} m short",
+                    landing::RESERVE_M - arrival
+                ),
+                (None, None) => {
+                    format!("No landing within glide: {name} {km:.1} km, no way against the wind")
+                }
+            }
+        }
+        _ => "No landing within glide".to_owned(),
+    };
+    Some(LandingReading {
+        within_glide,
+        index: reach.and_then(|reach| u32::try_from(reach.index).ok()),
+        name,
+        distance_m: reach.map(|reach| reach.distance_m),
+        bearing_deg: reach.map(|reach| reach.bearing_deg),
+        arrival_height_m: reach.and_then(|reach| reach.arrival_height_m),
+        ground_in_the_way_m: reach.and_then(|reach| reach.ground_in_the_way_m),
+        words,
+    })
 }
 
 /// A score as the cockpit shows it.
@@ -2299,7 +2772,7 @@ fn reach_of(
     place: &TargetPlace,
     position: GeoPoint,
     state: &live::LiveState,
-    glider: &Glider,
+    glider: &Performance,
     terrain: Option<&Terrain>,
 ) -> ReachView {
     let unknown = ReachView {
@@ -3721,6 +4194,134 @@ mod tests {
         assert_eq!(view.phase, FlightPhase::Ground);
         assert_eq!(view.tone, None);
     }
+
+    #[test]
+    fn the_wind_says_where_it_comes_from_and_the_advanced_readings_wait_to_be_asked_for() {
+        let folder = TempFolder::new();
+        // On the glide after the first thermal, a minute after its last
+        // circle: a westerly of 3 m/s.
+        let (session, replay) = fly(&folder, 400.0, false);
+        let view = session.view(replay.now());
+        assert_eq!(view.wind_source, Some(WindSourceKind::Circling));
+        let words = view.wind_words.clone().unwrap();
+        assert!(
+            words.contains(" km/h from W, from your last circles, ") && words.ends_with(" old"),
+            "{words}"
+        );
+        // The glider through the air, estimated and said to be.
+        let airspeed = view.airspeed_ms.unwrap();
+        assert!((6.0..16.0).contains(&airspeed), "{airspeed}");
+        assert!(view.airspeed_words.clone().unwrap().starts_with("about "));
+        assert!(view.heading_words.clone().unwrap().starts_with("about "));
+        assert_eq!(view.carried_back, None);
+        assert_eq!(
+            view.altitude_source_words.as_deref(),
+            Some("Altitude from the pressure sensor, levelled to GPS")
+        );
+        // No terrain under the take-off: no QNH to say.
+        assert_eq!((view.qnh_hpa, view.qnh_words.clone()), (None, None));
+        assert!(!view.never_lands);
+
+        // Without a glider class or a polar set, and without landings
+        // handed over: nothing of netto, speed to fly or a landing.
+        assert_eq!(view.netto_ms, None);
+        assert_eq!(view.netto_words, None);
+        assert_eq!(view.speed_to_fly, None);
+        assert_eq!(view.nearest_landing, None);
+
+        // The pilot sets a class: the air's own movement and a hint.
+        session.set_glider_class(Some(GliderClassKind::B));
+        let with_polar = session.view(replay.now());
+        let netto = with_polar.netto_ms.unwrap();
+        assert!(netto.abs() < 2.0, "{netto}");
+        assert!(with_polar.netto_words.clone().unwrap().starts_with("air "));
+        let hint = with_polar.speed_to_fly.clone().unwrap();
+        assert!(
+            hint.words.starts_with("Trim") || hint.words.starts_with("Speed up"),
+            "{hint:?}"
+        );
+        // A polar that is none changes nothing; a real one is taken.
+        assert!(!session.set_polar(10.0, 1.2, 14.0, 1.5));
+        assert!(session.set_polar(10.5, 1.15, 14.0, 2.2));
+        session.set_glider_class(None);
+        assert_eq!(session.view(replay.now()).speed_to_fly, None);
+
+        // Landings handed over: the nearest within glide stands as a
+        // reading from the next position on.
+        let (here, altitude) = (view.position.unwrap(), view.altitude_m.unwrap());
+        let place = |name: &str, east_km: f64, below_m: f64| TargetPlace {
+            name: name.to_owned(),
+            position: Coordinate {
+                lat: here.lat,
+                lon: here.lon + east_km / 75.0,
+            },
+            elevation_m: Some(altitude - below_m),
+        };
+        session.use_landings(vec![
+            place("Far", 6.0, 900.0),
+            place("Musterwiese", 2.0, 900.0),
+        ]);
+        replay.advance(session.clone(), 1.0);
+        let landing = session.view(replay.now()).nearest_landing.unwrap();
+        assert!(landing.within_glide, "{landing:?}");
+        assert_eq!(landing.index, Some(1));
+        assert!(
+            landing.words.starts_with("Landing Musterwiese: 2.")
+                && landing.words.contains(" km, +"),
+            "{landing:?}"
+        );
+        // None within glide: a caution, with the one that misses by least.
+        session.use_landings(vec![place("High", -4.0, 100.0)]);
+        replay.advance(session.clone(), 1.0);
+        let landing = session.view(replay.now()).nearest_landing.unwrap();
+        assert!(!landing.within_glide);
+        assert!(
+            landing.words.starts_with("No landing within glide: High ")
+                && landing.words.ends_with(" m short"),
+            "{landing:?}"
+        );
+    }
+
+    #[test]
+    fn the_new_readings_have_their_words() {
+        let estimate = live::WindEstimate {
+            wind: live::Wind {
+                from_deg: 268.0,
+                speed_ms: 3.1,
+            },
+            airspeed_ms: 10.0,
+            quality: 0.4,
+            source: WindSource::Glide,
+            measured_s: 1_000.0,
+        };
+        assert_eq!(
+            wind_in_words(&estimate, 1_130.0),
+            "11 km/h from W, from your last glide, 2 min old"
+        );
+        assert_eq!(
+            wind_in_words(
+                &live::WindEstimate {
+                    source: WindSource::Circling,
+                    ..estimate
+                },
+                1_020.0
+            ),
+            "11 km/h from W, from your last circles, under a minute old"
+        );
+        assert_eq!(
+            carried_back_in_words(4.2 / 3.6),
+            "The wind carries you back: 4 km/h backwards"
+        );
+        let polar = Polar::for_class(GliderClass::C);
+        let words =
+            |head: f64, air: f64| speed_to_fly_view(&polar.speed_to_fly(head, air, 0.0)).words;
+        assert_eq!(words(7.0, -1.5), "Speed up: sinking air and head wind");
+        assert_eq!(words(0.0, -2.0), "Speed up: sinking air");
+        assert_eq!(words(9.0, 0.0), "Speed up: head wind");
+        assert_eq!(words(0.0, 1.5), "Trim: you are in rising air");
+        assert_eq!(words(-6.0, 0.0), "Trim: tail wind");
+        assert_eq!(words(0.0, 0.0), "Trim");
+    }
 }
 
 #[cfg(test)]
@@ -3750,7 +4351,15 @@ mod cable_tests {
     fn a_cable_ahead_is_warned_of_once_and_can_be_silenced() {
         let (mut watch, start) = watch();
         // 30 m above the ground at the gondola's lower end, flying on.
-        watch.feed(1000.0, start, Some(30.0), Some(135.0), Some(10.0));
+        watch.feed(
+            1000.0,
+            start,
+            Some(30.0),
+            Some(135.0),
+            Some(10.0),
+            None,
+            None,
+        );
         let warning = watch.warning.clone().unwrap();
         assert_eq!(warning.kind, CableKind::Gondola);
         assert!(
@@ -3759,10 +4368,18 @@ mod cable_tests {
             warning.words
         );
         // High above it: nothing.
-        watch.feed(1001.0, start, Some(400.0), Some(135.0), Some(10.0));
+        watch.feed(
+            1001.0,
+            start,
+            Some(400.0),
+            Some(135.0),
+            Some(10.0),
+            None,
+            None,
+        );
         assert_eq!(watch.warning, None);
         // Without terrain every cable on the course counts.
-        watch.feed(1002.0, start, None, Some(135.0), Some(10.0));
+        watch.feed(1002.0, start, None, Some(135.0), Some(10.0), None, None);
         assert!(watch.warning.is_some());
         assert!(watch.silenced.is_empty());
     }

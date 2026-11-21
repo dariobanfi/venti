@@ -315,6 +315,220 @@ impl WindEstimator {
     }
 }
 
+/// Where a wind was measured.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindSource {
+    /// From nearly a whole circle: [`WindEstimator`].
+    Circling,
+    /// From a turn of part of a circle on a glide: [`GlideWindEstimator`].
+    Glide,
+}
+
+/// The glide's estimate looks back this many seconds: a minute, in which
+/// the wind and the speed through the air are taken to have stayed the
+/// same.
+const GLIDE_WINDOW_S: f64 = 60.0;
+
+/// The least arc the glide's estimate asks for, degrees: seen from the
+/// fitted centre, the directions the glider pointed in must span a third
+/// of a circle. Over less, the circle through the velocities is hardly
+/// bent, and its centre, which is the wind, slides along the line through
+/// its middle with every bit of noise: on made-up turns of 90° with half a
+/// metre per second of noise the wind was off by three metres per second
+/// and more, on 120° by one. To verify on recorded flights.
+pub const GLIDE_ARC_LEAST_DEG: f64 = 120.0;
+
+/// The arc is counted in sectors of this many degrees.
+const GLIDE_SECTOR_DEG: f64 = 15.0;
+
+/// The glide's fit takes one velocity a second at the most, and needs this
+/// many.
+const GLIDE_SAMPLES_NEEDED: usize = 10;
+
+/// The speed through the air a glide's fit may give, metres per second:
+/// 22 to 72 km/h. Outside it the velocities were no paraglider's turn.
+const GLIDE_AIRSPEED_MS: std::ops::RangeInclusive<f64> = 6.0..=20.0;
+
+/// The glide's velocities may lie this far from the fitted circle, root
+/// mean square in metres per second, and no further than
+/// [`GLIDE_MISFIT_SHARE`] of its radius: half of what a whole circle is
+/// allowed, since an arc has less to hold a bad fit against.
+const GLIDE_MISFIT_LIMIT_MS: f64 = 1.0;
+
+/// See [`GLIDE_MISFIT_LIMIT_MS`].
+const GLIDE_MISFIT_SHARE: f64 = 0.12;
+
+/// Seen from the fitted centre, the direction the glider points in may
+/// move this many degrees a second on average, to and fro counted
+/// together. A turn on a glide is two to six; velocities that ring a
+/// point in no order, which fit a circle well and are none, jump by tens.
+const GLIDE_TURN_AT_MOST_DEG_S: f64 = 12.0;
+
+/// Estimates the wind on a glide, from a turn of part of a circle.
+///
+/// The picture is the one of [`WindEstimator`]: at one speed through the
+/// air, the velocities over the ground lie on a circle around the wind.
+/// A glider that changes its heading by a third of a circle or more
+/// within a minute, around a spur, onto a new leg or in a wide S, has
+/// drawn enough of that circle to fit it. It says nothing from a straight
+/// line, whatever the ground speed does on it: a line bends around no
+/// centre.
+///
+/// What it takes for granted, and cannot check: that the glider flew one
+/// speed through the air through the whole minute, and that the wind was
+/// one wind. A pilot who turns and steps on the speed bar at once draws
+/// an arc of another circle, and the wind fitted is wrong by about the
+/// change of speed. The estimate is therefore trusted less than a
+/// circle's ([`WindFix::quality`] is the fit times the share of a circle
+/// the arc covers), and the flight computer lets a circle's wind stand
+/// against it until that has aged.
+#[derive(Debug, Clone, Default)]
+pub struct GlideWindEstimator {
+    samples: VecDeque<(f64, f64, f64)>,
+}
+
+impl GlideWindEstimator {
+    /// An estimator that has seen nothing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Forgets what it has seen: for the moment a circle has given the
+    /// wind, whose velocities are not a glide's.
+    pub fn clear(&mut self) {
+        self.samples.clear();
+    }
+
+    /// Takes one ground velocity, east and north in metres per second,
+    /// and when it was measured. Returns a wind if the last minute holds
+    /// an arc that gives one.
+    pub fn add(&mut self, time_s: f64, east_ms: f64, north_ms: f64) -> Option<WindFix> {
+        // One a second at the most, so that a receiver that reports ten
+        // times a second is weighed like any other.
+        if self
+            .samples
+            .back()
+            .is_some_and(|&(last, _, _)| time_s - last < 0.9)
+        {
+            return None;
+        }
+        self.samples.push_back((time_s, east_ms, north_ms));
+        while self
+            .samples
+            .front()
+            .is_some_and(|&(time, _, _)| time < time_s - GLIDE_WINDOW_S)
+        {
+            self.samples.pop_front();
+        }
+        self.fit()
+    }
+
+    fn fit(&self) -> Option<WindFix> {
+        if self.samples.len() < GLIDE_SAMPLES_NEEDED {
+            return None;
+        }
+        let mut samples: Vec<(f64, f64, f64)> = self.samples.iter().copied().collect();
+        // Cheap and first: velocities that all lie within a few metres per
+        // second of each other span no arc of any circle a glider flies.
+        let chord_needed =
+            2.0 * GLIDE_AIRSPEED_MS.start() * (GLIDE_ARC_LEAST_DEG / 2.0).to_radians().sin();
+        let (first_east, first_north) = (samples[0].1, samples[0].2);
+        let widest = samples
+            .iter()
+            .map(|&(_, east, north)| (east - first_east).hypot(north - first_north))
+            .fold(0.0, f64::max);
+        if widest < chord_needed / 2.0 {
+            return None;
+        }
+
+        let mut circle = circle_through(&samples)?;
+        let off = |circle: (f64, f64, f64), &(_, x, y): &(f64, f64, f64)| {
+            ((x - circle.0).hypot(y - circle.1) - circle.2).abs()
+        };
+        let spread = |circle: (f64, f64, f64), samples: &[(f64, f64, f64)]| {
+            (samples
+                .iter()
+                .map(|sample| off(circle, sample).powi(2))
+                .sum::<f64>()
+                / samples.len() as f64)
+                .sqrt()
+        };
+        let far = OUTLIER_MS.max(2.0 * spread(circle, &samples));
+        let near: Vec<(f64, f64, f64)> = samples
+            .iter()
+            .copied()
+            .filter(|sample| off(circle, sample) <= far)
+            .collect();
+        if near.len() < samples.len() && near.len() >= GLIDE_SAMPLES_NEEDED {
+            circle = circle_through(&near)?;
+            samples = near;
+        }
+        let (centre_east, centre_north, airspeed) = circle;
+        if !GLIDE_AIRSPEED_MS.contains(&airspeed) {
+            return None;
+        }
+        let misfit = spread(circle, &samples);
+        let allowed = GLIDE_MISFIT_LIMIT_MS.min(GLIDE_MISFIT_SHARE * airspeed);
+        if misfit > allowed {
+            return None;
+        }
+        let wind_speed = centre_east.hypot(centre_north);
+        if wind_speed > WIND_AT_MOST_AIRSPEEDS * airspeed {
+            return None;
+        }
+
+        // The arc: the directions the glider pointed in, seen from the
+        // centre, with what lies between one and the next.
+        let sectors = (360.0 / GLIDE_SECTOR_DEG) as usize;
+        let sector =
+            |heading: f64| (heading.rem_euclid(360.0) / GLIDE_SECTOR_DEG) as usize % sectors;
+        let headings: Vec<f64> = samples
+            .iter()
+            .map(|&(_, east, north)| {
+                (east - centre_east)
+                    .atan2(north - centre_north)
+                    .to_degrees()
+            })
+            .collect();
+        let mut covered = vec![false; sectors];
+        let mut wandered = 0.0;
+        for (index, &heading) in headings.iter().enumerate() {
+            covered[sector(heading)] = true;
+            let Some(&next) = headings.get(index + 1) else {
+                break;
+            };
+            let step = (next - heading + 540.0).rem_euclid(360.0) - 180.0;
+            wandered += step.abs();
+            if step.abs() <= STEP_AT_MOST_DEG {
+                let parts = (step.abs() / (GLIDE_SECTOR_DEG / 2.0)).ceil().max(1.0);
+                for part in 1..parts as usize {
+                    covered[sector(heading + step * part as f64 / parts)] = true;
+                }
+            }
+        }
+        let seconds = samples.last()?.0 - samples.first()?.0;
+        if seconds <= 0.0 || wandered / seconds > GLIDE_TURN_AT_MOST_DEG_S {
+            return None;
+        }
+        let arc_deg = covered.iter().filter(|&&sector| sector).count() as f64 * GLIDE_SECTOR_DEG;
+        if arc_deg < GLIDE_ARC_LEAST_DEG {
+            return None;
+        }
+
+        Some(WindFix {
+            wind: Wind {
+                from_deg: (-centre_east)
+                    .atan2(-centre_north)
+                    .to_degrees()
+                    .rem_euclid(360.0),
+                speed_ms: wind_speed,
+            },
+            airspeed_ms: airspeed,
+            quality: ((1.0 - misfit / allowed) * arc_deg / 360.0).max(0.01),
+        })
+    }
+}
+
 /// The circle that fits a set of velocities best: its centre, east and
 /// north, and its radius. Least squares, by finding D, E and F that
 /// minimise the sum of (x² + y² + Dx + Ey + F)², which is linear in the
@@ -699,5 +913,133 @@ mod tests {
             );
         }
         assert_eq!(estimator.wind(), None);
+    }
+
+    /// A glide heading `from_deg`, a turn to `to_deg` at `rate` degrees a
+    /// second, and the glide on, at one speed through the air in a wind
+    /// blowing toward `wind`, with `rough` metres per second of noise.
+    fn glide_with_a_turn(
+        from_deg: f64,
+        to_deg: f64,
+        rate: f64,
+        airspeed: f64,
+        wind: (f64, f64),
+        rough: f64,
+        seed: u64,
+    ) -> Option<WindFix> {
+        let mut estimator = GlideWindEstimator::new();
+        let mut seed = seed;
+        let turn_s = ((to_deg - from_deg).abs() / rate).round() as i32;
+        let mut last = None;
+        for second in 0..(40 + turn_s) {
+            let heading: f64 = if second < 20 {
+                from_deg
+            } else if second < 20 + turn_s {
+                from_deg + (to_deg - from_deg).signum() * rate * f64::from(second - 20)
+            } else {
+                to_deg
+            };
+            let (sin, cos) = heading.to_radians().sin_cos();
+            let fix = estimator.add(
+                f64::from(second),
+                airspeed * sin + wind.0 + rough * noise(&mut seed),
+                airspeed * cos + wind.1 + rough * noise(&mut seed),
+            );
+            last = fix.or(last);
+        }
+        last
+    }
+
+    #[test]
+    fn a_turn_of_a_third_of_a_circle_on_a_glide_gives_the_wind() {
+        // North, then a turn to the east-south-east, at 10.5 m/s in a
+        // westerly of 4.
+        let fix = glide_with_a_turn(0.0, 130.0, 5.0, 10.5, (4.0, 0.0), 0.0, 1).unwrap();
+        assert!((fix.wind.from_deg - 270.0).abs() < 1.0, "{fix:?}");
+        assert!((fix.wind.speed_ms - 4.0).abs() < 0.05, "{fix:?}");
+        assert!((fix.airspeed_ms - 10.5).abs() < 0.05, "{fix:?}");
+        // Trusted less than a circle: at most the share of the circle seen.
+        assert!(fix.quality < 0.5, "{fix:?}");
+
+        // With the noise of a receiver, over many made-up flights: within
+        // 1.5 m/s of the wind, or silent.
+        let mut said = 0;
+        for seed in 1..=40 {
+            if let Some(fix) = glide_with_a_turn(20.0, 170.0, 4.0, 10.5, (4.0, 0.0), 0.3, seed) {
+                said += 1;
+                let (sin, cos) = fix.wind.from_deg.to_radians().sin_cos();
+                let (east, north) = (-fix.wind.speed_ms * sin, -fix.wind.speed_ms * cos);
+                let off = (east - 4.0).hypot(north);
+                assert!(off < 1.5, "seed {seed}: off by {off}: {fix:?}");
+            }
+        }
+        assert!(said >= 30, "{said}");
+    }
+
+    #[test]
+    fn less_than_a_third_of_a_circle_says_nothing() {
+        for seed in 1..=20 {
+            let fix = glide_with_a_turn(0.0, 80.0, 4.0, 10.5, (4.0, 0.0), 0.3, seed);
+            assert_eq!(fix, None, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn a_straight_line_gives_no_wind_whatever_the_speed_does_on_it() {
+        // Straight, with the noise of a receiver.
+        let mut estimator = GlideWindEstimator::new();
+        let mut seed = 11;
+        for second in 0..600 {
+            let fix = estimator.add(
+                f64::from(second),
+                8.0 + noise(&mut seed),
+                6.0 + noise(&mut seed),
+            );
+            assert_eq!(fix, None, "second {second}");
+        }
+        // Straight, on and off the speed bar: the ground speed goes from
+        // 10 to 15 m/s and back, and that is a line, not an arc.
+        let mut estimator = GlideWindEstimator::new();
+        for second in 0..600 {
+            let speed = 12.5 + 2.5 * (f64::from(second) / 20.0).sin();
+            let fix = estimator.add(
+                f64::from(second),
+                speed * 0.6 + 0.5 * noise(&mut seed),
+                speed * 0.8 + 0.5 * noise(&mut seed),
+            );
+            assert_eq!(fix, None, "second {second}");
+        }
+        // Velocities that ring a point in no order are no arc either.
+        let mut estimator = GlideWindEstimator::new();
+        for second in 0..240 {
+            let heading = TAU * noise(&mut seed);
+            let fix = estimator.add(
+                f64::from(second),
+                8.0 + 7.0 * heading.sin(),
+                3.0 + 7.0 * heading.cos(),
+            );
+            assert_eq!(fix, None, "second {second}");
+        }
+    }
+
+    #[test]
+    fn a_wide_s_on_a_glide_gives_the_wind_too() {
+        // Right through 140 degrees and back again: the arc is flown
+        // twice, once each way round.
+        let mut estimator = GlideWindEstimator::new();
+        let mut last = None;
+        for second in 0..60 {
+            let heading: f64 = 140.0 * (TAU * f64::from(second) / 120.0).sin().abs();
+            let (sin, cos) = heading.to_radians().sin_cos();
+            let fix = estimator.add(f64::from(second), 11.0 * sin - 2.0, 11.0 * cos - 3.0);
+            last = fix.or(last);
+        }
+        let fix = last.unwrap();
+        // Blowing toward the south-south-west: from 33.7 degrees.
+        assert!((fix.wind.from_deg - 33.7).abs() < 1.0, "{fix:?}");
+        assert!(
+            (fix.wind.speed_ms - 13.0_f64.sqrt()).abs() < 0.05,
+            "{fix:?}"
+        );
     }
 }

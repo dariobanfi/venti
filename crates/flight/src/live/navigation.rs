@@ -9,6 +9,7 @@
 use venti_domain::GeoPoint;
 
 use super::Wind;
+use super::polar::Polar;
 
 /// A place to fly to.
 #[derive(Debug, Clone, PartialEq)]
@@ -73,13 +74,70 @@ pub struct Navigation {
     pub wind_known: bool,
 }
 
+/// What a glider makes on a course it holds in a wind.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OnCourse {
+    /// Its speed along the course over the ground, metres per second.
+    pub ground_speed_ms: f64,
+    /// Its speed through the air, metres per second.
+    pub airspeed_ms: f64,
+    /// The height it loses each second, metres.
+    pub sink_ms: f64,
+}
+
+impl OnCourse {
+    /// Metres forward over the ground for each metre of height lost.
+    pub fn glide(&self) -> f64 {
+        self.ground_speed_ms / self.sink_ms
+    }
+}
+
+/// Something that glides: a glider known by its trim speed and glide
+/// ratio, or by its polar.
+pub trait Glides {
+    /// What it makes on a course held in a wind. `None` when the wind
+    /// lets it make no way on that course.
+    fn on_course(&self, course_deg: f64, wind: Option<Wind>) -> Option<OnCourse>;
+}
+
+impl Glides for Glider {
+    fn on_course(&self, course_deg: f64, wind: Option<Wind>) -> Option<OnCourse> {
+        speed_towards(course_deg, wind, self.trim_speed_ms).map(|speed| OnCourse {
+            ground_speed_ms: speed,
+            airspeed_ms: self.trim_speed_ms,
+            sink_ms: self.trim_speed_ms / self.glide_ratio,
+        })
+    }
+}
+
+/// How the glider's glide is known to the cockpit: by the two numbers of
+/// a trim speed and a glide ratio, or by a polar the pilot has set. With
+/// a polar a glide is flown at the speed that carries furthest over the
+/// ground in the wind on its course.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Performance {
+    /// Trim speed and glide ratio.
+    Trim(Glider),
+    /// A polar.
+    Polar(Polar),
+}
+
+impl Glides for Performance {
+    fn on_course(&self, course_deg: f64, wind: Option<Wind>) -> Option<OnCourse> {
+        match self {
+            Self::Trim(glider) => glider.on_course(course_deg, wind),
+            Self::Polar(polar) => polar.on_course(course_deg, wind),
+        }
+    }
+}
+
 /// Works out the way to a target from where the glider is.
 pub fn navigate(
     position: GeoPoint,
     altitude_m: Option<f64>,
     wind: Option<Wind>,
     target: &Target,
-    glider: &Glider,
+    glider: &impl Glides,
 ) -> Navigation {
     let distance_m = position.distance_m(target.position);
     let bearing_deg = bearing_deg(position, target.position);
@@ -87,10 +145,8 @@ pub fn navigate(
         .zip(target.elevation_m)
         .map(|(altitude, elevation)| altitude - elevation);
 
-    let speed_made_good = speed_towards(bearing_deg, wind, glider.trim_speed_ms);
-    let sink_ms = glider.trim_speed_ms / glider.glide_ratio;
-    let expected_glide = speed_made_good.map(|speed| speed / sink_ms);
-    let time_to_go_s = speed_made_good.map(|speed| distance_m / speed);
+    let made = glider.on_course(bearing_deg, wind);
+    let time_to_go_s = made.map(|made| distance_m / made.ground_speed_ms);
 
     Navigation {
         name: target.name.clone(),
@@ -100,28 +156,28 @@ pub fn navigate(
         required_glide: height_above_m
             .filter(|height| *height > 0.0)
             .map(|height| distance_m / height),
-        expected_glide,
+        expected_glide: made.map(|made| made.glide()),
         arrival_height_m: height_above_m
-            .zip(time_to_go_s)
-            .map(|(height, time)| height - time * sink_ms),
+            .zip(made)
+            .map(|(height, made)| height - distance_m / made.glide()),
         time_to_go_s,
         wind_known: wind.is_some(),
     }
 }
 
 /// Metres forward over the ground for each metre of height lost, on a
-/// course held at the glider's trim speed in a wind. `None` when the wind
-/// lets the glider make no way on that course.
-pub fn glide_over_ground(course_deg: f64, wind: Option<Wind>, glider: &Glider) -> Option<f64> {
-    let sink_ms = glider.trim_speed_ms / glider.glide_ratio;
-    speed_towards(course_deg, wind, glider.trim_speed_ms).map(|speed| speed / sink_ms)
+/// course held in a wind: at the glider's trim speed, or with a polar at
+/// the speed that carries furthest. `None` when the wind lets the glider
+/// make no way on that course.
+pub fn glide_over_ground(course_deg: f64, wind: Option<Wind>, glider: &impl Glides) -> Option<f64> {
+    glider.on_course(course_deg, wind).map(|made| made.glide())
 }
 
 /// The speed over the ground along a course, flying at an airspeed and
 /// holding the course against the wind's push to the side. `None` when the
 /// wind is too strong: the glider cannot hold the course, or is carried
 /// backwards on it.
-fn speed_towards(course_deg: f64, wind: Option<Wind>, airspeed_ms: f64) -> Option<f64> {
+pub(crate) fn speed_towards(course_deg: f64, wind: Option<Wind>, airspeed_ms: f64) -> Option<f64> {
     let Some(wind) = wind else {
         return Some(airspeed_ms);
     };

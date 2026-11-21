@@ -150,7 +150,19 @@ export type {
 	SitesShown,
 	SitesWindIs,
 	SitesMap,
+	SiteAuthor,
+	SiteByPilots,
+	SiteDraftFault,
+	SiteDraftView,
+	SiteField,
+	SiteForm,
+	SiteFormField,
+	SiteHistory,
+	SiteInTheWay,
+	SitePage,
+	SiteRevisionView,
 	SiteView,
+	SiteWritten,
 	StationAir,
 	StationCloudBase,
 	StationDay,
@@ -177,6 +189,7 @@ import { UNREACHABLE } from './protocol';
 export type { NewAccount, SyncOutcome } from './account-source';
 export { CoreClient } from './client';
 export type { TodayAnswer } from './today-source';
+export type { SiteDraftChecked, SiteSent } from './site-edit-source';
 export type {
 	Compared,
 	FlightRef,

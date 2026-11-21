@@ -16,6 +16,7 @@ import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
 import { type Answering, answer, describeFailure, type Reply, type Request } from './protocol';
 import { RadarSource } from './radar-source';
 import { CoreSession } from './session';
+import { SiteEditSource } from './site-edit-source';
 import { SitesSource } from './sites-source';
 import { type FileStore, MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
@@ -43,12 +44,14 @@ const starting: Promise<Answering> = (async () => {
 	const session = await CoreSession.open(await openStore());
 	session.onChangedElsewhere = () => send({ changedElsewhere: true });
 	const wind = new WindSource();
+	const sites = new SitesSource(() => wind.present());
 	return {
 		session,
 		wind,
 		account: new AccountSource(session),
 		airspace: new AirspaceSource(session, () => wind.present()),
-		sites: new SitesSource(() => wind.present()),
+		sites,
+		siteEdits: new SiteEditSource(session, () => sites.wrote()),
 		forecast: new ForecastSource(() => wind.present()),
 		live: new LiveSource(() => wind.present()),
 		community: new CommunitySource(() => wind.present()),

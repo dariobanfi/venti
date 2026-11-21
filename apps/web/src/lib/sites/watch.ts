@@ -132,6 +132,27 @@ export class SitesWatch {
 		this.#show();
 	}
 
+	/**
+	 * Lays a site the pilot has just added, corrected or put back over what
+	 * the server last answered, so that the map shows it without waiting
+	 * for the server to be asked again.
+	 */
+	put(site: SiteView): void {
+		this.#lay((sites) => [...sites.filter((one) => one.id !== site.id), site]);
+	}
+
+	/** Takes a site the pilot has just removed out of what the server last answered. */
+	drop(id: string): void {
+		this.#lay((sites) => sites.filter((one) => one.id !== id));
+	}
+
+	#lay(change: (sites: SiteView[]) => SiteView[]): void {
+		const answered = this.#answered;
+		if (!answered) return;
+		this.#answered = { ...answered, map: { ...answered.map, sites: change(answered.map.sites) } };
+		this.#show();
+	}
+
 	/** Whether an answer still in use holds the sites of all of `region`. */
 	#covers(region: Bounds): boolean {
 		const answered = this.#answered;

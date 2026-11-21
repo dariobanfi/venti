@@ -22,6 +22,8 @@
 		confirm: string;
 		/** Text that is not prose, such as a code: no capitals, no corrections. */
 		verbatim?: boolean;
+		/** Whether nothing may be typed: a line that is asked for and not needed. */
+		optional?: boolean;
 		/** Whether what was typed is being worked on. */
 		working?: boolean;
 		/** Why it was not taken, in words. */
@@ -38,6 +40,7 @@
 		value = '',
 		confirm,
 		verbatim = false,
+		optional = false,
 		working = false,
 		refusal,
 		onconfirm,
@@ -90,7 +93,11 @@
 			{/if}
 		</div>
 		<div class="choices">
-			<button class="choice go" type="submit" disabled={working || typed.trim() === ''}>
+			<button
+				class="choice go"
+				type="submit"
+				disabled={working || (!optional && typed.trim() === '')}
+			>
 				{confirm}
 			</button>
 			<button class="choice" type="button" onclick={oncancel}>Cancel</button>

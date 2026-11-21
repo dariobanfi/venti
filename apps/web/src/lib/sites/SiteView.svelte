@@ -13,6 +13,12 @@
 	and unmarks it: "Keep as my take-off", and "Kept" with a tick once it
 	is, in the manner of a plan's "I am in". The core keeps the site in this
 	browser and says whether it is kept; Today lists the kept take-offs first.
+
+	A site that pilots made on Venti (`byPilots`) says who added it and who
+	changed it last, in the core's words, with the core's notice that nobody
+	verified it; and it can be corrected, removed, looked at through its
+	history and reported from here (`pilots`). What the server answered to
+	the pilot's last change of it stands at the top, in the core's line.
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -44,9 +50,25 @@
 		 * take off from, once Venti has answered.
 		 */
 		outlook?: SiteOutlook;
+		/** What became of the pilot's last change to the site, in the core's line. */
+		written?: string;
+		/**
+		 * For a site that pilots made, what a pilot can do about it. Without
+		 * `correct`, the server takes no sites and offers neither that nor
+		 * removing.
+		 */
+		pilots?: {
+			/** The words on what opens the form: the core's "Correct this site". */
+			correct?: string;
+			oncorrect: () => void;
+			onremove: () => void;
+			onhistory: () => void;
+			onreport: () => void;
+		};
 	}
 
-	let { site, credit, asOfUnixS, onforecast, flightsHref, outlook }: Props = $props();
+	let { site, credit, asOfUnixS, onforecast, flightsHref, outlook, written, pilots }: Props =
+		$props();
 
 	/** The first day that still has flying hours: the one the forecast's line is about. */
 	const day = $derived(outlook?.days.find((one) => one.hours.length > 0) ?? outlook?.days[0]);
@@ -96,6 +118,9 @@
 </script>
 
 <div class="site">
+	{#if written}
+		<p class="card row said" role="status">{written}</p>
+	{/if}
 	<!-- The pack's site sheet: its status, the site in a line, the forecast's line. -->
 	<div class="head">
 		{#if day}
@@ -192,6 +217,39 @@
 					<span class="host">{web.host}</span>
 				</a>
 			{/if}
+		</section>
+	{/if}
+
+	{#if site.byPilots}
+		{@const by = site.byPilots}
+		<section aria-label="Added by pilots">
+			<div class="card">
+				<p class="row">
+					<span class="who">{by.addedInWords}</span>
+					<span class="host when numeric">{text.day(by.addedUnixS)}</span>
+				</p>
+				{#if by.changedInWords}
+					<p class="row">
+						<span class="who">{by.changedInWords}</span>
+						<span class="host when numeric">{text.day(by.changedUnixS)}</span>
+					</p>
+				{/if}
+				{#if pilots}
+					{#if pilots.correct}
+						<button class="row link" type="button" onclick={pilots.oncorrect}>
+							{pilots.correct}
+						</button>
+						<button class="row link" type="button" onclick={pilots.onremove}>
+							Remove this site
+						</button>
+					{/if}
+					<button class="row link" type="button" onclick={pilots.onhistory}>History</button>
+					<button class="row link" type="button" onclick={pilots.onreport}>
+						Report this site
+					</button>
+				{/if}
+			</div>
+			<p class="footnote">{by.note}</p>
 		</section>
 	{/if}
 
@@ -311,6 +369,15 @@
 
 	.description {
 		white-space: pre-line;
+	}
+
+	.who {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.when {
+		flex: none;
 	}
 
 	.host {

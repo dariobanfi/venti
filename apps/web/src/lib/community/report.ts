@@ -38,6 +38,16 @@ export function reportedPlan(groupId: string, id: string): Reported {
 	return { subject: { kind: 'plan', groupId, id }, title: 'Report this plan' };
 }
 
+/** A flying site that pilots made, by its identifier. */
+export function reportedSite(id: string): Reported {
+	return { subject: { kind: 'site', id }, title: 'Report this site' };
+}
+
+/** One revision of such a site. */
+export function reportedSiteRevision(id: string, revision: number): Reported {
+	return { subject: { kind: 'siteRevision', id, revision }, title: 'Report this revision' };
+}
+
 /**
  * How many characters the pilot's words have, when that is more than a
  * report has room for; nothing while they fit. This is only what the form

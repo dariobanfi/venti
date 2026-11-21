@@ -82,6 +82,16 @@ export class SitesModel {
 		return this.state.sites.find((site) => site.id === id);
 	}
 
+	/** A site the pilot has just written stands on the map as it was written. */
+	put(site: SiteView): void {
+		this.#watch.put(site);
+	}
+
+	/** A site the pilot has just removed is off the map. */
+	drop(id: string): void {
+		this.#watch.drop(id);
+	}
+
 	/** The map says which part of it is in view, and at which zoom. */
 	show(region: Bounds, zoom: number): void {
 		const ask = this.#watch.show(region, zoom);

@@ -82,6 +82,8 @@ export class WindSource {
 	#lateProviders: string[] = [];
 	/** Who may create an account on the server, by its own last word. */
 	#registration: Registration | undefined;
+	/** Whether the server takes flying sites from pilots, by its own last word. */
+	#takesSites = false;
 	/** Whether the site turned out to have no server. */
 	#absent = false;
 
@@ -127,6 +129,19 @@ export class WindSource {
 			return (await this.#readClock()) ? this.#registration : undefined;
 		} catch {
 			return undefined;
+		}
+	}
+
+	/**
+	 * Whether this site's server takes flying sites from pilots: whether
+	 * to offer adding and correcting one at all. No when the server does
+	 * not say, when it could not be asked, and when the site has none.
+	 */
+	async takesSitesFromPilots(): Promise<boolean> {
+		try {
+			return (await this.#readClock()) && this.#takesSites;
+		} catch {
+			return false;
 		}
 	}
 
@@ -191,6 +206,7 @@ export class WindSource {
 		this.#clock = { aheadMs: status.timeUnixS * 1000 - now, readAt: now };
 		this.#lateProviders = status.lateProviders;
 		this.#registration = status.registration;
+		this.#takesSites = status.takesSitesFromPilots ?? false;
 		return true;
 	}
 }

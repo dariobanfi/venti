@@ -148,6 +148,12 @@
 		 * what airspace lies over it.
 		 */
 		onairspaceat?: (at: { lat: number; lon: number }) => void;
+		/**
+		 * Whether the pilot is choosing a place for a site: a mark stands
+		 * over the middle of the map, which is moved under it, and a click
+		 * chooses nothing. `middle` says where the mark is.
+		 */
+		placing?: boolean;
 	}
 
 	let {
@@ -175,11 +181,14 @@
 		radar,
 		onhourat,
 		onsquare,
-		onairspaceat
+		onairspaceat,
+		placing = false
 	}: Props = $props();
 
 	/** The northern Alps between Lake Constance and Salzburg. */
 	const START = { center: [11.6, 47.45] as [number, number], zoom: 7.4 };
+	/** How close the map goes to a site's place that is to be moved. */
+	const PLACING_ZOOM = 15;
 	/** How close the map goes to a position it is asked to show. */
 	const POSITION_ZOOM = 12.5;
 	/**
@@ -349,6 +358,8 @@
 	 * sites: what is on top wins where several are under the finger.
 	 */
 	function choose(map: Map, point: { x: number; y: number }) {
+		// While a place is chosen the map is only moved.
+		if (placing) return;
 		for (const [layer, open] of [
 			[LIVE_SOURCE, onglider],
 			[WIND, onstation],
@@ -563,6 +574,36 @@
 		map.easeTo({ center: [fix.lon, fix.lat], zoom: Math.max(map.getZoom(), POSITION_ZOOM) });
 	}
 
+	/** Where the mark of a place being chosen stands on the screen, in pixels. */
+	let markAt = $state.raw<{ x: number; y: number }>();
+
+	// The mark stands over the map's middle, which is not the screen's where
+	// the navigation covers part of the map.
+	$effect(() => {
+		if (!map || !placing) return;
+		const shown = map;
+		const place = () => (markAt = shown.project(shown.getCenter()));
+		place();
+		shown.on('move', place);
+		shown.on('resize', place);
+		return () => {
+			shown.off('move', place);
+			shown.off('resize', place);
+		};
+	});
+
+	/** The place under the mark: the middle of the map. */
+	export function middle(): { lat: number; lon: number } | undefined {
+		const at = map?.getCenter();
+		return at && { lat: at.lat, lon: at.lng };
+	}
+
+	/** Brings a place to the middle of the map, close enough to tell a slope from its neighbour. */
+	export function showPlace(at: { lat: number; lon: number }) {
+		following = false;
+		map?.jumpTo({ center: [at.lon, at.lat], zoom: Math.max(map.getZoom(), PLACING_ZOOM) });
+	}
+
 	/** One step closer or further away, for the buttons of a wide screen. */
 	export function zoomBy(steps: number) {
 		map?.easeTo({ zoom: map.getZoom() + steps, duration: 250 });
@@ -570,10 +611,40 @@
 </script>
 
 <div class="map" bind:this={container}></div>
+{#if placing && markAt}
+	<div class="mark" style:left="{markAt.x}px" style:top="{markAt.y}px" aria-hidden="true"></div>
+{/if}
 
 <style>
 	.map {
 		position: absolute;
 		inset: 0;
+	}
+
+	/* The mark of a place being chosen: a ring around a point, in the ink
+	   of what is written on the map, which is light in both appearances. */
+	.mark {
+		position: absolute;
+		width: 2.75rem;
+		height: 2.75rem;
+		margin: -1.375rem 0 0 -1.375rem;
+		border: 0.1875rem solid var(--on-map-ink);
+		border-radius: 50%;
+		box-shadow:
+			0 0 0 0.0625rem var(--on-map-paper),
+			inset 0 0 0 0.0625rem var(--on-map-paper);
+		pointer-events: none;
+	}
+
+	.mark::after {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 0.375rem;
+		height: 0.375rem;
+		margin: -0.1875rem 0 0 -0.1875rem;
+		border-radius: 50%;
+		background: var(--on-map-ink);
 	}
 </style>

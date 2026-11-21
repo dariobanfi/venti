@@ -152,4 +152,23 @@ describe('the flying sites for the part of the map in view', () => {
 
 		expect(state().sites.map((site) => site.id)).toEqual(['test:node/2']);
 	});
+
+	it('show a site the pilot has just written, and not one just removed, without asking again', async () => {
+		const { watch, server, state } = watching();
+		watch.show(VALLEY, CLOSE);
+		await watch.load();
+
+		const added = site({ id: 'venti:new', name: 'Testkogel' });
+		watch.put(added);
+		expect(state().sites).toEqual([site(), added]);
+		// Written again, it stands once, as it is now.
+		const corrected = { ...added, elevationM: 1500 };
+		watch.put(corrected);
+		expect(state().sites).toEqual([site(), corrected]);
+
+		watch.drop('venti:new');
+		expect(state().sites).toEqual([site()]);
+		expect(state().known).toBe(true);
+		expect(server.asked).toHaveLength(1);
+	});
 });

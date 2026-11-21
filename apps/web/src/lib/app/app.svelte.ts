@@ -37,6 +37,7 @@ import {
 } from '#lib/logbook/import-report.ts';
 import { LiveModel } from '#lib/live/model.svelte.ts';
 import { LogbookModel } from '#lib/logbook/model.svelte.ts';
+import { SiteEditsModel } from '#lib/sites/edit.svelte.ts';
 import { SitesModel } from '#lib/sites/model.svelte.ts';
 import { WindModel } from '#lib/wind/model.svelte.ts';
 import { flightHref } from './routes';
@@ -60,6 +61,8 @@ export class App {
 	/** The take-offs around a place, and what the forecast says of each. */
 	today = $state.raw<TodayModel>();
 
+	/** Adding and correcting a site of Venti's own layer. Nothing until the core has started. */
+	siteEdits = $state.raw<SiteEditsModel>();
 	/** The sites the pilot marks as their own, kept in this browser. */
 	kept = $state.raw<KeptSitesModel>();
 
@@ -100,6 +103,7 @@ export class App {
 				this.#core = core;
 				this.wind = new WindModel(core);
 				this.sites = new SitesModel(core);
+				this.siteEdits = new SiteEditsModel(core);
 				this.live = new LiveModel(core);
 				this.everyone = new CommunityModel(core);
 				this.today = new TodayModel(core);

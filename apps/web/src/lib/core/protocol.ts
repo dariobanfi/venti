@@ -59,7 +59,12 @@ import type {
 	ReportReason,
 	ReportSubject,
 	SiteAtPlace,
+	SiteDraftView,
+	SiteForm,
+	SiteHistory,
 	SiteOutlook,
+	SitePage,
+	SiteWritten,
 	ThermalMap,
 	SitesFilter,
 	SitesFilterChoices,
@@ -82,6 +87,7 @@ import type { ForecastSource } from './forecast-source';
 import type { GroupsSource } from './groups-source';
 import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
+import type { SiteDraftChecked, SiteEditSource, SiteSent } from './site-edit-source';
 import type { SitesSource } from './sites-source';
 import type { RadarColours, RadarSource } from './radar-source';
 import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
@@ -141,6 +147,35 @@ export interface Calls {
 	};
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
 	sites: { given: Bounds; answer: SitesMap | undefined };
+	/**
+	 * Whether the server takes flying sites from pilots: whether to offer
+	 * adding and correcting one at all.
+	 */
+	takesSites: { given: undefined; answer: boolean };
+	/** The form for a site a pilot adds or corrects, in the core's words. */
+	siteForm: { given: undefined; answer: SiteForm };
+	/** An empty draft of a site at a place. */
+	siteDraftNew: { given: Coordinate; answer: SiteDraftView };
+	/** The draft that corrects a site of Venti's own layer; refused for another source's. */
+	siteDraftOf: { given: SiteView; answer: SiteDraftView };
+	siteDraftMoved: { given: { draft: SiteDraftView; place: Coordinate }; answer: SiteDraftView };
+	/** What is wrong with a draft, field by field, and its wind in words. */
+	siteDraftCheck: { given: { draft: SiteDraftView; comment: string }; answer: SiteDraftChecked };
+	/**
+	 * Adds a site for everyone, from the pilot's account. This and the
+	 * three calls after it are sent with the session; a refusal of these
+	 * two is an answer, with the site that stands in the way if one does.
+	 */
+	addSite: { given: { draft: SiteDraftView; comment: string }; answer: SiteSent };
+	changeSite: { given: { draft: SiteDraftView; comment: string }; answer: SiteSent };
+	/** Removes a site from the map. The answer is what became of it, in a line. */
+	removeSite: { given: { id: string; comment: string }; answer: string };
+	/** Puts a site back to what one of its revisions said. */
+	restoreSite: { given: { id: string; revision: number; comment: string }; answer: SiteWritten };
+	/** Given a site's identifier: the site as it stands now. */
+	sitePage: { given: string; answer: SitePage };
+	/** Given the identifier of a site that pilots made: all of its history. */
+	siteHistory: { given: string; answer: SiteHistory };
 	/** The choices the filter of sites offers, with the core's words for them. */
 	sitesFilterChoices: { given: undefined; answer: SitesFilterChoices };
 	/**
@@ -372,6 +407,7 @@ export interface Answering {
 	account: AccountSource;
 	airspace: AirspaceSource;
 	sites: SitesSource;
+	siteEdits: SiteEditSource;
 	forecast: ForecastSource;
 	live: LiveSource;
 	community: CommunitySource;
@@ -390,6 +426,7 @@ export async function answer<Name extends CallName>(
 		account,
 		airspace,
 		sites,
+		siteEdits,
 		forecast,
 		live,
 		community,
@@ -422,6 +459,18 @@ export async function answer<Name extends CallName>(
 		stationDays: (utcOffsetS) => wind.days(utcOffsetS),
 		stationDay: ({ stationId, date, utcOffsetS }) => wind.day(stationId, date, utcOffsetS),
 		sites: (box) => sites.sites(box),
+		takesSites: () => wind.takesSitesFromPilots(),
+		siteForm: () => siteEdits.form(),
+		siteDraftNew: (place) => siteEdits.draftNew(place),
+		siteDraftOf: (site) => siteEdits.draftOf(site),
+		siteDraftMoved: ({ draft, place }) => siteEdits.draftMoved(draft, place),
+		siteDraftCheck: ({ draft, comment }) => siteEdits.check(draft, comment),
+		addSite: ({ draft, comment }) => siteEdits.add(draft, comment),
+		changeSite: ({ draft, comment }) => siteEdits.change(draft, comment),
+		removeSite: ({ id, comment }) => siteEdits.remove(id, comment),
+		restoreSite: ({ id, revision, comment }) => siteEdits.restore(id, revision, comment),
+		sitePage: (id) => siteEdits.page(id),
+		siteHistory: (id) => siteEdits.history(id),
 		sitesFilterChoices: () => sites.filterChoices(),
 		filterSites: ({ sites: held, filter }) => sites.filter(held, filter),
 		forecast: (place) => forecast.forecast(place),

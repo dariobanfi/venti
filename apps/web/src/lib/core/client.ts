@@ -18,6 +18,7 @@ import type {
 	ReportReason,
 	ReportSubject,
 	SitesFilter,
+	SiteDraftView,
 	SiteView,
 	TodayStanding,
 	WindStation
@@ -167,6 +168,66 @@ export class CoreClient {
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
 	sites(box: Bounds) {
 		return this.#call('sites', box);
+	}
+
+	/** Whether the server takes flying sites from pilots. */
+	takesSites() {
+		return this.#call('takesSites', undefined);
+	}
+
+	/** The form for a site a pilot adds or corrects, in the core's words. */
+	siteForm() {
+		return this.#call('siteForm', undefined);
+	}
+
+	/** An empty draft of a site at a place. */
+	siteDraftNew(place: Coordinate) {
+		return this.#call('siteDraftNew', place);
+	}
+
+	/** The draft that corrects a site of Venti's own layer. Refused for another source's. */
+	siteDraftOf(site: SiteView) {
+		return this.#call('siteDraftOf', site);
+	}
+
+	/** A draft at another place. */
+	siteDraftMoved(draft: SiteDraftView, place: Coordinate) {
+		return this.#call('siteDraftMoved', { draft, place });
+	}
+
+	/** What is wrong with a draft, field by field, and its wind in words. */
+	siteDraftCheck(draft: SiteDraftView, comment: string) {
+		return this.#call('siteDraftCheck', { draft, comment });
+	}
+
+	/** Adds a site for everyone, from the pilot's account. A refusal is an answer. */
+	addSite(draft: SiteDraftView, comment: string) {
+		return this.#call('addSite', { draft, comment });
+	}
+
+	/** Saves a correction of a site for everyone. A refusal is an answer. */
+	changeSite(draft: SiteDraftView, comment: string) {
+		return this.#call('changeSite', { draft, comment });
+	}
+
+	/** Removes a site from the map; its history stays. Answers what became of it. */
+	removeSite(id: string, comment: string) {
+		return this.#call('removeSite', { id, comment });
+	}
+
+	/** Puts a site back to what one of its revisions said. */
+	restoreSite(id: string, revision: number, comment: string) {
+		return this.#call('restoreSite', { id, revision, comment });
+	}
+
+	/** One site as it stands now, by its identifier. */
+	sitePage(id: string) {
+		return this.#call('sitePage', id);
+	}
+
+	/** All of the history of a site that pilots made, the first revision first. */
+	siteHistory(id: string) {
+		return this.#call('siteHistory', id);
 	}
 
 	/** The choices the filter of sites offers, with the core's words. */

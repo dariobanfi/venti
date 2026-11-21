@@ -7,19 +7,26 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { placeHref } from '#lib/app/routes.ts';
+	import { accountHref, placeHref } from '#lib/app/routes.ts';
 	import type {
 		Bounds,
 		Coordinate,
 		Credit,
 		SiteOutlook,
 		SiteView,
+		SiteWritten,
 		WindStation
 	} from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
-	import { reportedTrack } from '#lib/community/report.ts';
+	import PromptDialog from '#lib/design/PromptDialog.svelte';
+	import {
+		type Reported,
+		reportedSite,
+		reportedSiteRevision,
+		reportedTrack
+	} from '#lib/community/report.ts';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import AirspaceOver from '#lib/airspace/AirspaceOver.svelte';
 	import ForecastView from '#lib/forecast/ForecastView.svelte';
@@ -54,8 +61,11 @@
 	} from '#lib/map/layers.ts';
 	import { problemText } from '#lib/map/position.ts';
 	import RadarCard from '#lib/radar/RadarCard.svelte';
+	import { said as whyNot, type SiteDraft } from '#lib/sites/edit.svelte.ts';
 	import { measuredNow } from '#lib/sites/filter.ts';
 	import { countIn, flownFrom } from '#lib/sites/mark.ts';
+	import SiteEditForm from '#lib/sites/SiteEditForm.svelte';
+	import SiteHistoryView from '#lib/sites/SiteHistoryView.svelte';
 	import SiteList from '#lib/sites/SiteList.svelte';
 	import SitesFilterCard from '#lib/sites/SitesFilterCard.svelte';
 	import SitesFilterLine from '#lib/sites/SitesFilterLine.svelte';
@@ -379,6 +389,7 @@
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenGlider = undefined;
+		siteWritten = undefined;
 		chosenSite = {
 			site: picked,
 			credit: places.credits.find((credit) => credit.source === picked.source),
@@ -428,6 +439,175 @@
 		};
 	}
 
+	// --- Sites that pilots make: adding one, correcting, removing, their history ---
+
+	const edits = $derived(app.siteEdits);
+	/** The form's words, while the server takes sites from pilots: then adding one is offered. */
+	const siteForm = $derived(edits?.takes ? edits.form : undefined);
+	/** Whether the pilot can write a site: signed in, on a server that takes sites. */
+	const canWriteSites = $derived(Boolean(siteForm && app.account?.signedIn));
+	/** The site being added or corrected, while its form is open or its place is being moved. */
+	let editing = $state.raw<SiteDraft>();
+	/**
+	 * Whether the pilot is moving the map under the mark: to say where a
+	 * new site is, or to move the one in the form, which waits meanwhile.
+	 */
+	let placing = $state(false);
+	/** Why a place could not be made into a draft, or a site not opened in its form. */
+	let placingProblem = $state.raw<string>();
+	/** What the server answered to the pilot's last change of the chosen site, in the core's line. */
+	let siteWritten = $state.raw<{ id: string; words: string }>();
+	/** The site whose history is open, by its identifier, with the core's line about its removal. */
+	let historyOf = $state.raw<{ id: string; said?: string }>();
+	/** The site the pilot is about to remove, while the line about it is asked for. */
+	let removing = $state.raw<SiteView>();
+	let removingNow = $state(false);
+	let removeRefusal = $state.raw<string>();
+	/** A site or one of its revisions being reported to whoever runs the server. */
+	let reportedOfSites = $state.raw<Reported>();
+	/** Whether the pilot is told that a site is written from an account. */
+	let askingToSignIn = $state(false);
+	/** The "Why" line of the core's form: its title and its help, for the dialogs that ask it. */
+	const why = $derived(siteForm?.fields.find((field) => field.field === 'comment'));
+
+	/** Whether a site can be written from here; if the pilot is signed out, says why not. */
+	function signedInForSites(): boolean {
+		if (app.account?.signedIn) return true;
+		askingToSignIn = true;
+		return false;
+	}
+
+	function closeOthers() {
+		chosenAirspace = undefined;
+		chosenSquare = undefined;
+		chosenHourSquare = undefined;
+		chosen = undefined;
+		chosenSite = undefined;
+		chosenGlider = undefined;
+		filtering = false;
+	}
+
+	/** "Add a site": the pilot moves the map under the mark to say where. */
+	function startAdding() {
+		if (!signedInForSites()) return;
+		closeOthers();
+		editing = undefined;
+		placingProblem = undefined;
+		placing = true;
+	}
+
+	/** "Add a site here": the form for a new site at a place clicked on the map. */
+	async function addSiteAt(place: Coordinate) {
+		if (!edits || !signedInForSites()) return;
+		closeOthers();
+		try {
+			editing = await edits.draftAt(place);
+		} catch (error) {
+			app.notice = { title: siteForm?.titleNew ?? '', lines: [whyNot(error)] };
+		}
+	}
+
+	/** "Use this place": the middle of the map is where the site is. */
+	async function usePlace() {
+		const place = map?.middle();
+		if (!edits || !place) return;
+		placingProblem = undefined;
+		try {
+			if (editing) await editing.move(place);
+			else editing = await edits.draftAt(place);
+			placing = false;
+		} catch (error) {
+			placingProblem = whyNot(error);
+		}
+	}
+
+	/** "Move": the form gives way to the map, with the site's place under the mark. */
+	function movePlace() {
+		if (!editing) return;
+		map?.showPlace(editing.draft.position);
+		placingProblem = undefined;
+		placing = true;
+	}
+
+	/** "Correct this site": the form on the site as it stands. */
+	async function correctSite(site: SiteView) {
+		if (!edits || !signedInForSites()) return;
+		try {
+			const draft = await edits.draftOf($state.snapshot(site) as SiteView);
+			closeOthers();
+			editing = draft;
+		} catch (error) {
+			app.notice = { title: siteForm?.titleCorrect ?? '', lines: [whyNot(error)] };
+		}
+	}
+
+	/** Shows a site of Venti's layer as the server has it now, with whose data it is. */
+	function showWritten(site: SiteView, words?: string) {
+		sites?.put(site);
+		siteWritten = words ? { id: site.id, words } : undefined;
+		chosenAirspace = undefined;
+		chosenSquare = undefined;
+		chosen = undefined;
+		chosenGlider = undefined;
+		chosenSite = {
+			site,
+			credit: places.credits.find((credit) => credit.source === site.source),
+			asOfUnixS: undefined
+		};
+		// The credit and the notice of the layer come with the site's own page.
+		void edits?.page(site.id).then(
+			(page) => {
+				if (chosenSite?.site.id !== site.id) return;
+				chosenSite = { site: page.site, credit: page.credit, asOfUnixS: undefined };
+			},
+			() => {}
+		);
+	}
+
+	/** The form sent its site: the core's line, and the site's page. */
+	function siteSent(written: SiteWritten) {
+		editing = undefined;
+		showWritten(written.site, written.words);
+	}
+
+	/** Opens a site by its identifier alone: the one that stands in the way of a new one. */
+	async function openSiteById(id: string) {
+		if (!edits) return;
+		try {
+			const page = await edits.page(id);
+			editing = undefined;
+			showWritten(page.site);
+		} catch (error) {
+			app.notice = { title: 'Flying site', lines: [whyNot(error)] };
+		}
+	}
+
+	async function removeSite(comment: string) {
+		if (!edits || !removing || removingNow) return;
+		const { id } = removing;
+		removingNow = true;
+		removeRefusal = undefined;
+		try {
+			const words = await edits.remove(id, comment);
+			removing = undefined;
+			sites?.drop(id);
+			if (chosenSite?.site.id === id) chosenSite = undefined;
+			// Its history stays, and is where it can be brought back.
+			historyOf = { id, said: words };
+		} catch (error) {
+			removeRefusal = whyNot(error);
+		} finally {
+			removingNow = false;
+		}
+	}
+
+	/** A revision was put back from the history: the site stands on the map as it is now. */
+	function putBack(written: SiteWritten) {
+		sites?.put(written.site);
+		if (historyOf) historyOf = { id: historyOf.id };
+		if (chosenSite?.site.id === written.site.id) showWritten(written.site, written.words);
+	}
+
 	const said = $derived(notice(current, text.list));
 	const credits = $derived(text.list(current.credits.map((credit) => credit.provider)));
 	/** Whose sites are on the map. Their licence asks for this wherever they are shown. */
@@ -470,6 +650,7 @@
 		onsquare={openSquare}
 		onhourat={openHourSquare}
 		onairspaceat={openAirspace}
+		{placing}
 	/>
 	<!-- The design pack's chips: what the map shows, switched on and off. -->
 	{#if app.account?.hasServer}
@@ -688,9 +869,43 @@
 					onforecast={() => (forecastFor = { place: site.position, name: site.name })}
 					flightsHref={flownFrom(site) ? placeHref(site.position, site.id) : undefined}
 					outlook={siteOutlook}
+					written={siteWritten?.id === site.id ? siteWritten.words : undefined}
+					pilots={site.byPilots
+						? {
+								correct: siteForm?.titleCorrect,
+								oncorrect: () => void correctSite(site),
+								onremove: () => {
+									if (signedInForSites()) removing = site;
+								},
+								onhistory: () => (historyOf = { id: site.id }),
+								onreport: () => (reportedOfSites = reportedSite(site.id))
+							}
+						: undefined}
 				/>
 			{/if}
 		</MapPanel>
+		{#if siteForm}
+			<!-- The form for a site a pilot adds or corrects: a pane beside the
+			     map on a wide screen, a sheet on a narrow one. It gives way to
+			     the map while the pilot moves the place. -->
+			<MapPanel
+				shown={editing && !placing ? 'site-form' : undefined}
+				title={editing?.corrects ? siteForm.titleCorrect : siteForm.titleNew}
+				wide={wide.current}
+				onclose={() => (editing = undefined)}
+			>
+				{#if editing}
+					<SiteEditForm
+						form={siteForm}
+						{editing}
+						compact={!wide.current}
+						onmove={movePlace}
+						onsent={siteSent}
+						onopen={(id) => void openSiteById(id)}
+					/>
+				{/if}
+			</MapPanel>
+		{/if}
 		{#if !wide.current && thermals && chosenHourSquare}
 			<!-- A square of an hour of the forecast map, on a narrow screen. -->
 			<MapPanel
@@ -743,7 +958,16 @@
 				onclose={() => (chosenAirspace = undefined)}
 			>
 				{#if chosenAirspace}
-					<AirspaceOver place={chosenAirspace.place} airspace={app.airspace} />
+					{@const { place } = chosenAirspace}
+					<AirspaceOver {place} airspace={app.airspace} />
+					{#if siteForm}
+						<!-- The place the pilot clicked, where nothing of Venti's lay. -->
+						<div class="group-card here">
+							<button class="group-row" type="button" onclick={() => void addSiteAt(place)}>
+								Add a site here
+							</button>
+						</div>
+					{/if}
 				{/if}
 			</MapPanel>
 		{/if}
@@ -774,6 +998,23 @@
 	     ask for the credit next to the data; the full wording is on each
 	     station's page, on the airspace screen and on each site's page. -->
 	<div class="foot">
+		{#if placing && siteForm}
+			<!-- The map is moved under the mark; this says so and takes the place. -->
+			<div class="forecast-card placing" role="group" aria-label={siteForm.titleNew}>
+				<p>{siteForm.placeWords}</p>
+				{#if placingProblem}
+					<p class="refusal" role="alert">{placingProblem}</p>
+				{/if}
+				<div class="placing-acts">
+					<button class="button-prominent" type="button" onclick={() => void usePlace()}>
+						Use this place
+					</button>
+					<button class="button-plain" type="button" onclick={() => (placing = false)}>
+						Cancel
+					</button>
+				</div>
+			</div>
+		{/if}
 		<!-- On a narrow screen the radar's card and the forecast map's stand
 		     over the credits. -->
 		{#if sitesFiltered && !wide.current}
@@ -821,6 +1062,16 @@
 					icon="filter"
 					pressed={Boolean(sitesLeft?.isOn)}
 					onclick={() => (filtering = !filtering)}
+				/>
+			{/if}
+			<!-- A site of the pilot's own knowledge, for everyone: where the
+			     server takes sites from pilots. -->
+			{#if siteForm}
+				<MapButton
+					label={siteForm.titleNew}
+					icon="takeoff"
+					pressed={placing}
+					onclick={startAdding}
 				/>
 			{/if}
 			<!-- Everyone the map shows in the air, as a list. -->
@@ -906,6 +1157,62 @@
 	{...reportedTrack(reportedGlider ?? '')}
 	onclose={() => (reportedGlider = undefined)}
 />
+
+<!-- A site's history: its revisions, and the way back to any of them. -->
+<Sheet open={historyOf !== undefined} title="History" onclose={() => (historyOf = undefined)}>
+	{#if historyOf && edits}
+		{#if historyOf.said}
+			<p class="group-card removed" role="status">{historyOf.said}</p>
+		{/if}
+		<SiteHistoryView
+			{edits}
+			id={historyOf.id}
+			canWrite={canWriteSites}
+			onwritten={putBack}
+			onreport={(revision) =>
+				historyOf && (reportedOfSites = reportedSiteRevision(historyOf.id, revision))}
+		/>
+	{/if}
+</Sheet>
+
+<!-- Removing a site asks for the line that is kept with it first. -->
+<PromptDialog
+	open={removing !== undefined}
+	title="Remove this site"
+	message={why?.help}
+	label={why?.title ?? ''}
+	confirm="Remove"
+	optional
+	working={removingNow}
+	refusal={removeRefusal}
+	onconfirm={(comment) => void removeSite(comment)}
+	oncancel={() => {
+		removing = undefined;
+		removeRefusal = undefined;
+	}}
+/>
+
+<!-- A site that should not be there, or one revision of it, is reported from its page. -->
+<ReportSheet
+	open={reportedOfSites !== undefined}
+	{...reportedOfSites ?? reportedSite('')}
+	onclose={() => (reportedOfSites = undefined)}
+/>
+
+<!-- A site is written from an account: a pilot who is signed out is told so. -->
+<Sheet
+	open={askingToSignIn}
+	title={siteForm?.titleNew ?? ''}
+	onclose={() => (askingToSignIn = false)}
+>
+	<div class="group-card sign-in">
+		<p>
+			A site is added and corrected from your account, so that pilots see who it comes from. Sign in
+			under Settings, Account.
+		</p>
+		<a class="button-plain" href={accountHref()}>Account</a>
+	</div>
+</Sheet>
 
 <style>
 	.screen {
@@ -1044,6 +1351,43 @@
 		background: var(--surface);
 		box-shadow: var(--shadow-float);
 		pointer-events: auto;
+	}
+
+	/* "Add a site here", under what lies over the place. */
+	.here {
+		margin-top: var(--space-3);
+	}
+
+	/* The card that takes a place for a site, over the credits. */
+	.placing {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.placing .refusal {
+		color: var(--danger);
+	}
+
+	.placing-acts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+	}
+
+	.removed,
+	.sign-in {
+		padding: 0.75rem 1rem;
+	}
+
+	.removed {
+		margin-bottom: var(--space-3);
+	}
+
+	.sign-in .button-plain {
+		margin: 0.25rem 0 -0.5rem -0.75rem;
+		/* Not a row of the card: no hairline over it. */
+		box-shadow: none;
 	}
 
 	/* The panes at the map's side on a wide screen, one under the other;

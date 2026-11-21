@@ -38,14 +38,48 @@ const getSites: Get = async (path) => {
 	}
 };
 
+/**
+ * The same past the browser's cache, which keeps a list of sites for as
+ * long as the server lets it: an hour in which a site the pilot has just
+ * added, corrected or removed would stand on the map as it was.
+ */
+const getSitesFresh: Get = async (path) => {
+	try {
+		const response = await fetch(path, {
+			headers: { accept: 'application/json' },
+			cache: 'no-cache',
+			signal: AbortSignal.timeout(20_000)
+		});
+		return { status: response.status, body: new Uint8Array(await response.arrayBuffer()) };
+	} catch {
+		throw unreachable('Venti could not be reached for flying sites.');
+	}
+};
+
 export class SitesSource {
 	/** Whether this site has a server at all. One without is never asked. */
 	#present: () => Promise<boolean>;
 	#get: Get;
+	#fresh: Get;
+	/** Whether the pilot has written a site since the worker started. */
+	#wrote = false;
 
-	constructor(present: () => Promise<boolean> = async () => true, get: Get = getSites) {
+	constructor(
+		present: () => Promise<boolean> = async () => true,
+		get: Get = getSites,
+		fresh: Get = getSitesFresh
+	) {
 		this.#present = present;
 		this.#get = get;
+		this.#fresh = fresh;
+	}
+
+	/**
+	 * The pilot added, corrected or removed a site: from now on the lists
+	 * are asked for past the browser's cache, which holds them as they were.
+	 */
+	wrote(): void {
+		this.#wrote = true;
 	}
 
 	/**
@@ -55,7 +89,8 @@ export class SitesSource {
 	 */
 	async sites(box: Bounds): Promise<SitesMap | undefined> {
 		if (!(await this.#present())) return undefined;
-		const answer = await this.#get(sitesPath(box.south, box.west, box.north, box.east));
+		const get = this.#wrote ? this.#fresh : this.#get;
+		const answer = await get(sitesPath(box.south, box.west, box.north, box.east));
 		// The core is told the box again: it says whether the server's set
 		// is whole for all of it.
 		return sitesMap(box.south, box.west, box.north, box.east, answer.status, answer.body);

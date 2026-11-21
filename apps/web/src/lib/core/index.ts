@@ -80,6 +80,8 @@ export type {
 	LogbookYear,
 	ModelForecast,
 	MonthStatistics,
+	RouteStatistics,
+	YearStatistics,
 	PilotPage,
 	PlanBoard,
 	PlanDay,

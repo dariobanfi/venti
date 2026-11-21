@@ -2,15 +2,15 @@
 	A year of flying, one bar to the month. To a screen reader it is a table of
 	the same months and values.
 -->
-<script lang="ts">
-	import type { MonthStatistics } from '#lib/core/index.ts';
+<script lang="ts" generics="M extends { month: number; year?: number }">
 	import { format } from '#lib/design/format.ts';
 	import { roundTicks, scale } from '#lib/flight/chart.ts';
 
 	interface Props {
-		months: MonthStatistics[];
+		/** The months, of a year (`year` given), or of all years together. */
+		months: M[];
 		/** The figure a bar stands for, and how it is written. */
-		value: (month: MonthStatistics) => number;
+		value: (month: M) => number;
 		write: (value: number) => string;
 		/** What the chart shows, in words: "Airtime by month, in hours". */
 		label: string;
@@ -19,6 +19,12 @@
 	let { months, value, write, label }: Props = $props();
 
 	const text = format();
+	/** Any year serves for a month's letter, and a month of all years is named without one. */
+	const letter = (month: M) => text.monthLetter(month.year ?? 2000, month.month);
+	const name = (month: M) =>
+		month.year === undefined
+			? text.monthName(2000, month.month).replace(/\s*2000$/, '')
+			: text.monthName(month.year, month.month);
 
 	/** The size of the plot in pixels, as the browser laid it out. */
 	let width = $state(0);
@@ -63,7 +69,7 @@
 	</div>
 	<div class="months" aria-hidden="true">
 		{#each months as month (`${month.year}-${month.month}`)}
-			<span>{text.monthLetter(month.year, month.month)}</span>
+			<span>{letter(month)}</span>
 		{/each}
 	</div>
 </div>
@@ -73,7 +79,7 @@
 	<tbody>
 		{#each months as month, index (`${month.year}-${month.month}`)}
 			<tr>
-				<th scope="row">{text.monthName(month.year, month.month)}</th>
+				<th scope="row">{name(month)}</th>
 				<td>{write(values[index])}</td>
 			</tr>
 		{/each}

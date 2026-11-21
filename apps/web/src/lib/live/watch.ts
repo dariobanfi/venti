@@ -14,7 +14,9 @@ import type {
 	LiveAnswer,
 	LiveFollowAnswer,
 	LiveFollowView,
-	LiveGlider
+	LiveGlider,
+	LiveOthersAnswer,
+	LiveOthersNetwork
 } from '#lib/core/index.ts';
 import { contains, grown } from '#lib/wind/watch.ts';
 
@@ -54,6 +56,19 @@ export interface LiveState {
 	answeredAt: number;
 	/** Whether the area holds more gliders than the server lists at once. */
 	truncated: boolean;
+	/**
+	 * The aircraft other networks hear around the part of the map in view,
+	 * network by network: only those the server is connected to now.
+	 */
+	others: LiveOthersNetwork[];
+	/** Who is in the air, in the core's words ("3 pilots of Venti, 5 others in the air"), or empty. */
+	countWords: string;
+	/**
+	 * What the map says when it shows too much to ask for others, in the
+	 * core's words; empty while it does not, and while no network was
+	 * heard of at all.
+	 */
+	othersSaid: string;
 }
 
 export const NO_LIVE: LiveState = {
@@ -61,7 +76,10 @@ export const NO_LIVE: LiveState = {
 	known: false,
 	gliders: [],
 	answeredAt: 0,
-	truncated: false
+	truncated: false,
+	others: [],
+	countWords: '',
+	othersSaid: ''
 };
 
 export class LiveWatch {
@@ -77,6 +95,16 @@ export class LiveWatch {
 	#asking: Bounds | undefined;
 	/** The last answer the server gave in full: its number, what it held, and when it came. */
 	#answered: { heard: number; gliders: LiveGlider[]; truncated: boolean; at: number } | undefined;
+	/** The others of the last answer, while the map is close enough for them. */
+	#others: LiveOthersAnswer | undefined;
+	/** Whether the last answer's box was too wide to ask for others. */
+	#othersTooWide = false;
+	/**
+	 * What the map says when it shows too much for others, once a network
+	 * the server is connected to was heard of: a map says nothing of one
+	 * it is not.
+	 */
+	#tooWideWords = '';
 	/** Whether the site turned out to have no server. */
 	#absent = false;
 	/** Counts the requests, so that an answer overtaken by a later one is dropped. */
@@ -158,6 +186,12 @@ export class LiveWatch {
 				at: this.#now()
 			};
 		}
+		// Others change by their own number: an answer of the same keeps
+		// what the screens already have.
+		if (answer.others?.heard !== this.#others?.heard) this.#others = answer.others;
+		this.#othersTooWide = answer.othersTooWide;
+		if (answer.others && answer.others.networks.length > 0)
+			this.#tooWideWords = answer.tooWideWords;
 		this.#show();
 	}
 
@@ -167,6 +201,8 @@ export class LiveWatch {
 		this.#asked = undefined;
 		this.#asking = undefined;
 		this.#answered = undefined;
+		this.#others = undefined;
+		this.#othersTooWide = false;
 		// Whatever is on its way is not wanted any more.
 		this.#requests += 1;
 		this.#show();
@@ -181,7 +217,13 @@ export class LiveWatch {
 			),
 			gliders: answered?.gliders ?? NO_LIVE.gliders,
 			answeredAt: answered?.at ?? 0,
-			truncated: answered?.truncated ?? false
+			truncated: answered?.truncated ?? false,
+			others: this.#others?.networks ?? NO_LIVE.others,
+			countWords: this.#others?.countWords ?? '',
+			othersSaid:
+				!this.#absent && (this.#wanted === undefined || this.#othersTooWide)
+					? this.#tooWideWords
+					: ''
 		};
 		const before = this.#state;
 		if (
@@ -189,7 +231,10 @@ export class LiveWatch {
 			state.known === before.known &&
 			state.gliders === before.gliders &&
 			state.answeredAt === before.answeredAt &&
-			state.truncated === before.truncated
+			state.truncated === before.truncated &&
+			state.others === before.others &&
+			state.countWords === before.countWords &&
+			state.othersSaid === before.othersSaid
 		) {
 			return;
 		}

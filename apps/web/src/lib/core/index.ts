@@ -100,6 +100,7 @@ export type {
 	LiveFollowView,
 	LiveGlider,
 	LiveMap,
+	LiveOthersNetwork,
 	LogbookEntry,
 	LogbookStatistics,
 	SiteStatistics,
@@ -109,6 +110,7 @@ export type {
 	LogbookView,
 	LogbookYear,
 	ModelForecast,
+	OtherAircraftView,
 	MonthStatistics,
 	RouteStatistics,
 	YearStatistics,
@@ -241,7 +243,7 @@ export type {
 	PublicFlightsAsked,
 	SeasonRanking
 } from './community-source';
-export type { LiveAnswer, LiveFollowAnswer } from './live-source';
+export type { LiveAnswer, LiveFollowAnswer, LiveOthersAnswer } from './live-source';
 export type { WindAnswer } from './wind-source';
 export type { HoursAsked } from './thermal-map-source';
 export type { RadarColours } from './radar-source';

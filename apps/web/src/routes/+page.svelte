@@ -48,6 +48,8 @@
 	import GliderView from '#lib/live/GliderView.svelte';
 	import LiveList from '#lib/live/LiveList.svelte';
 	import { countIn as glidersIn } from '#lib/live/mark.ts';
+	import OtherView from '#lib/live/OtherView.svelte';
+	import { drawnCredits, otherById } from '#lib/live/others.ts';
 	import { NO_LIVE } from '#lib/live/watch.ts';
 	import MapButton from '#lib/map/MapButton.svelte';
 	import MapPanel from '#lib/map/MapPanel.svelte';
@@ -365,6 +367,19 @@
 	/** The live track being reported to whoever runs the server, by its identifier. */
 	let reportedGlider = $state<string>();
 	const glider = $derived(chosenGlider === undefined ? undefined : live?.glider(chosenGlider));
+	/**
+	 * The aircraft of another network the pilot chose, by its identifier:
+	 * its sheet shows it as the newest answer has it, and closes when the
+	 * network no longer hears it here.
+	 */
+	let chosenOther = $state<string>();
+	const other = $derived(
+		chosenOther === undefined ? undefined : otherById(inTheAir.others, chosenOther)
+	);
+	/** The others the map draws: none while the "Pilots" layer is off. */
+	const othersShown = $derived(off.includes('pilots') ? NO_LIVE.others : inTheAir.others);
+	/** Whose the others drawn are: the network's credit, while any of its aircraft is drawn. */
+	const othersCredits = $derived(view ? drawnCredits(othersShown, view.zoom) : []);
 	const NO_TRACK: readonly never[] = [];
 	/** The flight of the chosen glider so far, for the map to draw as a line. */
 	const followedTrack = $derived(live?.followed.view?.track ?? NO_TRACK);
@@ -405,6 +420,7 @@
 			chosen = undefined;
 			chosenSite = undefined;
 			chosenGlider = undefined;
+			chosenOther = undefined;
 			chosenPlace = { place, name: text.place(place.lat, place.lon), airspace };
 		};
 		const model = app.airspace;
@@ -426,6 +442,7 @@
 		chosenSquare = undefined;
 		chosenSite = undefined;
 		chosenGlider = undefined;
+		chosenOther = undefined;
 		chosen = picked;
 	}
 
@@ -435,7 +452,13 @@
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenSite = undefined;
+		chosenOther = undefined;
 		chosenGlider = id;
+	}
+
+	function openOther(id: string) {
+		closeOthers();
+		chosenOther = id;
 	}
 
 	function openSite(picked: SiteView | undefined) {
@@ -445,6 +468,7 @@
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenGlider = undefined;
+		chosenOther = undefined;
 		siteWritten = undefined;
 		chosenSite = {
 			site: picked,
@@ -464,6 +488,7 @@
 			chosen = undefined;
 			chosenSite = undefined;
 			chosenGlider = undefined;
+			chosenOther = undefined;
 			chosenSquare = undefined;
 			chosenHourSquare = { place, cell };
 		});
@@ -476,6 +501,7 @@
 		chosen = undefined;
 		chosenSite = undefined;
 		chosenGlider = undefined;
+		chosenOther = undefined;
 		chosenSquare = { south: picked.south, west: picked.west };
 	}
 
@@ -563,6 +589,7 @@
 		chosen = undefined;
 		chosenSite = undefined;
 		chosenGlider = undefined;
+		chosenOther = undefined;
 		filtering = false;
 	}
 
@@ -655,6 +682,7 @@
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenGlider = undefined;
+		chosenOther = undefined;
 		chosenSite = {
 			site,
 			credit: places.credits.find((credit) => credit.source === site.source),
@@ -855,6 +883,7 @@
 			chosenCandidate = key;
 		}}
 		gliders={inTheAir.gliders}
+		others={othersShown}
 		followed={followedTrack}
 		{coveredByPage}
 		airspace={app.airspace}
@@ -866,6 +895,7 @@
 		onstation={(id) => openStation(wind?.station(id))}
 		onsite={(id) => openSite(sites?.site(id))}
 		onglider={openGlider}
+		onother={openOther}
 		onairspace={(count) => (airspaceDrawn = count)}
 		hidden={off}
 		{aerial}
@@ -945,6 +975,9 @@
 		<p class="visually-hidden">
 			In the air on this part of the map: {text.count(glidersIn(inTheAir.gliders, view.region))}.
 		</p>
+		{#if othersShown.length > 0 && inTheAir.countWords}
+			<p class="visually-hidden">{inTheAir.countWords}.</p>
+		{/if}
 	{/if}
 	<div class="navigation-height" bind:clientHeight={navigationHeight}></div>
 	<div
@@ -1241,6 +1274,18 @@
 				{/if}
 			</MapPanel>
 		{/if}
+		<!-- An aircraft another network hears: a small sheet, with no flight to follow. -->
+		<MapPanel
+			shown={other ? chosenOther : undefined}
+			title={other?.aircraft.kindWords ?? ''}
+			wide={wide.current}
+			half
+			onclose={() => (chosenOther = undefined)}
+		>
+			{#if other}
+				<OtherView aircraft={other.aircraft} credit={other.network.credit} />
+			{/if}
+		</MapPanel>
 		{#if takeoffs?.words}
 			<!-- A place where pilots take off and no site stands: a small sheet. -->
 			<MapPanel
@@ -1269,6 +1314,9 @@
 		{/if}
 		{#if candidatesSaid}
 			<p class="notice" role="status">{candidatesSaid}</p>
+		{/if}
+		{#if inTheAir.othersSaid && !off.includes('pilots')}
+			<p class="notice" role="status">{inTheAir.othersSaid}</p>
 		{/if}
 	</div>
 
@@ -1324,7 +1372,7 @@
 				{@render thermalCard(false)}
 			</div>
 		{/if}
-		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredits.length > 0}
+		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredits.length > 0 || othersCredits.length > 0}
 			<p class="credits">
 				{#if photosCredit}<span>{photosCredit}</span>{/if}
 				{#if credits}<span>Wind: {credits}</span>{/if}
@@ -1332,6 +1380,7 @@
 				{#if sitesCredit}<span>{sitesCredit}</span>{/if}
 				{#if forecastCredit}<span>{forecastCredit}</span>{/if}
 				{#each radarCredits as credit (credit)}<span>{credit}</span>{/each}
+				{#each othersCredits as credit (credit.source)}<span>{credit.text}</span>{/each}
 			</p>
 		{/if}
 	</div>

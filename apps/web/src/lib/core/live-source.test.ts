@@ -35,6 +35,10 @@ function server(answer: (path: string, etag: string | undefined) => LiveFetched)
 	return { asked, get };
 }
 
+/** What was asked about Venti's own pilots, leaving out the others beside them. */
+const ofVenti = (asked: { path: string; etag: string | undefined }[]) =>
+	asked.filter(({ path }) => !path.startsWith('/v1/live/others'));
+
 /**
  * A server like the real one: it answers in full, with a validator, and
  * "not modified" to whoever names that validator.
@@ -54,7 +58,9 @@ describe('who is in the air, from the server', () => {
 
 		const answer = (await live.gliders(VALLEY))!;
 
-		expect(asked).toEqual([{ path: '/v1/live?bbox=11.7,47.6,11.95,47.75', etag: undefined }]);
+		expect(ofVenti(asked)).toEqual([
+			{ path: '/v1/live?bbox=11.7,47.6,11.95,47.75', etag: undefined }
+		]);
 		expect(answer.map.truncated).toBe(false);
 		expect(answer.map.gliders).toHaveLength(2);
 		expect(answer.map.gliders[0]).toMatchObject({
@@ -84,7 +90,10 @@ describe('who is in the air, from the server', () => {
 		const first = (await live.gliders(VALLEY))!;
 		const again = (await live.gliders(VALLEY))!;
 
-		expect(asked[1]).toEqual({ path: '/v1/live?bbox=11.7,47.6,11.95,47.75', etag: 'W/"first"' });
+		expect(ofVenti(asked)[1]).toEqual({
+			path: '/v1/live?bbox=11.7,47.6,11.95,47.75',
+			etag: 'W/"first"'
+		});
 		// "Not modified" renews nothing: it is the same answer, by its number,
 		// and the ages in it are still those of when it first came.
 		expect(again.heard).toBe(first.heard);
@@ -115,7 +124,10 @@ describe('who is in the air, from the server', () => {
 		await live.gliders(VALLEY);
 		await live.gliders({ ...VALLEY, east: 12.1 });
 
-		expect(asked[1]).toEqual({ path: '/v1/live?bbox=11.7,47.6,12.1,47.75', etag: undefined });
+		expect(ofVenti(asked)[1]).toEqual({
+			path: '/v1/live?bbox=11.7,47.6,12.1,47.75',
+			etag: undefined
+		});
 	});
 
 	it('is not asked for on a site without a server', async () => {
@@ -139,6 +151,84 @@ describe('who is in the air, from the server', () => {
 			name: 'Server',
 			message: 'The server could not answer (status 502).'
 		});
+	});
+
+	it('asks for the others in the same box, and puts them beside Venti’s pilots with the network’s credit', async () => {
+		const heard = json('live_others.json');
+		// The development server's network connects nowhere; a real one does.
+		heard.layers[0].connected = true;
+		const { asked, get } = server((path) => ({
+			status: 200,
+			body: path.startsWith('/v1/live/others') ? bytes(heard) : recorded('live.json'),
+			etag: undefined
+		}));
+		const live = new LiveSource(async () => true, get);
+
+		const answer = (await live.gliders(VALLEY))!;
+
+		expect(asked.map(({ path }) => path)).toContain('/v1/live/others?bbox=11.7,47.6,11.95,47.75');
+		expect(answer.map.gliders).toHaveLength(2);
+		expect(answer.othersTooWide).toBe(false);
+		const [network] = answer.others!.networks;
+		expect(network.source).toBe('ogn');
+		expect(network.credit?.text).toBe('Positions: Open Glider Network, glidernet.org (ODbL)');
+		// Paragliders and hang gliders first, each with the core's words.
+		expect(network.aircraft[0]).toMatchObject({
+			id: '4791c887c4a52d11',
+			kindWords: 'Paraglider',
+			isFreeFlight: true,
+			courseDeg: 210
+		});
+		expect(network.aircraft[0].line).toMatch(/^Paraglider at /);
+		expect(answer.others!.countWords).toMatch(/^2 pilots of Venti, \d+ others in the air$/);
+	});
+
+	it('leaves out a network the server is not connected to, and counts none of it', async () => {
+		const { get } = server((path) => ({
+			status: 200,
+			body: path.startsWith('/v1/live/others')
+				? recorded('live_others.json')
+				: recorded('live.json'),
+			etag: undefined
+		}));
+		const live = new LiveSource(async () => true, get);
+
+		const answer = (await live.gliders(VALLEY))!;
+
+		expect(answer.others?.networks).toEqual([]);
+		expect(answer.others?.countWords).toBe('');
+	});
+
+	it('keeps Venti’s pilots from a server that lists no others', async () => {
+		const { get } = server((path) =>
+			path.startsWith('/v1/live/others')
+				? {
+						status: 404,
+						body: bytes({ error: { code: 'not_found', message: 'no' } }),
+						etag: undefined
+					}
+				: { status: 200, body: recorded('live.json'), etag: undefined }
+		);
+		const live = new LiveSource(async () => true, get);
+
+		const answer = (await live.gliders(VALLEY))!;
+
+		expect(answer.map.gliders).toHaveLength(2);
+		expect(answer.others).toBeUndefined();
+	});
+
+	it('asks for no others in a box wider than the server answers for, and says why in the core’s words', async () => {
+		const { asked, get } = revalidating(() => recorded('live.json'));
+		const live = new LiveSource(async () => true, get);
+
+		const answer = (await live.gliders({ south: 44, west: 5, north: 49, east: 16 }))!;
+
+		expect(asked.map(({ path }) => path).some((path) => path.startsWith('/v1/live/others'))).toBe(
+			false
+		);
+		expect(answer.othersTooWide).toBe(true);
+		expect(answer.others).toBeUndefined();
+		expect(answer.tooWideWords).toBe('Zoom in to see the gliders of the Open Glider Network.');
 	});
 
 	it('says how old a position is in the core’s words, and never calls silence a landing', () => {

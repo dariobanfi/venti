@@ -10,7 +10,12 @@
  */
 
 import type { LiveGlider } from '#lib/core/index.ts';
-import { FLYING_ON_MAP, PAPER_ON_MAP, QUIET_ON_MAP } from '#lib/design/palette.ts';
+import {
+	FLYING_ON_MAP,
+	MUTED_INK_ON_MAP,
+	PAPER_ON_MAP,
+	QUIET_ON_MAP
+} from '#lib/design/palette.ts';
 import type { Picture } from '#lib/wind/symbols.ts';
 
 /** The side of a picture, in CSS pixels. */
@@ -57,13 +62,24 @@ export function colourOf(look: GliderLook): string {
 	return look === 'flying' ? FLYING_ON_MAP : QUIET_ON_MAP;
 }
 
-/** Every picture the gliders' layer uses, drawn sharp for dense screens. */
+/**
+ * The picture of an aircraft another network hears (the Open Glider
+ * Network): the same wing, in the pack's muted ink, so that it is told
+ * apart from Venti's own pilots at a glance.
+ */
+export const OTHER_PICTURE = 'live-other';
+
+/** Every picture the gliders' layers use, drawn sharp for dense screens. */
 export function gliderPictures(pixelRatio = 2): Picture[] {
-	return (['flying', 'quiet', 'landed'] as const).map((look) => ({
+	const pilots = (['flying', 'quiet', 'landed'] as const).map((look) => ({
 		name: pictureName(look),
 		image: look === 'landed' ? disc(pixelRatio) : wing(colourOf(look), pixelRatio),
 		pixelRatio
 	}));
+	return [
+		...pilots,
+		{ name: OTHER_PICTURE, image: wing(MUTED_INK_ON_MAP, pixelRatio), pixelRatio }
+	];
 }
 
 function canvas(pixelRatio: number): CanvasRenderingContext2D {

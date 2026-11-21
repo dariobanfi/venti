@@ -16,6 +16,7 @@
 		Coordinate,
 		GlideReach,
 		LiveGlider,
+		LiveOthersNetwork,
 		RoutePlan,
 		SiteCandidateView,
 		SiteView,
@@ -70,6 +71,7 @@
 		reachStart
 	} from '#lib/reach/on-map.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
+	import { OTHERS_LAYERS, OTHERS_SOURCE, otherFeatures, othersLayers } from '#lib/live/others.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
 	import {
 		candidateFeatures,
@@ -111,6 +113,11 @@
 		/** The gliders of other pilots to draw. */
 		gliders: LiveGlider[];
 		/**
+		 * The aircraft other networks hear (the Open Glider Network), drawn
+		 * under Venti's own pilots in a muted colour.
+		 */
+		others?: readonly LiveOthersNetwork[];
+		/**
 		 * The flight of the glider whose page is open, as far as it is known:
 		 * drawn as a line in the colours of climb. Empty while none is.
 		 */
@@ -141,6 +148,8 @@
 		onsite: (id: string) => void;
 		/** Called with a live track's identifier when the pilot chooses its glider. */
 		onglider: (id: string) => void;
+		/** Called with an aircraft's identifier when the pilot chooses one another network hears. */
+		onother?: (id: string) => void;
 		/**
 		 * Called with how many airspaces are drawn around what the map shows,
 		 * or with nothing while the map is zoomed too far out to draw any.
@@ -224,6 +233,7 @@
 		candidates = [],
 		oncandidate,
 		gliders,
+		others = [],
 		followed,
 		coveredByPage,
 		airspace,
@@ -235,6 +245,7 @@
 		onstation,
 		onsite,
 		onglider,
+		onother,
 		onairspace,
 		hidden = [],
 		aerial = false,
@@ -399,13 +410,23 @@
 		for (const picture of gliderPictures()) {
 			map.addImage(picture.name, picture.image, { pixelRatio: picture.pixelRatio });
 		}
+		// The aircraft other networks hear, under Venti's own pilots.
+		map.addSource(OTHERS_SOURCE, { type: 'geojson', data: NOTHING });
+		for (const layer of othersLayers(module.LABEL_FONT)) map.addLayer(layer);
 		map.addSource(LIVE_SOURCE, { type: 'geojson', data: NOTHING });
 		map.addLayer(liveLayer(module.LABEL_FONT));
 
 		addRoute(module, map);
 
 		map.on('click', (event) => choose(map, event.point));
-		for (const layer of [LIVE_SOURCE, WIND, SITES_SOURCE, CANDIDATES_SOURCE, THERMAL_SOURCE]) {
+		for (const layer of [
+			LIVE_SOURCE,
+			...OTHERS_LAYERS,
+			WIND,
+			SITES_SOURCE,
+			CANDIDATES_SOURCE,
+			THERMAL_SOURCE
+		]) {
 			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
 			map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 		}
@@ -569,18 +590,19 @@
 			planAt(map, point);
 			return;
 		}
-		for (const [layer, open] of [
-			[LIVE_SOURCE, onglider],
-			[WIND, onstation],
-			[SITES_SOURCE, onsite],
-			[CANDIDATES_SOURCE, (key: string) => oncandidate?.(key)]
+		for (const [layers, open] of [
+			[[LIVE_SOURCE], onglider],
+			[OTHERS_LAYERS, (id: string) => onother?.(id)],
+			[[WIND], onstation],
+			[[SITES_SOURCE], onsite],
+			[[CANDIDATES_SOURCE], (key: string) => oncandidate?.(key)]
 		] as const) {
 			const hits = map.queryRenderedFeatures(
 				[
 					[point.x - REACH, point.y - REACH],
 					[point.x + REACH, point.y + REACH]
 				],
-				{ layers: [layer] }
+				{ layers: [...layers] }
 			);
 			const distance = (feature: (typeof hits)[number]) => {
 				const at = map.project((feature.geometry as GeoJSON.Point).coordinates as [number, number]);
@@ -686,7 +708,7 @@
 		wind: [WIND],
 		airspace: ['airspace-'],
 		sites: [SITES_SOURCE],
-		pilots: [LIVE_SOURCE, LIVE_TRACK_SOURCE, 'live-track']
+		pilots: [LIVE_SOURCE, LIVE_TRACK_SOURCE, 'live-track', OTHERS_SOURCE]
 	};
 
 	$effect(() => {
@@ -802,6 +824,17 @@
 	$effect(() => {
 		if (!map || !setup) return;
 		setup.shapes(map, LIVE_SOURCE)?.setData(gliderFeatures(gliders));
+	});
+
+	// Draws the aircraft of other networks when they change.
+	$effect(() => {
+		if (!map || !setup) return;
+		const features = otherFeatures(others);
+		setup.shapes(map, OTHERS_SOURCE)?.setData(features);
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiOthers?: unknown }).ventiOthers = features.features.map(
+			(feature) => feature.properties?.id
+		);
 	});
 
 	/** Whether the map has moved to show the flight that is being followed. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Bounds, LiveAnswer, LiveFollowAnswer } from '#lib/core/index.ts';
-import { answer, flight, glider } from './testing';
+import { aircraft, answer, flight, glider, others } from './testing';
 import {
 	ageNow,
 	FlightFollow,
@@ -53,7 +53,10 @@ describe('who is in the air over the part of the map in view', () => {
 			known: true,
 			gliders: [glider()],
 			answeredAt: 1_000_000,
-			truncated: false
+			truncated: false,
+			others: [],
+			countWords: '',
+			othersSaid: ''
 		});
 
 		// Dragged a little: inside what was asked for, and the next round
@@ -209,6 +212,53 @@ describe('who is in the air over the part of the map in view', () => {
 		await asked;
 
 		expect(state()).toEqual(NO_LIVE);
+	});
+
+	it('keeps the others beside the gliders, and the same others while their answer is the same', async () => {
+		let reply = answer(1, [glider()], others(2));
+		const { watch, state } = watching(async () => reply);
+		watch.show(VALLEY);
+		await watch.load();
+		const first = state();
+		expect(first.others[0].aircraft[0].id).toBe('4791c887c4a52d11');
+		expect(first.countWords).toBe('1 pilot of Venti, 1 other in the air');
+		expect(first.othersSaid).toBe('');
+
+		// The same answer about the others, handed over again by the worker.
+		reply = answer(1, [glider()], others(2));
+		await watch.load();
+		expect(state().others).toBe(first.others);
+
+		// The server lists them no more: none are drawn.
+		reply = answer(1, [glider()]);
+		await watch.load();
+		expect(state().others).toEqual([]);
+	});
+
+	it('says to zoom in on a map too wide for others, once the network was heard', async () => {
+		let reply = answer(1, [glider()]);
+		const { watch, state } = watching(async () => reply);
+		const alps = { south: 44, west: 6, north: 49, east: 6 + WIDEST_MAP_DEG + 0.1 };
+
+		// No network heard of yet: nothing to say.
+		watch.show(alps);
+		expect(state().othersSaid).toBe('');
+
+		reply = answer(1, [glider()], others(2, [aircraft()]));
+		watch.show(VALLEY);
+		await watch.load();
+		expect(state().othersSaid).toBe('');
+		watch.show(alps);
+		expect(state()).toMatchObject({
+			others: [],
+			othersSaid: 'Zoom in to see the gliders of the Open Glider Network.'
+		});
+
+		// Close enough for Venti's pilots, still too tall a box for others.
+		reply = { ...answer(3, [glider()]), othersTooWide: true };
+		watch.show(VALLEY);
+		await watch.load();
+		expect(state().othersSaid).toBe('Zoom in to see the gliders of the Open Glider Network.');
 	});
 });
 

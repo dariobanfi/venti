@@ -26,9 +26,14 @@ import {
 	liveAgeInWords,
 	LiveFollow,
 	type LiveFollowView,
+	liveLayer,
 	liveMap,
 	type LiveMap,
-	liveMapPath
+	liveMapPath,
+	liveOthers,
+	type LiveOthersNetwork,
+	liveOthersPath,
+	othersTooWideWords
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
 
@@ -80,6 +85,35 @@ export interface LiveAnswer {
 	 * still those of the moment that answer first came.
 	 */
 	heard: number;
+	/**
+	 * What other networks hear in the same box (the Open Glider Network),
+	 * beside Venti's own pilots and never one record with them. Nothing
+	 * where the server lists no others (one from before them, or one that
+	 * did not answer), and where the box is too wide for them.
+	 */
+	others: LiveOthersAnswer | undefined;
+	/** Whether the box was too wide to ask for others: the map then says {@link LiveAnswer.tooWideWords}. */
+	othersTooWide: boolean;
+	/** What a map says where it shows too much to ask for others, in the core's words. */
+	tooWideWords: string;
+}
+
+/** The aircraft other networks hear in a box, as the core puts them beside Venti's pilots. */
+export interface LiveOthersAnswer {
+	/**
+	 * The networks the server is connected to now, each with its aircraft
+	 * (paragliders and hang gliders first) and its credit. One it is not
+	 * connected to is left out: a map draws nothing of it and says nothing.
+	 */
+	networks: LiveOthersNetwork[];
+	/**
+	 * Who is in the air, in the core's words: "3 pilots of Venti, 5 others
+	 * in the air". Empty where the core would count aircraft of a network
+	 * that is left out.
+	 */
+	countWords: string;
+	/** As {@link LiveAnswer.heard}: the same number while neither answer has changed. */
+	heard: number;
 }
 
 /** One flight being followed, as far as the server has handed it out. */
@@ -105,8 +139,12 @@ export class LiveSource {
 	#get: LiveGet;
 	/** Counts the answers the server gave in full. */
 	#heard = 0;
-	/** The last answer about a part of the map. */
-	#map: Held<LiveAnswer> | undefined;
+	/** The last answer about a part of the map, with the body the server gave in full. */
+	#map: Held<{ map: LiveMap; heard: number; body: Uint8Array }> | undefined;
+	/** The last answer about the others in a part of the map, as the server gave it. */
+	#others: Held<{ heard: number; body: Uint8Array }> | undefined;
+	/** The others as last put beside Venti's pilots, by the two answers they are from. */
+	#layer: { from: string; others: LiveOthersAnswer } | undefined;
 	/** The flight being followed: the core's reader of it, and its last answer. */
 	#followed:
 		| {
@@ -133,13 +171,64 @@ export class LiveSource {
 	 */
 	async gliders(box: Bounds): Promise<LiveAnswer | undefined> {
 		if (!(await this.#present())) return undefined;
-		const path = liveMapPath(box.south, box.west, box.north, box.east);
+		const othersPath = liveOthersPath(box.south, box.west, box.north, box.east);
+		// The two questions go together; others that do not come leave
+		// Venti's own pilots as they are.
+		const [venti, others] = await Promise.all([
+			this.#venti(liveMapPath(box.south, box.west, box.north, box.east)),
+			othersPath === undefined ? undefined : this.#othersAt(othersPath).catch(() => undefined)
+		]);
+		return {
+			map: venti.map,
+			heard: venti.heard,
+			others: others && this.#beside(venti, others),
+			othersTooWide: othersPath === undefined,
+			tooWideWords: othersTooWideWords()
+		};
+	}
+
+	/** Venti's own pilots in a box: the answer held while the server has nothing new. */
+	async #venti(path: string) {
 		const held = this.#map?.path === path ? this.#map : undefined;
 		const fetched = await this.#get(path, held?.etag);
-		// Nothing has changed: the answer held is still the server's.
 		if (fetched.status === 304 && held) return held.answer;
-		const answer = { map: liveMap(fetched.status, fetched.body), heard: ++this.#heard };
+		const answer = {
+			map: liveMap(fetched.status, fetched.body),
+			heard: ++this.#heard,
+			body: fetched.body
+		};
 		this.#map = { path, etag: fetched.etag, answer };
+		return answer;
+	}
+
+	/**
+	 * The others in a box, as the server gave them in full. Throws where
+	 * the server has no such list, or gives no usable answer.
+	 */
+	async #othersAt(path: string) {
+		const held = this.#others?.path === path ? this.#others : undefined;
+		const fetched = await this.#get(path, held?.etag);
+		if (fetched.status === 304 && held) return held.answer;
+		// Read once to know the answer is one; the core reads it again beside Venti's.
+		liveOthers(fetched.status, fetched.body);
+		const answer = { heard: ++this.#heard, body: fetched.body };
+		this.#others = { path, etag: fetched.etag, answer };
+		return answer;
+	}
+
+	/** The others beside Venti's pilots, as the core puts them: worked out again only when either answer is new. */
+	#beside(venti: { heard: number; body: Uint8Array }, others: { heard: number; body: Uint8Array }) {
+		const from = `${venti.heard}:${others.heard}`;
+		if (this.#layer?.from === from) return this.#layer.others;
+		const layer = liveLayer(200, venti.body, 200, others.body);
+		const networks = layer.others.filter((network) => network.connected);
+		const left = layer.others.some((network) => !network.connected && network.aircraft.length > 0);
+		const answer: LiveOthersAnswer = {
+			networks,
+			countWords: left ? '' : layer.countWords,
+			heard: ++this.#heard
+		};
+		this.#layer = { from, others: answer };
 		return answer;
 	}
 

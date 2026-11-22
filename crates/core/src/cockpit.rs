@@ -561,12 +561,18 @@ pub struct CockpitView {
     #[uniffi(default = None)]
     pub qnh_hpa: Option<f64>,
     /// What an altimeter set to that QNH shows now, metres: the altitude
-    /// airspace limits above sea level are written for. It differs from
-    /// `altitude_m` by what the day's temperature does to an altimeter.
+    /// airspace limits above sea level are written for, and the one the
+    /// airspace warnings measure them against. It differs from
+    /// `altitude_m` by what the day's temperature does to an altimeter;
+    /// limits above ground stay on `altitude_m`. Absent without a fresh
+    /// pressure: the warnings then measure every limit but flight levels
+    /// against `altitude_m`.
     #[uniffi(default = None)]
     pub qnh_altitude_m: Option<f64>,
-    /// The QNH as a reading: "QNH 1018 hPa, from the ground at take-off",
-    /// "QNH 1021 hPa, set by hand".
+    /// The QNH as a reading, with what the airspace warnings go by: "QNH
+    /// 1018 hPa, from the ground at take-off · airspace above sea level
+    /// measured at it", "QNH 1021 hPa, set by hand · no pressure now:
+    /// airspace above sea level by GPS".
     #[uniffi(default = None)]
     pub qnh_words: Option<String>,
     /// Whether the flight is never taken for landed
@@ -1353,6 +1359,7 @@ impl FlightSession {
             &ahead::Look {
                 position,
                 altitude_m,
+                qnh_altitude_m: state.qnh_altitude_m,
                 pressure_altitude_m: state.pressure_altitude_m,
                 bearing_deg,
                 toward,
@@ -1887,10 +1894,14 @@ impl FlightSession {
             state.turn_rate_deg_s,
         );
         if let Some(watch) = inner.watch.as_mut() {
+            // Two altitudes: the one height over the terrain is measured
+            // with, for the ground and limits above it, and the one at the
+            // QNH, for limits above sea level, when there is a QNH.
             watch.feed(
                 sample.time_unix_s,
                 position,
                 state.altitude_m,
+                state.qnh_altitude_m,
                 state.pressure_altitude_m,
                 ground_m,
                 state.ground_speed_ms,
@@ -2269,10 +2280,16 @@ impl FlightSession {
             qnh_altitude_m: state.qnh_altitude_m,
             qnh_words: state.qnh.map(|(qnh, source)| {
                 format!(
-                    "QNH {qnh:.0} hPa, {}",
+                    "QNH {qnh:.0} hPa, {} · {}",
                     match source {
                         QnhSource::Ground => "from the ground at take-off",
                         QnhSource::Hand => "set by hand",
+                    },
+                    // What the airspace warnings go by, as the watch is
+                    // fed from the same state.
+                    match state.qnh_altitude_m {
+                        Some(_) => "airspace above sea level measured at it",
+                        None => "no pressure now: airspace above sea level by GPS",
                     }
                 )
             }),

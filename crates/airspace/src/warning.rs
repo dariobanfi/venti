@@ -54,8 +54,14 @@ pub struct Sample {
     pub time_s: f64,
     /// Where.
     pub position: GeoPoint,
-    /// Altitude above mean sea level in metres: the cockpit's best altitude.
+    /// Altitude above mean sea level in metres: the cockpit's best altitude,
+    /// the one it measures height over the terrain with. Limits above
+    /// ground are placed against it, and every limit is given on its scale.
     pub altitude_m: f64,
+    /// What an altimeter set to the day's QNH shows, metres, if the
+    /// cockpit has a QNH and a pressure sensor. Limits above mean sea
+    /// level are measured against it; without it, against `altitude_m`.
+    pub qnh_altitude_m: Option<f64>,
     /// The pressure altitude, if a pressure sensor is there. Without it
     /// flight levels are placed with a wide margin.
     pub pressure: Option<PressureAltitude>,
@@ -72,10 +78,11 @@ pub struct Sample {
 }
 
 impl Sample {
-    /// The three altitudes of the sample, as the queries take them.
+    /// The altitudes of the sample, as the queries take them.
     pub fn altitudes(&self) -> Altitudes {
         Altitudes {
             altitude_m: self.altitude_m,
+            qnh_altitude_m: self.qnh_altitude_m,
             pressure: self.pressure,
             ground_elevation_m: self.ground_elevation_m,
         }

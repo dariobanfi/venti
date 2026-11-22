@@ -216,7 +216,10 @@ pub struct AirspaceProximity {
     /// level: the lowest the floor can be. For a floor at the ground that
     /// is the ground's height where the session has terrain, and far below
     /// the glider where it has none: the airspace then reaches down as far
-    /// as a picture goes.
+    /// as a picture goes. A floor above sea level is measured at the QNH
+    /// where the session has one, and lies as far from `altitude_m` as it
+    /// does from the altimeter at the QNH: it then differs from the
+    /// published figure.
     pub floor_m: f64,
     /// Its ceiling: the highest it can be. `None` when it has none.
     pub ceiling_m: Option<f64>,
@@ -899,12 +902,27 @@ impl AirspaceWatch {
     }
 
     /// Takes the state of the flight at a position, at most once a second.
+    ///
+    /// Two altitudes, and what each limit is measured against:
+    ///
+    /// - `altitude_m`, the cockpit's best altitude, the one it measures
+    ///   height over the terrain with: the ground and limits above it,
+    ///   with `ground_elevation_m`. Every limit is given on its scale.
+    /// - `qnh_altitude_m`, what an altimeter set to the session's QNH
+    ///   shows: limits above sea level. Without a QNH or a fresh pressure
+    ///   it is `None`, and those limits are measured against `altitude_m`.
+    ///
+    /// Flight levels are measured against `pressure_altitude_m`, the
+    /// pressure altitude at 1013.25 hPa; without a pressure sensor they
+    /// are placed by the standard atmosphere with a wide margin and the
+    /// warning says it is uncertain.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn feed(
         &mut self,
         time_s: f64,
         position: GeoPoint,
         altitude_m: Option<f64>,
+        qnh_altitude_m: Option<f64>,
         pressure_altitude_m: Option<f64>,
         ground_elevation_m: Option<f64>,
         ground_speed_ms: Option<f64>,
@@ -926,6 +944,7 @@ impl AirspaceWatch {
             time_s,
             position,
             altitude_m,
+            qnh_altitude_m,
             pressure: pressure_altitude_m.map(PressureAltitude::standard),
             // Where the session has no terrain, limits above ground are
             // taken as reaching to the glider, and the warning says so.
@@ -2075,6 +2094,115 @@ DP 46.1N 11.0E
         assert_eq!(after[0].id, first.id);
         assert!(after[0].silenced, "{after:?}");
         assert_eq!(session.take_airspace_alert(), None);
+    }
+
+    #[test]
+    fn the_watch_measures_limits_above_sea_level_at_the_qnh_and_above_ground_on_the_terrain() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        core.import_airspace("zones.txt".to_owned(), FILE.as_bytes().to_vec(), NOW)
+            .unwrap();
+        let set = core.airspace().unwrap();
+        let point = |lat, lon| GeoPoint::new(lat, lon).unwrap();
+        // One fresh watch per question, so that no warning lingers.
+        let headline = |at: GeoPoint, altitude: f64, qnh: Option<f64>, ground: Option<f64>| {
+            let mut watch = AirspaceWatch::new(set.clone());
+            watch.feed(
+                NOW as f64,
+                at,
+                Some(altitude),
+                qnh,
+                Some(altitude),
+                ground,
+                Some(0.0),
+                Some(0.0),
+                Some(0.0),
+            );
+            watch
+                .warnings()
+                .first()
+                .map(|warning| warning.headline.clone())
+        };
+
+        // In the middle of the control zone, GND to 9000 ft AMSL (2743.2
+        // m). The glider's altitude is over the ceiling; the altimeter at
+        // the QNH, which the ceiling is written for, under it.
+        let zone = point(47.7, 11.7333);
+        assert_eq!(
+            headline(zone, 2780.0, None, None).as_deref(),
+            Some("CTR TEST 37 m below")
+        );
+        assert_eq!(
+            headline(zone, 2780.0, Some(2720.0), None).as_deref(),
+            Some("Inside CTR TEST")
+        );
+
+        // In the danger area, 1000 ft above ground (904.8 m over ground at
+        // 600 m) to FL 95: the floor stays on the terrain whatever the
+        // altimeter at the QNH says.
+        let area = point(48.04, 12.08);
+        for qnh in [None, Some(950.0), Some(820.0)] {
+            assert_eq!(
+                headline(area, 880.0, qnh, Some(600.0)).as_deref(),
+                Some("ED-D TEST 25 m above"),
+                "{qnh:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn with_a_qnh_the_cockpit_places_a_floor_above_sea_level_by_it_and_says_so() {
+        // A terminal area over the whole sample flight, from 6000 ft AMSL.
+        let file = "AC C\nAY TMA\nAN TMA QNH\nAL 6000ft AMSL\nAH FL 195\n\
+                    DP 47:20:00 N 011:20:00 E\nDP 47:20:00 N 012:20:00 E\n\
+                    DP 48:00:00 N 012:20:00 E\nDP 48:00:00 N 011:20:00 E\n";
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        core.import_airspace("tma.txt".to_owned(), file.as_bytes().to_vec(), NOW)
+            .unwrap();
+        let fly = |qnh: Option<f64>| {
+            let session = FlightSession::new(folder.path().to_str().unwrap().to_owned());
+            session.use_airspace(Some(core.airspace().unwrap()));
+            session.set_qnh(qnh);
+            let replay = Replay::new(igc::write(&synthetic_flight())).unwrap();
+            replay.advance(session.clone(), 300.0);
+            session.view(replay.now())
+        };
+
+        // Without a QNH, as before: the floor as published.
+        let before = fly(None);
+        assert_eq!(before.qnh_words, None);
+        let reading = before.airspace_proximity.unwrap();
+        assert!(
+            (reading.floor_m - 1828.8).abs() < 1e-9,
+            "{}",
+            reading.floor_m
+        );
+
+        // With 1030 hPa set by hand the altimeter reads about 100 m more
+        // than the pressure altitude: the floor comes as much nearer.
+        let view = fly(Some(1030.0));
+        assert_eq!(
+            view.qnh_words.as_deref(),
+            Some("QNH 1030 hPa, set by hand · airspace above sea level measured at it")
+        );
+        let qnh_altitude = view.qnh_altitude_m.unwrap();
+        let reading = view.airspace_proximity.unwrap();
+        let expected = reading.altitude_m + 1828.8 - qnh_altitude;
+        assert!(
+            (reading.floor_m - expected).abs() < 2.0,
+            "{} {expected}",
+            reading.floor_m
+        );
+        assert!(reading.floor_m < 1828.8 - 80.0, "{}", reading.floor_m);
+
+        // A QNH without a pressure sensor is not used, and the words say so.
+        let session = FlightSession::new(folder.path().to_str().unwrap().to_owned());
+        session.set_qnh(Some(1030.0));
+        assert_eq!(
+            session.view(0.0).qnh_words.as_deref(),
+            Some("QNH 1030 hPa, set by hand · no pressure now: airspace above sea level by GPS")
+        );
     }
 
     #[test]

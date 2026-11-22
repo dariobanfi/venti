@@ -2,9 +2,29 @@
 //!
 //! A limit is published against one of three things: mean sea level, the
 //! ground below, or the standard atmosphere (flight levels). The pilot's
-//! altitude comes from satellites. Comparing the two needs the ground
-//! elevation for the second kind and the air pressure for the third, and a
-//! phone does not always have them.
+//! altitude comes from satellites, or from a pressure sensor kept true by
+//! them. Comparing the two needs the ground elevation for the second kind
+//! and the air pressure for the third, and a phone does not always have
+//! them.
+//!
+//! What each limit is measured against ([`resolve`]):
+//!
+//! | Limit | Measured against | Without it |
+//! |---|---|---|
+//! | Above mean sea level | The altitude an altimeter set to the day's QNH shows ([`Altitudes::qnh_altitude_m`]) | The pilot's altitude ([`Altitudes::altitude_m`]) |
+//! | Flight level | The pressure altitude: an altimeter set to 1013.25 hPa ([`Altitudes::pressure`]) | A range from the standard atmosphere, uncertain |
+//! | Above ground, the ground | The pilot's altitude over the ground's elevation | A range up to the pilot, uncertain |
+//!
+//! Every limit is then given on one scale, the pilot's altitude: a limit
+//! measured against another altitude lies as far above or below the pilot
+//! as it does on that altimeter.
+//!
+//! The limits of the QNH: the cockpit's QNH is an estimate. Taken on the
+//! ground it is as good as the terrain's height under the take-off, and
+//! it stays the morning's while the day's pressure moves, near sea level
+//! about 8 m for every hectopascal (*to verify*). A QNH set by hand is as
+//! good as the pilot's source. Nothing here widens a limit for that; the
+//! warnings' margins cover it.
 //!
 //! The rule of this module: **what is not known is taken toward the
 //! pilot.** A limit that cannot be placed exactly is given as a range, the
@@ -104,8 +124,18 @@ impl PressureAltitude {
 pub struct Altitudes {
     /// Altitude above mean sea level in metres: from the satellites, or the
     /// cockpit's best altitude (pressure altitude kept true by the
-    /// satellites). Limits above mean sea level are compared with this.
+    /// satellites). The ground and limits above it are placed against
+    /// this, limits above mean sea level too when there is no
+    /// [`Altitudes::qnh_altitude_m`], and every limit is given on its
+    /// scale.
     pub altitude_m: f64,
+    /// What an altimeter set to the day's QNH shows, metres, if the
+    /// cockpit has a QNH and a pressure sensor. Limits above mean sea
+    /// level are measured against this: they are written as such an
+    /// altimeter's reading. It differs from `altitude_m` by what the day's
+    /// temperature does to an altimeter, which must not move a limit above
+    /// ground, so those keep to `altitude_m`.
+    pub qnh_altitude_m: Option<f64>,
     /// The pressure altitude, if a pressure sensor is there. Flight levels
     /// are compared with this. Without it they are placed by the standard
     /// atmosphere with a wide margin.
@@ -121,6 +151,7 @@ impl Altitudes {
     pub fn gps(altitude_m: f64) -> Self {
         Self {
             altitude_m,
+            qnh_altitude_m: None,
             pressure: None,
             ground_elevation_m: None,
         }
@@ -181,7 +212,10 @@ impl ResolvedLimit {
 
 /// Places one limit on the pilot's height scale.
 ///
-/// - **Above mean sea level:** as published.
+/// - **Above mean sea level:** with an altitude at the QNH, the pilot's
+///   altitude plus the difference between the limit and that altitude: the
+///   pilot is under the limit exactly while the altimeter reads less.
+///   Without one, as published.
 /// - **Ground:** the ground elevation if known, but never above the pilot,
 ///   who cannot be under the ground.
 /// - **Above ground:** exact with a ground elevation. Without one the ground
@@ -199,7 +233,12 @@ pub fn resolve(limit: &VerticalLimit, altitudes: &Altitudes) -> ResolvedLimit {
     };
     match limit.reference() {
         VerticalReference::Unlimited => ResolvedLimit::exactly(f64::INFINITY),
-        VerticalReference::MeanSeaLevel => ResolvedLimit::exactly(metres),
+        VerticalReference::MeanSeaLevel => {
+            match altitudes.qnh_altitude_m.filter(|qnh| qnh.is_finite()) {
+                Some(qnh) => ResolvedLimit::exactly(altitude + metres - qnh),
+                None => ResolvedLimit::exactly(metres),
+            }
+        }
         VerticalReference::Ground => match altitudes.ground_elevation_m {
             Some(ground) => ResolvedLimit::exactly(ground.min(altitude)),
             // Somewhere between the lowest land and the pilot. Whichever,
@@ -479,6 +518,7 @@ mod tests {
 
         let just_below = Altitudes {
             altitude_m: 2850.0,
+            qnh_altitude_m: None,
             pressure: Some(PressureAltitude::standard(2850.0 + offset)),
             ground_elevation_m: None,
         };
@@ -492,6 +532,7 @@ mod tests {
         // number on the chart would put the floor.
         let inside = Altitudes {
             altitude_m: 2860.0,
+            qnh_altitude_m: None,
             pressure: Some(PressureAltitude::standard(2860.0 + offset)),
             ground_elevation_m: None,
         };
@@ -509,6 +550,7 @@ mod tests {
         let measured_hpa = standard_pressure_hpa(2860.0 + offset);
         let on_qnh = Altitudes {
             altitude_m: 2860.0,
+            qnh_altitude_m: None,
             pressure: Some(PressureAltitude {
                 altitude_m: 44_330.77 * (1.0 - (measured_hpa / 990.0).powf(0.190_263)),
                 reference_hpa: 990.0,
@@ -574,6 +616,7 @@ mod tests {
         // Ground at 700 m: the floor is at 1004.8 m.
         let known = |altitude_m| Altitudes {
             altitude_m,
+            qnh_altitude_m: None,
             pressure: None,
             ground_elevation_m: Some(700.0),
         };
@@ -610,6 +653,7 @@ mod tests {
         }
         let known = Altitudes {
             altitude_m: 2000.0,
+            qnh_altitude_m: None,
             pressure: None,
             ground_elevation_m: Some(600.0),
         };
@@ -633,6 +677,7 @@ mod tests {
         // altitude must not lift the pilot out of the airspace.
         let standing = Altitudes {
             altitude_m: 575.0,
+            qnh_altitude_m: None,
             pressure: None,
             ground_elevation_m: Some(581.0),
         };
@@ -674,6 +719,7 @@ mod tests {
         let sector = airspace(agl(1000.0), fl(100));
         let with_barometer = Altitudes {
             altitude_m: 900.0,
+            qnh_altitude_m: None,
             pressure: Some(PressureAltitude::standard(900.0)),
             ground_elevation_m: None,
         };
@@ -709,6 +755,7 @@ mod tests {
         // Over a 3000 m ridge the floor is 3457 m, above the published 3353 m.
         let over_ridge = Altitudes {
             altitude_m: 3400.0,
+            qnh_altitude_m: None,
             pressure,
             ground_elevation_m: Some(3000.0),
         };
@@ -719,6 +766,7 @@ mod tests {
         // Over the valley the published floor holds.
         let over_valley = Altitudes {
             altitude_m: 3400.0,
+            qnh_altitude_m: None,
             pressure,
             ground_elevation_m: Some(600.0),
         };
@@ -731,6 +779,7 @@ mod tests {
         // that the ground might have raised it.
         let unknown = Altitudes {
             altitude_m: 3400.0,
+            qnh_altitude_m: None,
             pressure,
             ground_elevation_m: None,
         };
@@ -763,5 +812,218 @@ mod tests {
         assert!(widest_range_m(&VerticalLimit::unlimited()).0.is_infinite());
         let (low, high) = widest_range_m(&VerticalLimit::flight_level(100).unwrap());
         assert!(low < 2600.0 && high > 3450.0);
+    }
+
+    /// What an altimeter set to `qnh_hpa` shows at a pressure altitude, as
+    /// the flight computer works it out (`atmosphere::altitude_at_qnh_m`).
+    fn at_qnh(pressure_altitude_m: f64, qnh_hpa: f64) -> f64 {
+        pressure_altitude_m - standard_altitude_m(qnh_hpa)
+    }
+
+    #[test]
+    fn a_limit_in_feet_above_sea_level_is_measured_at_the_qnh() {
+        // A floor at 9000 ft AMSL, 2743.2 m, on a day of 1025 hPa.
+        let tma = airspace(
+            feet(VerticalReference::MeanSeaLevel, 9000.0),
+            VerticalLimit::flight_level(195).unwrap(),
+        );
+        let pressure_altitude = 2660.0;
+        let qnh_altitude = at_qnh(pressure_altitude, 1025.0);
+        // The setting reads 97 m more than the standard one.
+        assert!((qnh_altitude - 2757.4).abs() < 0.5, "{qnh_altitude}");
+        let with_qnh = Altitudes {
+            altitude_m: 2700.0,
+            qnh_altitude_m: Some(qnh_altitude),
+            pressure: Some(PressureAltitude::standard(pressure_altitude)),
+            ground_elevation_m: None,
+        };
+        // The satellites put the glider 43 m under the floor; the altimeter
+        // at the QNH, which the limit is written for, 14 m over it.
+        let status = vertical_status(&tma, &with_qnh);
+        assert_eq!(status.relation, VerticalRelation::Inside);
+        assert!(!status.uncertain && status.floor.is_exact());
+        assert!((status.above_floor_m - (qnh_altitude - 2743.2)).abs() < 1e-9);
+        // On the glider's scale the floor is as far below it as on the altimeter.
+        assert!((status.floor.low_m - (2700.0 + 2743.2 - qnh_altitude)).abs() < 1e-9);
+
+        // Without a QNH, as before: against the glider's altitude.
+        let without = Altitudes {
+            qnh_altitude_m: None,
+            ..with_qnh
+        };
+        let status = vertical_status(&tma, &without);
+        assert_eq!(status.relation, VerticalRelation::Below);
+        assert!((status.separation_m - 43.2).abs() < 1e-9);
+
+        // The same air on a standard day: the altimeter reads the pressure
+        // altitude, under the floor by 83 m.
+        let standard_day = Altitudes {
+            qnh_altitude_m: Some(at_qnh(pressure_altitude, STANDARD_PRESSURE_HPA)),
+            ..with_qnh
+        };
+        let status = vertical_status(&tma, &standard_day);
+        assert_eq!(status.relation, VerticalRelation::Below);
+        assert!((status.separation_m - 83.2).abs() < 1e-9);
+
+        // A ceiling above sea level likewise: 4500 ft AMSL, 1371.6 m.
+        let ctr = airspace(
+            VerticalLimit::ground(),
+            feet(VerticalReference::MeanSeaLevel, 4500.0),
+        );
+        let near_the_top = Altitudes {
+            altitude_m: 1350.0,
+            qnh_altitude_m: Some(1390.0),
+            pressure: Some(PressureAltitude::standard(1400.0)),
+            ground_elevation_m: Some(600.0),
+        };
+        let status = vertical_status(&ctr, &near_the_top);
+        assert_eq!(status.relation, VerticalRelation::Above);
+        assert!((status.separation_m - 18.4).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_flight_level_is_the_pressure_altitude_on_a_high_and_a_low_pressure_day() {
+        let tma = airspace(
+            VerticalLimit::flight_level(100).unwrap(),
+            VerticalLimit::unlimited(),
+        );
+        // A high-pressure day, 1030 hPa: the altimeter at the QNH shows
+        // 3150 m, over the nominal 3048 m of FL 100, and the glider is
+        // under it all the same: its pressure altitude is 3011 m.
+        let pressure_altitude = 3150.0 + standard_altitude_m(1030.0);
+        assert!(
+            (pressure_altitude - 3011.5).abs() < 0.5,
+            "{pressure_altitude}"
+        );
+        let high = Altitudes {
+            altitude_m: 3170.0,
+            qnh_altitude_m: Some(3150.0),
+            pressure: Some(PressureAltitude::standard(pressure_altitude)),
+            ground_elevation_m: None,
+        };
+        let status = vertical_status(&tma, &high);
+        assert_eq!(status.relation, VerticalRelation::Below);
+        assert!((status.separation_m - (3048.0 - pressure_altitude)).abs() < 1e-9);
+        assert!(!status.uncertain && status.floor.is_exact());
+        // The QNH plays no part in a flight level.
+        let without_qnh = Altitudes {
+            qnh_altitude_m: None,
+            ..high
+        };
+        assert_eq!(vertical_status(&tma, &without_qnh), status);
+
+        // A low-pressure day, 990 hPa: the altimeter shows 2900 m, under
+        // the nominal floor, and the glider is in the airspace by 47 m.
+        let pressure_altitude = 2900.0 + standard_altitude_m(990.0);
+        let low = Altitudes {
+            altitude_m: 2880.0,
+            qnh_altitude_m: Some(2900.0),
+            pressure: Some(PressureAltitude::standard(pressure_altitude)),
+            ground_elevation_m: None,
+        };
+        let status = vertical_status(&tma, &low);
+        assert_eq!(status.relation, VerticalRelation::Inside);
+        assert!(!status.uncertain);
+        assert!((status.above_floor_m - (pressure_altitude - 3048.0)).abs() < 1e-9);
+        assert!((status.above_floor_m - 47.4).abs() < 0.5);
+
+        // Without a pressure sensor there is no pressure altitude: the
+        // level is placed by the standard atmosphere, widened, uncertain,
+        // and an altitude at a QNH does not narrow it.
+        let no_sensor = Altitudes {
+            altitude_m: 2880.0,
+            qnh_altitude_m: Some(2900.0),
+            pressure: None,
+            ground_elevation_m: None,
+        };
+        let floor = resolve(&tma.lower, &no_sensor);
+        assert_eq!(floor, resolve(&tma.lower, &Altitudes::gps(2880.0)));
+        assert_eq!(floor.unknown, Some(Unknown::Pressure));
+        assert!(vertical_status(&tma, &no_sensor).uncertain);
+    }
+
+    #[test]
+    fn a_limit_above_ground_is_not_moved_by_the_qnh() {
+        // From 1000 ft above ground to 4500 ft AMSL, over ground at 700 m:
+        // the floor is at 1004.8 m whatever the altimeter at the QNH says.
+        let sector = airspace(
+            feet(VerticalReference::AboveGround, 1000.0),
+            feet(VerticalReference::MeanSeaLevel, 4500.0),
+        );
+        for qnh_altitude in [None, Some(840.0), Some(960.0)] {
+            let here = Altitudes {
+                altitude_m: 900.0,
+                qnh_altitude_m: qnh_altitude,
+                pressure: Some(PressureAltitude::standard(950.0)),
+                ground_elevation_m: Some(700.0),
+            };
+            let status = vertical_status(&sector, &here);
+            assert_eq!(status.relation, VerticalRelation::Below, "{qnh_altitude:?}");
+            assert!((status.separation_m - 104.8).abs() < 1e-9);
+            assert!(status.floor.is_exact() && (status.floor.low_m - 1004.8).abs() < 1e-9);
+        }
+        // A ceiling above ground and a floor at the ground neither.
+        let low = airspace(
+            VerticalLimit::ground(),
+            feet(VerticalReference::AboveGround, 1000.0),
+        );
+        let here = Altitudes {
+            altitude_m: 1000.0,
+            qnh_altitude_m: Some(1100.0),
+            pressure: None,
+            ground_elevation_m: Some(600.0),
+        };
+        let status = vertical_status(&low, &here);
+        assert_eq!(status.floor, ResolvedLimit::exactly(600.0));
+        assert!((status.ceiling.low_m - 904.8).abs() < 1e-9);
+        assert_eq!(status.relation, VerticalRelation::Above);
+
+        // "11000 ft AMSL but at least 1500 ft above ground" over a 3000 m
+        // ridge: the floor above ground is the higher and stays where it was.
+        let mut tmz = airspace(
+            feet(VerticalReference::MeanSeaLevel, 11_000.0),
+            VerticalLimit::flight_level(125).unwrap(),
+        );
+        tmz.lower_at_least = Some(feet(VerticalReference::AboveGround, 1500.0));
+        let over_ridge = Altitudes {
+            altitude_m: 3400.0,
+            qnh_altitude_m: Some(3500.0),
+            pressure: Some(PressureAltitude::standard(3400.0)),
+            ground_elevation_m: Some(3000.0),
+        };
+        let status = vertical_status(&tmz, &over_ridge);
+        assert_eq!(status.relation, VerticalRelation::Below);
+        assert!((status.separation_m - 57.2).abs() < 1e-9);
+    }
+
+    #[test]
+    fn without_a_qnh_limits_above_sea_level_are_as_before() {
+        let msl = |value| feet(VerticalReference::MeanSeaLevel, value);
+        let airspaces = [
+            airspace(VerticalLimit::ground(), msl(4500.0)),
+            airspace(msl(9000.0), VerticalLimit::flight_level(195).unwrap()),
+            airspace(feet(VerticalReference::AboveGround, 1000.0), msl(4500.0)),
+        ];
+        for altitude in [900.0, 1400.0, 2700.0, 2800.0] {
+            let no_sensor = Altitudes::gps(altitude);
+            for airspace in &airspaces {
+                let status = vertical_status(airspace, &no_sensor);
+                // A limit above sea level is taken as published.
+                for (limit, resolved) in [
+                    (&airspace.lower, status.floor),
+                    (&airspace.upper, status.ceiling),
+                ] {
+                    if limit.reference() == VerticalReference::MeanSeaLevel {
+                        assert_eq!(resolved, ResolvedLimit::exactly(limit.metres().unwrap()));
+                    }
+                }
+                // An altitude at the QNH that is not a number counts as none.
+                let broken = Altitudes {
+                    qnh_altitude_m: Some(f64::NAN),
+                    ..no_sensor
+                };
+                assert_eq!(vertical_status(airspace, &broken), status);
+            }
+        }
     }
 }

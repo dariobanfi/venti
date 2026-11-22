@@ -578,6 +578,7 @@ mod tests {
         // With the ground at 700 m the floor is at 1000 m, 100 m above.
         let known = Altitudes {
             altitude_m: 900.0,
+            qnh_altitude_m: None,
             pressure: Some(PressureAltitude::standard(900.0)),
             ground_elevation_m: Some(700.0),
         };
@@ -593,6 +594,7 @@ mod tests {
             time_s,
             position,
             altitude_m,
+            qnh_altitude_m: None,
             pressure: Some(PressureAltitude::standard(altitude_m)),
             ground_elevation_m: Some(600.0),
             ground_speed_ms: None,

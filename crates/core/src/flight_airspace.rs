@@ -141,6 +141,9 @@ fn check(set: &AirspaceSet, fixes: &[igc::Fix]) -> FlightAirspace {
 
         let here = Altitudes {
             altitude_m: f64::from(altitudes[index]),
+            // A flight file holds no QNH: limits above sea level are
+            // compared with the recorded altitude.
+            qnh_altitude_m: None,
             pressure: has_pressure
                 .then(|| PressureAltitude::standard(f64::from(fix.pressure_altitude_m))),
             // No terrain model yet: a limit above ground is taken to

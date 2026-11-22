@@ -96,6 +96,7 @@ fn sample(time_s: f64, position: GeoPoint, altitude_m: f64) -> Sample {
         time_s,
         position,
         altitude_m,
+        qnh_altitude_m: None,
         pressure: Some(PressureAltitude::standard(altitude_m)),
         ground_elevation_m: Some(600.0),
         ground_speed_ms: None,

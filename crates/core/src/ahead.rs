@@ -127,7 +127,12 @@ pub struct AirspaceAhead {
 #[derive(Debug, Clone)]
 pub(crate) struct Look {
     pub position: GeoPoint,
+    /// The glider's altitude, the one it measures height over the
+    /// terrain with, and the scale the picture is drawn on.
     pub altitude_m: f64,
+    /// What an altimeter set to the QNH shows, when the session has one:
+    /// limits above sea level are measured against it, as the warnings do.
+    pub qnh_altitude_m: Option<f64>,
     pub pressure_altitude_m: Option<f64>,
     pub bearing_deg: f64,
     pub toward: String,
@@ -148,6 +153,7 @@ pub(crate) fn ahead(set: Option<&AirspaceSet>, look: &Look) -> Option<AirspaceAh
     let end = destination(look.position, look.bearing_deg, AHEAD_M)?;
     let altitudes = |ground_elevation_m: Option<f64>| Altitudes {
         altitude_m: look.altitude_m,
+        qnh_altitude_m: look.qnh_altitude_m,
         pressure: look.pressure_altitude_m.map(PressureAltitude::standard),
         ground_elevation_m,
     };
@@ -494,6 +500,7 @@ DP 48:00:00 N 010:00:00 E
         Look {
             position: GeoPoint::new(47.5, 11.0).unwrap(),
             altitude_m,
+            qnh_altitude_m: None,
             pressure_altitude_m: Some(altitude_m),
             bearing_deg,
             toward: "On course E".to_owned(),

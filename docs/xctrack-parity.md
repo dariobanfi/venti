@@ -152,7 +152,7 @@ Ours: v1, all of it. The missing-data alarm matters most with an external vario.
 |---|---|---|
 | Airspace by country from airspace.xcontest.org with temporary activations, checked at start, plus custom OpenAir files *(official)* | v1 for static airspace and OpenAir import. Activations depend on a data source; see [data-sources.md](data-sources.md#airspace) | Built: the OpenAir reader, with circles, arcs and both coordinate notations, reporting every airspace it leaves out. Static airspace by country comes from openAIP. Activations: not built; every airspace counts as active |
 | Three warning levels with sounds, on-screen labels and suppression times | v1 | Built: near, very near and inside at XCTrack's margins, plus "entering" from a prediction XCTrack does not have; no flicker at a boundary; silencing for a time, until a time or for the rest of the day. Sounds and labels are the shell's |
-| Flight levels measured against the barometer's standard altitude; an option to force satellite altitude *(manual)* | v1 | Built: exact with a pressure altitude. Without one the limit is taken toward the pilot and the warning marked uncertain. Limits above sea level use the cockpit's altitude; XCTrack uses the altitude at the pilot's QNH |
+| Flight levels measured against the barometer's standard altitude; an option to force satellite altitude *(manual)* | v1 | Built: exact with a pressure altitude. Without one the limit is taken toward the pilot and the warning marked uncertain. Limits above sea level are measured at the QNH since 2026-11-22 when the session has one and a pressure sensor, as XCTrack does, and at the cockpit's altitude otherwise. No switch to force satellite altitude |
 | Three kinds of airspace: restricted (warns), warning (class Q, drawn only), glider area (class W) *(official)* | v1 | Built as a table by class, type and country: avoid, caution, free. Danger areas warn, unlike in XCTrack. Glider areas never warn and never open the airspace around them |
 | Per-airspace status: disabled or active, for today or permanently *(manual)* | v1 | Built in part: an airspace can be ignored for a time. Nothing is stored between flights |
 | High airspace hidden until close | v1 | Built: a filter by box and by band of altitudes |
@@ -256,7 +256,7 @@ What XCTrack works out or decides in flight, feature by feature, as its makers a
 
 ### The ten gaps most worth building for a cross-country pilot
 
-1. **One QNH, and airspace limits above sea level measured at it.** Set from the take-off's known height or a METAR, by hand if wanted. *Medium.*
+1. **One QNH, and airspace limits above sea level measured at it.** Set from the take-off's known height or a METAR, by hand if wanted. Built on 2026-11-22 except the METAR. *Small for what is left.*
 2. **Airspace that is switched on and off:** schedules, NOTAM activations, a warning 15, 10 and 5 minutes before the airspace the glider is in becomes active, and "all active" when the data is old. *Large: it needs a source of activations.*
 3. **Events with a sound, a spoken line and an action each:** airspace levels, start gate about to open, turnpoint reached, instrument lost, battery low, thermal begun and ended. *Medium.*
 4. **Other aircraft from the instrument, and each pilot once:** FLARM and FANET traffic through the vario's sentences, bound to names, merged with the same pilot on livetracking; a watchlist; messages. *Large.*
@@ -394,8 +394,8 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 
 **Which altitude a limit is held against.**
 - *How, publicly:* flight levels against standard pressure; limits above sea level against the barometric altitude at the QNH; limits above ground against the satellite altitude and terrain. A switch forces the satellite altitude for flight levels too, for competitions that rule so (W-nav2, A-p1, A-p2). The proximity reading can show a limit as written or turned into a satellite altitude with the QNH (W-nav2).
-- *Venti:* flight levels exact with a pressure altitude; limits above sea level against the cockpit's best altitude ([airspace.md](airspace.md)). A QNH since 2026-11-22 (`f9e8968`, below), which the limits are not measured at yet.
-- *Gap:* a QNH (see [Altitude](#altitude-and-qnh)) and the switch. *Medium with the QNH.*
+- *Venti:* since 2026-11-22 flight levels against the pressure altitude, exact; limits above sea level against the altitude at the QNH where the session has one and a fresh pressure, else against the cockpit's best altitude; limits above ground against the best altitude and the terrain ([airspace.md](airspace.md), decision log). The cockpit's QNH words say which the warnings went by.
+- *Gap:* the switch to force satellite altitude, and the proximity reading with a limit as written beside it turned into a satellite altitude. *Small.*
 
 **Active or not.**
 - *How, publicly:* airspace from XContest's service comes with schedules and, for some countries, NOTAM activations; it is refreshed at start and in flight (X-man; X-log, 0.9.4.5 and 1.0.0). When the data is too old, every airspace counts as active and the app says so. An airspace that will become active is drawn grey, and a glider inside it is warned 15, 10 and 5 minutes before. The pilot can set any airspace active or off, for the day or for good, and with the paid version move its floor or ceiling when a NOTAM covers part of it (A-p2).
@@ -465,8 +465,8 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 ### Altitude and QNH
 
 - *How, publicly:* one QNH for the whole app since 0.9.6 (X-log). It is set from the satellite altitude on the ground before take-off, by hand, or in the paid version from the nearest airport's METAR or weather station at start and about hourly (A-p1, W-fly, W-air). Readings: satellite altitude; barometric altitude at the QNH or at 1013.25 hPa; flight level; height above ground; height above take-off (W-fly).
-- *Venti:* `live/atmosphere.rs` gives pressure altitude; the cockpit has one "best altitude". A QNH since 2026-11-22 (`f9e8968`, below); no flight level reading.
-- *Gap:* since 2026-11-22 a QNH is worked out on the ground from the terrain's height under the glider, or set by hand, and the altitude at it is a reading (`CockpitView::qnh_hpa`, `qnh_altitude_m`). Still open: the airspace warnings measuring limits above sea level at it (the watch takes one altitude for those and for limits above ground: decision log), a QNH from a METAR, a flight level reading. *Medium.*
+- *Venti:* `live/atmosphere.rs` gives pressure altitude and the altitude at a QNH; the cockpit has one "best altitude", the one height over the terrain is measured with, and beside it the altitude at the QNH, which limits above sea level are measured against. No flight level reading.
+- *Gap:* since 2026-11-22 a QNH is worked out on the ground from the terrain's height under the glider, or set by hand, and the altitude at it is a reading (`CockpitView::qnh_hpa`, `qnh_altitude_m`), and the airspace warnings measure limits above sea level at it (the watch takes two altitudes: decision log), which `qnh_words` says. Still open: a QNH from a METAR, a flight level reading. *Medium.*
 
 ### Sound
 

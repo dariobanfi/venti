@@ -450,6 +450,7 @@ fn sample(time_s: f64, lat: f64, lon: f64, altitude_m: f64) -> Sample {
         time_s,
         position: GeoPoint::new(lat, lon).unwrap(),
         altitude_m,
+        qnh_altitude_m: None,
         pressure: Some(PressureAltitude::standard(altitude_m)),
         ground_elevation_m: None,
         ground_speed_ms: None,
@@ -494,6 +495,7 @@ fn the_warning_engine_flies_through_the_recorded_airspace() {
     assert_eq!(names(&warnings, Level::Near), ["CTR LOWI"]);
     let altitudes = Altitudes {
         altitude_m: 2300.0,
+        qnh_altitude_m: None,
         pressure: Some(PressureAltitude::standard(2300.0)),
         ground_elevation_m: None,
     };

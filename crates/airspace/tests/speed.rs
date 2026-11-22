@@ -172,6 +172,7 @@ fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration 
         .collect();
     let altitudes = Altitudes {
         altitude_m: 1800.0,
+        qnh_altitude_m: None,
         pressure: Some(PressureAltitude::standard(1800.0)),
         ground_elevation_m: Some(700.0),
     };
@@ -212,6 +213,7 @@ fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration 
             time_s: seconds,
             position: destination(centre, 170.0, 11.0 * seconds).unwrap(),
             altitude_m: altitude,
+            qnh_altitude_m: None,
             pressure: Some(PressureAltitude::standard(altitude)),
             ground_elevation_m: Some(700.0),
             ground_speed_ms: Some(11.0),

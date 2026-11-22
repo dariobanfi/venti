@@ -1,6 +1,6 @@
 # The connector
 
-A pilot who uses Claude or ChatGPT can add the Venti server to it as a *connector*. The assistant can then ask the server for the wind around a place, the airspace over it, the flying sites there and the flights pilots made public, and answer questions such as "how is the wind on the Zugspitze, and may I fly there?" or "which take-offs near Innsbruck face west?" with the server's data instead of guesses.
+A pilot who uses Claude or ChatGPT can add the Venti server to it as a *connector*. The assistant can then ask the server for the wind around a place, the airspace over it, the flying sites there and the flights pilots made public, and answer questions such as "how is the wind on the Zugspitze, and may I fly there?" or "which take-offs near Innsbruck face west?" with the server's data instead of guesses. Since 2026-11-22 it can also read the pilot's own logbook on Venti, the private flights too, once the pilot has signed in on Venti's own page and agreed ([The pilot's own logbook](#the-pilots-own-logbook)).
 
 The project pays for none of this. The question is answered by the pilot's own assistant, on the pilot's own plan. Only the assistant's requests for data come to the Venti server, and they are answered from what the server has collected anyway.
 
@@ -16,11 +16,12 @@ The protocol between an assistant and such a server is the Model Context Protoco
 | Limits on size, time and requests per address | Built |
 | Tested with real client programs | Yes, one or more for each revision; see [How it was tested](#how-it-was-tested) |
 | Tried in Claude and in ChatGPT themselves | **No.** Both reach a connector from their own servers over HTTPS, and the project has no server on the internet yet. *To verify* on the first installation |
-| Sign-in, and with it a pilot's own logbook and adding a site | Not built; see [Not built](#not-built) |
+| A pilot's own logbook, for an assistant the pilot agreed to on Venti's own page (OAuth 2.1) | Built 2026-11-22, on the server; see [The pilot's own logbook](#the-pilots-own-logbook). Tested through the server's own router and with no real assistant: *to verify* with Claude and ChatGPT over HTTPS |
+| Adding or correcting a site through the connector | Not built; see [Not built](#not-built) |
 
 ## Adding it to an assistant
 
-The connector's address is the server's address followed by `/mcp`, for example `https://venti.example/mcp`. There is nothing to sign in to and no key.
+The connector's address is the server's address followed by `/mcp`, for example `https://venti.example/mcp`. For the public tools there is nothing to sign in to and no key. The steps below were written before the logbook's tools were there, and describe adding the connector without sign-in; what an assistant shows when it finds that the connector also offers a sign-in is *to verify* with each of them.
 
 **Claude.** Anthropic's help page [Getting started with custom connectors using remote MCP](https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp) was read on 2026-11-19, through a tool that summarises pages, so the names of buttons below are *to verify* on the page itself:
 
@@ -38,7 +39,7 @@ The same page says that custom connectors are available on every plan, that a Fr
 
 ## The tools
 
-Ten tools, all of which only read, defined once in the crate `venti-tools`. The first three are the app's own assistant's too: the names, the descriptions the model reads, the arguments and the text of the results are the same whichever way a pilot asks. The other seven read the community's data (`venti_tools::community`) and are the connector's: they take what the API takes, a box, an identifier, a handle, a cursor, and each is answered by the same code that answers the API's request it mirrors, never by a second way into the database. The app's assistant has its own two tools for sites and flights, which ask around a place (`sites_near`, `public_flights_near`).
+Thirteen tools, all of which only read, defined once in the crate `venti-tools`. Ten are public and are in the table below; three read one pilot's own logbook and are [further down](#the-pilots-own-logbook). The first three are the app's own assistant's too: the names, the descriptions the model reads, the arguments and the text of the results are the same whichever way a pilot asks. The other seven read the community's data (`venti_tools::community`) and are the connector's: they take what the API takes, a box, an identifier, a handle, a cursor, and each is answered by the same code that answers the API's request it mirrors, never by a second way into the database. The app's assistant has its own two tools for sites and flights, which ask around a place (`sites_near`, `public_flights_near`).
 
 | Tool | What it answers | Arguments |
 |---|---|---|
@@ -350,9 +351,28 @@ The last one is made exact for each place. The server holds airspace for one are
 
 What an airspace means for a paraglider is not left to the model. It is read from the table the app's cockpit warns by ([airspace.md](airspace.md#which-airspaces-warn)), which was written for Germany and Austria; what it says elsewhere is [there](airspace.md#outside-germany-and-austria) too.
 
+### The pilot's own logbook
+
+Built on 2026-11-22 (owner decision 16: everything is open through the connector and the API "except flights that users keep private", and those a pilot's own assistant may read once the pilot agrees).
+
+| Tool | What it answers | Arguments |
+|---|---|---|
+| `logbook_statistics` | The pilot's flights on Venti added up: in all, by year, for the last twelve months, by glider, and the bests | none |
+| `list_flights` | The pilot's flights, newest first, each with its day, airtime, score, height, glider and who can see it (private, by link, public) | `year`; `limit`, 20 if left out, 100 at most |
+| `get_flight` | One of the pilot's own flights: take-off and landing with time and place, airtime, heights, climb, score, who can see it | `flight_id` from `list_flights` |
+
+They are the app's own assistant's three tools, with the same names, descriptions and arguments. In the app they are answered from the logbook on the device; here from what the server holds of the pilot's flights, by the methods that answer `GET /v1/flights` and `GET /v1/flights/{id}` (`crates/server/src/api/logbook.rs`). The server keeps a flight's summary and its file and not the thermals and glides the app works out on the device; a result says so. A question about the whole logbook reads the newest 2,000 flights and says so if there are more.
+
+- **Whose logbook.** The account of the token the request carries, and no other: no argument names an account. `get_flight` for a flight of another pilot answers as for a flight that is not there, also when that flight is public; public flights are read with `public_flight`.
+- **Without a token** a call of one of the three is answered `401` with `WWW-Authenticate: Bearer resource_metadata="https://venti.example/.well-known/oauth-protected-resource/mcp", scope="flights:read"`, which is how the protocol tells an assistant where to send the pilot. [api.md](api.md#connecting-an-assistant-to-a-pilots-logbook) has the steps from there to a token. Listing the tools and every public tool ask for nothing.
+- **With a token** every answer carries `Cache-Control: no-store`. The public tools answer exactly as without one: a private flight, or one shared by link, is in none of their answers, whoever asks.
+- **A token that is not good** (ended, withdrawn, not given out for this connector: the app's own session, a token made by hand for the API, a refresh token) is answered `401` with `error="invalid_token"` whatever the request asks for, as the protocol's chapter requires. So a request to the connector either carries a token that was given out for it or none.
+- **The list of tools is the same for every caller**, so the newest revision's list may be kept for anyone (`cacheScope` `public`). The three tools are not listed by a server that is reached over plain HTTP from another machine: such a server gives out no tokens.
+- **A token's budget**, 3,600 requests an hour as at the API, is counted for every request that carries it, beside the address's.
+
 ### What is not offered
 
-A pilot's own logbook, and adding or correcting a site. The app's assistant has tools for the logbook and answers them on the phone. Over the connector both need the assistant to act for one pilot, with a [token the pilot gives it](api.md#tokens-for-other-programs) or by OAuth, which is [not built](#not-built) yet and is coming. Nothing the connector offers changes anything on the server. A site's confirmations one by one (who said what, `GET /v1/sites/{id}/confirmations`) are not a tool: `site` gives their count and the newest day.
+Adding or correcting a site: that needs a scope that writes, and the authorization server gives out none. Nothing the connector offers changes anything on the server. A site's confirmations one by one (who said what, `GET /v1/sites/{id}/confirmations`) are not a tool: `site` gives their count and the newest day.
 
 ## What the server learns
 
@@ -361,12 +381,12 @@ From a request to the connector the server learns two things:
 - **An address.** For Claude it is an address of Anthropic's servers, not the pilot's: Claude calls a connector from Anthropic's infrastructure (their help page, above). The same is expected of ChatGPT. *To verify* in the server's log on the first installation. A program on the pilot's own computer shows the computer's address.
 - **The place of the question:** two coordinates and a radius, a box, a station's or a site's identifier and a number of hours, or a pilot's handle, a flight's identifier, days and a cursor.
 
-Nothing about the person. There is no account behind a request, no token and no cookie. A session token of the Venti app that is sent along is not looked at, so nothing a pilot keeps on the server can be reached this way, and the endpoint makes no promise of privacy that it would have to keep: it answers everyone the same, from data that anyone may read through the [API](api.md).
+Nothing about the person, as long as the request carries no token: then there is no account behind it and no cookie, and the public tools answer everyone the same, from data that anyone may read through the [API](api.md). A request with a token that the authorization server gave out for the connector acts for that token's account: the server then knows which pilot's assistant asks, notes the day of the token's latest use, as for every token, and answers the logbook's tools from that pilot's flights. The token is used for nothing else and passed on to nothing.
 
 What is kept of it:
 
 - At the usual log level, nothing per request. One line is written when an address has sent too many requests, with that address: one for the minute it is refused in, however often it asks again.
-- At the `debug` level, a line with the method and the path of each request and the name of the tool. Never a header, never the arguments.
+- At the `debug` level, a line with the method and the path of each request and the name of the tool. Never a header, so never a token, and never the arguments.
 - In memory, for a minute: how many requests each address has sent.
 
 The newest revision of the protocol has a client name itself and its version in every request. The server reads that and keeps nothing of it.
@@ -375,7 +395,7 @@ What the pilot wrote to the assistant never reaches the Venti server. It stays b
 
 ## What a request may cost
 
-The endpoint is open to the internet without sign-in, so everything about a request is bounded:
+The endpoint is open to the internet, and all but three of its tools without sign-in, so everything about a request is bounded:
 
 | What | Bound | The answer beyond it |
 |---|---|---|
@@ -384,6 +404,7 @@ The endpoint is open to the internet without sign-in, so everything about a requ
 | Requests from one address | 120 a minute | `429` with `Retry-After` |
 | Requests from one IPv6 /48 network | 480 a minute | `429` with `Retry-After` |
 | Tool calls in one request | 16, and each counts as a request. Only the oldest revision can send more than one | `400` |
+| Requests with one token | 3,600 an hour, the budget a token has at the [API](api.md#limits), whatever they ask for | `429` with `Retry-After` |
 | Calls of `site_flights`, `takeoff_candidates` and `public_flights` from one address | Counted with the API's reads of public flights from the same address, in one budget: [600 an hour](api.md#how-often-an-address-may-read), 2,400 for an IPv6 /48 network | A result marked `isError` that says to try later |
 | The box of `sites_in_box` | The API's: a box with more than 5000 sites is refused; the result lists the nearest 40 | A result that says to ask for a smaller box |
 | The box of `takeoff_candidates` | The API's: 2 degrees of latitude and of longitude | The same |
@@ -425,7 +446,7 @@ curl http://127.0.0.1:8080/mcp --header 'Content-Type: application/json' --data 
     "capabilities": {
       "tools": {}
     },
-    "instructions": "Venti is a free app for paraglider pilots. This connector answers from public data the Venti server holds: wind measured by weather stations, airspace, flying sites (OpenStreetMap's, those of Venti's partners, and on request the places from pilots, which are not official), and the flights pilots made public. Give places as coordinates. Say how old a reading is, name the source of the data and pass on each source's licence and notice. Airspace answers are advice from data that is not certified and never a clearance: nothing here knows what is active today. A site is not permission to fly there. The connector is open to everyone and knows nothing about the person asking.",
+    "instructions": "Venti is a free app for paraglider pilots. This connector answers from public data the Venti server holds: wind measured by weather stations, airspace, flying sites (OpenStreetMap's, those of Venti's partners, and on request the places from pilots, which are not official), and the flights pilots made public. Give places as coordinates. Say how old a reading is, name the source of the data and pass on each source's licence and notice. Airspace answers are advice from data that is not certified and never a clearance: nothing here knows what is active today. A site is not permission to fly there. Those tools are open to everyone and know nothing about the person asking. Three more read one pilot's own logbook on Venti, the private flights too: logbook_statistics, list_flights and get_flight. They work only after that pilot has signed in on Venti's own page and agreed, and they only read. What they return is that pilot's own: use it to answer the pilot, and do not pass it on to anyone else unasked.",
     "protocolVersion": "2025-11-25",
     "serverInfo": {
       "name": "venti",
@@ -462,7 +483,7 @@ curl http://127.0.0.1:8080/mcp --header 'Content-Type: application/json' \
     "capabilities": {
       "tools": {}
     },
-    "instructions": "Venti is a free app for paraglider pilots. This connector answers from public data the Venti server holds: wind measured by weather stations, airspace, flying sites (OpenStreetMap's, those of Venti's partners, and on request the places from pilots, which are not official), and the flights pilots made public. Give places as coordinates. Say how old a reading is, name the source of the data and pass on each source's licence and notice. Airspace answers are advice from data that is not certified and never a clearance: nothing here knows what is active today. A site is not permission to fly there. The connector is open to everyone and knows nothing about the person asking.",
+    "instructions": "Venti is a free app for paraglider pilots. This connector answers from public data the Venti server holds: wind measured by weather stations, airspace, flying sites (OpenStreetMap's, those of Venti's partners, and on request the places from pilots, which are not official), and the flights pilots made public. Give places as coordinates. Say how old a reading is, name the source of the data and pass on each source's licence and notice. Airspace answers are advice from data that is not certified and never a clearance: nothing here knows what is active today. A site is not permission to fly there. Those tools are open to everyone and know nothing about the person asking. Three more read one pilot's own logbook on Venti, the private flights too: logbook_statistics, list_flights and get_flight. They work only after that pilot has signed in on Venti's own page and agreed, and they only read. What they return is that pilot's own: use it to answer the pilot, and do not pass it on to anyone else unasked.",
     "resultType": "complete",
     "supportedVersions": [
       "2026-07-28",
@@ -513,7 +534,8 @@ Not tested: Claude and ChatGPT themselves (above); the MCP Inspector; voice.
 
 ## Not built
 
-- **Sign-in.** A pilot's logbook over the connector, and adding a site through it, need the assistant to act for one account: with a token the pilot gives it, or by OAuth, the protocol's way, and [architecture.md](architecture.md#bring-your-own-ai) lists what that step needs. Both are coming. Until then the connector knows nobody.
+- **Adding a site through the connector.** It needs a token that may write, and the authorization server gives out tokens that read flights and nothing else ([architecture.md](architecture.md#bring-your-own-ai)).
+- **The logbook's tools with a real assistant.** They were called through the server's own router by the tests in `crates/server/tests/oauth.rs`. Claude, ChatGPT and the MCP Inspector have not connected: *to verify* over HTTPS on the first installation.
 - **Resources and prompts,** the protocol's other two offerings. Nothing here needs them yet.
 - **Streams and sessions.** No tool takes long enough to report progress, and the server has nothing to tell a client unasked.
 - **Forecasts and routes.** The connector offers what the server has without fetching: live wind, airspace, the community's sites and the public flights. A forecast is fetched when asked for, which no tool call may make the server do.

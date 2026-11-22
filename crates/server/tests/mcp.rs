@@ -200,6 +200,7 @@ async fn the_tools_are_the_apps_own_definitions() {
         .iter()
         .chain(&airspace::AIRSPACE_TOOLS)
         .chain(&community::COMMUNITY_TOOLS)
+        .chain(&venti_tools::TOOLS)
         .collect();
 
     for revision in OLDER.into_iter().chain([NEWEST]) {
@@ -225,9 +226,13 @@ async fn the_tools_are_the_apps_own_definitions() {
                 "site_flights",
                 "takeoff_candidates",
                 "public_flights",
-                "public_flight"
+                "public_flight",
+                "logbook_statistics",
+                "list_flights",
+                "get_flight"
             ]
         );
+        assert_eq!(listed.len(), defined.len());
         for (tool, definition) in listed.iter().zip(&defined) {
             assert_eq!(tool["description"], definition.description, "{revision}");
             assert_eq!(tool["inputSchema"], definition.input_schema());
@@ -235,12 +240,10 @@ async fn the_tools_are_the_apps_own_definitions() {
             assert_eq!(tool["annotations"]["readOnlyHint"], true);
             assert_eq!(tool["annotations"]["openWorldHint"], false);
         }
-        // Nothing of a pilot's own is offered: the logbook's tools are the
-        // app's, and stay there.
-        for private in venti_tools::TOOLS {
-            assert!(!names.contains(&private.name), "{}", private.name);
-        }
-        // The newest revision says how long the list may be kept.
+        // The newest revision says how long the list may be kept. It is the
+        // same list for every caller, the tools of a pilot's own logbook
+        // included, so anyone may keep it for anyone
+        // (`the_list_of_tools_is_the_same_for_everyone` in `oauth.rs`).
         if revision == NEWEST {
             assert_eq!(result["resultType"], "complete");
             assert_eq!(result["ttlMs"], 3_600_000);
@@ -443,7 +446,8 @@ async fn the_older_revisions_begin_with_initialize() {
         assert_eq!(result["serverInfo"]["name"], "venti");
         let instructions = result["instructions"].as_str().unwrap();
         assert!(instructions.contains("never a clearance"), "{instructions}");
-        assert!(instructions.contains("knows nothing about the person"));
+        assert!(instructions.contains("know nothing about the person asking"));
+        assert!(instructions.contains("signed in on Venti's own page and agreed"));
         // No session is begun: the server remembers nothing of a client.
         assert!(!answer.headers.contains_key("mcp-session-id"));
         if revision == "2025-11-25" {
@@ -641,33 +645,37 @@ async fn there_is_no_stream_and_no_session() {
 
 // --- Who may call --------------------------------------------------------------
 
+/// The public tools know nobody: they ask for no sign-in and set no
+/// cookie. What a token changes, and what the tools of a pilot's own
+/// logbook ask for, is tested in `oauth.rs`.
 #[tokio::test]
-async fn the_connector_knows_nobody() {
+async fn the_public_tools_know_nobody() {
     let router = recorded().await;
     let (name, input, _) = calls().into_iter().next().unwrap();
 
-    // A session token changes nothing: it is not looked at.
     let plain = newest("tools/call", call(name, input.clone()))
         .send(&router)
         .await;
-    let signed = newest("tools/call", call(name, input))
-        .token(dev::DEMO_TOKEN)
-        .send(&router)
-        .await;
-    assert_eq!(plain.body, signed.body);
-    assert_eq!(signed.status, StatusCode::OK);
-    // Neither is a wrong one refused: there is nothing to sign in to.
-    let wrong = list().token("venti_not-a-token").send(&router).await;
-    assert_eq!(wrong.status, StatusCode::OK);
-
-    // The server sets no cookie and asks for no sign-in.
-    for answer in [&plain, &signed, &wrong] {
-        assert!(!answer.headers.contains_key(header::SET_COOKIE));
-        assert!(!answer.headers.contains_key(header::WWW_AUTHENTICATE));
-    }
+    assert_eq!(plain.status, StatusCode::OK);
+    assert!(!plain.headers.contains_key(header::SET_COOKIE));
+    assert!(!plain.headers.contains_key(header::WWW_AUTHENTICATE));
     // The demo account's flights are not in anything the tools return.
-    let text = String::from_utf8(signed.body).unwrap();
-    assert!(!text.contains(dev::DEMO_HANDLE), "{text}");
+    assert!(!plain.text().contains(dev::DEMO_HANDLE), "{}", plain.text());
+
+    // A token that was not given out for the connector is no token here,
+    // and its sender is told so, as the protocol asks: the app's own
+    // session, a token a pilot made by hand for the API, and nonsense.
+    for other in [dev::DEMO_TOKEN, dev::DEMO_ACCESS_TOKEN, "venti_not-a-token"] {
+        for request in [newest("tools/call", call(name, input.clone())), list()] {
+            let answer = request.token(other).send(&router).await;
+            let (code, _) = error_of(&answer, StatusCode::UNAUTHORIZED);
+            assert_eq!(code, 401);
+            let challenge = answer.header(header::WWW_AUTHENTICATE);
+            assert!(challenge.contains("error=\"invalid_token\""), "{challenge}");
+            assert!(!answer.headers.contains_key(header::SET_COOKIE));
+            assert!(!answer.text().contains(dev::DEMO_HANDLE));
+        }
+    }
 }
 
 #[tokio::test]
@@ -1187,6 +1195,7 @@ fn the_documentation_shows_the_connector_as_it_is() {
         .iter()
         .chain(&airspace::AIRSPACE_TOOLS)
         .chain(&community::COMMUNITY_TOOLS)
+        .chain(&venti_tools::TOOLS)
     {
         assert!(
             docs.contains(&format!("| `{}` |", tool.name)),

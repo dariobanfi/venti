@@ -174,6 +174,10 @@ pub struct AccessToken {
     pub last_used_on: Option<NaiveDate>,
     /// The moment from which it is no longer good. `None` never ends.
     pub expires_at: Option<Timestamp>,
+    /// What it is bound to, for a token that came of the pilot's agreement
+    /// on the server's own page ([`crate::OauthClient`]). `None` for a
+    /// token the pilot made by hand.
+    pub client: Option<crate::TokenClient>,
 }
 
 /// An invite to create.

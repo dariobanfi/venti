@@ -22,7 +22,9 @@ pub(super) struct Accounts {
     /// By the hash of the code.
     invites: BTreeMap<SecretHash, Invite>,
     /// The tokens pilots gave to other programs, by token identifier.
-    tokens: BTreeMap<String, (AccessToken, SecretHash)>,
+    pub(super) tokens: BTreeMap<String, (AccessToken, SecretHash)>,
+    /// What the authorization server keeps beside them.
+    pub(super) oauth: super::oauth::Oauth,
     /// Account identifier by the subject of its Google account.
     google: BTreeMap<String, String>,
 }
@@ -203,6 +205,15 @@ impl Accounts {
         self.delete_sessions(account_id);
         self.tokens
             .retain(|_, (token, _)| token.account_id != account_id);
+        self.oauth
+            .codes
+            .retain(|_, entry| entry.code.account_id != account_id);
+        self.forget_refresh_tokens_without_a_token();
+    }
+
+    /// Whether there is an account with this identifier.
+    pub(super) fn has(&self, account_id: &str) -> bool {
+        self.accounts.contains_key(account_id)
     }
 
     pub(super) fn create_access_token(
@@ -212,7 +223,8 @@ impl Accounts {
         most: usize,
     ) -> bool {
         let held = self.access_tokens_of(&token.account_id).len();
-        if held >= most || !self.accounts.contains_key(&token.account_id) {
+        if held >= most || token.client.is_some() || !self.accounts.contains_key(&token.account_id)
+        {
             return false;
         }
         self.tokens
@@ -230,6 +242,13 @@ impl Accounts {
             .values_mut()
             .find(|(_, stored)| stored == secret)?;
         if token.expires_at.is_some_and(|end| end <= now) {
+            return None;
+        }
+        if token
+            .client
+            .as_ref()
+            .is_some_and(|client| client.access_until <= now)
+        {
             return None;
         }
         let today = now.date_naive();
@@ -260,6 +279,7 @@ impl Accounts {
             .is_some_and(|(token, _)| token.account_id == account_id);
         if owned {
             self.tokens.remove(token_id);
+            self.forget_refresh_tokens_without_a_token();
         }
         owned
     }

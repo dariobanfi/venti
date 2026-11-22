@@ -272,7 +272,8 @@ pub use thermals::{
 };
 pub use token::{
     ACCESS_TOKEN_PREFIX, AccessToken, AccessTokensResponse, CreateAccessTokenRequest,
-    CreateAccessTokenResponse, MAX_TOKEN_NAME_LENGTH, Scope, TokenNameError, parse_token_name,
+    CreateAccessTokenResponse, MAX_TOKEN_NAME_LENGTH, Scope, TokenClient, TokenNameError,
+    parse_token_name,
 };
 
 /// The window of observations returned when a request names no start, in hours.

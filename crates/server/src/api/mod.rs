@@ -59,7 +59,9 @@
 //! an address the adapter makes from three checked numbers.
 //!
 //! The connector ([`mcp`]) offers what anyone may read to a pilot's own
-//! assistant, over the Model Context Protocol. It is not part of `/v1`.
+//! assistant, over the Model Context Protocol, and a pilot's own logbook
+//! to an assistant that pilot agreed to on the server's own page
+//! ([`oauth`], the authorization server). Neither is part of `/v1`.
 
 mod account;
 mod air;
@@ -84,8 +86,10 @@ mod imagery;
 mod kept_sites;
 mod live;
 mod log;
+mod logbook;
 mod maps;
 mod mcp;
+mod oauth;
 mod observations;
 mod openapi;
 mod pilots;
@@ -151,6 +155,10 @@ use crate::radar::Radar;
 use crate::thermals::ThermalMap;
 
 pub use mcp::MCP_PATH;
+pub use oauth::{
+    AUTHORIZATION_SERVER_PATH, AUTHORIZE_PATH, PROTECTED_RESOURCE_MCP_PATH,
+    PROTECTED_RESOURCE_PATH, REGISTER_PATH, REVOKE_PATH, TOKEN_PATH,
+};
 pub use openapi::OPENAPI_PATH;
 
 /// The largest request body accepted where a request carries JSON or
@@ -296,6 +304,12 @@ pub struct Api<S> {
     public_flight_reads: Throttle,
     /// Requests made with a token for a program, by token.
     token_requests: Throttle,
+    /// Programs registered with the authorization server, by client
+    /// address.
+    client_registrations: Throttle,
+    /// Requests to the authorization server's other endpoints, by client
+    /// address.
+    oauth_requests: Throttle,
     /// Where requests come from, to notice a setup that hides it.
     clients: clients::ClientWatch,
     /// Where forecasts come from, on a server that was told where its
@@ -429,6 +443,16 @@ impl<S: Store> Api<S> {
             token_requests: Throttle::new(
                 "tokens for programs that made requests",
                 limits.token_window,
+                limits.watched_keys,
+            ),
+            client_registrations: Throttle::new(
+                "addresses that registered programs with the authorization server",
+                limits.registration_window,
+                limits.watched_keys,
+            ),
+            oauth_requests: Throttle::new(
+                "addresses that asked the authorization server",
+                limits.connector_window,
                 limits.watched_keys,
             ),
             clients: clients::ClientWatch::default(),
@@ -601,6 +625,9 @@ impl<S: Store> Api<S> {
     ///   people, in HTML, errors included.
     /// - The connector: it answers assistants, in the protocol's own shape,
     ///   errors included, with a deadline and a body limit of its own.
+    /// - The authorization server ([`oauth`]): it answers programs in
+    ///   OAuth's shapes and a pilot in HTML, with the small limit on the
+    ///   body and the deadline.
     /// - A pilot's archive ([`archive`]): as the files of a map region
     ///   below, never compressed, because a ZIP file is compressed
     ///   already; with a deadline of its own and the small limit on the
@@ -613,9 +640,10 @@ impl<S: Store> Api<S> {
     ///   download of some gigabytes takes as long as the client's network
     ///   needs.
     ///
-    /// The request log names the method and the path and never a header,
-    /// so no token reaches it; a password travels in a body, which is not
-    /// logged either. Of a path that names a live track it leaves the
+    /// The request log names the method and the path and never a header
+    /// or a query string, so no token reaches it, and neither does what a
+    /// program sends along to the page a pilot agrees on; a password and a
+    /// code travel in a body, which is not logged either. Of a path that names a live track it leaves the
     /// track's identifier out, and of a path under a group everything
     /// that names the group, a plan or a member. How much is written
     /// about requests that fail is said in [`log`].
@@ -848,6 +876,33 @@ impl<S: Store> Api<S> {
             .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
             .layer(deadline(DEADLINE));
 
+        // The authorization server: what it says of itself, the page a
+        // pilot agrees on, and the endpoints for programs. They answer in
+        // OAuth's own shapes and, for the page, in HTML.
+        let authorization = Routes::new(&mut routes)
+            .route(
+                oauth::PROTECTED_RESOURCE_PATH,
+                get(oauth::protected_resource::<S>),
+            )
+            .route(
+                oauth::PROTECTED_RESOURCE_MCP_PATH,
+                get(oauth::protected_resource::<S>),
+            )
+            .route(
+                oauth::AUTHORIZATION_SERVER_PATH,
+                get(oauth::authorization_server::<S>),
+            )
+            .route(oauth::REGISTER_PATH, post(oauth::register::<S>))
+            .route(
+                oauth::AUTHORIZE_PATH,
+                get(oauth::authorize::<S>).post(oauth::decide::<S>),
+            )
+            .route(oauth::TOKEN_PATH, post(oauth::token::<S>))
+            .route(oauth::REVOKE_PATH, post(oauth::revoke::<S>))
+            .done()
+            .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
+            .layer(deadline(DEADLINE));
+
         let connector = Routes::new(&mut routes)
             .route(MCP_PATH, any(mcp::endpoint::<S>))
             .done()
@@ -895,6 +950,7 @@ impl<S: Store> Api<S> {
             ))
             .layer(axum::middleware::from_fn(shape::uniform_errors))
             .merge(share)
+            .merge(authorization)
             .merge(connector)
             .layer(axum::middleware::from_fn_with_state(
                 api.clone(),

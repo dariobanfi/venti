@@ -392,6 +392,62 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn create_oauth_client(
+        &self,
+        _: &crate::OauthClient,
+        _: usize,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn oauth_client(&self, _: &str) -> Result<Option<crate::OauthClient>, StoreError> {
+        self.fail().await
+    }
+
+    async fn create_authorization_code(
+        &self,
+        _: &SecretHash,
+        _: &crate::AuthorizationCode,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn authorization_code(
+        &self,
+        _: &SecretHash,
+        _: Timestamp,
+    ) -> Result<Option<crate::StoredCode>, StoreError> {
+        self.fail().await
+    }
+
+    async fn redeem_authorization_code(
+        &self,
+        _: &SecretHash,
+        _: &crate::NewGrant,
+        _: Timestamp,
+        _: usize,
+    ) -> Result<crate::Redeemed, StoreError> {
+        self.fail().await
+    }
+
+    async fn refresh_grant(
+        &self,
+        _: &SecretHash,
+        _: &str,
+        _: &crate::Rotation,
+        _: Timestamp,
+    ) -> Result<crate::Refreshed, StoreError> {
+        self.fail().await
+    }
+
+    async fn revoke_grant(&self, _: &SecretHash, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn prune_oauth(&self, _: Timestamp, _: Timestamp) -> Result<u64, StoreError> {
+        self.fail().await
+    }
+
     async fn keep_site(
         &self,
         _: &str,

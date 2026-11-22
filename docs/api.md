@@ -21,6 +21,8 @@ For the maker of a program that is not one of Venti's apps: a page, a script, an
 
 **Acting for a pilot.** A pilot makes a token for the program in their account, limited to scopes, and gives the program its secret; the program sends it as `Authorization: Bearer venti_pat_…`. The program never sees the pilot's password, and the pilot withdraws the token at any time. [Tokens for other programs](#tokens-for-other-programs) has the scopes, which request needs which, and the errors a program meets.
 
+**An assistant acting for a pilot, without a copied secret.** A pilot's own assistant reads the pilot's logbook over the [connector](mcp.md), after the pilot signed in on a page of the server and agreed there: OAuth 2.1 with PKCE, a token that reads flights and nothing else, withdrawn like any other. [Connecting an assistant to a pilot's logbook](#connecting-an-assistant-to-a-pilots-logbook) has it step by step. Such a token is for the connector and is no token at `/v1`.
+
 **The bounds.** Open does not mean unbounded. An answer `429` carries `Retry-After`: wait that long. Ask again with `If-None-Match` and the `ETag` of the answer you kept, and an unchanged one costs a `304`; `Cache-Control` says for how long an answer may be reused without asking ([Caching](#rules-that-hold-for-every-endpoint)). The bounds that are counted today: a token for a program makes [3,600 requests an hour](#limits), its own budget, and every answer it gets says in `RateLimit` what is left; [600 reads an hour per address](#how-often-an-address-may-read) of public flights as data without a token, said the same way; forecasts of places the server has to fetch, per address ([forecast](#get-v1forecastlatlon)); a box that holds too much is refused with `box_too_large`; a page is 100 entries at most; and everything an account writes is counted per account, which a token shares ([Tokens](#tokens-for-other-programs)). Reads that have no bound today may get one.
 
 **What the licences ask.** The data is not Venti's to give away without conditions, and the conditions travel in the answers:
@@ -5133,12 +5135,190 @@ Needs a session's token. Every token the account holds, the newest first. This i
 | `created_at` | When it was made |
 | `last_used_on` | The day, in UTC, on which it was last used. Left out until it is used. The server keeps the day and nothing finer, and no address |
 | `expires_at` | From when it is no longer good. Left out for a token that never ends. A token whose end has come stays in the list until it is withdrawn |
+| `client` | Only on a token the pilot did not make by hand: it came of the pilot's agreement on the server's page with a program that asked there, an assistant above all ([Connecting an assistant to a pilot's logbook](#connecting-an-assistant-to-a-pilots-logbook)). `id` is the identifier the server gave that program when it registered, `resource` the one address the token is good at, the connector. On such a token `name` is what the program calls itself, which nobody checked; `expires_at` is when it ends unless the program uses it before, and moves on with each use; and it ends by itself then, without staying in the list |
 
 ### `DELETE /v1/account/tokens/{id}`
 
-Needs a session's token. Withdraws one token, by the `id` from the list. The answer is `204` with no body, and the token's very next request is answered `401`. A token the account does not have gives `404` with `token_not_found`.
+Needs a session's token. Withdraws one token, by the `id` from the list. The answer is `204` with no body, and the token's very next request is answered `401`. A token the account does not have gives `404` with `token_not_found`. A token that came of an agreement with a program is withdrawn the same way: the program's access token is refused at the connector from the next request, and its refresh token gets it no new one.
 
 Changing the password and signing out everywhere are about sessions and leave the tokens as they are. Deleting the account withdraws them all.
+
+## Connecting an assistant to a pilot's logbook
+
+A pilot's own assistant (Claude, ChatGPT, any program that speaks the Model Context Protocol) reads that pilot's logbook over the [connector](mcp.md#the-pilots-own-logbook), the private flights too, without the pilot copying a secret: the assistant sends the pilot to a page of the Venti server, the pilot signs in there and agrees, and the assistant is given a token that reads flights and does nothing else, which the pilot withdraws at any time. This is OAuth 2.1 with PKCE, as the protocol's authorization chapter asks for it, and the Venti server is both the resource (the connector) and the authorization server.
+
+Built on the server on 2026-11-22 (owner decision 16), against the protocol's revision 2026-07-28 and the draft after it, the OAuth 2.1 draft (draft-ietf-oauth-v2-1-13), RFC 9728, RFC 8414, RFC 8707, RFC 7636, RFC 7591, RFC 7009 and RFC 9207, each read on that day. **Nothing is deployed and no assistant has been connected: *to verify* with Claude and ChatGPT over HTTPS.** What was run is the server's own tests, which play the program, the pilot's browser and the attacker through the real router (`crates/server/tests/oauth.rs`).
+
+These endpoints are not part of `/v1` and not in [openapi.json](openapi.json): they answer in OAuth's own shapes, and describe themselves in the two documents of steps 2 and 3. A server that is reached over plain HTTP from another machine offers none of this: every address below answers `404` there, and its connector lists no logbook tools.
+
+**What every public tool and every read of the API keeps:** they stay open without a token, at the same address. Only the three tools of the logbook ask for one.
+
+### How an assistant connects, step by step
+
+1. **It asks for the logbook and is told where a token is got.** A call of `logbook_statistics`, `list_flights` or `get_flight` at `/mcp` without a token is answered:
+
+   ```
+   HTTP/1.1 401 Unauthorized
+   WWW-Authenticate: Bearer resource_metadata="https://venti.example/.well-known/oauth-protected-resource/mcp", scope="flights:read"
+   ```
+
+2. **It reads what the connector is and who gives out tokens for it** (RFC 9728): `GET /.well-known/oauth-protected-resource/mcp`, which is also served at `/.well-known/oauth-protected-resource`.
+
+   ```json
+   {
+     "resource": "https://venti.example/mcp",
+     "authorization_servers": ["https://venti.example"],
+     "scopes_supported": ["flights:read"],
+     "bearer_methods_supported": ["header"],
+     "resource_name": "Venti"
+   }
+   ```
+
+3. **It reads the authorization server's description** (RFC 8414): `GET /.well-known/oauth-authorization-server`.
+
+   ```json
+   {
+     "issuer": "https://venti.example",
+     "authorization_endpoint": "https://venti.example/oauth/authorize",
+     "token_endpoint": "https://venti.example/oauth/token",
+     "registration_endpoint": "https://venti.example/oauth/register",
+     "revocation_endpoint": "https://venti.example/oauth/revoke",
+     "scopes_supported": ["flights:read"],
+     "response_types_supported": ["code"],
+     "response_modes_supported": ["query"],
+     "grant_types_supported": ["authorization_code", "refresh_token"],
+     "token_endpoint_auth_methods_supported": ["none"],
+     "revocation_endpoint_auth_methods_supported": ["none"],
+     "code_challenge_methods_supported": ["S256"],
+     "authorization_response_iss_parameter_supported": true,
+     "client_id_metadata_document_supported": false
+   }
+   ```
+
+4. **It registers itself** ([`POST /oauth/register`](#post-oauthregister)) and gets a `client_id` and no secret.
+5. **It sends the pilot's browser to the page** ([`GET /oauth/authorize`](#get-oauthauthorize)) with its `client_id`, the address to come back to, a `state` and a PKCE challenge of its own making, and `resource=https://venti.example/mcp`.
+6. **The pilot signs in on the page and agrees.** The browser is sent back to the program's address with `code`, the program's `state`, and `iss=https://venti.example`, which the program compares with the `issuer` of step 3 (RFC 9207). A pilot who refuses is sent back with `error=access_denied`.
+7. **It exchanges the code** ([`POST /oauth/token`](#post-oauthtoken)) within two minutes, with the verifier of its challenge, for an access token (`venti_oat_…`, good for an hour) and a refresh token (`venti_ort_…`).
+8. **It calls the connector** with `Authorization: Bearer venti_oat_…` on every request.
+9. **When the access token has ended** (`401` with `error="invalid_token"`), it uses the refresh token at the same endpoint and gets a new pair. The refresh token it used is worth nothing from then on.
+10. **It ends** when the pilot withdraws the token in their account ([`DELETE /v1/account/tokens/{id}`](#delete-v1accounttokensid)), when the program gives it up ([`POST /oauth/revoke`](#post-oauthrevoke)), or by itself when the program has not used its refresh token for 180 days.
+
+### What is given out
+
+- **One scope, `flights:read`**, which at the connector opens the three tools of the pilot's logbook. No scope that writes is given out: a request that names one is refused, at registration, on the page and at a refresh. A request that names no scope gets `flights:read`.
+- **For the connector and nowhere else.** `resource` must be the connector's address as step 2 names it (the scheme and the host may be written in upper case; nothing else may differ), on the page and again at the exchange. The token is bound to that address and to the program. At the API (`/v1`) it is no token at all, whatever its scope: `401`. And a token a pilot made by hand for the API, or a session of Venti's apps, is no token at the connector.
+- **Listed among the pilot's tokens** ([`GET /v1/account/tokens`](#get-v1accounttokens)), under the name the program gave itself, with a `client` that says it came this way. An agreement counts as one of the account's 20 tokens. A pilot who agrees again with the same program replaces the earlier agreement and its tokens.
+- **Its budget** is a token's: 3,600 requests an hour at the connector, counted for the agreement, across refreshes ([Limits](#limits)).
+- **The secrets** are 256 random bits each behind a prefix that says what they are: `venti_oac_` a code, `venti_oat_` an access token, `venti_ort_` a refresh token. The server keeps a hash of each, hashed apart from one another and from sessions and tokens made by hand, and cannot show one again.
+
+| What | Lasts |
+|---|---|
+| A code | 2 minutes, and one exchange |
+| An access token | 1 hour |
+| A refresh token | One use. Unused, 180 days |
+| The agreement | Until the pilot withdraws it or the program gives it up; else 180 days after the program's latest refresh |
+| The page | A quarter of an hour from when it was shown |
+
+### `POST /oauth/register`
+
+Dynamic client registration (RFC 7591), for public clients only. The body is JSON:
+
+```json
+{
+  "client_name": "Assistant",
+  "redirect_uris": ["https://assistant.example/oauth/callback"],
+  "token_endpoint_auth_method": "none",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"]
+}
+```
+
+The answer is `201`:
+
+```json
+{
+  "client_id": "5v8k2m9q3r7t1w6x0y4a2b3c4d",
+  "client_id_issued_at": 1795028700,
+  "client_name": "Assistant",
+  "redirect_uris": ["https://assistant.example/oauth/callback"],
+  "token_endpoint_auth_method": "none",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "scope": "flights:read"
+}
+```
+
+| Field | Rule |
+|---|---|
+| `redirect_uris` | One to five addresses, each at most 400 bytes of plain ASCII. `https://` with a host name; or `http://` to `127.0.0.1`, `[::1]` or `localhost`, for a program on the pilot's own device. No other scheme (so no app's own scheme), no user name, no fragment |
+| `client_name` | One line of at most 60 characters. Shown to the pilot as the program's own claim, which nobody checked. Left out, the program is called "A program without a name" |
+| `token_endpoint_auth_method` | `none`, or left out. A program gets no secret |
+| `grant_types`, `response_types` | Nothing but `authorization_code`, `refresh_token` and `code` |
+| `scope` | `flights:read`, or left out |
+| Anything else (`logo_uri`, `client_uri`, `application_type`, …) | Not read, not kept, and no address in it is ever fetched |
+
+The server fetches nothing when a program registers or afterwards. The newer way of the protocol, a `client_id` that is an HTTPS address of a document the server fetches (client ID metadata documents), is not offered: `client_id_metadata_document_supported` is `false` ([architecture.md](architecture.md#bring-your-own-ai) says what it would need).
+
+Refusals are `400` with RFC 7591's codes, `invalid_redirect_uri` or `invalid_client_metadata`, in OAuth's shape for errors: `{"error": "…", "error_description": "…"}`.
+
+**Bounds.** An address registers 10 programs an hour (an IPv6 /48 network 40): beyond that `429` with `Retry-After`. The server keeps 50,000 programs. When it is full, a new one takes the place of the one that registered longest ago among those no pilot ever agreed to; if there is none, `503`. A program that holds no agreement and has not been used for 30 days is removed. A program whose registration is gone registers again.
+
+### `GET /oauth/authorize`
+
+The page, for the pilot's browser. The query:
+
+| Parameter | Rule |
+|---|---|
+| `response_type` | `code` |
+| `client_id` | From the registration |
+| `redirect_uri` | One of the registered addresses, character for character. The one exception is OAuth 2.1's: for an address of the pilot's own device (`http://127.0.0.1…`, `http://[::1]…`, `http://localhost…`) the port may differ, since such a program listens on whichever is free |
+| `code_challenge`, `code_challenge_method` | The PKCE challenge of RFC 7636 and `S256`. Without them, or with `plain`, nothing is given out |
+| `resource` | The connector's address, `https://venti.example/mcp` (RFC 8707) |
+| `scope` | `flights:read`, or left out |
+| `state` | The program's own, at most 512 bytes; handed back as it came |
+
+The page says which program asks, by the name it gave itself and marked as its own claim; the address the pilot will be sent back to; what the program may read and what it may not; and for how long. The pilot types handle and password, and presses "Sign in and agree" or "Refuse". An account that signs in with Google and has no password cannot agree on this page yet.
+
+- **A request that cannot be agreed to is answered on a page, and nobody is redirected by the server.** If the program is not registered or the address to go back to is not one it registered, the page says so and offers no way on. If the address is good and something else is not (`resource`, the challenge, a scope that writes, `response_type`), the page says so and has a link back to the program that carries OAuth's `error`, `error_description`, `state` and `iss`. The pilot's browser is redirected only as the answer to the pilot pressing a button.
+- **The password has the sign-in's limits**, counted together with [`POST /v1/sessions`](#post-v1sessions): 10 wrong ones an hour for a handle, 30 for an address. A wrong one shows the page again.
+- **The page is shown in no frame** (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), runs no script and loads nothing (`default-src 'none'`, its one style allowed by its hash), is kept by nobody (`no-store`), and its form goes to this server and, by the redirect that answers it, to the origin of the program's address and nowhere else.
+- **Its form is taken only from the page itself.** Each showing of the page carries a random value in the form and the same value in a cookie, `__Host-venti-consent` (`HttpOnly`, `SameSite=Strict`, `Secure`, a quarter of an hour). `POST /oauth/authorize` is answered `403` unless both arrive and match, and unless the `Origin` header, where a browser sends one, is the server's own. This is the only cookie the server sets. It names no account and no session: nothing the pilot does elsewhere on Venti is signed in by it.
+- **Nothing of a request is written to the log** but the path: no query, no `state`, no name of a program, no code.
+
+### `POST /oauth/token`
+
+A form (`application/x-www-form-urlencoded`), each parameter once. A program sends its `client_id` and never a secret: a request with `client_secret` or an `Authorization` header is refused.
+
+For a code: `grant_type=authorization_code`, `client_id`, `code`, `code_verifier`, `resource` (the connector's address again), and, if the program likes, the `redirect_uri` it was sent back to. For a refresh: `grant_type=refresh_token`, `client_id`, `refresh_token`, and if it likes `resource` and `scope`, neither of which may ask for more than was agreed to. The answer to both, with `Cache-Control: no-store`:
+
+```json
+{
+  "access_token": "venti_oat_3x7k9q2m4r8t1v6w0y5a2b3c4d5e6f7g8h9j0kmnpqrstvwxyz01",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "venti_ort_9q2m4r8t1v6w0y5a2b3c4d5e6f7g8h9j0kmnpqrstvwxyz013x7k",
+  "scope": "flights:read"
+}
+```
+
+| Status | `error` | When |
+|---|---|---|
+| 400 | `invalid_request` | Not a form, a parameter twice, or one that is needed is missing |
+| 401 | `invalid_client` | No program is registered under `client_id`, or the request carries a secret |
+| 400 | `invalid_grant` | The code or the refresh token is unknown, was used, has ended or belongs to another program; the verifier does not answer the challenge; `redirect_uri` is not the one the code was sent to. One answer for all of them |
+| 400 | `invalid_target` | `resource` is missing at an exchange, or is not the connector |
+| 400 | `invalid_scope` | A refresh asks for another scope than was agreed to |
+| 400 | `unsupported_grant_type` | Any other `grant_type` |
+| 429 | `too_many_requests` | Too many requests from the address; with `Retry-After` |
+
+- **A code is exchanged once.** A second exchange with everything else in order gets nothing and withdraws what the first one gave: a code that turns up twice was seen by somebody else. An attempt with a wrong verifier, or by another program, changes nothing: whoever holds a code and not its verifier neither gets tokens nor takes any from the program that does.
+- **A refresh token is used once.** Each refresh replaces the access token and the refresh token. A refresh token that is used a second time withdraws the whole agreement, with every token of it: one of its two users is not the program. The pilot then agrees anew.
+
+### `POST /oauth/revoke`
+
+A program gives an agreement up (RFC 7009): a form with `client_id` and `token`, which is its access token or its refresh token. Either ends the whole agreement, and it leaves the pilot's list. The answer is `200` with no body, also for a token that is not good or not this program's, of which nothing is done. `401` `invalid_client` for a `client_id` nobody registered.
+
+**Bounds.** The page, its answer, the exchange and giving up are counted together for the address they come from: 60 a minute (an IPv6 /48 network 240), beyond that `429` with `Retry-After`. A body has at most 16 kB, and an answer is given up after 10 seconds. The two documents under `/.well-known` are the same for everyone and may be kept for an hour.
 
 ## The sites a pilot keeps
 

@@ -35,6 +35,9 @@
     "schemas": {
       "AccessToken": {
         "properties": {
+          "client": {
+            "$ref": "#/components/schemas/TokenClient"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -5857,6 +5860,22 @@
           "not_flyable"
         ],
         "type": "string"
+      },
+      "TokenClient": {
+        "description": "On a token that came of the pilot's agreement on the server's own page with a program that asked there: the program, and the one address the token is good at. Left out on a token the pilot made by hand.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "resource"
+        ],
+        "type": "object"
       },
       "TrackLine": {
         "properties": {

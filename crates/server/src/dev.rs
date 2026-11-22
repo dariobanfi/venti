@@ -1115,6 +1115,7 @@ async fn add_demo_account(
         created_at: now,
         last_used_on: None,
         expires_at: None,
+        client: None,
     };
     let secret = AccessSecret::parse(DEMO_ACCESS_TOKEN)
         .ok_or("the demo token for a program does not have the form of one")?;

@@ -43,6 +43,7 @@ mod kept_site;
 mod live;
 mod memory;
 mod month;
+mod oauth;
 mod pilot_site;
 mod postgres;
 mod push;
@@ -88,6 +89,10 @@ pub use live::{
 };
 pub use memory::MemoryStore;
 pub use month::Month;
+pub use oauth::{
+    AuthorizationCode, NewGrant, OauthClient, Redeemed, Refreshed, Rotation, StoredCode,
+    TokenClient,
+};
 pub use pilot_site::{
     Given, NewPilotSite, NewSiteConfirmation, PARTNERS_LAYER, PilotSite, PilotSiteChanges,
     RevisionKind, SiteAct, SiteConfirmation, SiteConfirmed, SiteConfirming, SitePilot,
@@ -792,9 +797,11 @@ pub trait Store: Send + Sync + 'static {
 
     // --- Tokens a pilot gives to another program ---------------------------
 
-    /// Stores a token under the hash of its secret, unless its account
-    /// already holds `most` tokens or is gone. Returns whether it was
-    /// stored.
+    /// Stores a token a pilot made by hand under the hash of its secret,
+    /// unless its account already holds `most` tokens or is gone. Returns
+    /// whether it was stored. A token that names a program
+    /// ([`AccessToken::client`]) is not made this way and is not stored:
+    /// it comes of [`Store::redeem_authorization_code`].
     ///
     /// Unlike a session, a token never makes room for itself by removing
     /// an older one: a program whose token went that way would stop
@@ -811,8 +818,10 @@ pub trait Store: Send + Sync + 'static {
     /// of `now` as the day of its latest use.
     ///
     /// A token whose end is at `now` or before it is not returned, and
-    /// its use is not noted. The token returned carries the day that is
-    /// then on record.
+    /// its use is not noted; neither is one that came of a pilot's
+    /// agreement once its access token's own end has come
+    /// ([`TokenClient::access_until`]). The token returned carries the day
+    /// that is then on record.
     fn use_access_token(
         &self,
         secret: &SecretHash,
@@ -833,6 +842,95 @@ pub trait Store: Send + Sync + 'static {
         account_id: &str,
         token_id: &str,
     ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    // --- The authorization server -------------------------------------------
+
+    /// Stores a program that registered itself, unless `most` are stored
+    /// already and none of them can make room. Returns whether it was
+    /// stored.
+    ///
+    /// Room is made by the program that registered longest ago among those
+    /// no pilot ever agreed to: a program a pilot agreed to is never
+    /// removed to make room.
+    fn create_oauth_client(
+        &self,
+        client: &OauthClient,
+        most: usize,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The registered program with this identifier.
+    fn oauth_client(
+        &self,
+        client_id: &str,
+    ) -> impl Future<Output = Result<Option<OauthClient>, StoreError>> + Send;
+
+    /// Stores the code a pilot's agreement was turned into, under its
+    /// hash, and notes the agreement as the program's latest use. Returns
+    /// `false`, and stores nothing, if the program or the account is gone.
+    fn create_authorization_code(
+        &self,
+        code: &SecretHash,
+        record: &AuthorizationCode,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The code with this hash, used or not, unless its end is at `now` or
+    /// before it. Looking changes nothing.
+    fn authorization_code(
+        &self,
+        code: &SecretHash,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Option<StoredCode>, StoreError>> + Send;
+
+    /// Exchanges a code for the agreement `grant`, all or nothing: the
+    /// code is used up, an earlier agreement of the same account with the
+    /// same program is replaced, and the new one is stored with its first
+    /// access token and refresh token, unless the account then held more
+    /// than `most` tokens.
+    ///
+    /// A code that was exchanged before is not exchanged again, and what
+    /// came of the first exchange is withdrawn ([`Redeemed::Spent`]). The
+    /// caller checks first that whoever asks may exchange the code at all.
+    fn redeem_authorization_code(
+        &self,
+        code: &SecretHash,
+        grant: &NewGrant,
+        now: Timestamp,
+        most: usize,
+    ) -> impl Future<Output = Result<Redeemed, StoreError>> + Send;
+
+    /// Replaces the secrets of the agreement a refresh token of the
+    /// program `client_id` belongs to, all or nothing, and returns the
+    /// agreement as it then is.
+    ///
+    /// A refresh token that was used before ends its agreement
+    /// ([`Refreshed::Reused`]). One of another program is unknown here.
+    fn refresh_grant(
+        &self,
+        refresh: &SecretHash,
+        client_id: &str,
+        next: &Rotation,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Refreshed, StoreError>> + Send;
+
+    /// Withdraws the agreement that a secret of the program `client_id`
+    /// belongs to: its access token, or its refresh token that is not used
+    /// up. Returns whether there was one.
+    fn revoke_grant(
+        &self,
+        secret: &SecretHash,
+        client_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Removes what the authorization server no longer needs: codes and
+    /// refresh tokens whose end is at `now` or before it, agreements whose
+    /// end has come, and registered programs that hold no agreement and
+    /// showed no sign of life since `unused_since`. Returns how many
+    /// agreements and programs were removed.
+    fn prune_oauth(
+        &self,
+        now: Timestamp,
+        unused_since: Timestamp,
+    ) -> impl Future<Output = Result<u64, StoreError>> + Send;
 
     // --- The sites a pilot keeps as their own ------------------------------
 

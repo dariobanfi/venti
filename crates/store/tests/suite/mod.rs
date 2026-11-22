@@ -17,6 +17,7 @@ mod groups;
 mod kept_sites;
 mod live;
 mod moderation;
+mod oauth;
 mod pilot_sites;
 mod push;
 mod sites;
@@ -32,6 +33,7 @@ pub(crate) use groups::*;
 pub(crate) use kept_sites::*;
 pub(crate) use live::*;
 pub(crate) use moderation::*;
+pub(crate) use oauth::*;
 pub(crate) use pilot_sites::*;
 pub(crate) use push::*;
 pub(crate) use sites::*;
@@ -132,6 +134,13 @@ macro_rules! store_suite {
             the_first_push_key_kept_is_the_one,
             tokens_for_programs_are_withdrawn_one_by_one,
             an_account_holds_only_so_many_tokens_for_programs,
+            the_oldest_unused_program_makes_room_for_a_new_one,
+            a_code_is_exchanged_once_and_no_second_time,
+            a_refresh_token_is_used_once_and_no_second_time,
+            a_refresh_token_is_good_until_its_end,
+            an_agreement_is_listed_and_withdrawn_as_a_token,
+            an_agreement_and_its_codes_go_with_the_account,
+            what_the_authorization_server_no_longer_needs_is_removed,
             an_account_keeps_only_its_most_recent_sessions,
             sessions_unused_for_too_long_are_pruned,
             a_new_password_signs_out_the_other_devices,

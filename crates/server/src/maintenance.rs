@@ -50,6 +50,7 @@ pub async fn run<S: Store>(
                 Err(error) => tracing::warn!("expired sessions could not be removed: {error}"),
             }
             look_at_reports(&*store, retention, now).await;
+            clean_up_after_the_authorization_server(&*store, now).await;
             remove_old_fired_alerts(&*store, now).await;
             remove_old_notices(&*store, now).await;
         }
@@ -60,6 +61,25 @@ pub async fn run<S: Store>(
             () = shutdown.cancelled() => return,
             () = tokio::time::sleep(LIVE_INTERVAL) => {}
         }
+    }
+}
+
+/// Removes what the authorization server no longer needs: codes and
+/// refresh tokens whose end has come, agreements that ended because their
+/// program stopped using them, and registered programs that hold no
+/// agreement and showed no sign of life for
+/// [`CLIENT_IDLE_LIFE`](crate::accounts::oauth::CLIENT_IDLE_LIFE).
+async fn clean_up_after_the_authorization_server<S: Store>(store: &S, now: Timestamp) {
+    let unused_since = now - crate::accounts::oauth::CLIENT_IDLE_LIFE;
+    match store.prune_oauth(now, unused_since).await {
+        Ok(0) => {}
+        Ok(removed) => tracing::info!(
+            "removed {removed} ended agreements with programs and programs that registered \
+             and were not used"
+        ),
+        Err(error) => tracing::warn!(
+            "what the authorization server no longer needs could not be removed: {error}"
+        ),
     }
 }
 

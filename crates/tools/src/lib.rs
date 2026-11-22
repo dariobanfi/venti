@@ -199,7 +199,7 @@ pub fn failure(error: &ToolError) -> String {
 /// other than a value; characters that change the direction of writing or
 /// have no width are left out, so that it cannot hide what it says. What
 /// is cut off is marked with an ellipsis.
-pub(crate) fn source_text(text: &str, most: usize) -> String {
+pub fn source_text(text: &str, most: usize) -> String {
     let shown = text.chars().filter(|c| !is_hidden(*c)).map(|c| {
         if c.is_control() || c.is_whitespace() {
             ' '

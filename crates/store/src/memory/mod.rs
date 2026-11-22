@@ -4,6 +4,7 @@ mod flights;
 mod groups;
 mod kept_sites;
 mod live;
+mod oauth;
 mod pilot_sites;
 mod push;
 mod reports;
@@ -810,6 +811,75 @@ impl Store for MemoryStore {
             .lock()
             .accounts
             .delete_access_token(account_id, token_id))
+    }
+
+    async fn create_oauth_client(
+        &self,
+        client: &crate::OauthClient,
+        most: usize,
+    ) -> Result<bool, StoreError> {
+        Ok(self.lock().accounts.create_oauth_client(client, most))
+    }
+
+    async fn oauth_client(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<crate::OauthClient>, StoreError> {
+        Ok(self.lock().accounts.oauth_client(client_id))
+    }
+
+    async fn create_authorization_code(
+        &self,
+        code: &SecretHash,
+        record: &crate::AuthorizationCode,
+    ) -> Result<bool, StoreError> {
+        Ok(self.lock().accounts.create_authorization_code(code, record))
+    }
+
+    async fn authorization_code(
+        &self,
+        code: &SecretHash,
+        now: Timestamp,
+    ) -> Result<Option<crate::StoredCode>, StoreError> {
+        Ok(self.lock().accounts.authorization_code(code, now))
+    }
+
+    async fn redeem_authorization_code(
+        &self,
+        code: &SecretHash,
+        grant: &crate::NewGrant,
+        now: Timestamp,
+        most: usize,
+    ) -> Result<crate::Redeemed, StoreError> {
+        Ok(self
+            .lock()
+            .accounts
+            .redeem_authorization_code(code, grant, now, most))
+    }
+
+    async fn refresh_grant(
+        &self,
+        refresh: &SecretHash,
+        client_id: &str,
+        next: &crate::Rotation,
+        now: Timestamp,
+    ) -> Result<crate::Refreshed, StoreError> {
+        Ok(self
+            .lock()
+            .accounts
+            .refresh_grant(refresh, client_id, next, now))
+    }
+
+    async fn revoke_grant(&self, secret: &SecretHash, client_id: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().accounts.revoke_grant(secret, client_id))
+    }
+
+    async fn prune_oauth(
+        &self,
+        now: Timestamp,
+        unused_since: Timestamp,
+    ) -> Result<u64, StoreError> {
+        Ok(self.lock().accounts.prune_oauth(now, unused_since))
     }
 
     async fn keep_site(

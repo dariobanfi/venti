@@ -798,6 +798,7 @@ fn access_token(name: &str, account: &Account, made: Timestamp) -> AccessToken {
         created_at: made,
         last_used_on: None,
         expires_at: None,
+        client: None,
     }
 }
 

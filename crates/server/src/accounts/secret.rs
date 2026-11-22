@@ -180,6 +180,88 @@ impl fmt::Debug for AccessSecret {
     }
 }
 
+/// Which secret of the authorization server a text is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OauthKind {
+    /// The code a pilot's agreement is turned into, exchanged once.
+    Code,
+    /// The access token a program sends to the connector.
+    Access,
+    /// The refresh token a program exchanges for new tokens, once.
+    Refresh,
+}
+
+impl OauthKind {
+    /// What a secret of this kind starts with.
+    pub const fn prefix(self) -> &'static str {
+        match self {
+            Self::Code => "venti_oac_",
+            Self::Access => "venti_oat_",
+            Self::Refresh => "venti_ort_",
+        }
+    }
+
+    fn domain(self) -> &'static [u8] {
+        match self {
+            Self::Code => b"venti oauth code 1\0",
+            Self::Access => b"venti oauth access token 1\0",
+            Self::Refresh => b"venti oauth refresh token 1\0",
+        }
+    }
+}
+
+/// A secret the authorization server gives a program: a code, an access
+/// token or a refresh token.
+///
+/// Each is written as a session's token is, 256 random bits after a
+/// prefix, with a prefix of its own, and hashed apart from every other
+/// kind: none can be read as another or stand in for one, and none can be
+/// read as a session's token or as a token a pilot made by hand.
+///
+/// It does not print itself.
+#[derive(Clone, PartialEq, Eq)]
+pub struct OauthSecret {
+    kind: OauthKind,
+    text: String,
+}
+
+impl OauthSecret {
+    /// A new secret: 256 random bits.
+    pub fn new(kind: OauthKind) -> Result<Self, NoRandomness> {
+        Ok(Self {
+            kind,
+            text: format!("{}{}", kind.prefix(), encode(&random::<32>()?)),
+        })
+    }
+
+    /// Reads a secret a program sent as one of `kind`. `None` for text
+    /// that cannot be one, which saves asking the database about it.
+    pub fn parse(kind: OauthKind, text: &str) -> Option<Self> {
+        let rest = text.strip_prefix(kind.prefix())?;
+        let well_formed = rest.len() == TOKEN_LENGTH && rest.bytes().all(|b| ALPHABET.contains(&b));
+        well_formed.then(|| Self {
+            kind,
+            text: text.to_owned(),
+        })
+    }
+
+    /// The secret, for handing to its program once and nothing else.
+    pub fn expose(&self) -> &str {
+        &self.text
+    }
+
+    /// What the store keeps of the secret.
+    pub fn hash(&self) -> SecretHash {
+        SecretHash(sha256(&[self.kind.domain(), self.text.as_bytes()]))
+    }
+}
+
+impl fmt::Debug for OauthSecret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("OauthSecret(<hidden>)")
+    }
+}
+
 /// An invite code: sixteen characters in four groups, such as
 /// `7k3m-9q2x-4r8t-1v6w`. 80 random bits, short enough to read out. One
 /// kind creates an account, another lets a pilot into a group.
@@ -347,6 +429,43 @@ mod tests {
         ] {
             assert_eq!(AccessSecret::parse(bad), None, "{bad:?}");
         }
+    }
+
+    #[test]
+    fn the_authorization_servers_secrets_are_told_apart_by_their_form() {
+        let kinds = [OauthKind::Code, OauthKind::Access, OauthKind::Refresh];
+        for kind in kinds {
+            let secret = OauthSecret::new(kind).unwrap();
+            let text = secret.expose().to_owned();
+            assert_eq!(text.len(), kind.prefix().len() + 52);
+            assert_eq!(OauthSecret::parse(kind, &text), Some(secret.clone()));
+            assert_eq!(format!("{secret:?}"), "OauthSecret(<hidden>)");
+            // No kind reads as another, as a session's token or as a
+            // token a pilot made by hand; and none reads those.
+            for other in kinds.into_iter().filter(|other| *other != kind) {
+                assert_eq!(OauthSecret::parse(other, &text), None);
+            }
+            assert_eq!(Token::parse(&text), None);
+            assert_eq!(AccessSecret::parse(&text), None);
+            let session = Token::new().unwrap();
+            assert_eq!(OauthSecret::parse(kind, session.expose()), None);
+            let by_hand = AccessSecret::new().unwrap();
+            assert_eq!(OauthSecret::parse(kind, by_hand.expose()), None);
+            for bad in [
+                "",
+                kind.prefix(),
+                &text[..text.len() - 1],
+                &format!("{text}0"),
+            ] {
+                assert_eq!(OauthSecret::parse(kind, bad), None, "{bad:?}");
+            }
+        }
+        // The same random part under another prefix is another secret
+        // with another hash.
+        let code = OauthSecret::new(OauthKind::Code).unwrap();
+        let random = code.expose().strip_prefix("venti_oac_").unwrap();
+        let access = OauthSecret::parse(OauthKind::Access, &format!("venti_oat_{random}")).unwrap();
+        assert_ne!(code.hash(), access.hash());
     }
 
     #[test]

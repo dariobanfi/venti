@@ -192,6 +192,24 @@ pub struct AccessToken {
     /// until the pilot withdraws it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<Timestamp>,
+    /// Present on a token the pilot did not make by hand: it came of the
+    /// pilot's agreement on the server's own page, with a program that
+    /// asked there (an assistant, above all). For such a token `name` is
+    /// what the program calls itself, which nobody checked, and
+    /// `expires_at` is the moment it ends unless the program uses it
+    /// before: each use of its refresh token moves the end on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client: Option<TokenClient>,
+}
+
+/// The program a pilot agreed to, on a token that came of that agreement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TokenClient {
+    /// The identifier the server gave the program when it registered.
+    pub id: String,
+    /// The address the token is good at and nowhere else: the server's
+    /// connector.
+    pub resource: String,
 }
 
 /// The body of `POST /v1/account/tokens`.
@@ -315,6 +333,7 @@ mod tests {
                 created_at: "2026-11-21T08:00:00Z".parse().unwrap(),
                 last_used_on: None,
                 expires_at: None,
+                client: None,
             },
             secret: "venti_pat_secret".to_owned(),
         };

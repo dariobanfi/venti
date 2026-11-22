@@ -1,10 +1,12 @@
 //! Who is asking, and what they may do.
 //!
 //! An account is acted for with a token in the `Authorization: Bearer`
-//! header and in no other way. The server sets no cookie and reads none,
-//! so a browser never attaches an account to a request by itself: a page
-//! on another site cannot make a visitor's browser act for them, whatever
-//! the cross-origin settings are.
+//! header and in no other way. No cookie of the server's names an account
+//! or a session, so a browser never attaches an account to a request by
+//! itself: a page on another site cannot make a visitor's browser act for
+//! them, whatever the cross-origin settings are. (The one cookie the
+//! server sets is the consent page's, [`super::oauth`]: a value against
+//! forged answers to that page, which names nobody.)
 //!
 //! There are two kinds of token. A **session's** is what Venti's own apps
 //! get by signing in with the password: it may do everything the pilot
@@ -64,7 +66,7 @@ pub(crate) enum By {
 
 impl Signed {
     /// Whether the caller may do what `scope` opens.
-    fn may(&self, scope: Scope) -> bool {
+    pub(crate) fn may(&self, scope: Scope) -> bool {
         match &self.by {
             By::Session(_) => true,
             // The store keeps the scopes as words. One this server does
@@ -270,6 +272,11 @@ async fn signed_by<S: Store>(api: &Api<S>, bearer: Bearer) -> Result<Signed, Api
             .store
             .use_access_token(&secret.hash(), now)
             .await?
+            // A token that came of a pilot's agreement on the consent page
+            // is for the connector and for nothing else. It is written
+            // and hashed another way, so none can be found here; this
+            // says it a second time, for whoever changes that.
+            .filter(|(token, _)| token.client.is_none())
             .map(|(token, account)| Signed {
                 account,
                 by: By::Token(token),
@@ -447,6 +454,7 @@ mod tests {
                 created_at: crate::adapters::recorded_at(),
                 last_used_on: None,
                 expires_at: None,
+                client: None,
             }),
         }
     }

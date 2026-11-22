@@ -25,6 +25,9 @@
       "expires_at": {
         "type": "string",
         "format": "date-time"
+      },
+      "client": {
+        "$ref": "#/components/schemas/TokenClient"
       }
     },
     "required": [
@@ -5265,6 +5268,22 @@
       "flyable",
       "marginal",
       "not_flyable"
+    ]
+  },
+  "TokenClient": {
+    "type": "object",
+    "description": "On a token that came of the pilot's agreement on the server's own page with a program that asked there: the program, and the one address the token is good at. Left out on a token the pilot made by hand.",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "resource": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "resource"
     ]
   },
   "TrackLine": {

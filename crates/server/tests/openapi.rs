@@ -38,8 +38,23 @@ const METHODS: [Method; 5] = [
 ];
 
 /// The routes that are not part of `/v1` and not in its description: the
-/// pages for people and the connector, which `docs/mcp.md` describes.
-const NOT_OF_THE_API: [&str; 4] = ["/f/{id}", "/f/{id}/preview.png", "/live/{id}", "/mcp"];
+/// pages for people, the connector, which `docs/mcp.md` describes, and
+/// the authorization server, whose endpoints answer in OAuth's own shapes
+/// and describe themselves in the two documents under `/.well-known`
+/// (`docs/api.md`, "Connecting an assistant to a pilot's logbook").
+const NOT_OF_THE_API: [&str; 11] = [
+    "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-protected-resource",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/f/{id}",
+    "/f/{id}/preview.png",
+    "/live/{id}",
+    "/mcp",
+    "/oauth/authorize",
+    "/oauth/register",
+    "/oauth/revoke",
+    "/oauth/token",
+];
 
 async fn router_and_routes() -> (Router, Vec<&'static str>) {
     let api = dev::recorded_api(settings()).await.unwrap();
@@ -771,6 +786,7 @@ const SCHEMAS_NO_GOLDEN_FILE_REACHES: &[&str] = &[
     "OperatingHours",
     "RemoveSiteRequest",
     "SignInRequest",
+    "TokenClient",
     "UpdateFlightRequest",
     "UpdateGroupRequest",
 ];

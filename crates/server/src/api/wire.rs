@@ -65,6 +65,10 @@ pub(crate) fn access_token(token: &AccessToken) -> v1::AccessToken {
         created_at: token.created_at,
         last_used_on: token.last_used_on,
         expires_at: token.expires_at,
+        client: token.client.as_ref().map(|bound| v1::TokenClient {
+            id: bound.client_id.clone(),
+            resource: bound.resource.clone(),
+        }),
     }
 }
 

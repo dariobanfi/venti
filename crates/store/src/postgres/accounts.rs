@@ -9,7 +9,7 @@ use super::{db_error, flights, groups};
 use crate::flight::next_change;
 use crate::{
     AccessToken, Account, AccountCreation, GoogleLink, GoogleLinking, NewAccount, NewGoogleAccount,
-    NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session, StoreError, Suspension,
+    NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session, StoreError, Suspension, TokenClient,
 };
 
 fn account_from(row: &Row) -> Account {
@@ -725,7 +725,19 @@ pub(super) async fn prune_sessions(
         .map_err(db_error)
 }
 
-fn access_token_from(row: &Row) -> AccessToken {
+pub(super) fn access_token_from(row: &Row) -> AccessToken {
+    let client_id: Option<String> = row.get("client_id");
+    let resource: Option<String> = row.get("resource");
+    let access_until: Option<Timestamp> = row.get("access_until");
+    // The three are set together or not at all: the table checks it.
+    let client = match (client_id, resource, access_until) {
+        (Some(client_id), Some(resource), Some(access_until)) => Some(TokenClient {
+            client_id,
+            resource,
+            access_until,
+        }),
+        _ => None,
+    };
     AccessToken {
         id: row.get("id"),
         account_id: row.get("account_id"),
@@ -734,7 +746,12 @@ fn access_token_from(row: &Row) -> AccessToken {
         created_at: row.get("created_at"),
         last_used_on: row.get("last_used_on"),
         expires_at: row.get("expires_at"),
+        client,
     }
+}
+
+pub(super) fn account_of(row: &Row) -> Account {
+    account_from(row)
 }
 
 pub(super) async fn create_access_token(
@@ -743,6 +760,10 @@ pub(super) async fn create_access_token(
     secret: &SecretHash,
     most: usize,
 ) -> Result<bool, StoreError> {
+    // A token that names a program comes of an exchanged code.
+    if token.client.is_some() {
+        return Ok(false);
+    }
     let most = i64::try_from(most).unwrap_or(i64::MAX);
     let tx = client.transaction().await.map_err(db_error)?;
     // The account's row is locked while its tokens are counted, so that of
@@ -798,16 +819,19 @@ const USE_ACCESS_TOKEN: &str = "
     WITH touched AS (
         UPDATE access_tokens SET last_used_on = $3
         WHERE token_hash = $1 AND (expires_at IS NULL OR expires_at > $2)
+          AND (access_until IS NULL OR access_until > $2)
           AND (last_used_on IS NULL OR last_used_on < $3)
     )
     SELECT t.id, t.account_id, t.name, t.scopes, t.created_at, t.expires_at,
+           t.client_id, t.resource, t.access_until,
            CASE WHEN t.last_used_on IS NULL OR t.last_used_on < $3 THEN $3
                 ELSE t.last_used_on END AS last_used_on,
            a.handle, a.display_name, a.created_at AS account_created_at,
            a.publishing_suspended_at, a.edits_sites_since
     FROM access_tokens t
     JOIN accounts a ON a.id = t.account_id
-    WHERE t.token_hash = $1 AND (t.expires_at IS NULL OR t.expires_at > $2)";
+    WHERE t.token_hash = $1 AND (t.expires_at IS NULL OR t.expires_at > $2)
+      AND (t.access_until IS NULL OR t.access_until > $2)";
 
 pub(super) async fn use_access_token(
     client: &Client,
@@ -833,7 +857,8 @@ pub(super) async fn access_tokens(
 ) -> Result<Vec<AccessToken>, StoreError> {
     let statement = client
         .prepare_cached(
-            "SELECT id, account_id, name, scopes, created_at, last_used_on, expires_at
+            "SELECT id, account_id, name, scopes, created_at, last_used_on, expires_at,
+                    client_id, resource, access_until
              FROM access_tokens WHERE account_id = $1
              ORDER BY created_at DESC, id DESC",
         )

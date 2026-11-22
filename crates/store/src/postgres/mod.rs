@@ -10,6 +10,7 @@ mod groups;
 mod kept_sites;
 mod live;
 mod migrate;
+mod oauth;
 mod partitions;
 mod pilot_sites;
 mod push;
@@ -841,6 +842,69 @@ impl Store for PgStore {
         token_id: &str,
     ) -> Result<bool, StoreError> {
         accounts::delete_access_token(&self.client().await?, account_id, token_id).await
+    }
+
+    async fn create_oauth_client(
+        &self,
+        client: &crate::OauthClient,
+        most: usize,
+    ) -> Result<bool, StoreError> {
+        oauth::create_oauth_client(&mut self.client().await?, client, most).await
+    }
+
+    async fn oauth_client(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<crate::OauthClient>, StoreError> {
+        oauth::oauth_client(&self.client().await?, client_id).await
+    }
+
+    async fn create_authorization_code(
+        &self,
+        code: &SecretHash,
+        record: &crate::AuthorizationCode,
+    ) -> Result<bool, StoreError> {
+        oauth::create_authorization_code(&mut self.client().await?, code, record).await
+    }
+
+    async fn authorization_code(
+        &self,
+        code: &SecretHash,
+        now: Timestamp,
+    ) -> Result<Option<crate::StoredCode>, StoreError> {
+        oauth::authorization_code(&self.client().await?, code, now).await
+    }
+
+    async fn redeem_authorization_code(
+        &self,
+        code: &SecretHash,
+        grant: &crate::NewGrant,
+        now: Timestamp,
+        most: usize,
+    ) -> Result<crate::Redeemed, StoreError> {
+        oauth::redeem_authorization_code(&mut self.client().await?, code, grant, now, most).await
+    }
+
+    async fn refresh_grant(
+        &self,
+        refresh: &SecretHash,
+        client_id: &str,
+        next: &crate::Rotation,
+        now: Timestamp,
+    ) -> Result<crate::Refreshed, StoreError> {
+        oauth::refresh_grant(&mut self.client().await?, refresh, client_id, next, now).await
+    }
+
+    async fn revoke_grant(&self, secret: &SecretHash, client_id: &str) -> Result<bool, StoreError> {
+        oauth::revoke_grant(&self.client().await?, secret, client_id).await
+    }
+
+    async fn prune_oauth(
+        &self,
+        now: Timestamp,
+        unused_since: Timestamp,
+    ) -> Result<u64, StoreError> {
+        oauth::prune_oauth(&mut self.client().await?, now, unused_since).await
     }
 
     async fn keep_site(

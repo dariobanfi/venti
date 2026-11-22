@@ -4,6 +4,8 @@
 // Each test file uses a part of this.
 #![allow(dead_code)]
 
+pub mod oauth;
+
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

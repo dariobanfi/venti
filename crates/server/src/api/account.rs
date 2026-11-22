@@ -71,7 +71,7 @@ impl<S: Store> Api<S> {
     /// takes tens of milliseconds of a whole core; counting only afterwards
     /// let a thousand guesses that arrived together all be checked where
     /// ten are allowed.
-    async fn check_password(
+    pub(super) async fn check_password(
         &self,
         handle: Option<&Handle>,
         password: &Password,
@@ -534,6 +534,7 @@ pub(crate) async fn create_token<S: Store>(
         created_at: now,
         last_used_on: None,
         expires_at: request.expires_at,
+        client: None,
     };
     let most = api.limits.tokens_per_account;
     let stored = api

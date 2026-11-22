@@ -30,7 +30,7 @@ venti-tools.workspace = true
 aes-gcm.workspace = true
 argon2.workspace = true
 base64.workspace = true
-axum.workspace = true
+axum = { workspace = true, features = ["form"] }
 chrono = { workspace = true, features = ["clock"] }
 fastrand.workspace = true
 flate2.workspace = true

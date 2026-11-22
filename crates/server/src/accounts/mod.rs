@@ -15,6 +15,7 @@
 pub mod client;
 pub mod google;
 pub mod invite;
+pub mod oauth;
 pub mod password;
 pub mod secret;
 pub mod throttle;
@@ -178,6 +179,27 @@ pub struct Limits {
     pub token_requests_per_window: u32,
     /// The window for it.
     pub token_window: Duration,
+    /// Programs that one address may register with the authorization
+    /// server in a registration window, and a whole IPv6 /48. A program
+    /// registers once and is then used by every pilot who agrees to it, so
+    /// an honest address needs one or two. Estimates, and the owner's to
+    /// set.
+    pub client_registrations_per_address: u32,
+    /// The same for a whole IPv6 /48.
+    pub client_registrations_per_network: u32,
+    /// How many registered programs the server keeps. Each is a name and
+    /// a few addresses, a kilobyte or two at the most. When the table is
+    /// full, the program that registered longest ago among those no pilot
+    /// ever agreed to makes room.
+    pub oauth_clients: usize,
+    /// Requests one address may make to the authorization server's other
+    /// endpoints (the page a pilot agrees on, the exchange of codes and
+    /// refresh tokens, giving a token up) in a connector window, and a
+    /// whole IPv6 /48. None of them needs an account to ask, and each
+    /// costs a look into the database. A program refreshes once an hour.
+    pub oauth_requests_per_address: u32,
+    /// The same for a whole IPv6 /48.
+    pub oauth_requests_per_network: u32,
     /// How many keys (addresses, handles, accounts) each of the tables
     /// that count attempts watches at most. A key costs about 110 bytes
     /// (measured 2026-11-19), so each full table is 11 MB, and the server
@@ -236,6 +258,11 @@ impl Default for Limits {
             public_flight_window: Duration::hours(1),
             token_requests_per_window: 3600,
             token_window: Duration::hours(1),
+            client_registrations_per_address: 10,
+            client_registrations_per_network: 40,
+            oauth_clients: 50_000,
+            oauth_requests_per_address: 60,
+            oauth_requests_per_network: 240,
             watched_keys: 100_000,
             sessions_per_account: 50,
             // More than a year: a pilot who does not fly all winter must
@@ -272,6 +299,10 @@ impl Limits {
             public_flight_reads_per_address: u32::MAX,
             public_flight_reads_per_network: u32::MAX,
             token_requests_per_window: u32::MAX,
+            client_registrations_per_address: u32::MAX,
+            client_registrations_per_network: u32::MAX,
+            oauth_requests_per_address: u32::MAX,
+            oauth_requests_per_network: u32::MAX,
             // A dump is as the layer is at every request: the clock
             // never gets as far as a remake would be due.
             dump_remake_after: Duration::zero(),

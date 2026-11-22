@@ -38,6 +38,27 @@ private enum Canned {
         ]}
         """
 
+    /// Made up: two stations of one name in two networks, a third with no
+    /// reading, and two of the networks late.
+    static let networks = """
+        {"stations": [
+          {"id": "meteoswiss-smn:WFJ", "source": "meteoswiss-smn", "name": "Weissfluhjoch",
+           "network": "MeteoSwiss", "position": {"lat": 46.833, "lon": 9.806}, "elevation_m": 2690.6,
+           "latest": {"time": "2026-11-18T19:00:00Z", "wind_speed_ms": 4.0}},
+          {"id": "slf-imis:WFJ2", "source": "slf-imis", "name": "Weissfluhjoch",
+           "network": "SLF", "position": {"lat": 46.829, "lon": 9.809}, "elevation_m": 2536.0,
+           "latest": {"time": "2026-11-18T16:05:00Z", "wind_speed_ms": 4.0}},
+          {"id": "meteotrentino:T0099", "source": "meteotrentino", "name": "Paganella",
+           "network": "Meteotrentino", "position": {"lat": 46.14, "lon": 11.04}}
+        ], "truncated": false, "attributions": [
+          {"source": "meteotrentino", "provider": "Provincia Autonoma di Trento - Meteotrentino",
+           "short_name": "Meteotrentino", "licence": "CC BY 4.0", "text": "Meteotrentino",
+           "url": "https://www.meteotrentino.it/"},
+          {"source": "slf-imis", "provider": "WSL Institute for Snow and Avalanche Research SLF",
+           "short_name": "SLF", "licence": "CC BY 4.0", "text": "SLF", "url": "https://www.slf.ch/"}
+        ], "late_sources": ["meteotrentino", "slf-imis"]}
+        """
+
     static let history = """
         {"station": {"id": "dwd-10min:05792", "source": "dwd-10min", "name": "Zugspitze",
                      "position": {"lat": 47.421, "lon": 10.9848}, "elevation_m": 2956.0},
@@ -60,6 +81,13 @@ final class WindModelTests: XCTestCase {
     private actor Asked {
         var urls: [URL] = []
         func add(_ url: URL) { urls.append(url) }
+    }
+
+    /// What the stations' path answers, changed between two loads.
+    private actor Answer {
+        var body: String
+        init(_ body: String) { self.body = body }
+        func set(_ body: String) { self.body = body }
     }
 
     /// 18 November 2026, 19:05 UTC, as the server's clock in these answers.
@@ -140,7 +168,9 @@ final class WindModelTests: XCTestCase {
         XCTAssertNil(wind.problem)
         XCTAssertEqual(wind.stations.map(\.name), ["Zugspitze", "Garmisch-Partenkirchen"])
         XCTAssertEqual(wind.credits.map(\.provider), ["Deutscher Wetterdienst"])
-        XCTAssertEqual(wind.lateProviders, ["Deutscher Wetterdienst"])
+        // The status calls the DWD late, but this answer names no late
+        // network here: the map says nothing.
+        XCTAssertNil(wind.lateNotice)
         // The phone's clock says a later day; ages go by the server's.
         XCTAssertEqual(Double(wind.now), Double(Self.serverNow), accuracy: 5)
         XCTAssertEqual(wind.stations[0].ageMin, 45)
@@ -224,6 +254,30 @@ final class WindModelTests: XCTestCase {
         let silent = WindModel(address: "http://127.0.0.1:8080") { _ in throw URLError(.timedOut) }
         let nothing = await silent.stations(around: glider, andAround: nil)
         XCTAssertNil(nothing)
+    }
+
+    /// A row's line is the core's, ending with the network; the map's
+    /// notice names the late networks the core names, and goes when the
+    /// next answer names none.
+    func testRowsNameTheirNetworkAndTheNoticeIsTheCores() async {
+        let answer = Answer(Canned.networks)
+        let wind = WindModel(address: "http://127.0.0.1:8080") { url in
+            let body = url.path == "/v1/health" ? Canned.health : await answer.body
+            return (200, Data(body.utf8))
+        }
+        wind.show(alps)
+        await wind.load()
+
+        XCTAssertEqual(
+            wind.stations.map(\.line),
+            ["2691 m · MeteoSwiss", "2536 m · 3 hours ago · SLF", "no reading · Meteotrentino"]
+        )
+        XCTAssertEqual(wind.stations.map(\.network), ["MeteoSwiss", "SLF", "Meteotrentino"])
+        XCTAssertEqual(wind.lateNotice, "No new wind data from Meteotrentino and SLF for a while.")
+
+        await answer.set(Canned.stations)
+        await wind.load()
+        XCTAssertNil(wind.lateNotice)
     }
 
     func testAServerThatCannotBeReachedIsSaidAndLeavesNoStations() async {

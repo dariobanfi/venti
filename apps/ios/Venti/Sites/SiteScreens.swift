@@ -892,12 +892,16 @@ struct StationNearbyRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// "2.1 km NE · 300 m higher"
+    /// "2.1 km NE · 300 m higher · DWD": the network last, as in the
+    /// station list, since two stations can share a name.
     static func whereabouts(_ near: StationNearby) -> String {
         var text = "\(Format.kilometres(metres: near.distanceM)) km \(Format.compassPoint(degrees: near.bearingDeg))"
         if let higher = near.higherByM, abs(higher) >= 50 {
             let rounded = (abs(higher) / 10).rounded() * 10
             text += " · \(Format.metres(rounded)) m \(higher > 0 ? "higher" : "lower")"
+        }
+        if let network = near.station.network {
+            text += " · \(network)"
         }
         return text
     }

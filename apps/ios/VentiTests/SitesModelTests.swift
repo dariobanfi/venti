@@ -125,7 +125,7 @@ final class SitesModelTests: XCTestCase {
         let summit = WindStation(
             id: "s", name: "Summit", source: "test", position: Coordinate(lat: 47.67, lon: 11.80),
             elevationM: 1_700, latest: reading, ageMin: 10, isOld: false,
-            mark: WindMark(symbol: .calm, headingDeg: 0, label: "14")
+            mark: WindMark(symbol: .calm, headingDeg: 0, label: "14"), network: "DWD"
         )
         let far = WindStation(
             id: "f", name: "Far", source: "test", position: Coordinate(lat: 47.42, lon: 10.98),
@@ -141,7 +141,7 @@ final class SitesModelTests: XCTestCase {
             withinM: SiteScreen.stationsWithinM, atMost: 3
         )
         XCTAssertEqual(near.map(\.station.name), ["Summit"])
-        XCTAssertEqual(StationNearbyRow.whereabouts(near[0]), "1.1 km N · 100 m higher")
+        XCTAssertEqual(StationNearbyRow.whereabouts(near[0]), "1.1 km N · 100 m higher · DWD")
         XCTAssertEqual(StationNearbyRow.fitWords(near[0]), "From W: a direction the site works in")
 
         // A site that works in the east: the same wind does not fit. A
@@ -151,7 +151,7 @@ final class SitesModelTests: XCTestCase {
             withinM: SiteScreen.stationsWithinM, atMost: 3
         )
         XCTAssertEqual(StationNearbyRow.fitWords(east[0]), "From W: not a direction the site works in")
-        XCTAssertEqual(StationNearbyRow.whereabouts(east[0]), "1.1 km N")
+        XCTAssertEqual(StationNearbyRow.whereabouts(east[0]), "1.1 km N · DWD")
         let unjudged = stationsNear(
             stations: [summit], place: site, elevationM: nil, wind: [],
             withinM: SiteScreen.stationsWithinM, atMost: 3

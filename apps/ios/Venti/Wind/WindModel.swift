@@ -30,8 +30,9 @@ final class WindModel {
     private(set) var isTruncated = false
     /// Why the wind is missing or not current, in words for the pilot.
     private(set) var problem: String?
-    /// The providers the server has not heard from lately.
-    private(set) var lateProviders: [String] = []
+    /// The core's sentence on the networks among the stations here that
+    /// have sent nothing new for a while; `nil` while every one delivers.
+    private(set) var lateNotice: String?
     /// Whether this Venti takes sites from pilots, as its status says:
     /// false until it has said so, and for one that takes none.
     private(set) var takesSitesFromPilots = false
@@ -137,6 +138,7 @@ final class WindModel {
             stations = map.stations
             credits = map.credits
             isTruncated = map.truncated
+            lateNotice = map.lateNotice
             answered = (area, Date())
             problem = nil
         } catch is CancellationError {
@@ -152,6 +154,7 @@ final class WindModel {
             if answered.map({ Date().timeIntervalSince($0.at) > Self.keepWithoutAnswer }) ?? true {
                 stations = []
                 credits = []
+                lateNotice = nil
             }
         }
     }
@@ -204,11 +207,9 @@ final class WindModel {
         take(state)
     }
 
-    /// Keeps what a status says: the clock, the late providers and what
-    /// this Venti offers.
+    /// Keeps what a status says: the clock and what this Venti offers.
     private func take(_ state: ServerStatus) {
         clock = (TimeInterval(state.timeUnixS) - Date().timeIntervalSince1970, Date())
-        lateProviders = state.lateProviders
         takesSitesFromPilots = state.takesSitesFromPilots
         offersGoogle = state.googleSignIn
         registration = state.registration

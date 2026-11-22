@@ -677,10 +677,7 @@ struct MapScreen: View {
         if wind.isTruncated {
             return "There are more stations here than fit on the map. Zoom in to see them all."
         }
-        if !wind.lateProviders.isEmpty {
-            return "No new wind data from \(wind.lateProviders.formatted(.list(type: .and))) for a while."
-        }
-        return nil
+        return wind.lateNotice
     }
 
     @ViewBuilder private var notice: some View {

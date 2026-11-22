@@ -2539,6 +2539,46 @@ final class VentiUITests: XCTestCase {
         }
     }
 
+    /// Two stations named "Weissfluhjoch" above Davos, MeteoSwiss's and
+    /// the SLF's: the list tells them apart by the network at the end of
+    /// each row's line, and a station's page names its network under its
+    /// name.
+    func testTheListTellsTwoStationsOfOneNameApartByTheirNetwork() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "46.83,9.81,11"])
+        XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 90))
+        XCTAssertTrue(waitForCredit("Wind", in: app))
+        layersRow("Wind stations", in: app).tap()
+        XCTAssertTrue(app.navigationBars["Wind stations"].waitForExistence(timeout: 15))
+        let rows = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'station-row' AND label == 'Weissfluhjoch'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 30))
+        for _ in 0..<8 where !(isOnScreen(rows.element(boundBy: 0), in: app) && rows.count == 2
+            && isOnScreen(rows.element(boundBy: 1), in: app))
+        {
+            app.swipeUp()
+            usleep(500_000)
+        }
+        XCTAssertEqual(rows.count, 2)
+        let lines = (0..<rows.count).map { (rows.element(boundBy: $0).value as? String) ?? "" }
+        XCTAssertTrue(lines.contains { $0.hasSuffix("MeteoSwiss") }, "\(lines)")
+        XCTAssertTrue(lines.contains { $0.hasSuffix("SLF") }, "\(lines)")
+        sleep(1)
+        keepScreenshot("wind-networks-1-list")
+
+        // The SLF's page names its network under the name.
+        let slf = (0..<rows.count).map { rows.element(boundBy: $0) }
+            .first { (($0.value as? String) ?? "").hasSuffix("SLF") }
+        try XCTUnwrap(slf).tap()
+        let bar = app.navigationBars["Weissfluhjoch"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 15))
+        XCTAssertTrue(bar.staticTexts["SLF"].waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("wind-networks-2-station")
+    }
+
     /// Live wind, from a Venti server running on the same machine in its
     /// development mode: the stations of nine networks as they were on
     /// one evening (28 in the first region). The CI

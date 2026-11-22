@@ -124,6 +124,9 @@ struct StationScreen: View {
             }
         }
         .navigationTitle(station.name)
+        // The network, quietly under the name: what tells apart two
+        // stations of one name.
+        .subtitled(station.network)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: date) {
             await load()
@@ -473,6 +476,17 @@ struct StationScreen: View {
                     ? error.words
                     : "The history could not be loaded. \(error.localizedDescription)"
             )
+        }
+    }
+}
+
+private extension View {
+    /// A quiet line under the bar's title, where there is one.
+    @ViewBuilder func subtitled(_ text: String?) -> some View {
+        if let text, !text.isEmpty {
+            navigationSubtitle(text)
+        } else {
+            self
         }
     }
 }

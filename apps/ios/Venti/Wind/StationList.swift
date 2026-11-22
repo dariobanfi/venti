@@ -60,8 +60,8 @@ struct StationList: View {
     }
 }
 
-/// One station in a line: where the wind blows, its name and height, and
-/// the wind in numbers.
+/// One station in a line: where the wind blows, its name and the core's
+/// line under it, and the wind in numbers.
 struct StationRow: View {
     let station: WindStation
 
@@ -91,21 +91,10 @@ struct StationRow: View {
         .accessibilityValue(spoken(mark))
     }
 
-    /// The station's height, and how old its reading is if that matters.
-    private var detail: String {
-        var parts: [String] = []
-        if let elevation = station.elevationM {
-            parts.append("\(Format.metres(elevation)) m")
-        }
-        if let reading = station.latest {
-            if station.isOld {
-                parts.append(Format.readingAge(ageMin: station.ageMin, timeUnixS: reading.timeUnixS))
-            }
-        } else {
-            parts.append("no reading")
-        }
-        return parts.joined(separator: " · ")
-    }
+    /// The core's line under the name: the station's height, how old its
+    /// reading is if that matters, and its network, which tells apart two
+    /// stations of one name.
+    private var detail: String { station.line }
 
     private func spoken(_ mark: WindMark) -> String {
         guard let reading = station.latest, let speed = reading.speedMs, !station.isOld else {
@@ -118,7 +107,8 @@ struct StationRow: View {
         if case .arrow = mark.symbol, let from = reading.directionDeg {
             parts.append("from \(Format.compassPoint(degrees: from))")
         }
-        return parts.joined(separator: ", ")
+        let wind = parts.joined(separator: ", ")
+        return detail.isEmpty ? wind : "\(wind). \(detail)"
     }
 }
 

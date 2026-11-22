@@ -45,6 +45,7 @@ function cell(south: number, west: number, more: Partial<ThermalMapCell> = {}): 
 const DAY: ThermalMapDay = {
 	date: '2026-07-12',
 	name: 'Today',
+	today: true,
 	whole: true,
 	note: '',
 	model: 'ICON-D2',
@@ -266,8 +267,8 @@ describe('the hours of a day, layer by layer', () => {
 
 	it('colour a square by the line of the key that has its step', () => {
 		const fill = hourFill([
-			{ step: 1, words: 'Light', scale: 'wind', scaleStep: 2 },
-			{ step: 2, words: 'Overcast', scale: 'veil', scaleStep: 0 }
+			{ step: 1, words: 'Light', amount: '', scale: 'wind', scaleStep: 2 },
+			{ step: 2, words: 'Overcast', amount: '', scale: 'veil', scaleStep: 0 }
 		]) as unknown[];
 		expect(fill.slice(0, 2)).toEqual(['match', ['get', 'step']]);
 		expect(fill[3]).toBe(keyColor({ scale: 'wind', scaleStep: 2 }));

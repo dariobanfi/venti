@@ -33,8 +33,7 @@ import {
 	liveMapPath,
 	liveOthers,
 	type LiveOthersNetwork,
-	liveOthersPath,
-	othersTooWideWords
+	liveOthersPath
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
 
@@ -93,10 +92,8 @@ export interface LiveAnswer {
 	 * did not answer), and where the box is too wide for them.
 	 */
 	others: LiveOthersAnswer | undefined;
-	/** Whether the box was too wide to ask for others: the map then says {@link LiveAnswer.tooWideWords}. */
+	/** Whether the box was too wide to ask for others: the map shows no gliders then. */
 	othersTooWide: boolean;
-	/** What a map says where it shows too much to ask for others, in the core's words. */
-	tooWideWords: string;
 }
 
 /** The aircraft other networks hear in a box, as the core puts them beside Venti's pilots. */
@@ -182,8 +179,7 @@ export class LiveSource {
 			map: venti.map,
 			heard: venti.heard,
 			others: others && this.#beside(venti, others),
-			othersTooWide: othersPath === undefined,
-			tooWideWords: othersTooWideWords()
+			othersTooWide: othersPath === undefined
 		};
 	}
 

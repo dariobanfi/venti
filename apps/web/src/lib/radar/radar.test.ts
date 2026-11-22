@@ -70,12 +70,19 @@ function layer(count: number, more: Partial<RadarLayerView> = {}): RadarLayerVie
 
 /** The key as the core gives it: from the most rain down, with its stand-in colours. */
 const KEY: RadarView['key'] = [
-	{ step: 6, words: 'Cloudburst', scale: 'wind', scaleStep: 7 },
-	{ step: 5, words: 'Very heavy rain', scale: 'wind', scaleStep: 6 },
-	{ step: 4, words: 'Heavy rain', scale: 'vario', scaleStep: 1 },
-	{ step: 3, words: 'Rain', scale: 'vario', scaleStep: 2 },
-	{ step: 2, words: 'Light rain', scale: 'vario', scaleStep: 3 },
-	{ step: 1, words: 'A trace', scale: 'vario', scaleStep: 4 }
+	{ step: 6, words: 'Cloudburst', name: 'Cloudburst', amount: '', scale: 'wind', scaleStep: 7 },
+	{
+		step: 5,
+		words: 'Very heavy rain',
+		name: 'Very heavy rain',
+		amount: '',
+		scale: 'wind',
+		scaleStep: 6
+	},
+	{ step: 4, words: 'Heavy rain', name: 'Heavy rain', amount: '', scale: 'vario', scaleStep: 1 },
+	{ step: 3, words: 'Rain', name: 'Rain', amount: '', scale: 'vario', scaleStep: 2 },
+	{ step: 2, words: 'Light rain', name: 'Light rain', amount: '', scale: 'vario', scaleStep: 3 },
+	{ step: 1, words: 'A trace', name: 'A trace', amount: '', scale: 'vario', scaleStep: 4 }
 ];
 
 /** One layer, as a server with one radar source has it: a moment for a frame, with the frame's own line. */
@@ -87,6 +94,7 @@ function view(count: number, more: Partial<RadarLayerView> = {}): RadarView {
 			timeUnixS: frame.timeUnixS,
 			clock: frame.clock,
 			label: frame.label,
+			line: `Rain, ${frame.clock}, measured`,
 			frames: [{ layer: 0, frame: index, drawsUnseen: true }]
 		})),
 		firstMoment: Math.max(count - 1, 0),
@@ -141,6 +149,7 @@ function two(
 			timeUnixS: frame.timeUnixS,
 			clock: frame.clock,
 			label: index === 0 ? frame.label : `${frame.label}. The made-up analysis is of 11:00.`,
+			line: `Rain, ${frame.clock}, measured`,
 			frames: [
 				{ layer: 0, frame: 1, drawsUnseen: true },
 				{ layer: 1, frame: index, drawsUnseen: false }

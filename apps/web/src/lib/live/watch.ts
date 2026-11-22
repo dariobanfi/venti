@@ -190,8 +190,6 @@ export class LiveWatch {
 		// what the screens already have.
 		if (answer.others?.heard !== this.#others?.heard) this.#others = answer.others;
 		this.#othersTooWide = answer.othersTooWide;
-		if (answer.others && answer.others.networks.length > 0)
-			this.#tooWideWords = answer.tooWideWords;
 		this.#show();
 	}
 

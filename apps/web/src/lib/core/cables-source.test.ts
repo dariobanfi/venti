@@ -31,7 +31,7 @@ describe('the cables around a place, from the server', () => {
 		expect(layer.lines.every((line) => !line.heightMapped)).toBe(true);
 		expect(layer.lines.find((line) => line.name === 'Wallbergbahn')?.kind).toBe('gondola');
 		expect(layer.credits.map((credit) => credit.text)).toEqual(['© OpenStreetMap contributors']);
-		expect(layer.limits).toContain('no promise');
+		expect(layer.limits).toBe('Not every cable is mapped, and few have a height.');
 	});
 
 	it('are not asked for where the site has no server', async () => {

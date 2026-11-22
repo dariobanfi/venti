@@ -166,7 +166,7 @@ describe('the rain radar from the server', () => {
 		expect(view.key[0]).toMatchObject({ scale: 'wind', scaleStep: 7 });
 		expect(view.key[5]).toMatchObject({ words: 'A trace, under 0.2 mm an hour', scale: 'vario' });
 		expect(view.unseenWords).toBe('Not seen by the radar');
-		expect(view.note).toContain('It is no forecast');
+		expect(view.note).toContain('no forecast');
 		expect(view.note).toContain("the radar's picture lies on top");
 	});
 

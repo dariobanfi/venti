@@ -231,7 +231,6 @@ describe('who is in the air, from the server', () => {
 		);
 		expect(answer.othersTooWide).toBe(true);
 		expect(answer.others).toBeUndefined();
-		expect(answer.tooWideWords).toBe('Zoom in to see the gliders of the Open Glider Network.');
 	});
 
 	it('says how old a position is in the core’s words, and never calls silence a landing', () => {

@@ -236,7 +236,7 @@ describe('who is in the air over the part of the map in view', () => {
 		expect(state().others).toEqual([]);
 	});
 
-	it('says to zoom in on a map too wide for others, once the network was heard', async () => {
+	it('says nothing on a map too wide for others: the gliders appear when it is close enough', async () => {
 		let reply = answer(1, [glider()]);
 		const { watch, state } = watching(async () => reply);
 		const alps = { south: 44, west: 6, north: 49, east: 6 + WIDEST_MAP_DEG + 0.1 };
@@ -250,16 +250,13 @@ describe('who is in the air over the part of the map in view', () => {
 		await watch.load();
 		expect(state().othersSaid).toBe('');
 		watch.show(alps);
-		expect(state()).toMatchObject({
-			others: [],
-			othersSaid: 'Zoom in to see the gliders of the Open Glider Network.'
-		});
+		expect(state()).toMatchObject({ others: [], othersSaid: '' });
 
 		// Close enough for Venti's pilots, still too tall a box for others.
 		reply = { ...answer(3, [glider()]), othersTooWide: true };
 		watch.show(VALLEY);
 		await watch.load();
-		expect(state().othersSaid).toBe('Zoom in to see the gliders of the Open Glider Network.');
+		expect(state().othersSaid).toBe('');
 	});
 });
 

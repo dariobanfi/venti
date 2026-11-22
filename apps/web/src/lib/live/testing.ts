@@ -39,8 +39,7 @@ export function answer(
 		map: { gliders, truncated: false },
 		heard,
 		others,
-		othersTooWide: false,
-		tooWideWords: 'Zoom in to see the gliders of the Open Glider Network.'
+		othersTooWide: false
 	};
 }
 

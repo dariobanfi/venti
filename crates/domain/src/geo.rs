@@ -144,6 +144,14 @@ impl BoundingBox {
             && (self.west..=self.east).contains(&point.lon())
     }
 
+    /// Whether all of `other` lies inside the box, edges included.
+    pub fn encloses(&self, other: &BoundingBox) -> bool {
+        self.south <= other.south
+            && self.west <= other.west
+            && self.north >= other.north
+            && self.east >= other.east
+    }
+
     /// The smallest box that contains both this box and `other`.
     pub fn cover(&self, other: &BoundingBox) -> BoundingBox {
         BoundingBox {
@@ -217,6 +225,8 @@ mod tests {
             (46.3, 8.0, 54.0, 17.2)
         );
         assert_eq!(alps.cover(&alps), alps);
+        assert!(both.encloses(&alps) && both.encloses(&north) && alps.encloses(&alps));
+        assert!(!alps.encloses(&both));
     }
 
     #[test]

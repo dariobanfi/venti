@@ -58,8 +58,22 @@ impl Pace {
     ///
     /// A server that restarts, or keeps restarting, must not run a source
     /// more often than its cadence allows.
-    pub(crate) fn first_delay(&self, since_last_start: Option<Duration>) -> Duration {
+    ///
+    /// The one exception is `falls_short`: what the store holds of the
+    /// source was collected over less than the plan now asks for (a region
+    /// was added, a box widened), and the latest run was healthy. The run
+    /// is then due at once instead of up to a cadence later. The caller
+    /// says so only after a healthy latest run, so a server that keeps
+    /// restarting while the provider fails waits out the cadence as
+    /// before; and a healthy run stores a set that covers the plan, so the
+    /// exception cannot repeat itself.
+    pub(crate) fn first_delay(
+        &self,
+        since_last_start: Option<Duration>,
+        falls_short: bool,
+    ) -> Duration {
         match since_last_start {
+            Some(_) if falls_short => Duration::ZERO,
             Some(elapsed) => self.cadence.saturating_sub(elapsed),
             None => Duration::ZERO,
         }
@@ -113,9 +127,22 @@ mod tests {
     #[test]
     fn the_first_run_waits_out_what_is_left_of_the_cadence() {
         let pace = Pace::new(600);
-        assert_eq!(pace.first_delay(None), Duration::ZERO);
-        assert_eq!(pace.first_delay(Some(4 * MINUTE)), 6 * MINUTE);
-        assert_eq!(pace.first_delay(Some(10 * MINUTE)), Duration::ZERO);
-        assert_eq!(pace.first_delay(Some(3 * 3600 * MINUTE)), Duration::ZERO);
+        assert_eq!(pace.first_delay(None, false), Duration::ZERO);
+        assert_eq!(pace.first_delay(Some(4 * MINUTE), false), 6 * MINUTE);
+        assert_eq!(pace.first_delay(Some(10 * MINUTE), false), Duration::ZERO);
+        assert_eq!(
+            pace.first_delay(Some(3 * 3600 * MINUTE), false),
+            Duration::ZERO
+        );
+    }
+
+    #[test]
+    fn a_stored_set_that_falls_short_of_the_plan_is_due_at_once() {
+        let daily = Pace::new(86_400);
+        assert_eq!(daily.first_delay(Some(MINUTE), true), Duration::ZERO);
+        assert_eq!(
+            daily.first_delay(Some(MINUTE), false),
+            86_400 * Duration::from_secs(1) - MINUTE
+        );
     }
 }

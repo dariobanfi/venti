@@ -128,6 +128,11 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         &self.store
     }
 
+    /// The adapters the collector runs.
+    pub fn registry(&self) -> &Registry {
+        &self.registry
+    }
+
     /// The current time, by the collector's clock.
     pub fn now(&self) -> Timestamp {
         self.clock.now()

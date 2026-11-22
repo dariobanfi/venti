@@ -889,4 +889,63 @@ mod tests {
         );
         assert_eq!(watch.check(NOW as f64), crate::AirspaceCheck::OutsideFiles);
     }
+
+    #[test]
+    fn a_place_beyond_what_the_server_collected_is_no_data_and_not_free_air() {
+        // A server switched to more regions still serves the set collected
+        // over the first region's box until its next run. A pilot in the
+        // French Alps asks it, and keeps what it answers.
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        let (lat, lon) = (45.9, 6.9);
+        let fetch = core
+            .keep_server_airspace(
+                SERVER.to_owned(),
+                lat,
+                lon,
+                200,
+                recorded_covering(&[[46.3, 9.4, 48.5, 17.2]]),
+                NOW,
+            )
+            .unwrap();
+        assert!(fetch.replaced);
+        let set = core.airspace().unwrap();
+
+        // The map's "what lies over this place": no data, not no airspace.
+        let over = set.over_place(crate::Coordinate { lat, lon });
+        assert!(over.airspaces.is_empty());
+        assert!(!over.covered);
+        assert_eq!(over.words, "No airspace data for this place");
+        assert!(
+            over.cover_note
+                .unwrap()
+                .contains("does not mean free airspace")
+        );
+        // Where the kept part of the server's box lies, the same answer is
+        // a statement.
+        let inside = set.over_place(crate::Coordinate {
+            lat: 47.0,
+            lon: 9.6,
+        });
+        assert!(inside.covered);
+        assert_eq!(
+            inside.words,
+            "No airspace over this place in the app's data"
+        );
+
+        // The cockpit there says that it is not checking.
+        let mut watch = AirspaceWatch::new(set);
+        watch.feed(
+            NOW as f64,
+            point(lat, lon),
+            Some(1500.0),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(watch.check(NOW as f64), crate::AirspaceCheck::OutsideFiles);
+    }
 }

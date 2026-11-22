@@ -5,8 +5,9 @@ use std::sync::Arc;
 use tokio::task::JoinSet;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
-use venti_sources::{Archive, Fetch};
-use venti_store::Store;
+use venti_domain::BoundingBox;
+use venti_sources::{Archive, Fetch, Kind};
+use venti_store::{SourceStatus, Store};
 
 use super::Collector;
 use super::schedule::Pace;
@@ -53,7 +54,21 @@ async fn run_source<S, F, A>(
     A: Archive,
 {
     let pace = Pace::new(collector.cadence_seconds(&job));
-    let mut next = Instant::now() + pace.first_delay(since_last_start(&collector, &job).await);
+    let status = latest_status(&collector, &job).await;
+    let since = status
+        .as_ref()
+        .and_then(|status| since_last_start(&collector, status));
+    let short = match &status {
+        Some(status) if latest_run_was_healthy(status) => falls_short(&collector, &job).await,
+        _ => false,
+    };
+    if short && since.is_some() {
+        tracing::info!(
+            source = %job.source,
+            "what is stored was collected over less than the plan asks for: running now"
+        );
+    }
+    let mut next = Instant::now() + pace.first_delay(since, short);
     let mut failures: u32 = 0;
 
     loop {
@@ -81,18 +96,26 @@ async fn run_source<S, F, A>(
     }
 }
 
-/// How long ago the source's latest run started, by the run history. `None`
-/// when it never ran or the history cannot be read.
-async fn since_last_start<S: Store, F: Fetch, A: Archive>(
+/// What the run history says about the job's source. `None` when the
+/// history cannot be read.
+async fn latest_status<S: Store, F: Fetch, A: Archive>(
     collector: &Collector<S, F, A>,
     job: &Job,
-) -> Option<std::time::Duration> {
+) -> Option<SourceStatus> {
     let status = collector
         .store()
         .source_status(std::slice::from_ref(&job.source))
         .await
         .ok()?;
-    let last_started = status.first()?.last_started?;
+    status.into_iter().next()
+}
+
+/// How long ago the source's latest run started. `None` when it never ran.
+fn since_last_start<S: Store, F: Fetch, A: Archive>(
+    collector: &Collector<S, F, A>,
+    status: &SourceStatus,
+) -> Option<std::time::Duration> {
+    let last_started = status.last_started?;
     // A start time in the future means a clock was set back; the full
     // cadence is then the longest sensible wait.
     Some(
@@ -100,6 +123,55 @@ async fn since_last_start<S: Store, F: Fetch, A: Archive>(
             .to_std()
             .unwrap_or(std::time::Duration::ZERO),
     )
+}
+
+/// Whether the source's latest run that finished was a healthy one. A run
+/// that failed is retried by the ordinary rule, however little the stored
+/// set covers: that is what keeps a server that restarts again and again
+/// from asking a failing provider at every start.
+fn latest_run_was_healthy(status: &SourceStatus) -> bool {
+    match (status.last_success, status.last_failure) {
+        (Some(success), Some(failure)) => success >= failure,
+        (Some(_), None) => true,
+        (None, _) => false,
+    }
+}
+
+/// Whether the set the store holds of the job's source was collected over
+/// less than the job now asks for: its area is not inside one of the boxes
+/// the set says it is whole for, or, for airspace, the adapter now fetches
+/// a country the set was not fetched for. Only kinds whose stored set says
+/// what it covers can fall short: airspace, sites and cables. Stations,
+/// forecasts and radar keep nothing that says so, and never do. A store
+/// that cannot be read falls short of nothing: the ordinary rule holds.
+async fn falls_short<S: Store, F: Fetch, A: Archive>(
+    collector: &Collector<S, F, A>,
+    job: &Job,
+) -> bool {
+    let store = collector.store();
+    let sources = std::slice::from_ref(&job.source);
+    let covers_area = |boxes: &[BoundingBox]| boxes.iter().any(|b| b.encloses(&job.area));
+    match job.kind {
+        Kind::Airspace => match store.airspace_sets(sources).await {
+            Ok(sets) => sets.first().is_none_or(|set| {
+                let countries = &job.manifest(collector.registry()).countries;
+                !covers_area(&set.coverage.boxes)
+                    || countries
+                        .iter()
+                        .any(|country| !set.coverage.countries.contains(country))
+            }),
+            Err(_) => false,
+        },
+        Kind::Sites => match store.site_sets(sources).await {
+            Ok(sets) => sets.first().is_none_or(|set| !covers_area(&set.covers)),
+            Err(_) => false,
+        },
+        Kind::Cables => match store.cable_sets(sources).await {
+            Ok(sets) => sets.first().is_none_or(|set| !covers_area(&set.covers)),
+            Err(_) => false,
+        },
+        Kind::Observations | Kind::Forecasts | Kind::Radar | Kind::Imagery | Kind::Live => false,
+    }
 }
 
 #[cfg(test)]
@@ -112,14 +184,15 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use venti_domain::{
         Activity, Airspace, AirspaceClass, AirspaceId, AirspaceType, BoundingBox, GeoPoint,
-        Observation, Polygon, SourceId, Station, StationId, Timestamp, Validity, VerticalLimit,
+        Observation, Polygon, Site, SiteId, SiteUse, SourceId, Station, StationId, Timestamp,
+        Validity, VerticalLimit,
     };
     use venti_sources::{
         AirspaceSource, FetchError, Fetched, Kind, Manifest, ObservationSource, Parsed,
-        ParsedAirspace, PlanCtx, Registry, Request, SourceError,
+        ParsedAirspace, ParsedSites, PlanCtx, Registry, Request, SiteSource, SourceError,
     };
     use venti_store::testing::TroubledStore;
-    use venti_store::{MemoryStore, RunRecord};
+    use venti_store::{Coverage, MemoryStore, RunRecord, SiteDelivery};
 
     use super::*;
     use crate::clock::Clock;
@@ -163,7 +236,7 @@ mod tests {
                 id = "{id}"
                 provider = "Test"
                 short_name = "Test"
-                kinds = ["observations", "airspace"]
+                kinds = ["observations", "airspace", "sites"]
                 countries = ["DE"]
                 cadence_seconds = {cadence_seconds}
                 auth = "none"
@@ -235,32 +308,82 @@ mod tests {
             _body: &[u8],
             _ctx: &PlanCtx,
         ) -> Result<ParsedAirspace, SourceError> {
-            let point = |lat, lon| GeoPoint::new(lat, lon).unwrap();
-            let ring = vec![
-                point(47.0, 11.0),
-                point(47.0, 11.2),
-                point(47.1, 11.2),
-                point(47.0, 11.0),
-            ];
             Ok(ParsedAirspace {
-                airspaces: vec![Airspace {
-                    id: AirspaceId::new(self.manifest.id.clone(), "1").unwrap(),
-                    name: "Test".to_owned(),
-                    class: AirspaceClass::D,
-                    airspace_type: AirspaceType::Ctr,
-                    country: None,
-                    lower: VerticalLimit::ground(),
-                    upper: VerticalLimit::unlimited(),
-                    lower_at_least: None,
-                    upper_at_most: None,
-                    geometry: Polygon::new(ring, Vec::new()).unwrap(),
-                    activity: Activity::default(),
-                    frequencies: Vec::new(),
-                    remarks: None,
-                    validity: Validity::default(),
-                }],
+                airspaces: vec![test_airspace(&self.manifest.id)],
                 ..ParsedAirspace::default()
             })
+        }
+    }
+
+    /// The same source as one of flying sites: every run delivers a set of
+    /// one site.
+    impl SiteSource for TestSource {
+        fn manifest(&self) -> &Manifest {
+            &self.manifest
+        }
+
+        fn plan(&self, ctx: &PlanCtx) -> Vec<Request> {
+            ObservationSource::plan(self, ctx)
+        }
+
+        fn parse(
+            &self,
+            _request: &Request,
+            _body: &[u8],
+            _ctx: &PlanCtx,
+        ) -> Result<ParsedSites, SourceError> {
+            Ok(ParsedSites {
+                sites: vec![test_site(&self.manifest.id)],
+                ..ParsedSites::default()
+            })
+        }
+    }
+
+    fn test_airspace(source: &SourceId) -> Airspace {
+        let point = |lat, lon| GeoPoint::new(lat, lon).unwrap();
+        let ring = vec![
+            point(47.0, 11.0),
+            point(47.0, 11.2),
+            point(47.1, 11.2),
+            point(47.0, 11.0),
+        ];
+        Airspace {
+            id: AirspaceId::new(source.clone(), "1").unwrap(),
+            name: "Test".to_owned(),
+            class: AirspaceClass::D,
+            airspace_type: AirspaceType::Ctr,
+            country: None,
+            lower: VerticalLimit::ground(),
+            upper: VerticalLimit::unlimited(),
+            lower_at_least: None,
+            upper_at_most: None,
+            geometry: Polygon::new(ring, Vec::new()).unwrap(),
+            activity: Activity::default(),
+            frequencies: Vec::new(),
+            remarks: None,
+            validity: Validity::default(),
+        }
+    }
+
+    fn test_site(source: &SourceId) -> Site {
+        Site {
+            id: SiteId::new(source.clone(), "1").unwrap(),
+            name: Some("Test".to_owned()),
+            position: GeoPoint::new(47.0, 11.0).unwrap(),
+            elevation_m: None,
+            uses: vec![SiteUse::Takeoff],
+            wind_directions: Vec::new(),
+            paragliding: Some(true),
+            hang_gliding: None,
+            official: None,
+            discouraged: false,
+            url: None,
+            website: None,
+            description: None,
+            fee: None,
+            guest_guidelines: None,
+            no_flight_time: None,
+            outline: None,
         }
     }
 
@@ -652,5 +775,217 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(status[0].last_started, None);
+    }
+
+    // --- A plan that grew past what is stored ------------------------------
+
+    /// The box of the first region pack, `alps-de-at`.
+    fn first_region() -> BoundingBox {
+        BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap()
+    }
+
+    /// The box around the three packs of the Alps.
+    fn three_regions() -> BoundingBox {
+        BoundingBox::new(43.5, 5.0, 48.5, 17.2).unwrap()
+    }
+
+    /// A collector of `air`, airspace, and `sites`, flying sites, both
+    /// collected once a day.
+    fn daily_collector(
+        store: Arc<MemoryStore>,
+        fetch: &ScriptedFetch,
+    ) -> TestCollector<MemoryStore> {
+        let mut registry = Registry::new();
+        registry
+            .register_airspace(Box::new(TestSource::new("air", 86_400)))
+            .unwrap();
+        registry
+            .register_sites(Box::new(TestSource::new("sites", 86_400)))
+            .unwrap();
+        Arc::new(Collector::new(
+            registry,
+            store,
+            fetch.clone(),
+            None,
+            Arc::new(VirtualClock::new()),
+            Some(chrono::Duration::hours(3)),
+        ))
+    }
+
+    fn daily_job(id: &str, kind: Kind, area: BoundingBox) -> Job {
+        Job {
+            source: SourceId::new(id).unwrap(),
+            kind,
+            area,
+        }
+    }
+
+    /// Writes down a run of the server before this one, `hours_ago`: a
+    /// healthy one stores its set as collected over `area`, for the
+    /// countries `countries` (airspace only).
+    async fn ran_before(
+        collector: &TestCollector<MemoryStore>,
+        job: &Job,
+        area: BoundingBox,
+        countries: &[&str],
+        hours_ago: i64,
+        healthy: bool,
+    ) {
+        let at = collector.now() - chrono::Duration::hours(hours_ago);
+        let record = RunRecord {
+            source: job.source.clone(),
+            started_at: at,
+            finished_at: at,
+            healthy,
+            requests: 1,
+            failed_requests: u32::from(!healthy),
+            skipped: 0,
+            rejected: 0,
+            stations: 0,
+            observations: 0,
+            newest_observation: None,
+            airspaces: u32::from(healthy),
+        };
+        let store = collector.store();
+        match job.kind {
+            Kind::Airspace => {
+                let coverage = Coverage {
+                    boxes: vec![area],
+                    countries: countries.iter().map(|&c| c.to_owned()).collect(),
+                };
+                let airspaces: Vec<Airspace> = if healthy {
+                    vec![test_airspace(&job.source)]
+                } else {
+                    Vec::new()
+                };
+                store
+                    .save_airspace_run(&record, &coverage, &airspaces)
+                    .await
+                    .unwrap();
+            }
+            Kind::Sites => {
+                let delivery = SiteDelivery {
+                    as_of: at,
+                    covers: vec![area],
+                };
+                let sites: Vec<Site> = if healthy {
+                    vec![test_site(&job.source)]
+                } else {
+                    Vec::new()
+                };
+                store
+                    .save_site_run(&record, &delivery, &sites)
+                    .await
+                    .unwrap();
+            }
+            other => panic!("no stored set for {other:?}"),
+        }
+    }
+
+    fn hours_of(calls: &[(String, f64)], source: &str) -> Vec<f64> {
+        of(calls, source)
+            .iter()
+            .map(|minute| minute / 60.0)
+            .collect()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_plan_wider_than_the_stored_set_runs_at_once_and_once() {
+        let fetch = ScriptedFetch::working();
+        let store = Arc::new(MemoryStore::new());
+        let collector = daily_collector(store.clone(), &fetch);
+        // A server with the first pack collected both four hours ago.
+        let narrow = [
+            daily_job("air", Kind::Airspace, first_region()),
+            daily_job("sites", Kind::Sites, first_region()),
+        ];
+        for job in &narrow {
+            ran_before(&collector, job, first_region(), &["DE"], 4, true).await;
+        }
+
+        // It starts again with three packs.
+        let wide = vec![
+            daily_job("air", Kind::Airspace, three_regions()),
+            daily_job("sites", Kind::Sites, three_regions()),
+        ];
+        let calls = minutes_of_calls(collector, wide, &fetch, no_jitter, 30 * 60).await;
+
+        // Both run at once, and then at their cadence, not again early.
+        assert_eq!(hours_of(&calls, "air"), [0.0, 24.0]);
+        assert_eq!(hours_of(&calls, "sites"), [0.0, 24.0]);
+        // What is stored now covers the plan.
+        let air = SourceId::new("air").unwrap();
+        let sets = store
+            .airspace_sets(std::slice::from_ref(&air))
+            .await
+            .unwrap();
+        assert_eq!(sets[0].coverage.boxes, [three_regions()]);
+        let sites = SourceId::new("sites").unwrap();
+        let sets = store.site_sets(std::slice::from_ref(&sites)).await.unwrap();
+        assert_eq!(sets[0].covers, [three_regions()]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_same_plan_or_a_smaller_one_waits_out_the_cadence() {
+        for (stored, planned) in [
+            // Restarted with the same packs.
+            (first_region(), first_region()),
+            // Restarted with fewer: the stored set covers more than asked.
+            (three_regions(), first_region()),
+        ] {
+            let fetch = ScriptedFetch::working();
+            let collector = daily_collector(Arc::new(MemoryStore::new()), &fetch);
+            let jobs = vec![
+                daily_job("air", Kind::Airspace, planned),
+                daily_job("sites", Kind::Sites, planned),
+            ];
+            for job in &jobs {
+                ran_before(&collector, job, stored, &["DE"], 4, true).await;
+            }
+
+            let calls = minutes_of_calls(collector, jobs, &fetch, no_jitter, 22 * 60).await;
+
+            assert_eq!(hours_of(&calls, "air"), [20.0]);
+            assert_eq!(hours_of(&calls, "sites"), [20.0]);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn airspace_fetched_for_fewer_countries_than_the_adapter_now_fetches_runs_at_once() {
+        let fetch = ScriptedFetch::working();
+        let collector = daily_collector(Arc::new(MemoryStore::new()), &fetch);
+        let job = daily_job("air", Kind::Airspace, first_region());
+        // The same box, but the set holds no country the manifest names.
+        ran_before(&collector, &job, first_region(), &["AT"], 4, true).await;
+
+        let calls = minutes_of_calls(collector, vec![job], &fetch, no_jitter, 60).await;
+
+        assert_eq!(hours_of(&calls, "air"), [0.0]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_early_run_is_retried_by_the_ordinary_rule() {
+        // The early run fails: the next try is a cadence later, not sooner.
+        let fetch = ScriptedFetch::answering(Duration::ZERO, [false]);
+        let collector = daily_collector(Arc::new(MemoryStore::new()), &fetch);
+        let narrow = daily_job("air", Kind::Airspace, first_region());
+        ran_before(&collector, &narrow, first_region(), &["DE"], 4, true).await;
+        let wide = daily_job("air", Kind::Airspace, three_regions());
+
+        let calls =
+            minutes_of_calls(collector, vec![wide.clone()], &fetch, no_jitter, 30 * 60).await;
+
+        assert_eq!(hours_of(&calls, "air"), [0.0, 24.0]);
+
+        // A server that starts again after such a failure does not try
+        // again at once either: it waits out the cadence from the failed run.
+        let fetch = ScriptedFetch::working();
+        let collector = daily_collector(Arc::new(MemoryStore::new()), &fetch);
+        ran_before(&collector, &narrow, first_region(), &["DE"], 30, true).await;
+        ran_before(&collector, &wide, three_regions(), &["DE"], 2, false).await;
+
+        let calls = minutes_of_calls(collector, vec![wide], &fetch, no_jitter, 23 * 60).await;
+
+        assert_eq!(hours_of(&calls, "air"), [22.0]);
     }
 }

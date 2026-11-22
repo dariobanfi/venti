@@ -1931,6 +1931,54 @@ class VentiUiTest {
     }
 
     /**
+     * "Follow on the map" on the page of the development server's pilot in
+     * the air: switched on, the map moves from wherever it was to that
+     * pilot, above the page, at the zoom it had; closing the page switches
+     * it off. Skipped without a server.
+     */
+    private fun followAPilotOnTheMap(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.678, lon = 11.755, zoom = 11.6))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "live-gliders") ?: 0) >= 2
+        }
+        tapInLayers(described("Pilots in the air"))
+        waitFor(hasTestTag("live-row"))
+        tap(hasTestTag("live-row") and !saying("Landed"))
+        waitFor(hasTestTag("live-duration"))
+        val follow = hasTestTag("live-follow-on-map")
+        waitFor(follow and !isOn())
+
+        // The map elsewhere, west of the valley, closer in; the glider out of view.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.70, lon = 11.40, zoom = 12.4))
+        letTheMapDraw(1)
+        assertTrue(TestDevice.drawnInTheMiddle(scenario, "live-gliders") == null)
+        tap(follow)
+        waitFor(follow and isOn())
+        // Back over the pilot, in the middle of the map above the page, at the same zoom.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            TestDevice.drawnInTheMiddle(scenario, "live-gliders") != null
+        }
+        assertEquals(12.4, checkNotNull(TestDevice.zoomOf(scenario)), 0.01)
+        letTheMapDraw(3)
+        keepScreenshot("$prefix-air-5-follow-on-the-map")
+
+        // Closing the page lets go; opened again, it is off.
+        tap(hasText("Done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-age")) }
+        tapInLayers(described("Pilots in the air"))
+        waitFor(hasTestTag("live-row"))
+        tap(hasTestTag("live-row") and !saying("Landed"))
+        waitFor(follow and !isOn())
+        tap(hasText("Done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-age")) }
+    }
+
+    /**
      * Everyone's flights: the League tab lists what the pilots of Venti
      * share with everyone, the newest first or the best, and ranks them.
      * The development mode has eleven public flights of six made-up
@@ -2188,6 +2236,12 @@ class VentiUiTest {
 
     @Test
     fun theMapShowsWhoIsInTheAir() = lookAtWhoIsInTheAir("light", dark = false)
+
+    @Test
+    fun theMapFollowsAPilotInTheAir() = followAPilotOnTheMap("light", dark = false)
+
+    @Test
+    fun theMapFollowsAPilotInDarkAppearance() = followAPilotOnTheMap("dark", dark = true)
 
     @Test
     fun whoIsInTheAirInDarkAppearance() = lookAtWhoIsInTheAir("dark", dark = true)

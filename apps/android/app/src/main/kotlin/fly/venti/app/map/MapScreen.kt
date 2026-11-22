@@ -221,6 +221,10 @@ fun MapScreen(
     // The glider whose page is open, by its track's identifier: the page
     // shows it as the newest answer has it.
     var chosenGlider by remember { mutableStateOf<String?>(null) }
+    // Whether the map is kept on that pilot ("Follow on the map"): off
+    // when the page closes, the map is moved by hand, or the pilot lands
+    // or goes quiet.
+    var keepsGliderInView by remember { mutableStateOf(false) }
     // An aircraft another network hears, tapped on the map, by its identifier.
     var chosenOther by remember { mutableStateOf<String?>(null) }
     // A place the pilot pressed on, to show its forecast.
@@ -269,6 +273,7 @@ fun MapScreen(
         glideReach.ask()
     }
     map.onFollowingEnded = { isFollowing = false }
+    map.onMovedByHand = { keepsGliderInView = false }
     var region by remember { mutableStateOf<Bounds?>(null) }
     map.onRegion = { shown ->
         region = shown
@@ -297,7 +302,10 @@ fun MapScreen(
         candidateOffer = null
         chosenCandidate = place
     }
-    map.onGlider = { id -> chosenGlider = id }
+    map.onGlider = { id ->
+        if (id != chosenGlider) keepsGliderInView = false
+        chosenGlider = id
+    }
     map.onOther = { id -> chosenOther = id }
     map.onSquare = { cell -> square = cell }
     map.onHourSquare = { place, cell ->
@@ -449,6 +457,12 @@ fun MapScreen(
     // The flight of the glider whose page is open, as far as the server
     // has handed it out.
     val followed = live.followed?.track.orEmpty()
+    // The pilot the map is kept on, as the newest answer has them.
+    val keptGlider = chosenGlider?.takeIf { keepsGliderInView }?.let(live::glider)
+    val keptStillFlies = keptGlider?.let { !it.landed && !it.quiet } ?: true
+    LaunchedEffect(keptStillFlies) {
+        if (!keptStillFlies) keepsGliderInView = false
+    }
     // Whose wind, airspace and sites are on the map. Their licences ask for
     // the credit next to the data; the full wording is on each station's
     // and each site's page and on the airspace screen.
@@ -550,6 +564,7 @@ fun MapScreen(
                 map.showCandidates(if (hidesSites || !hasServer) emptyList() else candidates?.candidates.orEmpty())
                 map.showReach(glideReach.answer?.takeIf { glideReach.place != null }, glideReach.place)
                 map.follow(isFollowing)
+                map.keepOn(keptGlider?.takeIf { keptStillFlies }?.position)
             },
         )
         StatusBarScrim()
@@ -1012,6 +1027,7 @@ fun MapScreen(
             // opens at half height, with its flight on the map above it.
             onChoose = { id ->
                 showsGliders = false
+                keepsGliderInView = false
                 chosenGlider = id
             },
             onDismiss = { showsGliders = false },
@@ -1025,7 +1041,16 @@ fun MapScreen(
             account,
             server = (wind.server as? WindServer.Usable)?.url,
             requests = requests,
-            onDismiss = { chosenGlider = null },
+            followsOnMap = keepsGliderInView,
+            onFollowOnMap = { on ->
+                keepsGliderInView = on
+                // One thing at a time keeps the map: the glider or the pilot's own position.
+                if (on) isFollowing = false
+            },
+            onDismiss = {
+                chosenGlider = null
+                keepsGliderInView = false
+            },
         )
     }
 

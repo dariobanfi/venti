@@ -256,6 +256,25 @@ object TestDevice {
         return moved
     }
 
+    /** The zoom of the map on screen, or `null` if no map is on screen. */
+    fun <A : Activity> zoomOf(app: ActivityScenario<A>): Double? {
+        var zoom: Double? = null
+        val asked = CountDownLatch(1)
+        app.onActivity { activity ->
+            val view = mapIn(activity.window.decorView)
+            if (view == null) {
+                asked.countDown()
+            } else {
+                view.getMapAsync { map ->
+                    zoom = map.cameraPosition.zoom
+                    asked.countDown()
+                }
+            }
+        }
+        asked.await(10, TimeUnit.SECONDS)
+        return zoom
+    }
+
     /**
      * A place on the screen, in pixels, where the map on screen has drawn a
      * feature of one of its layers, looked for in the middle of the map

@@ -1,6 +1,7 @@
 package fly.venti.app.design
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 
@@ -39,6 +41,8 @@ private val CHIP_HEIGHT = VentiSpace.s6 + VentiSpace.s1
  * The pack's chip (`.v-chip`): switches a layer of the map on and off.
  * Drawn 36 high, a pill, the primary ground with its ink when on, the
  * surface with the float shadow when off, and 48 high to the finger.
+ * One that does not float over a map (on a page) has no shadow, and a
+ * border while it is off.
  */
 @Composable
 fun LayerChip(
@@ -47,6 +51,7 @@ fun LayerChip(
     isOn: Boolean,
     onChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    floats: Boolean = true,
 ) {
     val colours = Venti.colours
     Box(
@@ -59,7 +64,8 @@ fun LayerChip(
             shape = PillShape,
             color = if (isOn) colours.primary else colours.surface,
             contentColor = if (isOn) colours.onPrimary else colours.text,
-            shadowElevation = FloatElevation,
+            shadowElevation = if (floats) FloatElevation else 0.dp,
+            border = if (!floats && !isOn) BorderStroke(1.dp, colours.border) else null,
         ) {
             Row(
                 modifier = Modifier.height(CHIP_HEIGHT).padding(start = VentiSpace.s3, end = VentiSpace.s4),

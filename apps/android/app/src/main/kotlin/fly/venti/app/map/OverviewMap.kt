@@ -72,6 +72,9 @@ class OverviewMap : MapContent {
     /** Told when the map stops following the pilot by itself, because it was dragged. */
     var onFollowingEnded: () -> Unit = {}
 
+    /** Told when the pilot moves the map by hand while it is kept on a glider ([keepOn]). */
+    var onMovedByHand: () -> Unit = {}
+
     /** Told which part of the world is in view, whenever the map comes to rest. */
     var onRegion: (Bounds) -> Unit = {}
 
@@ -214,6 +217,9 @@ class OverviewMap : MapContent {
     private var covered = Covered()
     private var isFollowing = false
 
+    /** The place of the glider the map is kept on, the last it moved to; `null` while it keeps on none. */
+    private var keptOn: Coordinate? = null
+
     /** What a glide reaches from a place the pilot chose, and the one drawn; compared by identity. */
     private var reach: GlideReach? = null
     private var drawnReach: GlideReach? = null
@@ -262,6 +268,13 @@ class OverviewMap : MapContent {
         map.addOnCameraIdleListener {
             left = map.cameraPosition
             tellRegion(map, view)
+        }
+        // A drag or a pinch of the pilot's lets go of a glider the map was kept on.
+        map.addOnCameraMoveStartedListener { reason ->
+            if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE && keptOn != null) {
+                keptOn = null
+                onMovedByHand()
+            }
         }
         map.addOnMapClickListener { place -> tapped(place, map, view) }
         // A long press asks about the place under the finger.
@@ -349,6 +362,7 @@ class OverviewMap : MapContent {
         if (isFollowing) {
             startFollowing()
         }
+        centreOnKept()
         // The map may not have its size yet when the style arrives, and
         // may be gone by the time it has.
         view.post { if (!view.isDestroyed) tellRegion(map, view) }
@@ -616,6 +630,39 @@ class OverviewMap : MapContent {
         style.addSource(GeoJsonSource(TRACKS))
         style.addLayer(MapSetup.line("logbook-tracks-edge", TRACKS, MapSetup.halo, 5f))
         style.addLayer(MapSetup.line("logbook-tracks-line", TRACKS, MapSetup.accent, 2.5f))
+    }
+
+    /**
+     * Keeps a glider in the middle of the part of the map its page leaves
+     * free (the upper half), moving there whenever its place changes and
+     * never changing the zoom; `null` lets the map be.
+     */
+    fun keepOn(place: Coordinate?) {
+        if (place == keptOn) return
+        keptOn = place
+        centreOnKept()
+    }
+
+    private fun centreOnKept() {
+        val place = keptOn ?: return
+        val map = map ?: return
+        val view = view ?: return
+        if (view.height == 0) return
+        // The map is flat at one zoom, so a shift on the screen is a shift of
+        // its middle: the glider goes where the free part has its middle.
+        // The camera's middle is where its padding leaves it (a followed
+        // flight shown above the page leaves padding at the foot).
+        val padding = map.cameraPosition.padding ?: DoubleArray(4)
+        val centre = PointF(
+            ((view.width + padding[0] - padding[2]) / 2).toFloat(),
+            ((view.height + padding[1] - padding[3]) / 2).toFloat(),
+        )
+        val glider = map.projection.toScreenLocation(place.latLng)
+        val wanted = PointF(view.width / 2f, (covered.top + view.height / 2f) / 2f)
+        val middle = map.projection.fromScreenLocation(
+            PointF(centre.x + glider.x - wanted.x, centre.y + glider.y - wanted.y),
+        )
+        map.easeCamera(CameraUpdateFactory.newLatLng(middle), KEEP_ON_MILLISECONDS)
     }
 
     /**
@@ -1073,6 +1120,9 @@ class OverviewMap : MapContent {
         /** How close the map shows a site's place while it is chosen: a path and a clearing can be told apart. */
         private const val PLACING_ZOOM = 15.0
         private const val FOLLOWING_ZOOM = 13.0
+
+        /** How long the map takes to move to a glider it is kept on. */
+        private const val KEEP_ON_MILLISECONDS = 400
 
         /** Half the width of a finger, in the screen's own units. */
         private const val REACH_DP = 22f

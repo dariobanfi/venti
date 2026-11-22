@@ -53,6 +53,7 @@ import fly.venti.app.community.ReportSheet
 import fly.venti.app.community.Reported
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
+import fly.venti.app.design.LayerChip
 import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.ValueRow
@@ -88,6 +89,12 @@ object GliderWords {
 
     /** What stands under the list. */
     fun underTheList(isTruncated: Boolean): String = if (isTruncated) MORE + CAUTION else CAUTION
+
+    /**
+     * The button on a glider's page that keeps the map on that pilot. The
+     * core has no word for it.
+     */
+    const val FOLLOW_ON_MAP = "Follow on the map"
 
     /** A glider's page is named by its pilot's handle. */
     fun title(glider: LiveGlider?): String = glider?.let { "@${it.handle}" } ?: "Glider"
@@ -222,6 +229,9 @@ fun GliderSheet(
     server: String?,
     /** Where a report is sent from, so that it goes on when its form is closed. */
     requests: CoroutineScope,
+    /** Whether the map is kept on this pilot, re-centred at each new position. */
+    followsOnMap: Boolean,
+    onFollowOnMap: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // The flight's track is asked for while its page is open, and no longer.
@@ -253,6 +263,18 @@ fun GliderSheet(
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = onDismiss) { Text(Common.words.done) }
+                }
+                // The map kept on a pilot in the air: drawn as the map's
+                // chips are, the primary ground while on.
+                if (glider != null && !glider.landed && !glider.quiet) {
+                    LayerChip(
+                        GliderWords.FOLLOW_ON_MAP,
+                        R.drawable.ic_target,
+                        isOn = followsOnMap,
+                        onChange = onFollowOnMap,
+                        modifier = Modifier.padding(horizontal = 16.dp).testTag("live-follow-on-map"),
+                        floats = false,
+                    )
                 }
                 Column(
                     Modifier

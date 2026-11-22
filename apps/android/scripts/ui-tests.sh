@@ -221,10 +221,20 @@ done
 
 # --- The tests, in a queue. ------------------------------------------------
 
-# As the runner names them: Class#function.
+# As the runner names them: Class#function, or a class with all its tests.
+# A name with a capital first letter and no package is a class of the app's
+# tests (LiveFlightTest, LiveFlightTest#aFlightRecordsItself), found by its
+# file under app/src/androidTest.
 full_name() {
+  local class file package
   case "$1" in
     *.*) echo "$1" ;;
+    [A-Z]*)
+      class="${1%%#*}"
+      file="$(find apps/android/app/src/androidTest -name "$class.kt" | head -1)"
+      package="$(sed -n 's/^package \([a-z.]*\).*/\1/p' "$file" 2>/dev/null | head -1)"
+      echo "${package:-fly.venti.app}.$1"
+      ;;
     *) echo "fly.venti.app.VentiUiTest#$1" ;;
   esac
 }
@@ -276,7 +286,8 @@ work() {
     seconds=$(($(date +%s) - begun))
     if grep -q "^INSTRUMENTATION_STATUS_CODE: -4" "$out/logs/$name.log"; then
       result="skipped"
-    elif grep -q "^OK (1 test)" "$out/logs/$name.log"; then
+    # "OK (1 test)", or "OK (2 tests)" for a class named alone.
+    elif grep -Eq "^OK \([0-9]+ tests?\)" "$out/logs/$name.log"; then
       result="passed"
     else
       result="FAILED"

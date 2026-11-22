@@ -16,6 +16,7 @@ import { GroupsSource } from './groups-source';
 import { GlideReachSource } from './glide-reach-source';
 import { IdbStore } from './idb-store';
 import { LiveSource } from './live-source';
+import { OwnFlightsSource } from './own-flights-source';
 import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
 import { type Answering, answer, describeFailure, type Reply, type Request } from './protocol';
@@ -40,8 +41,8 @@ const send = (reply: Reply) => postMessage(reply);
 
 /**
  * The browser's store, or one in memory if the browser gives the page no
- * storage, as some do in private windows. The logbook then lasts until the
- * page is closed.
+ * storage, as some do in private windows. What the core keeps (the account,
+ * the pilot's own sites, airspace) then lasts until the page is closed.
  */
 async function openStore(): Promise<FileStore> {
 	try {
@@ -83,6 +84,7 @@ const starting: Promise<Answering> = (async () => {
 			undefined,
 			() => wind.serverNow()
 		),
+		own: new OwnFlightsSource(() => session.token()),
 		groups: new GroupsSource(session),
 		terrain: new TerrainSource(),
 		today: new TodaySource(

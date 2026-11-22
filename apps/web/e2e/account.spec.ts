@@ -1,6 +1,6 @@
 /**
- * The pilot's account on the Venti server: signing in, the logbook kept in
- * step, a flight shared with a link, signing out and deleting the account.
+ * The pilot's account on the Venti server: signing in, the pilot's flights
+ * on it, a flight shared with a link, signing out and deleting the account.
  *
  * The server is the development mode's, behind the site as it will be when
  * one web server hands out both. It comes with a demo account and three
@@ -10,7 +10,8 @@
  */
 
 import type { Page } from '@playwright/test';
-import { addSampleFlight, expect, metric, test } from './helpers';
+import { asUpload, expect, metric, SAMPLE_FLIGHT, test } from './helpers';
+import { readFileSync } from 'node:fs';
 
 const DEMO = { handle: 'demo', password: 'demo-pilot-password' };
 
@@ -73,51 +74,45 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	await expect(page.getByRole('alert')).toHaveText('The handle or the password is wrong.');
 	await keep('25-account-refused');
 
-	// The right one signs in, and the sync that follows fetches the flights.
+	// The right one signs in. The website keeps no flights of its own: the
+	// account's are on the server, behind "My flights".
 	await field(page, 'Password').fill(DEMO.password);
 	await page.keyboard.press('Enter');
 	await expect(metric(page, 'Handle')).toHaveText('@demo');
 	await expect(metric(page, 'Name')).toHaveText('Demo Pilot');
 	await expect(metric(page, 'Address')).toHaveText('localhost:4173');
-	await expect(metric(page, 'Last sync')).toHaveText('3 fetched');
-	await expect(metric(page, 'Flights on Venti')).toHaveText('3');
-	await expect(metric(page, 'In step since')).toHaveText(/^\w{3}, \d+ \w{3}, \d\d:\d\d$/);
-	await expect(page.getByText('Waiting to be sent')).toBeHidden();
-	await expect(page.getByRole('button', { name: 'Sync now' })).toBeEnabled();
+	await expect(page.getByText('Last sync')).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Sync now' })).toBeHidden();
 	await keep('26-account');
 
-	// They are in the logbook, and the settings say whose it is.
-	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
-	await expect(metric(page.getByLabel('All flights'), 'Flights')).toHaveText('3');
-	await expect(
-		page.getByRole('main').getByRole('link', { name: /(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d+ / })
-	).toHaveCount(3);
+	// The account's flights, by day.
+	await page.getByRole('link', { name: 'My flights' }).click();
+	await expect(page.getByRole('heading', { level: 1, name: 'My flights' })).toBeVisible();
+	await expect(page.getByRole('main').locator('section.day li')).toHaveCount(3);
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
 	await expect(
 		page.locator('.settings-page').getByRole('link', { name: /^Account/ })
 	).toContainText('@demo');
 
-	// Asked for again, a sync has nothing to do.
 	await page
 		.locator('.settings-page')
 		.getByRole('link', { name: /^Account/ })
 		.click();
-	await page.getByRole('button', { name: 'Sync now' }).click();
-	await expect(metric(page, 'Last sync')).toHaveText('Nothing to send or fetch');
 
-	// Signing out asks first, and leaves the flights in the browser.
+	// Signing out asks first; the flights stay on the account, and the
+	// browser shows them no more.
 	await page.getByRole('button', { name: 'Sign out' }).click();
 	const asking = page.getByRole('alertdialog', { name: 'Sign out?' });
-	await expect(asking).toContainText('Your flights stay in this browser and on Venti.');
+	await expect(asking).toContainText('Your flights stay on your Venti account.');
 	await asking.getByRole('button', { name: 'Sign out' }).click();
 	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
-	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
-	await expect(metric(page.getByLabel('All flights'), 'Flights')).toHaveText('3');
+	await page.goto('/settings/account/flights/');
+	await expect(page.getByRole('heading', { name: 'Sign in to see your flights' })).toBeVisible();
 
 	expect(problems).toEqual([]);
 });
 
-test('a new account sends its flights, shares one with a link, and is deleted again', async ({
+test('a new account brings a flight in, shares it with a link, and is deleted again', async ({
 	context,
 	page,
 	keep,
@@ -127,8 +122,6 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	const more = page.getByRole('button', { name: 'More' });
 	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
-	// A flight is in the logbook before there is an account.
-	await addSampleFlight(page);
 	await page.goto('/settings/account/');
 
 	// Creating an account says what the rules are, and that a forgotten
@@ -147,24 +140,24 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await expect(page.getByRole('alert')).toContainText('at least 15 characters');
 
-	// Created, the account is signed in and the flight is sent.
+	// Created, the account is signed in, and a flight brought in goes to it.
 	await field(page, 'Password').fill(pilot.password);
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await expect(metric(page, 'Handle')).toHaveText(`@${pilot.handle}`);
 	await expect(metric(page, 'Name')).toHaveText('Test Pilot');
-	await expect(metric(page, 'Last sync')).toHaveText('1 sent');
-	await expect(metric(page, 'Flights on Venti')).toHaveText('1');
-
-	// The flight is shared from its own screen. Nothing is shared by default.
-	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
+	await page.getByRole('link', { name: 'My flights' }).click();
 	await page
-		.getByRole('main')
-		.getByRole('link', { name: /(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d+ / })
-		.click();
+		.locator('input[type=file]')
+		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
+
+	// It opens at once. Who sees a new flight is the account's setting (owner
+	// decision 21): the sheet says which, and the pilot changes it here.
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await more.click();
 	await page.getByRole('menuitem', { name: 'Share with a link' }).click();
 	const sheet = page.getByRole('dialog', { name: 'Share flight' });
+	await expect(sheet.getByRole('radio', { checked: true })).toHaveCount(1);
+	await sheet.getByRole('radio', { name: 'Only me' }).check();
 	await expect(sheet.getByRole('radio', { name: 'Only me' })).toBeChecked();
 	await expect(sheet.getByText('Nobody else can see it.')).toBeVisible();
 	await expect(sheet.getByRole('heading', { name: 'Link' })).toBeHidden();
@@ -192,16 +185,16 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	await sheet.getByRole('button', { name: 'Done' }).click();
 	await expect(sheet).toBeHidden();
 
-	// Deleting the flight says that the server's copy goes too, and it does.
+	// Deleting the flight says that it goes from the account at once, and it does.
 	await more.click();
 	await page.getByRole('menuitem', { name: 'Delete flight' }).click();
 	const asking = page.getByRole('alertdialog', { name: 'Delete this flight?' });
-	await expect(asking).toContainText('with the next sync, from Venti and your other devices');
+	await expect(asking).toContainText(
+		'deleted from your Venti account and your other devices at once'
+	);
 	await asking.getByRole('button', { name: 'Delete flight' }).click();
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
 	await openAccount(page);
-	await expect(metric(page, 'Last sync')).toHaveText('1 removed on the server');
-	await expect(metric(page, 'Flights on Venti')).toHaveText('0');
 
 	// Deleting the account needs the password, not just being signed in.
 	await page.getByRole('button', { name: 'Delete account' }).click();
@@ -228,99 +221,62 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	expect(problems.filter((problem) => !/status of 40[13]/.test(problem))).toEqual([]);
 });
 
-test('the logbook follows the server when the site is opened and comes back to the front', async ({
+test('the pilot’s own sites follow the account when the site is opened and comes back to the front', async ({
 	page
 }) => {
 	await signIn(page);
-	await expect(metric(page, 'Last sync')).toHaveText('3 fetched');
 	const asksForChanges = () =>
-		page.waitForRequest((request) => request.url().includes('/v1/flights/changes'));
+		page.waitForRequest((request) => request.url().includes('/v1/account/kept-sites/changes'));
 
 	// Opened again, the site asks the server what changed, without being told to.
-	let asked = asksForChanges();
+	const asked = asksForChanges();
 	await page.reload();
 	expect((await asked).headers().authorization).toMatch(/^Bearer venti_/);
-	await expect(metric(page, 'Flights on Venti')).toHaveText('3');
 
-	// So it does when the pilot comes back to the tab after a while.
-	asked = asksForChanges();
-	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
-	await expect(metric(page.getByLabel('All flights'), 'Flights')).toHaveText('3');
-	await page.evaluate(() => {
-		// More than the minute that lies between two syncs nobody asked for.
-		const later = Date.now() + 61_000;
-		Date.now = () => later;
-		document.dispatchEvent(new Event('visibilitychange'));
-	});
-	await asked;
+	// So it does when the pilot comes back to the tab after a while. The
+	// sync of the opening may still be under way, and one under way is not
+	// started twice: the tab comes back until it is asked.
+	let again = false;
+	const listen = (request: { url(): string }) => {
+		if (request.url().includes('/v1/account/kept-sites/changes')) again = true;
+	};
+	page.on('request', listen);
+	await expect
+		.poll(async () => {
+			await page.evaluate(() => {
+				// More than the minute that lies between two syncs nobody asked for.
+				const later = Date.now() + 61_000;
+				Date.now = () => later;
+				document.dispatchEvent(new Event('visibilitychange'));
+			});
+			return again;
+		})
+		.toBe(true);
+	page.off('request', listen);
 });
 
-test('a sync that fails says why, and a session that ended asks to sign in again', async ({
-	context,
-	page,
-	keep
-}) => {
+test('a session that ended asks to sign in again', async ({ context, page, keep }) => {
 	await signIn(page);
-	await expect(metric(page, 'Last sync')).toHaveText('3 fetched');
 
-	// Out of reach.
-	await context.route('**/v1/flights/changes**', (route) => route.abort());
-	await page.getByRole('button', { name: 'Sync now' }).click();
-	await expect(page.getByRole('alert')).toHaveText('Venti could not be reached.');
-	await expect(page.getByRole('button', { name: 'Sync now' })).toBeEnabled();
-
-	// The server asks to wait.
-	await context.unroute('**/v1/flights/changes**');
-	await context.route('**/v1/flights/changes**', (route) =>
-		route.fulfill({
-			status: 429,
-			headers: { 'retry-after': '120' },
-			json: { error: { code: 'rate_limited', message: 'slow down' } }
-		})
-	);
-	await page.getByRole('button', { name: 'Sync now' }).click();
-	await expect(page.getByRole('alert')).toHaveText(
-		'The server asks to wait 2 minutes. What was done so far is kept.'
-	);
-
-	// The session has ended on the server: the core says so and the screen
-	// says what to do. Nothing more is asked until the pilot has signed in again.
-	await context.unroute('**/v1/flights/changes**');
-	await context.route('**/v1/flights/changes**', (route) =>
+	// The session has ended on the server: the core says so when the account
+	// is read, and the screen says what to do.
+	await context.route('**/v1/account', (route) =>
 		route.fulfill({
 			status: 401,
 			json: { error: { code: 'unauthorized', message: 'no session' } }
 		})
 	);
-	await page.getByRole('button', { name: 'Sync now' }).click();
+	await page.reload();
 	await expect(page.getByRole('alert')).toHaveText(
 		'This browser was signed out. Sign out here and sign in again.'
 	);
-	await expect(page.getByRole('button', { name: 'Sync now' })).toBeDisabled();
 	await keep('30-account-signed-out');
-	await context.unroute('**/v1/flights/changes**');
+	await context.unroute('**/v1/account');
 
-	// The flights fetched before are still in the logbook.
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
 	await expect(
 		page.locator('.settings-page').getByRole('link', { name: /^Account/ })
 	).toContainText('Signed out');
-});
-
-test('a flight cannot be shared before the pilot is signed in, and the sheet says where to', async ({
-	page,
-	keep
-}) => {
-	await addSampleFlight(page);
-	await page.getByRole('button', { name: 'More' }).click();
-	await page.getByRole('menuitem', { name: 'Share with a link' }).click();
-
-	const sheet = page.getByRole('dialog', { name: 'Share flight' });
-	await expect(sheet).toContainText('To share a flight with a link, sign in');
-	await keep('31-share-signed-out');
-	await sheet.getByRole('link', { name: 'Account' }).click();
-	await expect(page).toHaveTitle('Account · Venti');
-	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 });
 
 test('the form for a new account follows who may register on the server', async ({

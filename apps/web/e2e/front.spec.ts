@@ -40,30 +40,3 @@ test('everyone’s flights begin with the best of the day and the top of the yea
 	await expect(page).toHaveURL(/\/logbook\/ranking\/$/);
 	expect(problems).toEqual([]);
 });
-
-test('an empty logbook shows what others fly on Venti, and the way there', async ({
-	page,
-	keep
-}) => {
-	// Nobody flew today: the newest flights stand in.
-	await page.clock.setFixedTime(new Date('2026-11-20T15:00:00'));
-	await page.goto('/logbook/');
-	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
-
-	await expect(
-		page.getByText('Nobody has shared a flight of today yet. The newest:')
-	).toBeVisible();
-	await expect(page.getByRole('list', { name: 'Flown lately' }).getByRole('listitem')).toHaveCount(
-		3
-	);
-	await expect(
-		page.getByRole('list', { name: /^Top of \d{4}$/ }).getByRole('listitem')
-	).toHaveCount(3);
-	await keep('92-logbook-empty-others');
-
-	await page.getByRole('link', { name: 'Everyone’s flights' }).click();
-	await expect(page).toHaveURL(/\/logbook\/everyone\/$/);
-	// On everyone's list the newest are the list itself: the head has the ranking alone.
-	await expect(page.getByRole('list', { name: 'Flown lately' })).toHaveCount(0);
-	await expect(page.getByRole('list', { name: /^Top of \d{4}$/ })).toBeVisible();
-});

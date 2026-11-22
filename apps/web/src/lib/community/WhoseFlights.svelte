@@ -1,11 +1,11 @@
 <!--
-	The switch at the head of the logbook: the pilot's own flights, the
-	flights everyone on the server shares, or the ranking of the pilots who
-	shared them. On the iPhone it is a segmented control in the logbook's
+	The switch at the head of the flights: the pilot's own flights on the
+	account, the flights everyone on the server shares, or the ranking of the
+	pilots who shared them. On the iPhone it is a segmented control in the logbook's
 	title bar; here they are pages, so it is links drawn as one control.
 -->
 <script lang="ts">
-	import { everyoneHref, logbookHref, rankingHref } from '#lib/app/routes.ts';
+	import { everyoneHref, myFlightsHref, rankingHref } from '#lib/app/routes.ts';
 
 	interface Props {
 		current: 'mine' | 'everyone' | 'ranking';
@@ -17,7 +17,7 @@
 </script>
 
 <nav class="segments" aria-label="Whose flights">
-	<a href={logbookHref()} aria-current={current === 'mine' ? 'page' : undefined}>Mine</a>
+	<a href={myFlightsHref()} aria-current={current === 'mine' ? 'page' : undefined}>Mine</a>
 	<a href={everyoneHref(query)} aria-current={current === 'everyone' ? 'page' : undefined}>
 		Everyone
 	</a>

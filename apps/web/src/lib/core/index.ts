@@ -19,8 +19,9 @@
  * - `forecast-source.ts` asks it what its weather models say about a place.
  * - `live-source.ts` asks it who is in the air, and follows one flight.
  * - `account-source.ts` talks to the Venti server about the pilot's account
- *   and keeps the logbook and the pilot's own sites in step with it, also
- *   from the worker.
+ *   and keeps the pilot's own sites in step with it, also from the worker.
+ * - `own-flights-source.ts` lists, opens, uploads, shares and deletes the
+ *   pilot's own flights on the server: the web keeps none of its own.
  * - `tokens-source.ts` talks to it about the programs a pilot gave access.
  * - `agreement-source.ts` reads a program's request to read the pilot's
  *   flights and answers it with the session, for the page `/connect/`.
@@ -290,7 +291,8 @@ export type { ScreenWords } from './protocol';
 import type { CoreErrorKind } from './pkg/venti_core_wasm.js';
 import { UNREACHABLE } from './protocol';
 
-export type { GoogleEntered, NewAccount, NewGoogleAccount, SyncOutcome } from './account-source';
+export type { GoogleEntered, NewAccount, NewGoogleAccount } from './account-source';
+export type { OpenedOwnFlight, OwnFlight, OwnFlights, Uploaded } from './own-flights-source';
 export type { AccessWanted, ProgramView } from './tokens-source';
 export type { AgreementRead, AgreementSaid } from './agreement-source';
 export type { AlertsHeld, AlertsSynced } from './alerts-source';

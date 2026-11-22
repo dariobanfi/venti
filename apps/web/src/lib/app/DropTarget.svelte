@@ -1,6 +1,7 @@
 <!--
 	Makes the whole page a place to drop files, whichever screen is showing:
-	flight files everywhere, and airspace files on the screen that lists them.
+	flight files everywhere, brought in as uploads to the account, and
+	airspace files on the screen that lists them.
 	While files are dragged over it, the page says what dropping them will do.
 -->
 <script lang="ts">
@@ -49,11 +50,11 @@
 
 <svelte:window ondragenter={entered} ondragover={over} ondragleave={left} ondrop={dropped} />
 
-{#if inside > 0 && app.logbook}
+{#if inside > 0 && app.myFlights}
 	<div class="veil">
 		<p class="glass">
 			<Icon name="plus" />
-			{forAirspace ? 'Drop airspace files to bring them in' : 'Drop flight files to import them'}
+			{forAirspace ? 'Drop airspace files to bring them in' : 'Drop flight files to bring them in'}
 		</p>
 	</div>
 {/if}

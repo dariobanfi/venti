@@ -1,6 +1,6 @@
 /**
- * The map tab: every flight of the logbook on one map, and the pilot's own
- * position when asked for.
+ * The map tab: the pilot's own position when asked for, and the way
+ * between the sections.
  */
 
 import { addSampleFlight, expect, IN_THE_VALLEY, mapTabDrawn, test } from './helpers';
@@ -16,7 +16,8 @@ test('the map shows where the pilot is, on request', async ({
 	await context.setGeolocation(IN_THE_VALLEY);
 	await addSampleFlight(page);
 
-	await page.getByRole('link', { name: 'Logbook', exact: true }).first().click();
+	// A flight fills a phone's screen: back to the pilot's flights, then the map.
+	await page.getByRole('link', { name: 'My flights', exact: true }).first().click();
 	await page.getByRole('link', { name: 'Map', exact: true }).click();
 	await expect(page).toHaveTitle('Map · Venti');
 	await expect(page.getByRole('region', { name: 'Map' })).toBeVisible();
@@ -65,10 +66,20 @@ test('the navigation leads to every section, and says where one is', async ({ pa
 		'page'
 	);
 
-	await navigation.getByRole('link', { name: 'Logbook', exact: true }).click();
-	await expect(page).toHaveTitle('Logbook · Venti');
-	await expect(page.getByRole('heading', { level: 1, name: 'Logbook' })).toBeVisible();
-	await expect(navigation.getByRole('link', { name: 'Logbook', exact: true })).toHaveAttribute(
+	// No logbook: the flights are everyone's, with the pilot's own as "Mine".
+	await expect(navigation.getByRole('link', { name: 'Logbook' })).toHaveCount(0);
+	await navigation.getByRole('link', { name: 'Flights', exact: true }).click();
+	await expect(page).toHaveTitle(/Venti$/);
+	await expect(navigation.getByRole('link', { name: 'Flights', exact: true })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await page
+		.getByRole('navigation', { name: 'Whose flights' })
+		.getByRole('link', { name: 'Mine' })
+		.click();
+	await expect(page).toHaveTitle('My flights · Venti');
+	await expect(navigation.getByRole('link', { name: 'Flights', exact: true })).toHaveAttribute(
 		'aria-current',
 		'page'
 	);
@@ -90,9 +101,7 @@ test('the navigation leads to every section, and says where one is', async ({ pa
 
 	// A flight fills a narrow screen, so the bar steps aside there. A wide
 	// screen keeps its bar.
-	await navigation.getByRole('link', { name: 'Logbook', exact: true }).click();
-	await page.getByRole('button', { name: 'Add a sample flight' }).click();
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await addSampleFlight(page);
 	await expect(page).toHaveTitle('Sat, 4 Jul 2026 · Venti');
 	if (wide) await expect(navigation).toBeVisible();
 	else await expect(navigation).toBeHidden();

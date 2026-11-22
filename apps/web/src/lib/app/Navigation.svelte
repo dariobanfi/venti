@@ -2,10 +2,12 @@
 	The app's sections.
 
 	On a narrow screen this is the design pack's tab bar along the bottom
-	edge: Home, Today, Map, Logbook, Plans and Settings, the others reached
+	edge: Home, Map, Today, Flights, Plans and Settings, the others reached
 	from those. On a wide screen it is a website's bar across the top, as a
 	sports data site has it: Venti's logo, the sections as words, and
-	Settings and the account at the right. It is one list of links either
+	Settings and the account at the right. The pilot's own flights are the
+	account's (owner decision 20): reached from the account, and from Flights
+	by its "Mine", so they count as Flights here. It is one list of links either
 	way; which of them a width shows, and how, is the stylesheet's.
 -->
 <script lang="ts">
@@ -20,7 +22,6 @@
 		accountHref,
 		everyoneHref,
 		homeHref,
-		logbookHref,
 		mapHref,
 		plansHref,
 		rankingHref,
@@ -38,13 +39,15 @@
 		href: () => string;
 		/** The route the section is: a page under it belongs to it, unless `exact`. */
 		root: string;
+		/** Other routes whose pages belong to it. */
+		also?: string[];
 		exact?: boolean;
 		/** Which widths show it: the phone's bar has room for six. */
 		on: 'both' | 'wide' | 'narrow';
 		/**
 		 * The name with a soft hyphen where it may break, for the phone's bar:
-		 * at 360 px with text at 130 % "Logbook" and "Settings" are wider than
-		 * their sixth of the bar, and take two lines under the icon.
+		 * at 360 px with text at 130 % "Settings" is wider than its sixth of
+		 * the bar, and takes two lines under the icon.
 		 */
 		breaks?: string;
 	}
@@ -55,12 +58,14 @@
 		{ name: 'Map', icon: 'map', href: () => mapHref(), root: '/map', on: 'both' },
 		// What the forecast says about flying from the take-offs around.
 		{ name: 'Today', icon: 'forecast', href: todayHref, root: '/today', on: 'both' },
+		// Everyone's flights, with the pilot's own a choice at their head.
 		{
 			name: 'Flights',
-			icon: 'glider',
+			icon: 'track',
 			href: () => everyoneHref(),
 			root: '/logbook/everyone',
-			on: 'wide'
+			also: ['/settings/account/flights'],
+			on: 'both'
 		},
 		{
 			name: 'Ranking',
@@ -68,14 +73,6 @@
 			href: () => rankingHref(),
 			root: '/logbook/ranking',
 			on: 'wide'
-		},
-		{
-			name: 'Logbook',
-			breaks: 'Log\u00adbook',
-			icon: 'track',
-			href: logbookHref,
-			root: '/logbook',
-			on: 'both'
 		},
 		// Who means to fly where: the plans of the pilot's groups.
 		{ name: 'Plans', icon: 'calendar', href: plansHref, root: '/plans', on: 'both' },
@@ -92,22 +89,29 @@
 	/** The section the current page belongs to: the one with the longest root its route is under. */
 	const current = $derived.by(() => {
 		const route = page.route.id ?? '/';
+		const under = (root: string) => route.startsWith(root);
 		return sections
-			.filter((section) =>
-				section.exact ? route === section.root : route.startsWith(section.root)
+			.flatMap((section) =>
+				[section.root, ...(section.also ?? [])]
+					.filter((root) => (section.exact ? route === root : under(root)))
+					.map((root) => ({ name: section.name, root }))
 			)
 			.toSorted((one, other) => other.root.length - one.root.length)[0]?.name;
 	});
 
-	/** Whether the page is under Settings, for the wide bar's Settings link. */
-	const inSettings = $derived((page.route.id ?? '').startsWith('/settings'));
+	/** Whether the page is under Settings, for the wide bar's Settings link: the pilot's flights are not. */
+	const inSettings = $derived(
+		(page.route.id ?? '').startsWith('/settings') &&
+			!(page.route.id ?? '').startsWith('/settings/account/flights')
+	);
 
 	/**
 	 * A flight fills a narrow screen: the bar steps aside, as the iPhone's tab
 	 * bar does, and the screen's own back button leads out.
 	 */
 	const covered = $derived(
-		page.route.id === '/logbook/flight' || page.route.id === '/logbook/everyone/flight'
+		page.route.id === '/settings/account/flights/flight' ||
+			page.route.id === '/logbook/everyone/flight'
 	);
 </script>
 

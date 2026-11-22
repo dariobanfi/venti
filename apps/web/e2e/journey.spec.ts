@@ -1,6 +1,8 @@
 /**
- * Uses the app the way a pilot would, from an empty logbook to a flight on
- * the map and back to empty, and keeps a screenshot of every screen.
+ * Uses the app the way a pilot would, from a new account with no flights to
+ * a flight on the map and back to none, and keeps a screenshot of every
+ * screen. The website keeps no logbook of its own (owner decision 20): the
+ * flights are the account's.
  *
  * The same journey runs at a phone's width and at a desktop's, in light and
  * in dark appearance: the four projects of `playwright.config.ts`. The
@@ -19,10 +21,12 @@ import {
 	metric,
 	panel,
 	SAMPLE_FLIGHT,
+	asUpload,
+	signUp,
 	test
 } from './helpers';
 
-test('a pilot imports the sample flight, inspects it and deletes it', async ({
+test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 	page,
 	wide,
 	mapDrawn,
@@ -31,7 +35,6 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 }) => {
 	const { totals, moment } = panel(page);
 	const details = flightDetails(page);
-	const logbookTotals = page.getByLabel('All flights');
 	const more = page.getByRole('button', { name: 'More' });
 
 	// The app opens on the map.
@@ -41,14 +44,17 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await mapTabDrawn(page, mapDrawn);
 	await keep('01-map');
 
-	// A new logbook says what to do next.
-	await page.getByRole('link', { name: 'Logbook', exact: true }).click();
+	// A new account's flights say what to do next.
+	await signUp(page);
+	await page.getByRole('link', { name: 'My flights' }).click();
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Import flights' }).first()).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Bring in flights' }).first()).toBeVisible();
 	await keep('02-logbook-empty');
 
-	// A single imported flight opens straight away.
-	await page.getByRole('button', { name: 'Add a sample flight' }).click();
+	// A single flight brought in opens straight away.
+	await page
+		.locator('input[type=file]')
+		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await expect(page.getByText('12:30 – 12:59 · Sample Wing')).toBeVisible();
 	await expect(metric(totals, 'Airtime')).toHaveText('0:29 h');
@@ -177,91 +183,36 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	const download = page.waitForEvent('download');
 	await page.getByRole('menuitem', { name: 'Download flight file' }).click();
 	const file = await download;
-	expect(file.suggestedFilename()).toBe('2026-07-04-XVE-000-01.igc');
+	expect(file.suggestedFilename()).toMatch(/^venti-2026-07-04-[0-9a-z]{8}\.igc$/);
 	expect(readFileSync(await file.path(), 'utf8')).toBe(readFileSync(SAMPLE_FLIGHT, 'utf8'));
 	await expect(page.getByRole('menu', { name: 'More' })).toBeHidden();
 
-	// The flight is stored in the browser: a reload of its page finds it.
+	// The flight is the account's: a reload of its page finds it.
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await expect(metric(totals, 'Airtime')).toHaveText('0:29 h');
 
-	// Back to the logbook, where the flight is now listed.
-	await page.getByRole('link', { name: 'Logbook', exact: true }).first().click();
-	const row = page.getByRole('link', { name: /Sat, 4 Jul/ });
-	await expect(row).toBeVisible();
-	if (wide) {
-		// A wide screen lists the flights as a table, its totals in a line over it.
-		const line = page
-			.getByRole('table', { name: 'Flights' })
-			.getByRole('row')
-			.filter({ hasText: 'Sat, 4 Jul' });
-		await expect(line).toContainText('12:30');
-		await expect(line).toContainText('Sample Wing');
-		await expect(line).toContainText('0:29');
-		await expect(line).toContainText('12.0 km');
-	} else {
-		await expect(row).toContainText('12:30 · Sample Wing');
-		await expect(row).toContainText('0:29 h');
-		await expect(row).toContainText('12.0 km');
-		await expect(page.getByRole('heading', { name: '2026' })).toBeVisible();
-		await expect(page.getByText('1 flight · 0:29 h')).toBeVisible();
-	}
-	await expect(metric(logbookTotals, 'Flight')).toHaveText('1');
-	await expect(metric(logbookTotals, 'Airtime')).toHaveText('0:29 h');
-	await expect(metric(logbookTotals, 'Distance')).toHaveText('12 km');
+	// Back to the pilot's flights, where it is listed under its day: the
+	// take-off's time first, the glider, the airtime large, the distance.
+	await page.getByRole('link', { name: 'My flights', exact: true }).first().click();
+	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	const row = page.getByRole('main').locator('section.day li').first();
+	await expect(row).toContainText('12:30');
+	await expect(row).toContainText('Sample Wing');
+	await expect(row.locator('.airtime')).toHaveText(/0:29\s*h/);
+	await expect(row).toContainText('12.0 km');
 	await page.reload();
 	await expect(row).toBeVisible();
 	await keep('08-logbook');
 
-	// The totals lead to the statistics: a year by month, the gliders, the bests.
-	await page.getByRole('link', { name: 'Statistics' }).click();
-	await expect(page).toHaveTitle('Statistics · Venti');
-	await expect(page.getByRole('heading', { level: 1, name: 'Statistics' })).toBeVisible();
-	await expect(page.getByRole('radio', { name: 'Airtime' })).toBeChecked();
-	await expect(page.getByRole('table', { name: 'Airtime by month, in hours' })).toContainText(
-		'July 2026'
-	);
-	await expect(metric(page, 'Sample Wing')).toHaveText('1 flight · 0:29 h');
-	const longest = page.getByRole('link', { name: /Longest flight/ });
-	await expect(longest).toContainText('Sat, 4 Jul 2026');
-	await expect(longest).toContainText('0:29 h');
-	await expect(page.getByRole('link', { name: /Highest/ })).toContainText('2117 m');
-	// Year beside year, the months of all years, a typical flight, the kinds
-	// of flight and the places flown from.
-	for (const name of [
-		'Through the year',
-		'Years',
-		'A typical flight',
-		'Kinds of flight',
-		'By take-off'
-	]) {
-		await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
-	}
-	await expect(
-		page.getByRole('table', { name: 'Airtime by month of the year, in hours' })
-	).toContainText('July');
-	await expect(page.getByRole('link', { name: /Free flight/ })).toContainText('12.0 km');
-	await expect(page.getByRole('region', { name: 'By take-off' })).toContainText(
-		wide ? '12.0 km' : '1 flight'
-	);
-	await keep('09-statistics');
-	await page.getByRole('radiogroup', { name: 'Shown' }).getByText('Distance').click();
-	await expect(page.getByRole('radio', { name: 'Distance' })).toBeChecked();
-	await expect(page.getByText('In kilometres.', { exact: true })).toBeVisible();
-	// Each best leads to its flight.
-	await longest.click();
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
-	await page.getByRole('link', { name: 'Logbook', exact: true }).first().click();
-
-	// The map tab now shows the flight too.
+	// The map tab, with the pilot's flights a layer to switch on.
 	await page.getByRole('link', { name: 'Map', exact: true }).click();
 	await mapTabDrawn(page, mapDrawn);
 	await keep('10-map-with-flight');
 
 	// Deleting asks first, and "Cancel" keeps the flight.
-	await page.getByRole('link', { name: 'Logbook', exact: true }).click();
-	await row.click();
+	await page.goto('/settings/account/flights/');
+	await row.getByRole('link').click();
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await more.click();
 	await page.getByRole('menuitem', { name: 'Delete flight' }).click();
@@ -287,16 +238,16 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	expect(problems).toEqual([]);
 });
 
-test('a flight that is not in the logbook says so', async ({ page, keep }) => {
-	await page.goto('/logbook/flight/?id=00000000000000000000000000000000');
+test('a flight that is not on the account says so', async ({ page, keep }) => {
+	await signUp(page);
+	await page.goto('/settings/account/flights/flight/?id=5t1eshypdtvrq7rxw39a18vsrz');
 
 	await expect(
 		page.getByRole('heading', { name: 'This flight could not be opened' })
 	).toBeVisible();
-	await expect(page.getByText('This flight is no longer in the logbook.')).toBeVisible();
 	await keep('12-flight-not-found');
 
-	await page.getByRole('link', { name: 'Back to the logbook' }).click();
+	await page.getByRole('link', { name: 'Back to my flights' }).click();
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
 });
 

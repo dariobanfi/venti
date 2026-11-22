@@ -11,7 +11,18 @@
  * network.
  */
 
-import { addSampleFlight, expect, groundDrawn, metric, panel, test } from './helpers';
+import { readFileSync } from 'node:fs';
+import {
+	addSampleFlight,
+	asUpload,
+	expect,
+	groundDrawn,
+	metric,
+	panel,
+	SAMPLE_FLIGHT,
+	signUp,
+	test
+} from './helpers';
 
 /** The newest of the development mode's public flights, Jonas Beispiel's. */
 const ANOTHER_PILOTS_FLIGHT = 'nfmvgygyr34epnfbcekb04nwqc';
@@ -97,8 +108,11 @@ test('without elevation tiles the profile is as it was', async ({ context, page,
 	const chart = page.getByRole('slider', { name: 'Altitude over time' });
 	const asked = page.waitForResponse('https://tiles.mapterhorn.com/12/2182/1429.webp');
 
-	await page.goto('/logbook/');
-	await page.getByRole('button', { name: 'Add a sample flight' }).click();
+	await signUp(page);
+	await page.goto('/settings/account/flights/');
+	await page
+		.locator('input[type=file]')
+		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await asked;
 

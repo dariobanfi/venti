@@ -1231,7 +1231,7 @@
 	/**
 	 * Every layer drawn over what the map shows, as a row with a switch: the
 	 * one place for them. A site without a server has the ground alone, and
-	 * the pilot's own flights where the logbook has some.
+	 * the pilot's own flights where the account has some.
 	 */
 	const layerRows = $derived<LayerRow[]>([
 		...(app.account?.hasServer
@@ -1249,7 +1249,7 @@
 					{ key: 'cables', name: named.cables ?? '', icon: 'warning', ...listed('cables') }
 				]
 			: []),
-		...((app.logbook?.outlines.length ?? 0) > 0 || myFlights
+		...((app.myFlights?.outlines.length ?? 0) > 0 || myFlights
 			? [
 					{
 						key: 'flights',
@@ -1357,7 +1357,7 @@
 	<OverviewMap
 		bind:this={map}
 		bind:following
-		outlines={myFlights ? (app.logbook?.outlines ?? []) : []}
+		outlines={myFlights ? (app.myFlights?.outlines ?? []) : []}
 		stations={current.stations}
 		sites={sitesFitting}
 		{sitesApart}

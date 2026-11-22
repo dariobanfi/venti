@@ -1,10 +1,9 @@
 <!--
-	The account this browser is signed in to: who it is, how the logbook and
-	the server stand, a button to sync now, and the ways out: sign out, and
-	delete the account. The iPhone app's `SignedInView` is its twin.
+	The account this browser is signed in to: who it is, the way to the
+	pilot's flights on it, what else it holds, and the ways out: sign out,
+	and delete the account. The iPhone app's `SignedInView` is its twin.
 
-	Every number and every refusal here is the core's. The screen adds the
-	time of the last sync in the reader's own clock.
+	Every refusal here is the core's.
 
 	Where the server signs pilots in with Google: the Google account's email
 	the account is linked to, shown to the pilot alone, with the core's
@@ -16,11 +15,10 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { alertsHref, notificationsHref, programsHref } from '#lib/app/routes.ts';
+	import { alertsHref, myFlightsHref, notificationsHref, programsHref } from '#lib/app/routes.ts';
 	import type { AccountView } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Dialog from '#lib/design/Dialog.svelte';
-	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import { goToGoogle } from './google';
 	import GoogleButton from './GoogleButton.svelte';
@@ -34,8 +32,6 @@
 	}
 
 	let { account, signedIn }: Props = $props();
-
-	const text = format();
 
 	/** What the alarms fired that no notification told of. */
 	const unseen = $derived(getApp().alerts?.unseen ?? 0);
@@ -140,66 +136,23 @@
 	</section>
 {/if}
 
-<section class="group" aria-labelledby="account-logbook">
-	<h2 class="group-title" id="account-logbook">Logbook</h2>
-	<div class="group-card">
-		{#if signedIn.needsSignIn}
-			<p class="group-row group-warning" role="alert">
-				<Icon name="warning" />
-				<span>This browser was signed out. Sign out here and sign in again.</span>
-			</p>
-		{/if}
-		<dl class="numeric">
-			<div class="group-row">
-				<dt>Flights on Venti</dt>
-				<dd>{text.count(signedIn.flightsOnServer)}</dd>
-			</div>
-			{#if signedIn.flightsToSend > 0}
-				<div class="group-row">
-					<dt>Waiting to be sent</dt>
-					<dd>{text.count(signedIn.flightsToSend)}</dd>
-				</div>
-			{/if}
-			{#if signedIn.lastSyncUnixS !== undefined}
-				<div class="group-row">
-					<dt>In step since</dt>
-					<dd>
-						{text.dayInYear(signedIn.lastSyncUnixS)}, {text.time(signedIn.lastSyncUnixS)}
-					</dd>
-				</div>
-			{/if}
-			{#if account.lastSync}
-				<div class="group-row">
-					<dt>Last sync</dt>
-					<dd>{account.lastSync}</dd>
-				</div>
-			{/if}
-		</dl>
-		<!-- A session that has ended is said once, above, with what to do about it. -->
-		{#if account.problem && !signedIn.needsSignIn}
-			<p class="group-row group-warning" role="alert">
-				<Icon name="warning" />
-				<span>{account.problem}</span>
-			</p>
-		{/if}
-		<button
-			class="group-row"
-			type="button"
-			disabled={account.working || signedIn.needsSignIn}
-			onclick={() => account.sync({ force: true, quietly: false })}
-		>
-			{account.working ? 'Working…' : 'Sync now'}
-		</button>
-	</div>
-	<p class="group-note">
-		Venti syncs by itself when you open this site and after the logbook changes. Your flights stay
-		private on Venti until you share one.
-	</p>
-</section>
+{#if signedIn.needsSignIn}
+	<section class="group" aria-label="Session">
+		<p class="group-card group-row group-warning" role="alert">
+			<Icon name="warning" />
+			<span>This browser was signed out. Sign out here and sign in again.</span>
+		</p>
+	</section>
+{/if}
 
 <!-- What else the account holds. The row's name is the core's, as the page's title is. -->
 <section class="group" aria-label="Access">
 	<div class="group-card">
+		<!-- The pilot's flights are the account's: the website keeps none of its own. -->
+		<a class="group-row" href={myFlightsHref()}>
+			<span>My flights</span>
+			<span class="chevron"><Icon name="forward" /></span>
+		</a>
 		<a class="group-row" href={alertsHref()}>
 			<span>Alerts</span>
 			<span class="trailing">
@@ -251,7 +204,7 @@
 <ConfirmDialog
 	open={confirmingSignOut}
 	title="Sign out?"
-	message="Your flights stay in this browser and on Venti."
+	message="Your flights stay on your Venti account."
 	confirm="Sign out"
 	onconfirm={signOut}
 	oncancel={() => (confirmingSignOut = false)}
@@ -270,7 +223,7 @@
 			<h2 id="delete-title">Delete your account?</h2>
 			<p id="delete-message">
 				The account and every flight on Venti are deleted at once and for good, and your shared
-				links stop working. The flights in this browser stay. Enter your password to go on.
+				links stop working. Enter your password to go on.
 			</p>
 			<!-- For the browser's password manager, which fills a password in for a name. -->
 			<input

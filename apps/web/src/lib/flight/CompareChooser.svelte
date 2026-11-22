@@ -9,7 +9,8 @@
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { words } from '#lib/community/pages.ts';
-	import type { FlightRef, FlightView, LogbookEntry, PublicFlight } from '#lib/core/index.ts';
+	import { distance } from '#lib/community/words.ts';
+	import type { FlightRef, FlightView, PublicFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Sheet from '#lib/design/Sheet.svelte';
 
@@ -17,7 +18,7 @@
 		open: boolean;
 		/** The flight on screen. */
 		flight: FlightView;
-		/** Its address on Venti, when it is a public flight, to leave it out of the list. */
+		/** Its address on Venti, to leave it out of the lists. */
 		publicId?: string;
 		onchoose: (ref: FlightRef) => void;
 		onclose: () => void;
@@ -54,10 +55,10 @@
 		};
 	});
 
-	/** The pilot's other flights, those nearest in time first: no more than fifty. */
+	/** The pilot's other flights on Venti, those nearest in time first: no more than fifty. */
 	const own = $derived(
-		(app.logbook?.view.years.flatMap((year) => year.flights) ?? [])
-			.filter((entry) => entry.id !== flight.id && entry.startUnixS !== flight.startUnixS)
+		(app.myFlights?.flights.map((flight) => flight.row) ?? [])
+			.filter((entry) => entry.id !== publicId && entry.startUnixS !== flight.startUnixS)
 			.toSorted(
 				(one, two) =>
 					Math.abs(one.startUnixS - flight.startUnixS) -
@@ -65,10 +66,6 @@
 			)
 			.slice(0, 50)
 	);
-
-	function distance(entry: LogbookEntry): string {
-		return text.kilometres(entry.score?.distanceM ?? entry.trackLengthM);
-	}
 </script>
 
 <Sheet {open} title="Lay a flight beside it" {onclose}>
@@ -126,14 +123,18 @@
 									<span class="lesser">{text.time(entry.startUnixS)}</span>
 								</span>
 								<span class="lesser numeric">
-									{distance(entry)} km · {text.hoursMinutes(entry.durationS)} h
+									{distance(entry, text)} km · {text.hoursMinutes(entry.airtimeS)} h
 								</span>
 							</button>
 						</li>
 					{/each}
 				</ul>
 			{:else}
-				<p class="group-note first">Your logbook holds no other flight.</p>
+				<p class="group-note first">
+					{app.account?.signedIn
+						? 'You have no other flight on Venti.'
+						: 'Sign in to lay your own flights beside it.'}
+				</p>
 			{/if}
 		</section>
 	</div>

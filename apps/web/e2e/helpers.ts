@@ -375,14 +375,49 @@ export async function showTheValley(
 	await map.blur();
 }
 
+/** A handle nobody has used on this server: a letter, then letters and digits. */
+export function newHandle(): string {
+	return `pilot${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /**
- * Adds the sample flight to an empty logbook and waits for its screen,
- * with the ground under its profile: the test map has the valley it was
- * flown in.
+ * Creates an account of the test's own on the development server and signs
+ * in to it, from the account's screen. Tests run side by side and again on
+ * the same server: whatever changes the pilot's flights does so in an
+ * account of its own.
+ */
+export async function signUp(page: Page, handle = newHandle()): Promise<string> {
+	const field = (name: string) => page.getByRole('textbox', { name, exact: true });
+	await page.goto('/settings/account/');
+	await page.getByRole('radio', { name: 'New account' }).check();
+	await field('Handle').fill(handle);
+	await field('Name shown to others').fill('Test Pilot');
+	await field('Password').fill('correct horse battery staple');
+	await page.getByRole('button', { name: 'Create account' }).click();
+	await expect(metric(page, 'Handle')).toHaveText(`@${handle}`);
+	return handle;
+}
+
+/** A flight file as the browser's file picker hands it over. */
+export const asUpload = (name: string, text: string) => ({
+	name,
+	mimeType: 'application/octet-stream',
+	buffer: Buffer.from(text)
+});
+
+/**
+ * Brings the sample flight into a new account of the test's own and waits
+ * for its screen, with the ground under its profile: the test map has the
+ * valley it was flown in. The website keeps no logbook of its own (owner
+ * decision 20): a flight is an upload to the account.
  */
 export async function addSampleFlight(page: Page): Promise<void> {
-	await page.goto('/logbook/');
-	await page.getByRole('button', { name: 'Add a sample flight' }).click();
+	await signUp(page);
+	await page.goto('/settings/account/flights/');
+	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
+	await page
+		.locator('input[type=file]')
+		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await groundDrawn(page);
 }
@@ -394,7 +429,7 @@ export async function addSampleFlight(page: Page): Promise<void> {
 export async function dropFiles(
 	page: Page,
 	files: { name: string; text: string }[],
-	says = 'Drop flight files to import them'
+	says = 'Drop flight files to bring them in'
 ): Promise<void> {
 	const transfer = await page.evaluateHandle((files) => {
 		const transfer = new DataTransfer();

@@ -8,13 +8,7 @@
  * something.
  */
 
-import type {
-	AccountSource,
-	GoogleEntered,
-	NewAccount,
-	NewGoogleAccount,
-	SyncOutcome
-} from './account-source';
+import type { AccountSource, GoogleEntered, NewAccount, NewGoogleAccount } from './account-source';
 import type { AlertsHeld, AlertsSource, AlertsSynced } from './alerts-source';
 import type { PushSubscribed, SocialSource } from './social-source';
 import type { AirspaceSource } from './airspace-source';
@@ -26,7 +20,13 @@ import type {
 	PublicFlightsAsked,
 	SeasonRanking
 } from './community-source';
-import { flightFileText } from './flight-text';
+import type {
+	OpenedOwnFlight,
+	OwnFlight,
+	OwnFlights,
+	OwnFlightsSource,
+	Uploaded
+} from './own-flights-source';
 import type {
 	AccountView,
 	AgreementOutcome,
@@ -54,7 +54,6 @@ import type {
 	Credit,
 	FlightAirspace,
 	FlightAnalysis,
-	FlightFile,
 	FlightSharing,
 	FlightView,
 	FlightVisibility,
@@ -63,14 +62,8 @@ import type {
 	GroupDetail,
 	GroupJoined,
 	GroupMade,
-	ImportedFlight,
 	KeptAirspace,
 	KeptSites,
-	LeagueHandover,
-	LogbookStatistics,
-	SiteStatistics,
-	Tendencies,
-	LogbookView,
 	PilotPage,
 	PilotsFound,
 	PilotStatistics,
@@ -192,21 +185,18 @@ export interface Started {
 /** Every call, with what it is given and what it answers. */
 export interface Calls {
 	start: { given: undefined; answer: Started };
-	logbook: { given: undefined; answer: LogbookView };
-	statistics: { given: undefined; answer: LogbookStatistics };
-	/** The places flights began at, the one flown from most often first. */
-	siteStatistics: { given: undefined; answer: SiteStatistics[] };
-	/** What the pilot's own tracks say about how they fly. */
-	tendencies: { given: undefined; answer: Tendencies };
-	/** A flight file's bytes, as the pilot picked or dropped it. */
-	importFlight: { given: ArrayBuffer; answer: ImportedFlight };
-	/** The following are given a flight's identifier. */
-	flight: { given: string; answer: FlightView };
-	flightAnalysis: { given: string; answer: FlightAnalysis };
-	flightFile: { given: string; answer: FlightFile };
-	/** What the pilot is told before the flight goes to a league, with its file. */
-	leagueHandover: { given: { id: string }; answer: LeagueHandover };
-	deleteFlight: { given: string; answer: undefined };
+	/** A page of the pilot's own flights on the server; nothing signed out. */
+	ownFlights: { given: string | undefined; answer: OwnFlights | undefined };
+	/** Every flight of the pilot's on the server; nothing signed out. */
+	allOwnFlights: { given: undefined; answer: OwnFlight[] | undefined };
+	/** One of the pilot's flights on the server, from its file. */
+	openOwnFlight: { given: string; answer: OpenedOwnFlight | undefined };
+	/** One of the pilot's flight files, with a name to save it under. */
+	ownFlightFile: { given: string; answer: { name: string; text: string } | undefined };
+	/** A flight file's bytes, as the pilot picked or dropped it: an upload to the account. */
+	uploadFlight: { given: ArrayBuffer; answer: Uploaded | undefined };
+	/** Deletes one of the pilot's flights on the server. */
+	deleteOwnFlight: { given: string; answer: undefined };
 	/**
 	 * The ground under a flight's track, read from the map's elevation
 	 * tiles, which are fetched for it. Empty where there is none to be
@@ -518,8 +508,6 @@ export interface Calls {
 	signOut: { given: undefined; answer: undefined };
 	/** Given the password: deletes the account on the server. */
 	deleteAccount: { given: string; answer: undefined };
-	/** Brings the logbook and the server in step, and then the pilot's own sites. */
-	sync: { given: undefined; answer: SyncOutcome };
 	/**
 	 * Brings the pilot's own sites and their account in step. What the run
 	 * did, or nothing: not signed in, out of reach, or stopped.
@@ -623,8 +611,7 @@ export interface Calls {
 	routeFromGpx: { given: string; answer: RouteFromFile };
 	/** The core's words for the screens that no answer carries, asked once when the app starts. */
 	screenWords: { given: undefined; answer: ScreenWords };
-	/** Given a flight's identifier: how it is shared, if the server has it. */
-	flightSharing: { given: string; answer: FlightSharing | undefined };
+	/** Given a flight's address on the server: changes who may see it. */
 	shareFlight: { given: { id: string; visibility: FlightVisibility }; answer: FlightSharing };
 	/** What a report can say, and what the pilot is told before sending one. */
 	/** The form for a report about such a thing as the subject given. */
@@ -676,8 +663,6 @@ export interface Calls {
 	airspaceOver: { given: Coordinate; answer: AirspaceOverPlace };
 	/** The heights the map's airspace can be filtered by. */
 	airspaceHeightFilter: { given: undefined; answer: AirspaceHeightFilter };
-	/** Given a flight's identifier: the flight checked against the airspace there is now. */
-	flightAirspace: { given: string; answer: FlightAirspace };
 	/**
 	 * Given a place: asks the server for the airspace around it and keeps it,
 	 * if the core says it is time. What is kept afterwards, or nothing when
@@ -740,6 +725,7 @@ export interface Answering {
 	forecast: ForecastSource;
 	live: LiveSource;
 	community: CommunitySource;
+	own: OwnFlightsSource;
 	groups: GroupsSource;
 	terrain: TerrainSource;
 	today: TodaySource;
@@ -770,6 +756,7 @@ export async function answer<Name extends CallName>(
 		forecast,
 		live,
 		community,
+		own,
 		groups,
 		terrain,
 		today,
@@ -786,16 +773,15 @@ export async function answer<Name extends CallName>(
 ): Promise<Calls[Name]['answer']> {
 	const answers: { [N in CallName]: (given: Calls[N]['given']) => unknown } = {
 		start: () => ({ durable: session.durable, version: session.version() }),
-		logbook: () => session.logbook(),
-		statistics: () => session.statistics(),
-		siteStatistics: () => session.siteStatistics(),
-		tendencies: () => session.tendencies(),
-		importFlight: (file) => session.importFlight(flightFileText(file)),
-		flight: (id) => session.flight(id),
-		flightAnalysis: (id) => session.flightAnalysis(id),
-		flightFile: (id) => session.flightFile(id),
-		leagueHandover: async ({ id }) => session.leagueHandover(id, await wind.serverNow()),
-		deleteFlight: (id) => session.deleteFlight(id),
+		ownFlights: (after) => own.list(after),
+		allOwnFlights: () => own.all(),
+		openOwnFlight: (id) => own.open(id),
+		ownFlightFile: async (id) => {
+			const file = await own.file(id);
+			return file && { name: file.name, text: file.text };
+		},
+		uploadFlight: (file) => own.upload(file),
+		deleteOwnFlight: (id) => own.delete(id),
 		flightGround: (asked) => terrain.under(asked),
 		forgetFlightGround: (asking) => terrain.forget(asking),
 		wind: (box) => wind.windMap(box),
@@ -880,7 +866,11 @@ export async function answer<Name extends CallName>(
 		radarAgain: () => radar.again(),
 		radarPicture: ({ path, above, colours }) => radar.picture(path, above, colours),
 		compareFlights: ({ first, other }) =>
-			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
+			community.compare(first, other, async (id) => {
+				const file = await own.file(id);
+				if (!file) throw unreachable('Sign in to lay your own flights beside another.');
+				return file.text;
+			}),
 		hasServer: () => wind.present(),
 		registration: () => wind.registration(),
 		googleSignIn: () => wind.googleSignIn(),
@@ -896,7 +886,6 @@ export async function answer<Name extends CallName>(
 		createAccount: (wanted) => account.createAccount(wanted),
 		signOut: () => account.signOut(),
 		deleteAccount: (password) => account.deleteAccount(password),
-		sync: () => account.sync(),
 		syncKeptSites: () => account.syncKeptSites(),
 		tokenForm: () => tokens.form(),
 		tokenNameCheck: (name) => tokens.checkName(name),
@@ -950,8 +939,7 @@ export async function answer<Name extends CallName>(
 		addAlert: (draft) => alerts.add(draft),
 		changeAlert: ({ id, draft }) => alerts.change(id, draft),
 		removeAlert: (id) => alerts.remove(id),
-		flightSharing: (id) => account.sharing(id),
-		shareFlight: ({ id, visibility }) => account.share(id, visibility),
+		shareFlight: ({ id, visibility }) => own.share(id, visibility),
 		reportForm: (subject) => account.reportForm(subject),
 		report: ({ subject, reason, text }) => account.report(subject, reason, text),
 		planBoard: (fromDay) => groups.board(fromDay),
@@ -975,7 +963,6 @@ export async function answer<Name extends CallName>(
 		airspaceIn: (box) => session.airspaceIn(box, box.ceilingM),
 		airspaceOver: (place) => session.airspaceOver(place),
 		airspaceHeightFilter: () => session.airspaceHeightFilter(),
-		flightAirspace: (id) => session.flightAirspace(id),
 		refreshAirspace: (place) => airspace.refresh(place),
 		keptAirspace: () => airspace.kept(),
 		forgetKeptAirspace: () => airspace.forget()

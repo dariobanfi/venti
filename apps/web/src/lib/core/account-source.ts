@@ -4,9 +4,10 @@
  * What to ask the server and what its answers mean is the core's: it hands
  * out a request and reads the answer. This file sends the requests in
  * between, with the session token where a request needs it and nowhere
- * else, and runs the sync that keeps the logbook and the server in step,
- * and after it the one of the pilot's own sites (`Core.keptSitesSync`). It
- * is the browser's counterpart of the iPhone app's `AccountModel.swift`.
+ * else, and runs the sync of the pilot's own sites (`Core.keptSitesSync`).
+ * The web keeps no logbook of its own (owner decision 20): the pilot's
+ * flights are the server's, `own-flights-source.ts`. It is the browser's
+ * counterpart of the iPhone app's `AccountModel.swift`.
  *
  * The server is the one this site is served from, as for the wind.
  *
@@ -18,8 +19,6 @@
 
 import {
 	type AccountView,
-	type FlightSharing,
-	type FlightVisibility,
 	type GoogleSignUp,
 	type GoogleWords,
 	googleWords,
@@ -63,19 +62,6 @@ export type RunOutcome =
 			/** Whether the session has ended and the pilot has to sign in again. */
 			needsSignIn: boolean;
 	  };
-
-/**
- * How a sync ended: the logbook's run, and with it what the run of the
- * pilot's own sites did, which follows it.
- */
-export type SyncOutcome = RunOutcome & {
-	/**
-	 * What the run of the pilot's own sites did, where it came to its end:
-	 * `sent` and `fetched` count sites. Nothing when it did not, which the
-	 * list's own note says ("…after the next sync").
-	 */
-	keptSites?: SyncSummary;
-};
 
 /** What a pilot enters to create an account. */
 export interface NewAccount {
@@ -330,7 +316,7 @@ export class AccountSource {
 
 	/**
 	 * Signs this browser out. The server is told if it can be reached; the
-	 * browser forgets the session either way. The flights in the logbook stay.
+	 * browser forgets the session either way.
 	 */
 	async signOut(): Promise<void> {
 		try {
@@ -346,9 +332,8 @@ export class AccountSource {
 	}
 
 	/**
-	 * Deletes the account on the server, with its flights there. The logbook
-	 * in this browser stays. Throws, in the core's words, when the server
-	 * refuses, as it does for a wrong password.
+	 * Deletes the account on the server, with its flights. Throws, in the
+	 * core's words, when the server refuses, as it does for a wrong password.
 	 */
 	async deleteAccount(password: string): Promise<void> {
 		const request = await this.#session.ask((core) => core.deleteAccountRequest(password));
@@ -357,18 +342,6 @@ export class AccountSource {
 			(core) => core.accountDeleted(answer.status, answer.body),
 			() => null
 		);
-	}
-
-	/** How a flight is shared, if the server has it. */
-	sharing(id: string): Promise<FlightSharing | undefined> {
-		return this.#session.ask((core) => core.flightSharing(id));
-	}
-
-	/** Changes who may see a flight, and says how it is shared now. */
-	async share(id: string, visibility: FlightVisibility): Promise<FlightSharing> {
-		const request = await this.#session.ask((core) => core.shareRequest(id, visibility));
-		const answer = await this.#send(request, await this.#session.token());
-		return this.#session.change((core) => core.shared(id, answer.status, answer.body));
 	}
 
 	/**
@@ -393,24 +366,6 @@ export class AccountSource {
 		const request = reportRequest(subject, reason, text);
 		const answer = await this.#send(request, await this.#session.token());
 		return reportSent(answer.status, answer.body);
-	}
-
-	/**
-	 * Brings the logbook and the server in step, one of the core's steps
-	 * after another, and then the pilot's own sites and their account.
-	 * Throws when the server cannot be reached; what was done until then is
-	 * kept, and the next sync goes on from there.
-	 *
-	 * Only one tab of the site syncs at a time. A second one waits and then
-	 * finds the work done.
-	 */
-	sync(): Promise<SyncOutcome> {
-		return alone(async () => {
-			const logbook = await this.#run(() => this.#session.beginSync());
-			// A session that has ended sends nothing more.
-			if (logbook.kind === 'failed' && logbook.needsSignIn) return logbook;
-			return { ...logbook, keptSites: await this.#keptSites() };
-		});
 	}
 
 	/**
@@ -452,13 +407,13 @@ export class AccountSource {
 				if (step.needsSignIn) await this.#session.forgetToken();
 				return step;
 			} catch (error) {
-				// The logbook changed under the run, in another tab. Every step
+				// The store changed under the run, in another tab. Every step
 				// so far is stored; start over from what is there now.
 				if (!(error instanceof StaleStoreError)) throw error;
 				if (attempt === SYNC_ATTEMPTS) {
 					return {
 						kind: 'failed',
-						message: 'The logbook kept changing in another tab. Sync again in a moment.',
+						message: 'The pilot’s own sites kept changing in another tab. Sync again in a moment.',
 						needsSignIn: false
 					};
 				}

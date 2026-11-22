@@ -152,13 +152,13 @@
 			</section>
 		{/if}
 
-		{#if app.logbook}
+		{#if app.myFlights}
 			<section class="group" aria-labelledby="settings-about">
 				<h2 class="group-title" id="settings-about">About</h2>
 				<dl class="group-card">
 					<div class="group-row">
 						<dt>Version</dt>
-						<dd>{app.logbook.coreVersion}</dd>
+						<dd>{app.myFlights.coreVersion}</dd>
 					</div>
 				</dl>
 			</section>

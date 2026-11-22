@@ -34,7 +34,7 @@ test('another pilot’s flight of the same day is laid beside one, and compared 
 
 	const chooser = page.getByRole('dialog', { name: 'Lay a flight beside it' });
 	await expect(chooser.getByRole('heading', { name: 'Flown here that day' })).toBeVisible();
-	await expect(chooser).toContainText('Your logbook holds no other flight.');
+	await expect(chooser).toContainText('Sign in to lay your own flights beside it.');
 	const jonas = chooser.getByRole('button', { name: /Jonas Beispiel/ });
 	await expect(jonas).toHaveCount(1);
 	await keep('93-compare-choose');

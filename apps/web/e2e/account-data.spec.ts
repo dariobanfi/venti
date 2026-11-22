@@ -85,7 +85,7 @@ test('a kept take-off goes to the pilot’s account and comes back in a browser 
 		).toBeVisible();
 
 		// Forgotten there, it goes from the account, and from the first
-		// browser with its next sync.
+		// browser with its next sync, when the site is opened again.
 		await theirs.getByRole('button', { name: `Forget ${NAME}` }).click();
 		await expect(theirs).toHaveText('None kept');
 		// The account has heard of it once the note no longer speaks of the next sync.
@@ -95,9 +95,8 @@ test('a kept take-off goes to the pilot’s account and comes back in a browser 
 	} finally {
 		await elsewhere.close();
 	}
-	await page.goto('/settings/account/');
-	await page.getByRole('button', { name: 'Sync now' }).click();
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
+	// Opened again, the site syncs the pilot's own sites by itself.
+	await page.goto('/settings/');
 	await expect(own).toHaveText('None kept');
 	expect(problems).toEqual([]);
 });

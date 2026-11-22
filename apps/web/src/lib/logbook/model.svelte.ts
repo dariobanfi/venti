@@ -1,52 +1,52 @@
 /**
- * The pilot's logbook as the screens see it.
+ * The pilot's own flights as the screens see them: the account's, on the
+ * Venti server. The website keeps no logbook of its own (owner decision 20):
+ * a pilot signs in to see or bring in flights, and bringing a file in is an
+ * upload to the account.
  *
- * The model contains no flying logic. The core stores the flights, works
- * out every number and groups them; the model asks for the result and keeps
- * the latest copy for the screens to draw. It is the browser's counterpart
- * of the iPhone app's `LogbookModel.swift`.
+ * The model holds the pages read so far, newest first, for the screens to
+ * draw; the worker asks the server and the core reads its answers
+ * (`core/own-flights-source.ts`). It contains no flying logic.
  */
 
 import {
 	type CoreClient,
-	type FlightAnalysis,
-	type FlightFile,
-	type LeagueHandover,
-	type FlightView,
+	type FlightVisibility,
 	isCoreError,
-	type LogbookStatistics,
-	type SiteStatistics,
-	type Tendencies,
-	type LogbookView
+	isInWords,
+	type OpenedOwnFlight,
+	type OwnFlight
 } from '#lib/core/index.ts';
-import sampleUrl from '../../../../ios/Venti/Resources/sample.igc?url';
 import { emptyReport, type ImportReport } from './import-report';
 
-export class LogbookModel {
-	/** The logbook as the core last described it. */
-	view: LogbookView;
+/** Where the list stands. */
+export type MyFlightsPhase =
+	{ is: 'loading' } | { is: 'signedOut' } | { is: 'loaded' } | { is: 'failed'; message: string };
 
-	/** How far a running import has got, for the screen to say. */
+export class MyFlightsModel {
+	/** The flights read so far, the newest first. */
+	flights = $state.raw<OwnFlight[]>([]);
+
+	/** What to ask for the page after the last one read. Nothing when every page is read. */
+	next = $state.raw<string>();
+
+	phase = $state.raw<MyFlightsPhase>({ is: 'loading' });
+
+	/** How far a running upload has got, for the screen to say. */
 	progress = $state.raw<{ done: number; of: number }>();
 
+	/** Whether a further page is on its way. */
+	loadingMore = $state(false);
+
+	/** Counts the changes to the list, for screens that read it anew. */
+	revision = $state(0);
+
 	#core: CoreClient;
+	/** Only the answer to the latest question counts. */
+	#asked = 0;
 
-	private constructor(core: CoreClient, view: LogbookView) {
+	constructor(core: CoreClient) {
 		this.#core = core;
-		this.view = $state.raw(view);
-	}
-
-	/** Opens the logbook the browser holds for this site. */
-	static async open(core: CoreClient): Promise<LogbookModel> {
-		return new LogbookModel(core, await core.logbook());
-	}
-
-	/**
-	 * Whether the flights are still there after the page is closed. They are
-	 * not when the browser gives the page no storage.
-	 */
-	get durable(): boolean {
-		return this.#core.durable;
 	}
 
 	/** The version of the core, for bug reports. */
@@ -54,43 +54,70 @@ export class LogbookModel {
 		return this.#core.version;
 	}
 
-	/** Every flight's outline, for the map of all flights. */
+	/** Every flight's outline read so far, for the map's layer of the pilot's flights. */
 	get outlines() {
-		return this.view.years.flatMap((year) => year.flights.map((flight) => flight.outline));
+		return this.flights.map((flight) => flight.row.outline);
 	}
 
 	/**
-	 * The logbook as a whole: the last twelve months, the gliders flown and
-	 * the pilot's bests, worked out by the core from the logbook as it is now.
+	 * Reads the first page again: when the app starts, after signing in or
+	 * out, and after a change made here.
 	 */
-	statistics(): Promise<LogbookStatistics> {
-		return this.#core.statistics();
+	async reload(): Promise<void> {
+		const asked = (this.#asked += 1);
+		if (this.phase.is !== 'loaded') this.phase = { is: 'loading' };
+		try {
+			const page = await this.#core.ownFlights();
+			if (asked !== this.#asked) return;
+			if (!page) {
+				this.flights = [];
+				this.next = undefined;
+				this.phase = { is: 'signedOut' };
+			} else {
+				this.flights = page.flights;
+				this.next = page.next;
+				this.phase = { is: 'loaded' };
+			}
+			this.revision += 1;
+		} catch (error) {
+			if (asked === this.#asked) this.phase = { is: 'failed', message: reasonFor(error) };
+		}
 	}
 
-	/** The places flights began at, the one flown from most often first. */
-	siteStatistics(): Promise<SiteStatistics[]> {
-		return this.#core.siteStatistics();
+	/** Reads the next page, if there is one. */
+	async more(): Promise<void> {
+		if (!this.next || this.loadingMore) return;
+		const asked = this.#asked;
+		this.loadingMore = true;
+		try {
+			const page = await this.#core.ownFlights(this.next);
+			if (asked !== this.#asked || !page) return;
+			this.flights = [...this.flights, ...page.flights];
+			this.next = page.next;
+		} catch (error) {
+			this.phase = { is: 'failed', message: reasonFor(error) };
+		} finally {
+			this.loadingMore = false;
+		}
 	}
 
-	/** What the pilot's own tracks say about how they fly. */
-	tendencies(): Promise<Tendencies> {
-		return this.#core.tendencies();
-	}
-
-	/** Imports flight files, one after another, and reports on each. */
-	async importFiles(files: readonly File[]): Promise<ImportReport> {
+	/** Uploads flight files to the account, one after another, and reports on each. */
+	async upload(files: readonly File[]): Promise<ImportReport> {
 		const report = emptyReport();
 		this.progress = { done: 0, of: files.length };
 		try {
 			for (const [index, file] of files.entries()) {
 				try {
-					const imported = await this.#core.importFlight(await file.arrayBuffer());
-					(imported.alreadyInLogbook ? report.alreadyThere : report.added).push(imported.id);
+					const uploaded = await this.#core.uploadFlight(await file.arrayBuffer());
+					if (!uploaded) {
+						report.failures.push({ file: file.name, reason: SIGN_IN });
+						continue;
+					}
+					(uploaded.alreadyThere ? report.alreadyThere : report.added).push(uploaded.flight.row.id);
 				} catch (error) {
 					report.failures.push({ file: file.name, reason: reasonFor(error) });
 					if (!isCoreError(error)) {
-						// The browser would not store it, and will not store the
-						// next one either. Say so for the rest without trying.
+						// Venti could not be reached, and will not be for the next one either.
 						for (const left of files.slice(index + 1)) {
 							report.failures.push({ file: left.name, reason: reasonFor(error) });
 						}
@@ -100,89 +127,57 @@ export class LogbookModel {
 				this.progress = { done: index + 1, of: files.length };
 			}
 		} finally {
-			await this.refresh();
+			await this.reload();
 			this.progress = undefined;
 		}
 		return report;
 	}
 
-	/**
-	 * Imports the made-up flight that comes with the app, so a new pilot has
-	 * something to look at.
-	 */
-	async addSample(): Promise<ImportReport> {
-		try {
-			const response = await fetch(sampleUrl);
-			if (!response.ok)
-				throw new Error(`The sample flight could not be fetched (status ${response.status}).`);
-			return await this.importFiles([new File([await response.blob()], 'sample.igc')]);
-		} catch (error) {
-			return {
-				...emptyReport(),
-				failures: [
-					{
-						file: 'sample.igc',
-						reason: `The sample flight could not be fetched. ${message(error)}`
-					}
-				]
-			};
-		}
-	}
-
 	/** One flight, prepared for display. */
-	flight(id: string): Promise<FlightView> {
-		return this.#core.flight(id);
+	async open(id: string): Promise<OpenedOwnFlight> {
+		const opened = await this.#core.openOwnFlight(id);
+		if (!opened) throw new Error(SIGN_IN);
+		return opened;
 	}
 
-	/** A flight's file as it was imported, with a name to save it under. */
-	flightFile(id: string): Promise<FlightFile> {
-		return this.#core.flightFile(id);
+	/** A flight's file as it was uploaded, with a name to save it under. */
+	async file(id: string): Promise<{ name: string; text: string }> {
+		const file = await this.#core.ownFlightFile(id);
+		if (!file) throw new Error(SIGN_IN);
+		return file;
 	}
 
-	/**
-	 * What the pilot is told before a flight goes to a league, with its file:
-	 * until when the leagues take it, and whether it is signed.
-	 */
-	leagueHandover(id: string): Promise<LeagueHandover> {
-		return this.#core.leagueHandover(id);
+	/** Changes who may see a flight; the list follows. */
+	async share(id: string, visibility: FlightVisibility) {
+		const sharing = await this.#core.shareFlight(id, visibility);
+		this.flights = this.flights.map((flight) =>
+			flight.row.id === id ? { ...flight, sharing } : flight
+		);
+		return sharing;
 	}
 
-	/** What happened in one flight: its thermals and glides, and how it scores. */
-	analysis(id: string): Promise<FlightAnalysis> {
-		return this.#core.flightAnalysis(id);
-	}
-
-	/** Removes a flight for good. */
+	/** Deletes a flight from the account, at once and for good. */
 	async delete(id: string): Promise<void> {
 		try {
-			await this.#core.deleteFlight(id);
+			await this.#core.deleteOwnFlight(id);
 		} finally {
-			await this.refresh();
-		}
-	}
-
-	/**
-	 * Asks the core for the logbook as it is now: after a change made here,
-	 * by a sync with the server, or in another tab.
-	 */
-	async refresh(): Promise<void> {
-		try {
-			this.view = await this.#core.logbook();
-		} catch {
-			// The screens keep the logbook they have.
+			await this.reload();
 		}
 	}
 }
+
+/** What a pilot who is not signed in is told. */
+export const SIGN_IN = 'Sign in to see and bring in your flights.';
 
 function message(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-/** Why something could not be imported or deleted, in words for the pilot. */
+/** Why something could not be done to a flight, in words for the pilot. */
 export function reasonFor(error: unknown): string {
-	if (isCoreError(error)) return message(error);
+	if (isInWords(error)) return message(error);
 	if (error instanceof Error && error.name === 'QuotaExceededError') {
-		return 'This browser has no room left to store flights for this site.';
+		return 'This browser has no room left for this site.';
 	}
-	return `The browser could not store the logbook. ${message(error)}`;
+	return `This did not work. ${message(error)}`;
 }

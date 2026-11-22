@@ -327,7 +327,7 @@ test('a flight’s page names the photographs too, and its buttons keep apart', 
 	if (!wide) {
 		const box = (await aerial.boundingBox())!;
 		for (const other of [
-			page.getByRole('link', { name: 'Logbook' }).first(),
+			page.getByRole('link', { name: 'My flights' }).first(),
 			page.getByRole('button', { name: 'More' }).first(),
 			// The flight's panel.
 			page.locator('.dock .side').first()

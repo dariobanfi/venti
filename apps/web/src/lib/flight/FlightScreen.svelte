@@ -14,12 +14,7 @@
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { placeHref } from '#lib/app/routes.ts';
-	import type {
-		FlightAirspace,
-		FlightAnalysis,
-		FlightView,
-		GroundUnderFlight
-	} from '#lib/core/index.ts';
+	import type { FlightAnalysis, FlightView, GroundUnderFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
@@ -44,11 +39,6 @@
 		back: { href: string; label: string };
 		/** What can be done with the flight besides looking at it. */
 		actions: MenuItem[];
-		/**
-		 * Whether the flight is in the pilot's logbook. One that is, is
-		 * checked against the airspace the app has; another pilot's is not.
-		 */
-		inLogbook: boolean;
 		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
 		whose?: { name: string; href: string };
 		/**
@@ -60,8 +50,6 @@
 		beside?: Beside;
 		/** Takes the second flight away again. */
 		onendbeside?: () => void;
-		/** Hands the flight to a league: for a flight of the pilot's own. */
-		onleague?: () => void;
 		/**
 		 * What other pilots said of a public flight, its cheers and comments:
 		 * a section of the column beside the flight on a wide screen, a
@@ -79,12 +67,10 @@
 		wide,
 		back,
 		actions,
-		inLogbook,
 		whose,
 		takeoffSite,
 		beside,
 		onendbeside,
-		onleague,
 		social,
 		socialLine = '',
 		socialTitle = ''
@@ -103,28 +89,6 @@
 			lat: (flight.bounds.south + flight.bounds.north) / 2,
 			lon: (flight.bounds.west + flight.bounds.east) / 2
 		});
-	});
-
-	/**
-	 * The flight checked against the airspace the app has: asked for when
-	 * the flight opens and again whenever that airspace changes, as when the
-	 * server's arrives. Without it the details are shorter, not wrong.
-	 */
-	let airspaceCheck = $state.raw<FlightAirspace>();
-	$effect(() => {
-		const airspace = app.airspace;
-		if (!inLogbook || airspace?.revision === undefined) return;
-		// Only the answer to the latest question counts.
-		let current = true;
-		airspace.check(flight.id).then(
-			(checked) => {
-				if (current) airspaceCheck = checked;
-			},
-			() => {}
-		);
-		return () => {
-			current = false;
-		};
 	});
 
 	/**
@@ -209,8 +173,12 @@
 		return () => clearInterval(timer);
 	});
 	let terrain3d = $state(false);
-	/** Whether the camera follows the marked moment from behind, in 3D. */
-	let follow = $state(false);
+	/**
+	 * Whether the camera follows the marked moment from behind, in 3D: from
+	 * the start, so that the glider stays in frame while the flight plays.
+	 * Moving the map by hand lets go; "Follow the glider" comes back.
+	 */
+	let follow = $state(true);
 	/** Whether the ground is photographs from above: the pilot's choice for every map. */
 	let aerial = $state(aerialOn(globalThis.localStorage));
 	/** Whose photographs can show where the map has come to rest, as the map says. */
@@ -256,6 +224,7 @@
 			{analysis}
 			{ground}
 			follow={terrain3d && follow}
+			onletgo={() => (follow = false)}
 			onphotos={(line) => (photos = line)}
 		/>
 		<!-- A map says nothing to a screen reader: this much it can be told. -->
@@ -285,13 +254,22 @@
 				pressed={terrain3d}
 				onclick={() => {
 					terrain3d = !terrain3d;
-					if (!terrain3d) follow = false;
+					// Each time in 3D starts by following the glider.
+					follow = true;
 				}}
 			/>
 			<!-- In 3D: the whole flight from a good angle, and a camera that
 			     follows the marked moment from behind. -->
 			{#if terrain3d}
-				<MapButton label="Whole flight" icon="track" onclick={() => map?.wholeFlight()} />
+				<MapButton
+					label="Whole flight"
+					icon="track"
+					onclick={() => {
+						// The whole flight is a view of its own: the camera lets go of the glider.
+						follow = false;
+						map?.wholeFlight();
+					}}
+				/>
 				<MapButton
 					label="Follow the glider"
 					icon="glider"
@@ -347,7 +325,6 @@
 					{beside}
 					onbeside={() => (sideBySide = true)}
 					score={analysis?.score}
-					{onleague}
 					ondetails={wide ? undefined : () => (showingDetails = true)}
 					chart={!wide}
 				/>
@@ -364,7 +341,6 @@
 				<FlightDetails
 					{flight}
 					{analysis}
-					airspace={airspaceCheck}
 					onselect={mark}
 					{fromHere}
 					takeoffName={takeoffSite?.name}
@@ -376,14 +352,7 @@
 
 {#if !wide}
 	<Sheet open={showingDetails} title="Flight details" onclose={() => (showingDetails = false)}>
-		<FlightDetails
-			{flight}
-			{analysis}
-			airspace={airspaceCheck}
-			onselect={mark}
-			{fromHere}
-			takeoffName={takeoffSite?.name}
-		/>
+		<FlightDetails {flight} {analysis} onselect={mark} {fromHere} takeoffName={takeoffSite?.name} />
 	</Sheet>
 {/if}
 

@@ -34,8 +34,6 @@
 		onbeside?: () => void;
 		/** How the flight scores, once worked out: its distance is the flight's one number. */
 		score?: FlightScore;
-		/** Hands the flight to a league: for a flight of the pilot's own. */
-		onleague?: () => void;
 		/** Whether the altitude profile is in the panel: not where the screen has it under the map. */
 		chart?: boolean;
 	}
@@ -50,7 +48,6 @@
 		beside,
 		onbeside,
 		score,
-		onleague,
 		chart = true
 	}: Props = $props();
 
@@ -168,11 +165,6 @@
 	{#if chart}
 		<FlightChart {flight} {ground} bind:cursor {playing} {beside} {onbeside} />
 	{/if}
-	{#if onleague}
-		<button class="button-prominent league" type="button" onclick={onleague}>
-			Send to a league
-		</button>
-	{/if}
 </div>
 
 <style>
@@ -215,10 +207,6 @@
 	h1 {
 		font-size: var(--body);
 		font-weight: 500;
-	}
-
-	.league {
-		width: 100%;
 	}
 
 	/* Whose flight it is, for another pilot's: over the day, and the way to

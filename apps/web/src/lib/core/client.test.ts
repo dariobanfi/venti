@@ -17,7 +17,8 @@ import { CoreSession } from './session';
 import { SiteEditSource } from './site-edit-source';
 import { TakeoffsSource } from './takeoffs-source';
 import { SitesSource } from './sites-source';
-import { sitesMap } from './pkg/venti_core_wasm.js';
+import { flightFromFile, sitesMap } from './pkg/venti_core_wasm.js';
+import { OwnFlightsSource } from './own-flights-source';
 import { MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
 import { RadarSource } from './radar-source';
@@ -74,6 +75,8 @@ class SameProcess implements Channel {
 						forecast: new ForecastSource(async () => false),
 						live: new LiveSource(async () => false),
 						community: new CommunitySource(async () => false),
+						// A browser that is not signed in: no session to ask with.
+						own: new OwnFlightsSource(async () => undefined, unreachable, 'https://venti.example'),
 						groups: new GroupsSource(session, unreachable),
 						// A browser that is offline: no elevation tile is to be had.
 						terrain: new TerrainSource(unreachable),
@@ -130,50 +133,32 @@ describe('the core as the page calls it', () => {
 
 		expect(core.durable).toBe(false);
 		expect(core.version).toMatch(/^\d+\.\d+\.\d+$/);
-		expect((await core.logbook()).years).toEqual([]);
 	});
 
-	it('imports a flight from its bytes, which it takes over instead of copying', async () => {
+	it('lists, opens and takes in no flight for a browser that is not signed in', async () => {
 		const { core, channel } = await open();
 		const file = bytes(sampleFlight());
 
-		const imported = await core.importFlight(file);
-
-		expect(imported.alreadyInLogbook).toBe(false);
+		// The web keeps no logbook of its own: a pilot signs in for flights.
+		expect(await core.ownFlights()).toBeUndefined();
+		expect(await core.openOwnFlight('0'.repeat(26))).toBeUndefined();
+		expect(await core.uploadFlight(file)).toBeUndefined();
+		// The file's bytes were handed over, not copied.
 		expect(channel.transferred).toContain(file);
-		expect((await core.logbook()).totals.flights).toBe(1);
-		expect((await core.flight(imported.id)).track).toHaveLength(1745);
-		expect((await core.flightAnalysis(imported.id)).takeoff?.trackIndex).toBe(0);
-		expect((await core.flightFile(imported.id)).name).toBe('2026-07-04-XVE-000-01.igc');
-		expect((await core.statistics()).longest?.flightId).toBe(imported.id);
-
-		await core.deleteFlight(imported.id);
-		expect((await core.logbook()).years).toEqual([]);
 	});
 
 	it('answers each call with its own answer, whatever order they finish in', async () => {
 		const { core } = await open();
-		const { id } = await core.importFlight(bytes(sampleFlight()));
 
-		const [flight, logbook, file] = await Promise.all([
-			core.flight(id),
-			core.logbook(),
-			core.flightFile(id)
+		const [flights, account, files] = await Promise.all([
+			core.ownFlights(),
+			core.account(),
+			core.airspaceFiles()
 		]);
 
-		expect(flight.id).toBe(id);
-		expect(logbook.totals.flights).toBe(1);
-		expect(file.igcText).toBe(sampleFlight());
-	});
-
-	it('throws the core’s error with its kind and its words', async () => {
-		const { core } = await open();
-
-		const refusal = await core.importFlight(bytes('hello')).catch((error: Error) => error);
-
-		expect(refusal).toBeInstanceOf(Error);
-		expect((refusal as Error).name).toBe('InvalidFlight');
-		expect((refusal as Error).message).toContain('not a flight file');
+		expect(flights).toBeUndefined();
+		expect(account).toBeUndefined();
+		expect(files).toEqual([]);
 	});
 
 	it('brings in an airspace file from its bytes and answers for what a map shows', async () => {
@@ -198,8 +183,7 @@ describe('the core as the page calls it', () => {
 		const { core } = await open();
 
 		expect(await core.account()).toBeUndefined();
-		expect(await core.flightSharing('0'.repeat(32))).toBeUndefined();
-		expect(await core.sync()).toMatchObject({ kind: 'failed', needsSignIn: true });
+		expect(await core.syncKeptSites()).toBeUndefined();
 		// The core's refusal crosses to the page with its kind and its words.
 		await expect(core.signIn('', '')).rejects.toMatchObject({
 			name: 'Server',
@@ -234,8 +218,7 @@ describe('the core as the page calls it', () => {
 
 	it('hands a flight’s track over for the ground under it, and has none without tiles', async () => {
 		const { core } = await open();
-		const { id } = await core.importFlight(bytes(sampleFlight()));
-		const flight = await core.flight(id);
+		const flight = flightFromFile(sampleFlight());
 
 		const ground = await core.flightGround({
 			asking: 1,
@@ -322,7 +305,7 @@ describe('the core as the page calls it', () => {
 		expect(orders).toEqual([{ ids: ['b', 'a'], best: 'b' }]);
 	});
 
-	it('passes on that another tab changed the logbook', async () => {
+	it('passes on that another tab changed what the core keeps', async () => {
 		const { core, channel } = await open();
 		let told = 0;
 		core.onChangedElsewhere = () => (told += 1);
@@ -356,13 +339,10 @@ describe('the text of a flight file', () => {
 		expect(flightFileText(latin)).toBe('Jörg');
 	});
 
-	it('keeps a name that is not UTF-8 through an import', async () => {
-		const { core } = await open();
+	it('keeps a name that is not UTF-8 when a flight is opened from its file', () => {
 		const text = sampleFlight().replace('Sample Pilot', 'Jörg');
 		const latin = Uint8Array.from(text, (character) => character.charCodeAt(0));
 
-		const { id } = await core.importFlight(latin.buffer as ArrayBuffer);
-
-		expect((await core.flight(id)).pilot).toBe('Jörg');
+		expect(flightFromFile(flightFileText(latin)).pilot).toBe('Jörg');
 	});
 });

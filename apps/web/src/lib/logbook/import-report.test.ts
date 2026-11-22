@@ -15,7 +15,7 @@ describe('what the pilot is told after an import', () => {
 
 	it('names a file that is not a flight and gives the reason', () => {
 		expect(importNotice(report({ failures: [{ file: 'notes.txt', reason: notFlight }] }))).toEqual({
-			title: '1 file could not be imported',
+			title: '1 file could not be brought in',
 			lines: [`notes.txt: ${notFlight}`]
 		});
 	});
@@ -24,7 +24,7 @@ describe('what the pilot is told after an import', () => {
 		const notice = importNotice(
 			report({ added: ['a'], failures: [{ file: 'notes.txt', reason: notFlight }] })
 		);
-		expect(notice?.title).toBe('1 file could not be imported');
+		expect(notice?.title).toBe('1 file could not be brought in');
 	});
 
 	it('names four failures and counts the rest', () => {
@@ -34,18 +34,18 @@ describe('what the pilot is told after an import', () => {
 		}));
 
 		expect(importNotice(report({ failures }))).toEqual({
-			title: '6 files could not be imported',
+			title: '6 files could not be brought in',
 			lines: ['1.txt: No.', '2.txt: No.', '3.txt: No.', '4.txt: No.', 'and 2 more.']
 		});
 	});
 
 	it('says so when the flights were all there already', () => {
 		expect(importNotice(report({ alreadyThere: ['a'] }))).toEqual({
-			title: 'Already in your logbook',
-			lines: ['This flight was imported before. Nothing was added.']
+			title: 'Already on your account',
+			lines: ['This flight was brought in before. Nothing was added.']
 		});
 		expect(importNotice(report({ alreadyThere: ['a', 'b'] }))?.lines).toEqual([
-			'These flights were imported before. Nothing was added.'
+			'These flights were brought in before. Nothing was added.'
 		]);
 	});
 

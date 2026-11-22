@@ -25,7 +25,8 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	wide,
 	problems
 }) => {
-	// The logbook has a second side where the site has a Venti server.
+	// The pilot's own flights have a second side where the site has a Venti
+	// server: the logbook's old address leads to them.
 	await page.goto('/logbook/');
 	await expect(whose(page).getByRole('link', { name: 'Mine' })).toHaveAttribute(
 		'aria-current',
@@ -98,20 +99,14 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	await page.getByRole('button', { name: 'Any day' }).click();
 	await expect(rows(page)).toHaveCount(ALL);
 
-	// The pilot's own side is one click away, and comes back to the same
-	// list: by the logbook's switch on a phone, by the bar across the top of
-	// a wide screen, which has no second switch under it.
+	// The pilot's own side is one click away, by the switch at the head of
+	// the list, and comes back to the same list.
 	if (wide) {
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Everyone’s flights');
-		await expect(whose(page)).toHaveCount(0);
-		await page.getByRole('link', { name: 'Logbook', exact: true }).click();
-		await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
-		await page.goBack();
-	} else {
-		await whose(page).getByRole('link', { name: 'Mine' }).click();
-		await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
-		await whose(page).getByRole('link', { name: 'Everyone' }).click();
 	}
+	await whose(page).getByRole('link', { name: 'Mine' }).click();
+	await expect(page.getByRole('heading', { name: 'Sign in to see your flights' })).toBeVisible();
+	await whose(page).getByRole('link', { name: 'Everyone' }).click();
 	await expect(page.getByRole('radio', { name: 'Best' })).toBeChecked();
 	expect(problems).toEqual([]);
 });
@@ -212,14 +207,9 @@ test('another pilot’s flight opens like one’s own, from its file, and is kep
 	await page.getByRole('link', { name: 'Everyone', exact: true }).filter({ visible: true }).click();
 	await expect(rows(page)).toHaveCount(ALL);
 
-	// Nothing of it is in the pilot's own logbook: a wide screen has it in
-	// the bar across its top, a phone in the logbook's switch.
-	await (
-		wide
-			? page.getByRole('link', { name: 'Logbook', exact: true })
-			: whose(page).getByRole('link', { name: 'Mine' })
-	).click();
-	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
+	// Nothing of it is among the pilot's own flights, which ask to sign in.
+	await whose(page).getByRole('link', { name: 'Mine' }).click();
+	await expect(page.getByRole('heading', { name: 'Sign in to see your flights' })).toBeVisible();
 	expect(problems).toEqual([]);
 });
 
@@ -259,11 +249,14 @@ test('a flight its pilot took back says so, in the core’s words', async ({ pag
 	await expect(rows(page)).toHaveCount(ALL);
 });
 
-test('a site without a server has a logbook without a second side', async ({ context, page }) => {
+test('a site without a server has no second side to the pilot’s flights', async ({
+	context,
+	page
+}) => {
 	// What a web server answers that only hands out the app's files.
 	await context.route('**/v1/**', (route) => route.fulfill({ status: 404, body: 'Not found' }));
 	await page.goto('/logbook/');
-	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Sign in to see your flights' })).toBeVisible();
 	await expect(whose(page)).toBeHidden();
 
 	// Whoever has the address is told why there is nothing.

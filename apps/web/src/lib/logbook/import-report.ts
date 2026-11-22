@@ -1,6 +1,7 @@
 /**
  * What happened to a batch of imported files, and what to tell the pilot
- * about it. The wording is the iPhone app's (`LogbookModel.swift`).
+ * about it. The wording follows the iPhone app's (`LogbookModel.swift`);
+ * on the website a file brought in is an upload to the account.
  */
 
 export interface ImportFailure {
@@ -13,7 +14,7 @@ export interface ImportFailure {
 export interface ImportReport {
 	/** Identifiers of the flights that were added. */
 	added: string[];
-	/** Identifiers of the flights the logbook already held. */
+	/** Addresses of the flights the account already held. */
 	alreadyThere: string[];
 	failures: ImportFailure[];
 }
@@ -48,34 +49,28 @@ export function importNotice(report: ImportReport): Notice | undefined {
 		return {
 			title:
 				failures.length === 1
-					? '1 file could not be imported'
-					: `${failures.length} files could not be imported`,
+					? '1 file could not be brought in'
+					: `${failures.length} files could not be brought in`,
 			lines
 		};
 	}
 	if (added.length === 0 && alreadyThere.length > 0) {
 		return {
-			title: 'Already in your logbook',
+			title: 'Already on your account',
 			lines: [
 				alreadyThere.length === 1
-					? 'This flight was imported before. Nothing was added.'
-					: 'These flights were imported before. Nothing was added.'
+					? 'This flight was brought in before. Nothing was added.'
+					: 'These flights were brought in before. Nothing was added.'
 			]
 		};
 	}
 	return undefined;
 }
 
-/**
- * What deleting a flight means, to be read before it is done. With an
- * account the flight also goes from the server, and from there from the
- * pilot's other devices.
- */
-export function deletionWarning(signedIn: boolean, count = 1): string {
-	const files = count === 1 ? 'Its file is' : 'Their files are';
-	return signedIn
-		? `${files} removed from this browser and, with the next sync, from Venti and your other devices. This cannot be undone.`
-		: `${files} removed from this browser. This cannot be undone.`;
+/** What deleting a flight means, to be read before it is done. */
+export function deletionWarning(count = 1): string {
+	const files = count === 1 ? 'It is' : 'They are';
+	return `${files} deleted from your Venti account and your other devices at once. This cannot be undone.`;
 }
 
 /**

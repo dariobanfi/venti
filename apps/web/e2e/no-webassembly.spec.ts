@@ -71,17 +71,17 @@ test('a browser without WebAssembly is told it needs it, over the whole window',
 	// navigation is, which leads nowhere.
 	await page.keyboard.press('Escape');
 	await page.keyboard.press('Escape');
-	const logbook = page
-		.locator('nav[aria-label="Sections"] a[href="/logbook"]')
+	const flights = page
+		.locator('nav[aria-label="Sections"] a[href="/logbook/everyone"]')
 		.filter({ visible: true })
 		.first();
-	const box = (await logbook.boundingBox())!;
+	const box = (await flights.boundingBox())!;
 	await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 	expect(new URL(page.url()).pathname).toBe('/');
 	await saysItNeedsWebAssembly(page);
 
 	// Every page says the same, at once.
-	for (const path of ['/map/', '/today/', '/logbook/', '/plans/', '/settings/']) {
+	for (const path of ['/map/', '/today/', '/settings/account/flights/', '/plans/', '/settings/']) {
 		await page.goto(path);
 		await saysItNeedsWebAssembly(page);
 	}

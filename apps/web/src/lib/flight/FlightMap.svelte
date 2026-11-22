@@ -62,6 +62,11 @@
 		/** Whether the camera follows the marked moment from behind, in 3D. */
 		follow?: boolean;
 		/**
+		 * Called when the pilot moves the map by hand (drags, turns or tilts
+		 * it): the camera then lets go of the glider.
+		 */
+		onletgo?: () => void;
+		/**
 		 * Called whenever the map has come to rest with the short line of
 		 * whose photographs of the aerial view can show there (`aerial-credit.ts`).
 		 */
@@ -82,6 +87,7 @@
 		analysis,
 		ground = [],
 		follow = false,
+		onletgo,
 		onphotos
 	}: Props = $props();
 
@@ -130,6 +136,13 @@
 					module.dot('flight-cursor-dot', 'flight-cursor', 8, ACCENT_ON_MAP, PAPER_ON_MAP)
 				);
 				map = styled;
+				// The pilot takes the camera: a move with no event of the
+				// pilot's behind it is the camera following, and keeps it.
+				for (const moved of ['dragstart', 'rotatestart', 'pitchstart'] as const) {
+					styled.on(moved, (event) => {
+						if (event.originalEvent) onletgo?.();
+					});
+				}
 				// Whose photographs can show, read from the style the map loaded.
 				const makers = aerialMakers(styled.getStyle());
 				const tellPhotos = () => {
@@ -162,12 +175,14 @@
 	function addTrack(module: typeof import('#lib/map/setup.ts'), map: Map) {
 		map.addSource('flight-track', { type: 'geojson', data: trackByBand(flight.track) });
 		// A dark casing keeps the track readable over any ground colour.
-		map.addLayer(module.line('flight-track-edge', 'flight-track', INK_ON_MAP, 6.5));
+		// The line is the pack's chart line (2–2.5 px) and the casing about
+		// 1.5 px each side of it (design/DESIGN.md, Maps).
+		map.addLayer(module.line('flight-track-edge', 'flight-track', INK_ON_MAP, 5.5));
 		// Sink first and climbs last, so that where the track crosses itself
 		// the thermals stay on top.
 		CLIMB_BANDS.forEach((band, index) => {
 			map.addLayer({
-				...module.line(`flight-track-${index}`, 'flight-track', band.color, 3.5),
+				...module.line(`flight-track-${index}`, 'flight-track', band.color, 2.5),
 				filter: ['==', ['get', 'band'], index]
 			});
 		});

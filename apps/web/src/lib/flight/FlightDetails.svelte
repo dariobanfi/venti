@@ -29,8 +29,12 @@
 		flight: FlightView;
 		/** What happened in the flight, once it has been worked out. */
 		analysis: FlightAnalysis | undefined;
-		/** The flight checked against the airspace the app has, once that is done. */
-		airspace: FlightAirspace | undefined;
+		/**
+		 * The flight checked against the airspace the app has. None on the
+		 * website for now: the core checks a flight of its own store only,
+		 * and the web keeps none (owner decision 20).
+		 */
+		airspace?: FlightAirspace;
 		/** Called with a position in the flight's track to mark. */
 		onselect: (trackIndex: number) => void;
 		/** The page of the place the flight took off from, where the site has a server to ask. */

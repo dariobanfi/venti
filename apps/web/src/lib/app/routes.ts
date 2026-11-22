@@ -3,9 +3,9 @@
  * can be served from a folder of a site as well as from its root.
  *
  * A flight is named by a query parameter, not by a part of the path. The
- * app is static files with no server behind it: `/logbook/flight/` is one
- * page that any web server can serve, where `/logbook/<id>/` would need a
- * server that answers for every identifier.
+ * app is static files with no server behind it: `/settings/account/flights/flight/`
+ * is one page that any web server can serve, where a path for each flight
+ * would need a server that answers for every identifier.
  */
 
 import { resolve } from '$app/paths';
@@ -44,16 +44,12 @@ export function mapAroundIn(params: URLSearchParams): { lat: number; lon: number
 	return { lat, lon };
 }
 
-export function logbookHref(): string {
-	return resolve('/logbook');
-}
-
-export function statisticsHref(): string {
-	return resolve('/logbook/statistics');
-}
-
-export function howYouFlyHref(): string {
-	return resolve('/logbook/statistics/how-you-fly');
+/**
+ * The pilot's own flights, on the account (owner decision 20): reached
+ * from the account and from everyone's flights. `/logbook/` leads here.
+ */
+export function myFlightsHref(): string {
+	return resolve('/settings/account/flights');
 }
 
 export function settingsHref(): string {
@@ -144,6 +140,7 @@ export function groupHref(id: string): string {
 	return `${resolve('/plans/groups/group')}?id=${encodeURIComponent(id)}`;
 }
 
-export function flightHref(id: string): string {
-	return `${resolve('/logbook/flight')}?id=${encodeURIComponent(id)}`;
+/** One of the pilot's own flights, by its address on the server. */
+export function myFlightHref(id: string): string {
+	return `${resolve('/settings/account/flights/flight')}?id=${encodeURIComponent(id)}`;
 }

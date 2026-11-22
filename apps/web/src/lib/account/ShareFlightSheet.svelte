@@ -1,9 +1,10 @@
 <!--
-	Who can see a flight, and the link to it: the iPhone app's
-	`ShareFlightSheet`. Nothing is shared until the pilot says so here.
+	Who can see one of the pilot's flights on Venti, and the link to it: the
+	iPhone app's `ShareFlightSheet`.
 
-	Which settings exist and what the link is come from the core. This sheet
-	shows them, passes the pilot's choice on, and copies the link.
+	Which settings exist come from the core, who may see the flight and its
+	link from the server. This sheet shows them, passes the pilot's choice
+	on, and copies the link.
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -15,40 +16,30 @@
 
 	interface Props {
 		open: boolean;
-		/** The flight's identifier in the logbook. */
+		/** The flight's address on Venti. */
 		flight: string;
+		/** Who may see it, and its link, as the server last said. */
+		shared: FlightSharing;
 		onclose: () => void;
 	}
 
-	let { open, flight, onclose }: Props = $props();
+	let { open, flight, shared, onclose }: Props = $props();
 
 	const app = getApp();
 	const account = $derived(app.account);
 
-	/** How the flight is shared, once the core has said. Nothing if the server does not have it. */
+	/** How the flight is shared: as it was handed in, then as the server answered. */
 	let sharing = $state.raw<FlightSharing>();
-	/** Whether the core has been asked since the sheet opened. */
-	let asked = $state(false);
 	/** Why the last change did not happen, in words. */
 	let refusal = $state.raw<string>();
 	let copied = $state<'yes' | 'no'>();
 
-	// What the core knows is read each time the sheet opens: a sync may have
-	// sent the flight since.
+	// Each time the sheet opens it starts from what the server said last.
 	$effect(() => {
-		if (!open || !account) return;
-		let current = true;
-		asked = false;
+		if (!open) return;
+		sharing = shared;
 		refusal = undefined;
 		copied = undefined;
-		void account.sharing(flight).then((known) => {
-			if (!current) return;
-			sharing = known;
-			asked = true;
-		});
-		return () => {
-			current = false;
-		};
 	});
 
 	/*
@@ -95,26 +86,26 @@
 
 	let choices = $state<HTMLDivElement>();
 
+	let working = $state(false);
+
 	async function choose(visibility: FlightVisibility) {
-		if (!account || sharing?.visibility === visibility) return;
+		const flights = app.myFlights;
+		if (!flights || working || sharing?.visibility === visibility) return;
 		refusal = undefined;
 		copied = undefined;
+		working = true;
 		try {
-			sharing = await account.share(flight, visibility);
+			sharing = await flights.share(flight, visibility);
 		} catch (error) {
 			refusal = error instanceof Error ? error.message : String(error);
+		} finally {
+			working = false;
 		}
 		// The browser ticked what was clicked. If the server did not follow,
 		// the buttons go back to what holds.
 		for (const button of choices?.querySelectorAll('input') ?? []) {
 			button.checked = button.value === sharing?.visibility;
 		}
-	}
-
-	async function syncNow() {
-		if (!account) return;
-		await account.sync({ force: true, quietly: false });
-		sharing = await account.sharing(flight);
 	}
 
 	async function copyLink() {
@@ -143,7 +134,7 @@
 			<div class="group-card" role="radiogroup" aria-labelledby="share-who" bind:this={choices}>
 				{#each VISIBILITY_CHOICES as choice (choice.visibility)}
 					{@const chosen = sharing.visibility === choice.visibility}
-					<label class="choice" class:working={account.working}>
+					<label class="choice" class:working>
 						<input
 							type="radio"
 							name="visibility"
@@ -209,16 +200,6 @@
 				</p>
 			</section>
 		{/if}
-	{:else if asked}
-		<div class="group-card words">
-			<p>This flight is not on Venti yet.</p>
-			{#if account.problem}
-				<p class="refusal" role="alert">{account.problem}</p>
-			{/if}
-			<button class="button-plain" type="button" disabled={account.working} onclick={syncNow}>
-				{account.working ? 'Working…' : 'Sync now'}
-			</button>
-		</div>
 	{/if}
 </Sheet>
 

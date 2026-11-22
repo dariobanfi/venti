@@ -60,7 +60,7 @@ export class CoreClient {
 	>();
 	#started: Started;
 
-	/** Called after another tab changed the logbook and the core has caught up. */
+	/** Called after another tab changed what the core keeps and the core has caught up. */
 	onChangedElsewhere: () => void = () => {};
 
 	private constructor(channel: Channel, started: Started) {
@@ -79,7 +79,7 @@ export class CoreClient {
 		return client;
 	}
 
-	/** Whether the logbook is still there after the page is closed. */
+	/** Whether what the core keeps is still there after the page is closed. */
 	get durable(): boolean {
 		return this.#started.durable;
 	}
@@ -89,52 +89,38 @@ export class CoreClient {
 		return this.#started.version;
 	}
 
-	logbook() {
-		return this.#call('logbook', undefined);
-	}
-
-	statistics() {
-		return this.#call('statistics', undefined);
-	}
-
-	/** The places flights began at, the one flown from most often first. */
-	siteStatistics() {
-		return this.#call('siteStatistics', undefined);
-	}
-
-	/** What the pilot's own tracks say about how they fly. */
-	tendencies() {
-		return this.#call('tendencies', undefined);
-	}
-
-	/** Imports a flight file. Its bytes are handed over, not copied: `file` is empty afterwards. */
-	importFlight(file: ArrayBuffer) {
-		return this.#call('importFlight', file, [file]);
-	}
-
-	flight(id: string) {
-		return this.#call('flight', id);
-	}
-
-	flightAnalysis(id: string) {
-		return this.#call('flightAnalysis', id);
-	}
-
-	flightFile(id: string) {
-		return this.#call('flightFile', id);
-	}
-
 	/**
-	 * What the pilot is told before a flight of the logbook goes to a
-	 * league, with its file, by Venti's clock now.
+	 * A page of the pilot's own flights on the server, the newest first;
+	 * nothing in a browser that is not signed in. The web keeps no logbook
+	 * of its own (owner decision 20).
 	 */
-	leagueHandover(id: string) {
-		// Venti's clock, or 0 while it is not known: the core then calls no flight late.
-		return this.#call('leagueHandover', { id });
+	ownFlights(after?: string) {
+		return this.#call('ownFlights', after);
 	}
 
-	deleteFlight(id: string) {
-		return this.#call('deleteFlight', id);
+	/** Every flight of the pilot's on the server; nothing signed out. */
+	allOwnFlights() {
+		return this.#call('allOwnFlights', undefined);
+	}
+
+	/** One of the pilot's flights on the server, from its file. */
+	openOwnFlight(id: string) {
+		return this.#call('openOwnFlight', id);
+	}
+
+	/** One of the pilot's flight files as it was uploaded, with a name to save it under. */
+	ownFlightFile(id: string) {
+		return this.#call('ownFlightFile', id);
+	}
+
+	/** Uploads a flight file to the account. Its bytes are handed over: `file` is empty afterwards. */
+	uploadFlight(file: ArrayBuffer) {
+		return this.#call('uploadFlight', file, [file]);
+	}
+
+	/** Deletes one of the pilot's flights on the server, at once and for good. */
+	deleteOwnFlight(id: string) {
+		return this.#call('deleteOwnFlight', id);
 	}
 
 	/**
@@ -654,11 +640,6 @@ export class CoreClient {
 		return this.#call('deleteAccount', password);
 	}
 
-	/** Brings the logbook and the server in step, and then the pilot's own sites. */
-	sync() {
-		return this.#call('sync', undefined);
-	}
-
 	/**
 	 * Brings the pilot's own sites and their account in step, after one was
 	 * kept or forgotten. Nothing is asked from a browser that is not signed in.
@@ -768,12 +749,7 @@ export class CoreClient {
 		return this.#call('removeAlert', id);
 	}
 
-	/** How a flight is shared, if the server has it. */
-	flightSharing(id: string) {
-		return this.#call('flightSharing', id);
-	}
-
-	/** Changes who may see a flight. */
+	/** Changes who may see one of the pilot's flights, by its address on the server. */
 	shareFlight(id: string, visibility: FlightVisibility) {
 		return this.#call('shareFlight', { id, visibility });
 	}
@@ -1003,11 +979,6 @@ export class CoreClient {
 	/** The heights the map's airspace can be filtered by. */
 	airspaceHeightFilter() {
 		return this.#call('airspaceHeightFilter', undefined);
-	}
-
-	/** A flight of the logbook checked against the airspace there is now. */
-	flightAirspace(id: string) {
-		return this.#call('flightAirspace', id);
 	}
 
 	/**

@@ -34,8 +34,8 @@ export interface AirStats {
 }
 
 /** How wide the track's ribbon is on the screen, in pixels, and its casing. */
-const TRACK_PX = 3.5;
-const CASING_PX = 6.5;
+const TRACK_PX = 2.5;
+const CASING_PX = 5.5;
 const COLUMN_PX = 9;
 
 const RIBBON_VERTEX = `#version 300 es

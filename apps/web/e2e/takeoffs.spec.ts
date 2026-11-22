@@ -75,7 +75,10 @@ async function signUp(page: Page): Promise<void> {
 	await expect(metric(page, 'Handle')).toHaveText(`@${handle}`);
 }
 
-test('a take-off’s page says what public flights began there, and the map offers a place without a site to a pilot who took off there', async ({
+// The core finds the pilot's own take-offs in its own store only, and the
+// website keeps no flights of its own (owner decision 20): the offer waits for
+// the core to be handed the pilot's flights from the server.
+test.fixme('a take-off’s page says what public flights began there, and the map offers a place without a site to a pilot who took off there', async ({
 	page,
 	mapDrawn,
 	keep,

@@ -20,19 +20,9 @@ import type {
 	AirspaceShape,
 	Bounds,
 	Coordinate,
-	FlightAirspace,
-	FlightAnalysis,
-	FlightFile,
-	LeagueHandover,
-	FlightView,
-	ImportedFlight,
 	Credit,
 	KeptSites,
 	SiteView,
-	LogbookStatistics,
-	SiteStatistics,
-	Tendencies,
-	LogbookView,
 	SyncStep,
 	AlertsSync,
 	FiredLine
@@ -112,84 +102,13 @@ export class CoreSession {
 		return session;
 	}
 
-	/** Whether the logbook is still there after the page is closed. */
+	/** Whether what the core keeps is still there after the page is closed. */
 	get durable(): boolean {
 		return this.#store.durable;
 	}
 
 	version(): string {
 		return this.#core.version();
-	}
-
-	/** The logbook as it is now. */
-	logbook(): LogbookView {
-		return this.#core.logbook();
-	}
-
-	/** The logbook looked at as a whole. */
-	statistics(): LogbookStatistics {
-		return this.#core.statistics();
-	}
-
-	/** The places flights began at, the one flown from most often first. */
-	siteStatistics(): SiteStatistics[] {
-		return this.#core.siteStatistics();
-	}
-
-	/**
-	 * What the pilot's own tracks say about how they fly. An older flight
-	 * whose file is not in memory is left out the first time and wanted:
-	 * its file is fetched and the core asked again, until it wants none.
-	 * What the core kept of those flights' figures is stored.
-	 */
-	tendencies(): Promise<Tendencies> {
-		return this.#inTurn(async () => {
-			const fetched = new Set<string>();
-			for (;;) {
-				const found = this.#core.tendencies();
-				const wanted = this.#files.takeWanted().filter((name) => !fetched.has(name));
-				if (wanted.length === 0) {
-					try {
-						await this.#commit();
-					} catch {
-						// Figures kept for later; counted again next time if not stored.
-					}
-					return found;
-				}
-				for (const name of wanted) {
-					fetched.add(name);
-					this.#files.provide(name, await this.#store.read(name));
-				}
-			}
-		});
-	}
-
-	importFlight(igcText: string): Promise<ImportedFlight> {
-		return this.change((core) => core.importFlight(igcText));
-	}
-
-	flight(id: string): Promise<FlightView> {
-		return this.ask((core) => core.flight(id));
-	}
-
-	flightAnalysis(id: string): Promise<FlightAnalysis> {
-		return this.ask((core) => core.flightAnalysis(id));
-	}
-
-	flightFile(id: string): Promise<FlightFile> {
-		return this.ask((core) => core.flightFile(id));
-	}
-
-	/**
-	 * What the pilot is told before a flight goes to a league, with its
-	 * file: by the clock of `nowUnixS`.
-	 */
-	leagueHandover(id: string, nowUnixS: number): Promise<LeagueHandover> {
-		return this.ask((core) => core.leagueHandover(id, nowUnixS));
-	}
-
-	deleteFlight(id: string): Promise<void> {
-		return this.change((core) => core.deleteFlight(id));
 	}
 
 	/** Takes in an airspace file as the pilot picked or dropped it. */
@@ -222,15 +141,6 @@ export class CoreSession {
 	/** The heights the map's airspace can be filtered by, in the core's words. */
 	airspaceHeightFilter(): AirspaceHeightFilter {
 		return airspaceHeightFilter();
-	}
-
-	/**
-	 * One flight checked against the airspace there is now. The core asks
-	 * for the flight's file and for every airspace file it has not read yet,
-	 * one after another, before it answers.
-	 */
-	flightAirspace(id: string): Promise<FlightAirspace> {
-		return this.ask((core) => core.flightAirspace(id));
 	}
 
 	/**
@@ -302,7 +212,7 @@ export class CoreSession {
 	}
 
 	/**
-	 * Starts a run of the core's sync: the logbook's, or the one `of` names.
+	 * Starts a run of the core's sync: the one `of` names.
 	 * Other calls take their turns between its steps, so the page stays
 	 * usable while flights travel.
 	 *
@@ -311,7 +221,7 @@ export class CoreSession {
 	 * run's next step throws a {@link StaleStoreError}: every step before it
 	 * is stored, and a new run goes on from there.
 	 */
-	async beginSync(of: (core: Core) => CoreRun = (core) => core.sync()): Promise<SyncRun> {
+	async beginSync(of: (core: Core) => CoreRun): Promise<SyncRun> {
 		const { run, generation } = await this.#inTurn(async () => ({
 			run: of(this.#core),
 			generation: this.#generation

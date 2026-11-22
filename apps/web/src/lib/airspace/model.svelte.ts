@@ -19,7 +19,6 @@ import {
 	type Coordinate,
 	type CoreClient,
 	type Credit,
-	type FlightAirspace,
 	isInWords,
 	type KeptAirspace
 } from '#lib/core/index.ts';
@@ -157,15 +156,6 @@ export class AirspaceModel {
 	/** What airspace lies over a place, in the core's words. */
 	over(place: Coordinate): Promise<AirspaceOverPlace> {
 		return this.#core.airspaceOver(place);
-	}
-
-	/**
-	 * A flight of the logbook checked against the airspace there is now:
-	 * the stretches inside airspace to avoid or to mind, and how much of
-	 * the flight could be checked at all. Ask again when `revision` goes up.
-	 */
-	check(flightId: string): Promise<FlightAirspace> {
-		return this.#core.flightAirspace(flightId);
 	}
 
 	/** Takes in the files the pilot picked or dropped and says what happened, in words. */

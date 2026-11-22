@@ -437,180 +437,6 @@ describe('signing in with Google', () => {
 	});
 });
 
-describe('a sync', () => {
-	it('fetches what is missing here and sends what is missing there', async () => {
-		browser = new Browser();
-		const { session, account } = await browser.tab();
-		// Here: a flight the server lacks. There: the sample flight.
-		await session.importFlight(sampleFlightOn(3));
-		await account.signIn('demo', 'demo-pilot-password');
-		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
-		browser.server.asked = [];
-
-		const outcome = await account.sync();
-
-		expect(outcome).toEqual({
-			kind: 'finished',
-			summary: { sent: 1, fetched: 1, removedHere: 0, removedThere: 0, refused: 0 },
-			said: '1 sent, 1 fetched',
-			// The pilot's own sites follow the logbook: none here, none there.
-			keptSites: { sent: 0, fetched: 0, removedHere: 0, removedThere: 0, refused: 0 }
-		});
-		expect(browser.server.lines).toEqual([
-			'GET /v1/flights/changes',
-			`GET /v1/flights/${SAMPLE_THERE.id}/igc`,
-			'POST /v1/flights',
-			'GET /v1/account/kept-sites/changes'
-		]);
-		// Every one of them carried the token, and the flight went as its file.
-		expect(browser.server.asked.map((asked) => asked.token)).toEqual([TOKEN, TOKEN, TOKEN, TOKEN]);
-		expect(browser.server.asked[2].body).toBe(sampleFlightOn(3));
-		expect(session.logbook().totals.flights).toBe(2);
-		expect(await account.account()).toMatchObject({
-			flightsOnServer: 2,
-			flightsToSend: 0,
-			lastSyncUnixS: NOW / 1000
-		});
-
-		// All of it is stored: a reload finds two flights and nothing to do.
-		browser.closeTabs();
-		const reloaded = await browser.tab();
-		expect(reloaded.session.logbook().totals.flights).toBe(2);
-		browser.server.changes = changes();
-		expect(await reloaded.account.sync()).toMatchObject({ said: 'Nothing to send or fetch' });
-	});
-
-	it('deletes on the server what was deleted here, before anything else', async () => {
-		browser = new Browser();
-		const { session, account } = await browser.tab();
-		const { id } = await session.importFlight(sampleFlight());
-		await account.signIn('demo', 'demo-pilot-password');
-		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
-		await account.sync();
-
-		await session.deleteFlight(id);
-		browser.server.changes = changes();
-		browser.server.asked = [];
-		const outcome = await account.sync();
-
-		expect(outcome).toMatchObject({ kind: 'finished', said: '1 removed on the server' });
-		expect(browser.server.lines).toEqual([
-			`DELETE /v1/flights/${SAMPLE_THERE.id}`,
-			'GET /v1/flights/changes',
-			'GET /v1/account/kept-sites/changes'
-		]);
-		expect(session.logbook().totals.flights).toBe(0);
-	});
-
-	it('removes here what was deleted on another device', async () => {
-		browser = new Browser();
-		const { session, account } = await browser.tab();
-		const { id } = await session.importFlight(sampleFlight());
-		await account.signIn('demo', 'demo-pilot-password');
-		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
-		await account.sync();
-
-		browser.server.changes = changes({ deleted: [{ id: SAMPLE_THERE.id, identity: id }] });
-		const outcome = await account.sync();
-
-		expect(outcome).toMatchObject({ kind: 'finished', said: '1 removed here' });
-		expect(session.logbook().totals.flights).toBe(0);
-		// What the account's kept sites were read up to is noted beside the logbook.
-		expect((await browser.stored()).names).toEqual([
-			'account.json',
-			'kept-sites-account.json',
-			'logbook-index.json'
-		]);
-	});
-
-	it('stops when the session has ended, says so, and forgets the token', async () => {
-		browser = new Browser();
-		const { account } = await browser.tab();
-		await account.signIn('demo', 'demo-pilot-password');
-		browser.server.instead = () => refusal(401, 'unauthorized');
-
-		const outcome = await account.sync();
-
-		expect(outcome).toEqual({
-			kind: 'failed',
-			message: 'This device is no longer signed in. Sign in again.',
-			needsSignIn: true
-		});
-		expect((await account.account())?.needsSignIn).toBe(true);
-		expect((await browser.stored()).token).toBeUndefined();
-	});
-
-	it('passes on how long the server asks to wait', async () => {
-		browser = new Browser();
-		const { account } = await browser.tab();
-		await account.signIn('demo', 'demo-pilot-password');
-		browser.server.instead = () => ({ ...refusal(429, 'rate_limited'), retryAfterS: 30 });
-
-		expect(await account.sync()).toMatchObject({
-			kind: 'failed',
-			message: 'The server asks to wait 30 seconds. What was done so far is kept.'
-		});
-	});
-
-	it('keeps what it did when the server goes out of reach half-way', async () => {
-		browser = new Browser();
-		const { session, account } = await browser.tab();
-		await session.importFlight(sampleFlightOn(3));
-		await session.importFlight(sampleFlightOn(5));
-		await account.signIn('demo', 'demo-pilot-password');
-		let uploads = 0;
-		browser.server.instead = (request) => {
-			if (request.method !== 'POST' || request.path !== '/v1/flights') return undefined;
-			uploads += 1;
-			if (uploads === 2) throw new Error('offline');
-			return undefined;
-		};
-
-		await expect(account.sync()).rejects.toThrow('offline');
-
-		// The first flight arrived, and that is remembered across a reload.
-		browser.closeTabs();
-		const reloaded = await browser.tab();
-		expect(await reloaded.account.account()).toMatchObject({
-			flightsOnServer: 1,
-			flightsToSend: 1
-		});
-	});
-
-	it('is not run by a browser that is not signed in', async () => {
-		browser = new Browser();
-		const { account } = await browser.tab();
-
-		expect(await account.sync()).toMatchObject({ kind: 'failed', needsSignIn: true });
-		expect(browser.server.asked).toEqual([]);
-	});
-
-	it('starts over when another tab changes the logbook under it', async () => {
-		browser = new Browser();
-		const first = await browser.tab();
-		const second = await browser.tab();
-		await first.session.importFlight(sampleFlightOn(3));
-		await first.account.signIn('demo', 'demo-pilot-password');
-		await second.session.reload();
-		// While the first tab's flight is on its way, the second imports another.
-		let interfered = false;
-		const send: Send = async (request, token) => {
-			if (!interfered && request.method === 'POST' && request.path === '/v1/flights') {
-				interfered = true;
-				await second.session.importFlight(sampleFlightOn(5));
-			}
-			return browser.server.send(request, token);
-		};
-		const account = new AccountSource(first.session, send, SERVER, 'Test browser', () => NOW);
-
-		const outcome = await account.sync();
-
-		// Both flights end up on the server, whichever run sent them.
-		expect(outcome.kind).toBe('finished');
-		expect(await account.account()).toMatchObject({ flightsOnServer: 2, flightsToSend: 0 });
-	});
-});
-
 describe('the pilot’s own sites, signed in', () => {
 	/** The Wallberg's ramp and the Jägerkamp, as the server's recorded map has them. */
 	const RAMP = 'osm-free-flying:node/5964676196';
@@ -646,23 +472,23 @@ describe('the pilot’s own sites, signed in', () => {
 		);
 		browser.server.asked = [];
 
-		const outcome = await account.sync();
+		const outcome = await account.syncKeptSites();
 
-		expect(outcome.keptSites).toEqual({
+		expect(outcome).toEqual({
 			sent: 1,
 			fetched: 0,
 			removedHere: 0,
 			removedThere: 0,
 			refused: 0
 		});
-		// After the logbook's run, with the session: what the account has, then the offer.
+		// With the session: what the account has, then the offer. No flights:
+		// the web keeps no logbook of its own.
 		expect(browser.server.lines).toEqual([
-			'GET /v1/flights/changes',
 			'GET /v1/account/kept-sites/changes',
 			`PUT /v1/account/kept-sites/${RAMP}`
 		]);
-		expect(browser.server.asked.map((asked) => asked.token)).toEqual([TOKEN, TOKEN, TOKEN]);
-		expect(JSON.parse(browser.server.asked[2].body).site.id).toBe(RAMP);
+		expect(browser.server.asked.map((asked) => asked.token)).toEqual([TOKEN, TOKEN]);
+		expect(JSON.parse(browser.server.asked[1].body).site.id).toBe(RAMP);
 		expect(await note(session)).toMatch(/^Kept on your Venti account and on this device\./);
 
 		// Every step was stored: a reload has the same to say and nothing to send.
@@ -680,12 +506,11 @@ describe('the pilot’s own sites, signed in', () => {
 		browser = new Browser();
 		const { session, account } = await browser.tab();
 		await account.signIn('demo', 'demo-pilot-password');
-		await account.sync();
+		await account.syncKeptSites();
 
 		await keep(session, RAMP);
 		browser.server.asked = [];
 		expect(await account.syncKeptSites()).toMatchObject({ sent: 1 });
-		// The logbook is not asked about.
 		expect(browser.server.lines).toEqual([
 			'GET /v1/account/kept-sites/changes',
 			`PUT /v1/account/kept-sites/${RAMP}`
@@ -706,9 +531,9 @@ describe('the pilot’s own sites, signed in', () => {
 		browser.server.keptChanges = answer(200, recorded('kept_site_changes.json'));
 		await account.signIn('demo', 'demo-pilot-password');
 
-		const outcome = await account.sync();
+		const outcome = await account.syncKeptSites();
 
-		expect(outcome.keptSites).toMatchObject({ sent: 0, fetched: 1 });
+		expect(outcome).toMatchObject({ sent: 0, fetched: 1 });
 		expect(await held(session)).toEqual([JAEGERKAMP]);
 		expect(await note(session)).toMatch(/^Kept on your Venti account and on this device\./);
 
@@ -721,7 +546,7 @@ describe('the pilot’s own sites, signed in', () => {
 		browser = new Browser();
 		const { session, account } = await browser.tab();
 		await account.signIn('demo', 'demo-pilot-password');
-		await account.sync();
+		await account.syncKeptSites();
 		await keep(session, RAMP);
 		browser.server.instead = () => {
 			throw unreachableError('Venti could not be reached.');
@@ -741,16 +566,17 @@ describe('the pilot’s own sites, signed in', () => {
 		browser.server.instead = () => refusal(401, 'unauthorized');
 		browser.server.asked = [];
 
-		expect(await account.sync()).toMatchObject({ kind: 'failed', needsSignIn: true });
-		expect(browser.server.lines).toEqual(['GET /v1/flights/changes']);
+		expect(await account.syncKeptSites()).toBeUndefined();
+		expect(browser.server.lines).toEqual(['GET /v1/account/kept-sites/changes']);
+		// The server no longer takes the token: it is forgotten.
+		expect((await browser.stored()).token).toBeUndefined();
 	});
 });
 
 describe('signing out', () => {
 	it('tells the server, and forgets the account and the token', async () => {
 		browser = new Browser();
-		const { session, account } = await browser.tab();
-		await session.importFlight(sampleFlight());
+		const { account } = await browser.tab();
 		await account.signIn('demo', 'demo-pilot-password');
 		browser.server.asked = [];
 
@@ -763,8 +589,6 @@ describe('signing out', () => {
 		const stored = await browser.stored();
 		expect(stored.token).toBeUndefined();
 		expect(stored.names).not.toContain('account.json');
-		// The flights in the logbook stay.
-		expect(session.logbook().totals.flights).toBe(1);
 	});
 
 	it('forgets them also when the server cannot be reached', async () => {
@@ -810,10 +634,9 @@ describe('deleting the account', () => {
 		expect((await browser.stored()).token).toBe(TOKEN);
 	});
 
-	it('forgets the account here and keeps the logbook', async () => {
+	it('forgets the account here', async () => {
 		browser = new Browser();
-		const { session, account } = await browser.tab();
-		await session.importFlight(sampleFlight());
+		const { account } = await browser.tab();
 		await account.signIn('demo', 'demo-pilot-password');
 		browser.server.asked = [];
 
@@ -829,65 +652,6 @@ describe('deleting the account', () => {
 		]);
 		expect(await account.account()).toBeUndefined();
 		expect((await browser.stored()).token).toBeUndefined();
-		expect(session.logbook().totals.flights).toBe(1);
-	});
-});
-
-describe('sharing a flight', () => {
-	it('is not possible before the server has the flight', async () => {
-		browser = new Browser();
-		const { session, account } = await browser.tab();
-		const { id } = await session.importFlight(sampleFlight());
-		await account.signIn('demo', 'demo-pilot-password');
-
-		expect(await account.sharing(id)).toBeUndefined();
-		await expect(account.share(id, 'public')).rejects.toThrow(
-			'This flight is not on the server yet. Sync first.'
-		);
-	});
-
-	it('changes who may see it and remembers the answer, with a link on this site', async () => {
-		browser = new Browser();
-		const { session, account } = await browser.tab();
-		const { id } = await session.importFlight(sampleFlight());
-		await account.signIn('demo', 'demo-pilot-password');
-		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
-		await account.sync();
-		expect(await account.sharing(id)).toEqual({
-			visibility: 'unlisted',
-			link: `${SERVER}/f/${SAMPLE_THERE.id}`,
-			flightId: SAMPLE_THERE.id
-		});
-		browser.server.asked = [];
-
-		const now = await account.share(id, 'public');
-
-		expect(browser.server.asked).toEqual([
-			{
-				method: 'PATCH',
-				path: `/v1/flights/${SAMPLE_THERE.id}`,
-				token: TOKEN,
-				body: '{"visibility":"public"}'
-			}
-		]);
-		// The recorded answer is the server's public flight.
-		expect(now.visibility).toBe('public');
-		expect(now.link).toMatch(new RegExp(`^${SERVER}/f/[a-z0-9]{26}$`));
-		expect(await account.sharing(id)).toEqual(now);
-	});
-
-	it('says in the core’s words when the server no longer has the flight', async () => {
-		browser = new Browser();
-		const { session, account } = await browser.tab();
-		const { id } = await session.importFlight(sampleFlight());
-		await account.signIn('demo', 'demo-pilot-password');
-		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
-		await account.sync();
-		browser.server.instead = () => refusal(404, 'flight_not_found');
-
-		await expect(account.share(id, 'private')).rejects.toThrow(
-			'The server no longer has this flight.'
-		);
 	});
 });
 

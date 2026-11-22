@@ -122,11 +122,14 @@
 </svelte:head>
 
 <div class="desk page">
-	<!-- A wide screen has "Flights", "Ranking" and "Logbook" in the bar across
-	     its top: the page is titled by what it is and does not repeat them. A
-	     phone reaches it from the logbook, whose switch it keeps. -->
+	<!-- The switch at the head leads to the pilot's own flights ("Mine"),
+	     which are the account's, and to the ranking: on a wide screen beside
+	     the title, on a phone under it. -->
 	<header>
-		<h1>{wide.current ? (app.said?.pages.everyonesFlights ?? '') : 'Logbook'}</h1>
+		<h1>{wide.current ? (app.said?.pages.everyonesFlights ?? '') : 'Flights'}</h1>
+		{#if wide.current}
+			<WhoseFlights current="everyone" query={queryOf(asked)} />
+		{/if}
 	</header>
 	{#if !wide.current}
 		<div class="whose">
@@ -303,6 +306,9 @@
 	header {
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--space-3);
 		min-height: 3.25rem;
 		margin-bottom: 0.75rem;
 	}

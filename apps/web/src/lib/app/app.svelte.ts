@@ -1,6 +1,6 @@
 /**
- * What the app holds for as long as the page is open: the logbook, the
- * wind, the flying sites, who is in the air, the pilot's account, groups
+ * What the app holds for as long as the page is open: the pilot's flights
+ * on the server, the wind, the flying sites, who is in the air, the pilot's account, groups
  * and airspace, once the core has started, and whatever the pilot has to
  * be told.
  *
@@ -20,7 +20,6 @@ import { ALERTS_EVERY_MS, AlertsModel } from '#lib/alerts/model.svelte.ts';
 import { CommunityModel } from '#lib/community/model.svelte.ts';
 import { ConnectModel } from '#lib/connect/model.svelte.ts';
 import {
-	askToKeepStorage,
 	canRunWebAssembly,
 	type Coordinate,
 	CoreClient,
@@ -52,23 +51,18 @@ import { GroupsModel } from '#lib/groups/model.svelte.ts';
 import { KeptSitesModel } from '#lib/sites/kept.svelte.ts';
 import { TodayModel } from '#lib/today/model.svelte.ts';
 import { HomeModel } from '#lib/home/model.svelte.ts';
-import {
-	flightToShow,
-	importNotice,
-	type ImportReport,
-	type Notice
-} from '#lib/logbook/import-report.ts';
+import { flightToShow, importNotice, type Notice } from '#lib/logbook/import-report.ts';
 import { LiveModel } from '#lib/live/model.svelte.ts';
-import { LogbookModel } from '#lib/logbook/model.svelte.ts';
+import { MyFlightsModel } from '#lib/logbook/model.svelte.ts';
 import { SiteEditsModel } from '#lib/sites/edit.svelte.ts';
 import { SitesModel } from '#lib/sites/model.svelte.ts';
 import { TakeoffsModel } from '#lib/sites/takeoffs.svelte.ts';
 import { WindModel } from '#lib/wind/model.svelte.ts';
-import { alertsHref, flightHref } from './routes';
+import { alertsHref, myFlightHref } from './routes';
 
 export class App {
-	/** The logbook. Nothing until the core has started. */
-	logbook = $state.raw<LogbookModel>();
+	/** The pilot's own flights, on the server. Nothing until the core has started. */
+	myFlights = $state.raw<MyFlightsModel>();
 
 	/** Live wind for the map. Nothing until the core has started. */
 	wind = $state.raw<WindModel>();
@@ -150,7 +144,7 @@ export class App {
 	/** The core, once it has started. */
 	#core: CoreClient | undefined;
 
-	/** Fetches and starts the Rust core and opens the logbook. Runs in the browser only. */
+	/** Fetches and starts the Rust core. Runs in the browser only. */
 	start(): Promise<void> {
 		// No worker is started where it could only fail. Nothing is set here:
 		// a screen being made can be what asks.
@@ -175,23 +169,23 @@ export class App {
 				this.kept = kept;
 				this.thermals = new ThermalMapModel(core);
 				this.radar = new RadarModel(core);
-				const logbook = await LogbookModel.open(core);
+				const myFlights = new MyFlightsModel(core);
+				void myFlights.reload();
 				const alerts = new AlertsModel(core, () => void goto(`${alertsHref()}#fired`));
 				this.alerts = alerts;
 				void alerts.reread();
-				// A sync may have fetched or removed flights, and take-offs the
-				// pilot keeps as their own; what the alarms fired is fetched
-				// with it.
+				// A sync may have fetched or removed take-offs the pilot keeps
+				// as their own; what the alarms fired is fetched with it. It
+				// runs after signing in, when the pilot's flights are read anew.
 				const account = await AccountModel.open(core, async (keptSites) => {
-					await logbook.refresh();
+					void myFlights.reload();
 					await kept.synced(keptSites).catch(() => {});
 					void alerts.sync();
 				});
 				const airspace = await AirspaceModel.open(core);
-				// Another tab imported, deleted, synced or signed out: show
-				// what is stored now.
+				// Another tab signed in or out, or synced: show what is stored now.
 				core.onChangedElsewhere = () => {
-					void logbook.refresh();
+					void myFlights.reload();
 					void account.refresh();
 					void alerts.reread();
 					void airspace.reload();
@@ -203,7 +197,9 @@ export class App {
 					const browser = thisBrowser(asset('/push-worker.js'), resolve('/'));
 					if (browser && (await pushState(browser)) === 'on') await pushOff(browser, core);
 				};
-				this.logbook = logbook;
+				// Signed out, the pilot's flights are asked for no more.
+				account.afterLeaving = () => void myFlights.reload();
+				this.myFlights = myFlights;
 				this.account = account;
 				this.groups = new GroupsModel(core, account);
 				this.airspace = airspace;
@@ -372,13 +368,23 @@ export class App {
 	}
 
 	/**
-	 * Imports the files the pilot picked or dropped. Files dropped while the
-	 * app is still starting wait for it.
+	 * Uploads the flight files the pilot picked or dropped to the account.
+	 * Files dropped while the app is still starting wait for it.
 	 */
 	async importFiles(files: readonly File[]): Promise<void> {
 		await this.#started;
-		if (!this.logbook || files.length === 0) return;
-		await this.#finish(await this.logbook.importFiles(files));
+		if (!this.myFlights || files.length === 0) return;
+		if (!this.account?.signedIn) {
+			this.notice = {
+				title: 'Sign in to bring in flights',
+				lines: ['Your flights are kept on your Venti account. Sign in, then bring them in.']
+			};
+			return;
+		}
+		const report = await this.myFlights.upload(files);
+		this.notice = importNotice(report);
+		const id = flightToShow(report);
+		if (id) await goto(myFlightHref(id));
 	}
 
 	/**
@@ -391,38 +397,14 @@ export class App {
 		this.notice = await this.airspace.importFiles(files, format());
 	}
 
-	async addSample(): Promise<void> {
-		await this.#started;
-		if (!this.logbook) return;
-		await this.#finish(await this.logbook.addSample());
-	}
-
-	/**
-	 * After an import: open the flight if there was exactly one new one, and
-	 * say so if something needs saying.
-	 */
-	async #finish(report: ImportReport): Promise<void> {
-		// From now on there is something worth keeping.
-		if (report.added.length > 0 && this.logbook?.durable) askToKeepStorage();
-		// With an account, new flights go to the server without being asked.
-		if (report.added.length > 0) void this.account?.sync({ force: true });
-		this.notice = importNotice(report);
-		const id = flightToShow(report);
-		if (id) await goto(flightHref(id));
-	}
-
-	/**
-	 * Deletes a flight from the logbook. With an account, the server's copy
-	 * goes with the sync that follows.
-	 */
+	/** Deletes one of the pilot's flights from the account, at once and for good. */
 	async deleteFlight(id: string): Promise<void> {
-		await this.logbook?.delete(id);
-		void this.account?.sync({ force: true });
+		await this.myFlights?.delete(id);
 	}
 
 	/**
-	 * Keeps the logbook in step with the server while the page is open: now,
-	 * and whenever the page comes back to the front. Returns what to call
+	 * Keeps the pilot's own sites in step with the account while the page
+	 * is open: now, and whenever the page comes back to the front. Returns what to call
 	 * when the page goes away.
 	 */
 	keepInStep(): () => void {

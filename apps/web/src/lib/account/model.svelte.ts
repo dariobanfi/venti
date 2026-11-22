@@ -3,7 +3,7 @@
  *
  * What to ask the server and what its answers mean is the core's, and the
  * requests are sent by the worker (`core/account-source.ts`). This class
- * keeps what the screens draw, decides when a sync runs, and puts what
+ * keeps what the screens draw, decides when the sync of the pilot's own sites runs, and puts what
  * went wrong into words. It is the browser's counterpart of the iPhone
  * app's `AccountModel.swift`.
  */
@@ -12,8 +12,6 @@ import {
 	type AccessWanted,
 	type AccountView,
 	type CoreClient,
-	type FlightSharing,
-	type FlightVisibility,
 	type GoogleSignUp,
 	type GoogleWords,
 	isInWords,
@@ -69,17 +67,14 @@ export class AccountModel {
 	/** Whether a request or a sync is under way. */
 	working = $state(false);
 
-	/** What the last sync did, in the core's words: "3 sent, 1 fetched". */
-	lastSync = $state.raw<string>();
-
-	/** Why the last sync the pilot asked for stopped, in words. */
+	/** Why signing out did not work, in words. */
 	problem = $state.raw<string>();
 
 	#core: CoreClient;
 	#now: () => number;
 	/**
-	 * Called after a sync, which may have changed the logbook, with what it
-	 * did to the pilot's own sites where their run came to its end.
+	 * Called after a sync, with what it did to the pilot's own sites where
+	 * their run came to its end: after signing in too.
 	 */
 	#onSynced: (keptSites: SyncSummary | undefined) => Promise<void>;
 	#lastSyncAt: number | undefined;
@@ -138,8 +133,8 @@ export class AccountModel {
 	}
 
 	/**
-	 * Signs in, and brings the logbook in step. Returns why it did not
-	 * work, in words, or nothing when it did.
+	 * Signs in, and brings the pilot's own sites in step. Returns why it
+	 * did not work, in words, or nothing when it did.
 	 */
 	signIn(handle: string, password: string): Promise<string | undefined> {
 		return this.#enter(() => this.#core.signIn(handle, password));
@@ -151,7 +146,7 @@ export class AccountModel {
 	}
 
 	/**
-	 * Signs in with an ID token Google gave, and brings the logbook in step.
+	 * Signs in with an ID token Google gave, and brings the pilot's own sites in step.
 	 * A Google account that no Venti account is linked to yet goes on to the
 	 * handle step: `signUp` says what it needs. `refusal` says, in words, why
 	 * it did not work.
@@ -236,8 +231,7 @@ export class AccountModel {
 			const entered = await ask();
 			if (!entered) return undefined;
 			this.account = entered;
-			this.lastSync = undefined;
-			await this.#runSync(true);
+			await this.#runSync();
 			return undefined;
 		} catch (error) {
 			return words(error);
@@ -280,7 +274,10 @@ export class AccountModel {
 	 */
 	beforeSignOut: (() => Promise<unknown>) | undefined;
 
-	/** Signs this browser out. The flights in the logbook stay. */
+	/** Called once the browser is signed out, or the account deleted. */
+	afterLeaving: (() => void) | undefined;
+
+	/** Signs this browser out. The pilot's flights stay on the account. */
 	async signOut(): Promise<void> {
 		if (this.working) return;
 		this.working = true;
@@ -297,8 +294,8 @@ export class AccountModel {
 	}
 
 	/**
-	 * Deletes the account on the server, with its flights there. The logbook
-	 * in this browser stays. Returns why it did not work, if it did not.
+	 * Deletes the account on the server, with its flights. Returns why it
+	 * did not work, if it did not.
 	 */
 	async deleteAccount(password: string): Promise<string | undefined> {
 		if (this.working) return undefined;
@@ -331,18 +328,18 @@ export class AccountModel {
 
 	#forget(): void {
 		this.account = undefined;
-		this.lastSync = undefined;
 		this.problem = undefined;
 		this.#lastSyncAt = undefined;
+		this.afterLeaving?.();
 	}
 
 	/**
-	 * Brings the logbook and the server in step, if the pilot is signed in.
-	 * Called when the site is opened or comes back to the front, and after
-	 * the logbook changed. `force` skips the pause between runs. A run the
-	 * pilot did not ask for is quiet: being offline after a flight is no news.
+	 * Brings the pilot's own sites in step with the account, if the pilot
+	 * is signed in. Called when the site is opened or comes back to the
+	 * front. `force` skips the pause between runs. It is quiet: being
+	 * offline is no news.
 	 */
-	async sync({ force = false, quietly = true } = {}): Promise<void> {
+	async sync({ force = false } = {}): Promise<void> {
 		if (!this.signedIn || this.working) return;
 		if (
 			!force &&
@@ -353,28 +350,19 @@ export class AccountModel {
 		}
 		this.working = true;
 		try {
-			await this.#runSync(!quietly);
+			await this.#runSync();
 		} finally {
 			this.working = false;
 		}
 	}
 
-	async #runSync(reportsProblems: boolean): Promise<void> {
+	async #runSync(): Promise<void> {
 		this.#lastSyncAt = this.#now();
-		if (reportsProblems) this.problem = undefined;
 		let keptSites: SyncSummary | undefined;
 		try {
-			const outcome = await this.#core.sync();
-			keptSites = outcome.keptSites;
-			if (outcome.kind === 'finished') {
-				this.lastSync = outcome.said;
-				this.problem = undefined;
-			} else if (reportsProblems || outcome.needsSignIn) {
-				this.problem = outcome.message;
-			}
-		} catch (error) {
+			keptSites = await this.#core.syncKeptSites();
+		} catch {
 			// What was done so far is kept; the next sync goes on.
-			if (reportsProblems) this.problem = words(error);
 		}
 		await this.refresh();
 		await this.#onSynced(keptSites);
@@ -440,31 +428,6 @@ export class AccountModel {
 	/** Withdraws a program's access, by its token's identifier. */
 	withdrawAccess(id: string): Promise<void> {
 		return inWords(this.#core.withdrawAccess(id));
-	}
-
-	/** How a flight is shared, if the server has it. */
-	async sharing(flight: string): Promise<FlightSharing | undefined> {
-		try {
-			return await this.#core.flightSharing(flight);
-		} catch {
-			return undefined;
-		}
-	}
-
-	/**
-	 * Changes who may see a flight, and says how it is shared now. Throws
-	 * an error whose message is in words for the pilot.
-	 */
-	async share(flight: string, visibility: FlightVisibility): Promise<FlightSharing> {
-		if (this.working) throw new Error('Another request is under way. Try again in a moment.');
-		this.working = true;
-		try {
-			return await this.#core.shareFlight(flight, visibility);
-		} catch (error) {
-			throw new Error(words(error));
-		} finally {
-			this.working = false;
-		}
 	}
 }
 

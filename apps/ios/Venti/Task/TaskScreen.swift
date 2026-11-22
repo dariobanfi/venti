@@ -97,7 +97,7 @@ struct TaskScreen: View {
                 ToolbarItem(placement: .primaryAction) {
                     // Handing the task on: another pilot scans the code
                     // or opens the file.
-                    Menu("More", systemImage: "ellipsis") {
+                    VentiBarMenu(title: "More") {
                         Button("Show as a QR code", systemImage: "qrcode") {
                             isShowingCode = true
                         }

@@ -231,7 +231,7 @@ struct PublicFlightScreen: View {
                     .accessibilityAddTraits(.isHeader)
             }
             ToolbarItem(placement: .primaryAction) {
-                Menu("More", systemImage: "ellipsis") {
+                VentiBarMenu(title: "More") {
                     // Everything else this pilot shares with everyone.
                     Button("Flights of \(flight.pilot)", systemImage: "person") {
                         showsPilot = true
@@ -346,7 +346,7 @@ struct PilotFlightsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Menu("More", systemImage: "ellipsis") {
+                VentiBarMenu(title: "More") {
                     Button("Report this pilot", systemImage: "exclamationmark.bubble") {
                         reporting = .pilot(pilot.handle)
                     }

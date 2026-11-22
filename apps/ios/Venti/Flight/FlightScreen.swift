@@ -58,7 +58,7 @@ struct FlightScreen: View {
         .toolbarVisibility(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Menu("More", systemImage: "ellipsis") {
+                VentiBarMenu(title: "More") {
                     Button("Share with a link", systemImage: "link") {
                         isSharing = true
                     }

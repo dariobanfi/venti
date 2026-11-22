@@ -27,7 +27,7 @@ struct AssistantScreen: View {
             .toolbar {
                 if chat.hasKey {
                     ToolbarItem(placement: .primaryAction) {
-                        Menu("Assistant options", systemImage: "ellipsis") {
+                        VentiBarMenu(title: "Assistant options") {
                             if chat.service == .anthropic {
                                 Picker(
                                     "Model",

@@ -141,7 +141,7 @@ struct RouteMapPlanner: View {
                 // file, out and in. The words are the core's.
                 ToolbarItem(placement: .primaryAction) {
                     let words = plannerWords()
-                    Menu(commonWords().more, systemImage: "ellipsis") {
+                    VentiBarMenu(title: commonWords().more) {
                         Button(words.exportGpx, systemImage: "square.and.arrow.up") {
                             exported = GpxFile(text: routeToGpx(points: places))
                             isExporting = true

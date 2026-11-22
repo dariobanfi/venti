@@ -344,6 +344,29 @@ extension VentiEmpty where Actions == EmptyView {
     }
 }
 
+/// A menu behind a button of a navigation bar: "More" with its three dots
+/// on most pages, the logbook's plus. Every menu in a bar is this one: a
+/// bar draws a `Menu`'s sign in the symbol's own colours, which made the
+/// three dots white on the light ground and a plus green, so the sign is
+/// told here to be of one colour, the ink.
+struct VentiBarMenu<Content: View>: View {
+    /// What the button is called: read out, and shown where a bar shows
+    /// words.
+    let title: String
+    var systemImage = "ellipsis"
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        Menu {
+            content
+        } label: {
+            Label(title, systemImage: systemImage)
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(Color.venti(.text))
+        }
+    }
+}
+
 /// The pack's chip (`.v-chip`): switches a layer of the map on and off.
 /// Drawn 36 high, with room above and below it for the finger.
 struct VentiChip: View {

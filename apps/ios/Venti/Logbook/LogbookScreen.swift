@@ -105,7 +105,7 @@ struct LogbookScreen: View {
     /// once, a folder to bring in from by itself from now on, and, while
     /// one is watched, which it is and the way to stop.
     private var importMenu: some View {
-        Menu {
+        VentiBarMenu(title: "Import flights", systemImage: "plus") {
             Button("Flight files or a folder", systemImage: "doc") {
                 isChoosingFiles = true
             }
@@ -123,13 +123,6 @@ struct LogbookScreen: View {
                 }
                 .accessibilityIdentifier("watch-folder-stop")
             }
-        } label: {
-            // A menu's sign in a bar is drawn in the symbol's own colours
-            // (the plus green) unless it is told otherwise: one colour,
-            // the ink, as the button it was.
-            Label("Import flights", systemImage: "plus")
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(Color.venti(.text))
         }
         .disabled(logbook.importProgress != nil)
         .accessibilityIdentifier("logbook-import")

@@ -46,7 +46,7 @@ struct WaypointsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Menu("More", systemImage: "ellipsis") {
+                VentiBarMenu(title: "More") {
                     Button("Add from a file", systemImage: "square.and.arrow.down") {
                         isChoosingFiles = true
                     }

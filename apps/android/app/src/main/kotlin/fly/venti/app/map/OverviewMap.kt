@@ -261,7 +261,7 @@ class OverviewMap : MapContent {
         // Where the pilot left the map tab, when it is made again (back
         // from the route planner or from another tab); at first the
         // northern Alps between Lake Constance and Salzburg.
-        map.cameraPosition = left ?: CameraPosition.Builder().target(LatLng(47.45, 11.6)).zoom(7.4).build()
+        map.cameraPosition = left ?: CameraPosition.Builder().target(LatLng(FIRST.lat, FIRST.lon)).zoom(7.4).build()
         // The credits are the screen's own (i) on this map: one button for
         // the base map's and for Venti's, each credit in full behind it.
         map.uiSettings.isAttributionEnabled = false
@@ -1077,6 +1077,17 @@ class OverviewMap : MapContent {
         /** Where the map tab's map last came to rest, while the app runs. */
         @Volatile
         private var left: CameraPosition? = null
+
+        /** Where the map tab opens at first: the northern Alps between Lake Constance and Salzburg. */
+        private val FIRST = fly.venti.core.Coordinate(lat = 47.45, lon = 11.6)
+
+        /**
+         * The middle of where the map tab's map last came to rest, or of where
+         * it opens at first: where the pilot last looked, for what is asked
+         * before a flight whatever the map draws (the Fly tab's airspace).
+         */
+        val lastLookedAt: fly.venti.core.Coordinate
+            get() = left?.target?.let { fly.venti.core.Coordinate(lat = it.latitude, lon = it.longitude) } ?: FIRST
 
         private const val TRACKS = "logbook-tracks"
         private const val WIND = "wind-stations"

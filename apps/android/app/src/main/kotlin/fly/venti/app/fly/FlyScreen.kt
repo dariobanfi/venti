@@ -32,6 +32,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import fly.venti.app.map.OverviewMap
+import fly.venti.app.today.PilotPosition
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -101,6 +104,19 @@ fun FlyScreen(
             onCockpitTaken()
             if (fly.mode == null) askThenStart.launch(permissionsToFly(vario))
         }
+    }
+
+    // The airspace the line below and the cockpit's warnings go by is
+    // asked for here, before any flight, whatever the map tab draws (its
+    // switch is only what that map shows): around the pilot where the phone
+    // knows where they are, else around where they last looked on the map.
+    // The core says whether what is kept is due; without a network what
+    // was kept stays. The cockpit asks again at its first position.
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        val pilot = PilotPosition(context.applicationContext)
+        pilot.readIfAllowed()
+        airspace.refreshSoon(pilot.place ?: OverviewMap.lastLookedAt)
     }
 
     fun startReplay(speed: Double) {

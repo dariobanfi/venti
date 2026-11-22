@@ -4,12 +4,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.Http
+import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.app.wind.WindTransport
 import fly.venti.app.sites.KeptSitesModel
 import fly.venti.core.Coordinate
 import fly.venti.core.CoreException
 import fly.venti.core.Credit
+import fly.venti.core.FoehnLine
+import fly.venti.core.FoehnView
+import fly.venti.core.foehnPath
 import fly.venti.core.SiteOutlook
 import fly.venti.core.SiteView
 import fly.venti.core.SitesMap
@@ -18,6 +22,7 @@ import fly.venti.core.siteOutlook
 import fly.venti.core.sitesMap
 import fly.venti.core.sitesPath
 import fly.venti.core.todayArea
+import fly.venti.core.foehn as readFoehn
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +59,19 @@ sealed interface TodayState {
     data object Loaded : TodayState
 
     data class Failed(val message: String) : TodayState
+}
+
+/** What Today knows of foehn: the core's reading of the server's answer, or why there is none. */
+sealed interface FoehnState {
+    /** Nothing asked yet. */
+    data object Idle : FoehnState
+
+    data object Loading : FoehnState
+
+    /** The core's view of the answer, against the take-offs Today shows. */
+    data class Read(val view: FoehnView) : FoehnState
+
+    data class Failed(val message: String) : FoehnState
 }
 
 /**
@@ -112,6 +130,16 @@ class TodayModel(
     /** Whose data the forecasts are. The licences ask for this next to the data. */
     var credits: List<Credit> by mutableStateOf(emptyList())
         private set
+
+    /** Foehn across the main ridge, as the core reads the server's answer for the take-offs listed. */
+    var foehn: FoehnState by mutableStateOf(FoehnState.Idle)
+        private set
+
+    /** The core's one line for Today, when it gives one: nothing otherwise, and nothing in its place. */
+    val foehnLine: FoehnLine? get() = (foehn as? FoehnState.Read)?.view?.todayLine
+
+    /** The server's last answer about foehn and the time by the server's clock it was read at, for reading it again against other take-offs. */
+    private var foehnAnswer: Pair<HttpAnswer, Long>? = null
 
     /** The server to ask, without a slash at its end: the app's (`AppServer`), or a test's. */
     var server: () -> String? = { null }
@@ -206,7 +234,11 @@ class TodayModel(
         return outlook
     }
 
-    /** Asks the server for the sites around a place, the core for the take-offs, and the server for the forecast of each. */
+    /**
+     * Asks the server for the sites around a place, the core for the
+     * take-offs, the server for the forecast of each, and the server about
+     * foehn, which the core reads against those take-offs.
+     */
     suspend fun load(around: Coordinate) {
         val server = server()
         val changes = kept.changes
@@ -219,9 +251,30 @@ class TodayModel(
         if (server == null) {
             // The app always has Venti; only a test can be without one, and
             // that reads as Venti not reached. The pilot's own are listed all the same.
+            foehnAnswer = null
+            foehn = FoehnState.Failed(FOEHN_UNREACHABLE)
             list(around, near = null, failure = UNREACHABLE)
             return
         }
+        // Foehn alongside the take-offs: read against them once both are there.
+        coroutineScope {
+            launch { askFoehn(server) }
+            loadTakeoffs(around, server, changes)
+        }
+    }
+
+    /** Asks the server about foehn again, for the view's "Try again". */
+    suspend fun reloadFoehn() {
+        val server = server()
+        if (server == null) {
+            foehn = FoehnState.Failed(FOEHN_UNREACHABLE)
+            return
+        }
+        askFoehn(server)
+    }
+
+    /** The take-offs of [load]: the sites from the server, the list from the core, then each forecast. */
+    private suspend fun loadTakeoffs(around: Coordinate, server: String, changes: Int) {
         val map = try {
             sitesAround(around, server)
         } catch (error: CancellationException) {
@@ -274,7 +327,41 @@ class TodayModel(
         siteCredits = listed.credits
         sitesAsOf = near?.asOfUnixS
         state = if (failure == null) TodayState.Loaded else TodayState.Failed(failure)
+        // The take-offs foehn is read for have changed.
+        readHeldFoehn()
         return failure == null
+    }
+
+    /** Asks the server about foehn, and has the core read the answer. */
+    private suspend fun askFoehn(server: String) {
+        if (foehn !is FoehnState.Read) foehn = FoehnState.Loading
+        val answer = try {
+            transport(server + foehnPath())
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (server != server()) return
+            foehnAnswer = null
+            foehn = FoehnState.Failed("$FOEHN_UNREACHABLE ${error.pilotMessage}")
+            return
+        }
+        val now = clock()
+        if (server != server()) return
+        foehnAnswer = answer to now
+        readHeldFoehn()
+    }
+
+    /** Has the core read the answer at hand against the take-offs listed now. */
+    private suspend fun readHeldFoehn() {
+        val (answer, now) = foehnAnswer ?: return
+        val takeoffs = places.map { it.site.position }
+        foehn = try {
+            FoehnState.Read(withContext(background) { readFoehn(answer.status.asStatus(), answer.body, takeoffs, now) })
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            FoehnState.Failed(error.pilotMessage)
+        }
     }
 
     /** Asks for the forecast of each of these take-offs, and keeps each as it arrives. */
@@ -366,3 +453,6 @@ class TodayModel(
 
 /** Said when Venti does not answer, before what the phone says of why. */
 private const val UNREACHABLE = "Venti could not be reached for today's forecast."
+
+/** Said in the foehn view when Venti does not answer, before what the phone says of why: the app's words, as on the forecast's page. */
+private const val FOEHN_UNREACHABLE = "Venti could not be reached."

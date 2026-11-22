@@ -279,4 +279,60 @@ class TodayModelTest {
         val metres = TodayModel.metresBetween(Coordinate(lat = 47.0, lon = 11.0), Coordinate(lat = 48.0, lon = 11.0))
         assertEquals(111_195.0, metres, 50.0)
     }
+
+    /** The development server's moment, at which its foehn answer is fresh: Bolzano – Innsbruck at "likely". */
+    private val foehnMoment = java.time.Instant.parse("2026-11-18T19:05:00Z").epochSecond
+
+    private fun foehnServer(url: String): HttpAnswer =
+        if ("/v1/foehn" in url) HttpAnswer(200, recorded("foehn.json")) else recordedServer(url)
+
+    @Test
+    fun foehnIsReadAgainstTheTakeoffsTodayShowsAndTheServersClock() = runBlocking {
+        val asked = CopyOnWriteArrayList<String>()
+        val today = model { url ->
+            asked += url
+            foehnServer(url)
+        }
+        today.clock = { foehnMoment }
+        today.load(tegernsee)
+
+        assertTrue(asked.any { it == "https://venti.example" + fly.venti.core.foehnPath() })
+        val view = (today.foehn as FoehnState.Read).view
+        // What the core says of the answer for the take-offs listed, at the server's time.
+        val expected = fly.venti.core.foehn(
+            200.toUShort(),
+            recorded("foehn.json"),
+            today.places.map { it.site.position },
+            foehnMoment,
+        )
+        assertEquals(expected, view)
+        val line = checkNotNull(today.foehnLine)
+        assertEquals(fly.venti.core.FoehnLevel.LIKELY, line.level)
+        assertEquals("bolzano-innsbruck", line.pairId)
+    }
+
+    @Test
+    fun withoutTakeoffsNearTheRidgeTodayHasNoFoehnLineButTheView() = runBlocking {
+        val today = model(answer = ::foehnServer)
+        today.clock = { foehnMoment }
+        // Munich has no take-off around, so nothing for the line to speak of.
+        today.load(Coordinate(lat = 48.14, lon = 11.58))
+
+        assertTrue(today.places.isEmpty())
+        assertTrue(today.foehn is FoehnState.Read)
+        assertEquals(null, today.foehnLine)
+    }
+
+    @Test
+    fun foehnNotReachedIsSaidInTheViewAndTodayHasNoLine() = runBlocking {
+        val today = model { url ->
+            if ("/v1/foehn" in url) throw IOException("no route to host") else recordedServer(url)
+        }
+        today.load(tegernsee)
+
+        assertEquals(TodayState.Loaded, today.state)
+        val failed = today.foehn as FoehnState.Failed
+        assertTrue(failed.message.startsWith("Venti could not be reached."))
+        assertEquals(null, today.foehnLine)
+    }
 }

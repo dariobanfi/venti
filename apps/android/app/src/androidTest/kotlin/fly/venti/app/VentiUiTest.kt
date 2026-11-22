@@ -1001,11 +1001,13 @@ class VentiUiTest {
 
     /**
      * Airspace from the pilot's server: with a server set, the app fetches
-     * the airspace around the map by itself and keeps it. The map draws it
-     * and names whose it is; the Fly tab says before take-off what the
-     * cockpit will warn from; and the list shows it with its provider's
-     * credit and notice, and the switch that turns it off. Skipped without
-     * a server, like the wind.
+     * the airspace by itself and keeps it, before any flight and whatever
+     * the map tab draws: the map's airspace stays off from start to end
+     * here, since that switch is only what the map shows, and the cockpit's
+     * warnings must have their airspace all the same. The Fly tab says
+     * before take-off what the cockpit will warn from; and the list shows it
+     * with its provider's credit and notice, and the switch that turns it
+     * off. Skipped without a server, like the wind.
      */
     private fun takeAirspaceFromTheServer(prefix: String, dark: Boolean) {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
@@ -1014,13 +1016,13 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         waitFor(described("Show my position"))
 
-        // Switched on, the map asked for the airspace around what it shows.
-        switchAirspaceOn()
-        seeInCredits(hasText("Airspace: openAIP, not certified"))
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceEdgesOnTheMap(scenario) > 0 }
-        letTheMapDraw(3)
-        keepScreenshot("$prefix-airspace-1-map")
+        // The map's airspace is off, and stays off.
+        val mapAirspace = hasTestTag("map-airspace")
+        waitFor(mapAirspace)
+        assertFalse(exists(mapAirspace and isSelected()))
+        assertEquals(0, airspaceEdgesOnTheMap(scenario))
 
+        // The Fly tab asked for it by itself.
         tap(tab("Fly"))
         val line = hasTestTag("airspace-before-takeoff")
         waitFor(line and hasText("openAIP", substring = true))
@@ -1041,6 +1043,10 @@ class VentiUiTest {
         assertTrue(exists(hasText("without airspace the cockpit warns of none", substring = true)))
         tap(described("Back"))
         waitFor(line and hasText("None"))
+        // The map's switch was never touched.
+        tap(tab("Map"))
+        waitFor(mapAirspace)
+        assertFalse(exists(mapAirspace and isSelected()))
     }
 
     /**
@@ -3226,6 +3232,59 @@ class VentiUiTest {
 
     @Test
     fun todayInDarkAppearance() = lookAtToday("dark", dark = true)
+
+    @Test
+    fun todayWarnsOfFoehnAndOpensItsView() = lookAtFoehn("light", dark = false)
+
+    @Test
+    fun foehnInDarkAppearance() = lookAtFoehn("dark", dark = true)
+
+    /**
+     * Foehn on Today, against Venti in development mode: Bolzano – Innsbruck
+     * at "likely" (south foehn, 6.2 hPa), Klagenfurt – Salzburg at "none".
+     * Today has the core's one line above the take-offs; a tap opens the
+     * view with both pairs, each with its chart. The words are the core's:
+     * asserted by what they begin with only. Skipped without a server.
+     */
+    private fun lookAtFoehn(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark, onToday = true) { putExtra(LaunchOptions.SERVER, server) }
+
+        val line = hasTestTag("today-foehn") and hasText("South foehn likely", substring = true)
+        waitFor(line)
+        waitFor(hasTestTag("today-card"))
+        screen.onNode(hasTestTag("today-head")).performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-foehn-1-today")
+
+        tap(line)
+        waitFor(hasTestTag("foehn-sheet"))
+        val bolzano = hasText("Bolzano", substring = true) and hasAnyAncestor(hasTestTag("foehn-row"))
+        val klagenfurt = hasText("Klagenfurt", substring = true) and hasAnyAncestor(hasTestTag("foehn-row"))
+        waitForAll(bolzano, klagenfurt)
+        assertEquals(2, screen.onAllNodes(hasTestTag("foehn-row")).fetchSemanticsNodes().size)
+        assertTrue(exists(hasTestTag("foehn-chart")))
+        assertTrue(exists(hasTestTag("foehn-level") and described("Likely")))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-foehn-2-view")
+
+        // The second pair, and what the number means and does not say.
+        screen.onAllNodes(hasTestTag("foehn-chart"))[1].performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-foehn-3-second-pair")
+        screen.onNode(hasTestTag("foehn-caution")).performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-foehn-4-explanation")
+
+        tap(hasTestTag("foehn-close"))
+        waitFor(line)
+        // The same view from the row at the page's foot.
+        screen.onNode(hasTestTag("today-foehn-link")).performScrollTo()
+        tap(hasAnyAncestor(hasTestTag("today-foehn-link")) and hasText("Foehn"))
+        waitFor(hasTestTag("foehn-sheet"))
+        tap(hasTestTag("foehn-close"))
+    }
 
     /**
      * The air around and above a take-off, against Venti in development

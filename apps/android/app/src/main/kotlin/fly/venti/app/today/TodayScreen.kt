@@ -68,6 +68,8 @@ import app.venti.design.VentiSpace
 import app.venti.design.VentiType
 import fly.venti.app.R
 import fly.venti.app.design.Format
+import fly.venti.app.design.Group
+import fly.venti.app.design.LinkRow
 import fly.venti.app.design.Metric
 import fly.venti.app.design.SegmentedPills
 import fly.venti.app.design.StatusChip
@@ -124,6 +126,7 @@ fun TodayScreen(
     var day by rememberSaveable { mutableIntStateOf(0) }
     var hasChosenDay by rememberSaveable { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var showsFoehn by rememberSaveable { mutableStateOf(false) }
     var nearPilot by remember { mutableStateOf(preferences.todayNearPilot) }
     val place = position.place.takeIf { nearPilot } ?: HOME
 
@@ -182,6 +185,8 @@ fun TodayScreen(
                 modifier = Modifier.fillMaxWidth().padding(VentiSpace.s4),
                 verticalArrangement = Arrangement.spacedBy(VentiSpace.s4),
             ) {
+                // Foehn near the pilot's take-offs, above them: only when the core has a line.
+                today.foehnLine?.let { line -> FoehnTodayLine(line, onOpen = { showsFoehn = true }) }
                 when (val state = today.state) {
                     is TodayState.Failed -> {
                         Explained(
@@ -235,8 +240,27 @@ fun TodayScreen(
                         Foot(today, shown.card?.let { outlookDay(it, chosen) })
                     }
                 }
+                // The foehn view, also when there is no line: one row at the page's foot.
+                if (today.state is TodayState.Loaded || today.state is TodayState.Failed) {
+                    Group(Modifier.testTag("today-foehn-link")) {
+                        row {
+                            LinkRow(
+                                (today.foehn as? FoehnState.Read)?.view?.title ?: TodayWords.FOEHN,
+                                R.drawable.ic_chevron_right,
+                                onClick = { showsFoehn = true },
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+    if (showsFoehn) {
+        FoehnSheet(
+            today.foehn,
+            onTryAgain = { scope.launch { today.reloadFoehn() } },
+            onDismiss = { showsFoehn = false },
+        )
     }
 }
 
@@ -721,6 +745,9 @@ object TodayWords {
 
     /** In place of a day's line when there is none to show. */
     const val NO_FORECAST = "No forecast"
+
+    /** The foehn view's name while the core has given no view to take its own from: when Venti could not be reached. */
+    const val FOEHN = "Foehn"
 
     /** Under a day's hours, in a line: what the numbers and the bars are. */
     fun hours(withThermals: Boolean): String =

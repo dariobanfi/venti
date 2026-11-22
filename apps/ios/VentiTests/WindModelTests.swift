@@ -12,6 +12,17 @@ private enum Canned {
         ]}
         """
 
+    /// The development server's two comments under a flight, of 18:10
+    /// and 18:15 UTC that evening.
+    static let comments = """
+        {"count": 2, "open": true, "comments": [
+          {"id": "0000000000000000000000c001", "pilot": {"handle": "mara", "display_name": "Mara Muster"},
+           "text": "Well flown.", "at": "2026-11-18T18:10:00Z"},
+          {"id": "0000000000000000000000c002", "pilot": {"handle": "demo", "display_name": "Demo Pilot"},
+           "text": "Rough at first.", "at": "2026-11-18T18:15:00Z"}
+        ]}
+        """
+
     static let stations = """
         {"stations": [
           {"id": "dwd-10min:05792", "source": "dwd-10min", "name": "Zugspitze",
@@ -78,6 +89,45 @@ final class WindModelTests: XCTestCase {
         XCTAssertNil(WindModel.server(from: ""))
         XCTAssertNil(WindModel.server(from: "ftp://example.org"))
         XCTAssertNil(WindModel.server(from: "not an address"))
+    }
+
+    /// The social screens over a wind model: comments read from canned
+    /// answers, their ages counted by what the model says the time is.
+    private func social(over wind: WindModel) -> Social {
+        Social(
+            server: wind.server, ownHandle: nil,
+            send: { _ in throw URLError(.userAuthenticationRequired) },
+            fetch: { _ in (200, Data(Canned.comments.utf8)) },
+            now: { await wind.serverNowIfRead() }
+        )
+    }
+
+    private static let flight = "5t1eshypdtvrq7rxw39a18vsrg"
+
+    func testACommentsAgeGoesByTheServersClock() async throws {
+        let wind = WindModel(address: "http://127.0.0.1:8080", transport: server(noting: Asked()))
+
+        // The clock is read from the server for the age, and it is the
+        // server's evening of 18 November, whatever day the iPhone says.
+        let now = await wind.serverNowIfRead()
+        XCTAssertEqual(Double(now), Double(Self.serverNow), accuracy: 5)
+        let list = try await social(over: wind).comments(Self.flight, of: nil)
+        XCTAssertEqual(list.comments.map(\.age), ["55 min ago", "50 min ago"])
+    }
+
+    func testACommentsAgeIsItsDayWhileTheServersClockIsNotRead() async throws {
+        // A Venti that does not say what time it is.
+        let wind = WindModel(address: "http://127.0.0.1:8080") { _ in throw URLError(.cannotConnectToHost) }
+
+        // Nothing is handed in for "now", least of all the iPhone's own
+        // time, and the core says the day.
+        let now = await wind.serverNowIfRead()
+        XCTAssertEqual(now, 0)
+        let list = try await social(over: wind).comments(Self.flight, of: nil)
+        XCTAssertEqual(list.comments.map(\.age), ["18 Nov 2026", "18 Nov 2026"])
+        // The readings' clock still falls back to the iPhone's.
+        let own = await wind.serverNow()
+        XCTAssertEqual(Double(own), Date().timeIntervalSince1970, accuracy: 5)
     }
 
     func testStationsComeFromTheServerWithTheirAgeByTheServersClock() async throws {

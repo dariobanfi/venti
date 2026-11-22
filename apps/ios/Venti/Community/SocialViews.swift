@@ -380,43 +380,27 @@ struct CommentsSheet: View {
                             .accessibilityIdentifier("comments-closed")
                     }
                 } else if social.isSignedIn {
-                    let draft = commentDraft(text: text)
+                    // What Venti says about writing here, under the
+                    // comments; the field itself stands at the sheet's
+                    // foot.
                     Section {
-                        // The button beside the field, so that the
-                        // keyboard never lies over it.
-                        HStack(alignment: .bottom, spacing: VentiSpace.s3) {
-                            TextField(words.commentPlaceholder, text: $text, axis: .vertical)
-                                .lineLimit(1...6)
-                                .accessibilityIdentifier("comment-text")
-                            Button(words.commentSend) {
-                                post(draft, social)
-                            }
-                            .buttonStyle(.borderless)
-                            .font(.ventiType(.label))
-                            .disabled(!draft.canSend || isSending)
-                            .accessibilityIdentifier("comment-send")
-                        }
-                        .frame(minHeight: VentiSize.touch)
                     } footer: {
-                        VStack(alignment: .leading, spacing: VentiSpace.s2) {
-                            if let problem {
-                                Text(problem)
-                                    .foregroundStyle(.venti(.danger))
-                                    .accessibilityIdentifier("comment-problem")
-                            }
-                            Text(draft.fault ?? draft.counter)
-                                .foregroundStyle(.venti(draft.fault == nil ? .textSecondary : .danger))
-                                .monospacedDigit()
-                                .accessibilityIdentifier("comment-counter")
-                            Text(draft.notice)
-                                .accessibilityIdentifier("comment-notice")
-                        }
+                        Text(commentDraft(text: text).notice)
+                            .accessibilityIdentifier("comment-notice")
                     }
                 } else if let problem {
                     Section {
                         Text(problem)
                             .foregroundStyle(.venti(.danger))
                     }
+                }
+            }
+            // The field to write in stands at the sheet's foot, over the
+            // keyboard, at half height as at full: in the list it lay
+            // under the fold behind two comments.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if list.closedLine == nil, social.isSignedIn {
+                    writing(social)
                 }
             }
             .navigationTitle(words.commentsTitle)
@@ -449,6 +433,48 @@ struct CommentsSheet: View {
                 .accessibilityIdentifier("comment-remove-confirm")
                 Button(commonWords().cancel, role: .cancel) {}
             }
+        }
+    }
+
+    /// The field, "Send" beside it so that the keyboard never lies over
+    /// it, and under them what is wrong or how much room is left.
+    private func writing(_ social: Social) -> some View {
+        let draft = commentDraft(text: text)
+        let words = Social.words
+        return VStack(alignment: .leading, spacing: VentiSpace.s1) {
+            HStack(alignment: .bottom, spacing: VentiSpace.s3) {
+                TextField(words.commentPlaceholder, text: $text, axis: .vertical)
+                    .lineLimit(1...4)
+                    .font(.venti(.body))
+                    .accessibilityIdentifier("comment-text")
+                Button(words.commentSend) {
+                    post(draft, social)
+                }
+                .buttonStyle(.borderless)
+                .font(.ventiType(.label))
+                .disabled(!draft.canSend || isSending)
+                .accessibilityIdentifier("comment-send")
+            }
+            .frame(minHeight: VentiSize.touch)
+            if let problem {
+                Text(problem)
+                    .font(.venti(.footnote))
+                    .foregroundStyle(.venti(.danger))
+                    .accessibilityIdentifier("comment-problem")
+            }
+            Text(draft.fault ?? draft.counter)
+                .font(.venti(.footnote))
+                .foregroundStyle(.venti(draft.fault == nil ? .textSecondary : .danger))
+                .monospacedDigit()
+                .accessibilityIdentifier("comment-counter")
+        }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.vertical, VentiSpace.s2)
+        .background(.venti(.surface))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.venti(.border))
+                .frame(height: 1)
         }
     }
 

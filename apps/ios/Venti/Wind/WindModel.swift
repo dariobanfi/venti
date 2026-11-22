@@ -160,13 +160,29 @@ final class WindModel {
     /// if it has not been yet. This iPhone's own time when there is no
     /// server or no answer.
     func serverNow() async -> Int64 {
+        await readClockIfUnread()
+        return now
+    }
+
+    /// The current time by the server's clock for an age that only the
+    /// server's clock can tell, a comment's or a notification's: read
+    /// from the server first if it has not been yet, and advanced by the
+    /// time that has passed since. 0 where the server's time has not been
+    /// read, never this iPhone's own time: for 0 the core says the day in
+    /// place of an age, which is right by any clock.
+    func serverNowIfRead() async -> Int64 {
+        await readClockIfUnread()
+        return clock == nil ? 0 : now
+    }
+
+    /// Asks the server what time it is, unless it has said so already.
+    private func readClockIfUnread() async {
         if clock == nil, let server,
            let (status, body) = try? await get(serverStatusPath(), from: server),
            let state = try? serverStatus(status: status, body: body)
         {
             take(state)
         }
-        return now
     }
 
     /// Reads the server's status anew: what the account's screen offers

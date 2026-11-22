@@ -192,6 +192,22 @@ final class VentiUITests: XCTestCase {
     /// speed. A receiver's positions wander while it stands, and the
     /// simulator hands a position on only when it is another than the
     /// last: so these wander too, by half a metre.
+    /// The height the map that comes with the app has for the ground at
+    /// that take-off (47.664 N, 11.772 E), metres: the cockpit showed
+    /// "533 m over ground" at 1600 m there on 2026-11-22. To look at again
+    /// when `tools/demo-map/build.sh` builds the region anew.
+    private static let takeoffGroundM: Double = 1067
+
+    /// The cockpit's "… m over ground" under the altitude, in metres;
+    /// `nil` while it shows none.
+    private func overGround(in app: XCUIApplication) -> Double? {
+        let reading = saying(" m over ground", in: app)
+        guard reading.waitForExistence(timeout: 20) else { return nil }
+        let said = "\(reading.label) \(reading.value.map { "\($0)" } ?? "")"
+        guard let found = said.firstMatch(of: /(\d+) m over ground/) else { return nil }
+        return Double(found.1)
+    }
+
     private func put(metresNorth: Double, altitude: Double, speed: Double) {
         wander = wander == 0 ? 0.5 : 0
         let north = metresNorth + wander
@@ -757,7 +773,11 @@ final class VentiUITests: XCTestCase {
         let open = app.buttons["Open the cockpit"]
         XCTAssertTrue(open.waitForExistence(timeout: 30))
 
-        put(metresNorth: 0, altitude: 1600, speed: 0)
+        // The flight stands, flies and lands at the height the app's own
+        // terrain has for the take-off: the core ends no flight while
+        // known ground lies more than 50 m under the glider.
+        let ground = Self.takeoffGroundM
+        put(metresNorth: 0, altitude: ground, speed: 0)
         open.tap()
         // The system asks whether Venti may use the position.
         let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow While Using App"]
@@ -767,12 +787,16 @@ final class VentiUITests: XCTestCase {
 
         // Standing at the take-off: ready, and nothing is recorded.
         for _ in 0..<8 {
-            put(metresNorth: 0, altitude: 1600, speed: 0)
+            put(metresNorth: 0, altitude: ground, speed: 0)
             sleep(1)
         }
         XCTAssertTrue(saying("Ready for take-off", in: app).waitForExistence(timeout: 20))
         XCTAssertTrue(saying("Recording starts by itself", in: app).exists)
         XCTAssertTrue(element("Altitude", in: app).exists)
+        // The made-up height is the ground's: the cockpit says so.
+        XCTAssertLessThanOrEqual(
+            overGround(in: app) ?? .infinity, 25, "The take-off of the made-up flight is not on the app's ground."
+        )
         keepScreenshot("self-1-ready")
         // What can be switched before the take-off, with "Record now" for
         // a pilot who would rather not wait.
@@ -782,24 +806,32 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("self-2-ready-flight-page")
         nextPage(in: app)
 
-        // Forty-five seconds of flight: 10 m/s over the ground, sinking a
-        // metre a second. The take-off is noticed within seconds.
-        for second in 1...45 {
-            put(metresNorth: 10 * Double(second), altitude: 1600 - Double(second), speed: 10)
+        // Ninety seconds of flight at the take-off's height, 10 m/s over
+        // the ground: 450 m out over the valley, and back to where it
+        // started. The take-off is noticed within seconds.
+        for second in 1...90 {
+            let out = Double(min(second, 90 - second))
+            put(metresNorth: 10 * out, altitude: ground, speed: 10)
             sleep(1)
             if second == 20 {
                 XCTAssertTrue(saying("Recording", in: app).waitForExistence(timeout: 10))
                 XCTAssertFalse(saying("Ready for take-off", in: app).exists)
                 keepScreenshot("self-3-in-the-air")
             }
+            if second == 45 {
+                // Where the flight of this test stood still until
+                // 2026-11-22, at 1555 m: what lies under it here.
+                keepScreenshot("self-3b-over-the-valley")
+            }
         }
 
-        // Standing in the landing field: landed after twenty seconds, and
-        // the cockpit says when the flight will be saved.
+        // Standing where it took off, on the ground: landed after twenty
+        // seconds, and the cockpit says when the flight will be saved.
         for _ in 0..<40 {
-            put(metresNorth: 450, altitude: 1555, speed: 0)
+            put(metresNorth: 0, altitude: ground, speed: 0)
             sleep(1)
         }
+        keepScreenshot("self-4a-standing-on-the-ground")
         XCTAssertTrue(saying("The flight is saved in", in: app).waitForExistence(timeout: 30))
         keepScreenshot("self-4-landed")
 
@@ -807,7 +839,7 @@ final class VentiUITests: XCTestCase {
         // and its page is open.
         let details = app.buttons["Flight details"]
         for _ in 0..<150 where !details.exists {
-            put(metresNorth: 450, altitude: 1555, speed: 0)
+            put(metresNorth: 0, altitude: ground, speed: 0)
             sleep(1)
         }
         XCTAssertTrue(details.waitForExistence(timeout: 30))
@@ -4834,6 +4866,11 @@ extension VentiUITests {
         }
         let account = try await makeAccount(on: server)
         let arguments = ["--server", server, "--map-at", "47.6653,11.7954,14"]
+        // As on a new iPhone: a simulator on which an earlier test let
+        // Venti use the position (`testAFlightRecordsItself` does) has
+        // Today look around where that test left the iPhone, "near you",
+        // and there the Jägerkamp is the card and no row.
+        XCUIApplication().resetAuthorizationStatus(for: .location)
         let app = launch(bundledMap: true, extra: arguments)
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
         signIn(account, in: app)
@@ -4844,7 +4881,9 @@ extension VentiUITests {
         openTab("Today", in: app)
         app.tabBars.buttons["Today"].tap()
         XCTAssertTrue(element("today-card", in: app).waitForExistence(timeout: 60))
-        let row = app.descendants(matching: .any).matching(identifier: "today-row")
+        // Wherever the core's order puts it on the day: a row, or the card.
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier IN %@", ["today-row", "today-card"]))
             .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 30))
         bringUp(row, in: app)

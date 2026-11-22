@@ -43,6 +43,9 @@ struct CockpitDetailsSheet: View {
                     }
                 }
             }
+            // The first row under the bar: a grouped list begins with the
+            // room of a heading, and this one has none.
+            .contentMargins(.top, VentiSpace.s2, for: .scrollContent)
             .navigationTitle(words.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -27,8 +27,9 @@ struct Social {
     let send: Send
     let fetch: Fetch
     /// The time now, in seconds since 1970: by it a comment is "3 h ago".
-    /// Venti's own clock, as the radar's ages are counted, so that an
-    /// iPhone whose clock is off says no wrong age.
+    /// Venti's own clock as it was read, advanced by the time since, and
+    /// 0 while it has not been read: the core then says the day in place
+    /// of an age. Never the iPhone's own clock, which can be days off.
     let now: @MainActor () async -> Int64
 
     init(
@@ -54,7 +55,7 @@ struct Social {
         self.init(
             server: wind.server, ownHandle: own,
             send: { try await account.answer(to: $0) },
-            now: { await wind.serverNow() }
+            now: { await wind.serverNowIfRead() }
         )
     }
 

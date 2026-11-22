@@ -373,13 +373,8 @@ private fun Suggestions(hasWind: Boolean, ask: (String) -> Unit) {
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            if (hasWind) {
-                "The assistant reads your logbook to answer, and the wind stations of Venti. " +
-                    "It cannot see forecasts, airspace or other pilots yet."
-            } else {
-                // Only a test is without Venti; the app always has it.
-                "The assistant reads your logbook to answer. Venti, which it asks for the wind, could not be reached."
-            },
+            // Only a test is without Venti; the app always has it.
+            if (hasWind) AssistantWords.READS else AssistantWords.READS_WITHOUT_VENTI,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -389,6 +384,23 @@ private fun Suggestions(hasWind: Boolean, ask: (String) -> Unit) {
             }
         }
     }
+}
+
+/**
+ * What the assistant's first screen says it reads: what the core's
+ * assistant can look up once it is told Venti's address (`useServer`), in
+ * the iPhone's words. The core has no words for it.
+ */
+object AssistantWords {
+    const val READS =
+        "The assistant reads your logbook to answer, and on Venti the wind stations, the airspace, the " +
+            "forecast, the flying sites and the flights other pilots share with everyone. It does not say " +
+            "whether a day can be flown, and it cannot see where other pilots are."
+
+    /** Without Venti the core offers the model the logbook alone. */
+    const val READS_WITHOUT_VENTI =
+        "The assistant reads your logbook to answer. Venti, which it asks for the wind, the airspace, the " +
+            "forecast, the flying sites and the flights other pilots share with everyone, could not be reached."
 }
 
 private val QUESTIONS = listOf(

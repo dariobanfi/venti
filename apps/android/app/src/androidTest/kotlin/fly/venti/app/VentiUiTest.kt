@@ -47,6 +47,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import fly.venti.app.radar.RadarLayer
+import fly.venti.core.readTask
 import fly.venti.core.siteConfirmationsPath
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -937,6 +938,15 @@ class VentiUiTest {
         waitFor(hasTestTag("score-badge"))
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-8b-airspace-proximity-map")
+
+        // A tap on the large reading lists the warnings, as a tap on the
+        // band does and as on the iPhone.
+        tap(hasTestTag("airspace-proximity-map"))
+        waitFor(hasText("Seen: quiet for 10 minutes"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-8c-airspace-warnings-from-the-reading")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Seen: quiet for 10 minutes")) }
 
         // The line ahead from the side, with the zone as a block if it
         // lies on the line just now; which it does is the flight's to say.
@@ -3861,6 +3871,152 @@ class VentiUiTest {
     @Test
     fun theServersAirspaceInDarkAppearance() = takeAirspaceFromTheServer("dark", dark = true)
 
+    /**
+     * A task goes out as a QR code and comes in through the camera. The
+     * made-up task is shown as a code, compressed and not; each is read
+     * off the screen with the reader the camera's frames go to, and the
+     * core reads what came out as the task that went in. An emulator's
+     * test has no camera to hold a code up to: the scanner is opened with
+     * the camera refused, and says so.
+     */
+    private fun showATaskAsACodeAndOpenTheScanner(prefix: String, dark: Boolean) {
+        launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_TASK, true) }
+        waitFor(described("Show my position"))
+        tap(tab("Fly"))
+        waitFor(hasText("Open the cockpit"))
+        tap(hasTestTag("task-before-takeoff"))
+        waitFor(hasTestTag("task-sketch"))
+
+        tap(described("More"))
+        waitFor(hasTestTag("task-show-code"))
+        assertTrue(exists(hasText("Show as a QR code")))
+        tap(hasTestTag("task-show-code"))
+        val code = hasTestTag("task-code")
+        waitFor(code)
+        assertTrue(exists(hasTestTag("task-code-compressed") and isOn()))
+        // Dark on white in both appearances, since that is what scanners read.
+        val compressed = readTheCode()
+        assertEquals(TASK_TURNPOINTS, readTask(compressed, System.currentTimeMillis() / 1000).turnpoints.map { it.name })
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-task-code-1-code")
+
+        // The other kind, for an instrument with old software: another
+        // text, more dots, the same task.
+        tap(hasTestTag("task-code-compressed"))
+        waitFor(hasTestTag("task-code-compressed") and isOff())
+        var plain = compressed
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            plain = readTheCode()
+            plain != compressed
+        }
+        assertEquals(TASK_TURNPOINTS, readTask(plain, System.currentTimeMillis() / 1000).turnpoints.map { it.name })
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-task-code-2-not-compressed")
+        tap(hasTestTag("task-code-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(code) }
+
+        // The scanner. Android asks for the camera only now; here it has
+        // been told to refuse without asking, as it does for a pilot who
+        // said no for good, since a test cannot answer its dialog.
+        TestDevice.refuseTheCamera()
+        try {
+            screen.onNode(hasTestTag("task-scan")).performScrollTo()
+            assertTrue(exists(hasTestTag("task-scan") and hasText("Scan a QR code")))
+            tap(hasTestTag("task-scan"))
+            // For the moment it takes Android to say no, a screen of its
+            // own stands in front and the app has none to look at.
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                runCatching { exists(hasTestTag("task-scan-no-camera")) }.getOrDefault(false)
+            }
+            assertTrue(exists(hasText("The camera cannot be used")))
+            assertTrue(exists(hasTestTag("task-scan-settings")))
+            TestDevice.letTheAppRun(screen, 1)
+            keepScreenshot("$prefix-task-code-3-no-camera")
+            tap(described("Cancel"))
+            // Back on the task, which is still the one that was kept.
+            waitFor(hasTestTag("task-sketch"))
+            assertFalse(exists(hasTestTag("task-problem")))
+        } finally {
+            TestDevice.askForTheCameraAgain()
+        }
+    }
+
+    /**
+     * The text of the QR code on screen, read from a picture of the screen
+     * with the app's own reader; waits until there is one to read.
+     */
+    private fun readTheCode(): String {
+        var read: String? = null
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            val node = screen.onNode(hasTestTag("task-code")).fetchSemanticsNode()
+            read = TestDevice.codeOnScreen(node.positionOnScreen, node.size)
+            read != null
+        }
+        return checkNotNull(read)
+    }
+
+    @Test
+    fun aTaskIsShownAsAQrCodeAndTheScannerSaysWhenItHasNoCamera() = showATaskAsACodeAndOpenTheScanner("light", dark = false)
+
+    @Test
+    fun theTasksQrCodeInDarkAppearance() = showATaskAsACodeAndOpenTheScanner("dark", dark = true)
+
+    /**
+     * "Full brightness in the cockpit", on the settings' page "Glider and
+     * cockpit": on until the pilot switches it off. While the cockpit is
+     * on screen the app's window asks for the screen all the way up, and
+     * no longer once it has left; switched off, the cockpit leaves the
+     * brightness alone.
+     */
+    @Test
+    fun theCockpitTurnsTheScreenAllTheWayUpUnlessSwitchedOff() {
+        launch()
+        waitFor(described("Show my position"))
+        val scenario = checkNotNull(app)
+        fun asked(): Float {
+            var level = 0f
+            scenario.onActivity { level = it.window.attributes.screenBrightness }
+            return level
+        }
+        fun openAndCloseTheCockpit(expected: Float) {
+            tap(tab("Fly"))
+            waitFor(hasText("Replay the sample flight"))
+            tap(hasText("Replay the sample flight"))
+            waitFor(hasText("20 times faster"))
+            tap(hasText("20 times faster"))
+            waitFor(described("Altitude"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { asked() == expected }
+            holdToEnd()
+            waitFor(hasText("Open the cockpit"))
+            // As the phone is set, once the cockpit has left.
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { asked() < 0f }
+        }
+        assertTrue(asked() < 0f)
+        openAndCloseTheCockpit(expected = 1f)
+
+        openFromToday("Settings")
+        waitFor(hasText("Vario sound"))
+        openGliderAndCockpit()
+        val switch = hasTestTag("cockpit-brightness")
+        screen.onNode(switch).performScrollTo()
+        assertTrue(exists(switch and isOn() and hasText("Full brightness in the cockpit")))
+        assertTrue(exists(hasText("In the sun")))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("light-settings-1d-brightness")
+        tap(switch)
+        waitFor(switch and isOff())
+        tap(described("Back"))
+        waitFor(hasText("Vario sound"))
+        // Kept: the page says so when it opens again.
+        openGliderAndCockpit()
+        screen.onNode(switch).performScrollTo()
+        assertTrue(exists(switch and isOff()))
+        tap(described("Back"))
+        waitFor(hasText("Vario sound"))
+
+        openAndCloseTheCockpit(expected = -1f)
+    }
+
     @Test
     fun theCockpitWarnsOfAirspace() = flyNearAirspace("light", dark = false)
 
@@ -6512,3 +6668,6 @@ class VentiUiTest {
 
 /** The made-up Google account of the sign-in test; the development server makes its token. */
 private const val GOOGLE_TEST_EMAIL = "ui.test@example.com"
+
+/** The made-up task's turnpoints (`LaunchOptions.SAMPLE_TASK_FILE`), in their order. */
+private val TASK_TURNPOINTS = listOf("Sample launch", "Sample start", "Sample turnpoint west", "Sample goal")

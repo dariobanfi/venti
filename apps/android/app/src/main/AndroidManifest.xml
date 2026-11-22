@@ -36,8 +36,18 @@
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- The camera, to scan a task's QR code: asked for only when the
+         pilot chooses "Scan a QR code" on the task's screen. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <!-- None of these is needed to keep a logbook, so a phone or tablet
          without them can still install the app. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.location.gps"
         android:required="false" />

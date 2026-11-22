@@ -1,6 +1,7 @@
 package fly.venti.app.fly
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,8 +26,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -161,18 +165,26 @@ internal fun AirspaceProximityBadge(reading: AirspaceProximity, modifier: Modifi
 /**
  * The airspace that matters next, large, on the map's page: its name,
  * where and how high as two readings beside each other, what is in doubt,
- * the airspace as published, and the height line.
+ * the airspace as published, and the height line. A tap lists the
+ * warnings, as a tap on the band does and as on the iPhone.
  */
 @Composable
-internal fun AirspaceProximityStrip(reading: AirspaceProximity, modifier: Modifier = Modifier) {
+internal fun AirspaceProximityStrip(reading: AirspaceProximity, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val (ground, ink) = proximityColours(reading)
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .testTag("airspace-proximity-map")
+            .clickable(role = Role.Button, onClick = onOpen)
             .clearAndSetSemantics {
                 contentDescription = "Airspace next"
                 stateDescription = listOfNotNull(reading.words, reading.detail, reading.uncertain).joinToString(". ")
+                role = Role.Button
+                // The band's words for the same.
+                onClick(label = "Show all warnings") {
+                    onOpen()
+                    true
+                }
             },
         color = ground,
         contentColor = ink,

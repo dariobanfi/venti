@@ -50,8 +50,9 @@ class TaskModel(
     }
 
     /**
-     * Keeps a task from the text of a file or of a message. It replaces
-     * the task kept before. Returns whether the text was a task.
+     * Keeps a task from the text of a file, of a message or of a QR code.
+     * It replaces the task kept before. Returns whether the text was a
+     * task; where it was not, [problem] is the core's refusal.
      */
     fun keep(text: String): Boolean = change { core.keepTask(text) }
 
@@ -99,6 +100,13 @@ class TaskModel(
 
     /** The kept task as a file's text: for the cockpit, and for sharing. */
     val file: TaskFile? get() = runCatching { core.keptTaskFile() }.getOrNull()
+
+    /**
+     * The kept task as the text of a QR code, for another pilot's
+     * instrument to scan; `null` without a task. Compressed, the code has
+     * fewer dots; some older readers want the other kind.
+     */
+    fun code(compressed: Boolean): String? = runCatching { core.keptTaskCode(compressed) }.getOrNull()
 
     /** Writes the kept task to a file in a folder, to share it, and returns where it is. */
     suspend fun exportFile(into: File): File? = withContext(background) {

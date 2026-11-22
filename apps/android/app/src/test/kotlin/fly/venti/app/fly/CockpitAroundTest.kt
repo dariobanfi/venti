@@ -138,16 +138,21 @@ class CockpitAroundTest {
 
     @Test
     fun theTaskPageIsAmongThePagesOnlyWithATask() {
-        assertEquals(CockpitPage.Task, CockpitPage.Map.next(hasTask = true))
+        // Instruments, Map, Flight, and the task's page last, as on the iPhone.
+        assertEquals(
+            listOf(CockpitPage.Instruments, CockpitPage.Map, CockpitPage.Flight, CockpitPage.Task),
+            CockpitPage.pages(hasTask = true),
+        )
+        assertEquals(listOf(CockpitPage.Instruments, CockpitPage.Map, CockpitPage.Flight), CockpitPage.pages(hasTask = false))
+        assertEquals(CockpitPage.Flight, CockpitPage.Map.next(hasTask = true))
         assertEquals(CockpitPage.Flight, CockpitPage.Map.next(hasTask = false))
-        assertEquals(CockpitPage.Flight, CockpitPage.Task.next(hasTask = true))
-        assertEquals(CockpitPage.Instruments, CockpitPage.Flight.next(hasTask = true))
+        assertEquals(CockpitPage.Task, CockpitPage.Flight.next(hasTask = true))
+        assertEquals(CockpitPage.Instruments, CockpitPage.Flight.next(hasTask = false))
+        assertEquals(CockpitPage.Instruments, CockpitPage.Task.next(hasTask = true))
         // A swipe the other way goes back, round to the last from the first.
-        assertEquals(CockpitPage.Flight, CockpitPage.Instruments.previous(hasTask = true))
+        assertEquals(CockpitPage.Task, CockpitPage.Instruments.previous(hasTask = true))
+        assertEquals(CockpitPage.Flight, CockpitPage.Instruments.previous(hasTask = false))
         assertEquals(CockpitPage.Map, CockpitPage.Flight.previous(hasTask = false))
-        assertEquals(CockpitPage.Task, CockpitPage.Flight.previous(hasTask = true))
-        // The dots in the top line: as many as there are pages.
-        assertEquals(3, CockpitPage.pages(hasTask = false).size)
-        assertEquals(4, CockpitPage.pages(hasTask = true).size)
+        assertEquals(CockpitPage.Flight, CockpitPage.Task.previous(hasTask = true))
     }
 }

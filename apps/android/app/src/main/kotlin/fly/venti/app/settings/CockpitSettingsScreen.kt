@@ -47,8 +47,8 @@ import fly.venti.core.pagesWords
 
 /**
  * "Glider and cockpit": what the pilot sets for the cockpit beyond its
- * sound and its files: the glider, the FAI triangle areas and the climbs
- * of others. A page of its own, so that the settings' first page stays
+ * sound and its files: the glider, the FAI triangle areas, the climbs of
+ * others and the brightness. A page of its own, so that the settings' first page stays
  * short, as on the iPhone.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,6 +60,7 @@ fun CockpitSettingsScreen(preferences: Preferences, onBack: () -> Unit) {
     var showsClimbs by remember { mutableStateOf(preferences.cockpitShowsClimbs) }
     var gliderClass by remember { mutableStateOf(GliderWords.kind(preferences.gliderClass)) }
     var neverLand by remember { mutableStateOf(preferences.neverLand) }
+    var fullBrightness by remember { mutableStateOf(!preferences.cockpitKeepsBrightness) }
 
     Scaffold(
         topBar = {
@@ -142,8 +143,31 @@ fun CockpitSettingsScreen(preferences: Preferences, onBack: () -> Unit) {
                 }
             }
             SectionFooter(mapLayersWords().cockpitClimbsNote)
+
+            // The screen all the way up while the cockpit is open: on until
+            // a pilot would rather keep the battery.
+            SectionHeader(SunWords.TITLE)
+            Group {
+                row {
+                    SwitchRow(SunWords.FULL_BRIGHTNESS, isOn = fullBrightness, modifier = Modifier.testTag("cockpit-brightness")) { isOn ->
+                        fullBrightness = isOn
+                        preferences.cockpitKeepsBrightness = !isOn
+                    }
+                }
+            }
+            SectionFooter(SunWords.NOTE)
         }
     }
+}
+
+/** The words of the section "In the sun": the iPhone's, with the phone called a phone. The core has none for it. */
+object SunWords {
+    const val TITLE = "In the sun"
+    const val FULL_BRIGHTNESS = "Full brightness in the cockpit"
+    const val NOTE =
+        "With full brightness the cockpit turns the screen all the way up while it is open and back " +
+            "afterwards; it costs battery. The cockpit is always drawn for the sun: near-black on white, " +
+            "whatever the phone's appearance."
 }
 
 /** The words of the settings' "Glider" section, and how the glider's class is kept. */

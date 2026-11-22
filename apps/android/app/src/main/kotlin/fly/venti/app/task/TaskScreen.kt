@@ -94,8 +94,9 @@ import fly.venti.app.design.Common
 /**
  * The pilot's task: what it is, where it came from and how to hand it on.
  *
- * A task comes in as a file or as text copied from a message, in the format
- * XCTrack and other instruments exchange, and goes out as a file.
+ * A task comes in as a file, as text copied from a message or as a QR code
+ * scanned with the camera, in the format XCTrack and other instruments
+ * exchange, and goes out as a file or as a QR code another pilot scans.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +116,8 @@ fun TaskScreen(
     var isConfirmingRemoval by remember { mutableStateOf(false) }
     var isPlanningRoute by remember { mutableStateOf(false) }
     var isDrawingRoute by remember { mutableStateOf(false) }
+    var isShowingCode by remember { mutableStateOf(false) }
+    var isScanning by remember { mutableStateOf(false) }
     val task = tasks.task
 
     // The times of a task are those of today.
@@ -131,6 +134,11 @@ fun TaskScreen(
     // Drawing a route takes the whole screen, with a map of its own.
     if (isDrawingRoute) {
         RouteMapPlanner(tasks, onDismiss = { isDrawingRoute = false }, preferences = preferences, thermalMap = thermalMap, terrain = terrain)
+        return
+    }
+    // So does the camera, while it looks for a task's code.
+    if (isScanning) {
+        TaskScanScreen(tasks, onDismiss = { isScanning = false })
         return
     }
 
@@ -151,6 +159,15 @@ fun TaskScreen(
                                 Icon(painterResource(R.drawable.ic_more_vert), contentDescription = Common.words.more)
                             }
                             DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(TaskCodeWords.SHOW) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_qr_code), contentDescription = null) },
+                                    modifier = Modifier.testTag("task-show-code"),
+                                    onClick = {
+                                        isShowingMenu = false
+                                        isShowingCode = true
+                                    },
+                                )
                                 DropdownMenuItem(
                                     text = { Text("Share as a file") },
                                     leadingIcon = { Icon(painterResource(R.drawable.ic_share), contentDescription = null) },
@@ -227,6 +244,18 @@ fun TaskScreen(
                     }
                 }
                 row {
+                    // The camera is asked for only here, when the pilot chooses to scan.
+                    LinkRow(
+                        TaskCodeWords.SCAN,
+                        R.drawable.ic_chevron_right,
+                        Modifier.testTag("task-scan"),
+                        leading = R.drawable.ic_qr_code_scanner,
+                    ) {
+                        tasks.problem = null
+                        isScanning = true
+                    }
+                }
+                row {
                     LinkRow("Open a task file", R.drawable.ic_chevron_right, leading = R.drawable.ic_folder_open) {
                         chooseFile.launch(arrayOf("*/*"))
                     }
@@ -279,6 +308,10 @@ fun TaskScreen(
 
     if (isPlanningRoute) {
         RoutePlanner(tasks, waypoints, onDismiss = { isPlanningRoute = false })
+    }
+
+    if (isShowingCode) {
+        TaskCodeSheet(tasks, onDismiss = { isShowingCode = false })
     }
 
     if (isConfirmingRemoval) {

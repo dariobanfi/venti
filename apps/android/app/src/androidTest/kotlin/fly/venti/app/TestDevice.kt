@@ -9,9 +9,12 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.unit.IntSize
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
+import fly.venti.app.task.TaskCode
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
@@ -57,6 +60,39 @@ object TestDevice {
      */
     fun allowNotifications() {
         shell("pm grant ${instrumentation.targetContext.packageName} android.permission.POST_NOTIFICATIONS")
+    }
+
+    /**
+     * Has Android refuse the camera without asking, as it does for a
+     * pilot who said no for good: a test cannot answer the dialog it would
+     * ask in. [askForTheCameraAgain] undoes it.
+     */
+    fun refuseTheCamera() {
+        shell("pm set-permission-flags ${instrumentation.targetContext.packageName} android.permission.CAMERA user-fixed")
+    }
+
+    /** Has Android ask for the camera again when the app wants it. */
+    fun askForTheCameraAgain() {
+        shell("pm clear-permission-flags ${instrumentation.targetContext.packageName} android.permission.CAMERA user-fixed")
+    }
+
+    /**
+     * The text of the QR code in a part of the screen, read from a picture
+     * of the screen with the reader the app hands its camera's frames to;
+     * `null` where it finds none.
+     */
+    fun codeOnScreen(at: Offset, size: IntSize): String? {
+        val whole = instrumentation.uiAutomation.takeScreenshot() ?: return null
+        // The picture of a screen is the graphics chip's; its pixels are read from a copy.
+        val picture = whole.copy(Bitmap.Config.ARGB_8888, false)
+        val left = at.x.toInt().coerceIn(0, picture.width - 1)
+        val top = at.y.toInt().coerceIn(0, picture.height - 1)
+        val width = size.width.coerceAtMost(picture.width - left)
+        val height = size.height.coerceAtMost(picture.height - top)
+        if (width <= 0 || height <= 0) return null
+        val pixels = IntArray(width * height)
+        picture.getPixels(pixels, 0, width, left, top, width, height)
+        return TaskCode.read(pixels, width, height)
     }
 
     /**

@@ -41,6 +41,7 @@ import fly.venti.app.design.Venti
 import fly.venti.app.design.PhotosCredit
 import androidx.compose.ui.semantics.selected
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -143,8 +144,8 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The pages of the cockpit. A swipe across the cockpit turns them, and a
- * tap on the dots in the top line goes to the next.
+ * The pages of the cockpit, in their order. A swipe across the cockpit
+ * turns them, and a tap on the dots in the top line goes to the next.
  */
 enum class CockpitPage(
     /** The page in a word, for a pilot who has the screen read out. */
@@ -156,11 +157,15 @@ enum class CockpitPage(
     /** The map as large as it gets, with the way to the place flown to. */
     Map("Map"),
 
-    /** A task's readings, large, over the map: only while a task is flown. */
-    Task("Task"),
-
     /** How the flight stands, and what can be switched. */
     Flight("Flight"),
+
+    /**
+     * A task's readings, large, over the map: only while a task is flown,
+     * and then the fourth and last, as `docs/design.md` and the iPhone have
+     * it, so that the first three are where they are without a task.
+     */
+    Task("Task"),
     ;
 
     /** The page after this one, round to the first after the last. */
@@ -190,7 +195,8 @@ enum class CockpitPage(
  * line too, by a finger held on "End".
  *
  * Three pages: the readings over the map, the map with the way to the place
- * flown to, and the flight with what can be switched. Warnings stand at the
+ * flown to, and the flight with what can be switched; while a task is flown
+ * a fourth with the task's readings. Warnings stand at the
  * top of every page, and the map alone gives way to them. Nothing needs to
  * be touched in flight: while the core says the glider is circling in lift
  * the readings change from cruise numbers to thermal numbers and the map
@@ -274,6 +280,9 @@ fun CockpitScreen(
     }
 
     KeepScreenOn()
+    // And one that cannot be read in the sun is not much more: the screen
+    // goes all the way up, unless the pilot would rather keep the battery.
+    FullBrightness(isOn = !preferences.cockpitKeepsBrightness)
     // With the first position, and a network, the airspace around it is
     // fetched if what the phone keeps is old or from elsewhere. A change
     // reaches the running session by itself.
@@ -511,7 +520,7 @@ fun CockpitScreen(
                     // a warning is up, and can be about another airspace
                     // than the band, which is about the most urgent warning.
                     view.airspaceProximity?.let { reading ->
-                        AirspaceProximityStrip(reading)
+                        AirspaceProximityStrip(reading, onOpen = { isShowingAirspace = true })
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                     // With a task: where the flight stands in it, above
@@ -622,6 +631,21 @@ private fun KeepScreenOn() {
     DisposableEffect(view) {
         view.keepScreenOn = true
         onDispose { view.keepScreenOn = false }
+    }
+}
+
+/**
+ * The screen all the way up while the cockpit shows, and back to where it
+ * was when it leaves. It is this window's brightness, not the phone's
+ * setting: nothing is left changed if the app is closed in between.
+ */
+@Composable
+private fun FullBrightness(isOn: Boolean) {
+    val window = LocalActivity.current?.window
+    DisposableEffect(window, isOn) {
+        val brightness = window?.takeIf { isOn }?.let { CockpitBrightness(WindowBrightness(it)) }
+        brightness?.turnUp()
+        onDispose { brightness?.putBack() }
     }
 }
 

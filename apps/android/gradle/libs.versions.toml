@@ -19,6 +19,18 @@
 # the one way Android's Credential Manager reaches Google's sign-in; a build
 # without Google's services (F-Droid) would have to leave them out. For the
 # owner to decide.
+#
+# A task as a QR code (read 2026-11-22 in the POMs): com.google.zxing's
+# core, which draws the code and reads one, is Apache-2.0 (named in its
+# parent POM, zxing-parent) and plain Java, with nothing of Google's
+# services; androidx.camera (camera2, lifecycle and view, with the core,
+# video and featurecombinationquery they bring), which shows the camera
+# and hands its frames to ZXing, is Apache-2.0, and camera-core names a
+# BSD licence beside it for what it carries inside. They bring jspecify
+# (Apache-2.0) and two of Google's small Java libraries whose POMs in the
+# cache name no licence of their own (auto-value-annotations and guava's
+# listenablefuture, both published as Apache-2.0: to verify). No ML Kit and
+# no Play services: camera-mlkit-vision is not taken.
 
 [versions]
 agp = "9.5.1"
@@ -33,6 +45,8 @@ work = "2.11.0"
 glance = "1.2.0"
 credentials = "1.6.0"
 googleid = "1.1.1"
+zxing = "3.5.3"
+camera = "1.5.1"
 junit = "4.13.2"
 test-core = "1.7.0"
 test-runner = "1.7.0"
@@ -54,6 +68,10 @@ androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", versi
 androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
 androidx-credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
 googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camera" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camera" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camera" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "test-core" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "test-runner" }

@@ -83,7 +83,7 @@ fun LeagueScreen(
     community: CommunityModel,
     /** Pilots among each other: the feed of the pilots one follows, for a signed-in pilot. */
     social: SocialModel,
-    /** Whether Venti's address is set. */
+    /** Whether Venti can be asked: always in the app, whose Venti is built in; not in a test without a server. */
     hasServer: Boolean,
     onOpenFlight: (PublicFlight) -> Unit,
     /** Opens a pilot's public flights: the handle, and the name to show until the server has said it. */
@@ -136,10 +136,20 @@ fun LeagueScreen(
     }
 }
 
+/** What the League tab says that is not the core's to say. */
+object LeagueWords {
+    /** While Venti cannot be asked: as the maps for flying say it (`OfflineMapsWords.NO_SERVER`). */
+    const val NO_SERVER_TITLE = "Venti could not be reached"
+    const val NO_SERVER = "Everyone's flights and the ranking come from Venti, which could not be reached."
+}
+
 /** The lists of the League tab, in the order of its switch. */
 private enum class LeagueList { Everyone, Following, Ranking }
 
-/** Without Venti's address there is nothing to list, and the screen says where it is set. */
+/**
+ * Without Venti there is nothing to list, and the screen says so. Venti's
+ * address is built into the app, so only a test is without it.
+ */
 @Composable
 private fun Unconnected() {
     Column(
@@ -148,9 +158,9 @@ private fun Unconnected() {
         verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
     ) {
         Icon(painterResource(R.drawable.venti_league), contentDescription = null, tint = Venti.colours.textSecondary)
-        Text("Venti is not connected", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+        Text(LeagueWords.NO_SERVER_TITLE, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
         Text(
-            "Everyone's flights and the ranking come from Venti. Set its address in the settings, which open from the Today tab.",
+            LeagueWords.NO_SERVER,
             color = Venti.colours.textSecondary,
             textAlign = TextAlign.Center,
         )

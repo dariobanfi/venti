@@ -128,6 +128,13 @@ interface Preferences {
     /** Whether the cockpit asks for the climbs of others around the glider and draws them. Off until the pilot switches it on. */
     var cockpitShowsClimbs: Boolean
 
+    /**
+     * Whether the cockpit leaves the screen's brightness as it is. By
+     * itself it turns it all the way up for as long as it is open, as on
+     * the iPhone.
+     */
+    var cockpitKeepsBrightness: Boolean
+
     /** What the pilot asks of the sites on the map, the places from pilots among it, as `SitesFilterWords.kept` writes it; `null` for nothing. */
     var mapSitesFilter: String?
 
@@ -296,6 +303,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiCockpitShowsClimbs", false)
         set(value) = store.edit { putBoolean("VentiCockpitShowsClimbs", value) }
 
+    override var cockpitKeepsBrightness: Boolean
+        get() = store.getBoolean("VentiCockpitKeepsBrightness", false)
+        set(value) = store.edit { putBoolean("VentiCockpitKeepsBrightness", value) }
+
     override var mapSitesFilter: String?
         get() = store.getString("VentiMapSitesFilter", null)
         set(value) = store.edit { putString("VentiMapSitesFilter", value) }
@@ -369,6 +380,7 @@ class MemoryPreferences : Preferences {
     override var mapShowsClimbs = false
     override var mapShowsFlown = false
     override var cockpitShowsClimbs = false
+    override var cockpitKeepsBrightness = false
     override var mapSitesFilter: String? = null
     override var watchedFolder = ""
     override var watchedSeen: Set<String> = emptySet()

@@ -236,6 +236,43 @@ class AssistantChatTest {
         assertFalse("test-key" in fetched[0])
     }
 
+    /**
+     * What the first screen says the assistant reads is what the core
+     * offers the model: with Venti the wind, the airspace, the forecast,
+     * the flying sites and other pilots' public flights; without it the
+     * logbook alone.
+     */
+    @Test
+    fun theOpeningWordsNameWhatTheCoreOffersTheModel() = runBlocking {
+        val onVenti = listOf("wind_stations", "airspace_at", "forecast_at", "sites_near", "public_flights_near")
+        val seen = CopyOnWriteArrayList<AssistantRequest>()
+        val transport: AssistantTransport = { request ->
+            seen += request
+            ScriptedProvider.answer(request)
+        }
+        val logbook = makeLogbook()
+        val withVenti = AssistantChat(
+            logbook::makeAssistant,
+            FixedKey("test-key"),
+            MemoryPreferences(),
+            scope,
+            transport,
+            server = { "https://wind.example.org" },
+        )
+        withVenti.ask("How was 2026?").join()
+        for (tool in onVenti) assertTrue(tool, seen.first().body.contains("\"$tool\""))
+        assertTrue(seen.first().body.contains("\"list_flights\""))
+        for (named in listOf("logbook", "wind stations", "airspace", "forecast", "flying sites", "flights other pilots share")) {
+            assertTrue(named, named in AssistantWords.READS)
+        }
+        assertTrue("it cannot see where other pilots are" in AssistantWords.READS)
+
+        seen.clear()
+        makeChat(logbook, transport = transport).ask("How was 2026?").join()
+        for (tool in onVenti) assertFalse(tool, seen.first().body.contains("\"$tool\""))
+        assertTrue(AssistantWords.READS_WITHOUT_VENTI.endsWith("could not be reached."))
+    }
+
     @Test
     fun aServerThatCannotBeReachedIsExplainedInTheReply() = runBlocking {
         val chat = AssistantChat(

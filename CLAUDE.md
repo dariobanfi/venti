@@ -24,7 +24,8 @@ Read `docs/plan.md`, `docs/architecture.md` and `docs/data-sources.md` before ch
 - No adapter without a manifest whose licence was verified on the provider's own page, with date and URL.
 - No adapter without recorded fixtures and golden files.
 - Data from different licence families is never merged into one record or bundle.
-- Sources marked "Ask" in the catalogue are not used until the owner has permission in writing.
+- Venti is not commercial (owner decision 17 in `docs/plan.md`): a source whose own pages state a licence that allows the use, also one for non-commercial use only, is used under it without asking the provider. Its conditions hold: credit, share-alike, no mixing.
+- Sources marked "Ask" in the catalogue (no stated licence for the use, or terms that do not cover it) are not used until the owner has permission in writing. Sessions send no email or message to a provider: they draft, the owner sends.
 
 ## Commands
 

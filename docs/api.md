@@ -517,7 +517,7 @@ How the server and each of its data sources are doing.
 | `status` | `ok` when no source is stale, otherwise `degraded` |
 | `version` | The server's version |
 | `time` | The server's clock. Compute the age of an observation against this, not against the device's clock, which may be wrong |
-| `client_addresses` | For whoever runs the server; an app ignores it. `seen` when requests arrive from addresses of their own. `hidden` when, in the last hour, twenty or more requests and at least a tenth of all came from one private address and from no other private one: a proxy or a container network is hiding the visitors, and the server counts them as one ([deploy/README.md](../deploy/README.md#the-visitors-address)). Left out while fewer than twenty requests have arrived |
+| `client_addresses` | For whoever runs the server; an app ignores it. `seen` when requests arrive from addresses of their own. `hidden` when, in the last hour, twenty or more requests and at least a tenth of all came from one private address and from no other private one: a proxy or a container network is hiding the visitors, and the server counts them as one ([running-a-server.md](running-a-server.md#the-visitors-address)). Left out while fewer than twenty requests have arrived |
 | `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server that was not told where its forecast service is. Such a server answers `/v1/forecast` with `501` and asks nobody else. Left out by a server older than forecasts, which has none |
 | `registration` | Who may create an account here: `open` (anyone), `invite` (whoever has an invite code, which `POST /v1/accounts` then needs) or `closed` (nobody; existing accounts sign in as before). An app shows the field for the invite code, or says that the server takes no new accounts, by this. Left out by a server older than this field, which may ask for a code: an app that reads nothing here offers the field. The development mode says `open` |
 | `sites_from_pilots` | Whether the server takes [sites from pilots](#sites-that-ventis-partners-and-pilots-add): `open` (a signed-in pilot can add a site to the crowdsourced layer `venti-pilots`, correct one of it and confirm a site, inside the regions the server serves) or `closed` (every such write is `403` with `sites_closed`). An app offers "add a site", "correct this site" and "I took off here" to a pilot only where this says `open`, so that nobody fills in a form to be refused. It says nothing of the partners' layer, which an account named as a partner writes to whatever this says: [`GET /v1/account`](#get-v1account) tells such an account. Reading the sites of either layer is never off, and an account whose publishing is suspended is refused on an open server too: that is the account's, and is not said here. Left out by a server older than this field (before 2026-11-21), which takes none or does not say: an app that reads nothing here offers neither. The development mode says `open` |
@@ -2077,7 +2077,7 @@ The answer is `200` with the site as it now stands. `404` with `site_revision_no
 
 Needs a token. Removes a site of the layer, as a new revision. The body may be left out; one that is there is `{"comment": "…"}`, sent as JSON. The answer is `204` with no body. From then on the site is in no box, its address answers `410`, `GET /v1/sites/changes` lists it as removed, and its history stays, so that any pilot can restore it. `410` with `site_gone` if it is removed already.
 
-Only whoever runs the server takes a site down so that no pilot brings it back; see [deploy/README.md](../deploy/README.md).
+Only whoever runs the server takes a site down so that no pilot brings it back; see [running-a-server.md](running-a-server.md).
 
 ### `PUT /v1/sites/{id}/confirmation`
 
@@ -4648,7 +4648,7 @@ The development mode's pressures are made up, so that one pair stands at `likely
 
 ## Maps
 
-The map regions a server hands out, for an app to draw its map where there is no network. A region is a few files that the app downloads whole: today a vector base map and the terrain, each a PMTiles archive. Which regions a server has is up to whoever runs it ([deploy/README.md](../deploy/README.md#map-regions)), and a server may have none. Anyone may read both endpoints, without an account: the maps are open data, as the wind is.
+The map regions a server hands out, for an app to draw its map where there is no network. A region is a few files that the app downloads whole: today a vector base map and the terrain, each a PMTiles archive. Which regions a server has is up to whoever runs it ([running-a-server.md](running-a-server.md#map-regions)), and a server may have none. Anyone may read both endpoints, without an account: the maps are open data, as the wind is.
 
 ### `GET /v1/maps`
 
@@ -5224,7 +5224,7 @@ What becomes of each kind of thing the account gave:
 | Its confirmations of sites ("I took off here") | Gone: a confirmation is the pilot's word, not a record given to everyone. The site's count is one less; the site is not listed as changed for it |
 | The invite code the account was made with | Stays as used, without saying by whom |
 
-Not gone at once are the copies in the server's nightly backups, which the operator keeps for fourteen days unless configured otherwise; see [deploy/README.md](../deploy/README.md#backup). Live tracks are in no backup, and neither are plans; the groups an account was in are.
+Not gone at once are the copies in the server's nightly backups, which the operator keeps for fourteen days unless configured otherwise; see [running-a-server.md](running-a-server.md#backup). Live tracks are in no backup, and neither are plans; the groups an account was in are.
 
 ## Tokens for other programs
 
@@ -5691,7 +5691,7 @@ A program gives an agreement up (RFC 7009): a form with `client_id` and `token`,
 A pilot marks flying sites as their own: the take-offs they fly from. Without an account the list is on the device alone. With one it is on the account too, so that a site kept on the phone is kept in the browser, and it is kept in step as [flights are](#get-v1flightschangessincelimit): a change number per account, "what changed since", and what was forgotten.
 
 - **It is private.** Every request here acts for the account of its token and reads or writes that account's list. Nothing else in the API hands a kept site to anybody: no pilot's page, no list, no connector. [Deleting the account](#delete-v1account) removes the list.
-- **A kept site is a copy, not a site of its own.** It is the site's canonical record as its pilot's device had it when it was kept, of whatever source ([OpenStreetMap's](#get-v1sitesbboxwestsoutheastnorth) or [the layer pilots make](#sites-that-pilots-make)), with that source's credit and the date of the source's data, so that the list can be shown without asking for the source's sites. The record stays its source's, under its source's licence: whoever shows a kept site shows its `attribution`. The server does not look the site up in its own sets, because a pilot keeps a site also when its source has since dropped it; it checks that the record is one a site may have and hands it back as it took it.
+- **A kept site is a copy, not a site of its own.** It is the site's canonical record as its pilot's device had it when it was kept, of whatever source ([OpenStreetMap's](#get-v1sitesbboxwestsoutheastnorth) or [the layer pilots make](#sites-that-ventis-partners-and-pilots-add)), with that source's credit and the date of the source's data, so that the list can be shown without asking for the source's sites. The record stays its source's, under its source's licence: whoever shows a kept site shows its `attribution`. The server does not look the site up in its own sets, because a pilot keeps a site also when its source has since dropped it; it checks that the record is one a site may have and hands it back as it took it.
 - **Under the site's own identifier.** The address of a kept site is the site's identifier, written into the path as it is: `/v1/account/kept-sites/osm-free-flying:way/1080986173`.
 - **Bounds.** An account keeps at most 200 sites. A body has at most 16 kB, and each text of a credit at most 500 characters. Of the sites an account has forgotten the server remembers the 200 forgotten last.
 - **A token for a program** needs `kept-sites:read` to read and `kept-sites:write` to keep and forget ([tokens](#tokens-for-other-programs)).
@@ -6747,6 +6747,8 @@ The pilots whose handle or display name holds a text: the search of a list of fl
 
 ```bash
 curl 'http://127.0.0.1:8080/v1/pilots?q=le'
+```
+
 ## Pilots among each other
 
 A signed-in pilot follows other pilots, reads their public flights as one list, cheers a public flight ("well flown") and writes under it. Since 2026-11-22. What a client has to know:
@@ -7980,7 +7982,7 @@ Making a public track `link` takes it off the list at once. It does not take it 
 - **48 hours after its newest fix a track is removed**, with every fix. From that moment it answers as if it had never been, whether or not the server has got round to deleting the rows, which it does within the hour. `expires_at` in every answer says when that moment is; each newer fix moves it. Whoever runs a server can set another number of hours (`retention.live_hours`), which `expires_at` and the page then follow.
 - The pilot can delete a track at any time, and deleting the account deletes its tracks.
 - Whoever runs the server can [remove a track](#what-whoever-runs-the-server-can-do). To everyone who reads, it then answers as a track that never was. To the app that sends, its identifier is used up: `410` with `live_track_gone`, as after the pilot's own deletion.
-- Live tracks are not in the server's nightly backups ([deploy/README.md](../deploy/README.md#backup)): what is gone from the server after 48 hours is gone.
+- Live tracks are not in the server's nightly backups ([running-a-server.md](running-a-server.md#backup)): what is gone from the server after 48 hours is gone.
 
 **How an app sends.** What the server takes is in the reference below; this is what it is built for.
 
@@ -9278,7 +9280,7 @@ The answer carries `Cache-Control: no-store`, like every answer to a request wit
 
 ## What whoever runs the server can do
 
-The person who runs a server reads the reports and can do seven things about what is shared on it, three of them in a group. They do them by hand, with commands on the server's own machine ([deploy/README.md](../deploy/README.md#reports-and-taking-things-down)); the API offers none of them, and the server does none of them by itself. This is what each looks like from an app.
+The person who runs a server reads the reports and can do seven things about what is shared on it, three of them in a group. They do them by hand, with commands on the server's own machine ([running-a-server.md](running-a-server.md#reports-and-taking-things-down)); the API offers none of them, and the server does none of them by itself. This is what each looks like from an app.
 
 **Take a flight down.** The flight becomes `private` and stays so until the operator releases it.
 

@@ -32,7 +32,7 @@ archive_dir = "var/archive"
 # Folder of the map regions the server hands out for     VENTI_MAPS_DIR
 # apps to draw without a network: one folder in it for each region, with
 # the region's files and a map.toml that describes them.
-# tools/region-map/build.sh builds one, and deploy/README.md says where
+# tools/region-map/build.sh builds one, and docs/running-a-server.md says where
 # it goes and how it is renewed. The server reads the folder when it
 # starts, and lists a region once it has read its files and found the
 # hashes map.toml states. There is no default: without it the server
@@ -72,7 +72,7 @@ overpass_url = "https://overpass-api.de/api/interpreter"
 # it the server runs and has no forecasts, which /v1/health and
 # /v1/forecast say; it never asks Open-Meteo's public service. The instance
 # must have API_SYNC_APIKEYS set, or it does not tell which model runs it
-# holds. deploy/README.md says how to run one beside the server.
+# holds. docs/running-a-server.md says how to run one beside the server.
 # open_meteo_url = "http://open-meteo:8080"
 
 # Web origins that may call the API from a browser.      VENTI_CORS_ORIGINS
@@ -92,7 +92,7 @@ registration = "invite"
 
 # The OAuth client IDs of Venti's apps at Google, for     VENTI_GOOGLE_CLIENT_IDS
 # "Continue with Google": the web app's, the Android app's and the iPhone
-# app's, each made in Google Cloud Console (deploy/README.md, "Sign in
+# app's, each made in Google Cloud Console (docs/running-a-server.md, "Sign in
 # with Google"). A token for any other client is refused. Client IDs are
 # no secret, and no client secret is needed. Empty: the server does not
 # offer signing in with Google. In the environment, separated by commas.

@@ -1,31 +1,121 @@
-# Notes for AI sessions
+# Working rules for AI sessions
 
-The binding rules for AI sessions are in [CLAUDE.md](CLAUDE.md): what the owner has fixed, the architecture and data-source rules, the commands, and how to work. As it says, read [docs/plan.md](docs/plan.md), [docs/architecture.md](docs/architecture.md) and [docs/data-sources.md](docs/data-sources.md) before changing anything, and before changing anything a user sees: [design/AGENTS.md](design/AGENTS.md) and [design/DESIGN.md](design/DESIGN.md), the product's design language, and [docs/design.md](docs/design.md), which says what each screen does. Before adding an endpoint or a table to the server: [docs/data-platform.md](docs/data-platform.md), the principles the owner's decision 14 gives it, what the server holds, and the pieces still missing in their build order. Before adding or removing a data source: [docs/adding-a-source.md](docs/adding-a-source.md), the guide a stranger follows, with the template (`tools/new-source/new.sh`), the one check (`tools/new-source/check.sh`), and the list of what is not pluggable yet; a station network is one line in `station_networks()` in `crates/server/src/adapters.rs`, and before one joins, [Pioupiou's condition](docs/data-sources.md#pioupious-condition).
+This is the file a session reads first, and its rules bind. The notes of single folders are listed [at the end](#notes-by-folder).
+
+## Read before changing anything
+
+- Always: [docs/plan.md](docs/plan.md), [docs/architecture.md](docs/architecture.md) and [docs/data-sources.md](docs/data-sources.md). They are the project's memory. If a change contradicts them, update the document in the same commit or do not make the change.
+- Before changing anything a user sees: [design/AGENTS.md](design/AGENTS.md) and [design/DESIGN.md](design/DESIGN.md), the product's design language, the pictures in `design/reference/screens/`, and [docs/design.md](docs/design.md), which says what each screen does.
+- Before adding an endpoint or a table to the server: [docs/data-platform.md](docs/data-platform.md), the principles owner decision 14 gives it, what the server holds, and the pieces still missing in their build order.
+- Before adding or removing a data source: [docs/adding-a-source.md](docs/adding-a-source.md), with the template (`tools/new-source/new.sh`) and the one check (`tools/new-source/check.sh`). A station network is one line in `station_networks()` in `crates/server/src/adapters.rs`; before one joins, read [Pioupiou's condition](docs/data-sources.md#pioupious-condition).
+
+## Fixed by the owner
+
+- Native UI only: SwiftUI, Jetpack Compose, and a web app in the browser. No React Native, Flutter or web views in the mobile apps.
+- The look is the owner's design language, "Valley", in `design/`: its tokens, type, icons, logo and art, in the themes `light`, `dark` and `flight`. A screen takes colours, sizes, radii and fonts from the tokens and never writes its own; it uses the files in `design/assets` and never redraws, recolours or copies them. `design/DESIGN.md` decides how something looks; `docs/design.md` says what a screen does and where a platform differs. Do not change the files in `design/` except on the owner's word.
+- Shared logic is Rust. UI shells contain no business rules.
+- Venti is one central platform that the owner runs, on one Linux server and on a set of them when it grows. It is not made for clubs or pilots to host a Venti of their own: there is one Venti, and the apps belong to it. "Self-hosted" means the owner's own server in place of a cloud service. Do not add a service that bills by usage.
+- The project pays for no AI inference. Users bring their own assistant or credentials.
+- The code is open source. Never commit secrets, API keys or personal data.
+
+## Architecture rules
+
+- Crate dependencies point inward: `domain` first, then `flight`, `sensors`, `sources`, then everything else.
+- Provider-specific types exist only inside that provider's `sources-*` crate.
+- `flight` and `sensors` do no I/O and read no clock.
+- Per-frame and audio code never crosses the Rust bridge.
+- Safety-relevant behaviour (airspace, terrain, landing options) is deterministic code that works offline and without an assistant.
+
+## Data sources
+
+- No adapter without a manifest whose licence was verified on the provider's own page, with date and URL.
+- No adapter without recorded fixtures and golden files.
+- Data from different licence families is never merged into one record or bundle.
+- Venti is not commercial (owner decision 17 in `docs/plan.md`): a source whose own pages state a licence that allows the use, also one for non-commercial use only, is used under it without asking the provider. Its conditions hold: credit, share-alike, no mixing.
+- Sources marked "Ask" in the catalogue (no stated licence for the use, or terms that do not cover it) are not used until the owner has permission in writing. Sessions send no email or message to a provider: they draft, the owner sends.
+
+## Commands
+
+The Rust workspace:
+
+```bash
+cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo deny check licenses bans sources advisories
+VENTI_UPDATE_GOLDEN=1 cargo test --workspace   # rewrite golden files, then review the diff
+cargo run -p venti-server -- ingest regions/alps-de-at/region.toml   # live run against the providers
+cargo run -p venti-server -- dev   # the API on 127.0.0.1:8080 over recorded data; no network, no database
+```
+
+Every checkout and every git worktree needs its own `target` folder. Two that share one, by a link or by `CARGO_TARGET_DIR`, take each other's builds for fresh, and tests then pass or fail against code that is not there.
+
+The iPhone app builds on a Mac only: `apps/ios/scripts/open-in-xcode.sh` opens it in Xcode, and `apps/ios/scripts/ui-tests.sh` runs its tests on simulators ([apps/ios/AGENTS.md](apps/ios/AGENTS.md)). A cloud session cannot compile Swift, so there check every Apple API name against its documentation before pushing; the `iOS` workflow builds the app on GitHub's Mac runners on every push that touches the app or the core, runs the unit tests and the UI tests, and uploads the screenshots as the `ios-screenshots` artifact (`gh run download`; the logs with `gh run view`). After changing the sample flight generator, regenerate `apps/ios/Venti/Resources/sample.igc` with `cargo run -p venti-flight --example sample_flight`.
+
+The Android app needs the Android SDK ([apps/android/AGENTS.md](apps/android/AGENTS.md#setting-up-and-installing) lists what to install; keep it out of the repository). Gradle builds the Rust core and generates its Kotlin interface by itself:
+
+```bash
+cd apps/android
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug   # unit tests against the real core, lint, the app
+./gradlew :app:assembleDebugAndroidTest                              # compiles the UI tests; running them needs an emulator
+```
+
+The UI tests need an emulator: on the owner's Mac `apps/android/scripts/ui-tests.sh` runs them ([apps/android/AGENTS.md](apps/android/AGENTS.md)); a cloud session has no hardware virtualisation and leaves them to the `Android` workflow, which uploads the screenshots as `android-screenshots` and the app as `venti-debug-apk`. A UI test must not wait with `Thread.sleep`: Compose draws a test's frames only when the test asks, so the screenshot would show the moment the test fell asleep; use `TestDevice.letTheAppRun`. A new kind of error in the core needs a line in `apps/android/uniffi.toml`, or the Kotlin interface does not compile.
+
+The web app ([apps/web/AGENTS.md](apps/web/AGENTS.md) has the details):
+
+```bash
+cd apps/web
+npm ci
+scripts/build-core.sh                                 # the Rust core as WebAssembly; again after every change to the core
+npm run check && npm run format:check && npm run licences && npm test
+npm run build && npm run test:e2e                     # the built site in a real browser, against `venti-server dev`
+```
+
+The browser tests keep a screenshot of every screen in `apps/web/screenshots/`, at a phone's and a desktop's width, light and dark; the `Web` workflow uploads them as the `web-screenshots` artifact. A field added to a record of the core is a type error in the web app's hand-built test records until they have it, so run `npm run check` after changing a record.
+
+Cloud sessions for this repository use the `venti` environment, which has unrestricted network access. `.claude/settings.json` lists the commands that run without a permission prompt; add to it when a new tool joins the toolchain.
+
+## Working practice
+
+- Commit directly to `main` and push. No feature branches and no pull requests: the owner works on this alone.
+- Commits are in the owner's name, `Dario Banfi <hello@dariobanfi.com>` and no other address, with the session as co-author in the message's last lines. Before the first commit of a session: `git config user.name "Dario Banfi"` and `git config user.email "hello@dariobanfi.com"`. Where the owner's git signs commits, never pass `--no-gpg-sign`; if the signing is refused, ask the owner to approve it and try again.
+- Instructions for sessions live in `AGENTS.md` files only: this one, and one in a folder that needs notes of its own. No other file holds rules for sessions. A README is a few lines for people: what the folder is, the fewest commands that build and run it, where to read more; no status, history or feature lists. A long manual, and what a feature does, go in `docs/`.
+- Decisions go in the decision log in `docs/architecture.md`.
+- Mark anything not checked against a primary source as "to verify". Do not present it as fact.
+- Prefer deleting code to adding a second way of doing something.
+- Show the owner what changed. After a change to a screen on any platform, send them the new screenshots, from the test run on the Mac or the workflow's artifact, without waiting to be asked, so that they can direct the work.
+- Before a screen is called done, go through the list at the end of `design/AGENTS.md`: every theme against `design/reference/screens/`, the loading, empty, error and offline states, 360 px wide and text at 130%, and no colour or size in the diff that is not a token.
+- Other files point at sections of the documents, READMEs and `AGENTS.md` files by their headings: code comments, the files in `deploy/`, `crates/server/config.example.toml`, messages the server prints, and the documents under `docs/`. Search for the file's name before renaming or removing a heading. `crates/server/tests/moderation.rs` reads `docs/running-a-server.md` itself ([deploy/AGENTS.md](deploy/AGENTS.md#reports)).
+- The three small READMEs under `crates/` (`crates/flight/tests/fixtures/xctsk/`, `crates/leagues/tests/fixtures/`, `crates/server/assets/`) record where files came from and under which licence. They stay beside the files they describe.
+
+### On the owner's Mac
+
+- **When the owner's Mac is attached, its checkout, `~/code/venti`, is the repository.** Edit, build, test, commit and push there, and do not push to wait for CI: the same tests take minutes on the Mac. If the Mac refuses a step or leaves the session, say so and wait for the owner; do not go on through CI.
+- **Native code is built under `~/code` only**: the Mac kills binaries compiled elsewhere. Rustup's tools come before Homebrew's `cargo`, which has no iPhone or Android targets: `export PATH=/opt/homebrew/opt/rustup/bin:$PATH`.
+- **The registries are mirrors that lag.** The Mac takes its crates and its npm packages from mirrors that are weeks behind crates.io and npm; `cargo` then says "failed to select a version" and names the mirror. When adding or updating a dependency, take a version that is at least three weeks old, or check with the owner. Never point cargo or npm at another registry.
+- **What is the owner's there, and not a session's to use or stop**: the "iPhone 18 Pro" simulator, an emulator that is already running (the windowed `pixel6-api36` on port 5554), the stack on 127.0.0.1:8088, and the stashes in the checkout, which are dropped only on the owner's word.
+- **The owner's own Venti on the Mac is kept at the newest main.** It is the Compose project in `deploy/`, on 127.0.0.1:8088, and a debug build of either phone app asks it by itself, so a stack that lags hides the day's server work. After every push that touches `crates/`, `deploy/`, `regions/`, `map/` or `apps/web`: `docker compose build` and `docker compose up -d` in `deploy/`, then read `/v1/health` and the server's log, in the background, and tell the owner in a line. No asking and no dump first: everything in it is development data, and where a change is quicker with an empty database or volume, empty it. A real installation is another matter: [docs/running-a-server.md](docs/running-a-server.md) is its runbook.
+- **`deploy/.env` on the Mac is never committed and not changed without a reason.** Its lines `VENTI_HTTP_BIND=127.0.0.1:8088` and `VENTI_HTTPS_BIND=127.0.0.1:8443` keep the stack to the Mac: without them `docker compose up` publishes the site on the network. `docker compose config` shows the ports and the mounts a start would use, without starting anything: look at it first.
+- **A checkout that moves leaves its old path behind** in three places outside the repository: Xcode's package cache (`target/apple/DerivedData/SourcePackages/workspace-state.json`; the build stops with "There is no XCFramework found at" the old path, and writing the new path into that file is enough), `VENTI_MAPS_DIR` in `deploy/.env`, and the mounts of the running containers, which hold until the stack is started again.
+
+### Several sessions at once
+
+- **One session coordinates and agents implement.** The coordinator makes a change the apps share (a record of the core, the map style, `tools/made-up-day/serve.py`) before it briefs them, and writes the documents under `docs/` itself: three agents editing one document is three versions of it.
+- **One agent to an app folder** (`apps/ios`, `apps/android`, `apps/web`), all in the main checkout at the same time. Each is told to write nowhere else, to run no git command that changes anything, and which ports and devices are the others'.
+- **Rust work that would disturb the apps' builds gets a worktree of its own**: `git worktree add --detach ~/code/venti-<name> HEAD`, with its own `target` folder. Android's Gradle builds the core from whatever the main checkout holds, so a half-edited core there fails an app agent's build. Keep one such worktree and use it again: a new one compiles the workspace from nothing. The coordinator takes the finished work over as a patch (`git diff` in the worktree, new files added with `git add -N` first, then `git apply --3way` in the main checkout), runs the workspace's checks there and commits. Two agents that each add a row to the decision log conflict in that one place; keep both rows.
+- **Agents do not commit.** A commit on the Mac is signed with the owner's key and needs the owner at the laptop; the coordinator stages a finished piece and commits when it is whole.
+- **One session at a time writes a file.** A session that shares a checkout looks at `git log -3 -- <file>` before editing a file and commits only its own files by path. A branch is never moved forward over a working tree that still holds the older files: whoever commits such a file next takes the newer change out again.
+- **Devices and ports are handed out, not found**: the "iPhone 17" simulator and ports 8090 and 8091 for the iPhone's tests, the virtual device `pixel6-api36-b` on port 5556 and ports 8190 and 8191 for Android's, 8290 and 8291 for the web's browser tests. `apps/ios/scripts/ui-tests.sh` and `apps/android/scripts/ui-tests.sh` deal the UI tests out to several simulators or emulators and count their ports up from there.
+- **An agent runs the tests its change touches.** Whole suites, clippy and the workspace's tests are the coordinator's, once, at integration, with nothing else running. Four heavy jobs at once is the most the Mac does without each slowing the others: one per app and one for Rust.
+- **A brief names what to read, the exact commands that work here, what "done" is, and what to report.** It names a section or gives the facts, never "read `docs/architecture.md` and `docs/design.md`": the two are too large to read whole. A task that meets a question of design stops and reports it.
+- **A report is all the coordinator sees**, so a brief asks for the tests run with their numbers, the screenshots' paths, and what was not checked.
+- **A fresh agent for each piece**, named for the piece, briefed to report within about half an hour and to say at once when a step takes more than ten minutes or fails twice. The coordinator tells the owner of a stall when it happens, not at the end.
 
 ## Notes by folder
 
-- [design/AGENTS.md](design/AGENTS.md): the owner's design pack. Where to start before building a screen, which token file each platform takes, the hard rules of the look, and the list to go through before a screen is done. The pack is the owner's: its files are used, not edited.
-- [apps/ios/AGENTS.md](apps/ios/AGENTS.md): the iOS workflow's artifacts, the development server's demo data, the code's layout, what has never been tried on an iPhone, and what is open before the App Store.
-- [apps/android/AGENTS.md](apps/android/AGENTS.md): checks before a push, reading a red workflow, the pitfalls of the UI tests and the emulator, conventions of the code, how Gradle builds the core, the layout, and what has never been tried on a phone.
-- [apps/web/AGENTS.md](apps/web/AGENTS.md): checks before a push, binding the core for the browser, the hosts the app talks to, the tests and their pitfalls, the layout, where the session token is kept, and the content security policy entry by entry.
+- [design/AGENTS.md](design/AGENTS.md): the owner's design pack. Where to start before building a screen, which token file each platform takes, the hard rules of the look, and the list to go through before a screen is done.
+- [apps/ios/AGENTS.md](apps/ios/AGENTS.md): building and testing on the Mac and in the workflow, the development server's demo data, the conventions of the screens, the code's layout, what has never been tried on an iPhone.
+- [apps/android/AGENTS.md](apps/android/AGENTS.md): checks before a push, the UI tests and the emulators, their pitfalls, conventions of the code, how Gradle builds the core, the layout, what has never been tried on a phone.
+- [apps/web/AGENTS.md](apps/web/AGENTS.md): checks before a push, binding the core for the browser, the hosts the app talks to, the tests and their pitfalls, the layout, where the session token is kept, the content security policy entry by entry.
 - [deploy/AGENTS.md](deploy/AGENTS.md): what of the server's stack has run where, the reasons behind the runbook's steps, what is still to verify on a real server, the bounds that are not settings, and working on the server with a local database.
-
-## Across the repository
-
-- **When the owner's Mac is attached, its checkout is the repository** (the owner, 2026-11-21: "Just work on my Mac. Use it as a repository", and no pushing to wait for CI: a round there is 40 to 50 minutes, the same tests on the Mac take minutes). Edit, build, test, commit and push there. Commits are the owner's, `Dario Banfi <hello@dariobanfi.com>` and no other address, signed as the owner's git is set up: never pass `--no-gpg-sign`; if the signing is refused, ask the owner to approve it and try again. If the Mac refuses a step or leaves the session, say so and wait for the owner; do not go on through CI. [apps/ios/AGENTS.md](apps/ios/AGENTS.md) and [apps/android/AGENTS.md](apps/android/AGENTS.md) have the commands that worked there. What is on that Mac since 2026-11-21: five stashes of patches a cloud session carried over by hand, all of them on `main` since (leave them; drop them only on the owner's word); the owner's own stack from `deploy/`, kept to the Mac by `VENTI_HTTP_BIND=127.0.0.1:8088` and `VENTI_HTTPS_BIND=127.0.0.1:8443` in `deploy/.env` (without those two lines `docker compose up` publishes the site on the network: that happened once, for two minutes); an "iPhone 18 Pro" simulator the owner looks at, with the app installed, and an "iPhone 17" one for the tests; an Android virtual device `pixel6-api36`. **The checkout lies at `~/code/venti` since the morning of 2026-11-21**; before, it lay at `~/code/DOOM/venti`. A folder that moves leaves its old path in three places, none of them in the repository: Xcode's package cache (`target/apple/DerivedData/SourcePackages/workspace-state.json`; the build stops with "There is no XCFramework found at" the old path, and writing the new path into that file is enough), `VENTI_MAPS_DIR` in `deploy/.env`, and the mounts of the stack's running containers, which go on working until the stack is started again; before it is, `VENTI_MAPS_DIR` has to name the new folder, or the server starts without its map regions. All three were put right that day, and the stack was built and started again from the new folder (`docker compose config` shows the ports and the mounts a start would use, without starting anything: look at it first).
-- **Several sessions at once, on the Mac** (the owner, 2026-11-21: "start subagents to parallelize the work on the website and on the two apps … you are the coordinator and subagents can do the implementation"). What worked that day, with one session coordinating and up to five agents under it:
-  - *One agent to an app folder* (`apps/ios`, `apps/android`, `apps/web`), all three in the main checkout at the same time. Each is told to write nowhere else, to run no git command that changes anything, and what the others' ports and devices are. The coordinator makes a change the apps share (a record of the core, the map style, `tools/made-up-day/serve.py`) *before* it briefs them, and writes the documents itself: three agents editing `docs/design.md` is three versions of it.
-  - *Rust work that would disturb the apps' builds gets a working copy of its own*: `git worktree add --detach ~/code/venti-<name> HEAD`, under `~/code` because the Mac kills binaries built elsewhere, with its own `target` folder as [CLAUDE.md](CLAUDE.md) asks. Android's Gradle builds the core from whatever the main checkout holds at that moment, so a half-edited core there fails an app agent's build. The coordinator takes the finished work over as a patch (`git diff` in the worktree, new files added with `git add -N` first, then `git apply --3way` in the main checkout), runs the workspace's checks there and commits. Two agents that each add a row to the decision log conflict in that one place; keep both rows.
-  - *Devices and ports are handed out, not found*: the "iPhone 17" simulator and ports 8090 and 8091 for the iPhone's tests, the virtual device `pixel6-api36-b` on port 5556 and ports 8190 and 8191 for Android's, 8290 and 8291 for the web's browser tests. The "iPhone 18 Pro" simulator, an emulator that is already running and the stack on 8088 are the owner's.
-  - *Agents do not commit.* A commit on the Mac is signed through the owner's key in the Secure Enclave and needs the owner at the laptop for each one ("agent refused operation" when they are away); the coordinator stages a finished piece (`git add` of its files is a snapshot that a later round in the same folder does not disturb) and commits when it is whole.
-  - *What made that day slow, measured* (the owner: "multiple things taking so long, 20 minutes, 1 hour … we need to cut off this time"). With seven agents at once the Mac's load stood at 68 on its 18 processors. (1) The web's browser tests in a container draw every map in software and took 16 to 17 processors with nine workers: the container is capped now, and no agent runs a whole suite. An agent runs the tests its change touches; whole suites are the coordinator's, once, at integration, with nothing else running. (2) Every new working copy compiles the Rust workspace from nothing (7 to 12 GB of build output each): keep one for Rust work and use it again, and leave clippy and the workspace's tests to the integration. (3) A brief that says "read `docs/architecture.md` and `docs/design.md`" costs an agent a quarter of an hour before it writes a line: those two are 390 and 200 kB. Name the section, or give the facts. (4) The iPhone's UI tests take one to three minutes each because they replay whole flights; `apps/ios/scripts/ui-tests.sh` deals them out to several simulators (all 22 in under 10 minutes on four), and `apps/android/scripts/ui-tests.sh` does the same with Android's on up to four headless emulators (all 61 in under 7 minutes). (5) Four heavy jobs at once is the most this Mac does without each slowing the others: one per app and one for Rust.
-  - *A brief names what to read, the exact commands that work here, what "done" is, and what to report*; the report is all the coordinator sees, so it asks for the tests run with their numbers, the screenshots' paths, and what was not checked. A task that meets a question of design stops and reports it.
-  - *The owner's own Venti on the Mac is kept at the newest main* (the owner, 2026-11-21: "My local stack should always be the latest", and of its data: "We are developing, data can be fully wiped on demand, don't act carefully"). It is the Compose project in `deploy/`, on 127.0.0.1:8088, and since that day a debug build of either phone app asks it by itself, so a stack that lags makes the apps look as if the day's server work were not there. After every push that touches `crates/`, `deploy/`, `regions/`, `map/` or `apps/web`: `docker compose build` and `docker compose up -d` in `deploy/`, then read `/v1/health` and the server's log, in the background, and tell the owner in a line. No asking and no dump first: everything in it is development data, and where a change to the schema or to what the server keeps is quicker with an empty database or an emptied volume, empty it. The one thing in that folder that is not data is `deploy/.env`: it is never committed and not changed without a reason. A real installation is another matter: `deploy/README.md` is its runbook.
-  - *A row in the owner's task list says what is running and for how long* (the owner, on seeing one row at two hours: "if there is a problem, you should tell me immediately. Nothing should last so long"). That row was one agent handed round after round all day, under its first round's name. So: a fresh agent for each piece, named for the piece, briefed to report within about half an hour and to say at once when a step takes more than ten minutes or fails twice; and the coordinator tells the owner of a stall when it happens, not at the end.
-- **One session at a time writes a file.** On 2026-11-21 two sessions edited `apps/android`'s UI tests from different copies, and a commit written on the older copy undid the other's fix without anyone noticing until CI failed again. A session that shares a checkout with others looks at `git log -3 -- <file>` before editing a file and commits only its own files by path; one app folder has one session. A branch is never moved forward over a working tree that still holds the older files: whoever commits such a file next takes the newer change out again.
-- **The owner's Mac takes its crates from a registry mirror that lags crates.io by about two weeks.** A version published more recently than that cannot be built there (`cargo` says "failed to select a version" and names the mirror). When adding or updating a dependency, take a version that is at least three weeks old, or check with the owner; on 2026-11-20 the lockfile was moved back to what the mirror had (flate2 1.1.10, toml 1.2.0, zip 9.4.1 and 25 others by a patch version or two).
-
-- **A README is a page for people**: what the folder is in a few sentences, how to build and run it in the fewest commands that work, and links with a few words each. No feature lists, no history, no lists of what is not verified, no layout tables, nothing another document already says. Working knowledge goes into the `AGENTS.md` beside it; what a feature does goes into `docs/`. `deploy/README.md` is the operator's manual and holds the steps an operator carries out.
-- **`apps/web` is formatted by Prettier, its Markdown included**: `npm run format:check` there covers `README.md` and `AGENTS.md`, and fails on a table whose columns are not lined up.
-- **Other files point at sections of the READMEs and AGENTS.md files by their headings**: code comments, `deploy/env.example`, `deploy/docker-compose.yml`, `deploy/backup.sh`, `crates/server/config.example.toml` and the documents under `docs/`. Search for the file's name before renaming or removing a heading. `crates/server/tests/moderation.rs` reads `deploy/README.md` itself (see [deploy/AGENTS.md](deploy/AGENTS.md#reports)).
-- **The two small READMEs under `crates/`** (`crates/flight/tests/fixtures/xctsk/README.md`, `crates/server/assets/README.md`) record where files came from and under which licence. They stay beside the files they describe.

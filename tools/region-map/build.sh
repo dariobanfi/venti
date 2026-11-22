@@ -2,7 +2,7 @@
 # Builds one map region for a server to hand out: the vector base map and
 # the terrain of a region pack's box, as two PMTiles archives, and the
 # map.toml that describes them. The result is one folder for the server's
-# maps folder (maps_dir, VENTI_MAPS_DIR). deploy/README.md says where that
+# maps folder (maps_dir, VENTI_MAPS_DIR). docs/running-a-server.md says where that
 # is and how a region is renewed.
 #
 # THIS SCRIPT HAS NOT BUILT A REGION YET. It was written on 2026-11-20 in a

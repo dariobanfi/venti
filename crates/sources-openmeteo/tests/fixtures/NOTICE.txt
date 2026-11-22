@@ -56,7 +56,7 @@ The five places: 47.70 N 11.80 E (east shore of the Tegernsee), 47.66 N
 (landing and take-off below the Jägerkamp), and 47.40 N 13.30 E (the
 middle of the first region).
 
-To record them again: run an Open-Meteo instance as deploy/README.md
+To record them again: run an Open-Meteo instance as docs/running-a-server.md
 describes, make the adapter's requests for these places and for the four
 places of places/ against it, all in one go while it holds one run of
 each model, replace the files, set the date and the runs in

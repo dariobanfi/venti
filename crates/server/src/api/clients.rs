@@ -135,8 +135,8 @@ impl ClientWatch {
                  address, and none from another private one: the server does not see its \
                  visitors' addresses and counts them as one visitor. Thirty wrong passwords \
                  by anyone then close sign-in for everyone. If this server is on the \
-                 internet, see \"The visitor's address\" in deploy/README.md. If it serves \
-                 one person on a private network, this is as it should be",
+                 internet, see \"The visitor's address\" in docs/running-a-server.md. If it \
+                 serves one person on a private network, this is as it should be",
                 state.counted.all,
             );
         }

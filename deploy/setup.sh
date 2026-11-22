@@ -11,7 +11,7 @@
 #                                       (8 GB of memory or more)
 #
 # Run again, it changes no setting that is already there: it builds what
-# has changed and starts it. README.md beside it is the manual.
+# has changed and starts it. docs/running-a-server.md is the manual.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -33,7 +33,7 @@ for argument in "$@"; do
 done
 
 docker compose version > /dev/null || {
-  echo "setup.sh: Docker with the Compose plugin is needed; README.md says how to install it." >&2
+  echo "setup.sh: Docker with the Compose plugin is needed; docs/running-a-server.md says how to install it." >&2
   exit 1
 }
 
@@ -88,7 +88,7 @@ for _ in $(seq 1 60); do
       *) echo "Venti is up at https://$address (the certificate takes a moment the first time)."
          echo "Make an invite code for the first pilot with: docker compose exec server venti-server invite" ;;
     esac
-    echo "Not done by this script: the backup. README.md, \"Backup\"."
+    echo "Not done by this script: the backup. docs/running-a-server.md, \"Backup\"."
     exit 0
   fi
   printf '.'

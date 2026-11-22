@@ -5,7 +5,7 @@
 #
 # Run it from anywhere; it works on the Compose project in its own folder.
 # Each run writes <backup dir>/venti-<UTC time>.dump in PostgreSQL's custom
-# format, which pg_restore reads (see README.md, "Restore"). Dumps older than
+# format, which pg_restore reads (see docs/running-a-server.md, "Restore"). Dumps older than
 # the retention are deleted, but only after the new dump has been checked,
 # so a failing backup never eats the good ones.
 #
@@ -71,7 +71,7 @@ trap 'rm -f "$partial"' EXIT
 # the database's superuser, from inside its container, where that user
 # needs no password: it reads everything, also what PostGIS keeps beside
 # the server's tables. The dump says who owns what, so that a restore hands
-# the server's tables back to the server's role (README.md, "Restore").
+# the server's tables back to the server's role (docs/running-a-server.md, "Restore").
 #
 # The rows of the two tables that hold live positions are not dumped; the
 # tables themselves are, and so are the identifiers that live tracks have

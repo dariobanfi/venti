@@ -2924,21 +2924,24 @@ async fn whoever_runs_the_server_looks_at_a_site_reverts_it_and_takes_it_down() 
 
 #[test]
 fn the_operators_guide_shows_the_commands_as_they_are() {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../deploy/README.md");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/running-a-server.md"
+    );
     let guide = std::fs::read_to_string(path).unwrap();
     // What `reports` prints is in the guide as the tests keep it.
     let printed = std::fs::read_to_string(golden("operator_reports.txt")).unwrap();
     assert!(
         guide.contains(printed.trim_end()),
-        "deploy/README.md does not show operator_reports.txt as the tests keep it; copy the \
-         file from crates/server/tests/golden into the document"
+        "docs/running-a-server.md does not show operator_reports.txt as the tests keep it; copy \
+         the file from crates/server/tests/golden into the document"
     );
     // So is what `site` prints.
     let printed = std::fs::read_to_string(golden("operator_site.txt")).unwrap();
     assert!(
         guide.contains(printed.trim_end()),
-        "deploy/README.md does not show operator_site.txt as the tests keep it; copy the \
-         file from crates/server/tests/golden into the document"
+        "docs/running-a-server.md does not show operator_site.txt as the tests keep it; copy \
+         the file from crates/server/tests/golden into the document"
     );
     // Every command the program has for this is in the guide, and the
     // guide names none the program lacks.

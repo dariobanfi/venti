@@ -2,9 +2,15 @@
 
 Working notes: what to know before changing the app or its tests. What the app does and what is not built is in [docs/plan.md](../../docs/plan.md) and [docs/design.md](../../docs/design.md), how it is built and what is still to verify on a phone in [docs/architecture.md](../../docs/architecture.md#android). The `README.md` beside this file is for people.
 
+## Setting up and installing
+
+- **What a build needs**: Java 17 or later; Rust from rustup with `rustup target add aarch64-linux-android x86_64-linux-android`; `cargo install cargo-ndk --version 4.1.2 --locked`; the Android SDK with platform 37, build tools 36.0.0 and NDK 29.0.14206865. Android Studio installs them when it opens the project; without it, `sdkmanager "platforms;android-37.0" "build-tools;36.0.0" "ndk;29.0.14206865"`, with `ANDROID_HOME` (or `sdk.dir` in `apps/android/local.properties`) pointing at the SDK. Keep the SDK out of the repository.
+- **The tasks**, from `apps/android`: `./gradlew :app:assembleDebug` writes `app/build/outputs/apk/debug/app-debug.apk`, `:app:installDebug` puts it on a connected phone or a running emulator, `:app:connectedDebugAndroidTest` runs the UI tests there.
+- **Installing without building.** Every push that touches the app builds a debug copy, the `venti-debug-apk` artifact of the `Android` workflow: `gh run download --name venti-debug-apk --dir /tmp/venti`, then `adb install -r /tmp/venti/app-debug.apk`. It runs on 64-bit phones with Android 8 or later. Each build machine signs with a throwaway key of its own, so a build from another machine does not install over it: remove the app first, and its logbook with it.
+
 ## Checks before a push
 
-- **When the owner's Mac is attached to the session, run the UI tests on its emulators with `scripts/ui-tests.sh`, not through CI** (the owner, 2026-11-21: a CI round is 45 minutes; on the Mac all of them take about eight minutes on three emulators and seven on four, against some 25 on one). If something on the Mac refuses a step, say so to the owner and wait; do not fall back to pushing and waiting for CI.
+- **When the owner's Mac is attached to the session, run the UI tests on its emulators with `scripts/ui-tests.sh`, not through CI.**
   - `scripts/ui-tests.sh` runs them all on 3 emulators; `scripts/ui-tests.sh theCockpitWarnsOfAirspace theMapNamesPlaces` only those (a function of `VentiUiTest`, or `Class#function`, or a class); `-n 4` on four, `--no-build` with the last build, `--stop` stops the emulators at the end. It needs `target/debug/venti-server` built, and runs with the sandbox off.
   - It builds once while the emulators start, installs on each by its serial, gives each emulator its own fresh pair of servers (8190/8191, 8192/8193, …), and has the emulators take the tests from one queue, the longest first as the last run timed them (`target/android/ui-tests/timings.txt`). Each test runs in an instrumentation of its own (`adb shell am instrument`, not Gradle's `connected…` task, which cannot give two devices different servers). Everything lands in `target/android/ui-tests/<run>/`: `screenshots/` with every test's pictures, a log for each test, and one line for each test at the end.
   - The emulators are the virtual devices `pixel6-api36-b`, `-c`, `-d`, `-e` on the ports 5556, 5558, 5560, 5562; the script makes those missing as copies of `-b` and leaves them running for the next run, which then starts at once. `emulator-5554` (`pixel6-api36`) is the owner's windowed one: the script never touches it, and neither does a session.
@@ -18,7 +24,6 @@ Working notes: what to know before changing the app or its tests. What the app d
 
 ## Pitfalls of the UI tests
 
-- Compose draws a test's frames only when the test asks. Never wait with `Thread.sleep`; use `TestDevice.letTheAppRun`.
 - A made-up flight must come down to the ground the app knows (`LiveFlightTest`): the core does not end a flight while the terrain lies more than 50 m below (it waits five minutes there), and the emulator's barometer holds the height of the first fix, so a height fed later does not bring the glider down. `aFlightRecordsItself` flies at the take-off's ground and lands where it started.
 - The words of the controls every screen has (Done, Back, More, OK, Cancel, Try again, Close) are the core's, `Common.words` (`design/Common.kt`); write no copy of them.
 - A replay goes on while a test looks, by two seconds of the clock at most for each refresh. What belongs together during a thermal or a glide is looked for at one look (`waitForAll`); what comes late in a flight is waited for with `TestDevice.WHOLE_FLIGHT_SECONDS`.
@@ -82,7 +87,7 @@ Nothing they produce is committed: no generated Kotlin, no compiled core, no sec
 
 | Path | What it is |
 |---|---|
-| `app/build.gradle.kts` | The app's build: Android settings, libraries, the three tasks above. Library versions and their licences are in `gradle/libs.versions.toml`. |
+| `app/build.gradle.kts` | The app's build: Android settings, libraries, the four tasks above. Library versions and their licences are in `gradle/libs.versions.toml`. |
 | `uniffi.toml` | How the Kotlin interface of the core is generated. |
 | `app/src/main/AndroidManifest.xml` | Permissions, the one activity and the files it opens, the recording service. |
 | `app/src/main/kotlin/fly/venti/app/` | The entry point (`MainActivity`), what the app holds while it runs (`Session`), its tabs and where the pilot is in them (`RootScreen`, `AppNavigation`), the one place requests to servers leave from (`Http`), and how a secret is kept (`SealedStore`). |

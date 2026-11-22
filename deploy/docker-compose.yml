@@ -10,7 +10,7 @@
 #
 # Only caddy is reachable from outside. Settings and the database password
 # come from the file `.env` beside this one; copy `env.example` to make it.
-# The runbook is README.md in this folder.
+# The runbook is docs/running-a-server.md.
 
 name: venti
 
@@ -55,7 +55,7 @@ services:
     # to this IPv4-only network through its own forwarder (its
     # documentation, read 2026-11-19), and Caddy would then see one and
     # the same private address for every IPv6 visitor: the server would
-    # count them all as one. README.md, "The visitor's address", says
+    # count them all as one. docs/running-a-server.md, "The visitor's address", says
     # what serving IPv6 properly needs.
     #
     # Where it listens is a setting, so that a stack for trying things out
@@ -212,7 +212,7 @@ services:
   #   VENTI_OPEN_METEO_URL=http://open-meteo:8080
   # It reads Open-Meteo's open data on AWS when a place is asked for and
   # keeps what it read in a cache on disk. It publishes no port: only the
-  # server reaches it. README.md says what it needs, and AGENTS.md what
+  # server reaches it. docs/running-a-server.md says what it needs, and AGENTS.md what
   # is still to verify.
   open-meteo:
     image: ghcr.io/open-meteo/open-meteo:latest

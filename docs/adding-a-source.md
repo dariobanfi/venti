@@ -129,7 +129,7 @@ One command for "does my adapter meet the contract". It runs the formatter's che
 
 The command needs the crate's three lines of step 1: without them it passes, the server has never heard of the adapter, and the command's last line says so. It runs again after step 7, since the server's tests read the packs.
 
-Before a pull request, the whole workspace's checks are the ones in [CLAUDE.md](../CLAUDE.md#commands): `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`. Run them: the check above does not run the server's tests of the API, which is where a network that joined the first region shows (step 7).
+Before a pull request, the whole workspace's checks are the ones in [AGENTS.md](../AGENTS.md#commands): `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`. Run them: the check above does not run the server's tests of the API, which is where a network that joined the first region shows (step 7).
 
 ### 7. The region pack
 

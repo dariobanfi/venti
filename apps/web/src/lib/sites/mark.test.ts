@@ -17,7 +17,7 @@ import {
 	SITES_SOURCE
 } from './mark';
 import { wedges } from './rose';
-import { colours, pictureName, ringed, SITE_KINDS } from './symbols';
+import { colours, iconOf, pictureName, ringed, SITE_KINDS } from './symbols';
 import { site } from './testing';
 import { SITES_MIN_ZOOM } from './watch';
 
@@ -106,8 +106,18 @@ describe('flying sites on the map', () => {
 			'site-training',
 			'site-other'
 		]);
-		// A ring in place of the dot for a training slope and the rest.
+		// The pack's take-off icon in the head of a take-off and a winch, its
+		// landing icon in a landing's, a ring for a training slope and the rest.
 		expect(SITE_KINDS.filter(ringed)).toEqual(['training', 'other']);
+		expect(iconOf('takeoff')).toEqual([
+			{ kind: 'path', d: 'M2 21 9 12l3 3 2-2 3 8ZM13 8l7-5M15 3h5v5' }
+		]);
+		expect(iconOf('towing')).toEqual(iconOf('takeoff'));
+		expect(iconOf('landing')).toEqual([
+			{ kind: 'ellipse', cx: 12, cy: 18.5, rx: 9, ry: 3 },
+			{ kind: 'path', d: 'M12 3v14M7.500 12.500 12 17l4.500-4.500' }
+		]);
+		expect(iconOf('training')).toEqual([]);
 		expect(colours('landing')).toEqual({ ground: '#FFF8E8', sign: '#221640' });
 		expect(colours('takeoff')).toEqual({ ground: '#221640', sign: '#FFF8E8' });
 		expect(colours('other')).toEqual(colours('takeoff'));

@@ -9,8 +9,8 @@ beforeAll(startCore);
 
 /**
  * The server's own recorded answer, which its tests keep current: four
- * squares near the Tegernsee, not flyable on 21 November 2026 and weak
- * thermals on the 22nd.
+ * squares near the Tegernsee, not flyable on 21 November 2026 and with
+ * nothing to climb in on the 22nd.
  */
 const recorded = (): Uint8Array =>
 	readFileSync(new URL('../../../../../crates/server/tests/golden/thermals.json', import.meta.url));
@@ -54,11 +54,11 @@ describe('the thermal map from the server', () => {
 			status: 'Not flyable',
 			thermalWords: ''
 		});
-		// Weak thermals are drawn in the scale's second step.
+		// A flyable day without thermals is drawn in the scale's first step.
 		expect(map.days[1].cells[0]).toMatchObject({
 			verdict: 'flyable',
-			thermals: 'weak',
-			scaleStep: 2,
+			thermals: 'noThermals',
+			scaleStep: 1,
 			groundM: 1118
 		});
 		expect(map.legend.at(-1)).toEqual({ words: 'Not flyable', scaleStep: undefined });

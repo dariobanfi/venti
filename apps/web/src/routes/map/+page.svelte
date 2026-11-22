@@ -45,7 +45,6 @@
 		isDrawn,
 		sameAsked
 	} from '#lib/forecast/thermal-map.ts';
-	import ThermalMapCard from '#lib/forecast/ThermalMapCard.svelte';
 	import ThermalSquare from '#lib/forecast/ThermalSquare.svelte';
 	import ThermalHourSquare from '#lib/forecast/ThermalHourSquare.svelte';
 	import GliderView from '#lib/live/GliderView.svelte';
@@ -63,21 +62,26 @@
 		aerialOn,
 		airLayerOn,
 		airspaceOn,
-		forecastOn,
 		keepAerial,
 		keepAirLayer,
 		keepAirspace,
-		keepForecast,
 		keepLayersOff,
-		keepRadar,
+		keepMyFlights,
 		keepSlopes,
+		keepWhat,
 		type MapLayer,
 		layersOff,
-		radarOn,
-		slopesOn
+		myFlightsOn,
+		slopesOn,
+		keepThermalMap,
+		thermalMapOn,
+		type What,
+		whatChosen
 	} from '#lib/map/layers.ts';
 	import { problemText } from '#lib/map/position.ts';
-	import RadarCard from '#lib/radar/RadarCard.svelte';
+	import { lineCells, sameStop, type Stop } from '#lib/map/timeline.ts';
+	import WhatPanel from '#lib/map/WhatPanel.svelte';
+	import type { IconName } from '#lib/design/Icon.svelte';
 	import { SlopesModel } from '#lib/slopes/model.svelte.ts';
 	import SlopesKey from '#lib/slopes/SlopesKey.svelte';
 	import { RoutePlanner } from '#lib/route/planner.svelte.ts';
@@ -123,7 +127,9 @@
 	// the air now") is on whatever this browser remembers.
 	const shownByAddress = browser ? untrack(() => page.url.searchParams.get('show')) : null;
 	let off = $state<MapLayer[]>(
-		layersOff(globalThis.localStorage).filter((layer) => layer !== shownByAddress)
+		layersOff(globalThis.localStorage).filter(
+			(layer) => layer !== shownByAddress && layer !== 'wind'
+		)
 	);
 	function toggle(layer: MapLayer) {
 		if (layer === 'airspace') {
@@ -143,8 +149,6 @@
 		airspaceChosen = on;
 		keepAirspace(globalThis.localStorage, on);
 	}
-	/** The layers the map does not draw: those switched off, and airspace until it is on. */
-	const hiddenLayers = $derived<MapLayer[]>(airspaceChosen ? off : [...off, 'airspace']);
 	/** Whether the ground is photographs from above: the pilot's choice for every map. */
 	let aerial = $state(aerialOn(globalThis.localStorage));
 	/** Whose photographs can show where the map has come to rest, as the map says. */
@@ -154,19 +158,148 @@
 	 * are folded behind their button. A wide map writes them out itself.
 	 */
 	const photosCredit = $derived(aerial && !wide.current ? photosShowing : '');
-	/** Whether the map shows the kind of day, square by square: off until the pilot asks. */
-	let forecast = $state(forecastOn(globalThis.localStorage));
+	const wind = $derived(app.wind);
+	const current = $derived(wind?.state ?? NO_WIND);
+
+	// --- What the map shows, along one line of time ---
+
+	/**
+	 * What the map shows over the ground: the wind, the thermals, the rain
+	 * or the cloud, one at a time, or nothing. The wind until the pilot chooses.
+	 */
+	let what = $state<What | undefined>(whatChosen(globalThis.localStorage));
+	/**
+	 * The part of the line the pilot chose: what was measured, or the
+	 * forecast. Nothing for where the "what" opens: the rain and the wind on
+	 * what was measured last, the thermals and the cloud on the forecast.
+	 */
+	let along = $state<'measured' | 'forecast'>();
+	function chooseWhat(next: What) {
+		what = what === next ? undefined : next;
+		keepWhat(globalThis.localStorage, what);
+		along = undefined;
+		chosenSquare = undefined;
+		chosenHourSquare = undefined;
+		radar?.stop();
+		// Another "what" opens where its line begins: today, at the hour the core names.
+		if (thermals) {
+			thermals.chosenDate = undefined;
+			thermals.chosenHour = undefined;
+		}
+	}
+
 	const thermals = $derived(app.thermals);
-	const showForecast = $derived(forecast && Boolean(app.account?.hasServer) && Boolean(thermals));
-	// Asked for when the layer is switched on, and again when the map is half an hour old.
+	/** Whether the forecast map is asked for: for every "what", whose line runs into the forecast. */
+	const forecastWanted = $derived(
+		what !== undefined && Boolean(app.account?.hasServer) && Boolean(thermals)
+	);
+	// The forecast's layer follows the "what": the wind keeps its gusts.
 	$effect(() => {
-		if (showForecast) return thermals?.keepCurrent();
+		if (!thermals || !what) return;
+		const now = untrack(() => thermals.layer);
+		thermals.chooseLayer(what === 'wind' ? (now === 'gusts' ? 'gusts' : 'wind') : what);
 	});
-	// The hours of the layer, the day and the height chosen, and what the
-	// map draws of the hour shown.
+	const gusts = $derived(thermals?.layer === 'gusts');
+	// Asked for when a "what" is chosen, and again when the map is half an hour old.
 	$effect(() => {
-		if (showForecast) void thermals?.loadHours();
+		if (forecastWanted) return thermals?.keepCurrent();
 	});
+	// The hours of the day shown, and of every day for the line.
+	$effect(() => {
+		if (forecastWanted) void thermals?.loadHours();
+	});
+	$effect(() => {
+		if (!forecastWanted || !thermals) return;
+		void [thermals.map, thermals.layer, thermals.heightM];
+		void thermals.loadLine();
+	});
+
+	/** Whether the map shows the rain radar: while the rain is chosen. */
+	const radar = $derived(app.radar);
+	const radarWanted = $derived(
+		what === 'rain' && Boolean(app.account?.hasServer) && Boolean(radar)
+	);
+	// Asked for when the rain is chosen, again every five minutes while the
+	// map is on screen, and when the tab comes back to the front.
+	$effect(() => {
+		if (radarWanted) return radar?.keepCurrent();
+	});
+
+	/** The line of time of what is shown, from what was measured to the forecast's days. */
+	const cells = $derived(
+		what === undefined
+			? []
+			: lineCells({
+					what,
+					radar: what === 'rain' ? radar?.view : undefined,
+					stations: what === 'wind' && current.available,
+					days: thermals?.map?.days ?? [],
+					hours:
+						thermals?.line?.map === thermals?.map && thermals?.line?.layer === thermals?.layer
+							? thermals?.line?.days
+							: undefined
+				})
+	);
+	/** Whether the line stands on what was measured, or on the forecast. */
+	const measured = $derived.by(() => {
+		const hasMeasured = cells.some((cell) => cell.measured);
+		const hasForecast = cells.some((cell) => !cell.measured);
+		if (!hasMeasured) return false;
+		if (!hasForecast || along === 'measured') return true;
+		return along === undefined && (what === 'rain' || what === 'wind');
+	});
+	// The pictures of the radar's moment the line marks.
+	$effect(() => {
+		if (radarWanted && measured) void radar?.showMoment();
+	});
+	/** Where the line stands, by its cell. */
+	const lineAt = $derived.by(() => {
+		const first = cells.findIndex((cell) => cell.measured === measured);
+		let stop: Stop | undefined;
+		if (measured && what === 'rain') {
+			const moment = radar?.moment ? radar.moments.indexOf(radar.moment) : -1;
+			stop = { kind: 'radar', moment };
+		} else if (measured) {
+			stop = { kind: 'stations' };
+		} else if (thermals?.day) {
+			const hour = thermals.hour;
+			stop =
+				hour === undefined
+					? { kind: 'day', date: thermals.day.date }
+					: { kind: 'hour', date: thermals.day.date, hour };
+		}
+		const found = cells.findIndex((cell) => sameStop(cell.stop, stop));
+		return Math.max(found === -1 ? first : found, 0);
+	});
+	/** The pilot chose a cell of the line: the radar's moment, the stations, or the forecast's day or hour. */
+	function chooseAlong(index: number) {
+		const stop = cells[index]?.stop;
+		if (!stop) return;
+		if (stop.kind === 'radar') {
+			along = 'measured';
+			radar?.choose(stop.moment);
+		} else if (stop.kind === 'stations') {
+			along = 'measured';
+		} else if (thermals) {
+			along = 'forecast';
+			radar?.stop();
+			thermals.chooseDay(stop.date);
+			thermals.chosenHour = stop.kind === 'day' ? 'day' : stop.hour;
+		}
+	}
+
+	/**
+	 * The layers the map does not draw: those switched off, airspace until
+	 * it is on, and the wind stations while the map shows anything but the
+	 * wind as it is measured now.
+	 */
+	const hiddenLayers = $derived<MapLayer[]>([
+		...off,
+		...(airspaceChosen ? [] : (['airspace'] as const)),
+		...(what === 'wind' && measured ? [] : (['wind'] as const))
+	]);
+	/** Whether the map draws the forecast: a "what" on the forecast's part of the line. */
+	const showForecast = $derived(forecastWanted && !measured);
 	$effect(() => {
 		if (showForecast) void thermals?.loadShapes();
 	});
@@ -185,7 +318,7 @@
 	 * stand under another key, and not while an hour is drawn.
 	 */
 	const thermalDay = $derived.by(() => {
-		if (!showForecast || thermalHour) return undefined;
+		if (!showForecast || what !== 'thermals' || thermalHour) return undefined;
 		if (thermals?.asked && thermals.hoursAsking && !thermals.view) return undefined;
 		if (thermals?.view && thermals.hour !== undefined) return undefined;
 		return thermals?.day;
@@ -206,7 +339,9 @@
 	 */
 	const squareDay = $derived.by(() => {
 		if (thermalDay) return thermalDay;
-		if (!showForecast || thermals?.asked?.layer !== 'thermals') return undefined;
+		if (!showForecast || what !== 'thermals' || thermals?.asked?.layer !== 'thermals') {
+			return undefined;
+		}
 		const awaited = thermals.hoursAsking && !thermals.view;
 		return awaited && typeof thermals.chosenHour !== 'number' ? thermals.day : undefined;
 	});
@@ -221,25 +356,12 @@
 	/** Whose forecast the squares are. */
 	const forecastCredit = $derived(showForecast ? forecastCreditLine(thermals?.map, text) : '');
 
-	/** Whether the map shows the rain radar: off until the pilot asks. */
-	let radarChosen = $state(radarOn(globalThis.localStorage));
-	const radar = $derived(app.radar);
-	const showRadar = $derived(radarChosen && Boolean(app.account?.hasServer) && Boolean(radar));
-	// Asked for when the layer is switched on, again every five minutes
-	// while the map is on screen, and when the tab comes back to the front.
-	$effect(() => {
-		if (showRadar) return radar?.keepCurrent();
-	});
-	// The pictures of the moment the strip marks.
-	$effect(() => {
-		if (showRadar) void radar?.showMoment();
-	});
 	/**
 	 * Whose rain is on the map: the credit of each of the radar's layers
 	 * drawn, as its provider words it, at the data.
 	 */
 	const radarCredits = $derived(
-		showRadar ? (radar?.layersDrawn ?? []).flatMap((layer) => layer.credit?.text || []) : []
+		radarWanted && measured ? (radar?.layersDrawn ?? []).flatMap((layer) => layer.credit ?? []) : []
 	);
 
 	/**
@@ -255,8 +377,6 @@
 	/** How tall the map's own credits stand while unfolded, in pixels: Venti's stand above them. */
 	let mapCreditsHeight = $state(0);
 
-	const wind = $derived(app.wind);
-	const current = $derived(wind?.state ?? NO_WIND);
 	const sites = $derived(app.sites);
 	const places = $derived(sites?.state ?? NO_SITES);
 	const live = $derived(app.live);
@@ -1051,14 +1171,17 @@
 
 	// --- The chips, and the one sheet of layers and tools ---
 
-	function setForecast(on: boolean) {
-		forecast = on;
-		keepForecast(globalThis.localStorage, on);
-		if (!on) chosenSquare = undefined;
+	/** Whether the map draws the pilot's own flights: off until the pilot switches them on. */
+	let myFlights = $state(myFlightsOn(globalThis.localStorage));
+	function setMyFlights(on: boolean) {
+		myFlights = on;
+		keepMyFlights(globalThis.localStorage, on);
 	}
-	function setRadar(on: boolean) {
-		radarChosen = on;
-		keepRadar(globalThis.localStorage, on);
+	/** Whether the thermal map of thermal.kk7.ch lies over the ground: off until the pilot asks. */
+	let thermalMap = $state(thermalMapOn(globalThis.localStorage));
+	function setThermalMap(on: boolean) {
+		thermalMap = on;
+		keepThermalMap(globalThis.localStorage, on);
 	}
 	function setSlopes(on: boolean) {
 		slopesChosen = on;
@@ -1088,27 +1211,32 @@
 	/** The layers' and the rows' names, the core's; empty until it answered. */
 	const named = $derived<Partial<MapLayersWords>>(layerWords ?? {});
 
-	/** The four layers a pilot switches most: the chips along the map's top. */
-	const chips = $derived<LayerRow[]>([
-		{
-			key: 'forecast',
-			name: named.forecast ?? '',
-			icon: 'forecast',
-			on: forecast,
-			onchange: setForecast
-		},
-		{ key: 'radar', name: named.radar ?? '', icon: 'rain', on: radarChosen, onchange: setRadar },
-		{ key: 'wind', name: named.wind ?? '', icon: 'wind', ...listed('wind') },
-		{ key: 'sites', name: named.sites ?? '', icon: 'pin', ...listed('sites') }
-	]);
+	/** The forecast map's own name of a layer: "Rain", "Cloud". */
+	const layerName = (layer: string) =>
+		thermals?.map?.layers.find((one) => one.layer === layer)?.name;
 	/**
-	 * Every layer as a row with a switch: the chips' four in the same
-	 * state, then the others. A site without a server has the ground alone.
+	 * What the map can show, along the map's top: the core's names, and the
+	 * app's own for the rain and the cloud until the forecast map has named
+	 * them. The cloud only where the forecast has it.
+	 */
+	const whats = $derived<{ what: What; name: string; icon: IconName }[]>([
+		{ what: 'wind', name: named.wind || 'Wind', icon: 'wind' },
+		{ what: 'thermals', name: named.thermals || 'Thermals', icon: 'thermal' },
+		{ what: 'rain', name: layerName('rain') ?? 'Rain', icon: 'rain' },
+		...(!thermals?.map || layerName('cloud')
+			? [{ what: 'cloud' as const, name: layerName('cloud') ?? 'Cloud', icon: 'forecast' as const }]
+			: [])
+	]);
+	const whatName = $derived(whats.find((one) => one.what === what)?.name ?? '');
+	/**
+	 * Every layer drawn over what the map shows, as a row with a switch: the
+	 * one place for them. A site without a server has the ground alone, and
+	 * the pilot's own flights where the logbook has some.
 	 */
 	const layerRows = $derived<LayerRow[]>([
 		...(app.account?.hasServer
 			? [
-					...chips,
+					{ key: 'sites', name: named.sites ?? '', icon: 'pin', ...listed('sites') },
 					{ key: 'airspace', name: named.airspace ?? '', icon: 'airspace', ...listed('airspace') },
 					{ key: 'pilots', name: named.pilots ?? '', icon: 'glider', ...listed('pilots') },
 					{
@@ -1121,6 +1249,24 @@
 					{ key: 'cables', name: named.cables ?? '', icon: 'warning', ...listed('cables') }
 				]
 			: []),
+		...((app.logbook?.outlines.length ?? 0) > 0 || myFlights
+			? [
+					{
+						key: 'flights',
+						name: 'My flights',
+						icon: 'track',
+						on: myFlights,
+						onchange: setMyFlights
+					}
+				]
+			: []),
+		{
+			key: 'thermal-map',
+			name: 'Thermal map',
+			icon: 'thermal',
+			on: thermalMap,
+			onchange: setThermalMap
+		},
 		{
 			key: 'aerial',
 			name: named.aerialView ?? '',
@@ -1211,7 +1357,7 @@
 	<OverviewMap
 		bind:this={map}
 		bind:following
-		outlines={app.logbook?.outlines ?? []}
+		outlines={myFlights ? (app.logbook?.outlines ?? []) : []}
 		stations={current.stations}
 		sites={sitesFitting}
 		{sitesApart}
@@ -1249,9 +1395,10 @@
 		onairspace={(count) => (airspaceDrawn = count)}
 		hidden={hiddenLayers}
 		{aerial}
+		hotspots={thermalMap}
 		{thermalDay}
 		{thermalHour}
-		radar={showRadar ? radar?.onMap : undefined}
+		radar={radarWanted && measured ? radar?.onMap : undefined}
 		slopes={slopesChosen ? slopes.shown : undefined}
 		onsquare={openSquare}
 		onhourat={openHourSquare}
@@ -1266,19 +1413,19 @@
 	{#snippet alongTheRoute()}
 		<RouteWeather weather={routeWeather} days={routeDays} />
 	{/snippet}
-	<!-- The design pack's chips: the four layers switched most. Every other
-	     layer, and these four in the same state, is a row of the layers' sheet. -->
+	<!-- The design pack's chips: what the map shows, one at a time. Every
+	     layer drawn over it is a row of the layers' sheet. -->
 	{#if app.account?.hasServer}
-		<div class="chips" role="group" aria-label="Layers on the map">
-			{#each chips as chip (chip.key)}
+		<div class="chips" role="group" aria-label="What the map shows">
+			{#each whats as one (one.what)}
 				<button
 					class="chip"
 					type="button"
-					aria-pressed={chip.on}
-					onclick={() => chip.onchange(!chip.on)}
+					aria-pressed={what === one.what}
+					onclick={() => chooseWhat(one.what)}
 				>
-					<Icon name={chip.icon} />
-					{chip.name}
+					<Icon name={one.icon} />
+					{one.name}
 				</button>
 			{/each}
 		</div>
@@ -1317,78 +1464,6 @@
 	></div>
 	<div class="buttons-size" bind:clientWidth={buttonsWidth}></div>
 
-	{#snippet thermalCard(chosenHere: boolean)}
-		{#if thermals}
-			<ThermalMapCard
-				map={thermals.map}
-				day={thermals.day}
-				asking={thermals.asking}
-				problem={thermals.problem}
-				inView={!view || !thermals.day || hasSquaresIn(thermals.day, view.region)}
-				onday={(date) => thermals.chooseDay(date)}
-				onretry={() => void thermals.load()}
-				layer={thermals.layer}
-				heightM={thermals.heightM}
-				view={thermals.view}
-				hour={thermals.hour}
-				hoursAsking={thermals.hoursAsking}
-				hoursProblem={thermals.hoursProblem}
-				onlayer={(layer) => thermals.chooseLayer(layer)}
-				onheight={(heightM) => thermals.chooseHeight(heightM)}
-				onhour={(hour) => (thermals.chosenHour = hour)}
-				onretryhours={() => void thermals.loadHours()}
-				compact={!wide.current}
-				keyOpen={thermals.keyOpen}
-				onkey={(open) => (thermals.keyOpen = open)}
-			>
-				{#if chosenHere && chosenHourSquare}
-					<div class="chosen-square">
-						<header>
-							<h3>{thermals.day?.name}</h3>
-							<button
-								type="button"
-								aria-label={app.said?.common.close}
-								title={app.said?.common.close}
-								onclick={() => (chosenHourSquare = undefined)}
-							>
-								<Icon name="close" />
-							</button>
-						</header>
-						<ThermalHourSquare
-							{thermals}
-							place={chosenHourSquare.place}
-							cell={chosenHourSquare.cell}
-							onforecast={(cell) => thermals.day && squareForecast(cell, thermals.day)}
-						/>
-					</div>
-				{:else if chosenHere && square && thermals.map && thermals.day}
-					<div class="chosen-square">
-						<header>
-							<h3>{thermals.day.name}</h3>
-							<button
-								type="button"
-								aria-label={app.said?.common.close}
-								title={app.said?.common.close}
-								onclick={() => (chosenSquare = undefined)}
-							>
-								<Icon name="close" />
-							</button>
-						</header>
-						<ThermalSquare
-							{thermals}
-							map={thermals.map}
-							day={thermals.day}
-							cell={square}
-							onforecast={() => square && thermals?.day && squareForecast(square, thermals.day)}
-							named={false}
-							withRun={false}
-						/>
-					</div>
-				{/if}
-			</ThermalMapCard>
-		{/if}
-	{/snippet}
-
 	<!-- What the sites' filter is and what it leaves, while one is on: a row
 	     that opens its choices. -->
 	{#snippet filterOn(left: NonNullable<typeof sitesLeft>)}
@@ -1399,10 +1474,9 @@
 	{/snippet}
 
 	<div class="over">
-		<!-- On a wide screen the cards of the radar and of the forecast map are
-		     panes at the map's side, the radar's first, and a square chosen on
-		     the map is shown in the forecast's. -->
-		{#if (planner.open || reach.place || showRadar || showForecast || (sites && filtering) || sitesFiltered) && wide.current}
+		<!-- On a wide screen the planner, a glide's reach and the sites' filter
+		     are panes at the map's side. -->
+		{#if (planner.open || reach.place || (sites && filtering) || sitesFiltered) && wide.current}
 			<div class="panes">
 				{#if reach.place}
 					<aside class="forecast-pane" aria-label="What a glide reaches">
@@ -1433,16 +1507,6 @@
 					</aside>
 				{:else if sitesFiltered}
 					{@render filterOn(sitesFiltered)}
-				{/if}
-				{#if showRadar && radar}
-					<aside class="forecast-pane" aria-label="Rain radar">
-						<RadarCard {radar} />
-					</aside>
-				{/if}
-				{#if showForecast}
-					<aside class="forecast-pane" aria-label="Forecast map">
-						{@render thermalCard(true)}
-					</aside>
 				{/if}
 			</div>
 		{/if}
@@ -1516,12 +1580,12 @@
 				{/if}
 			</MapPanel>
 		{/if}
-		{#if !wide.current && thermals && chosenHourSquare}
-			<!-- A square of an hour of the forecast map, on a narrow screen. -->
+		{#if thermals && chosenHourSquare}
+			<!-- A square of an hour of the forecast map. -->
 			<MapPanel
 				shown={chosenHourSquare ? String(chosenHourSquare.cell) : undefined}
 				title={thermals.day?.name ?? 'Forecast'}
-				wide={false}
+				wide={wide.current}
 				half
 				onclose={() => (chosenHourSquare = undefined)}
 			>
@@ -1535,13 +1599,13 @@
 				{/if}
 			</MapPanel>
 		{/if}
-		{#if !wide.current && thermals?.map && squareDay}
-			<!-- A square of the thermal map, on a narrow screen: a sheet of half
+		{#if thermals?.map && squareDay}
+			<!-- A square of the thermal map: on a narrow screen a sheet of half
 			     the screen, the square staying in view above it. -->
 			<MapPanel
 				shown={square ? `${square.south},${square.west}` : undefined}
 				title={squareDay.name}
-				wide={false}
+				wide={wide.current}
 				half
 				onclose={() => (chosenSquare = undefined)}
 			>
@@ -1701,9 +1765,6 @@
 		{#if cables.problem && cables.close && !off.includes('cables')}
 			<p class="notice" role="status">{cables.problem}</p>
 		{/if}
-		{#if inTheAir.othersSaid && !off.includes('pilots')}
-			<p class="notice" role="status">{inTheAir.othersSaid}</p>
-		{/if}
 		<!-- Airspace's "zoom in" first; the climbs' says the same and gives way. -->
 		{#if airspaceSaid}
 			<p class="notice" role="status">{airspaceSaid}</p>
@@ -1753,8 +1814,6 @@
 				<GlideReachCard {reach} />
 			</div>
 		{/if}
-		<!-- On a narrow screen the radar's card and the forecast map's stand
-		     over the credits. -->
 		{#if sitesFiltered && !wide.current}
 			{@render filterOn(sitesFiltered)}
 		{/if}
@@ -1763,14 +1822,26 @@
 				<SlopesKey />
 			</div>
 		{/if}
-		{#if showRadar && radar && !wide.current}
-			<div class="forecast-card">
-				<RadarCard {radar} compact />
-			</div>
-		{/if}
-		{#if showForecast && !wide.current}
-			<div class="forecast-card">
-				{@render thermalCard(false)}
+		<!-- What the map shows, along its one line of time: one small panel
+		     over the map's foot, at every width. -->
+		{#if what && app.account?.hasServer && !placing}
+			<div class="forecast-card what-card">
+				<WhatPanel
+					{what}
+					name={whatName}
+					{cells}
+					value={lineAt}
+					onchoose={chooseAlong}
+					{measured}
+					{radar}
+					{thermals}
+					{gusts}
+					ongusts={(on) => thermals?.chooseLayer(on ? 'gusts' : 'wind')}
+					inView={!view ||
+						!showForecast ||
+						!thermals?.day ||
+						hasSquaresIn(thermals.day, view.region)}
+				/>
 			</div>
 		{/if}
 		<!-- Closed from the start: the map's "i" unfolds them with its own,
@@ -1783,7 +1854,13 @@
 				{#each cablesCredits as credit (credit)}<span>Cables: {credit}</span>{/each}
 				{#if sitesCredit}<span>{sitesCredit}</span>{/if}
 				{#if forecastCredit}<span>{forecastCredit}</span>{/if}
-				{#each radarCredits as credit (credit)}<span>{credit}</span>{/each}
+				{#each radarCredits as credit (credit.source)}
+					<span
+						>{#if credit.url}<a href={credit.url} target="_blank" rel="noopener noreferrer"
+								>{credit.text || credit.provider}</a
+							>{:else}{credit.text || credit.provider}{/if}, {credit.licence}</span
+					>
+				{/each}
 				{#each othersCredits as credit (credit.source)}<span>{credit.text}</span>{/each}
 				{#each climbsCredits as credit (credit.source)}
 					{#if !othersCredits.some((other) => other.text === credit.text)}
@@ -2107,6 +2184,13 @@
 		pointer-events: auto;
 	}
 
+	/* What the map shows: wider on a wide screen, where its line of time has room. */
+	@media (min-width: 56rem) {
+		.what-card {
+			max-width: 36rem;
+		}
+	}
+
 	/* A cable's sheet: its words, the layer's limits, its credit. */
 	.cable {
 		display: flex;
@@ -2235,35 +2319,6 @@
 		width: 1.125rem;
 		height: 1.125rem;
 		color: var(--link);
-	}
-
-	.chosen-square {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-		margin-top: var(--space-1);
-		padding-top: var(--space-3);
-		border-top: 1px solid var(--separator);
-	}
-
-	.chosen-square header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-
-	.chosen-square h3 {
-		margin: 0;
-		font-size: var(--subheadline);
-	}
-
-	.chosen-square header button {
-		display: grid;
-		place-items: center;
-		width: var(--target);
-		height: var(--target);
-		margin: calc(var(--space-2) * -1);
-		color: var(--text-secondary);
 	}
 
 	/* In the manner of the map's own credits, directly above them. */

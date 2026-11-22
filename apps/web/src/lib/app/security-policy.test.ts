@@ -34,7 +34,7 @@ describe('the site’s content security policy', () => {
 
 	it('lets the map ask every address its style names, and no other host', () => {
 		// At a domain, where the style has every source it can have.
-		const style = mapStyle({ origin: 'https://venti.example', hostname: 'venti.example' });
+		const style = mapStyle({ origin: 'https://venti.example' });
 		const tiles = [style.sources, terrain3dSource()]
 			.flatMap(addresses)
 			.filter((address) => !address.startsWith('https://venti.example'));

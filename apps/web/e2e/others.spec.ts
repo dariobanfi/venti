@@ -17,9 +17,11 @@ test('the map draws the aircraft the Open Glider Network hears, and a click open
 }) => {
 	// The wind's arrows and the sites' signs stay off the map, so that the
 	// screenshot shows the aircraft.
-	await page.addInitScript(() =>
-		localStorage.setItem('venti.map-layers-off', JSON.stringify(['wind', 'sites']))
-	);
+	await page.addInitScript(() => {
+		// Nothing shown over the ground: no wind's arrows either.
+		localStorage.setItem('venti.map-what', 'none');
+		localStorage.setItem('venti.map-layers-off', JSON.stringify(['sites']));
+	});
 	await page.goto('/?lat=47.6642&lon=11.7967');
 	await mapTabDrawn(page, mapDrawn);
 

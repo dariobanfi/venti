@@ -67,8 +67,6 @@ export class RadarModel {
 	pictureProblem = $state<string>();
 	/** Whether the moments are being played. */
 	playing = $state(false);
-	/** Whether the pilot unfolded the card's key and notes: folded when the app opens. */
-	keyOpen = $state(false);
 
 	/** The stops of the card's strip, the oldest first: one line of time for all layers. */
 	readonly moments = $derived(this.view?.moments ?? []);

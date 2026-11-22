@@ -34,18 +34,6 @@ const APP_DOMAIN = '__APP_DOMAIN__';
 export interface Where {
 	/** The page's origin, "https://venti.example". */
 	origin?: string;
-	/** The page's host name, "venti.example". */
-	hostname?: string;
-}
-
-/**
- * The domain a web page names itself by: the host it is served from, if
- * that is a domain. A page opened from this machine or by a bare address
- * has none, and what needs one is then left out of the style.
- */
-export function appDomain(hostname: string | undefined): string | undefined {
-	if (!hostname?.includes('.') || /^[\d.]+$/u.test(hostname)) return undefined;
-	return hostname;
 }
 
 /** The name of the second elevation source, the one the 3D terrain is built from. */
@@ -69,9 +57,8 @@ export const AERIAL_LAYERS = layersOf('aerial');
 export const DRAWN_LAYERS = layersOf('drawn');
 
 /**
- * The layers of the thermal map, which a chip switches on and off, as the
- * shared style marks them. A map has them only where the page has a
- * domain to name to the map's author: see {@link mapStyle}.
+ * The layers of the thermal map of thermal.kk7.ch, which a row of the
+ * layers' sheet switches on and off, as the shared style marks them.
  */
 export const THERMAL_LAYERS: readonly string[] = (
 	template.layers as { id: string; metadata?: Record<string, string> }[]
@@ -95,11 +82,11 @@ export function mapStyle(where: Where = globalThis.location ?? {}): StyleSpecifi
 
 	// What comes through Venti, Austria's photographs cut at the border, is
 	// asked of the server the app itself came from. What has to be told
-	// who is asking, the thermal map, is told the page's domain; a page
-	// without one leaves that source and its layers out.
+	// who is asking, the thermal map, is told Venti's domain, wherever the
+	// app runs.
 	const values: Record<string, string | undefined> = {
 		[VENTI_SERVER]: where.origin ?? '',
-		[APP_DOMAIN]: appDomain(where.hostname)
+		[APP_DOMAIN]: ONLINE.appDomain
 	};
 	for (const [name, source] of Object.entries(style.sources)) {
 		const tiles = (source as { tiles?: string[] }).tiles;

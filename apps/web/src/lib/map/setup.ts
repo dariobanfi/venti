@@ -29,7 +29,8 @@ import {
 	FONT_SCHEME,
 	mapStyle,
 	terrain3dSource,
-	TERRAIN_3D_SOURCE
+	TERRAIN_3D_SOURCE,
+	THERMAL_LAYERS
 } from './style';
 
 export type { Map } from 'maplibre-gl';
@@ -256,6 +257,17 @@ export function setAerial(map: Map, on: boolean): void {
 	show(DRAWN_LAYERS, !on);
 	// The light casings under the app's dark lines, for the photographs.
 	show(casingsOn(map), on);
+}
+
+/**
+ * Shows or hides the thermal map of thermal.kk7.ch, at the opacity the
+ * shared style gives it. Nothing is asked of its author's server while it
+ * is hidden, and a style without it (no domain to name) has nothing to show.
+ */
+export function setThermalMap(map: Map, on: boolean): void {
+	for (const layer of THERMAL_LAYERS) {
+		if (map.getLayer(layer)) map.setLayoutProperty(layer, 'visibility', on ? 'visible' : 'none');
+	}
 }
 
 /** How many zoom levels the camera steps away as it leans back. */

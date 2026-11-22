@@ -1,5 +1,6 @@
 /**
- * The "Forecast" layer of the map tab: the kind of day, square by square.
+ * The forecast on the map tab: the kind of day, square by square, and each
+ * layer hour by hour.
  *
  * Everything the squares say is the core's (`thermalMap`): which day is
  * today, each square's step of the thermal scale, the key and every word

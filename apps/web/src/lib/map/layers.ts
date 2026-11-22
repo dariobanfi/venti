@@ -1,7 +1,6 @@
 /**
- * The layers of the map tab that its chips switch on and off, as the design
- * pack's map screen has them, and how the browser remembers the pilot's
- * choice. It is a convenience of this browser: kept in `localStorage`, and
+ * The layers of the map tab, what it shows over the ground, and how the
+ * browser remembers the pilot's choice. It is a convenience of this browser: kept in `localStorage`, and
  * all layers but airspace are on wherever that cannot be read. Airspace is
  * off until the pilot switches it on (the owner, 2026-11-22), and kept
  * apart from the others, as "on".
@@ -20,8 +19,9 @@ export const MAP_LAYERS: readonly { layer: MapLayer; name: string }[] = [
 const KEY = 'venti.map-layers-off';
 const AIRSPACE_KEY = 'venti.map-airspace';
 const AERIAL_KEY = 'venti.map-aerial';
-const FORECAST_KEY = 'venti.map-forecast';
-const RADAR_KEY = 'venti.map-radar';
+const WHAT_KEY = 'venti.map-what';
+const MY_FLIGHTS_KEY = 'venti.map-my-flights';
+const THERMAL_MAP_KEY = 'venti.map-thermal-map';
 const SLOPES_KEY = 'venti.map-slopes';
 const CANDIDATES_KEY = 'venti.map-candidates';
 const FORECAST_LAYER_KEY = 'venti.map-forecast-layer';
@@ -49,42 +49,77 @@ export function keepAerial(storage: Pick<Storage, 'setItem'> | undefined, on: bo
 }
 
 /**
- * Whether the map shows the kind of day, square by square (the "Forecast"
- * chip), as this browser remembers it. Off until the pilot switches it on.
+ * What the map shows over the ground, one at a time (the row along the
+ * map's top): the wind, the thermals, the rain or the cloud, each along
+ * one line of time from what was measured to what is forecast. The wind
+ * until the pilot chooses; nothing, where the pilot pressed the one chosen
+ * again.
  */
-export function forecastOn(storage: Pick<Storage, 'getItem'> | undefined): boolean {
+export type What = 'wind' | 'thermals' | 'rain' | 'cloud';
+
+export const WHATS: readonly What[] = ['wind', 'thermals', 'rain', 'cloud'];
+
+/** What the map shows, as this browser remembers it: the wind until the pilot chooses. */
+export function whatChosen(storage: Pick<Storage, 'getItem'> | undefined): What | undefined {
 	try {
-		return storage?.getItem(FORECAST_KEY) === 'on';
+		const kept = storage?.getItem(WHAT_KEY);
+		if (kept === 'none') return undefined;
+		return WHATS.find((what) => what === kept) ?? 'wind';
 	} catch {
-		return false;
+		return 'wind';
 	}
 }
 
-/** Remembers whether the "Forecast" layer is on. Nothing happens where the browser keeps nothing. */
-export function keepForecast(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
+/** Remembers what the map shows. Nothing happens where the browser keeps nothing. */
+export function keepWhat(
+	storage: Pick<Storage, 'setItem'> | undefined,
+	what: What | undefined
+): void {
 	try {
-		storage?.setItem(FORECAST_KEY, on ? 'on' : 'off');
+		storage?.setItem(WHAT_KEY, what ?? 'none');
 	} catch {
 		// A private window, or no storage: the choice lasts for the visit.
 	}
 }
 
 /**
- * Whether the map shows the rain radar (the "Radar" chip), as this browser
- * remembers it. Off until the pilot switches it on.
+ * Whether the map draws the pilot's own flights, as this browser remembers
+ * it: off until the pilot switches it on (the owner, 2026-11-22).
  */
-export function radarOn(storage: Pick<Storage, 'getItem'> | undefined): boolean {
+export function myFlightsOn(storage: Pick<Storage, 'getItem'> | undefined): boolean {
 	try {
-		return storage?.getItem(RADAR_KEY) === 'on';
+		return storage?.getItem(MY_FLIGHTS_KEY) === 'on';
 	} catch {
 		return false;
 	}
 }
 
-/** Remembers whether the "Radar" layer is on. Nothing happens where the browser keeps nothing. */
-export function keepRadar(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
+/** Remembers whether the pilot's own flights are on. Nothing happens where the browser keeps nothing. */
+export function keepMyFlights(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
 	try {
-		storage?.setItem(RADAR_KEY, on ? 'on' : 'off');
+		storage?.setItem(MY_FLIGHTS_KEY, on ? 'on' : 'off');
+	} catch {
+		// A private window, or no storage: the choice lasts for the visit.
+	}
+}
+
+/**
+ * Whether the map shows the thermal map of thermal.kk7.ch, where thermals
+ * were flown in years of shared flights, as this browser remembers it: off
+ * until the pilot switches it on.
+ */
+export function thermalMapOn(storage: Pick<Storage, 'getItem'> | undefined): boolean {
+	try {
+		return storage?.getItem(THERMAL_MAP_KEY) === 'on';
+	} catch {
+		return false;
+	}
+}
+
+/** Remembers whether the thermal map is on. Nothing happens where the browser keeps nothing. */
+export function keepThermalMap(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
+	try {
+		storage?.setItem(THERMAL_MAP_KEY, on ? 'on' : 'off');
 	} catch {
 		// A private window, or no storage: the choice lasts for the visit.
 	}
@@ -213,7 +248,7 @@ export function keepLayersOff(
 }
 
 /**
- * What the "Forecast" layer shows and at which height the wind, as this
+ * Which layer of the forecast the map shows and at which height the wind, as this
  * browser remembers it: the layer by the core's name ("thermals", "wind",
  * …), the height in metres, nothing for the ground. Thermals at the ground
  * until the pilot chooses; the hour is never kept.

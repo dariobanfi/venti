@@ -1,7 +1,7 @@
 <!--
 	The map's pin for a flying site, drawn for a list or a heading: dark with
-	a cream dot for a place to take off from, cream with a dark dot for a
-	landing, a ring for the rest, and muted for one that stands apart from
+	the pack's take-off icon in cream for a place to take off from, cream
+	with its landing icon in the dark for a landing, a ring for the rest, and muted for one that stands apart from
 	those a filter leaves. It looks the same in both appearances, as
 	the map does. It only repeats what the text beside it says, so a screen
 	reader passes over it.
@@ -11,6 +11,9 @@
 	import {
 		colours,
 		EDGE_WIDTH,
+		ICON_AT,
+		ICON_SCALE,
+		iconOf,
 		MARK,
 		PIN,
 		PIN_HEIGHT,
@@ -48,7 +51,22 @@
 			stroke-width={RING_WIDTH}
 		/>
 	{:else}
-		<circle cx={MARK.x} cy={MARK.y} r={MARK.radius} fill={look.sign} />
+		<g
+			transform="translate({ICON_AT.x} {ICON_AT.y}) scale({ICON_SCALE})"
+			fill="none"
+			stroke={look.sign}
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
+			{#each iconOf(kind) as shape, index (index)}
+				{#if shape.kind === 'path'}
+					<path d={shape.d} />
+				{:else}
+					<ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} />
+				{/if}
+			{/each}
+		</g>
 	{/if}
 </svg>
 

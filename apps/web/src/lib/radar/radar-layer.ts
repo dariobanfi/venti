@@ -4,9 +4,9 @@
  * by the layer's four corners, and a raster layer of its own, the radar's
  * layers in the core's order, the first lowest, and never merged into one
  * picture. A pixel is a step of rain a kilometre wide, so a picture is
- * drawn without smoothing: a step stays a step. Each is as see-through as
- * the forecast map's squares, and half as strong when its own layer's
- * newest frame is too old to be the rain of now.
+ * drawn without smoothing: a step stays a step. Each is nearly solid, and
+ * half as strong when its own layer's newest frame is too old to be the
+ * rain of now.
  *
  * They lie where the squares lie, over them: over the ground, the relief
  * and the photographs, under the base map's cable cars, borders and names
@@ -14,7 +14,6 @@
  */
 
 import type { RasterLayerSpecification } from 'maplibre-gl';
-import { squareOpacity } from '#lib/forecast/thermal-layer.ts';
 
 /** What the map's source and its layer of each of the radar's layers begin with. */
 const RADAR = 'radar-';
@@ -46,12 +45,21 @@ export function radarBefore(
 	return above.length > 0 ? radarId(Math.min(...above)) : under;
 }
 
+/**
+ * How strong the radar's pictures are drawn: nearly solid. Seen on the
+ * owner's own Venti on 2026-11-22 at 21:55, light rain drawn as thin as the
+ * forecast map's squares (a half to three tenths) was a pale teal that read
+ * as water on the light map and was gone over the photographs; the veil of
+ * "not seen" is let through in the picture itself (`radar.ts`), so the
+ * map stays quiet where the radar sees nothing.
+ */
+const STRONG = 0.85;
 /** How strong an old picture is drawn beside a current one. */
-const FADED = 0.5;
+const FADED = 0.45;
 
-/** How much of the map shows through the picture, by the zoom. */
-export function radarOpacity(faded: boolean) {
-	return squareOpacity(faded ? FADED : 1);
+/** How much of the map shows through the picture. */
+export function radarOpacity(faded: boolean): number {
+	return faded ? FADED : STRONG;
 }
 
 /** The raster layer of the picture of one of the radar's layers. */

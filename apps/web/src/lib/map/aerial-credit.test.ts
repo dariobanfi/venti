@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type Area, aerialMakers, photosCredit } from './aerial-credit';
 import { mapStyle } from './style';
 
-const where = { origin: 'https://venti.example', hostname: 'venti.example' };
+const where = { origin: 'https://venti.example' };
 
 /** A part of the map about a valley wide, around a place. */
 function around(lat: number, lon: number): Area {

@@ -4,7 +4,6 @@ import tokens from '../../../../../design/tokens/tokens.json';
 import { fontLoader, fontTable, fontUrl } from './fonts';
 import {
 	AERIAL_LAYERS,
-	appDomain,
 	DRAWN_LAYERS,
 	FONT_SCHEME,
 	mapStyle,
@@ -27,7 +26,8 @@ describe('the map style prepared for the browser', () => {
 			'aerial-switzerland',
 			'aerial-world',
 			'basemap',
-			'terrain'
+			'terrain',
+			'thermals'
 		]);
 	});
 
@@ -74,7 +74,10 @@ describe('the map style prepared for the browser', () => {
 			source?: string;
 			layout?: { visibility?: string };
 		}[];
-		const photographs = layers.filter((layer) => layer.type === 'raster');
+		// The thermal map is a raster too, and no photograph.
+		const photographs = layers.filter(
+			(layer) => layer.type === 'raster' && !THERMAL_LAYERS.includes(layer.id)
+		);
 
 		expect(AERIAL_LAYERS).toEqual([
 			'aerial-world',
@@ -100,12 +103,12 @@ describe('the map style prepared for the browser', () => {
 		// The file stands in the drawn view: nothing of the photographs is fetched.
 		for (const layer of layers) {
 			expect(layer.layout?.visibility ?? 'visible', layer.id).toBe(
-				AERIAL_LAYERS.includes(layer.id) ? 'none' : 'visible'
+				AERIAL_LAYERS.includes(layer.id) || THERMAL_LAYERS.includes(layer.id) ? 'none' : 'visible'
 			);
 		}
 		// Shown, the photographs cover the drawn ground and nothing laid on it.
 		const first = layers.findIndex((layer) => layer.type === 'raster');
-		const last = layers.findLastIndex((layer) => layer.type === 'raster');
+		const last = layers.findIndex((layer) => layer.id === photographs.at(-1)?.id);
 		expect(layers.slice(0, first).map((layer) => layer.id)).toEqual([
 			'land',
 			'landcover-grass',
@@ -118,10 +121,9 @@ describe('the map style prepared for the browser', () => {
 			'water',
 			'building'
 		]);
-		expect([...new Set(layers.slice(last + 1).map((layer) => layer.type))].sort()).toEqual([
-			'line',
-			'symbol'
-		]);
+		// Over them only lines and names, and the thermal map, hidden until asked for.
+		const over = layers.slice(last + 1).filter((layer) => !THERMAL_LAYERS.includes(layer.id));
+		expect([...new Set(over.map((layer) => layer.type))].sort()).toEqual(['line', 'symbol']);
 		// Every provider is named on the map while its photographs are shown.
 		for (const layer of photographs) {
 			const source = mapStyle().sources[layer.source ?? ''] as { attribution?: string };
@@ -177,29 +179,22 @@ describe('the map style prepared for the browser', () => {
 		expect(world.attribution).toContain('CC BY-NC-SA 4.0');
 	});
 
-	it('has the thermal map only where the page has a domain to name to its author', () => {
-		// Opened from this machine, or by a bare address: nobody to name,
-		// so nothing of it is in the style and nothing is ever asked.
-		for (const hostname of [undefined, 'localhost', '127.0.0.1']) {
-			const style = mapStyle({ origin: 'http://127.0.0.1:8088', hostname });
-			expect(style.sources.thermals, String(hostname)).toBeUndefined();
-			expect(style.layers.some((layer) => layer.id === 'thermals')).toBe(false);
-			expect(JSON.stringify(style)).not.toContain('__');
+	it('has the thermal map, telling its author Venti’s domain wherever the app runs', () => {
+		// Every request says who asks, in the scheme and to the zoom the
+		// author's server has, and the layer is hidden until the pilot
+		// switches it on: from this machine as from a domain.
+		for (const origin of ['http://127.0.0.1:8088', 'https://venti.example']) {
+			const style = mapStyle({ origin });
+			expect(style.sources.thermals, origin).toEqual({
+				type: 'raster',
+				scheme: 'tms',
+				tiles: ['https://thermal.kk7.ch/tiles/thermals_all_all/{z}/{x}/{y}.png?src=venti.fly'],
+				tileSize: 256,
+				maxzoom: 12,
+				attribution: expect.stringContaining('thermal.kk7.ch')
+			});
 		}
-		expect(appDomain('venti.example')).toBe('venti.example');
-
-		// At a domain: every request says who asks, in the scheme and to the
-		// zoom the author's server has, and the layer is hidden until the
-		// pilot switches it on.
-		const style = mapStyle({ origin: 'https://venti.example', hostname: 'venti.example' });
-		expect(style.sources.thermals).toEqual({
-			type: 'raster',
-			scheme: 'tms',
-			tiles: ['https://thermal.kk7.ch/tiles/thermals_all_all/{z}/{x}/{y}.png?src=venti.example'],
-			tileSize: 256,
-			maxzoom: 12,
-			attribution: expect.stringContaining('thermal.kk7.ch')
-		});
+		const style = mapStyle({ origin: 'https://venti.example' });
 		expect(THERMAL_LAYERS).toEqual(['thermals']);
 		const layer = style.layers.find((one) => one.id === 'thermals');
 		expect(layer).toMatchObject({ type: 'raster', layout: { visibility: 'none' } });

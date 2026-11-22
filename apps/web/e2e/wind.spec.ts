@@ -325,7 +325,7 @@ test('the map says so in words when the server cannot be reached', async ({
 	await context.route('**/v1/**', (route) => route.abort());
 	await page.goto('/map/');
 
-	await expect(page.getByRole('status')).toHaveText('Venti could not be reached for the wind.');
+	await expect(page.locator('.notice')).toHaveText('Venti could not be reached for the wind.');
 	await expect(page.getByText(/^Wind: /)).toBeHidden();
 	await keep('22-wind-unreachable');
 
@@ -340,7 +340,7 @@ test('a server in trouble is reported with what it answered', async ({ context, 
 	await context.route('**/v1/**', (route) => route.fulfill({ status: 502, body: 'Bad Gateway' }));
 	await page.goto('/map/');
 
-	await expect(page.getByRole('status')).toHaveText('The server could not answer (status 502).');
+	await expect(page.locator('.notice')).toHaveText('The server could not answer (status 502).');
 });
 
 test('a site without a server has a map without wind and without sites, and says nothing', async ({
@@ -361,6 +361,6 @@ test('a site without a server has a map without wind and without sites, and says
 	await expect(toolRow(page, 'Wind stations')).toHaveCount(0);
 	await expect(toolRow(page, 'Flying sites')).toHaveCount(0);
 	await closeLayers(page);
-	await expect(page.getByRole('status')).toBeHidden();
+	await expect(page.locator('.notice')).toBeHidden();
 	await expect(page.getByText(/^Wind: /)).toBeHidden();
 });

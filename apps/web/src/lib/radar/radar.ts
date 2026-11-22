@@ -1,5 +1,5 @@
 /**
- * The "Radar" layer of the map tab: the last frames of rain a weather
+ * The rain radar of the map tab: the last frames of rain a weather
  * service's radars saw, and where there is one an analysis of the rain
  * beside them, as pictures over the map, a layer for each source.
  *
@@ -27,9 +27,6 @@ export const ASK_EVERY_MS = 5 * 60_000;
 export const AGES_EVERY_MS = 60_000;
 /** How long a moment stands while the moments are played: four a second. */
 export const PLAY_MS = 250;
-
-/** From how many moments on the strip writes the minutes in every third cell only. */
-const ALL_LABELLED_UP_TO = 8;
 
 /** The app's own words, where the core has none. */
 export const WORDS = {
@@ -139,24 +136,6 @@ export function cautioned(view: RadarView | undefined): RadarLayerView | undefin
 	return view?.layers.findLast((layer) => layer.frames.length > 0) ?? view?.layers.at(-1);
 }
 
-/**
- * The cells of the strip, the oldest first, a cell a moment: the minutes
- * of the moment's time on the clock, "15", in every cell of a short strip
- * and in every third of a long one, counted from the newest; and for a
- * screen reader the core's line for the moment, "Rain radar, 14:15, 4
- * minutes ago. Austria's analysis is of 14:00."
- */
-export function stripCells(moments: readonly RadarMoment[]): { short: string; label: string }[] {
-	const last = moments.length - 1;
-	return moments.map((moment, index) => ({
-		short:
-			moments.length <= ALL_LABELLED_UP_TO || (last - index) % 3 === 0
-				? moment.clock.slice(-2)
-				: '',
-		label: moment.label
-	}));
-}
-
 /** A colour of the pack, "#RRGGBB", as the core takes it: `0xRRGGBBAA`, solid. */
 export function solid(colour: string): number {
 	return Number.parseInt(colour.slice(1, 7), 16) * 0x100 + 0xff;
@@ -166,17 +145,45 @@ export function solid(colour: string): number {
 export const CLEAR = 0;
 
 /**
+ * How solid the veil of "not seen" is in a picture, out of 255: about two
+ * fifths, so that with the layer's own strength it lies over the map as
+ * quietly as the forecast map's veil, while the rain is drawn solid.
+ */
+export const VEIL_ALPHA = 0x66;
+
+/**
+ * How solid the first step, a trace of rain, is drawn: less than the rain,
+ * which it would otherwise outweigh, being the most widespread.
+ */
+export const TRACE_ALPHA = 0xa6;
+
+/** A colour of the pack, "#RRGGBB", as solid as `alpha` out of 255. */
+export function letThrough(colour: string, alpha: number): number {
+	return solid(colour) - 0xff + alpha;
+}
+
+/** A colour of the pack, "#RRGGBB", let through as much as the veil is. */
+export function veiled(colour: string): number {
+	return letThrough(colour, VEIL_ALPHA);
+}
+
+/**
  * The colours a picture is written in: for each step of rain the colour its
- * line of the key names, the first step first, and for what the source did
- * not see the forecast map's veil where the picture draws it, and nothing
- * where it lies over another, whose rain the veil would hide. The colours
- * are solid: how much of the map shows through is the layer's
- * (`radar-layer.ts`).
+ * line of the key names, the first step first, solid but for a trace, which
+ * is let through a little, and for what the
+ * source did not see the forecast map's veil, let through, where the
+ * picture draws it, and nothing where it lies over another, whose rain the
+ * veil would hide. How much of the map shows through the rain is the
+ * layer's (`radar-layer.ts`).
  */
 export function colours(key: readonly RadarKey[], drawsUnseen: boolean): RadarColours {
 	return {
-		rain: key.toSorted((one, other) => one.step - other.step).map((line) => solid(keyColor(line))),
-		unseen: drawsUnseen ? solid(UNSEEN_ON_MAP) : CLEAR
+		rain: key
+			.toSorted((one, other) => one.step - other.step)
+			.map((line, at) =>
+				at === 0 ? letThrough(keyColor(line), TRACE_ALPHA) : solid(keyColor(line))
+			),
+		unseen: drawsUnseen ? veiled(UNSEEN_ON_MAP) : CLEAR
 	};
 }
 

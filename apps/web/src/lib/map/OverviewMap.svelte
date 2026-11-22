@@ -210,7 +210,9 @@
 		hidden?: readonly MapLayer[];
 		/** Whether the ground is photographs from above instead of the drawn map. */
 		aerial?: boolean;
-		/** The day of the thermal map whose squares to draw, while the "Forecast" layer is on. */
+		/** Whether the thermal map of thermal.kk7.ch lies over the ground: off until the pilot asks. */
+		hotspots?: boolean;
+		/** The day of the thermal map whose squares to draw, while the map shows the thermals of a day. */
 		thermalDay?: ThermalMapDay;
 		/**
 		 * One hour of a layer of the thermal map, drawn in place of the day:
@@ -222,7 +224,7 @@
 			legend: readonly ThermalMapKey[];
 		};
 		/**
-		 * The rain radar's pictures, while the "Radar" layer is on and has
+		 * The rain radar's pictures, while the map shows the rain measured and has
 		 * some, the lowest first: for each of the radar's layers that has one
 		 * an address the map loads it from, the corners it is pinned by, and
 		 * whether that layer is too old to be the rain of now and drawn fainter.
@@ -314,6 +316,7 @@
 		onairspace,
 		hidden = [],
 		aerial = false,
+		hotspots = false,
 		thermalDay,
 		thermalHour,
 		radar,
@@ -892,6 +895,13 @@
 	$effect(() => {
 		if (!map || !setup) return;
 		setup.setAerial(map, aerial);
+	});
+
+	// The thermal map's layers, as the style marks them; nothing is asked of
+	// its author's server while they are hidden.
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.setThermalMap(map, hotspots);
 	});
 
 	$effect(() => {

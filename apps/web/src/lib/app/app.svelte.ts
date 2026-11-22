@@ -108,10 +108,10 @@ export class App {
 	/** The sites the pilot marks as their own, kept in this browser and, signed in, on the account. */
 	kept = $state.raw<KeptSitesModel>();
 
-	/** The kind of day, square by square, for the map's "Forecast" layer. */
+	/** The kind of day, square by square, and the forecast's hours, for what the map shows. */
 	thermals = $state.raw<ThermalMapModel>();
 
-	/** The rain radar, for the map's "Radar" layer. */
+	/** The rain radar, for the map's rain. */
 	radar = $state.raw<RadarModel>();
 
 	/** The pilot's account on the Venti server. Nothing until the core has started. */

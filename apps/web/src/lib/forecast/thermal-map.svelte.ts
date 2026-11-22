@@ -78,13 +78,17 @@ export class ThermalMapModel {
 	readonly hour = $derived(this.view ? shownHour(this.view, this.chosenHour) : undefined);
 	/** What the map draws of the hour shown. */
 	shapes = $state.raw<HourShapes>();
-
 	/**
-	 * Whether the pilot unfolded the card's key, run and notes, which a
-	 * narrow screen folds away: folded when the app opens, then as the pilot
-	 * left them for as long as the page is open. The browser does not keep it.
+	 * The hours of every day of the map, for the layer and the height
+	 * chosen: the stops of the map's line of time. A day whose hours could
+	 * not be had has none.
 	 */
-	keyOpen = $state(false);
+	line = $state.raw<{
+		map: ThermalMap;
+		layer: string;
+		heightM: number | undefined;
+		days: (ThermalMapHoursView | undefined)[];
+	}>();
 
 	#core: Core;
 	#clock: () => number;
@@ -93,6 +97,7 @@ export class ThermalMapModel {
 	/** Counts the questions about hours, so that a slow answer is dropped. */
 	#hoursAsked = 0;
 	#shapesAsked = 0;
+	#lineAsked = 0;
 
 	constructor(core: Core, clock: () => number = Date.now) {
 		this.#core = core;
@@ -145,6 +150,33 @@ export class ThermalMapModel {
 		} finally {
 			if (mine === this.#hoursAsked) this.hoursAsking = false;
 		}
+	}
+
+	/**
+	 * Asks for the hours of every day of the map, for the layer and the
+	 * height chosen, unless they are at hand. The worker keeps each answer,
+	 * so the day shown is not asked for twice. Call it again whenever the
+	 * map, the layer or the height changes.
+	 */
+	async loadLine(): Promise<void> {
+		const map = this.map;
+		const { layer, heightM } = this;
+		const line = this.line;
+		if (line && line.map === map && line.layer === layer && line.heightM === heightM) return;
+		const mine = ++this.#lineAsked;
+		if (!map || map.layers.length === 0) {
+			this.line = undefined;
+			return;
+		}
+		const days = await Promise.all(
+			map.days.map((day) => {
+				const asked = hoursAsked(map, day, layer, heightM);
+				return asked
+					? this.#core.thermalHours(asked).catch(() => undefined)
+					: Promise.resolve(undefined);
+			})
+		);
+		if (mine === this.#lineAsked) this.line = { map, layer, heightM, days };
 	}
 
 	/** Asks for what the map draws of the hour shown; nothing to draw for the day. */

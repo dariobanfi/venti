@@ -1,6 +1,7 @@
 /**
- * The map as the design pack's map screen: chips along the top that switch
- * its layers, pins for the flying sites, and a site's sheet with what the
+ * The map as the design pack's map screen: chips along the top that choose
+ * what it shows, one sheet of the layers over it, pins for the flying
+ * sites, and a site's sheet with what the
  * forecast says of it, from Venti in its development mode (a stormy day in
  * November).
  */
@@ -25,15 +26,20 @@ import {
 } from './helpers';
 
 const chip = (page: Page, name: string) =>
-	page.getByRole('group', { name: 'Layers on the map' }).getByRole('button', { name });
+	page.getByRole('group', { name: 'What the map shows' }).getByRole('button', { name });
 /**
  * The short line that names the makers of the photographs that can show
  * over the Tegernsee valley at a valley's zoom (`aerial-credit.ts`).
  */
 const PHOTOS = 'Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX';
 const shown = (page: Page) => page.getByText(/^Flying sites on this part of the map/);
+/** One pixel of the pack's thermal scale, as a PNG: the made-up tile of the thermal map. */
+const THERMAL_TILE = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGN405TwHwAG+gLOJBFyVAAAAABJRU5ErkJggg==',
+	'base64'
+);
 
-test('four chips and one sheet switch the map’s layers, and the browser remembers them', async ({
+test('four chips choose what the map shows, one sheet switches its layers, and the browser remembers them', async ({
 	context,
 	page,
 	mapDrawn,
@@ -48,34 +54,37 @@ test('four chips and one sheet switch the map’s layers, and the browser rememb
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
 
-	// Four chips, the layers switched most, and three round buttons: airspace, layers, position.
-	const chips = page.getByRole('group', { name: 'Layers on the map' }).getByRole('button');
-	await expect(chips).toHaveText([/Forecast/, /Radar/, /Wind/, /Sites/]);
-	for (const name of ['Wind', 'Sites']) {
-		await expect(chip(page, name)).toHaveAttribute('aria-pressed', 'true');
-	}
+	// Four chips, what the map shows, one at a time and the wind until the
+	// pilot chooses; and three round buttons: airspace, layers, position.
+	const chips = page.getByRole('group', { name: 'What the map shows' }).getByRole('button');
+	await expect(chips).toHaveText([/Wind/, /Thermals/, /Rain/, /Cloud/]);
+	await expect(chip(page, 'Wind')).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.locator('.controls > button')).toHaveCount(3);
+	// No banner over the map: the gliders of other networks show when the map is close.
+	await expect(page.getByText(/Zoom in to see the gliders/)).toHaveCount(0);
 	// The credits are closed from the start.
 	await expect(page.locator('.credits')).toBeHidden();
 	await page.waitForTimeout(1500);
 	await keep('99-map-chips');
 
-	// Everything else is in the one sheet: every layer as a row with a
-	// switch, the chips' four in the same state, and the tools under them.
+	// Everything drawn over it is in the one sheet: every layer as a row
+	// with a switch, and the tools under them.
 	const sheet = await openLayers(page);
-	for (const name of ['Wind', 'Sites', 'Pilots', 'Cables']) {
+	for (const name of ['Sites', 'Pilots', 'Cables']) {
 		await expect(layerSwitch(page, name)).toBeChecked();
 	}
 	for (const name of [
 		'Airspace',
-		'Forecast',
-		'Radar',
 		'Slopes',
+		'Thermal map',
 		'Aerial view',
 		'Climbs now',
 		'Where thermals have been'
 	]) {
 		await expect(layerSwitch(page, name)).not.toBeChecked();
+	}
+	for (const name of ['Wind', 'Forecast', 'Radar']) {
+		await expect(layerSwitch(page, name)).toHaveCount(0);
 	}
 	for (const name of ['Wind stations', 'Flying sites', 'Pilots in the air', 'Plan a route']) {
 		await expect(toolRow(page, name)).toBeVisible();
@@ -85,17 +94,21 @@ test('four chips and one sheet switch the map’s layers, and the browser rememb
 	await expect(sheet.getByRole('heading', { name: 'Lists and plans' })).toBeVisible();
 	await keep('99b-map-layers-sheet');
 
-	// Wind off by its row: the chip says so, and a reload keeps it off.
-	await layerSwitch(page, 'Wind').uncheck();
+	// The sites off by their row, and nothing shown over the ground by
+	// pressing the wind's chip again: a reload keeps both.
+	await layerSwitch(page, 'Sites').uncheck();
 	await closeLayers(page);
+	await chip(page, 'Wind').click();
 	await expect(chip(page, 'Wind')).toHaveAttribute('aria-pressed', 'false');
 	await page.reload();
 	await mapTabDrawn(page, mapDrawn);
 	await expect(chip(page, 'Wind')).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByRole('slider', { name: 'Time' })).toBeHidden();
 	await chip(page, 'Wind').click();
 	await expect(chip(page, 'Wind')).toHaveAttribute('aria-pressed', 'true');
 	await openLayers(page);
-	await expect(layerSwitch(page, 'Wind')).toBeChecked();
+	await expect(layerSwitch(page, 'Sites')).not.toBeChecked();
+	await layerSwitch(page, 'Sites').check();
 	await closeLayers(page);
 
 	// One click on the map's "i" shows every credit, complete; airspace's once it is on.
@@ -331,4 +344,58 @@ test('a flight’s page names the photographs too, and its buttons keep apart', 
 	}
 	await aerial.click();
 	await expect(photos).toHaveCount(0);
+});
+
+test('the thermal map and the pilot’s own flights are layers of the sheet, off until switched on', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide
+}) => {
+	// MADE UP: every tile of the thermal map is one picture of the pack's
+	// thermal colour; the test asks no one's server.
+	const asked: string[] = [];
+	await context.route('https://thermal.kk7.ch/**', (route) => {
+		asked.push(route.request().url());
+		return route.fulfill({ status: 200, contentType: 'image/png', body: THERMAL_TILE });
+	});
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
+	await addSampleFlight(page);
+	await page.goto('/map/');
+	await mapTabDrawn(page, mapDrawn);
+	await showTheValley(page, mapDrawn, wide ? 1 : 2);
+	expect(asked).toEqual([]);
+
+	// Both off: the flights are not on the map, and nothing is asked of thermal.kk7.ch.
+	await openLayers(page);
+	await expect(layerSwitch(page, 'My flights')).not.toBeChecked();
+	await expect(layerSwitch(page, 'Thermal map')).not.toBeChecked();
+	await layerSwitch(page, 'Thermal map').check();
+	await layerSwitch(page, 'My flights').check();
+	await closeLayers(page);
+	await mapDrawn();
+	// Every request tells the map's author who asks: Venti's domain, wherever it runs.
+	await expect.poll(() => asked.length).toBeGreaterThan(0);
+	for (const url of asked) {
+		expect(url).toMatch(
+			/^https:\/\/thermal\.kk7\.ch\/tiles\/thermals_all_all\/.*\?src=venti\.fly$/
+		);
+	}
+	// Its credit stands with the map's while it shows.
+	await openCredits(page);
+	await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText('thermal.kk7.ch');
+	await page.waitForTimeout(800);
+	await keep('103-map-thermal-map');
+
+	// Kept by the browser, and switched off again.
+	await page.reload();
+	await mapTabDrawn(page, mapDrawn);
+	await openLayers(page);
+	await expect(layerSwitch(page, 'Thermal map')).toBeChecked();
+	await expect(layerSwitch(page, 'My flights')).toBeChecked();
+	await layerSwitch(page, 'Thermal map').uncheck();
+	await layerSwitch(page, 'My flights').uncheck();
+	await closeLayers(page);
 });

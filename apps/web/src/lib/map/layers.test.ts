@@ -5,15 +5,17 @@ import {
 	keepAirspace,
 	candidatesOn,
 	keepCandidates,
-	forecastOn,
 	keepAerial,
-	keepForecast,
 	keepLayersOff,
-	keepRadar,
+	keepMyFlights,
 	keepSlopes,
+	keepThermalMap,
+	keepWhat,
 	layersOff,
-	radarOn,
-	slopesOn
+	myFlightsOn,
+	slopesOn,
+	thermalMapOn,
+	whatChosen
 } from './layers';
 
 function memory() {
@@ -49,15 +51,42 @@ describe('the aerial view', () => {
 	});
 });
 
-describe('the forecast layer', () => {
-	it('is off until the pilot switches it on, and remembered by the browser', () => {
+describe('what the map shows', () => {
+	it('is the wind until the pilot chooses, one at a time or nothing, and remembered by the browser', () => {
 		const storage = memory();
-		expect(forecastOn(storage)).toBe(false);
-		keepForecast(storage, true);
-		expect(forecastOn(storage)).toBe(true);
-		keepForecast(storage, false);
-		expect(forecastOn(storage)).toBe(false);
-		expect(forecastOn(undefined)).toBe(false);
+		expect(whatChosen(storage)).toBe('wind');
+		keepWhat(storage, 'rain');
+		expect(whatChosen(storage)).toBe('rain');
+		keepWhat(storage, undefined);
+		expect(whatChosen(storage)).toBeUndefined();
+		storage.setItem('venti.map-what', 'something else');
+		expect(whatChosen(storage)).toBe('wind');
+		expect(whatChosen(undefined)).toBe('wind');
+	});
+});
+
+describe('the pilot’s own flights on the map', () => {
+	it('are off until the pilot switches them on, and remembered by the browser', () => {
+		const storage = memory();
+		expect(myFlightsOn(storage)).toBe(false);
+		keepMyFlights(storage, true);
+		expect(myFlightsOn(storage)).toBe(true);
+		keepMyFlights(storage, false);
+		expect(myFlightsOn(storage)).toBe(false);
+		expect(myFlightsOn(undefined)).toBe(false);
+	});
+});
+
+describe('the thermal map of thermal.kk7.ch', () => {
+	it('is off until the pilot switches it on, and remembered apart from the pilot’s flights', () => {
+		const storage = memory();
+		expect(thermalMapOn(storage)).toBe(false);
+		keepThermalMap(storage, true);
+		expect(thermalMapOn(storage)).toBe(true);
+		expect(myFlightsOn(storage)).toBe(false);
+		keepThermalMap(storage, false);
+		expect(thermalMapOn(storage)).toBe(false);
+		expect(thermalMapOn(undefined)).toBe(false);
 	});
 });
 
@@ -112,47 +141,20 @@ describe('the slopes layer', () => {
 		expect(slopesOn(storage)).toBe(false);
 		keepSlopes(storage, true);
 		expect(slopesOn(storage)).toBe(true);
-		expect(radarOn(storage)).toBe(false);
-		expect(forecastOn(storage)).toBe(false);
+		expect(myFlightsOn(storage)).toBe(false);
 		keepSlopes(storage, false);
 		expect(slopesOn(storage)).toBe(false);
 		expect(slopesOn(undefined)).toBe(false);
 	});
 });
 
-describe('the radar layer', () => {
-	it('is off until the pilot switches it on, and remembered by the browser apart from the forecast', () => {
-		const storage = memory();
-		expect(radarOn(storage)).toBe(false);
-		keepRadar(storage, true);
-		expect(radarOn(storage)).toBe(true);
-		expect(forecastOn(storage)).toBe(false);
-		keepRadar(storage, false);
-		expect(radarOn(storage)).toBe(false);
-	});
-
-	it('is off where nothing can be read', () => {
-		expect(radarOn(undefined)).toBe(false);
-		const refusing = {
-			getItem: () => {
-				throw new Error('denied');
-			},
-			setItem: () => {
-				throw new Error('denied');
-			}
-		};
-		expect(radarOn(refusing)).toBe(false);
-		expect(() => keepRadar(refusing, true)).not.toThrow();
-	});
-});
-
 describe('the layer of take-offs without a site', () => {
-	it('is off until the pilot switches it on, and remembered apart from the radar', () => {
+	it('is off until the pilot switches it on, and remembered apart from the others', () => {
 		const storage = memory();
 		expect(candidatesOn(storage)).toBe(false);
 		keepCandidates(storage, true);
 		expect(candidatesOn(storage)).toBe(true);
-		expect(radarOn(storage)).toBe(false);
+		expect(slopesOn(storage)).toBe(false);
 		keepCandidates(storage, false);
 		expect(candidatesOn(storage)).toBe(false);
 		expect(candidatesOn(undefined)).toBe(false);

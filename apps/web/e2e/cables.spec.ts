@@ -53,8 +53,12 @@ test('the map draws the cables near the Tegernsee, and a click on one says what 
 	// With the wind's arrows, the sites' signs and the pilots off, nothing
 	// else lies under a click on a line: the middle of a stretch of it
 	// that is in the open part of the map.
+	await page
+		.getByRole('group', { name: 'What the map shows' })
+		.getByRole('button', { name: 'Wind' })
+		.click();
 	await openLayers(page);
-	for (const layer of ['Wind', 'Sites', 'Pilots']) {
+	for (const layer of ['Sites', 'Pilots']) {
 		await layerSwitch(page, layer).uncheck();
 	}
 	await closeLayers(page);

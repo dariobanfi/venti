@@ -18,9 +18,11 @@ test('the slopes around the Wallberg are drawn once the map is close, with their
 }) => {
 	// The wind's arrows, the sites' signs and the gliders stay off the map,
 	// so that the screenshots show the slopes.
-	await page.addInitScript(() =>
-		localStorage.setItem('venti.map-layers-off', JSON.stringify(['wind', 'sites', 'pilots']))
-	);
+	await page.addInitScript(() => {
+		// Nothing shown over the ground: no wind's arrows either.
+		localStorage.setItem('venti.map-what', 'none');
+		localStorage.setItem('venti.map-layers-off', JSON.stringify(['sites', 'pilots']));
+	});
 	await page.goto('/?lat=47.6642&lon=11.7967');
 	await mapTabDrawn(page, mapDrawn);
 

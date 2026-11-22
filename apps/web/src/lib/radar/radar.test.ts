@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RadarFrameView, RadarLayerView, RadarMoment, RadarView } from '#lib/core/index.ts';
 import { keyColor, NOT_FLYABLE_ON_MAP } from '#lib/design/palette.ts';
-import { squareOpacity } from '#lib/forecast/thermal-layer.ts';
 import { isRadar, radarBefore, radarId, radarLayer, radarOpacity } from './radar-layer';
 import { RadarModel } from './radar.svelte';
 import {
@@ -18,7 +17,9 @@ import {
 	pictureAddress,
 	pictureKey,
 	solid,
-	stripCells,
+	letThrough,
+	TRACE_ALPHA,
+	veiled,
 	WORDS
 } from './radar';
 
@@ -250,11 +251,11 @@ describe('what a moment draws', () => {
 	});
 
 	it('keeps a frame’s picture with the veil apart from the same frame’s without', () => {
-		const veiled = { path: '/v1/radar/made-up/0.png', drawsUnseen: true, above: [] as string[] };
-		const clear = { ...veiled, drawsUnseen: false };
-		expect(pictureKey(veiled)).not.toBe(pictureKey(clear));
-		expect(drawnKey([veiled, clear])).not.toBe(drawnKey([clear, veiled]));
-		expect(drawnKey([veiled])).toBe(drawnKey([{ ...veiled }]));
+		const withVeil = { path: '/v1/radar/made-up/0.png', drawsUnseen: true, above: [] as string[] };
+		const clear = { ...withVeil, drawsUnseen: false };
+		expect(pictureKey(withVeil)).not.toBe(pictureKey(clear));
+		expect(drawnKey([withVeil, clear])).not.toBe(drawnKey([clear, withVeil]));
+		expect(drawnKey([withVeil])).toBe(drawnKey([{ ...withVeil }]));
 	});
 
 	it('keeps a frame’s picture under one frame apart from the same frame’s under another, and from its own alone', () => {
@@ -286,34 +287,18 @@ describe('the caution', () => {
 	});
 });
 
-describe('the strip of moments', () => {
-	it('writes the minutes of each moment of a short strip, and says the core’s line to a screen reader', () => {
-		expect(stripCells(two(2).moments)).toEqual([
-			{ short: '00', label: 'Rain radar, 11:00, 9 minutes ago' },
-			{ short: '05', label: 'Rain radar, 11:05, 4 minutes ago. The made-up analysis is of 11:00.' }
-		]);
-	});
-
-	it('writes every third of two hours of moments, counted from the newest', () => {
-		const cells = stripCells(view(25).moments);
-		expect(cells).toHaveLength(25);
-		expect(cells.at(-1)?.short).toBe('00');
-		expect(cells.at(-2)?.short).toBe('');
-		expect(cells.at(-4)?.short).toBe('45');
-		expect(cells.filter((cell) => cell.short !== '')).toHaveLength(9);
-		// Every cell says its moment to a screen reader all the same.
-		expect(cells.every((cell) => /^Rain radar, \d\d:\d\d, \d+ minutes ago$/.test(cell.label))).toBe(
-			true
-		);
-	});
-});
-
 describe('the colours of a picture', () => {
 	it('are the tokens the core’s key names, the first step first, and the forecast map’s veil', () => {
 		const given = colours(KEY, true);
-		expect(given.rain).toEqual([...KEY].reverse().map((line) => solid(keyColor(line))));
-		expect(given.unseen).toBe(solid(NOT_FLYABLE_ON_MAP));
+		const lowestFirst = [...KEY].reverse();
+		expect(given.rain).toEqual([
+			letThrough(keyColor(lowestFirst[0]), TRACE_ALPHA),
+			...lowestFirst.slice(1).map((line) => solid(keyColor(line)))
+		]);
+		// The rain solid, the veil let through: the map stays quiet where nothing is seen.
+		expect(given.unseen).toBe(veiled(NOT_FLYABLE_ON_MAP));
 		expect(solid('#6C5F8C')).toBe(0x6c5f8cff);
+		expect(veiled('#6C5F8C')).toBe(0x6c5f8c66);
 		// Six different colours, none of them the veil's.
 		expect(new Set([...given.rain, given.unseen]).size).toBe(7);
 	});
@@ -336,13 +321,13 @@ describe('the pictures on the map', () => {
 		]);
 	});
 
-	it('are drawn unsmoothed, as see-through as the forecast’s squares, and half as strong when old', () => {
+	it('are drawn unsmoothed, nearly solid, and half as strong when old', () => {
 		const drawnLayer = radarLayer(0, false);
 		expect(drawnLayer).toMatchObject({ id: 'radar-0', type: 'raster', source: 'radar-0' });
 		expect(drawnLayer.paint?.['raster-resampling']).toBe('nearest');
 		expect(drawnLayer.paint?.['raster-fade-duration']).toBe(0);
-		expect(drawnLayer.paint?.['raster-opacity']).toEqual(squareOpacity());
-		expect(radarOpacity(true)).toEqual(['interpolate', ['linear'], ['zoom'], 8, 0.25, 12, 0.15]);
+		expect(drawnLayer.paint?.['raster-opacity']).toBe(0.85);
+		expect(radarOpacity(true)).toBe(0.45);
 		expect(radarLayer(1, true).paint?.['raster-opacity']).toEqual(radarOpacity(true));
 	});
 
@@ -422,7 +407,6 @@ describe('the radar as the map tab sees it', () => {
 	it('opens on the newest moment and puts its picture on the map', async () => {
 		const server = core(() => view(3));
 		const model = new RadarModel(server);
-		expect(model.keyOpen).toBe(false);
 		expect(model.onMap).toEqual([]);
 		await model.load();
 		await model.showMoment();

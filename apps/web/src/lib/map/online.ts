@@ -36,8 +36,14 @@ export const ONLINE = {
 	],
 	/**
 	 * Where the thermal map comes from, for the policy as above. Its author
-	 * asks to be told the page's domain with every request, which the style
-	 * does (`style.ts`); a page without a domain never asks.
+	 * asks to be told the app's domain with every request, which the style
+	 * does (`style.ts`) with `appDomain` below.
 	 */
-	thermalHost: 'https://thermal.kk7.ch'
+	thermalHost: 'https://thermal.kk7.ch',
+	/**
+	 * The domain the app names itself by to a provider that asks who is
+	 * calling, the thermal map's author: the owner's, wherever the app runs,
+	 * a local copy on this machine included.
+	 */
+	appDomain: 'venti.fly'
 } as const;

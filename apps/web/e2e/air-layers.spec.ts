@@ -58,9 +58,11 @@ async function markAt(page: Page, layer: 'climb' | 'flown', index: number) {
 
 /** The wind, the sites and the pilots off, so that a click finds the layer's own marks. */
 const onlyTheAir = (page: Page) =>
-	page.addInitScript(() =>
-		localStorage.setItem('venti.map-layers-off', JSON.stringify(['wind', 'sites', 'pilots']))
-	);
+	page.addInitScript(() => {
+		// Nothing shown over the ground: no wind's arrows either.
+		localStorage.setItem('venti.map-what', 'none');
+		localStorage.setItem('venti.map-layers-off', JSON.stringify(['sites', 'pilots']));
+	});
 
 async function signUp(page: Page): Promise<void> {
 	const handle = `pilot${Math.random().toString(36).slice(2, 10)}`;

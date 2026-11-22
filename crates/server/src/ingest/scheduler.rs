@@ -162,6 +162,7 @@ mod tests {
                 r#"
                 id = "{id}"
                 provider = "Test"
+                short_name = "Test"
                 kinds = ["observations", "airspace"]
                 countries = ["DE"]
                 cadence_seconds = {cadence_seconds}

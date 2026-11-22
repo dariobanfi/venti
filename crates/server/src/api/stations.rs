@@ -7,11 +7,11 @@ use serde::Deserialize;
 use venti_api_types::v1::{
     ErrorCode, MAX_STATIONS, Reading, Station, StationWithLatest, StationsResponse, parse_bbox,
 };
-use venti_domain::BoundingBox;
+use venti_domain::{BoundingBox, SourceId};
 use venti_store::Store;
 
 use super::error::ApiError;
-use super::{Api, cache, same_place};
+use super::{Api, cache, health, same_place};
 
 const BBOX_HELP: &str =
     "give bbox as west,south,east,north in degrees, for example bbox=10.5,47.2,11.9,47.8";
@@ -80,15 +80,56 @@ impl<S: Store> Api<S> {
             .zip(left_out)
             .filter(|(entry, left_out)| !left_out && area.contains(entry.station.position))
             .map(|(entry, _)| StationWithLatest {
-                station: Station::from(&entry.station),
+                station: self.station(&entry.station),
                 latest: entry.latest.as_ref().map(Reading::from),
             })
             .collect();
         let attributions = self.attributions(stations.iter().map(|entry| &entry.station.source));
+        let late_sources = self
+            .late_among(attributions.iter().map(|credit| credit.source.clone()))
+            .await?;
         Ok(StationsResponse {
             stations,
             truncated,
             attributions,
+            late_sources,
         })
+    }
+
+    /// A station as the API hands it out: with the short name of its
+    /// network.
+    pub(crate) fn station(&self, station: &venti_domain::Station) -> Station {
+        Station {
+            network: self
+                .sources
+                .get(station.id.source())
+                .and_then(|served| served.attribution.short_name.clone()),
+            ..Station::from(station)
+        }
+    }
+
+    /// Which of `sources` are stale, as `/v1/health` judges it. Only
+    /// sources whose stations are in an answer are asked about: a late
+    /// source elsewhere, or one that never delivered and so has no station
+    /// anywhere, is for `/v1/health` to name.
+    async fn late_among(
+        &self,
+        sources: impl IntoIterator<Item = SourceId>,
+    ) -> Result<Vec<SourceId>, ApiError> {
+        let sources: Vec<SourceId> = sources.into_iter().collect();
+        if sources.is_empty() {
+            return Ok(Vec::new());
+        }
+        let now = self.clock.now();
+        let statuses = self.store.source_status(&sources).await?;
+        Ok(statuses
+            .into_iter()
+            .filter(|status| {
+                self.sources.get(&status.source).is_some_and(|served| {
+                    health::stale(served.cadence_seconds, status.last_success, now)
+                })
+            })
+            .map(|status| status.source)
+            .collect())
     }
 }

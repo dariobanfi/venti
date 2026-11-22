@@ -13,6 +13,11 @@ pub struct Attribution {
     pub source: SourceId,
     /// Who publishes the data.
     pub provider: String,
+    /// The name pilots know a network of stations by, "MeteoSwiss": what
+    /// labels its stations in a list. Never in place of the credit. Left
+    /// out for a source that is no network of stations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub short_name: Option<String>,
     /// Name of the licence, for example `CC BY 4.0`.
     pub licence: String,
     /// The credit line, worded as the provider asks.

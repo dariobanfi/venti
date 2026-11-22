@@ -4,6 +4,7 @@
       "id": "arso-ams:KREDA-ICA_",
       "source": "arso-ams",
       "name": "Kredarica",
+      "network": "ARSO",
       "position": {
         "lat": 46.3787,
         "lon": 13.8489
@@ -23,6 +24,7 @@
       "id": "arso-ams:ROGLA_",
       "source": "arso-ams",
       "name": "Rogla",
+      "network": "ARSO",
       "position": {
         "lat": 46.453,
         "lon": 15.3315
@@ -41,6 +43,7 @@
       "id": "arso-ams:URSLJ-GOR_",
       "source": "arso-ams",
       "name": "Uršlja gora",
+      "network": "ARSO",
       "position": {
         "lat": 46.4849,
         "lon": 14.9634
@@ -59,6 +62,7 @@
       "id": "awc-metar:EDJA",
       "source": "awc-metar",
       "name": "Memmingerberg Arpt, BY, DE",
+      "network": "METAR",
       "position": {
         "lat": 47.989,
         "lon": 10.239
@@ -76,6 +80,7 @@
       "id": "awc-metar:LOWI",
       "source": "awc-metar",
       "name": "Innsbruck Arpt, TI, AT",
+      "network": "METAR",
       "position": {
         "lat": 47.26,
         "lon": 11.344
@@ -92,6 +97,7 @@
       "id": "dwd-10min:01550",
       "source": "dwd-10min",
       "name": "Garmisch-Partenkirchen",
+      "network": "DWD",
       "position": {
         "lat": 47.483,
         "lon": 11.0621
@@ -109,6 +115,7 @@
       "id": "dwd-10min:02290",
       "source": "dwd-10min",
       "name": "Hohenpeißenberg",
+      "network": "DWD",
       "position": {
         "lat": 47.8009,
         "lon": 11.0108
@@ -129,6 +136,7 @@
       "id": "dwd-10min:05792",
       "source": "dwd-10min",
       "name": "Zugspitze",
+      "network": "DWD",
       "position": {
         "lat": 47.421,
         "lon": 10.9848
@@ -149,6 +157,7 @@
       "id": "geosphere-tawes:11126",
       "source": "geosphere-tawes",
       "name": "PATSCHERKOFEL",
+      "network": "GeoSphere",
       "position": {
         "lat": 47.20888888888889,
         "lon": 11.462222222222222
@@ -169,6 +178,7 @@
       "id": "geosphere-tawes:11150",
       "source": "geosphere-tawes",
       "name": "Salzburg-Flughafen",
+      "network": "GeoSphere",
       "position": {
         "lat": 47.7894,
         "lon": 13.0086
@@ -188,6 +198,7 @@
       "id": "geosphere-tawes:11320",
       "source": "geosphere-tawes",
       "name": "INNSBRUCK/UNIVERSITAET",
+      "network": "GeoSphere",
       "position": {
         "lat": 47.26,
         "lon": 11.384166666666665
@@ -209,6 +220,7 @@
       "id": "geosphere-tawes:11331",
       "source": "geosphere-tawes",
       "name": "Klagenfurt-Flughafen",
+      "network": "GeoSphere",
       "position": {
         "lat": 46.6483,
         "lon": 14.3183
@@ -228,6 +240,7 @@
       "id": "geosphere-tawes:11343",
       "source": "geosphere-tawes",
       "name": "SONNBLICK - AUTOM.",
+      "network": "GeoSphere",
       "position": {
         "lat": 47.05416666666667,
         "lon": 12.9575
@@ -248,6 +261,7 @@
       "id": "meteoswiss-smn:DAV",
       "source": "meteoswiss-smn",
       "name": "Davos",
+      "network": "MeteoSwiss",
       "position": {
         "lat": 46.812969,
         "lon": 9.843558
@@ -267,6 +281,7 @@
       "id": "meteoswiss-smn:SAM",
       "source": "meteoswiss-smn",
       "name": "Samedan",
+      "network": "MeteoSwiss",
       "position": {
         "lat": 46.526247,
         "lon": 9.879469
@@ -286,6 +301,7 @@
       "id": "meteoswiss-smn:WFJ",
       "source": "meteoswiss-smn",
       "name": "Weissfluhjoch",
+      "network": "MeteoSwiss",
       "position": {
         "lat": 46.833342,
         "lon": 9.806397
@@ -305,6 +321,7 @@
       "id": "pioupiou:1514",
       "source": "pioupiou",
       "name": "Kampenwand Hirschenstein 1453 m",
+      "network": "Pioupiou",
       "position": {
         "lat": 47.77225,
         "lon": 12.36509
@@ -320,6 +337,7 @@
       "id": "pioupiou:2077",
       "source": "pioupiou",
       "name": "Osterfelder Nord -Startplatz",
+      "network": "Pioupiou",
       "position": {
         "lat": 47.439445,
         "lon": 11.052041
@@ -335,6 +353,7 @@
       "id": "pioupiou:2150",
       "source": "pioupiou",
       "name": "Coburgerhütte 1920m",
+      "network": "Pioupiou",
       "position": {
         "lat": 47.360086,
         "lon": 10.933592
@@ -350,6 +369,7 @@
       "id": "slf-imis:DAV1",
       "source": "slf-imis",
       "name": "Chrachenhorn",
+      "network": "SLF",
       "position": {
         "lat": 46.688510327,
         "lon": 9.8143102025
@@ -368,6 +388,7 @@
       "id": "slf-imis:MLB1",
       "source": "slf-imis",
       "name": "Spitz",
+      "network": "SLF",
       "position": {
         "lat": 47.0867605724,
         "lon": 9.6239926506
@@ -386,6 +407,7 @@
       "id": "slf-imis:WFJ2",
       "source": "slf-imis",
       "name": "Weissfluhjoch",
+      "network": "SLF",
       "position": {
         "lat": 46.8296377828,
         "lon": 9.8092889157
@@ -404,6 +426,7 @@
       "id": "suedtirol-meteo:35100WS",
       "source": "suedtirol-meteo",
       "name": "Jaufenkamm",
+      "network": "South Tyrol",
       "position": {
         "lat": 46.8401,
         "lon": 11.3184
@@ -422,6 +445,7 @@
       "id": "suedtirol-meteo:37100MS",
       "source": "suedtirol-meteo",
       "name": "Sterzing",
+      "network": "South Tyrol",
       "position": {
         "lat": 46.885,
         "lon": 11.4386
@@ -440,6 +464,7 @@
       "id": "suedtirol-meteo:83200MS",
       "source": "suedtirol-meteo",
       "name": "Bozen",
+      "network": "South Tyrol",
       "position": {
         "lat": 46.4977,
         "lon": 11.3128
@@ -461,6 +486,7 @@
     {
       "source": "arso-ams",
       "provider": "Slovenian Environment Agency ARSO",
+      "short_name": "ARSO",
       "licence": "ARSO terms of reuse (Pogoji ponovne uporabe)",
       "text": "Vir: ARSO (Source: Slovenian Environment Agency)",
       "url": "https://meteo.arso.gov.si/uploads/meteo/help/sl/copyright.html"
@@ -468,6 +494,7 @@
     {
       "source": "awc-metar",
       "provider": "Aviation Weather Center",
+      "short_name": "METAR",
       "licence": "Public domain, U.S. Government",
       "text": "Data source: Aviation Weather Center, aviationweather.gov",
       "url": "https://aviationweather.gov/data/api/"
@@ -475,6 +502,7 @@
     {
       "source": "dwd-10min",
       "provider": "Deutscher Wetterdienst",
+      "short_name": "DWD",
       "licence": "CC BY 4.0",
       "text": "Quelle: Deutscher Wetterdienst",
       "url": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
@@ -482,6 +510,7 @@
     {
       "source": "geosphere-tawes",
       "provider": "GeoSphere Austria",
+      "short_name": "GeoSphere",
       "licence": "CC BY 4.0",
       "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
       "url": "https://data.hub.geosphere.at"
@@ -489,6 +518,7 @@
     {
       "source": "meteoswiss-smn",
       "provider": "Federal Office of Meteorology and Climatology MeteoSwiss",
+      "short_name": "MeteoSwiss",
       "licence": "CC BY 4.0",
       "text": "Source: MeteoSwiss",
       "url": "https://opendatadocs.meteoswiss.ch/general/terms-of-use"
@@ -496,6 +526,7 @@
     {
       "source": "pioupiou",
       "provider": "OpenWindMap (Pioupiou wind network)",
+      "short_name": "Pioupiou",
       "licence": "Pioupiou Community License",
       "text": "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org>",
       "url": "https://openwindmap.org"
@@ -503,6 +534,7 @@
     {
       "source": "slf-imis",
       "provider": "WSL Institute for Snow and Avalanche Research SLF",
+      "short_name": "SLF",
       "licence": "CC BY 4.0",
       "text": "Data source: WSL Institute for Snow and Avalanche Research SLF - www.slf.ch",
       "url": "https://www.slf.ch"
@@ -510,6 +542,7 @@
     {
       "source": "suedtirol-meteo",
       "provider": "Autonome Provinz Bozen - Südtirol",
+      "short_name": "South Tyrol",
       "licence": "CC0 1.0",
       "text": "Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz",
       "url": "https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche"

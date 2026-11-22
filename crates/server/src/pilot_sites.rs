@@ -150,6 +150,7 @@ impl Layer {
         Attribution {
             source: self.source(),
             provider: licence.provider.to_owned(),
+            short_name: None,
             licence: licence.name.to_owned(),
             text: licence.credit.to_owned(),
             url: licence.url.to_owned(),

@@ -116,6 +116,7 @@ On-device instrument drivers follow the same idea in the `sensors` crate: one pa
 ```toml
 id = "geosphere-tawes"
 provider = "GeoSphere Austria"
+short_name = "GeoSphere"
 kinds = ["observations"]
 countries = ["AT"]
 cadence_seconds = 600
@@ -149,6 +150,7 @@ Each adapter crate has its manifest in `manifest.toml`, compiled into the crate.
 The manifest is data, not comments. The server reads it to:
 
 - send the credit of every source with the data it serves: the credit line, the licence's name and the link (`attribution`, `name`, `link`), and the `notice` if the provider asks for one to be shown with its data, as openAIP does;
+- label each station with the short name of its network (`short_name`, at most 14 characters, the name pilots call it: "MeteoSwiss", "SLF"; required of a source of observations), so that two stations of one name are told apart in a list. It goes out beside the credit and never in its place;
 - enforce rate limits and schedules;
 - bound what one request may bring: `max_response_kb` is the largest answer taken from the provider, and the fetcher stops reading there. A manifest that says nothing gets 32 MB;
 - refuse to start with a source whose licence does not allow serving its data onward;

@@ -2,6 +2,8 @@ id = "meteoswiss-smn"
 # SwissMetNet, the automatic weather stations of MeteoSwiss: 158 in the
 # station list on 2026-11-22, all in Switzerland but Vaduz in Liechtenstein.
 provider = "Federal Office of Meteorology and Climatology MeteoSwiss"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "MeteoSwiss"
 kinds = ["observations"]
 countries = ["CH", "LI"]
 # The file of current values is written every ten minutes. The

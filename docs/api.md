@@ -181,6 +181,7 @@ Because its clock stands still, this mode takes live fixes of **any time**, wher
 |---|---|
 | `source` | The source's identifier, as records name it |
 | `provider` | Who publishes the data |
+| `short_name` | The name pilots know a network of stations by, "MeteoSwiss", at most 14 characters: what labels its stations in a list. Never in place of the credit. Left out for a source that is no network of stations |
 | `licence` | The licence's name |
 | `text` | The credit line, worded as the provider asks |
 | `url` | Where the credit line links to |
@@ -562,6 +563,7 @@ curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.4,11.0,47.5'
       "id": "dwd-10min:05792",
       "source": "dwd-10min",
       "name": "Zugspitze",
+      "network": "DWD",
       "position": {
         "lat": 47.421,
         "lon": 10.9848
@@ -584,6 +586,7 @@ curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.4,11.0,47.5'
     {
       "source": "dwd-10min",
       "provider": "Deutscher Wetterdienst",
+      "short_name": "DWD",
       "licence": "CC BY 4.0",
       "text": "Quelle: Deutscher Wetterdienst",
       "url": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
@@ -597,6 +600,7 @@ curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.4,11.0,47.5'
 | `stations[].id` | The station's identifier, `source:local`. Use it in the observations path |
 | `stations[].source` | The source that reports the station |
 | `stations[].name` | The name as the provider publishes it |
+| `stations[].network` | The short name of the station's network, as its source's `attributions[].short_name`: what tells two stations of one name apart, the Weissfluhjoch of `MeteoSwiss` and of the `SLF`. Left out when the source has none |
 | `stations[].position` | Latitude and longitude |
 | `stations[].elevation_m` | Height above mean sea level. Left out if the provider gives none |
 | `stations[].latest` | The newest observation the server holds, however old. Left out if it holds none |
@@ -606,6 +610,7 @@ curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.4,11.0,47.5'
 | `latest.temperature_c`, `humidity_pct`, `pressure_hpa` | Air temperature, relative humidity, pressure at the station |
 | `latest.pressure_sea_level_hpa` | The pressure reduced to sea level by the provider's own reduction, hPa. Only from a station whose provider sends it so (South Tyrol's, and GeoSphere Austria's up to about 900 m); the [foehn reading](#get-v1foehn) compares it |
 | `truncated` | `true` when the box holds more than 5000 stations. The answer then lists the first 5000 by source and identifier; ask for a smaller box |
+| `late_sources` | The sources with a station in the list that the server has had no new data from for too long, as `stale` in [`/v1/health`](#get-v1health) judges it (since 2026-11-22): their stations show old readings until they deliver again. A late source with no station in the list is not named, nor one that never delivered and so has a station nowhere; `/v1/health` names every one. Left out when there is none |
 
 Stations are sorted by source and then by identifier.
 
@@ -642,6 +647,7 @@ curl 'http://127.0.0.1:8080/v1/stations/dwd-10min:05792/observations?from=2026-1
     "id": "dwd-10min:05792",
     "source": "dwd-10min",
     "name": "Zugspitze",
+    "network": "DWD",
     "position": {
       "lat": 47.421,
       "lon": 10.9848
@@ -684,6 +690,7 @@ curl 'http://127.0.0.1:8080/v1/stations/dwd-10min:05792/observations?from=2026-1
     {
       "source": "dwd-10min",
       "provider": "Deutscher Wetterdienst",
+      "short_name": "DWD",
       "licence": "CC BY 4.0",
       "text": "Quelle: Deutscher Wetterdienst",
       "url": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
@@ -4601,6 +4608,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
     {
       "source": "geosphere-tawes",
       "provider": "GeoSphere Austria",
+      "short_name": "GeoSphere",
       "licence": "CC BY 4.0",
       "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
       "url": "https://data.hub.geosphere.at"
@@ -4608,6 +4616,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
     {
       "source": "suedtirol-meteo",
       "provider": "Autonome Provinz Bozen - Südtirol",
+      "short_name": "South Tyrol",
       "licence": "CC0 1.0",
       "text": "Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz",
       "url": "https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche"

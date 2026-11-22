@@ -1,5 +1,7 @@
 id = "awc-metar"
 provider = "Aviation Weather Center"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "METAR"
 kinds = ["observations"]
 # The service has the reports of the whole world. These are the countries
 # whose airfields answered for the first region's box on 2026-11-21, and

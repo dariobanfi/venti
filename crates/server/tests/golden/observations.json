@@ -3,6 +3,7 @@
     "id": "dwd-10min:05792",
     "source": "dwd-10min",
     "name": "Zugspitze",
+    "network": "DWD",
     "position": {
       "lat": 47.421,
       "lon": 10.9848
@@ -45,6 +46,7 @@
     {
       "source": "dwd-10min",
       "provider": "Deutscher Wetterdienst",
+      "short_name": "DWD",
       "licence": "CC BY 4.0",
       "text": "Quelle: Deutscher Wetterdienst",
       "url": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"

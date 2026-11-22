@@ -6,6 +6,8 @@ id = "arpa-lombardia"
 # (647i-nhxk). The portal's records of both name "ARPA - Regione Lombardia"
 # as the source.
 provider = "ARPA Lombardia (Regione Lombardia)"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "ARPA Lombardia"
 kinds = ["observations"]
 countries = ["IT"]
 # A sensor has a value every ten minutes. The values reach the portal late

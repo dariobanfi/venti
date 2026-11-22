@@ -6,6 +6,9 @@
 id = "__ID__"
 # Who measures and publishes: the organisation's own name.
 provider = "TO FILL IN"
+# The name pilots call the network by, at most 14 characters: "MeteoSwiss",
+# "SLF". It labels each station in a list; the credit stays in full.
+short_name = "TO FILL IN"
 kinds = ["observations"]
 # Two-letter codes of the countries the stations stand in.
 countries = ["XX"]

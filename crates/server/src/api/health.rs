@@ -46,6 +46,14 @@ fn patience(cadence_seconds: u32) -> Duration {
     }
 }
 
+/// Whether a source collected every `cadence_seconds` whose last healthy
+/// run was at `last_success` is stale at `now`: late enough that its data
+/// counts as old. A source that never ran is.
+pub(crate) fn stale(cadence_seconds: u32, last_success: Option<Timestamp>, now: Timestamp) -> bool {
+    let patience = patience(cadence_seconds);
+    last_success.is_none_or(|success| now - success > patience)
+}
+
 /// `GET /v1/health`: how the server and each of its sources are doing.
 ///
 /// Answers `200` whenever the server can read its database, also when
@@ -154,7 +162,6 @@ fn source_health(
     held: &Held<'_>,
     now: Timestamp,
 ) -> SourceHealth {
-    let patience = patience(served.cadence_seconds);
     let of_airspace = served.kinds.contains(&Kind::Airspace);
     let of_sites = served.kinds.contains(&Kind::Sites);
     let set = held.airspace;
@@ -165,9 +172,7 @@ fn source_health(
         last_success: status.last_success,
         last_failure: status.last_failure,
         newest_observation: status.newest_observation,
-        stale: status
-            .last_success
-            .is_none_or(|success| now - success > patience),
+        stale: stale(served.cadence_seconds, status.last_success, now),
         stations: status.stations,
         // What the server holds, which is what it serves: the set of the
         // last healthy run, however long ago that was.
@@ -208,6 +213,7 @@ mod tests {
             attribution: Attribution {
                 source: source.clone(),
                 provider: String::new(),
+                short_name: None,
                 licence: String::new(),
                 text: String::new(),
                 url: String::new(),

@@ -1,5 +1,7 @@
 id = "geosphere-tawes"
 provider = "GeoSphere Austria"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "GeoSphere"
 kinds = ["observations"]
 countries = ["AT"]
 cadence_seconds = 600

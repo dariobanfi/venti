@@ -189,6 +189,7 @@
     {
       "source": "geosphere-tawes",
       "provider": "GeoSphere Austria",
+      "short_name": "GeoSphere",
       "licence": "CC BY 4.0",
       "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
       "url": "https://data.hub.geosphere.at"
@@ -196,6 +197,7 @@
     {
       "source": "suedtirol-meteo",
       "provider": "Autonome Provinz Bozen - Südtirol",
+      "short_name": "South Tyrol",
       "licence": "CC0 1.0",
       "text": "Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz",
       "url": "https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche"

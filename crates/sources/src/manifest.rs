@@ -14,6 +14,13 @@ pub struct Manifest {
     pub id: SourceId,
     /// Who publishes the data.
     pub provider: String,
+    /// The name pilots know the network by, short enough for a row of a
+    /// list: "MeteoSwiss", "SLF", "Pioupiou". At most
+    /// [`MAX_SHORT_NAME_CHARS`] characters. Required of a source of
+    /// observations, where it labels each station; it never stands in for
+    /// the credit, which the licence wants in full.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub short_name: Option<String>,
     /// What kinds of data the source offers.
     pub kinds: Vec<Kind>,
     /// Countries covered, as ISO 3166-1 alpha-2 codes.
@@ -65,6 +72,10 @@ pub struct Asset {
     /// manifest's constraints say it was read).
     pub licence: Licence,
 }
+
+/// The longest short name a manifest may give its network, in characters:
+/// what fits after a station's height in a row of a list on a phone.
+pub const MAX_SHORT_NAME_CHARS: usize = 14;
 
 /// The largest answer taken from a provider whose manifest names no size
 /// of its own: 32 MB. The largest file any source fetched when this was
@@ -237,6 +248,22 @@ impl Manifest {
         if self.kinds.is_empty() {
             return Err(invalid("no kinds listed"));
         }
+        match &self.short_name {
+            Some(name) if name.trim().is_empty() => {
+                return Err(invalid("short_name is empty"));
+            }
+            Some(name) if name.chars().count() > MAX_SHORT_NAME_CHARS => {
+                return Err(invalid(&format!(
+                    "short_name is longer than {MAX_SHORT_NAME_CHARS} characters"
+                )));
+            }
+            None if self.kinds.contains(&Kind::Observations) => {
+                return Err(invalid(
+                    "a source of observations needs a short_name, which labels its stations",
+                ));
+            }
+            _ => {}
+        }
         let is_country = |c: &String| c.len() == 2 && c.chars().all(|ch| ch.is_ascii_uppercase());
         if self.countries.is_empty() || !self.countries.iter().all(is_country) {
             return Err(invalid("countries must be two-letter upper-case codes"));
@@ -299,6 +326,7 @@ mod tests {
     const GOOD: &str = r#"
         id = "example-source"
         provider = "Example Weather Service"
+        short_name = "Example"
         kinds = ["observations"]
         countries = ["AT"]
         cadence_seconds = 600
@@ -324,6 +352,24 @@ mod tests {
         assert_eq!(manifest.id.as_str(), "example-source");
         assert_eq!(manifest.licence.family(), LicenceFamily::Open);
         assert_eq!(manifest.requests_per_run(), Some(40));
+    }
+
+    #[test]
+    fn a_station_network_names_itself_shortly() {
+        assert_eq!(
+            Manifest::from_toml(GOOD).unwrap().short_name.as_deref(),
+            Some("Example")
+        );
+        let without = GOOD.replace("short_name = \"Example\"\n", "");
+        let error = Manifest::from_toml(&without).unwrap_err().to_string();
+        assert!(error.contains("short_name"), "{error}");
+        let long = GOOD.replace("\"Example\"", "\"Example Weather Service\"");
+        assert!(Manifest::from_toml(&long).is_err());
+        let blank = GOOD.replace("\"Example\"", "\" \"");
+        assert!(Manifest::from_toml(&blank).is_err());
+        // Of other kinds it is not asked for.
+        let airspace = without.replace("[\"observations\"]", "[\"airspace\"]");
+        assert_eq!(Manifest::from_toml(&airspace).unwrap().short_name, None);
     }
 
     #[test]

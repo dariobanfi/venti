@@ -3,6 +3,8 @@ id = "arso-ams"
 # the state's weather service, and its automatic weather stations ("AMS",
 # samodejne meteorološke postaje). The file's own <credit> names it.
 provider = "Slovenian Environment Agency ARSO"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "ARSO"
 kinds = ["observations"]
 # 103 stations in the file on 2026-11-22, all in Slovenia but one buoy in
 # the Gulf of Trieste ("Tržaški zaliv (Zarja)", at 45.60 N 13.54 E).

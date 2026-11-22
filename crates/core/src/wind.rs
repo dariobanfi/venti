@@ -16,6 +16,7 @@ use venti_api_types::v1::{
 };
 use venti_domain::{BoundingBox, StationId};
 
+use crate::route_weather::listed;
 use crate::server::answer;
 use crate::{Coordinate, CoreError};
 
@@ -207,6 +208,21 @@ pub struct WindStation {
     pub is_old: bool,
     /// How the station is drawn and labelled.
     pub mark: WindMark,
+    /// The short name of the network it belongs to, "MeteoSwiss": what
+    /// tells apart two stations of the same name. None when the server
+    /// does not say, as one older than the field. Never in place of the
+    /// credit.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub network: Option<String>,
+    /// What a list says under the station's name: its height, "no reading"
+    /// or the age of a reading that is too old, and its network, in that
+    /// order and as many as are known: "2691 m · MeteoSwiss",
+    /// "2536 m · 3 hours ago · SLF". The age is as old as the answer;
+    /// a shell that counts it on by its own clock writes the line itself.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub line: String,
 }
 
 /// Whose data is shown. The licences require this credit next to the data.
@@ -247,6 +263,17 @@ pub struct WindMap {
     /// Whether the area holds more stations than one answer lists; the
     /// pilot should zoom in.
     pub truncated: bool,
+    /// The networks among the stations here that the server has had no new
+    /// data from for a while, by their short names: their stations show
+    /// old readings. A late network with no station here is not named.
+    #[uniffi(default = [])]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub late_networks: Vec<String>,
+    /// What to tell the pilot about them: "No new wind data from
+    /// Meteotrentino for a while." None when every network here delivers.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub late_notice: Option<String>,
 }
 
 /// What one station measured over time.
@@ -286,8 +313,12 @@ pub struct ServerStatus {
     /// reading is computed against this, not against the device's clock,
     /// which may be wrong.
     pub time_unix_s: i64,
-    /// The providers whose data the server has not received lately. Their
-    /// stations show old readings until the provider delivers again.
+    /// The providers whose data the server has not received lately,
+    /// wherever their stations are, and those that never delivered. Their
+    /// stations show old readings until the provider delivers again. Not
+    /// for the map's notice: that is [`WindMap`]'s `late_notice`, which
+    /// names only the networks with stations in the part of the map asked
+    /// for.
     pub late_providers: Vec<String>,
     /// Who may create an account here. `None` when the server does not
     /// say, as one older than the question, or names a rule this version
@@ -363,6 +394,24 @@ pub fn wind_map_path(south: f64, west: f64, north: f64, east: f64) -> Result<Str
 #[uniffi::export]
 pub fn wind_map(status: u16, body: Vec<u8>, now_unix_s: i64) -> Result<WindMap, CoreError> {
     let response: StationsResponse = answer(status, &body)?;
+    let late_networks: Vec<String> = response
+        .late_sources
+        .iter()
+        .map(|source| {
+            let credit = response
+                .attributions
+                .iter()
+                .find(|credit| &credit.source == source);
+            credit
+                .and_then(|credit| credit.short_name.clone())
+                .or_else(|| credit.map(|credit| credit.provider.clone()))
+                .unwrap_or_else(|| source.to_string())
+        })
+        .collect();
+    let late_notice = (!late_networks.is_empty()).then(|| {
+        let names: Vec<&str> = late_networks.iter().map(String::as_str).collect();
+        format!("No new wind data from {} for a while.", listed(&names))
+    });
     Ok(WindMap {
         stations: response
             .stations
@@ -371,6 +420,8 @@ pub fn wind_map(status: u16, body: Vec<u8>, now_unix_s: i64) -> Result<WindMap, 
             .collect(),
         credits: response.attributions.iter().map(credit).collect(),
         truncated: response.truncated,
+        late_networks,
+        late_notice,
     })
 }
 
@@ -604,9 +655,41 @@ fn wind_station(station: &StationWithLatest, now_unix_s: i64) -> WindStation {
         },
         elevation_m: station.station.elevation_m,
         mark: wind_mark(latest.as_ref(), is_old),
+        network: station.station.network.clone(),
+        line: station_line(station, age_min, is_old),
         latest,
         age_min,
         is_old,
+    }
+}
+
+/// What a list says under a station's name: "2691 m · MeteoSwiss",
+/// "2536 m · 3 hours ago · SLF", "1450 m · no reading · Pioupiou".
+fn station_line(station: &StationWithLatest, age_min: Option<i64>, is_old: bool) -> String {
+    let mut parts = Vec::new();
+    if let Some(height) = station.station.elevation_m {
+        parts.push(format!("{} m", height.round() as i64));
+    }
+    if station.latest.is_none() {
+        parts.push("no reading".to_owned());
+    } else if let Some(age) = age_min.filter(|_| is_old) {
+        parts.push(age_words(age));
+    }
+    if let Some(network) = &station.station.network {
+        parts.push(network.clone());
+    }
+    parts.join(" \u{b7} ")
+}
+
+/// How long ago a reading was measured: "just now", "25 minutes ago",
+/// "3 hours ago", "2 days ago".
+fn age_words(minutes: i64) -> String {
+    match minutes {
+        ..1 => "just now".to_owned(),
+        1 => "1 minute ago".to_owned(),
+        2..90 => format!("{minutes} minutes ago"),
+        _ if minutes < 36 * 60 => format!("{} hours ago", (minutes + 30) / 60),
+        _ => format!("{} days ago", (minutes + 720) / 1440),
     }
 }
 
@@ -801,6 +884,74 @@ mod tests {
         assert_eq!(wind_speeds_label(3.0, Some(7.0)), "11/25");
         // Gusts that round to the mean add nothing.
         assert_eq!(wind_speeds_label(3.0, Some(3.1)), "11");
+    }
+
+    #[test]
+    fn a_row_says_height_age_and_network_and_late_networks_here_are_named() {
+        let body = r#"{
+            "stations": [
+                {"id": "meteoswiss-smn:WFJ", "source": "meteoswiss-smn", "name": "Weissfluhjoch",
+                 "network": "MeteoSwiss", "position": {"lat": 46.833, "lon": 9.806},
+                 "elevation_m": 2690.6,
+                 "latest": {"time": "2026-11-18T19:00:00Z", "wind_speed_ms": 4.0}},
+                {"id": "slf-imis:WFJ2", "source": "slf-imis", "name": "Weissfluhjoch",
+                 "network": "SLF", "position": {"lat": 46.829, "lon": 9.809},
+                 "elevation_m": 2536.0,
+                 "latest": {"time": "2026-11-18T16:05:00Z", "wind_speed_ms": 4.0}},
+                {"id": "meteotrentino:T0099", "source": "meteotrentino", "name": "Paganella",
+                 "network": "Meteotrentino", "position": {"lat": 46.14, "lon": 11.04}},
+                {"id": "old-server:1", "source": "old-server", "name": "Somewhere",
+                 "position": {"lat": 46.0, "lon": 11.0}, "elevation_m": 900.0}
+            ],
+            "truncated": false,
+            "attributions": [
+                {"source": "meteotrentino", "provider": "Provincia Autonoma di Trento - Meteotrentino",
+                 "short_name": "Meteotrentino", "licence": "CC BY 4.0", "text": "Meteotrentino",
+                 "url": "https://www.meteotrentino.it/"},
+                {"source": "slf-imis", "provider": "WSL Institute for Snow and Avalanche Research SLF",
+                 "short_name": "SLF", "licence": "CC BY 4.0", "text": "SLF", "url": "https://www.slf.ch/"}
+            ],
+            "late_sources": ["meteotrentino", "slf-imis"]
+        }"#;
+
+        let map = wind_map(200, body.as_bytes().to_vec(), NOW).unwrap();
+
+        let lines: Vec<&str> = map.stations.iter().map(|s| s.line.as_str()).collect();
+        assert_eq!(
+            lines,
+            [
+                "2691 m \u{b7} MeteoSwiss",
+                "2536 m \u{b7} 3 hours ago \u{b7} SLF",
+                "no reading \u{b7} Meteotrentino",
+                // A server older than the networks' names says none.
+                "900 m \u{b7} no reading",
+            ]
+        );
+        assert_eq!(map.stations[1].network.as_deref(), Some("SLF"));
+        assert_eq!(map.stations[3].network, None);
+        assert_eq!(map.late_networks, ["Meteotrentino", "SLF"]);
+        assert_eq!(
+            map.late_notice.as_deref(),
+            Some("No new wind data from Meteotrentino and SLF for a while.")
+        );
+        // The full credits are as the server sent them.
+        assert_eq!(
+            map.credits[0].provider,
+            "Provincia Autonoma di Trento - Meteotrentino"
+        );
+
+        let quiet = wind_map(200, STATIONS.as_bytes().to_vec(), NOW).unwrap();
+        assert!(quiet.late_networks.is_empty());
+        assert_eq!(quiet.late_notice, None);
+    }
+
+    #[test]
+    fn an_age_is_said_in_minutes_hours_or_days() {
+        assert_eq!(age_words(0), "just now");
+        assert_eq!(age_words(1), "1 minute ago");
+        assert_eq!(age_words(89), "89 minutes ago");
+        assert_eq!(age_words(90), "2 hours ago");
+        assert_eq!(age_words(36 * 60), "2 days ago");
     }
 
     #[test]

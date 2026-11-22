@@ -195,7 +195,8 @@ pub fn assert_golden(path: &Path, value: &impl Serialize) {
 ///
 /// What is held:
 ///
-/// - **The manifest** names observations among its kinds, may be passed
+/// - **The manifest** names observations among its kinds, gives the
+///   network a short name that labels its stations, may be passed
 ///   on (the server refuses to collect a source that may not), and says
 ///   where and when its licence was read. That it parses, with a provider,
 ///   countries, a cadence and a whole licence, was checked when the
@@ -238,6 +239,14 @@ pub fn check_station_adapter<B: AsRef<[u8]>>(
     assert!(
         manifest.kinds.contains(&Kind::Observations),
         "{id}: the manifest's kinds do not name observations"
+    );
+    assert!(
+        manifest.short_name.as_ref().is_some_and(|name| {
+            !name.trim().is_empty() && name.chars().count() <= crate::MAX_SHORT_NAME_CHARS
+        }),
+        "{id}: the manifest gives no short_name of at most {} characters, which labels each \
+         station in a list",
+        crate::MAX_SHORT_NAME_CHARS
     );
     assert!(
         manifest.licence.redistribution,

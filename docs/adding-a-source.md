@@ -71,6 +71,7 @@ with `.with_sample(fixtures::evening_at(), fixtures::evening())` after `new(…)
 Fill in every line of `manifest.toml` marked `TO FILL IN`, from the provider's pages. [data-sources.md](data-sources.md#manifest) describes each field. What matters most:
 
 - `id`: lower-case, stable for ever. It is in every record's identifier and in every region pack.
+- `short_name`: the name pilots call the network by, at most 14 characters: "MeteoSwiss", "SLF", "ARPA Lombardia". It ends each station's line in a list, where two stations of one name ("Weissfluhjoch") are told apart by it; check it against how the provider calls itself. The manifest is refused without it, and the contract check fails. It never replaces the credit, which goes out in full.
 - `[licence]`: the name, whether commercial use and passing on are allowed, the credit in the provider's words, the link, every further condition as a sentence in `constraints`, `verified_on` and `verified_from`.
 - `cadence_seconds`: how often the provider has new values. The server asks that often and no more.
 - `[rate_limit]`, if the provider publishes one, with its sentence quoted in a comment. The pipeline keeps a run inside it.

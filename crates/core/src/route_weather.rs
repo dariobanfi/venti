@@ -752,7 +752,7 @@ fn route_words(
 }
 
 /// "Brauneck, Wallberg and Hochfelln".
-fn listed(names: &[&str]) -> String {
+pub(crate) fn listed(names: &[&str]) -> String {
     match names {
         [] => String::new(),
         [one] => (*one).to_owned(),

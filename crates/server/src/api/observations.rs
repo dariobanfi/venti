@@ -6,8 +6,8 @@ use axum::response::Response;
 use chrono::Duration;
 use serde::Deserialize;
 use venti_api_types::v1::{
-    DEFAULT_WINDOW_HOURS, ErrorCode, MAX_WINDOW_DAYS, ObservationsResponse, Reading, Station,
-    format_time, parse_time,
+    DEFAULT_WINDOW_HOURS, ErrorCode, MAX_WINDOW_DAYS, ObservationsResponse, Reading, format_time,
+    parse_time,
 };
 use venti_domain::{StationId, Timestamp};
 use venti_store::Store;
@@ -66,7 +66,7 @@ impl<S: Store> Api<S> {
         let observations = self.store.observations(id, from, to).await?;
 
         Ok(ObservationsResponse {
-            station: Station::from(&station),
+            station: self.station(&station),
             observations: observations.iter().map(Reading::from).collect(),
             attributions: self.attributions([id.source()]),
         })

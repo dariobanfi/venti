@@ -2,6 +2,8 @@ id = "suedtirol-meteo"
 # The province publishes the data; its Agency for Civil Protection runs the
 # stations and is named in the credit.
 provider = "Autonome Provinz Bozen - Südtirol"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "South Tyrol"
 kinds = ["observations"]
 countries = ["IT"]
 # A station has a value every ten minutes (144 in the 24 hours asked for on

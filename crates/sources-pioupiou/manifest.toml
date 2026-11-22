@@ -4,6 +4,8 @@ id = "pioupiou"
 # SAS, © 2021-2023 OpenWindMap SCIC SA", read 2026-11-22). The stations
 # belong to the pilots, clubs and schools who put them up.
 provider = "OpenWindMap (Pioupiou wind network)"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "Pioupiou"
 kinds = ["observations"]
 # The network is worldwide and densest in France. These are the Alpine
 # countries in which it had stations in the Alps' box on 2026-11-22. A

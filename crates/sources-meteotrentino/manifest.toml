@@ -38,6 +38,8 @@ id = "meteotrentino"
 # and then one live run of the source; then its name goes back into
 # regions/alps-south and regions/alps-de-at, after South Tyrol's.
 provider = "Provincia Autonoma di Trento - Meteotrentino"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "Meteotrentino"
 kinds = ["observations"]
 countries = ["IT"]
 # A station's answer has a value every quarter of an hour. On 2026-11-22 at

@@ -1,5 +1,7 @@
 id = "dwd-10min"
 provider = "Deutscher Wetterdienst"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "DWD"
 kinds = ["observations"]
 countries = ["DE"]
 cadence_seconds = 600

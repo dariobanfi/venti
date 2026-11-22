@@ -1142,6 +1142,113 @@ async fn a_stale_source_degrades_health_without_failing_it() {
     assert_eq!(health.sources[0].last_success, Some(yesterday));
 }
 
+/// Trentino's network a day late, with a station on the Paganella;
+/// MeteoSwiss's fresh, with one on the Weissfluhjoch; South Tyrol's never
+/// delivered. All three are served.
+async fn one_late_one_fresh_one_never() -> Router {
+    let store = MemoryStore::new();
+    let yesterday = adapters::recorded_at() - Duration::days(1);
+    let late = RunRecord {
+        started_at: yesterday,
+        finished_at: yesterday,
+        ..run("meteotrentino")
+    };
+    let paganella = station_at("meteotrentino:T0099", "Paganella", 46.1435, 11.0378, 2125.0);
+    store.save_run(&late, &[paganella], &[]).await.unwrap();
+    let weissfluhjoch = station_at(
+        "meteoswiss-smn:WFJ",
+        "Weissfluhjoch",
+        46.8331,
+        9.8064,
+        2691.0,
+    );
+    store
+        .save_run(
+            &run("meteoswiss-smn"),
+            &[weissfluhjoch],
+            &[wind("meteoswiss-smn:WFJ", 5)],
+        )
+        .await
+        .unwrap();
+
+    let served: Vec<SourceId> = ["meteotrentino", "meteoswiss-smn", "suedtirol-meteo"]
+        .map(|source| SourceId::new(source).unwrap())
+        .to_vec();
+    let registry = adapters::registry();
+    let manifests = registry
+        .manifests()
+        .filter(|manifest| served.contains(&manifest.id));
+    let clock = Arc::new(FixedClock(adapters::recorded_at()));
+    Api::new(Arc::new(store), clock, manifests, settings()).router(&Cors::Any)
+}
+
+/// The sources an answer for a box names as late.
+async fn late_in(router: &Router, bbox: &str) -> Vec<String> {
+    let answer: StationsResponse = get(router, &format!("/v1/stations?bbox={bbox}"))
+        .await
+        .json();
+    answer
+        .late_sources
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+#[tokio::test]
+async fn a_late_source_is_named_only_where_its_stations_are() {
+    let router = one_late_one_fresh_one_never().await;
+
+    // Over Trentino, and over the whole Alps, the late network is named.
+    assert_eq!(
+        late_in(&router, "10.5,45.8,11.5,46.5").await,
+        ["meteotrentino"]
+    );
+    assert_eq!(
+        late_in(&router, "5.0,43.5,17.0,48.5").await,
+        ["meteotrentino"]
+    );
+    // Over Davos, where only the fresh network has a station, and over
+    // Paris, where nobody has one, it is not.
+    assert!(late_in(&router, "9.5,46.6,10.1,47.0").await.is_empty());
+    assert!(late_in(&router, "2.0,48.6,2.6,49.0").await.is_empty());
+
+    // South Tyrol never delivered: no box names it, and the health report
+    // still does, for whoever runs the server.
+    let health: HealthResponse = get(&router, "/v1/health").await.json();
+    let stale: Vec<&str> = health
+        .sources
+        .iter()
+        .filter(|source| source.stale)
+        .map(|source| source.source.as_str())
+        .collect();
+    assert_eq!(stale, ["meteotrentino", "suedtirol-meteo"]);
+}
+
+#[tokio::test]
+async fn a_station_carries_the_short_name_of_its_network_beside_the_full_credit() {
+    let router = one_late_one_fresh_one_never().await;
+
+    let answer: StationsResponse = get(&router, "/v1/stations?bbox=9.5,46.6,10.1,47.0")
+        .await
+        .json();
+    assert_eq!(
+        answer.stations[0].station.network.as_deref(),
+        Some("MeteoSwiss")
+    );
+    let credit = &answer.attributions[0];
+    assert_eq!(credit.short_name.as_deref(), Some("MeteoSwiss"));
+    assert_eq!(credit.text, "Source: MeteoSwiss");
+    assert_eq!(
+        credit.provider,
+        "Federal Office of Meteorology and Climatology MeteoSwiss"
+    );
+    let history: ObservationsResponse =
+        get(&router, "/v1/stations/meteoswiss-smn:WFJ/observations")
+            .await
+            .json();
+    assert_eq!(history.station.network.as_deref(), Some("MeteoSwiss"));
+}
+
 #[tokio::test]
 async fn a_database_that_is_down_is_a_503_that_says_try_again() {
     let router = dwd_only(TroubledStore::down());

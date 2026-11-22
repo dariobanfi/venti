@@ -833,6 +833,7 @@ fn attribution_of(credits: &[Credit], source: &SourceId) -> Option<Attribution> 
     Some(Attribution {
         source: source.clone(),
         provider: credit.provider.clone(),
+        short_name: None,
         licence: credit.licence.clone(),
         text: credit.text.clone(),
         url: credit.url.clone(),

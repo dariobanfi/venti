@@ -208,6 +208,7 @@ impl ServedSource {
             attribution: Attribution {
                 source: manifest.id.clone(),
                 provider: manifest.provider.clone(),
+                short_name: manifest.short_name.clone(),
                 licence: manifest.licence.name.clone(),
                 text: manifest.licence.attribution.clone(),
                 url: manifest.licence.link.clone(),

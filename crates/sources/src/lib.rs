@@ -57,8 +57,8 @@ pub use live::{
     Aircraft, DeviceChoice, DeviceDirectory, LiveLine, LivePosition, LiveSource, Shown,
 };
 pub use manifest::{
-    Asset, Auth, DEFAULT_MAX_RESPONSE_KB, Kind, Licence, LicenceFamily, Manifest, ManifestError,
-    RateLimit,
+    Asset, Auth, DEFAULT_MAX_RESPONSE_KB, Kind, Licence, LicenceFamily, MAX_SHORT_NAME_CHARS,
+    Manifest, ManifestError, RateLimit,
 };
 pub use network::{Sample, StationNetwork};
 pub use radar::{

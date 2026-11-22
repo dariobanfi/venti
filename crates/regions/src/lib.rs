@@ -298,6 +298,7 @@ mod tests {
                 r#"
                 id = "{id}"
                 provider = "Example"
+                short_name = "Test"
                 kinds = ["observations", "airspace", "sites", "forecasts"]
                 countries = ["AT"]
                 cadence_seconds = 86400

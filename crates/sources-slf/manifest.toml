@@ -3,6 +3,8 @@ id = "slf-imis"
 # stations for the avalanche warning service of Switzerland and Liechtenstein
 # and publishes their values.
 provider = "WSL Institute for Snow and Avalanche Research SLF"
+# The name pilots know the network by, for a station's row in a list.
+short_name = "SLF"
 kinds = ["observations"]
 countries = ["CH", "LI"]
 # A station has a value every half hour: the means over the last 30 minutes,

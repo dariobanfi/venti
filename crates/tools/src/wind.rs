@@ -60,13 +60,13 @@ pub const SERVER_TOOLS: [Tool; 3] = [
     Tool {
         name: "wind_stations",
         description: "Live wind measured by weather stations around a place. For each station: \
-            its name and id, how far and in which direction it lies from the place, its height \
-            above sea level, mean wind and gusts in km/h, where the wind comes from, the \
-            temperature, and how many minutes ago it was measured. Stations are listed nearest \
-            first. Give the place as coordinates; you may use your own knowledge of where a \
-            mountain, town or flying site is. A station measures the wind where it stands: \
-            compare its height and position with the place asked about, and say how old a \
-            reading is. A reading marked too_old says nothing about the wind now.",
+            its name and id, the short name of its network, how far and in which direction it \
+            lies from the place, its height above sea level, mean wind and gusts in km/h, where \
+            the wind comes from, the temperature, and how many minutes ago it was measured. \
+            Stations are listed nearest first. Give the place as coordinates; you may use your \
+            own knowledge of where a mountain, town or flying site is. A station measures the \
+            wind where it stands: compare its height and position with the place asked about, \
+            and say how old a reading is. A reading marked too_old says nothing about the wind now.",
         read_only: true,
         schema: r#"{
             "type": "object",
@@ -312,6 +312,12 @@ pub fn wind_stations(
                 "name".to_owned(),
                 json!(source_text(&entry.station.name, MAX_NAME_CHARS)),
             );
+            if let Some(network) = &entry.station.network {
+                station.insert(
+                    "network".to_owned(),
+                    json!(source_text(network, MAX_NAME_CHARS)),
+                );
+            }
             station.insert("distance_km".to_owned(), json!(tenth(*distance_km)));
             // At the place itself there is no direction to speak of.
             if *distance_km >= 0.1 {
@@ -423,6 +429,12 @@ pub fn station_history(answer: &ObservationsResponse, hours: i64, now: DateTime<
         "name".to_owned(),
         json!(source_text(&answer.station.name, MAX_NAME_CHARS)),
     );
+    if let Some(network) = &answer.station.network {
+        station.insert(
+            "network".to_owned(),
+            json!(source_text(network, MAX_NAME_CHARS)),
+        );
+    }
     if let Some(elevation) = answer.station.elevation_m {
         station.insert("elevation_m".to_owned(), json!(elevation.round()));
     }
@@ -680,7 +692,7 @@ mod tests {
             {"id": "dwd-10min:01550", "source": "dwd-10min", "name": "Garmisch-Partenkirchen",
              "position": {"lat": 47.483, "lon": 11.0621}, "elevation_m": 719.0,
              "latest": {"time": "2026-11-18T14:00:00Z", "wind_speed_ms": 1.3, "wind_direction_deg": 350.0}},
-            {"id": "dwd-10min:05792", "source": "dwd-10min", "name": "Zugspitze",
+            {"id": "dwd-10min:05792", "source": "dwd-10min", "name": "Zugspitze", "network": "DWD",
              "position": {"lat": 47.421, "lon": 10.9848}, "elevation_m": 2956.4,
              "latest": {"time": "2026-11-18T18:20:00Z", "wind_speed_ms": 14.9, "wind_gust_ms": 25.7,
                         "wind_direction_deg": 260.0, "temperature_c": -7.13}},
@@ -829,6 +841,7 @@ mod tests {
             json!({
                 "station_id": "dwd-10min:05792",
                 "name": "Zugspitze",
+                "network": "DWD",
                 "distance_km": 3.4,
                 "direction_from_place": "SSW",
                 "elevation_m": 2956.0,

@@ -348,6 +348,7 @@ mod tests {
         let manifest = r#"
             id = "closed"
             provider = "Closed Weather"
+            short_name = "Test"
             kinds = ["observations"]
             countries = ["DE"]
             cadence_seconds = 600

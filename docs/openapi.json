@@ -489,6 +489,9 @@
           "provider": {
             "type": "string"
           },
+          "short_name": {
+            "type": "string"
+          },
           "source": {
             "type": "string"
           },
@@ -5506,6 +5509,9 @@
           "name": {
             "type": "string"
           },
+          "network": {
+            "type": "string"
+          },
           "position": {
             "$ref": "#/components/schemas/RawPoint"
           },
@@ -5569,6 +5575,9 @@
           "name": {
             "type": "string"
           },
+          "network": {
+            "type": "string"
+          },
           "position": {
             "properties": {
               "lat": {
@@ -5602,6 +5611,12 @@
           "attributions": {
             "items": {
               "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "late_sources": {
+            "items": {
+              "type": "string"
             },
             "type": "array"
           },

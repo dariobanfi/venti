@@ -453,6 +453,9 @@
       "provider": {
         "type": "string"
       },
+      "short_name": {
+        "type": "string"
+      },
       "licence": {
         "type": "string"
       },
@@ -4916,6 +4919,9 @@
       "name": {
         "type": "string"
       },
+      "network": {
+        "type": "string"
+      },
       "position": {
         "$ref": "#/components/schemas/RawPoint"
       },
@@ -4940,6 +4946,9 @@
         "type": "string"
       },
       "name": {
+        "type": "string"
+      },
+      "network": {
         "type": "string"
       },
       "position": {
@@ -5022,6 +5031,12 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Attribution"
+        }
+      },
+      "late_sources": {
+        "type": "array",
+        "items": {
+          "type": "string"
         }
       }
     },

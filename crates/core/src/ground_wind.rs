@@ -352,6 +352,8 @@ mod tests {
                 heading_deg: 135.0,
                 label: String::new(),
             },
+            network: None,
+            line: String::new(),
         }
     }
 

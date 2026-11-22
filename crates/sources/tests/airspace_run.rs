@@ -31,6 +31,7 @@ impl Charts {
             r#"
             id = "charts"
             provider = "Example Charts"
+            short_name = "Charts"
             kinds = {kinds}
             countries = ["DE", "AT"]
             cadence_seconds = 86400

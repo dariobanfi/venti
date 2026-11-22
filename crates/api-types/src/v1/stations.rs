@@ -13,6 +13,13 @@ pub struct StationsResponse {
     pub truncated: bool,
     /// The credit for every source that has a station in the list.
     pub attributions: Vec<Attribution>,
+    /// The sources with a station in the list that the server has not
+    /// received new data from for a while, as `/v1/health` judges it: their
+    /// stations show old readings until they deliver again. A late source
+    /// with no station in the list is not named; `/v1/health` names every
+    /// one. Left out when there is none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub late_sources: Vec<SourceId>,
 }
 
 /// A fixed place where weather is measured.
@@ -29,6 +36,12 @@ pub struct Station {
     pub source: SourceId,
     /// Name as the provider publishes it.
     pub name: String,
+    /// The short name of the network that reports it, "MeteoSwiss", the
+    /// same as its source's attribution's `short_name`: to tell apart two
+    /// stations of the same name in a list. Left out when the source has
+    /// none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network: Option<String>,
     /// Where the station stands.
     pub position: GeoPoint,
     /// Height above mean sea level in metres.
@@ -55,6 +68,7 @@ impl From<&venti_domain::Station> for Station {
             id: station.id.clone(),
             source: station.id.source().clone(),
             name: station.name.clone(),
+            network: None,
             position: station.position,
             elevation_m: station.elevation_m,
         }

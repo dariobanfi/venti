@@ -32,6 +32,7 @@
   "station": {
     "elevation_m": 2956.0,
     "name": "Zugspitze",
+    "network": "DWD",
     "station_id": "dwd-10min:05792"
   }
 }

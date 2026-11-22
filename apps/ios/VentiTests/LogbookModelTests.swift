@@ -180,4 +180,29 @@ final class LogbookModelTests: XCTestCase {
         )
         XCTAssertEqual(Format.flights(3), "3 flights")
     }
+
+    /// The list's days: flights in runs of one calendar day of the
+    /// iPhone's clock, in the order the core gives them.
+    func testTheFlightsAreGroupedByDay() throws {
+        func entry(_ id: String, at start: Int64, for duration: Int64) -> LogbookEntry {
+            LogbookEntry(
+                id: id, startUnixS: start, durationS: duration, trackLengthM: 0, maxAltitudeM: 0,
+                maxClimbMs: 0, pilot: nil, glider: nil, outline: [], score: nil, takeoffName: nil
+            )
+        }
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        // 6 July 2026 at 14:30 and 10:30, 5 July at 23:59 (UTC).
+        let sixth: Int64 = 1_783_296_000
+        let flights = [
+            entry("afternoon", at: sixth + 14 * 3600 + 1800, for: 1800),
+            entry("morning", at: sixth + 10 * 3600 + 1800, for: 3600),
+            entry("late", at: sixth - 60, for: 600),
+        ]
+        let days = LogbookDay.days(of: flights, in: utc)
+        XCTAssertEqual(days.map { $0.flights.map(\.id) }, [["afternoon", "morning"], ["late"]])
+        XCTAssertEqual(days.map(\.id), [sixth, sixth - 86_400])
+        XCTAssertEqual(days[0].airtimeS, 5400)
+        XCTAssertTrue(LogbookDay.days(of: [], in: utc).isEmpty)
+    }
 }

@@ -109,8 +109,8 @@ final class FoehnModelTests: XCTestCase {
         let row = view.rows[0]
         XCTAssertEqual(row.level, .likely)
         XCTAssertTrue(row.words.contains("Bolzano"), row.words)
-        XCTAssertTrue(row.note.contains("Innsbruck sent only"), row.note)
-        XCTAssertTrue(row.note.hasSuffix("gives Today no line."), row.note)
+        XCTAssertTrue(row.note.contains("Venti reduced Innsbruck's pressure"), row.note)
+        XCTAssertTrue(row.note.hasSuffix("off by several hectopascals."), row.note)
 
         // Against an unknown clock too.
         await model.load(from: server, places: [tegernsee], now: { 0 }, anew: true)

@@ -602,6 +602,32 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("light-6f-how-you-fly")
     }
 
+    /// The logbook by day: the sample flight on five days of July 2026 and
+    /// twice on the 6th (`--sample-afternoon`), each day under its heading,
+    /// the day of two with their count and airtime, the year's count above
+    /// the first day. Light and dark, at the usual text size and larger.
+    func testTheLogbookListsTheFlightsByDay() {
+        for (dark, larger) in [(false, false), (true, false), (false, true), (true, true)] {
+            let app = launch(
+                bundledMap: true, dark: dark,
+                extra: ["--sample-logbook", "--sample-afternoon"] + (larger ? Self.largerText : [])
+            )
+            openTab("Logbook", in: app)
+            XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 30))
+            sleep(1)
+            keepScreenshot("logbook-1-by-day\(dark ? "-dark" : "")\(larger ? "-larger-text" : "")")
+            XCTAssertTrue(element("logbook-year-2026", in: app).exists)
+            // The newest day first, with its two flights counted.
+            let newestDay = app.descendants(matching: .any).matching(identifier: "logbook-day").firstMatch
+            XCTAssertTrue(newestDay.label.contains("2 flights"), newestDay.label)
+            let newest = app.descendants(matching: .any).matching(identifier: "logbook-row").firstMatch
+            XCTAssertTrue(newest.label.contains("Took off at"), newest.label)
+            XCTAssertTrue(newest.label.contains("Sample Wing"), newest.label)
+            XCTAssertTrue(newest.label.contains("Airtime"), newest.label)
+            app.terminate()
+        }
+    }
+
     /// A flight of the logbook on its way to a league: what the pilot is
     /// told first, the file, XContest's page and the DHV-XC's form.
     /// Nothing is sent: the test signs in nowhere and never taps "Send".

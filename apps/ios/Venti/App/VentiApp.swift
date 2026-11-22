@@ -369,10 +369,22 @@ enum LaunchOptions {
         guard let url = Bundle.main.url(forResource: "sample", withExtension: "igc"),
             let text = try? String(contentsOf: url, encoding: .utf8)
         else { return [] }
-        return ["01", "02", "03", "05", "06"].map { day in
+        let days = ["01", "02", "03", "05", "06"].map { day in
             text.replacingOccurrences(of: "HFDTEDATE:040726", with: "HFDTEDATE:\(day)0726")
         }
+        guard usesSampleAfternoon, let last = days.last else { return days }
+        // Its fixes four hours later, which makes it another flight. The
+        // file's lines end in CR LF, which Swift counts as one character:
+        // they are split by the line feed's scalar.
+        let afternoon = last.components(separatedBy: "\n").map { line in
+            line.hasPrefix("B10") ? "B14" + line.dropFirst(3) : line
+        }
+        return days + [afternoon.joined(separator: "\n")]
     }
+
+    /// With `--sample-logbook`, the sample flight once more on the 6th, in
+    /// the afternoon: a day of two flights, for the logbook's day heading.
+    static let usesSampleAfternoon = arguments.contains("--sample-afternoon")
 
     /// Start with a made-up control zone near the end of the sample
     /// flight, so the cockpit's airspace warnings can be tested.

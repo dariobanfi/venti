@@ -31,6 +31,11 @@ struct TodayScreen: View {
     @State private var offer: CandidateOffer?
     /// The core's line once the place was added from here.
     @State private var offerSaid: String?
+    /// Foehn, as the core reads Venti's pressures across the Alps: a line
+    /// over the take-offs only while the core has one, and the view
+    /// behind it.
+    @State private var foehn = FoehnModel()
+    @State private var isShowingFoehn = false
 
     /// Where the take-offs are looked for until the pilot's position is
     /// known: the middle of the first region, between the Tegernsee and
@@ -58,6 +63,7 @@ struct TodayScreen: View {
             .ignoresSafeArea(.container, edges: .top)
             .refreshable {
                 await today.load(around: place)
+                await askForFoehn(anew: true)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -105,12 +111,40 @@ struct TodayScreen: View {
         )) {
             await askForAnOffer()
         }
+        // Foehn, asked for when Today has its take-offs, whose places the
+        // core's line is about, and when the server's address changes.
+        .task(id: FoehnAsked(ids: today.places.map(\.id), server: wind.server)) {
+            if !today.places.isEmpty {
+                await askForFoehn(anew: false)
+            }
+        }
+        .sheet(isPresented: $isShowingFoehn) {
+            FoehnSheet(model: foehn) {
+                Task { await askForFoehn(anew: true) }
+            }
+        }
         .onChange(of: today.places) {
             guard !hasChosenDay else { return }
             // The first day that has flying hours left: in the evening
             // that is tomorrow.
             day = days.firstIndex { !$0.hours.isEmpty } ?? 0
         }
+    }
+
+    /// What decides that foehn is read again.
+    private struct FoehnAsked: Equatable {
+        let ids: [String]
+        let server: URL?
+    }
+
+    /// Asks Venti for foehn and has the core read it for the take-offs
+    /// listed, by Venti's clock: the server's time where it was read, 0
+    /// where not, never the iPhone's.
+    private func askForFoehn(anew: Bool) async {
+        await foehn.load(
+            from: wind.server, places: today.places.map(\.site.position),
+            now: { await wind.serverNowIfRead() }, anew: anew
+        )
     }
 
     /// What decides that the offer is asked for again.
@@ -375,6 +409,14 @@ struct TodayScreen: View {
                             .foregroundStyle(.venti(.textSecondary))
                             .accessibilityIdentifier("today-problem")
                     }
+                    // Foehn, in the core's one line, only while it has
+                    // one: no line is not "no foehn", and nothing stands
+                    // in its place.
+                    if let line = foehn.line {
+                        FoehnTodayLine(line: line) {
+                            isShowingFoehn = true
+                        }
+                    }
                     let words = today.listed
                     let cardIsKept = shown.card?.isKept ?? false
                     if shown.namesGroups, cardIsKept, let words {
@@ -445,6 +487,11 @@ struct TodayScreen: View {
                         .accessibilityHint("Shows the take-offs around you")
                     }
                     foot(shown)
+                    // The way to the foehn view, whether there is a line
+                    // or not: the page's last row, in small print.
+                    FoehnFootRow(title: foehn.title) {
+                        isShowingFoehn = true
+                    }
                 }
             }
         }

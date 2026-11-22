@@ -188,10 +188,13 @@ struct CockpitScreen: View {
             )
             // With the first position, and a network, the airspace around
             // it is fetched if what the iPhone keeps is old or from
-            // elsewhere. A change reaches the running session by itself.
-            .task(id: view.position != nil) {
+            // elsewhere, and again as the glider moves on, waiting for the
+            // take-off and in flight: the core says when the kept set no
+            // longer covers the place. Whatever the map tab draws. A change
+            // reaches the running session by itself.
+            .task(id: AirspaceModel.askedKey(view.position)) {
                 if let position = view.position {
-                    await airspace.refresh(around: position)
+                    await airspace.keepCovered(around: position)
                 }
             }
             // The cables around the glider, as the airspace is, and again

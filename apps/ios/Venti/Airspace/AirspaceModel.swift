@@ -49,6 +49,8 @@ final class AirspaceModel {
     @ObservationIgnored private let remembersChoice: Bool
     @ObservationIgnored private var isFetching = false
     @ObservationIgnored private var failedAt: Date?
+    /// `retryAfter`, which a test makes short.
+    @ObservationIgnored var leftAloneFor = AirspaceModel.retryAfter
 
     /// - Parameter remembersChoice: whether the choice to use the server
     ///   is read from and saved to the settings. Tests do neither.
@@ -132,7 +134,7 @@ final class AirspaceModel {
     /// or flying.
     func refresh(around place: Coordinate) async {
         guard usesServer, !isFetching, let address = server()?.absoluteString else { return }
-        if let failedAt, Date().timeIntervalSince(failedAt) < Self.retryAfter {
+        if let failedAt, Date().timeIntervalSince(failedAt) < leftAloneFor {
             return
         }
         let now = Int64(Date().timeIntervalSince1970)
@@ -161,6 +163,34 @@ final class AirspaceModel {
                 ? error.words
                 : "The server could not be reached for airspace. \(error.localizedDescription)"
         }
+    }
+
+    /// The same for the Fly tab and the cockpit, which need the airspace
+    /// before a flight and in it whatever the map tab draws: asked now,
+    /// and where the server could not be asked, again after `retryAfter`
+    /// for as long as the caller's task runs. A pilot who stands at the
+    /// take-off while the network comes and goes has the airspace once it
+    /// came, not only after flying on.
+    func keepCovered(around place: Coordinate) async {
+        while !Task.isCancelled {
+            await refresh(around: place)
+            guard usesServer, serverProblem != nil else { return }
+            do {
+                // A moment past the time the server is left alone for.
+                try await Task.sleep(for: .seconds(leftAloneFor * 1.01 + 0.01))
+            } catch {
+                return
+            }
+        }
+    }
+
+    /// A place as the name of a task that asks around it: to a tenth of a
+    /// degree, far finer than the edge the core asks again at, so that a
+    /// pilot who moves is asked about anew and one who stands is not with
+    /// every position.
+    nonisolated static func askedKey(_ place: Coordinate?) -> String {
+        guard let place else { return "" }
+        return "\((place.lat * 10).rounded()),\((place.lon * 10).rounded())"
     }
 
     /// Removes what is kept from the server and stops asking for it.

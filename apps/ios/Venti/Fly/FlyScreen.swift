@@ -14,6 +14,10 @@ struct FlyScreen: View {
 
     @AppStorage(Preferences.liveAudience) private var liveAudience = ""
     @State private var isChoosingVario = false
+    /// Where the pilot is, read without asking once the pilot has allowed
+    /// it: the airspace the cockpit warns from is asked for around it.
+    @State private var position = PilotPosition()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -121,6 +125,22 @@ struct FlyScreen: View {
             let fly = fly
             fly.savedByItself = { recording in
                 Self.keep(recording, in: logbook, showingItWith: navigation, for: fly)
+            }
+        }
+        // The airspace around the pilot, asked for by this tab itself and
+        // kept on the iPhone for a flight without a network: when the tab
+        // is shown and when the pilot has moved on, as the core says it is
+        // due. The cockpit must not depend on the map tab having drawn
+        // airspace, which is the pilot's choice of what that map shows.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            if phase == .active {
+                position.readIfAllowed()
+            }
+        }
+        .task(id: AirspaceModel.askedKey(position.place)) {
+            position.readIfAllowed()
+            if let place = position.place {
+                await airspace.keepCovered(around: place)
             }
         }
         // "Start flight" on a site's page: this tab came to the front

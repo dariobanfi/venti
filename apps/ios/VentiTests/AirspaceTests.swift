@@ -281,6 +281,48 @@ final class AirspaceTests: XCTestCase {
         XCTAssertEqual(addresses.count, 1)
     }
 
+    /// The Fly tab and the cockpit ask for the airspace around the pilot
+    /// by themselves, whatever the map tab draws: a server that could not
+    /// answer is asked again until the airspace is kept, and then no more.
+    func testTheAirspaceForAFlightIsAskedForUntilItIsKept() async throws {
+        let folder = try makeFolder()
+        let asked = Requests()
+        let airspace = AirspaceModel(
+            core: try Core(dataFolder: folder.path),
+            transport: { url in
+                await asked.note(url)
+                let count = await asked.addresses.count
+                return count < 3 ? (503, Data()) : (200, Data(ServerAirspace.answer.utf8))
+            },
+            remembersChoice: false
+        )
+        airspace.server = { URL(string: "http://127.0.0.1:8080") }
+        airspace.leftAloneFor = 0.05
+        let tegernsee = Coordinate(lat: 47.7, lon: 11.75)
+
+        await airspace.keepCovered(around: tegernsee)
+        let first = await asked.addresses
+        XCTAssertEqual(first.count, 3)
+        XCTAssertNil(airspace.serverProblem)
+        XCTAssertEqual(airspace.inALine, "openAIP, 1 airspace")
+
+        // Kept and fresh: a pilot who stands, or moves within it, asks
+        // nothing more. When it is due again is the core's rule.
+        await airspace.keepCovered(around: tegernsee)
+        await airspace.keepCovered(around: Coordinate(lat: 47.5, lon: 11.9))
+        let second = await asked.addresses
+        XCTAssertEqual(second.count, 3)
+
+        // The task's name changes with the place, not with every position.
+        XCTAssertEqual(AirspaceModel.askedKey(nil), "")
+        XCTAssertEqual(
+            AirspaceModel.askedKey(tegernsee), AirspaceModel.askedKey(Coordinate(lat: 47.701, lon: 11.752))
+        )
+        XCTAssertNotEqual(
+            AirspaceModel.askedKey(tegernsee), AirspaceModel.askedKey(Coordinate(lat: 47.9, lon: 11.75))
+        )
+    }
+
     func testTheCockpitsMapZoomsOutAsFarAsItTakesToShowTheAirspace() {
         let size = CGSize(width: 400, height: 360)
         let zoom = { (circling: Bool, metres: Double?) in

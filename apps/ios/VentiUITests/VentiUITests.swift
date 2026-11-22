@@ -875,8 +875,11 @@ final class VentiUITests: XCTestCase {
     func testTheCockpitWarnsOfAirspace() {
         let app = launch(bundledMap: true, extra: ["--sample-airspace"])
 
-        // The zone is on the map tab.
+        // The map tab's airspace is off while the cockpit flies: its
+        // warnings must not depend on what that map draws. (The choice is
+        // kept between launches, and a test before may have left it on.)
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        setAirspace(on: false, in: app)
 
         openTab("Fly", in: app)
         choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
@@ -1175,6 +1178,85 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Plan route"].waitForExistence(timeout: 15))
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(card.waitForExistence(timeout: 15))
+    }
+
+    /// Foehn on Today, against a Venti server in development mode, whose
+    /// pressures put Bolzano and Innsbruck at "likely" and Klagenfurt and
+    /// Salzburg at no sign: the core's one line over the take-offs, the
+    /// view behind it with both pairs and the chart of the last 24 hours,
+    /// and the way to the same view at the page's foot. Light, dark and
+    /// with larger text.
+    func testTodaySaysWhenFoehnIsLikelyAndShowsThePressures() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        // Light, dark, and with the text size above the largest standard
+        // one.
+        for (dark, larger) in [(false, false), (true, false), (false, true)] {
+            let app = launch(
+                bundledMap: true, dark: dark, extra: ["--server", server] + (larger ? Self.largerText : [])
+            )
+            let suffix = dark ? "-dark" : larger ? "-larger" : ""
+            openTab("Today", in: app)
+            XCTAssertTrue(element("today-card", in: app).waitForExistence(timeout: 60))
+
+            // The line, over the take-offs, in the core's words.
+            let line = element("today-foehn", in: app)
+            XCTAssertTrue(line.waitForExistence(timeout: 60))
+            XCTAssertTrue(line.label.contains("Bolzano"), line.label)
+            XCTAssertTrue(line.label.contains("Innsbruck"), line.label)
+            XCTAssertLessThan(line.frame.minY, element("today-card", in: app).frame.minY)
+            sleep(2)
+            keepScreenshot("foehn-1-today\(suffix)")
+
+            // The view behind it: the first pair with its level, its words
+            // and its chart.
+            line.tap()
+            XCTAssertTrue(app.navigationBars["Foehn"].waitForExistence(timeout: 15))
+            XCTAssertTrue(element("foehn-row", in: app).waitForExistence(timeout: 15))
+            XCTAssertTrue(labelled(containing: "Bolzano – Innsbruck", in: app).exists)
+            XCTAssertTrue(element("foehn-level", in: app).exists)
+            XCTAssertTrue(element("foehn-chart", in: app).waitForExistence(timeout: 10))
+            sleep(1)
+            keepScreenshot("foehn-2-view\(suffix)")
+
+            // The second pair, further down, and under the pairs what the
+            // number means, the caution and whose data it is.
+            let second = labelled(containing: "Klagenfurt – Salzburg", in: app)
+            for _ in 0..<6 where !second.exists {
+                app.swipeUp()
+            }
+            XCTAssertTrue(second.exists)
+            sleep(1)
+            keepScreenshot("foehn-3-second-pair\(suffix)")
+            let credits = element("foehn-credits", in: app)
+            for _ in 0..<8 where !credits.exists {
+                app.swipeUp()
+            }
+            XCTAssertTrue(credits.exists)
+            XCTAssertTrue(element("foehn-caution", in: app).exists)
+            sleep(1)
+            keepScreenshot("foehn-4-what-it-means\(suffix)")
+            element("foehn-done", in: app).tap()
+            XCTAssertTrue(line.waitForExistence(timeout: 10))
+
+            // The same view from the page's foot.
+            let row = element("today-foehn-row", in: app)
+            for _ in 0..<12 where !(row.exists && isOnScreen(row, in: app)) {
+                app.swipeUp()
+            }
+            XCTAssertTrue(row.exists)
+            sleep(1)
+            keepScreenshot("foehn-5-foot\(suffix)")
+            // Clear of the tab bar, which lies over the page's foot.
+            if row.frame.maxY > app.windows.firstMatch.frame.maxY - 120 {
+                app.swipeUp()
+            }
+            row.tap()
+            XCTAssertTrue(element("foehn-row", in: app).waitForExistence(timeout: 15))
+            element("foehn-done", in: app).tap()
+            app.terminate()
+        }
     }
 
     /// The pilot's own take-offs, against a Venti server in development
@@ -3429,11 +3511,14 @@ final class VentiUITests: XCTestCase {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")
         }
+        // As on a new iPhone: Venti does not know where the pilot is until
+        // the pilot says it may, further down.
+        XCUIApplication().resetAuthorizationStatus(for: .location)
         let app = launch(bundledMap: true, extra: ["--server", server])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
-        // The map tab asks for airspace only while it is switched on, and
-        // what it brings is what the Fly tab names before take-off.
-        setAirspace(on: true, in: app)
+        // The map tab's airspace is off from here to the end: what the
+        // cockpit warns from must not depend on what that map draws.
+        setAirspace(on: false, in: app)
 
         // The same server knows the flying sites. They are drawn once the
         // map shows a valley and not a country: with the sample flight in
@@ -3510,19 +3595,86 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 10))
         done.tap()
 
-        // The Fly tab says what the cockpit will warn from.
+        // Nothing has asked for airspace so far: the map tab's is off, and
+        // the Fly tab does not know where the pilot is.
         openTab("Fly", in: app)
         let line = element("airspace-before-takeoff", in: app)
         XCTAssertTrue(line.waitForExistence(timeout: 30))
-        XCTAssertTrue(saying("openAIP", in: app).waitForExistence(timeout: 60))
+        sleep(3)
+        XCTAssertFalse(saying("openAIP", in: app).exists, "Airspace was fetched before the pilot's position was known.")
+
+        // The pilot is by the Tegernsee and lets Venti know, on Today.
+        XCUIDevice.shared.location = XCUILocation(
+            location: CLLocation(latitude: 47.664, longitude: 11.772)
+        )
+        openTab("Today", in: app)
+        // The button is at the page's foot, under the take-offs, and a row
+        // that is not on screen does not exist yet.
+        XCTAssertTrue(element("today-card", in: app).waitForExistence(timeout: 60))
+        let mine = app.buttons["Use my position"]
+        for _ in 0..<12 where !(mine.exists && isOnScreen(mine, in: app)) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(mine.exists)
+        // Clear of the tab bar, which lies over the page's foot.
+        if mine.frame.maxY > app.windows.firstMatch.frame.maxY - 120 {
+            app.swipeUp()
+        }
+        mine.tap()
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow While Using App"]
+        XCTAssertTrue(allow.waitForExistence(timeout: 15))
+        allow.tap()
+
+        // The Fly tab asks for the airspace around the pilot by itself and
+        // says what the cockpit will warn from.
+        openTab("Fly", in: app)
+        XCTAssertTrue(line.waitForExistence(timeout: 30))
+        XCTAssertTrue(saying("openAIP", in: app).waitForExistence(timeout: 90))
         keepScreenshot("airspace-1-before-takeoff")
 
         line.tap()
         XCTAssertTrue(element("airspace-from-server", in: app).waitForExistence(timeout: 15))
         XCTAssertTrue(saying("not certified", in: app).exists)
         keepScreenshot("airspace-2-from-server")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // The cockpit, waiting for the take-off, has that airspace to warn
+        // from: the reading of the airspace that matters next stands on
+        // its map page only while the session checks airspace, and the
+        // map names whose it is.
+        let open = app.buttons["Open the cockpit"]
+        XCTAssertTrue(open.waitForExistence(timeout: 15))
+        open.tap()
+        XCTAssertTrue(element("cockpit-end", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(element("cockpit-airspace-credit", in: app).waitForExistence(timeout: 30))
+        // Standing at the take-off, with positions that have a height:
+        // the cockpit checks them against that airspace, and its notice
+        // that nothing is checked yet goes.
+        let unchecked = element("airspace-notice", in: app)
+        for _ in 0..<20 {
+            put(metresNorth: 0, altitude: Self.takeoffGroundM, speed: 0)
+            sleep(1)
+            if !unchecked.exists {
+                break
+            }
+        }
+        XCTAssertFalse(unchecked.exists, "The cockpit does not check airspace while it waits for the take-off.")
+        nextPage(in: app)
+        XCTAssertTrue(element("airspace-proximity-map", in: app).waitForExistence(timeout: 30))
+        put(metresNorth: 0, altitude: Self.takeoffGroundM, speed: 0)
+        sleep(1)
+        keepScreenshot("airspace-3-cockpit-before-takeoff")
+        endTheCockpit(in: app)
+
+        // And the map tab's airspace was off all the while.
         openTab("Map", in: app)
-        setAirspace(on: false, in: app)
+        let button = app.buttons["map-airspace"]
+        XCTAssertTrue(button.waitForExistence(timeout: 30))
+        XCTAssertFalse(button.isSelected)
+        // The simulator remembers that Venti may use the position, and
+        // Today then looks around the pilot in the tests after this one.
+        app.terminate()
+        app.resetAuthorizationStatus(for: .location)
     }
 
     /// An account on a Venti server: signing in as the development
@@ -3586,14 +3738,27 @@ final class VentiUITests: XCTestCase {
         app.buttons["Share with a link"].tap()
         let withTheLink = element("share-unlisted", in: app)
         XCTAssertTrue(withTheLink.waitForExistence(timeout: 15))
+        // What the demo pilot had chosen for it, to be put back below: the
+        // development server's notifications and feed name this flight as
+        // a public one, and the tests after this one on the same server
+        // open it from there.
+        let chosenChoice = { (key: String) in
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier == %@ AND value CONTAINS 'Chosen'", "share-\(key)"))
+                .firstMatch
+        }
+        sleep(2)
+        let before = ["public", "private"].first { chosenChoice($0).exists }
         withTheLink.tap()
-        let chosen = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'share-unlisted' AND value CONTAINS 'Chosen'"))
-            .firstMatch
+        let chosen = chosenChoice("unlisted")
         XCTAssertTrue(chosen.waitForExistence(timeout: 20))
         XCTAssertTrue(labelled(containing: "/f/", in: app).exists)
         sleep(1)
         keepScreenshot("account-4-share")
+        if let before {
+            element("share-\(before)", in: app).tap()
+            XCTAssertTrue(chosenChoice(before).waitForExistence(timeout: 20))
+        }
 
         // Something another pilot shares that should not be there is
         // reported to whoever runs the server: from the flight's menu, with

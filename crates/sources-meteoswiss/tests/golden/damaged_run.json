@@ -1,0 +1,80 @@
+{
+  "stations": [
+    {
+      "id": "meteoswiss-smn:DAV",
+      "name": "Davos",
+      "position": {
+        "lat": 46.812969,
+        "lon": 9.843558
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "meteoswiss-smn:SAM",
+      "name": "Samedan",
+      "position": {
+        "lat": 46.526247,
+        "lon": 9.879469
+      },
+      "elevation_m": 1709.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "meteoswiss-smn:DAV",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": 3.31,
+      "wind_direction_deg": 61.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.5,
+      "humidity_pct": null,
+      "pressure_hpa": 826.1
+    }
+  ],
+  "report": {
+    "source": "meteoswiss-smn",
+    "requests": 2,
+    "failures": [],
+    "skipped": [
+      {
+        "what": "XXX;Nowhere",
+        "reason": "the row has 2 fields and the header 24"
+      },
+      {
+        "what": "WFJ",
+        "reason": "latitude 146.833 is outside -90..=90"
+      },
+      {
+        "what": "XYZ;202611181850",
+        "reason": "the row has 2 fields and the header 22"
+      },
+      {
+        "what": "DAV fu3010z0 6,80",
+        "reason": "the value cannot be read as a number"
+      },
+      {
+        "what": "SAM 18.11.2026 18:50",
+        "reason": "time stamp cannot be read"
+      },
+      {
+        "what": "meteoswiss-smn:WFJ",
+        "reason": "observations for a station that is not in the station list or lies outside the area"
+      }
+    ],
+    "rejected": [
+      {
+        "station": "meteoswiss-smn:DAV",
+        "time": "2026-11-18T18:50:00Z",
+        "field": "humidity_pct",
+        "value": 120.0,
+        "reason": "outside 0..=100"
+      }
+    ],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 2,
+    "observations": 1,
+    "newest_observation": "2026-11-18T18:50:00Z"
+  }
+}

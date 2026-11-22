@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<datiOggi xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.meteotrentino.it/">
+  <data>2026/11/22</data>
+  <tmin>-1.7</tmin>
+  <tmax>1.2</tmax>
+  <rain>0</rain>
+  <temperature>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T07:00:00</data>
+      <temperatura>0.2</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T07:15:00</data>
+      <temperatura>0.2</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T07:30:00</data>
+      <temperatura>0.2</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T07:45:00</data>
+      <temperatura>0.2</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T08:00:00</data>
+      <temperatura>0.4</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T08:15:00</data>
+      <temperatura>0.5</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T08:30:00</data>
+      <temperatura>0.6</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T08:45:00</data>
+      <temperatura>0.9</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T09:00:00</data>
+      <temperatura>1.1</temperatura>
+    </temperatura_aria>
+  </temperature>
+  <precipitazioni>
+    <precipitazione UM="mm">
+      <data>2026-11-22T07:00:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T07:15:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T07:30:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T07:45:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T08:00:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T08:15:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T08:30:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T08:45:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T09:00:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+  </precipitazioni>
+  <venti>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T07:00:00</data>
+      <v>0.3</v>
+      <vmax>0.5</vmax>
+      <d>30</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T07:15:00</data>
+      <v>0.2</v>
+      <vmax>0.6</vmax>
+      <d>21</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T07:30:00</data>
+      <v>0.3</v>
+      <vmax>0.6</vmax>
+      <d>35</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T07:45:00</data>
+      <v>0.8</v>
+      <vmax>1.2</vmax>
+      <d>37</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T08:15:00</data>
+      <v>0.1</v>
+      <vmax>0.6</vmax>
+      <d>41</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T08:30:00</data>
+      <v>0.4</v>
+      <vmax>0.6</vmax>
+      <d>45</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T08:45:00</data>
+      <v>0.4</v>
+      <vmax>0.7</vmax>
+      <d>40</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T09:00:00</data>
+      <v>0.1</v>
+      <vmax>0.7</vmax>
+      <d>28</d>
+    </vento_al_suolo>
+  </venti>
+  <radiazione />
+  <umidita_relativa />
+</datiOggi>

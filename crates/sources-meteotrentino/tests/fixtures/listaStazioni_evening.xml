@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfAnagrafica xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.meteotrentino.it/">
+  <anagrafica>
+    <codice>T0403</codice>
+    <nome>Canazei (Ciampac)</nome>
+    <nomebreve>SM Ciampac</nomebreve>
+    <quota>2150</quota>
+    <latitudine>46.445989</latitudine>
+    <longitudine>11.769081</longitudine>
+    <est>712530</est>
+    <north>5147570</north>
+    <inizio>10/09/2019</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0404</codice>
+    <nome>Marmolada (Sas Del Mul)</nome>
+    <nomebreve>SM Marmolada</nomebreve>
+    <quota>2606</quota>
+    <latitudine>46.443614</latitudine>
+    <longitudine>11.880813</longitudine>
+    <est>721274</est>
+    <north>5147371</north>
+    <inizio>19/09/2014</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0076</codice>
+    <nome>Rabbi (San Bernardo)</nome>
+    <nomebreve>SM S. Bernardo</nomebreve>
+    <quota>1132</quota>
+    <latitudine>46.401374</latitudine>
+    <longitudine>10.849515</longitudine>
+    <est>642172</est>
+    <north>5140306</north>
+    <inizio>01/01/1986</inizio>
+    <fine />
+  </anagrafica>
+</ArrayOfAnagrafica>

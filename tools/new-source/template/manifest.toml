@@ -1,0 +1,42 @@
+# Every line marked TO FILL IN is read on the provider's own pages, never
+# from memory or from somebody else's summary. The crate's tests fail while
+# one is left. docs/adding-a-source.md, "The manifest", says what each
+# field is for.
+
+id = "__ID__"
+# Who measures and publishes: the organisation's own name.
+provider = "TO FILL IN"
+kinds = ["observations"]
+# Two-letter codes of the countries the stations stand in.
+countries = ["XX"]
+# How often the provider has new values, in seconds, with where it says so.
+cadence_seconds = 600
+# "none", or "api-key" for a key whoever runs the server asks for.
+auth = "none"
+# The largest answer of a run, in kilobytes, with room: measured on the
+# day of the recording. Left out, 4096.
+# max_response_kb = 1024
+
+# The provider's own limit, quoted, if it publishes one; left out if not.
+# [rate_limit]
+# per_hour = 60
+
+[licence]
+# The licence's name as the provider writes it.
+name = "TO FILL IN"
+# May the data be used commercially, may it be passed on, must what is made
+# of it carry the same licence: as the licence says. Venti is not
+# commercial (owner decision 17), so `commercial = false` is no obstacle;
+# `redistribution = false` is one, since passing on is all the server does.
+commercial = false
+redistribution = true
+share_alike = false
+# The credit in the provider's own words, and the link it asks for.
+attribution = "TO FILL IN"
+link = "https://example.org"
+# Every other condition of the terms, one sentence each, quoted where the
+# wording matters.
+constraints = []
+# The day the pages were read, and the pages.
+verified_on = "2026-01-01"
+verified_from = ["https://example.org/terms"]

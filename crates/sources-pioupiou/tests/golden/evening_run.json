@@ -1,0 +1,78 @@
+{
+  "stations": [
+    {
+      "id": "pioupiou:1514",
+      "name": "Kampenwand Hirschenstein 1453 m",
+      "position": {
+        "lat": 47.77225,
+        "lon": 12.36509
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:2077",
+      "name": "Osterfelder Nord -Startplatz",
+      "position": {
+        "lat": 47.439445,
+        "lon": 11.052041
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:2150",
+      "name": "Coburgerhütte 1920m",
+      "position": {
+        "lat": 47.360086,
+        "lon": 10.933592
+      },
+      "elevation_m": null
+    }
+  ],
+  "observations": [
+    {
+      "station": "pioupiou:1514",
+      "time": "2026-11-18T19:02:00Z",
+      "wind_speed_ms": 7.916666666666666,
+      "wind_gust_ms": 13.61111111111111,
+      "wind_direction_deg": 157.5,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:2077",
+      "time": "2026-11-18T19:01:10Z",
+      "wind_speed_ms": 3.0555555555555554,
+      "wind_gust_ms": 6.25,
+      "wind_direction_deg": 180.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:2150",
+      "time": "2026-11-18T19:01:42Z",
+      "wind_speed_ms": 1.8055555555555556,
+      "wind_gust_ms": 5.694444444444445,
+      "wind_direction_deg": 0.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "pioupiou",
+    "requests": 1,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 3,
+    "newest_observation": "2026-11-18T19:02:00Z"
+  }
+}

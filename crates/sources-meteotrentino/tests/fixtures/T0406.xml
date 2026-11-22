@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<datiOggi xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.meteotrentino.it/">
+  <data>2026/11/22</data>
+  <tmin>-3.7</tmin>
+  <tmax>-0.1</tmax>
+  <rain>1</rain>
+  <temperature>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T07:00:00</data>
+      <temperatura>-0.8</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T07:15:00</data>
+      <temperatura>-0.7</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T07:30:00</data>
+      <temperatura>-0.7</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T07:45:00</data>
+      <temperatura>-0.7</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T08:00:00</data>
+      <temperatura>-1</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T08:15:00</data>
+      <temperatura>-1.3</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T08:30:00</data>
+      <temperatura>-1.3</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T08:45:00</data>
+      <temperatura>-1.3</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-22T09:00:00</data>
+      <temperatura>-1.5</temperatura>
+    </temperatura_aria>
+  </temperature>
+  <precipitazioni>
+    <precipitazione UM="mm">
+      <data>2026-11-22T07:00:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T07:15:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T07:30:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T07:45:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T08:00:00</data>
+      <pioggia>0</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T08:15:00</data>
+      <pioggia>0.2</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T08:30:00</data>
+      <pioggia>0.2</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T08:45:00</data>
+      <pioggia>0.2</pioggia>
+    </precipitazione>
+    <precipitazione UM="mm">
+      <data>2026-11-22T09:00:00</data>
+      <pioggia>0.4</pioggia>
+    </precipitazione>
+  </precipitazioni>
+  <venti>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T07:00:00</data>
+      <v>4</v>
+      <vmax>6.3</vmax>
+      <d>159</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T07:15:00</data>
+      <v>4.1</v>
+      <vmax>6.3</vmax>
+      <d>158</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T07:30:00</data>
+      <v>4.6</v>
+      <vmax>8.3</vmax>
+      <d>165</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T07:45:00</data>
+      <v>4</v>
+      <vmax>7.8</vmax>
+      <d>158</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T08:00:00</data>
+      <v>2.8</v>
+      <vmax>4.2</vmax>
+      <d>154</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T08:15:00</data>
+      <v>0.9</v>
+      <vmax>4</vmax>
+      <d>132</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T08:30:00</data>
+      <v>0.6</v>
+      <vmax>1.6</vmax>
+      <d>126</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T08:45:00</data>
+      <v>0.8</v>
+      <vmax>2</vmax>
+      <d>286</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-22T09:00:00</data>
+      <v>0.8</v>
+      <vmax>1.6</vmax>
+      <d>323</d>
+    </vento_al_suolo>
+  </venti>
+  <radiazione>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T07:00:00</data>
+      <rsg>0</rsg>
+    </radiazioneglobale>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T07:15:00</data>
+      <rsg>0</rsg>
+    </radiazioneglobale>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T07:30:00</data>
+      <rsg>0</rsg>
+    </radiazioneglobale>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T07:45:00</data>
+      <rsg>0</rsg>
+    </radiazioneglobale>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T08:00:00</data>
+      <rsg>0</rsg>
+    </radiazioneglobale>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T08:15:00</data>
+      <rsg>0</rsg>
+    </radiazioneglobale>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T08:30:00</data>
+      <rsg>6</rsg>
+    </radiazioneglobale>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T08:45:00</data>
+      <rsg>18</rsg>
+    </radiazioneglobale>
+    <radiazioneglobale UM="W/mq">
+      <data>2026-11-22T09:00:00</data>
+      <rsg>28</rsg>
+    </radiazioneglobale>
+  </radiazione>
+  <umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T07:00:00</data>
+      <rh>88</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T07:15:00</data>
+      <rh>88</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T07:30:00</data>
+      <rh>87</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T07:45:00</data>
+      <rh>88</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T08:00:00</data>
+      <rh>89</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T08:15:00</data>
+      <rh>91</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T08:30:00</data>
+      <rh>92</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T08:45:00</data>
+      <rh>93</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-22T09:00:00</data>
+      <rh>94</rh>
+    </umidita_relativa>
+  </umidita_relativa>
+</datiOggi>

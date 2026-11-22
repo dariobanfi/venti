@@ -1,0 +1,75 @@
+id = "arpa-lombardia"
+# ARPA Lombardia, the environmental agency of the Region of Lombardy, runs
+# the region's network of weather stations and publishes it on the region's
+# open-data portal, www.dati.lombardia.it (a Socrata portal), in two
+# datasets: the sensors (nf78-nj6b) and the values of the current month
+# (647i-nhxk). The portal's records of both name "ARPA - Regione Lombardia"
+# as the source.
+provider = "ARPA Lombardia (Regione Lombardia)"
+kinds = ["observations"]
+countries = ["IT"]
+# A sensor has a value every ten minutes. The values reach the portal late
+# and in loads (see the delay below), so a run every half hour takes each
+# load within half an hour of its arrival. To ask more often gains nothing.
+#
+# The delay, measured on 2026-11-22 in two ways:
+# - Asked six times between 08:24 and 08:38 UTC, the newest wind of the
+#   132 anemometers was 135 to 148 minutes old, the median station's 165 to
+#   178 minutes and the oldest's 235 to 248 (one had none in five hours):
+#   nothing arrived in those fourteen minutes. The newest was of 06:10 UTC, taken in at 06:32 UTC.
+# - The portal's own record of when it took in each row (`:updated_at`),
+#   for the 3,057 ten minutes from 2026-11-01 to 2026-11-22: the first
+#   values of a ten minutes arrived 7 to 385 minutes after its end, 29 at
+#   the tenth part, 145 at the median, 295 at the ninth tenth. 84 % of them
+#   arrived in four loads a day, at about 05:25, 11:25, 17:25 and 23:25 UTC
+#   (the dataset's record says "Frequenza: 6 ore"), the rest in smaller ones
+#   within an hour after each. So between two loads a station's newest value
+#   ages from some 30 minutes to some six hours, and the apps show each
+#   reading's own time.
+# The dataset's times are "ora solare", UTC+1 the whole year, which the
+# adapter converts (checked against the sun: see src/lib.rs).
+cadence_seconds = 1800
+auth = "none"
+# A run asks for seven hours of values. Recorded on 2026-11-22 at 08:33
+# UTC for all of Lombardy (132 stations, 506 sensors), the four answers were
+# 124,918 bytes (the sensors) and 737,927, 801,512 and 197,948 bytes (the
+# values, which held four and a half hours; seven full hours would be some
+# 1.2 MB for the largest). The portal sends gzip when asked: the same request
+# as the 801,512 bytes, asked again with gzip at 08:38, was 49,563 bytes.
+# The server's fetcher asks for gzip since 2026-11-22, and this bound counts
+# the bytes after unpacking.
+max_response_kb = 4096
+
+# No limit in numbers is published for the portal. Socrata's documentation
+# of the platform (https://dev.socrata.com/docs/app-tokens.html, read
+# 2026-11-22): requests without an application token "come from a shared
+# pool via IP address", and an address that makes too many may be
+# throttled; with a token they are not throttled. A run without one is three
+# requests for the southern pack's box (four for all of Lombardy), six an
+# hour. A token needs an account on the portal: for the owner, should the
+# portal ever throttle. The longest address the portal takes is between
+# 13,328 and 16,899 bytes (it answered 414 to the second); the adapter
+# writes none longer than 8,000.
+
+[licence]
+name = "CC0 1.0"
+commercial = true
+redistribution = true
+share_alike = false
+# The portal's records of both datasets, read 2026-11-22: licence "Creative
+# Commons 1.0 Universal (Public Domain Dedication)" (`CC0_10`), attribution
+# "ARPA - Regione Lombardia". CC0 asks for no credit; Venti gives the one
+# the records name.
+attribution = "ARPA - Regione Lombardia"
+link = "https://www.dati.lombardia.it/d/647i-nhxk"
+constraints = [
+    "The values are the agency's as published, with its own state of each (valid, invalid, uncertain, not available): only those it marks valid are taken. Whether a valid value was checked by a person is not said: to verify.",
+    "The dataset holds the current month only, so a value that was not taken within the month cannot be had again from it.",
+    "A run asks without an application token, from the shared pool the platform throttles by address; the portal publishes no limit in numbers.",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://www.dati.lombardia.it/api/views/647i-nhxk.json",
+    "https://www.dati.lombardia.it/api/views/nf78-nj6b.json",
+    "https://dev.socrata.com/docs/app-tokens.html",
+]

@@ -5593,7 +5593,6 @@
           "source",
           "name",
           "position",
-          "elevation_m",
           "latest"
         ],
         "type": "object"

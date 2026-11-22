@@ -16,7 +16,11 @@
 //!   server at an address inside its own network.
 //! - **A bound on the size of an answer**, from the source's manifest. The
 //!   body is read piece by piece and reading stops at the bound; it is
-//!   never taken into memory whole first.
+//!   never taken into memory whole first. The fetcher asks for answers
+//!   compressed with gzip and unpacks what a provider sends so, piece by
+//!   piece as well, and the bound counts the bytes after unpacking: a few
+//!   kilobytes that unpack to gigabytes are refused at the bound like any
+//!   other answer that is too large.
 //! - **A bound on time**: ten seconds to connect, two minutes for a whole
 //!   request.
 //!
@@ -176,7 +180,9 @@ impl Fetch for HttpFetch {
             .and_then(http_date);
 
         // What the answer says about its own length saves reading any of
-        // it; what it does not say, or says wrongly, is found out below.
+        // it; what it does not say, or says wrongly, is found out below. A
+        // compressed answer says nothing here: its length on the wire is
+        // not the length that counts, and the client keeps it back.
         let too_large = FetchError::TooLarge { limit: max_bytes };
         if response
             .content_length()
@@ -318,6 +324,41 @@ mod tests {
                     sent.fetch_add(block.len(), Ordering::SeqCst);
                 }
             }
+            // A megabyte of one letter, sent compressed in about a
+            // kilobyte, if the fetcher said it takes gzip.
+            "/packed" | "/packed-small" => {
+                let asked = head.to_ascii_lowercase();
+                let asked = asked
+                    .lines()
+                    .find_map(|line| line.strip_prefix("accept-encoding:"))
+                    .is_some_and(|value| value.contains("gzip"));
+                if !asked {
+                    let text = "HTTP/1.1 406 Not Acceptable\r\nContent-Length: 0\r\n\
+                                Connection: close\r\n\r\n";
+                    let _ = stream.write_all(text.as_bytes()).await;
+                    let _ = stream.shutdown().await;
+                    return;
+                }
+                let plain = if path == "/packed" {
+                    vec![b'x'; 1024 * 1024]
+                } else {
+                    b"hello, unpacked".to_vec()
+                };
+                let mut packer = flate2::write::GzEncoder::new(Vec::new(), Default::default());
+                std::io::Write::write_all(&mut packer, &plain).unwrap();
+                let packed = packer.finish().unwrap();
+                let text = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\n\
+                     Connection: close\r\n\r\n",
+                    packed.len()
+                );
+                if stream.write_all(text.as_bytes()).await.is_err() {
+                    return;
+                }
+                if stream.write_all(&packed).await.is_ok() {
+                    sent.fetch_add(packed.len(), Ordering::SeqCst);
+                }
+            }
             // Says nothing about its size and never ends.
             "/endless" => {
                 let text = "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n";
@@ -422,6 +463,33 @@ mod tests {
         // One byte too many is too many.
         let short = fetch.get_within(&request(provider.url("/file")), 4).await;
         assert_eq!(short, Err(FetchError::TooLarge { limit: 4 }));
+    }
+
+    #[tokio::test]
+    async fn a_compressed_answer_is_asked_for_and_bounded_by_what_it_unpacks_to() {
+        let provider = Provider::start(None).await;
+        let fetch = fetcher(&[&provider]);
+
+        // The fetcher says it takes gzip, and hands on what was packed.
+        let small = fetch
+            .get_within(&request(provider.url("/packed-small")), 15)
+            .await;
+        assert_eq!(small.unwrap().body, b"hello, unpacked");
+
+        // A megabyte in about a kilobyte: well within the bound as sent,
+        // far beyond it unpacked, and refused.
+        let limit = 64 * 1024;
+        let packed = fetch
+            .get_within(&request(provider.url("/packed")), limit)
+            .await;
+        assert_eq!(packed, Err(FetchError::TooLarge { limit }));
+        let sent = provider.sent.load(Ordering::SeqCst);
+        assert!(sent > 0 && sent < limit / 8, "{sent} bytes were sent");
+        // With room for it, it is all there.
+        let whole = fetch
+            .get_within(&request(provider.url("/packed")), 1024 * 1024)
+            .await;
+        assert_eq!(whole.unwrap().body.len(), 1024 * 1024);
     }
 
     #[tokio::test]

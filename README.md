@@ -37,6 +37,7 @@ fetches live station observations and airspace for the first region from the pro
 | [docs/architecture.md](docs/architecture.md) | Rust core, native apps, server, hosting, bring-your-own AI, decision log |
 | [docs/design.md](docs/design.md) | How the apps look and behave, and why |
 | [docs/data-sources.md](docs/data-sources.md) | The adapter framework for external data and the Germany/Austria source catalogue |
+| [docs/adding-a-source.md](docs/adding-a-source.md) | Bringing a data source of your country into Venti, step by step, and taking one out |
 | [docs/api.md](docs/api.md) | The server's HTTP API, endpoint by endpoint |
 | [docs/mcp.md](docs/mcp.md) | The connector: the server's tools for a pilot's own Claude or ChatGPT |
 | [docs/airspace.md](docs/airspace.md) | Airspace: the record, the OpenAir reader and the warnings |

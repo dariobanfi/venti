@@ -1,0 +1,48 @@
+id = "meteotrentino"
+# The Autonomous Province of Trento publishes the data on its open-data
+# portal; its weather service, Meteotrentino, runs the stations and the
+# service that answers (dati.meteotrentino.it).
+provider = "Provincia Autonoma di Trento - Meteotrentino"
+kinds = ["observations"]
+countries = ["IT"]
+# A station's answer has a value every quarter of an hour. On 2026-11-22 at
+# 08:22 UTC the newest was of 08:00 UTC: 22 minutes old.
+cadence_seconds = 900
+auth = "none"
+# A station's answer holds the values since midnight at the start of the
+# day before, so it grows through the day: 58 to 90 kB for a wind station
+# at 08:22 UTC on 2026-11-22, some 130 kB before midnight. The station list
+# was 73,687 bytes. Sent with gzip when asked, an answer of 89 kB was 7 kB.
+max_response_kb = 512
+
+# The province publishes no limit on requests. These are Venti's own: a
+# run is the list and one request for each wind station in the area, 47 for
+# the whole province, four runs an hour; the hourly figure leaves room for
+# stations put into service later, and two at a time keeps a small server
+# unhurried.
+[rate_limit]
+per_second = 2
+per_hour = 240
+
+[licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+# The dataset's page names the licence, "Licenza Creative Commons
+# Attribution 4.0", and the author, Meteotrentino, for the Provincia
+# Autonoma di Trento; it gives no wording for the credit. This line is
+# Venti's, naming both as the page does: to verify with the province.
+attribution = "Dati: Provincia Autonoma di Trento - Meteotrentino, CC BY 4.0"
+link = "https://dati.trentino.it/dataset/dati-recenti-delle-stazioni-meteo"
+constraints = [
+    "The dataset's page: the values come from a network of automatic stations in real time, \"non hanno subito alcun processo di validazione e possono pertanto contenere errori\" (have not been validated and may hold errors).",
+    "The station list is a dataset of its own, \"Anagrafica stazioni meteo (stazioni automatiche)\", under the same licence: https://dati.trentino.it/dataset/anagrafica-stazioni-meteo-stazioni-automatiche.",
+    "The service has a lighter answer for one station, datiRealtimeUnaStazione (JSON, any number of hours, 5 kB for one hour), which names no licence of its own and is in no dataset of the portal: not used until the province says it is under the same licence (to verify).",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://dati.trentino.it/dataset/dati-recenti-delle-stazioni-meteo",
+    "https://dati.trentino.it/dataset/anagrafica-stazioni-meteo-stazioni-automatiche",
+    "https://contenuti.meteotrentino.it/doc/info_ultimi_dati_e_dati_storici.pdf",
+]

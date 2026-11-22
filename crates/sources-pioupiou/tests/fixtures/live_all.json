@@ -1,0 +1,422 @@
+{
+  "doc": "https://developers.pioupiou.fr/api/live/",
+  "license": "https://developers.pioupiou.fr/data-licensing",
+  "attribution": "(c) contributors of the OpenWindMap wind network <https://www.openwindmap.org>",
+  "data": [
+    {
+      "id": 41,
+      "meta": {
+        "name": "Sauveterre"
+      },
+      "location": {
+        "latitude": 43.456793,
+        "longitude": 0.846406,
+        "date": "2026-11-20T10:33:06.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-22T08:07:04.000Z",
+        "pressure": null,
+        "wind_heading": 270,
+        "wind_speed_avg": 21.5,
+        "wind_speed_max": 32.5,
+        "wind_speed_min": 11.5
+      },
+      "status": {
+        "date": "2026-11-22T08:07:04.000Z",
+        "snr": 0,
+        "state": "on"
+      }
+    },
+    {
+      "id": 69,
+      "meta": {
+        "name": "Pioupiou 69"
+      },
+      "location": {
+        "latitude": 46.14848,
+        "longitude": 6.188924,
+        "date": "2026-11-21T13:00:07.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-22T08:04:41.000Z",
+        "pressure": null,
+        "wind_heading": 135,
+        "wind_speed_avg": 4.25,
+        "wind_speed_max": 8,
+        "wind_speed_min": 0
+      },
+      "status": {
+        "date": "2026-11-22T08:04:41.000Z",
+        "snr": 0,
+        "state": "on"
+      }
+    },
+    {
+      "id": 70,
+      "meta": {
+        "name": "D\u00e9co T\u00e9l\u00e9ph\u00e9rique Sal\u00e8ve 1086m "
+      },
+      "location": {
+        "latitude": 46.160143,
+        "longitude": 6.190923,
+        "date": "2026-11-20T09:34:35.000Z",
+        "success": true,
+        "hdop": 3
+      },
+      "measurements": {
+        "date": "2026-11-22T08:07:34.000Z",
+        "pressure": null,
+        "wind_heading": 67.5,
+        "wind_speed_avg": 0.5,
+        "wind_speed_max": 2.5,
+        "wind_speed_min": 0
+      },
+      "status": {
+        "date": "2026-11-22T08:07:34.000Z",
+        "snr": 0,
+        "state": "on"
+      }
+    },
+    {
+      "id": 123,
+      "meta": {
+        "name": "Pioupiou 123"
+      },
+      "location": {
+        "latitude": 43.519688,
+        "longitude": 5.57091,
+        "date": "2026-11-20T18:21:01.000Z",
+        "success": true,
+        "hdop": 2
+      },
+      "measurements": {
+        "date": "2026-11-22T08:08:44.000Z",
+        "pressure": null,
+        "wind_heading": null,
+        "wind_speed_avg": null,
+        "wind_speed_max": null,
+        "wind_speed_min": null
+      },
+      "status": {
+        "date": "2026-11-22T08:08:44.000Z",
+        "snr": 0,
+        "state": "on"
+      }
+    },
+    {
+      "id": 916,
+      "meta": {
+        "name": "Test 916"
+      },
+      "location": {
+        "latitude": 0,
+        "longitude": 0,
+        "date": null,
+        "success": false,
+        "hdop": null
+      },
+      "measurements": {
+        "date": "2026-11-22T08:04:22.000Z",
+        "pressure": null,
+        "wind_heading": null,
+        "wind_speed_avg": null,
+        "wind_speed_max": null,
+        "wind_speed_min": null
+      },
+      "status": {
+        "date": "2026-11-22T08:04:22.000Z",
+        "snr": 0,
+        "state": "on"
+      }
+    },
+    {
+      "id": 1343,
+      "meta": {
+        "name": "Nendaz, Tracouet"
+      },
+      "location": {
+        "latitude": 46.161509,
+        "longitude": 7.283233,
+        "date": "2026-11-22T03:29:37.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-22T08:02:49.000Z",
+        "pressure": null,
+        "wind_heading": 180,
+        "wind_speed_avg": 16,
+        "wind_speed_max": 18,
+        "wind_speed_min": 7.75
+      },
+      "status": {
+        "date": "2026-11-22T08:02:49.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 1359,
+      "meta": {
+        "name": "Decollo Felci"
+      },
+      "location": {
+        "latitude": 45.507136,
+        "longitude": 7.810943,
+        "date": "2026-11-22T03:07:37.000Z",
+        "success": true,
+        "hdop": 2
+      },
+      "measurements": {
+        "date": "2026-11-22T08:02:14.000Z",
+        "pressure": null,
+        "wind_heading": 270,
+        "wind_speed_avg": 2.25,
+        "wind_speed_max": 4.25,
+        "wind_speed_min": 0
+      },
+      "status": {
+        "date": "2026-11-22T08:02:14.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 1514,
+      "meta": {
+        "name": "Kampenwand Hirschenstein 1453 m"
+      },
+      "location": {
+        "latitude": 47.756271,
+        "longitude": 12.352701,
+        "date": "2026-11-22T02:18:54.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-22T07:59:26.000Z",
+        "pressure": null,
+        "wind_heading": 135,
+        "wind_speed_avg": 6.75,
+        "wind_speed_max": 11,
+        "wind_speed_min": 2.25
+      },
+      "status": {
+        "date": "2026-11-22T07:59:26.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 1592,
+      "meta": {
+        "name": "Val Pelouse 1879 m"
+      },
+      "location": {
+        "latitude": 45.421085,
+        "longitude": 6.17436,
+        "date": "2026-11-07T02:46:32.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-08T14:45:16.000Z",
+        "pressure": null,
+        "wind_heading": 180,
+        "wind_speed_avg": 15.5,
+        "wind_speed_max": 25.5,
+        "wind_speed_min": 7
+      },
+      "status": {
+        "date": "2026-11-08T14:55:13.000Z",
+        "snr": -1,
+        "state": "off"
+      }
+    },
+    {
+      "id": 1602,
+      "meta": {
+        "name": "Windbird 1602"
+      },
+      "location": {
+        "latitude": 46.113943,
+        "longitude": 7.078784,
+        "date": "2026-03-10T17:21:15.000Z",
+        "success": false,
+        "hdop": 3
+      },
+      "measurements": {
+        "date": "2026-11-22T07:26:30.000Z",
+        "pressure": null,
+        "wind_heading": null,
+        "wind_speed_avg": null,
+        "wind_speed_max": null,
+        "wind_speed_min": null
+      },
+      "status": {
+        "date": "2026-11-22T07:26:30.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 1635,
+      "meta": {
+        "name": "Windbird 1635"
+      },
+      "location": {
+        "latitude": 47.991072,
+        "longitude": 7.956035,
+        "date": "2026-11-07T13:34:08.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-08T09:11:43.000Z",
+        "pressure": null,
+        "wind_heading": 247.5,
+        "wind_speed_avg": 0.25,
+        "wind_speed_max": null,
+        "wind_speed_min": null
+      },
+      "status": {
+        "date": "2026-11-08T09:11:52.000Z",
+        "snr": -1,
+        "state": "off"
+      }
+    },
+    {
+      "id": 1708,
+      "meta": {
+        "name": "D\u00e9co Anglettaz  1570m"
+      },
+      "location": {
+        "latitude": 45.960319,
+        "longitude": 6.240975,
+        "date": "2026-11-21T21:51:25.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-22T08:00:55.000Z",
+        "pressure": null,
+        "wind_heading": 180,
+        "wind_speed_avg": 24.5,
+        "wind_speed_max": 57,
+        "wind_speed_min": 3.5
+      },
+      "status": {
+        "date": "2026-11-22T08:00:55.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 1720,
+      "meta": {
+        "name": "Atterrissage de Doussard"
+      },
+      "location": {
+        "latitude": 45.781624,
+        "longitude": 6.222547,
+        "date": "2026-11-05T11:53:07.000Z",
+        "success": true,
+        "hdop": 2
+      },
+      "measurements": {
+        "date": "2026-11-08T12:57:41.000Z",
+        "pressure": null,
+        "wind_heading": null,
+        "wind_speed_avg": null,
+        "wind_speed_max": null,
+        "wind_speed_min": null
+      },
+      "status": {
+        "date": "2026-11-08T12:57:41.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 1724,
+      "meta": {
+        "name": "D\u00e9co Planpraz Chamonix 1958m"
+      },
+      "location": {
+        "latitude": 45.936422,
+        "longitude": 6.853013,
+        "date": "2026-11-21T11:06:36.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-22T08:04:35.000Z",
+        "pressure": null,
+        "wind_heading": 337.5,
+        "wind_speed_avg": 0,
+        "wind_speed_max": 0,
+        "wind_speed_min": 0
+      },
+      "status": {
+        "date": "2026-11-22T08:04:35.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 2077,
+      "meta": {
+        "name": "Osterfelder Nord -Startplatz "
+      },
+      "location": {
+        "latitude": 47.439425,
+        "longitude": 11.052082,
+        "date": "2026-11-20T14:08:06.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-22T08:07:45.000Z",
+        "pressure": null,
+        "wind_heading": 337.5,
+        "wind_speed_avg": 3.25,
+        "wind_speed_max": 9.25,
+        "wind_speed_min": 0
+      },
+      "status": {
+        "date": "2026-11-22T08:07:45.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 2392,
+      "meta": {
+        "name": "Windbird 2392"
+      },
+      "location": {
+        "longitude": 0,
+        "date": null,
+        "success": false,
+        "hdop": null
+      },
+      "measurements": {
+        "date": "2026-10-22T18:24:04.000Z",
+        "pressure": null,
+        "wind_heading": 90,
+        "wind_speed_avg": 4.5,
+        "wind_speed_max": null,
+        "wind_speed_min": null
+      },
+      "status": {
+        "date": "2026-10-22T18:25:28.000Z",
+        "snr": -1,
+        "state": "off"
+      }
+    }
+  ]
+}

@@ -37,6 +37,7 @@ mod forecast;
 mod imagery;
 mod live;
 mod manifest;
+mod network;
 mod radar;
 mod registry;
 mod run;
@@ -59,6 +60,7 @@ pub use manifest::{
     Asset, Auth, DEFAULT_MAX_RESPONSE_KB, Kind, Licence, LicenceFamily, Manifest, ManifestError,
     RateLimit,
 };
+pub use network::{Sample, StationNetwork};
 pub use radar::{
     ParsedRadar, RadarRejection, RadarRunOutput, RadarRunReport, RadarSource, RadarWanted,
     run_radar,

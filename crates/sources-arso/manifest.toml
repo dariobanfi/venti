@@ -1,0 +1,60 @@
+id = "arso-ams"
+# The Slovenian Environment Agency (Agencija Republike Slovenije za okolje),
+# the state's weather service, and its automatic weather stations ("AMS",
+# samodejne meteorološke postaje). The file's own <credit> names it.
+provider = "Slovenian Environment Agency ARSO"
+kinds = ["observations"]
+# 103 stations in the file on 2026-11-22, all in Slovenia but one buoy in
+# the Gulf of Trieste ("Tržaški zaliv (Zarja)", at 45.60 N 13.54 E).
+countries = ["SI"]
+# Two kinds of station share the file. 87 ("SI_RNSTATION_B") had values
+# over the ten minutes 07:40 to 07:50 UTC, 16 ("SI_RNSTATION", the main
+# stations) over the half hour 07:00 to 07:30, when it was asked at 08:20
+# UTC on 2026-11-22. The file itself says <suggested_pickup>5 minutes after
+# valid</suggested_pickup> and <suggested_pickup_period>10</...>, and the
+# service's page says "na pol ure ali 10 minut" (every half hour or every
+# ten minutes). On 2026-11-22 it had last been written at 07:58:54 UTC and
+# was not written again between 08:20 and 08:24: how regularly it is
+# written every ten minutes is to verify.
+cadence_seconds = 600
+auth = "none"
+# The one answer of a run was 811,155 bytes on 2026-11-22 (103 stations);
+# the catalogue had 668 kB and 85 stations a few days before.
+max_response_kb = 4096
+
+# ARSO publishes no limit on requests: none was found on the service's page
+# (https://meteo.arso.gov.si/met/sl/service/), in the file's description or
+# in the terms. A run is one request, every ten minutes: six an hour, which
+# is the period the file itself suggests.
+
+[licence]
+name = "ARSO terms of reuse (Pogoji ponovne uporabe)"
+# The terms: "Informacije objavljene na spletni strani meteo.arso.gov.si oz.
+# www.meteo.si so prosto dostopne in na voljo za ponovno uporabo" (freely
+# accessible and available for reuse), read 2026-11-22. They name no
+# restriction of use, commercial or other, and ask for nothing but the
+# source. That this makes commercial reuse allowed is the plain reading;
+# that ARSO reads it so is to verify.
+commercial = true
+redistribution = true
+share_alike = false
+# "Kdor objavi ali povzame informacije ... mora objavo opremiti z navedbo
+# vira (Vir: Agencija Republike Slovenije za okolje ali Vir: ARSO)"; the
+# English page gives "(Source: ARSO)".
+attribution = "Vir: ARSO (Source: Slovenian Environment Agency)"
+link = "https://meteo.arso.gov.si/uploads/meteo/help/sl/copyright.html"
+constraints = [
+    "Whoever publishes or summarises the information must name the source: \"Vir: Agencija Republike Slovenije za okolje\" or \"Vir: ARSO\" (in English \"Source: ARSO\"). Article 14 of the Slovenian act on the state's meteorological, hydrological, oceanographic and seismological service (Uradni list RS, 60/17) makes it a duty by law.",
+    "ARSO's disclaimer: the site is \"informativnega značaja\" (for information), may be changed or withdrawn in part or whole without notice, users use its data at their own risk, and ARSO takes no responsibility for any loss from decisions made on it.",
+    "The service's page calls the XML data available \"testno\" (as a test), says occasional problems with its updating cannot be ruled out, and that no schema exists; the description of the elements is of 2009 (version 0.80). Each value's meaning and unit is taken from the description that the file carries beside it (<x_var_desc>, <x_var_unit>).",
+    "The meaning of a value's <x_state> is not described anywhere found: on 2026-11-22 it was 0 beside every wind, temperature, humidity and pressure that had a value, and 2 only beside empty ones. A value is taken only when its state is 0 or empty; what the other states mean is to verify.",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://meteo.arso.gov.si/uploads/meteo/help/sl/copyright.html",
+    "https://meteo.arso.gov.si/uploads/meteo/help/en/copyright.html",
+    "https://meteo.arso.gov.si/met/sl/about/",
+    "https://meteo.arso.gov.si/uploads/meteo/help/sl/disclaimer.html",
+    "https://meteo.arso.gov.si/uploads/meteo/help/sl/xml_service.html",
+    "https://meteo.arso.gov.si/met/sl/service/",
+]

@@ -94,6 +94,15 @@ impl AwcMetar {
     }
 }
 
+/// The network as a build takes it in: the adapter, and the sample that
+/// answers for it in the server's development mode. The server's list of
+/// adapters has one line for this function and names nothing else of the
+/// crate.
+pub fn network() -> venti_sources::StationNetwork {
+    venti_sources::StationNetwork::new(AwcMetar::new())
+        .with_sample(fixtures::evening_at(), fixtures::evening())
+}
+
 impl Default for AwcMetar {
     fn default() -> Self {
         Self::new()

@@ -1,0 +1,114 @@
+{
+  "stations": [
+    {
+      "id": "arso-ams:KREDA-ICA_",
+      "name": "Kredarica",
+      "position": {
+        "lat": 46.3787,
+        "lon": 13.8489
+      },
+      "elevation_m": 2514.0
+    },
+    {
+      "id": "arso-ams:ROGLA_",
+      "name": "Rogla",
+      "position": {
+        "lat": 46.453,
+        "lon": 15.3315
+      },
+      "elevation_m": 1495.0
+    },
+    {
+      "id": "arso-ams:TEST-KMH_",
+      "name": "Kilometres",
+      "position": {
+        "lat": 46.42,
+        "lon": 13.8489
+      },
+      "elevation_m": 2514.0
+    },
+    {
+      "id": "arso-ams:TEST-NEG_",
+      "name": "Negative",
+      "position": {
+        "lat": 46.4,
+        "lon": 13.8489
+      },
+      "elevation_m": 2514.0
+    },
+    {
+      "id": "arso-ams:TEST-NOH_",
+      "name": "No Height",
+      "position": {
+        "lat": 46.41,
+        "lon": 13.8489
+      },
+      "elevation_m": null
+    }
+  ],
+  "observations": [
+    {
+      "station": "arso-ams:TEST-NEG_",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": 8.9,
+      "wind_direction_deg": 28.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.5,
+      "humidity_pct": 66.0,
+      "pressure_hpa": 736.0
+    },
+    {
+      "station": "arso-ams:TEST-NOH_",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 2.9,
+      "wind_gust_ms": 8.9,
+      "wind_direction_deg": 28.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.5,
+      "humidity_pct": 66.0,
+      "pressure_hpa": 736.0
+    }
+  ],
+  "report": {
+    "source": "arso-ams",
+    "requests": 1,
+    "failures": [],
+    "skipped": [
+      {
+        "what": "KREDA-ICA_ ffavg_val",
+        "reason": "value cannot be read: 2,9"
+      },
+      {
+        "what": "ROGLA_ 18.11.2026 19:50 CET",
+        "reason": "time stamp cannot be read"
+      },
+      {
+        "what": "URSLJ-GOR_",
+        "reason": "a station without a position"
+      },
+      {
+        "what": "TEST-KMH_ ffavg_val",
+        "reason": "the unit is km/h, not m/s: the reading is not taken"
+      },
+      {
+        "what": "NO ID",
+        "reason": "a station without an id"
+      }
+    ],
+    "rejected": [
+      {
+        "station": "arso-ams:TEST-NEG_",
+        "time": "2026-11-18T18:50:00Z",
+        "field": "wind_speed_ms",
+        "value": -3.0,
+        "reason": "outside 0..=120"
+      }
+    ],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 5,
+    "observations": 2,
+    "newest_observation": "2026-11-18T18:50:00Z"
+  }
+}

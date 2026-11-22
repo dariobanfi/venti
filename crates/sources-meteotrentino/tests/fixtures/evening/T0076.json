@@ -1,0 +1,133 @@
+{
+"type": "FeatureCollection",
+"features":[
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T20:00:00+01","prec(mm)": "0.0","ta(°C)": "3.9","tamin(°C)": "3.5","tamax(°C)": "4.2","vvmed(m/s)": "1.0","vvmax(m/s)": "1.8","dvmed(gN)": "358","umid(%)": "84","press(hPa)": "873.0","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:55:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:50:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "1.0","vvmax(m/s)": "2.1","dvmed(gN)": "6","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:45:00+01","prec(mm)": "0.0","ta(°C)": "3.9","tamin(°C)": "3.3","tamax(°C)": "4.3","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "85","press(hPa)": "872.7","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:40:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "1.6","vvmax(m/s)": "2.6","dvmed(gN)": "339","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:35:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:30:00+01","prec(mm)": "0.0","ta(°C)": "4.3","tamin(°C)": "3.5","tamax(°C)": "5.2","vvmed(m/s)": "1.2","vvmax(m/s)": "2.3","dvmed(gN)": "354","umid(%)": "84","press(hPa)": "872.7","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:25:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:20:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "1.4","vvmax(m/s)": "2.3","dvmed(gN)": "350","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:15:00+01","prec(mm)": "0.0","ta(°C)": "4.4","tamin(°C)": "4.0","tamax(°C)": "5.0","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "84","press(hPa)": "872.6","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:10:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "1.3","vvmax(m/s)": "2.7","dvmed(gN)": "310","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:05:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Rabbi (San Bernardo)","quota":"1132 m","code":"T0076","datetime": "2026-11-18T19:00:00+01","prec(mm)": "0.0","ta(°C)": "4.6","tamin(°C)": "3.9","tamax(°C)": "5.8","vvmed(m/s)": "1.1","vvmax(m/s)": "2.3","dvmed(gN)": "319","umid(%)": "84","press(hPa)": "872.2","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+10.849515,
+46.401374
+]
+}
+}]}

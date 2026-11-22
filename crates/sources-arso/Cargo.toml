@@ -1,0 +1,16 @@
+[package]
+name = "venti-sources-arso"
+description = "Adapter for the automatic weather stations of ARSO, the Slovenian Environment Agency."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+venti-sources.workspace = true
+chrono.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,52 @@
+id = "pioupiou"
+# OpenWindMap SCIC SA runs the network that Bac Plus Zéro SAS began as
+# Pioupiou; its documentation names both ("Copyright © 2015 Bac Plus Zéro
+# SAS, © 2021-2023 OpenWindMap SCIC SA", read 2026-11-22). The stations
+# belong to the pilots, clubs and schools who put them up.
+provider = "OpenWindMap (Pioupiou wind network)"
+kinds = ["observations"]
+# The network is worldwide and densest in France. These are the Alpine
+# countries in which it had stations in the Alps' box on 2026-11-22. A
+# station of another country inside a region's area is taken all the same:
+# the adapter goes by position, not by country.
+countries = ["FR", "CH", "IT", "DE", "AT"]
+# A sensor sends a reading about every five minutes: the archive of three
+# sensors for the evening of 2026-11-18 has one each 5 min 0 s to 5 min 4 s.
+# The documentation says only that a reading is the mean, the minimum and
+# the maximum "over the last 4 minutes before measurements.date". To verify.
+cadence_seconds = 300
+auth = "none"
+# The one answer of a run was 462,653 bytes on 2026-11-22: 763 sensors.
+max_response_kb = 4096
+
+# "Updates for all stations or a single station should not be requested
+# more often than every 60 seconds" (the Live API's page, Limitations, read
+# 2026-11-22). A run is one request, every five minutes: twelve an hour.
+[rate_limit]
+per_hour = 60
+
+[licence]
+name = "Pioupiou Community License"
+commercial = true
+redistribution = true
+share_alike = false
+# The wording the licence page gives as its example, read 2026-11-22. The
+# answers of the API carry a shorter one, "(c) contributors of the
+# OpenWindMap wind network <https://www.openwindmap.org>".
+attribution = "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org>"
+# "You must give credit and provide a link to the https://openwindmap.org
+# website in a visible part of your application."
+link = "https://openwindmap.org"
+constraints = [
+    "The credit and its link to https://openwindmap.org must be in a visible part of the application, in no way that suggests OpenWindMap endorses Venti, and Venti must not claim to own the data.",
+    "A condition on the whole application: \"If your application integrates data from other weather sensors, and if the data from those other weather sensors is not open according to the following definition, then you are not allowed to use Pioupiou Wind Data under the Community License.\" The definition: on a public website or API, at no cost, reusable by anybody for any application including commercial ones and redistribution, readable by a computer, at full resolution, without delay, and the full archive retrievable where archived data is used.",
+    "So a station source that anybody may not reuse commercially, or one used by permission on terms of its own (Holfuy, the avalanche services), ends this licence for the whole of Venti. Whether a source that wants a free key (Météo-France) is open by the definition is to verify.",
+    "Two parts of the definition read as duties of the application: \"You must provide the same dataset as the one you're using\", undegraded, and \"Data update must not be delayed\". Venti serves every reading it takes through its open API without a key; whether that is all they ask is to verify with OpenWindMap.",
+    "OpenWindMap reserves the right to add terms to the definition of open data: read the page again before each release.",
+    "The live data must not be asked more often than once a minute, and a high-traffic application must cache it on a server of its own: the apps never ask the network, only Venti's server does.",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://developers.pioupiou.fr/data-licensing/",
+    "https://developers.pioupiou.fr/api/live/",
+]

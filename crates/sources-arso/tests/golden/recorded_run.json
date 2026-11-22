@@ -1,0 +1,198 @@
+{
+  "stations": [
+    {
+      "id": "arso-ams:BABNO-POL_",
+      "name": "Babno Polje",
+      "position": {
+        "lat": 45.6452,
+        "lon": 14.5449
+      },
+      "elevation_m": 756.0
+    },
+    {
+      "id": "arso-ams:CELJE_MEDLOG_",
+      "name": "Celje",
+      "position": {
+        "lat": 46.2366,
+        "lon": 15.2259
+      },
+      "elevation_m": 244.0
+    },
+    {
+      "id": "arso-ams:KOPER_LUKA_",
+      "name": "Luka Koper",
+      "position": {
+        "lat": 45.5645,
+        "lon": 13.7448
+      },
+      "elevation_m": -2.0
+    },
+    {
+      "id": "arso-ams:KRVAVEC_",
+      "name": "Krvavec",
+      "position": {
+        "lat": 46.2973,
+        "lon": 14.5333
+      },
+      "elevation_m": 1740.0
+    },
+    {
+      "id": "arso-ams:NOVA-GOR_BILJE_",
+      "name": "Bilje Nova Gorica",
+      "position": {
+        "lat": 45.8956,
+        "lon": 13.624
+      },
+      "elevation_m": 55.0
+    },
+    {
+      "id": "arso-ams:RATIT-VEC_",
+      "name": "Ratitovec",
+      "position": {
+        "lat": 46.2362,
+        "lon": 14.0902
+      },
+      "elevation_m": 1639.0
+    },
+    {
+      "id": "arso-ams:SLAVNIK_",
+      "name": "Slavnik",
+      "position": {
+        "lat": 45.5336,
+        "lon": 13.976
+      },
+      "elevation_m": 1020.0
+    },
+    {
+      "id": "arso-ams:TRZAS-ZAL_",
+      "name": "Tržaški zaliv (Zarja)",
+      "position": {
+        "lat": 45.6016,
+        "lon": 13.5352
+      },
+      "elevation_m": 0.0
+    },
+    {
+      "id": "arso-ams:VOGEL_",
+      "name": "Vogel",
+      "position": {
+        "lat": 46.2594,
+        "lon": 13.8396
+      },
+      "elevation_m": 1515.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "arso-ams:BABNO-POL_",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -0.5,
+      "humidity_pct": 99.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "arso-ams:CELJE_MEDLOG_",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": 0.4,
+      "wind_gust_ms": 0.8,
+      "wind_direction_deg": 293.0,
+      "gust_direction_deg": 302.0,
+      "temperature_c": 3.1,
+      "humidity_pct": 97.0,
+      "pressure_hpa": 984.9
+    },
+    {
+      "station": "arso-ams:KOPER_LUKA_",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": 0.3,
+      "wind_gust_ms": 1.1,
+      "wind_direction_deg": 109.0,
+      "gust_direction_deg": 90.0,
+      "temperature_c": 8.1,
+      "humidity_pct": 99.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "arso-ams:KRVAVEC_",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 9.58,
+      "wind_gust_ms": 13.21,
+      "wind_direction_deg": 260.0,
+      "gust_direction_deg": 251.0,
+      "temperature_c": -0.4,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "arso-ams:NOVA-GOR_BILJE_",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.47,
+      "wind_gust_ms": 0.8,
+      "wind_direction_deg": 81.0,
+      "gust_direction_deg": 40.0,
+      "temperature_c": 6.5,
+      "humidity_pct": 97.0,
+      "pressure_hpa": 1006.4
+    },
+    {
+      "station": "arso-ams:RATIT-VEC_",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 8.27,
+      "wind_gust_ms": 11.6,
+      "wind_direction_deg": 234.0,
+      "gust_direction_deg": 236.0,
+      "temperature_c": -0.4,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "arso-ams:SLAVNIK_",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 11.65,
+      "wind_gust_ms": 14.72,
+      "wind_direction_deg": 191.0,
+      "gust_direction_deg": 193.0,
+      "temperature_c": 5.8,
+      "humidity_pct": 99.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "arso-ams:TRZAS-ZAL_",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": 0.0,
+      "wind_direction_deg": 0.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "arso-ams:VOGEL_",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.61,
+      "wind_gust_ms": 7.44,
+      "wind_direction_deg": 167.0,
+      "gust_direction_deg": 223.0,
+      "temperature_c": 0.6,
+      "humidity_pct": 93.0,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "arso-ams",
+    "requests": 1,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 9,
+    "observations": 9,
+    "newest_observation": "2026-11-22T07:50:00Z"
+  }
+}

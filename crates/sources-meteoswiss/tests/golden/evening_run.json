@@ -1,0 +1,78 @@
+{
+  "stations": [
+    {
+      "id": "meteoswiss-smn:DAV",
+      "name": "Davos",
+      "position": {
+        "lat": 46.812969,
+        "lon": 9.843558
+      },
+      "elevation_m": 1594.0
+    },
+    {
+      "id": "meteoswiss-smn:SAM",
+      "name": "Samedan",
+      "position": {
+        "lat": 46.526247,
+        "lon": 9.879469
+      },
+      "elevation_m": 1709.0
+    },
+    {
+      "id": "meteoswiss-smn:WFJ",
+      "name": "Weissfluhjoch",
+      "position": {
+        "lat": 46.833342,
+        "lon": 9.806397
+      },
+      "elevation_m": 2691.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "meteoswiss-smn:DAV",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 1.89,
+      "wind_gust_ms": 3.31,
+      "wind_direction_deg": 61.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.5,
+      "humidity_pct": 85.2,
+      "pressure_hpa": 826.1
+    },
+    {
+      "station": "meteoswiss-smn:SAM",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 1.31,
+      "wind_gust_ms": 3.19,
+      "wind_direction_deg": 324.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.5,
+      "humidity_pct": 66.3,
+      "pressure_hpa": 814.2
+    },
+    {
+      "station": "meteoswiss-smn:WFJ",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 10.19,
+      "wind_gust_ms": 15.61,
+      "wind_direction_deg": 246.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.2,
+      "humidity_pct": 74.1,
+      "pressure_hpa": 719.7
+    }
+  ],
+  "report": {
+    "source": "meteoswiss-smn",
+    "requests": 2,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 3,
+    "newest_observation": "2026-11-18T18:50:00Z"
+  }
+}

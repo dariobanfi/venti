@@ -1,0 +1,209 @@
+{
+  "stations": [
+    {
+      "id": "pioupiou:123",
+      "name": "Pioupiou 123",
+      "position": {
+        "lat": 43.519688,
+        "lon": 5.57091
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:1343",
+      "name": "Nendaz, Tracouet",
+      "position": {
+        "lat": 46.161509,
+        "lon": 7.283233
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:1359",
+      "name": "Decollo Felci",
+      "position": {
+        "lat": 45.507136,
+        "lon": 7.810943
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:1592",
+      "name": "Val Pelouse 1879 m",
+      "position": {
+        "lat": 45.421085,
+        "lon": 6.17436
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:1635",
+      "name": "Windbird 1635",
+      "position": {
+        "lat": 47.991072,
+        "lon": 7.956035
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:1708",
+      "name": "Déco Anglettaz  1570m",
+      "position": {
+        "lat": 45.960319,
+        "lon": 6.240975
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:1720",
+      "name": "Atterrissage de Doussard",
+      "position": {
+        "lat": 45.781624,
+        "lon": 6.222547
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:1724",
+      "name": "Déco Planpraz Chamonix 1958m",
+      "position": {
+        "lat": 45.936422,
+        "lon": 6.853013
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:69",
+      "name": "Pioupiou 69",
+      "position": {
+        "lat": 46.14848,
+        "lon": 6.188924
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:70",
+      "name": "Déco Téléphérique Salève 1086m",
+      "position": {
+        "lat": 46.160143,
+        "lon": 6.190923
+      },
+      "elevation_m": null
+    }
+  ],
+  "observations": [
+    {
+      "station": "pioupiou:1343",
+      "time": "2026-11-22T08:02:49Z",
+      "wind_speed_ms": 4.444444444444445,
+      "wind_gust_ms": 5.0,
+      "wind_direction_deg": 180.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:1359",
+      "time": "2026-11-22T08:02:14Z",
+      "wind_speed_ms": 0.625,
+      "wind_gust_ms": 1.1805555555555556,
+      "wind_direction_deg": 270.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:1592",
+      "time": "2026-11-08T14:45:16Z",
+      "wind_speed_ms": 4.305555555555555,
+      "wind_gust_ms": 7.083333333333333,
+      "wind_direction_deg": 180.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:1635",
+      "time": "2026-11-08T09:11:43Z",
+      "wind_speed_ms": 0.06944444444444445,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 247.5,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:1708",
+      "time": "2026-11-22T08:00:55Z",
+      "wind_speed_ms": 6.805555555555555,
+      "wind_gust_ms": 15.833333333333332,
+      "wind_direction_deg": 180.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:1724",
+      "time": "2026-11-22T08:04:35Z",
+      "wind_speed_ms": 0.0,
+      "wind_gust_ms": 0.0,
+      "wind_direction_deg": 337.5,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:69",
+      "time": "2026-11-22T08:04:41Z",
+      "wind_speed_ms": 1.1805555555555556,
+      "wind_gust_ms": 2.2222222222222223,
+      "wind_direction_deg": 135.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "pioupiou:70",
+      "time": "2026-11-22T08:07:34Z",
+      "wind_speed_ms": 0.1388888888888889,
+      "wind_gust_ms": 0.6944444444444444,
+      "wind_direction_deg": 67.5,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "pioupiou",
+    "requests": 1,
+    "failures": [],
+    "skipped": [
+      {
+        "what": "916",
+        "reason": "a sensor without a position: the network writes 0, 0 for one it does not know"
+      },
+      {
+        "what": "1602",
+        "reason": "the network says the sensor's last known position is no longer valid"
+      },
+      {
+        "what": "2392",
+        "reason": "a sensor without a position"
+      }
+    ],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 10,
+    "observations": 8,
+    "newest_observation": "2026-11-22T08:07:34Z"
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "stations": [
+    {
+      "id": "meteotrentino:T0076",
+      "name": "Rabbi (San Bernardo)",
+      "position": {
+        "lat": 46.401374,
+        "lon": 10.849515
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "meteotrentino:T0403",
+      "name": "Canazei (Ciampac)",
+      "position": {
+        "lat": 46.445989,
+        "lon": 11.769081
+      },
+      "elevation_m": 2150.0
+    },
+    {
+      "id": "meteotrentino:T0404",
+      "name": "Marmolada (Sas Del Mul)",
+      "position": {
+        "lat": 46.443614,
+        "lon": 11.880813
+      },
+      "elevation_m": 2606.0
+    },
+    {
+      "id": "meteotrentino:T0998",
+      "name": "Stazione nuova",
+      "position": {
+        "lat": 46.4,
+        "lon": 11.0
+      },
+      "elevation_m": 1500.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "meteotrentino:T0076",
+      "time": "2026-11-18T18:00:00Z",
+      "wind_speed_ms": 1.1,
+      "wind_gust_ms": 2.3,
+      "wind_direction_deg": 319.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.6,
+      "humidity_pct": 84.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0076",
+      "time": "2026-11-18T18:15:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 4.4,
+      "humidity_pct": 84.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0076",
+      "time": "2026-11-18T18:30:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 2.3,
+      "wind_direction_deg": 354.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.3,
+      "humidity_pct": 84.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0404",
+      "time": "2026-11-18T18:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -1.7,
+      "humidity_pct": 65.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0404",
+      "time": "2026-11-18T18:15:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 65.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0404",
+      "time": "2026-11-18T18:30:00Z",
+      "wind_speed_ms": 5.1,
+      "wind_gust_ms": 12.3,
+      "wind_direction_deg": 210.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.9,
+      "humidity_pct": 63.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0404",
+      "time": "2026-11-18T18:45:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -1.9,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "meteotrentino",
+    "requests": 5,
+    "failures": [
+      {
+        "tag": "values/T0403",
+        "url": "https://dati.meteotrentino.it/service.asmx/ultimiDatiStazione?codice=T0403",
+        "error": "malformed response: the answer for T0403 is <html>, not <datiOggi>"
+      }
+    ],
+    "skipped": [
+      {
+        "what": "T0999",
+        "reason": "station cannot be read: latitudine is \"\""
+      },
+      {
+        "what": "T0420",
+        "reason": "a station of the adapter's list of wind stations that the station list has out of service since 01/11/2026"
+      },
+      {
+        "what": "station \"T 0997\"",
+        "reason": "a station without a code that can be asked for"
+      },
+      {
+        "what": "T0404 vento_al_suolo 2026-11-18T19:00:00",
+        "reason": "value cannot be read: v is \"n/d\""
+      },
+      {
+        "what": "T0404 temperatura_aria 18/11/2026 19:15",
+        "reason": "time stamp cannot be read"
+      },
+      {
+        "what": "T0404 umidita_relativa 2026-11-18T19:45:00",
+        "reason": "the unit of rh is \"‰\", not \"%\""
+      },
+      {
+        "what": "T0998",
+        "reason": "the station's answer holds no wind: the anemometer may be out of order, or the station no longer belong on the adapter's list of wind stations"
+      }
+    ],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 4,
+    "observations": 7,
+    "newest_observation": "2026-11-18T18:45:00Z"
+  }
+}

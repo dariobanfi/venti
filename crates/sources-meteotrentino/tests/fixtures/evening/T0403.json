@@ -1,0 +1,133 @@
+{
+"type": "FeatureCollection",
+"features":[
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T20:00:00+01","prec(mm)": "0.0","ta(°C)": "1.8","tamin(°C)": "1.4","tamax(°C)": "2.2","vvmed(m/s)": "4.7","vvmax(m/s)": "11.1","dvmed(gN)": "140","umid(%)": "56","press(hPa)": "769.3","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "6"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:55:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:50:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "2.8","vvmax(m/s)": "6.8","dvmed(gN)": "126","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:45:00+01","prec(mm)": "0.0","ta(°C)": "1.8","tamin(°C)": "1.6","tamax(°C)": "2.1","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "59","press(hPa)": "769.3","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "5"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:40:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "3.9","vvmax(m/s)": "7.9","dvmed(gN)": "118","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:35:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:30:00+01","prec(mm)": "0.0","ta(°C)": "1.6","tamin(°C)": "1.0","tamax(°C)": "2.0","vvmed(m/s)": "3.0","vvmax(m/s)": "6.9","dvmed(gN)": "151","umid(%)": "66","press(hPa)": "769.0","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "2"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:25:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:20:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "4.4","vvmax(m/s)": "7.9","dvmed(gN)": "174","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:15:00+01","prec(mm)": "0.0","ta(°C)": "1.2","tamin(°C)": "-0.1","tamax(°C)": "1.8","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "71","press(hPa)": "769.0","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "4"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:10:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "3.6","vvmax(m/s)": "10.6","dvmed(gN)": "154","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:05:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Canazei (Ciampac)","quota":"2150 m","code":"T0403","datetime": "2026-11-18T19:00:00+01","prec(mm)": "0.0","ta(°C)": "0.5","tamin(°C)": "-0.2","tamax(°C)": "1.3","vvmed(m/s)": "2.3","vvmax(m/s)": "4.2","dvmed(gN)": "162","umid(%)": "79","press(hPa)": "768.9","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "2"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.769081,
+46.445989
+]
+}
+}]}

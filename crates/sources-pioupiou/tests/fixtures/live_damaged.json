@@ -1,0 +1,137 @@
+{
+  "doc": "https://developers.pioupiou.fr/api/live/",
+  "license": "https://developers.pioupiou.fr/data-licensing",
+  "attribution": "(c) contributors of the OpenWindMap wind network <https://www.openwindmap.org>",
+  "data": [
+    {
+      "id": 1514,
+      "meta": {
+        "name": "Kampenwand Hirschenstein 1453 m"
+      },
+      "location": {
+        "latitude": 47.77225,
+        "longitude": 12.36509,
+        "date": "2026-11-18T19:02:00.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-18T19:02:00.000Z",
+        "pressure": null,
+        "wind_heading": 157.5,
+        "wind_speed_avg": "38.5",
+        "wind_speed_max": 49,
+        "wind_speed_min": 3.5
+      },
+      "status": {
+        "date": "2026-11-18T19:02:00.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 2077,
+      "meta": {
+        "name": "Osterfelder Nord -Startplatz "
+      },
+      "location": {
+        "latitude": 47.439445,
+        "longitude": 11.052041,
+        "date": "2026-11-18T19:01:10.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-18 19:01",
+        "pressure": null,
+        "wind_heading": 180,
+        "wind_speed_avg": 11,
+        "wind_speed_max": 22.5,
+        "wind_speed_min": 0.75
+      },
+      "status": {
+        "date": "2026-11-18T19:01:10.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": "Coburgerh\u00fctte",
+      "meta": {
+        "name": " Coburgerh\u00fctte 1920m"
+      },
+      "location": {
+        "latitude": 47.360086,
+        "longitude": 10.933592,
+        "date": "2026-11-18T19:01:42.000Z",
+        "success": true,
+        "hdop": 3
+      },
+      "measurements": {
+        "date": "2026-11-18T19:01:42.000Z",
+        "pressure": null,
+        "wind_heading": 0,
+        "wind_speed_avg": 6.5,
+        "wind_speed_max": 20.5,
+        "wind_speed_min": 0
+      },
+      "status": {
+        "date": "2026-11-18T19:01:42.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 9001,
+      "meta": {
+        "name": "Damaged 9001"
+      },
+      "location": {
+        "latitude": 47.77225,
+        "longitude": 12.36509,
+        "date": "2026-11-18T19:02:00.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-18T19:02:00.000Z",
+        "pressure": null,
+        "wind_heading": 157.5,
+        "wind_speed_avg": -20,
+        "wind_speed_max": 40,
+        "wind_speed_min": 3.5
+      },
+      "status": {
+        "date": "2026-11-18T19:02:00.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    },
+    {
+      "id": 9002,
+      "meta": {
+        "name": "Damaged 9002"
+      },
+      "location": {
+        "latitude": null,
+        "longitude": 11.052041,
+        "date": "2026-11-18T19:01:10.000Z",
+        "success": true,
+        "hdop": 1
+      },
+      "measurements": {
+        "date": "2026-11-18T19:01:10.000Z",
+        "pressure": null,
+        "wind_heading": 180,
+        "wind_speed_avg": 11,
+        "wind_speed_max": 22.5,
+        "wind_speed_min": 0.75
+      },
+      "status": {
+        "date": "2026-11-18T19:01:10.000Z",
+        "snr": -1,
+        "state": "on"
+      }
+    }
+  ]
+}

@@ -60,7 +60,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: twelve stations, three of each of four sources, as they were on 2026-11-18 at 19:05 UTC, and two more that are made up for the [foehn reading](#get-v1foehn), Klagenfurt's and Salzburg's airfields, with a pressure, a temperature and a light wind (three German and three Austrian as recorded then; three of South Tyrol and three airfields with what their services, asked three days later, gave for 18:50 UTC of that evening), and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has both of the first region's sources, two frames of each, recorded on 2026-11-21 within two minutes: DWD's of 13:10 and 13:15 UTC and GeoSphere Austria's analysis of 12:45 and 13:00, and a clock of its own that stands at 13:19, four minutes after DWD's second ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: 27 stations, three of each of the nine networks the first region names, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three each of South Tyrol, the airfields, MeteoSwiss, the SLF, Pioupiou, Trentino and Slovenia with what their services, asked three and four days later, gave for that evening), and two more that are made up for the [foehn reading](#get-v1foehn), Klagenfurt's and Salzburg's airfields, with a pressure, a temperature and a light wind. Of the 29, [28 are handed out](#get-v1stationsbboxwestsoutheastnorth): Samedan's airfield report gives way to MeteoSwiss's station on the airfield. Every one of them has a wind in its newest reading. With them come 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has both of the first region's sources, two frames of each, recorded on 2026-11-21 within two minutes: DWD's of 13:10 and 13:15 UTC and GeoSphere Austria's analysis of 12:45 and 13:00, and a clock of its own that stands at 13:19, four minutes after DWD's second ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 Map regions are the one thing the mode does not carry inside it. It hands out those of a folder it is told, as a real server hands out those of its own, and none otherwise. The repository holds one region, the valley of the sample flight that the apps bundle:
 
@@ -370,6 +370,15 @@ How the server and each of its data sources are doing.
   ],
   "sources": [
     {
+      "source": "arso-ams",
+      "provider": "Slovenian Environment Agency ARSO",
+      "cadence_seconds": 600,
+      "last_success": "2026-11-18T19:05:00Z",
+      "newest_observation": "2026-11-18T18:50:00Z",
+      "stale": false,
+      "stations": 3
+    },
+    {
       "source": "awc-metar",
       "provider": "Aviation Weather Center",
       "cadence_seconds": 600,
@@ -409,6 +418,24 @@ How the server and each of its data sources are doing.
       "cadence_seconds": 600,
       "last_success": "2026-11-18T19:05:00Z",
       "newest_observation": "2026-11-18T19:00:00Z",
+      "stale": false,
+      "stations": 3
+    },
+    {
+      "source": "meteoswiss-smn",
+      "provider": "Federal Office of Meteorology and Climatology MeteoSwiss",
+      "cadence_seconds": 600,
+      "last_success": "2026-11-18T19:05:00Z",
+      "newest_observation": "2026-11-18T18:50:00Z",
+      "stale": false,
+      "stations": 3
+    },
+    {
+      "source": "meteotrentino",
+      "provider": "Provincia Autonoma di Trento - Meteotrentino",
+      "cadence_seconds": 900,
+      "last_success": "2026-11-18T19:05:00Z",
+      "newest_observation": "2026-11-18T18:30:00Z",
       "stale": false,
       "stations": 3
     },
@@ -461,6 +488,24 @@ How the server and each of its data sources are doing.
       "stations": 0,
       "sites": 502,
       "sites_as_of": "2026-11-18T19:05:00Z"
+    },
+    {
+      "source": "pioupiou",
+      "provider": "OpenWindMap (Pioupiou wind network)",
+      "cadence_seconds": 300,
+      "last_success": "2026-11-18T19:05:00Z",
+      "newest_observation": "2026-11-18T19:02:00Z",
+      "stale": false,
+      "stations": 3
+    },
+    {
+      "source": "slf-imis",
+      "provider": "WSL Institute for Snow and Avalanche Research SLF",
+      "cadence_seconds": 1800,
+      "last_success": "2026-11-18T19:05:00Z",
+      "newest_observation": "2026-11-18T18:30:00Z",
+      "stale": false,
+      "stations": 3
     },
     {
       "source": "suedtirol-meteo",
@@ -577,12 +622,12 @@ The server does not decide what is too old to show. A station that stopped repor
 
 **One station for one place.** Where two sources have a station at the same place, the list holds one of the two, since 2026-11-21. A client does nothing for it and sees it only in what is missing:
 
-- *The same place* is two stations of different sources that stand no farther apart than 2.75 km and differ by no more than 50 m in height. A station without `elevation_m` is at the same place as no other, and two stations of one source never are.
-- *Listed* is the one whose source the server's regions prefer: in the first region DWD, then GeoSphere Austria, then South Tyrol, then the airfields' reports. With one exception: a station that has no `wind_speed_ms` of the last hour does not stand for one that has, so while a weather service's station on an airfield is silent, the airfield's report is listed in its place.
+- *The same place* is two stations of different sources that differ by no more than 50 m in height and stand no farther apart than 2.75 km where one of the two is an airfield's report (`awc-metar`), and no farther than 750 m where both are stations of weather networks (since 2026-11-22; the 750 m are an estimate, *to verify*). A station without `elevation_m` is at the same place as no other, and two stations of one source never are.
+- *Listed* is the one whose source the server's regions prefer: in the first region DWD, then GeoSphere Austria, South Tyrol, Trentino, MeteoSwiss, Slovenia, the SLF and Pioupiou, and the airfields' reports last. With one exception: a station that has no `wind_speed_ms` of the last hour does not stand for one that has, so while a weather service's station on an airfield is silent, the airfield's report is listed in its place.
 - *The other is not in the list*, whatever the box: a station at the edge of a box is judged against its neighbour outside it. Nothing of it is copied into the station that is listed, and its source is in `attributions` only if another of its stations is listed. Only in an answer that is `truncated` may both of two show at the box's edge.
 - *It is still there.* The server goes on collecting it, and its [observations](#get-v1stationsidobservationsfromto) answer by its identifier as before. An identifier an app has kept stays good. Which of two is listed can change from one answer to the next, when a station falls silent or is heard again; an app that shows a station by an identifier it kept should therefore not conclude from the list that the station is gone.
 
-In the first region this left out the reports of ten airfields among 435 stations on 2026-11-21. The development mode lists all fourteen of its stations: no two of them are one place.
+In the first region this left out the reports of ten airfields among 435 stations on 2026-11-21. The development mode lists 28 of its 29 stations: Samedan is one place measured by two, the airfield's report (`awc-metar:LSZS`, 1708 m) and MeteoSwiss's station on the airfield (`meteoswiss-smn:SAM`, 1709 m), and MeteoSwiss's is the one in the list. The Weissfluhjoch is in it twice and is two stations, MeteoSwiss's at 2691 m and the SLF's at 2536 m. The two airfields made up for the foehn reading, Klagenfurt and Salzburg, are GeoSphere Austria's stations there and have no report beside them in this mode. Pioupiou's three sensors have no `elevation_m`: the network gives none.
 
 ## `GET /v1/stations/{id}/observations?from=&to=`
 

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfAnagrafica xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.meteotrentino.it/">
+  <anagrafica>
+    <codice>T0154</codice>
+    <nome>Ala (Convento)</nome>
+    <nomebreve>Ala Convento</nomebreve>
+    <quota>165</quota>
+    <latitudine>45.75711703</latitudine>
+    <longitudine>10.99987083</longitudine>
+    <est>655530</est>
+    <north>5069007</north>
+    <inizio>01/01/1921</inizio>
+    <fine>22/06/2005</fine>
+  </anagrafica>
+  <anagrafica>
+    <codice>T0401</codice>
+    <nome>Arco (Bruttagosto)</nome>
+    <nomebreve>SM Arco Bruttagosto</nomebreve>
+    <quota>85</quota>
+    <latitudine>45.910374</latitudine>
+    <longitudine>10.887133</longitudine>
+    <est>646360</est>
+    <north>5085821</north>
+    <inizio>18/07/1985</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0403</codice>
+    <nome>Canazei (Ciampac)</nome>
+    <nomebreve>SM Ciampac</nomebreve>
+    <quota>2150</quota>
+    <latitudine>46.445989</latitudine>
+    <longitudine>11.769081</longitudine>
+    <est>712530</est>
+    <north>5147570</north>
+    <inizio>10/09/2019</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0420</codice>
+    <nome>Mezzano</nome>
+    <nomebreve>SM Mezzano</nomebreve>
+    <quota>640</quota>
+    <latitudine>46.154673</latitudine>
+    <longitudine>11.812625</longitudine>
+    <est>717177</est>
+    <north>5115079</north>
+    <inizio>11/05/2007</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0368</codice>
+    <nome>Monte Bondone (Viote)</nome>
+    <nomebreve>SM M. Bondone Viote</nomebreve>
+    <quota>1490</quota>
+    <latitudine>46.013651</latitudine>
+    <longitudine>11.054869</longitudine>
+    <est>659073</est>
+    <north>5097617</north>
+    <inizio>25/11/1999</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0406</codice>
+    <nome>Paganella (Malga Terlago)</nome>
+    <nomebreve>SM Malga Terlago</nomebreve>
+    <quota>1790</quota>
+    <latitudine>46.143008</latitudine>
+    <longitudine>11.021504</longitudine>
+    <est>656124.7</est>
+    <north>5111923.2</north>
+    <inizio>01/08/1931</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0419</codice>
+    <nome>Tonadico (Castelpietra)</nome>
+    <nomebreve>SM Castelpietra</nomebreve>
+    <quota>1045</quota>
+    <latitudine>46.198934</latitudine>
+    <longitudine>11.865668</longitudine>
+    <est>721095</est>
+    <north>5120143</north>
+    <inizio>11/05/2007</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0193</codice>
+    <nome>Torbole (Belvedere)</nome>
+    <nomebreve>SM Torbole Belvedere</nomebreve>
+    <quota>90</quota>
+    <latitudine>45.870095</latitudine>
+    <longitudine>10.877355</longitudine>
+    <est>645707</est>
+    <north>5081328</north>
+    <inizio>01/01/1965</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0129</codice>
+    <nome>Trento (Laste)</nome>
+    <nomebreve>SM Trento Laste</nomebreve>
+    <quota>312</quota>
+    <latitudine>46.071801</latitudine>
+    <longitudine>11.135703</longitudine>
+    <est>665157</est>
+    <north>5104242.5</north>
+    <inizio>01/09/1920</inizio>
+    <fine />
+  </anagrafica>
+</ArrayOfAnagrafica>

@@ -1,0 +1,144 @@
+{
+  "stations": [
+    {
+      "id": "meteotrentino:T0076",
+      "name": "Rabbi (San Bernardo)",
+      "position": {
+        "lat": 46.401374,
+        "lon": 10.849515
+      },
+      "elevation_m": 1132.0
+    },
+    {
+      "id": "meteotrentino:T0403",
+      "name": "Canazei (Ciampac)",
+      "position": {
+        "lat": 46.445989,
+        "lon": 11.769081
+      },
+      "elevation_m": 2150.0
+    },
+    {
+      "id": "meteotrentino:T0404",
+      "name": "Marmolada (Sas Del Mul)",
+      "position": {
+        "lat": 46.443614,
+        "lon": 11.880813
+      },
+      "elevation_m": 2606.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "meteotrentino:T0076",
+      "time": "2026-11-18T18:00:00Z",
+      "wind_speed_ms": 1.1,
+      "wind_gust_ms": 2.3,
+      "wind_direction_deg": 319.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.6,
+      "humidity_pct": 84.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0076",
+      "time": "2026-11-18T18:15:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 4.4,
+      "humidity_pct": 84.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0076",
+      "time": "2026-11-18T18:30:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 2.3,
+      "wind_direction_deg": 354.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.3,
+      "humidity_pct": 84.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0403",
+      "time": "2026-11-18T18:00:00Z",
+      "wind_speed_ms": 2.3,
+      "wind_gust_ms": 4.2,
+      "wind_direction_deg": 162.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.5,
+      "humidity_pct": 79.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0403",
+      "time": "2026-11-18T18:15:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 1.2,
+      "humidity_pct": 71.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0403",
+      "time": "2026-11-18T18:30:00Z",
+      "wind_speed_ms": 3.0,
+      "wind_gust_ms": 6.9,
+      "wind_direction_deg": 151.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.6,
+      "humidity_pct": 66.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0404",
+      "time": "2026-11-18T18:00:00Z",
+      "wind_speed_ms": 4.9,
+      "wind_gust_ms": 11.0,
+      "wind_direction_deg": 219.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.7,
+      "humidity_pct": 65.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0404",
+      "time": "2026-11-18T18:15:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -1.8,
+      "humidity_pct": 65.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteotrentino:T0404",
+      "time": "2026-11-18T18:30:00Z",
+      "wind_speed_ms": 5.1,
+      "wind_gust_ms": 12.3,
+      "wind_direction_deg": 210.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.9,
+      "humidity_pct": 63.0,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "meteotrentino",
+    "requests": 4,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 9,
+    "newest_observation": "2026-11-18T18:30:00Z"
+  }
+}

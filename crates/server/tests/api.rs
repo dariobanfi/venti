@@ -17,6 +17,7 @@ use venti_api_types::v1::{
     ObservationsResponse, StationsRequest, StationsResponse,
 };
 use venti_domain::{BoundingBox, GeoPoint, Observation, SourceId, Station, StationId};
+use venti_regions::RegionPack;
 use venti_server::adapters;
 use venti_server::api::{Api, Cors};
 use venti_server::clock::FixedClock;
@@ -43,6 +44,23 @@ fn id(text: &str) -> StationId {
     text.parse().unwrap()
 }
 
+/// The station networks the first region's pack names, which are the ones
+/// the development mode collects. The list is the pack's own, so a network
+/// that joins or leaves the pack needs no line here; a network of the
+/// build that no pack names is collected by nobody.
+fn first_region_networks() -> Vec<String> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../regions/alps-de-at/region.toml"
+    );
+    let pack = RegionPack::from_toml(&std::fs::read_to_string(path).unwrap()).unwrap();
+    pack.observations
+        .sources
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
 // --- The three endpoints over the recorded data -----------------------------
 
 #[tokio::test]
@@ -54,60 +72,44 @@ async fn health_reports_every_source_fresh() {
     let health: HealthResponse = answer.json();
     assert_eq!(health.status, HealthStatus::Ok);
     assert_eq!(health.time, adapters::recorded_at());
-    let stations: Vec<(&str, u32)> = health
-        .sources
-        .iter()
-        .map(|source| (source.source.as_str(), source.stations))
-        .collect();
-    assert_eq!(
-        stations,
-        [
-            ("awc-metar", 3),
-            ("dwd-10min", 3),
-            ("dwd-radar-ry", 0),
-            ("geosphere-inca-rr", 0),
-            ("geosphere-tawes", 3),
-            ("open-meteo", 0),
-            ("openaip", 0),
-            ("osm-cables", 0),
-            ("osm-free-flying", 0),
-            ("suedtirol-meteo", 3)
-        ]
-    );
+    // Every station network the first region names has the three stations
+    // of its sample; no other source has a station. (The two stations made
+    // up for the foehn reading are of a run dated a day back, and a source
+    // counts the stations of its newest.) The list is the pack's own, so a
+    // network that joins needs no line here.
+    let networks = first_region_networks();
+    // A network of the build that no pack names is not collected, and the
+    // report does not know it.
+    for network in adapters::station_networks() {
+        let id = network.adapter.manifest().id.to_string();
+        let reported = health.sources.iter().any(|s| s.source.as_str() == id);
+        assert_eq!(reported, networks.contains(&id), "{id}");
+    }
+    for source in &health.sources {
+        let is_network = networks.iter().any(|id| id == source.source.as_str());
+        let expected = if is_network { 3 } else { 0 };
+        assert_eq!(source.stations, expected, "{}", source.source);
+    }
+    let of = |id: &str| {
+        health
+            .sources
+            .iter()
+            .find(|source| source.source.as_str() == id)
+            .unwrap_or_else(|| panic!("{id} is not in the health report"))
+    };
+    for id in &networks {
+        of(id);
+    }
     // The airspace source says how much airspace the server holds, and
     // the sources of everything else say nothing about airspace.
-    let airspaces: Vec<Option<u32>> = health.sources.iter().map(|s| s.airspaces).collect();
-    assert_eq!(
-        airspaces,
-        [
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(192),
-            None,
-            None,
-            None
-        ]
-    );
+    assert_eq!(of("openaip").airspaces, Some(192));
+    let with_airspace = health.sources.iter().filter(|s| s.airspaces.is_some());
+    assert_eq!(with_airspace.count(), 1);
     // The same for the flying sites.
-    let sites: Vec<Option<u32>> = health.sources.iter().map(|s| s.sites).collect();
+    assert_eq!(of("osm-free-flying").sites, Some(502));
     assert_eq!(
-        sites,
-        [
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(502),
-            None
-        ]
+        health.sources.iter().filter(|s| s.sites.is_some()).count(),
+        1
     );
     // The forecast source says which run each of its models is at. The
     // development mode's forecasts were recorded three days after its
@@ -116,7 +118,7 @@ async fn health_reports_every_source_fresh() {
         health.forecasts,
         Some(venti_api_types::v1::ForecastsHealth::Available)
     );
-    let models: Vec<(&str, String)> = health.sources[5]
+    let models: Vec<(&str, String)> = of("open-meteo")
         .models
         .iter()
         .map(|model| (model.model.as_str(), model.run.to_rfc3339()))
@@ -129,12 +131,12 @@ async fn health_reports_every_source_fresh() {
         ]
     );
     assert!(
-        health.sources[5]
+        of("open-meteo")
             .models
             .iter()
             .all(|m| m.checked_at == health.time)
     );
-    assert!(health.sources[6].models.is_empty());
+    assert!(of("openaip").models.is_empty());
     assert!(health.sources.iter().all(|source| !source.stale));
     assert_golden(&golden("health.json"), &health);
 }
@@ -148,17 +150,74 @@ async fn stations_lists_the_box_with_latest_readings_and_credits() {
     assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=60");
     assert!(answer.header(header::ETAG).starts_with("W/\""));
     let stations: StationsResponse = answer.json();
-    // Three of each of the four sources, and all twelve are handed out:
-    // no two of them are one place measured by two sources. The nearest
-    // such two are in Innsbruck, the airfield by its own report and
-    // GeoSphere's station at the university, 3.03 km apart, and the rule
-    // takes stations of two sources for one place up to 2.75 km. They are
-    // two places: GeoSphere has a station on the airfield as well, which
-    // these recordings do not hold. What happens where they do is tested
+    // Three of each station network the region names, and all but one of
+    // them are handed out. Innsbruck's two are both in the list: the
+    // airfield by its own report and GeoSphere's station at the
+    // university, 3.03 km apart, and the rule takes an airfield's report
+    // and a station for one place up to 2.75 km. They are two places:
+    // GeoSphere has a station on the airfield as well, which these
+    // recordings do not hold. What happens where they do is tested
     // further down, with a store that has all three. Two more are made up
     // for the foehn reading, Klagenfurt's and Salzburg's airfields, with a
     // pressure, a temperature and a light wind.
-    assert_eq!(stations.stations.len(), 14);
+    //
+    // Two stations are named Weissfluhjoch, and they are two: MeteoSwiss's
+    // on the summit at 2691 m and the SLF's on its test field at 2536 m.
+    // A hundred and fifty-five metres of height are not one place.
+    //
+    // One station of the samples is left out, and it shows the rule at
+    // work: Samedan's airfield, whose report gives 1708 m, and MeteoSwiss's
+    // station on that airfield at 1709 m. MeteoSwiss comes first in the
+    // region's priority and has a wind of the last hour, so its station is
+    // the one handed out. The report is still collected, and still answers
+    // for its observations by its own identifier.
+    let handed_out = |id: &str| {
+        stations
+            .stations
+            .iter()
+            .any(|entry| entry.station.id == self::id(id))
+    };
+    assert!(handed_out("meteoswiss-smn:SAM"));
+    assert!(!handed_out("awc-metar:LSZS"));
+    assert!(handed_out("geosphere-tawes:11331"));
+    assert!(handed_out("geosphere-tawes:11150"));
+    // Three of each network the region names, less Samedan's report, and
+    // the two that are made up.
+    assert_eq!(
+        stations.stations.len(),
+        3 * first_region_networks().len() - 1 + 2
+    );
+    let report = get(
+        &recorded().await,
+        "/v1/stations/awc-metar:LSZS/observations",
+    )
+    .await;
+    assert_eq!(report.status, StatusCode::OK);
+    let weissfluhjoch: Vec<(&str, Option<f64>)> = stations
+        .stations
+        .iter()
+        .filter(|entry| entry.station.name == "Weissfluhjoch")
+        .map(|entry| (entry.station.source.as_str(), entry.station.elevation_m))
+        .collect();
+    assert_eq!(
+        weissfluhjoch,
+        [("meteoswiss-smn", Some(2691.0)), ("slf-imis", Some(2536.0))]
+    );
+    // The pilots' own sensors have no height, and the answer has no
+    // field for it: not a zero.
+    let sensors: Vec<&venti_api_types::v1::StationWithLatest> = stations
+        .stations
+        .iter()
+        .filter(|entry| entry.station.source.as_str() == "pioupiou")
+        .collect();
+    assert_eq!(sensors.len(), 3);
+    assert!(
+        sensors
+            .iter()
+            .all(|entry| entry.station.elevation_m.is_none())
+    );
+    assert!(!answer.text().contains("\"elevation_m\":null"));
+    assert!(!answer.text().contains("\"elevation_m\":0"));
     assert!(!stations.truncated);
     // Every station has a reading, and the newest one of its day.
     let zugspitze = stations
@@ -177,7 +236,11 @@ async fn every_record_names_one_source_and_the_response_credits_it() {
     let stations: StationsResponse = get(&recorded().await, &first_region()).await.json();
 
     let credited: Vec<&SourceId> = stations.attributions.iter().map(|a| &a.source).collect();
-    assert_eq!(credited.len(), 4, "one credit per source, not per station");
+    assert_eq!(
+        credited.len(),
+        first_region_networks().len(),
+        "one credit per source, not per station"
+    );
     for entry in &stations.stations {
         // A record belongs to the source its identifier names, and to no other.
         assert_eq!(entry.station.id.source(), &entry.station.source);

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfAnagrafica xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.meteotrentino.it/">
+  <anagrafica>
+    <codice>T0403</codice>
+    <nome>Canazei (Ciampac)</nome>
+    <nomebreve>SM Ciampac</nomebreve>
+    <quota>2150</quota>
+    <latitudine>46.445989</latitudine>
+    <longitudine>11.769081</longitudine>
+    <est>712530</est>
+    <north>5147570</north>
+    <inizio>10/09/2019</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0404</codice>
+    <nome>Marmolada (Sas Del Mul)</nome>
+    <nomebreve>SM Marmolada</nomebreve>
+    <quota>2606</quota>
+    <latitudine>46.443614</latitudine>
+    <longitudine>11.880813</longitudine>
+    <est>721274</est>
+    <north>5147371</north>
+    <inizio>19/09/2014</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0076</codice>
+    <nome>Rabbi (San Bernardo)</nome>
+    <nomebreve>SM S. Bernardo</nomebreve>
+    <quota />
+    <latitudine>46.401374</latitudine>
+    <longitudine>10.849515</longitudine>
+    <est>642172</est>
+    <north>5140306</north>
+    <inizio>01/01/1986</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0998</codice>
+    <nome>Stazione nuova</nome>
+    <nomebreve>Stazione nuova</nomebreve>
+    <quota>1500</quota>
+    <latitudine>46.40</latitudine>
+    <longitudine>11.00</longitudine>
+    <est>0</est>
+    <north>0</north>
+    <inizio>15/12/2026</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0999</codice>
+    <nome>Stazione senza latitudine</nome>
+    <nomebreve>Stazione senza latitudine</nomebreve>
+    <quota>1500</quota>
+    <latitudine />
+    <longitudine>11.10</longitudine>
+    <est>0</est>
+    <north>0</north>
+    <inizio>15/12/2026</inizio>
+    <fine />
+  </anagrafica>
+  <anagrafica>
+    <codice>T0420</codice>
+    <nome>Mezzano</nome>
+    <nomebreve>Mezzano</nomebreve>
+    <quota>1500</quota>
+    <latitudine>46.154673</latitudine>
+    <longitudine>11.812625</longitudine>
+    <est>0</est>
+    <north>0</north>
+    <inizio>11/05/2007</inizio>
+    <fine>01/11/2026</fine>
+  </anagrafica>
+  <anagrafica>
+    <codice>T 0997</codice>
+    <nome>Codice con spazio</nome>
+    <nomebreve>Codice con spazio</nomebreve>
+    <quota>1500</quota>
+    <latitudine>46.41</latitudine>
+    <longitudine>11.20</longitudine>
+    <est>0</est>
+    <north>0</north>
+    <inizio>01/01/2000</inizio>
+    <fine />
+  </anagrafica>
+</ArrayOfAnagrafica>

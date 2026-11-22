@@ -1,0 +1,3134 @@
+{
+  "stations": [
+    {
+      "id": "meteoswiss-smn:ABO",
+      "name": "Adelboden",
+      "position": {
+        "lat": 46.491703,
+        "lon": 7.560703
+      },
+      "elevation_m": 1321.0
+    },
+    {
+      "id": "meteoswiss-smn:AEG",
+      "name": "Oberägeri",
+      "position": {
+        "lat": 47.133636,
+        "lon": 8.608206
+      },
+      "elevation_m": 724.0
+    },
+    {
+      "id": "meteoswiss-smn:AIG",
+      "name": "Aigle",
+      "position": {
+        "lat": 46.326647,
+        "lon": 6.924472
+      },
+      "elevation_m": 381.0
+    },
+    {
+      "id": "meteoswiss-smn:ALT",
+      "name": "Altdorf",
+      "position": {
+        "lat": 46.887069,
+        "lon": 8.621894
+      },
+      "elevation_m": 438.0
+    },
+    {
+      "id": "meteoswiss-smn:AND",
+      "name": "Andeer",
+      "position": {
+        "lat": 46.610139,
+        "lon": 9.431981
+      },
+      "elevation_m": 987.0
+    },
+    {
+      "id": "meteoswiss-smn:ANT",
+      "name": "Andermatt",
+      "position": {
+        "lat": 46.630914,
+        "lon": 8.580553
+      },
+      "elevation_m": 1435.0
+    },
+    {
+      "id": "meteoswiss-smn:ARH",
+      "name": "Altenrhein",
+      "position": {
+        "lat": 47.483631,
+        "lon": 9.56685
+      },
+      "elevation_m": 398.0
+    },
+    {
+      "id": "meteoswiss-smn:ARO",
+      "name": "Arosa",
+      "position": {
+        "lat": 46.792661,
+        "lon": 9.679014
+      },
+      "elevation_m": 1878.0
+    },
+    {
+      "id": "meteoswiss-smn:ATT",
+      "name": "Les Attelas",
+      "position": {
+        "lat": 46.0991,
+        "lon": 7.26865
+      },
+      "elevation_m": 2734.0
+    },
+    {
+      "id": "meteoswiss-smn:BAN",
+      "name": "Bantiger",
+      "position": {
+        "lat": 46.977806,
+        "lon": 7.528667
+      },
+      "elevation_m": 942.0
+    },
+    {
+      "id": "meteoswiss-smn:BAS",
+      "name": "Basel / Binningen",
+      "position": {
+        "lat": 47.541142,
+        "lon": 7.583525
+      },
+      "elevation_m": 316.0
+    },
+    {
+      "id": "meteoswiss-smn:BEH",
+      "name": "Passo del Bernina",
+      "position": {
+        "lat": 46.409158,
+        "lon": 10.019567
+      },
+      "elevation_m": 2260.0
+    },
+    {
+      "id": "meteoswiss-smn:BER",
+      "name": "Bern / Zollikofen",
+      "position": {
+        "lat": 46.990744,
+        "lon": 7.464061
+      },
+      "elevation_m": 553.0
+    },
+    {
+      "id": "meteoswiss-smn:BEZ",
+      "name": "Beznau",
+      "position": {
+        "lat": 47.557256,
+        "lon": 8.233325
+      },
+      "elevation_m": 326.0
+    },
+    {
+      "id": "meteoswiss-smn:BIA",
+      "name": "Biasca",
+      "position": {
+        "lat": 46.336053,
+        "lon": 8.978197
+      },
+      "elevation_m": 278.0
+    },
+    {
+      "id": "meteoswiss-smn:BIE",
+      "name": "Bière",
+      "position": {
+        "lat": 46.524908,
+        "lon": 6.342386
+      },
+      "elevation_m": 684.0
+    },
+    {
+      "id": "meteoswiss-smn:BIN",
+      "name": "Binn",
+      "position": {
+        "lat": 46.367661,
+        "lon": 8.192306
+      },
+      "elevation_m": 1479.0
+    },
+    {
+      "id": "meteoswiss-smn:BIV",
+      "name": "Bivio",
+      "position": {
+        "lat": 46.462494,
+        "lon": 9.668639
+      },
+      "elevation_m": 1856.0
+    },
+    {
+      "id": "meteoswiss-smn:BIZ",
+      "name": "Bischofszell / Sitterdorf",
+      "position": {
+        "lat": 47.508828,
+        "lon": 9.266797
+      },
+      "elevation_m": 507.0
+    },
+    {
+      "id": "meteoswiss-smn:BLA",
+      "name": "Blatten, Lötschental",
+      "position": {
+        "lat": 46.422261,
+        "lon": 7.825914
+      },
+      "elevation_m": 1548.0
+    },
+    {
+      "id": "meteoswiss-smn:BOL",
+      "name": "Boltigen",
+      "position": {
+        "lat": 46.623519,
+        "lon": 7.384206
+      },
+      "elevation_m": 820.0
+    },
+    {
+      "id": "meteoswiss-smn:BOU",
+      "name": "Bouveret",
+      "position": {
+        "lat": 46.393447,
+        "lon": 6.857006
+      },
+      "elevation_m": 374.0
+    },
+    {
+      "id": "meteoswiss-smn:BRL",
+      "name": "La Brévine",
+      "position": {
+        "lat": 46.983844,
+        "lon": 6.610297
+      },
+      "elevation_m": 1050.0
+    },
+    {
+      "id": "meteoswiss-smn:BRZ",
+      "name": "Brienz",
+      "position": {
+        "lat": 46.740719,
+        "lon": 8.060864
+      },
+      "elevation_m": 567.0
+    },
+    {
+      "id": "meteoswiss-smn:BUF",
+      "name": "Buffalora",
+      "position": {
+        "lat": 46.648408,
+        "lon": 10.2672
+      },
+      "elevation_m": 1971.0
+    },
+    {
+      "id": "meteoswiss-smn:BUS",
+      "name": "Buchs / Aarau",
+      "position": {
+        "lat": 47.384381,
+        "lon": 8.07955
+      },
+      "elevation_m": 387.0
+    },
+    {
+      "id": "meteoswiss-smn:CDF",
+      "name": "La Chaux-de-Fonds",
+      "position": {
+        "lat": 47.082947,
+        "lon": 6.792314
+      },
+      "elevation_m": 1017.0
+    },
+    {
+      "id": "meteoswiss-smn:CDM",
+      "name": "Col des Mosses",
+      "position": {
+        "lat": 46.391525,
+        "lon": 7.098239
+      },
+      "elevation_m": 1412.0
+    },
+    {
+      "id": "meteoswiss-smn:CEV",
+      "name": "Cevio",
+      "position": {
+        "lat": 46.320486,
+        "lon": 8.603161
+      },
+      "elevation_m": 417.0
+    },
+    {
+      "id": "meteoswiss-smn:CGI",
+      "name": "Nyon / Changins",
+      "position": {
+        "lat": 46.401053,
+        "lon": 6.227722
+      },
+      "elevation_m": 458.0
+    },
+    {
+      "id": "meteoswiss-smn:CHA",
+      "name": "Chasseral",
+      "position": {
+        "lat": 47.131761,
+        "lon": 7.054367
+      },
+      "elevation_m": 1594.0
+    },
+    {
+      "id": "meteoswiss-smn:CHB",
+      "name": "Les Charbonnières",
+      "position": {
+        "lat": 46.67015,
+        "lon": 6.312428
+      },
+      "elevation_m": 1045.0
+    },
+    {
+      "id": "meteoswiss-smn:CHD",
+      "name": "Château-d'Oex",
+      "position": {
+        "lat": 46.479819,
+        "lon": 7.139656
+      },
+      "elevation_m": 1028.0
+    },
+    {
+      "id": "meteoswiss-smn:CHM",
+      "name": "Chaumont",
+      "position": {
+        "lat": 47.049169,
+        "lon": 6.978825
+      },
+      "elevation_m": 1136.0
+    },
+    {
+      "id": "meteoswiss-smn:CHU",
+      "name": "Chur",
+      "position": {
+        "lat": 46.870572,
+        "lon": 9.530761
+      },
+      "elevation_m": 556.0
+    },
+    {
+      "id": "meteoswiss-smn:CHZ",
+      "name": "Cham",
+      "position": {
+        "lat": 47.188278,
+        "lon": 8.464642
+      },
+      "elevation_m": 443.0
+    },
+    {
+      "id": "meteoswiss-smn:CIM",
+      "name": "Cimetta",
+      "position": {
+        "lat": 46.200467,
+        "lon": 8.79165
+      },
+      "elevation_m": 1661.0
+    },
+    {
+      "id": "meteoswiss-smn:CMA",
+      "name": "Crap Masegn",
+      "position": {
+        "lat": 46.842275,
+        "lon": 9.180042
+      },
+      "elevation_m": 2468.0
+    },
+    {
+      "id": "meteoswiss-smn:COM",
+      "name": "Acquarossa / Comprovasco",
+      "position": {
+        "lat": 46.459517,
+        "lon": 8.935486
+      },
+      "elevation_m": 575.0
+    },
+    {
+      "id": "meteoswiss-smn:COV",
+      "name": "Piz Corvatsch",
+      "position": {
+        "lat": 46.418039,
+        "lon": 9.821308
+      },
+      "elevation_m": 3294.0
+    },
+    {
+      "id": "meteoswiss-smn:COY",
+      "name": "Courtelary",
+      "position": {
+        "lat": 47.180811,
+        "lon": 7.090656
+      },
+      "elevation_m": 695.0
+    },
+    {
+      "id": "meteoswiss-smn:CRM",
+      "name": "Cressier",
+      "position": {
+        "lat": 47.047581,
+        "lon": 7.059147
+      },
+      "elevation_m": 430.0
+    },
+    {
+      "id": "meteoswiss-smn:DAV",
+      "name": "Davos",
+      "position": {
+        "lat": 46.812969,
+        "lon": 9.843558
+      },
+      "elevation_m": 1594.0
+    },
+    {
+      "id": "meteoswiss-smn:DEM",
+      "name": "Delémont",
+      "position": {
+        "lat": 47.351706,
+        "lon": 7.349567
+      },
+      "elevation_m": 439.0
+    },
+    {
+      "id": "meteoswiss-smn:DIA",
+      "name": "Les Diablerets",
+      "position": {
+        "lat": 46.32675,
+        "lon": 7.203781
+      },
+      "elevation_m": 2964.0
+    },
+    {
+      "id": "meteoswiss-smn:DIS",
+      "name": "Disentis",
+      "position": {
+        "lat": 46.706569,
+        "lon": 8.853478
+      },
+      "elevation_m": 1197.0
+    },
+    {
+      "id": "meteoswiss-smn:DOL",
+      "name": "La Dôle",
+      "position": {
+        "lat": 46.424794,
+        "lon": 6.099453
+      },
+      "elevation_m": 1670.0
+    },
+    {
+      "id": "meteoswiss-smn:EBK",
+      "name": "Ebnat-Kappel",
+      "position": {
+        "lat": 47.273389,
+        "lon": 9.108494
+      },
+      "elevation_m": 623.0
+    },
+    {
+      "id": "meteoswiss-smn:EGH",
+      "name": "Eggishorn",
+      "position": {
+        "lat": 46.426528,
+        "lon": 8.092728
+      },
+      "elevation_m": 2892.0
+    },
+    {
+      "id": "meteoswiss-smn:EGO",
+      "name": "Egolzwil",
+      "position": {
+        "lat": 47.179428,
+        "lon": 8.004758
+      },
+      "elevation_m": 522.0
+    },
+    {
+      "id": "meteoswiss-smn:EIN",
+      "name": "Einsiedeln",
+      "position": {
+        "lat": 47.133042,
+        "lon": 8.756556
+      },
+      "elevation_m": 911.0
+    },
+    {
+      "id": "meteoswiss-smn:ELM",
+      "name": "Elm",
+      "position": {
+        "lat": 46.923742,
+        "lon": 9.175347
+      },
+      "elevation_m": 958.0
+    },
+    {
+      "id": "meteoswiss-smn:ENG",
+      "name": "Engelberg",
+      "position": {
+        "lat": 46.821639,
+        "lon": 8.410514
+      },
+      "elevation_m": 1036.0
+    },
+    {
+      "id": "meteoswiss-smn:EVI",
+      "name": "Evionnaz",
+      "position": {
+        "lat": 46.182953,
+        "lon": 7.026747
+      },
+      "elevation_m": 482.0
+    },
+    {
+      "id": "meteoswiss-smn:EVO",
+      "name": "Evolène / Villa",
+      "position": {
+        "lat": 46.112211,
+        "lon": 7.508631
+      },
+      "elevation_m": 1825.0
+    },
+    {
+      "id": "meteoswiss-smn:FAH",
+      "name": "Fahy",
+      "position": {
+        "lat": 47.423814,
+        "lon": 6.941194
+      },
+      "elevation_m": 596.0
+    },
+    {
+      "id": "meteoswiss-smn:FLU",
+      "name": "Flühli, LU",
+      "position": {
+        "lat": 46.889436,
+        "lon": 8.020336
+      },
+      "elevation_m": 940.0
+    },
+    {
+      "id": "meteoswiss-smn:FRE",
+      "name": "Bullet / La Frétaz",
+      "position": {
+        "lat": 46.840622,
+        "lon": 6.576369
+      },
+      "elevation_m": 1205.0
+    },
+    {
+      "id": "meteoswiss-smn:FRU",
+      "name": "Frutigen",
+      "position": {
+        "lat": 46.599003,
+        "lon": 7.657542
+      },
+      "elevation_m": 756.0
+    },
+    {
+      "id": "meteoswiss-smn:GEN",
+      "name": "Monte Generoso",
+      "position": {
+        "lat": 45.927592,
+        "lon": 9.017875
+      },
+      "elevation_m": 1600.0
+    },
+    {
+      "id": "meteoswiss-smn:GES",
+      "name": "Gersau",
+      "position": {
+        "lat": 46.996069,
+        "lon": 8.523442
+      },
+      "elevation_m": 521.0
+    },
+    {
+      "id": "meteoswiss-smn:GIH",
+      "name": "Giswil",
+      "position": {
+        "lat": 46.849447,
+        "lon": 8.190225
+      },
+      "elevation_m": 471.0
+    },
+    {
+      "id": "meteoswiss-smn:GLA",
+      "name": "Glarus",
+      "position": {
+        "lat": 47.034586,
+        "lon": 9.066961
+      },
+      "elevation_m": 517.0
+    },
+    {
+      "id": "meteoswiss-smn:GOE",
+      "name": "Gösgen",
+      "position": {
+        "lat": 47.363147,
+        "lon": 7.973733
+      },
+      "elevation_m": 380.0
+    },
+    {
+      "id": "meteoswiss-smn:GOR",
+      "name": "Gornergrat",
+      "position": {
+        "lat": 45.983644,
+        "lon": 7.785944
+      },
+      "elevation_m": 3129.0
+    },
+    {
+      "id": "meteoswiss-smn:GOS",
+      "name": "Göschenen",
+      "position": {
+        "lat": 46.692678,
+        "lon": 8.595364
+      },
+      "elevation_m": 950.0
+    },
+    {
+      "id": "meteoswiss-smn:GRA",
+      "name": "Fribourg / Grangeneuve",
+      "position": {
+        "lat": 46.7714,
+        "lon": 7.113736
+      },
+      "elevation_m": 651.0
+    },
+    {
+      "id": "meteoswiss-smn:GRC",
+      "name": "Grächen",
+      "position": {
+        "lat": 46.195314,
+        "lon": 7.836822
+      },
+      "elevation_m": 1605.0
+    },
+    {
+      "id": "meteoswiss-smn:GRE",
+      "name": "Grenchen",
+      "position": {
+        "lat": 47.179097,
+        "lon": 7.415144
+      },
+      "elevation_m": 428.0
+    },
+    {
+      "id": "meteoswiss-smn:GRH",
+      "name": "Grimsel Hospiz",
+      "position": {
+        "lat": 46.571689,
+        "lon": 8.333256
+      },
+      "elevation_m": 1980.0
+    },
+    {
+      "id": "meteoswiss-smn:GRO",
+      "name": "Grono",
+      "position": {
+        "lat": 46.255075,
+        "lon": 9.163758
+      },
+      "elevation_m": 324.0
+    },
+    {
+      "id": "meteoswiss-smn:GSB",
+      "name": "Col du Grand St-Bernard",
+      "position": {
+        "lat": 45.869092,
+        "lon": 7.170683
+      },
+      "elevation_m": 2472.0
+    },
+    {
+      "id": "meteoswiss-smn:GUE",
+      "name": "Gütsch, Andermatt",
+      "position": {
+        "lat": 46.652475,
+        "lon": 8.615531
+      },
+      "elevation_m": 2286.0
+    },
+    {
+      "id": "meteoswiss-smn:GUT",
+      "name": "Güttingen",
+      "position": {
+        "lat": 47.601733,
+        "lon": 9.279428
+      },
+      "elevation_m": 440.0
+    },
+    {
+      "id": "meteoswiss-smn:GVE",
+      "name": "Genève / Cointrin",
+      "position": {
+        "lat": 46.247519,
+        "lon": 6.127742
+      },
+      "elevation_m": 411.0
+    },
+    {
+      "id": "meteoswiss-smn:HAI",
+      "name": "Salen-Reutenen",
+      "position": {
+        "lat": 47.651242,
+        "lon": 9.023911
+      },
+      "elevation_m": 719.0
+    },
+    {
+      "id": "meteoswiss-smn:HLL",
+      "name": "Hallau",
+      "position": {
+        "lat": 47.697278,
+        "lon": 8.470464
+      },
+      "elevation_m": 419.0
+    },
+    {
+      "id": "meteoswiss-smn:HOE",
+      "name": "Hörnli",
+      "position": {
+        "lat": 47.370864,
+        "lon": 8.941644
+      },
+      "elevation_m": 1133.0
+    },
+    {
+      "id": "meteoswiss-smn:ILZ",
+      "name": "Ilanz",
+      "position": {
+        "lat": 46.775039,
+        "lon": 9.215353
+      },
+      "elevation_m": 698.0
+    },
+    {
+      "id": "meteoswiss-smn:INT",
+      "name": "Interlaken",
+      "position": {
+        "lat": 46.672033,
+        "lon": 7.87045
+      },
+      "elevation_m": 578.0
+    },
+    {
+      "id": "meteoswiss-smn:JUN",
+      "name": "Jungfraujoch",
+      "position": {
+        "lat": 46.547556,
+        "lon": 7.985444
+      },
+      "elevation_m": 3571.0
+    },
+    {
+      "id": "meteoswiss-smn:KLO",
+      "name": "Zürich / Kloten",
+      "position": {
+        "lat": 47.479611,
+        "lon": 8.535961
+      },
+      "elevation_m": 426.0
+    },
+    {
+      "id": "meteoswiss-smn:KOP",
+      "name": "Koppigen",
+      "position": {
+        "lat": 47.11885,
+        "lon": 7.605503
+      },
+      "elevation_m": 485.0
+    },
+    {
+      "id": "meteoswiss-smn:LAC",
+      "name": "Lachen / Galgenen",
+      "position": {
+        "lat": 47.179197,
+        "lon": 8.858686
+      },
+      "elevation_m": 468.0
+    },
+    {
+      "id": "meteoswiss-smn:LAE",
+      "name": "Lägern",
+      "position": {
+        "lat": 47.481933,
+        "lon": 8.397222
+      },
+      "elevation_m": 845.0
+    },
+    {
+      "id": "meteoswiss-smn:LAG",
+      "name": "Langnau i.E.",
+      "position": {
+        "lat": 46.939633,
+        "lon": 7.806425
+      },
+      "elevation_m": 744.0
+    },
+    {
+      "id": "meteoswiss-smn:LAT",
+      "name": "Bergün / Latsch",
+      "position": {
+        "lat": 46.627275,
+        "lon": 9.753706
+      },
+      "elevation_m": 1408.0
+    },
+    {
+      "id": "meteoswiss-smn:LEI",
+      "name": "Leibstadt",
+      "position": {
+        "lat": 47.597361,
+        "lon": 8.1882
+      },
+      "elevation_m": 341.0
+    },
+    {
+      "id": "meteoswiss-smn:LUG",
+      "name": "Lugano",
+      "position": {
+        "lat": 46.004217,
+        "lon": 8.960322
+      },
+      "elevation_m": 273.0
+    },
+    {
+      "id": "meteoswiss-smn:LUZ",
+      "name": "Luzern",
+      "position": {
+        "lat": 47.036439,
+        "lon": 8.301022
+      },
+      "elevation_m": 454.0
+    },
+    {
+      "id": "meteoswiss-smn:MAG",
+      "name": "Magadino / Cadenazzo",
+      "position": {
+        "lat": 46.160025,
+        "lon": 8.933672
+      },
+      "elevation_m": 203.0
+    },
+    {
+      "id": "meteoswiss-smn:MAH",
+      "name": "Mathod",
+      "position": {
+        "lat": 46.736978,
+        "lon": 6.567983
+      },
+      "elevation_m": 435.0
+    },
+    {
+      "id": "meteoswiss-smn:MAR",
+      "name": "Les Marécottes",
+      "position": {
+        "lat": 46.118903,
+        "lon": 7.016597
+      },
+      "elevation_m": 990.0
+    },
+    {
+      "id": "meteoswiss-smn:MAS",
+      "name": "Marsens",
+      "position": {
+        "lat": 46.656486,
+        "lon": 7.069669
+      },
+      "elevation_m": 715.0
+    },
+    {
+      "id": "meteoswiss-smn:MER",
+      "name": "Meiringen",
+      "position": {
+        "lat": 46.732222,
+        "lon": 8.169247
+      },
+      "elevation_m": 589.0
+    },
+    {
+      "id": "meteoswiss-smn:MLS",
+      "name": "Le Moléson",
+      "position": {
+        "lat": 46.546197,
+        "lon": 7.017753
+      },
+      "elevation_m": 1974.0
+    },
+    {
+      "id": "meteoswiss-smn:MOA",
+      "name": "Mosen",
+      "position": {
+        "lat": 47.243847,
+        "lon": 8.232831
+      },
+      "elevation_m": 453.0
+    },
+    {
+      "id": "meteoswiss-smn:MOB",
+      "name": "Montagnier, Bagnes",
+      "position": {
+        "lat": 46.071019,
+        "lon": 7.225272
+      },
+      "elevation_m": 839.0
+    },
+    {
+      "id": "meteoswiss-smn:MOE",
+      "name": "Möhlin",
+      "position": {
+        "lat": 47.572197,
+        "lon": 7.877911
+      },
+      "elevation_m": 343.0
+    },
+    {
+      "id": "meteoswiss-smn:MTE",
+      "name": "Mottec",
+      "position": {
+        "lat": 46.147897,
+        "lon": 7.624033
+      },
+      "elevation_m": 1580.0
+    },
+    {
+      "id": "meteoswiss-smn:MTR",
+      "name": "Matro",
+      "position": {
+        "lat": 46.410103,
+        "lon": 8.924742
+      },
+      "elevation_m": 2171.0
+    },
+    {
+      "id": "meteoswiss-smn:MUB",
+      "name": "Mühleberg",
+      "position": {
+        "lat": 46.973278,
+        "lon": 7.278217
+      },
+      "elevation_m": 480.0
+    },
+    {
+      "id": "meteoswiss-smn:MVE",
+      "name": "Montana",
+      "position": {
+        "lat": 46.298806,
+        "lon": 7.460814
+      },
+      "elevation_m": 1423.0
+    },
+    {
+      "id": "meteoswiss-smn:NAP",
+      "name": "Napf",
+      "position": {
+        "lat": 47.004667,
+        "lon": 7.940117
+      },
+      "elevation_m": 1404.0
+    },
+    {
+      "id": "meteoswiss-smn:NAS",
+      "name": "Naluns / Schlivera",
+      "position": {
+        "lat": 46.817164,
+        "lon": 10.2614
+      },
+      "elevation_m": 2380.0
+    },
+    {
+      "id": "meteoswiss-smn:NEU",
+      "name": "Neuchâtel",
+      "position": {
+        "lat": 47.000067,
+        "lon": 6.953297
+      },
+      "elevation_m": 485.0
+    },
+    {
+      "id": "meteoswiss-smn:OBR",
+      "name": "Oberriet / Kriessern",
+      "position": {
+        "lat": 47.376608,
+        "lon": 9.612706
+      },
+      "elevation_m": 409.0
+    },
+    {
+      "id": "meteoswiss-smn:ORO",
+      "name": "Oron",
+      "position": {
+        "lat": 46.572269,
+        "lon": 6.858239
+      },
+      "elevation_m": 828.0
+    },
+    {
+      "id": "meteoswiss-smn:OTL",
+      "name": "Locarno / Monti",
+      "position": {
+        "lat": 46.172256,
+        "lon": 8.787494
+      },
+      "elevation_m": 367.0
+    },
+    {
+      "id": "meteoswiss-smn:PAY",
+      "name": "Payerne",
+      "position": {
+        "lat": 46.811581,
+        "lon": 6.942469
+      },
+      "elevation_m": 490.0
+    },
+    {
+      "id": "meteoswiss-smn:PFA",
+      "name": "Pfäffikon, ZH",
+      "position": {
+        "lat": 47.376817,
+        "lon": 8.754864
+      },
+      "elevation_m": 537.0
+    },
+    {
+      "id": "meteoswiss-smn:PIL",
+      "name": "Pilatus",
+      "position": {
+        "lat": 46.978869,
+        "lon": 8.252256
+      },
+      "elevation_m": 2105.0
+    },
+    {
+      "id": "meteoswiss-smn:PIO",
+      "name": "Piotta",
+      "position": {
+        "lat": 46.514811,
+        "lon": 8.688039
+      },
+      "elevation_m": 990.0
+    },
+    {
+      "id": "meteoswiss-smn:PLF",
+      "name": "Plaffeien",
+      "position": {
+        "lat": 46.747717,
+        "lon": 7.266264
+      },
+      "elevation_m": 1042.0
+    },
+    {
+      "id": "meteoswiss-smn:PMA",
+      "name": "Piz Martegnas",
+      "position": {
+        "lat": 46.577181,
+        "lon": 9.529544
+      },
+      "elevation_m": 2668.0
+    },
+    {
+      "id": "meteoswiss-smn:PRE",
+      "name": "St-Prex",
+      "position": {
+        "lat": 46.483683,
+        "lon": 6.443
+      },
+      "elevation_m": 425.0
+    },
+    {
+      "id": "meteoswiss-smn:PSI",
+      "name": "Würenlingen / PSI",
+      "position": {
+        "lat": 47.536475,
+        "lon": 8.226944
+      },
+      "elevation_m": 334.0
+    },
+    {
+      "id": "meteoswiss-smn:PUY",
+      "name": "Pully",
+      "position": {
+        "lat": 46.512283,
+        "lon": 6.667517
+      },
+      "elevation_m": 456.0
+    },
+    {
+      "id": "meteoswiss-smn:QUI",
+      "name": "Quinten",
+      "position": {
+        "lat": 47.128739,
+        "lon": 9.21605
+      },
+      "elevation_m": 419.0
+    },
+    {
+      "id": "meteoswiss-smn:RAG",
+      "name": "Bad Ragaz",
+      "position": {
+        "lat": 47.016631,
+        "lon": 9.502594
+      },
+      "elevation_m": 497.0
+    },
+    {
+      "id": "meteoswiss-smn:REH",
+      "name": "Zürich / Affoltern",
+      "position": {
+        "lat": 47.427694,
+        "lon": 8.517953
+      },
+      "elevation_m": 444.0
+    },
+    {
+      "id": "meteoswiss-smn:ROB",
+      "name": "Poschiavo / Robbia",
+      "position": {
+        "lat": 46.347217,
+        "lon": 10.063031
+      },
+      "elevation_m": 1078.0
+    },
+    {
+      "id": "meteoswiss-smn:ROE",
+      "name": "Robièi",
+      "position": {
+        "lat": 46.443067,
+        "lon": 8.513389
+      },
+      "elevation_m": 1898.0
+    },
+    {
+      "id": "meteoswiss-smn:RUE",
+      "name": "Rünenberg",
+      "position": {
+        "lat": 47.434572,
+        "lon": 7.879414
+      },
+      "elevation_m": 611.0
+    },
+    {
+      "id": "meteoswiss-smn:SAE",
+      "name": "Säntis",
+      "position": {
+        "lat": 47.249447,
+        "lon": 9.343469
+      },
+      "elevation_m": 2501.0
+    },
+    {
+      "id": "meteoswiss-smn:SAG",
+      "name": "Sattel, SZ",
+      "position": {
+        "lat": 47.081064,
+        "lon": 8.636967
+      },
+      "elevation_m": 790.0
+    },
+    {
+      "id": "meteoswiss-smn:SAM",
+      "name": "Samedan",
+      "position": {
+        "lat": 46.526247,
+        "lon": 9.879469
+      },
+      "elevation_m": 1709.0
+    },
+    {
+      "id": "meteoswiss-smn:SBE",
+      "name": "S. Bernardino",
+      "position": {
+        "lat": 46.463542,
+        "lon": 9.1847
+      },
+      "elevation_m": 1639.0
+    },
+    {
+      "id": "meteoswiss-smn:SBO",
+      "name": "Stabio",
+      "position": {
+        "lat": 45.843444,
+        "lon": 8.932364
+      },
+      "elevation_m": 351.0
+    },
+    {
+      "id": "meteoswiss-smn:SCM",
+      "name": "Schmerikon",
+      "position": {
+        "lat": 47.224933,
+        "lon": 8.9403
+      },
+      "elevation_m": 408.0
+    },
+    {
+      "id": "meteoswiss-smn:SCU",
+      "name": "Scuol",
+      "position": {
+        "lat": 46.793275,
+        "lon": 10.283267
+      },
+      "elevation_m": 1304.0
+    },
+    {
+      "id": "meteoswiss-smn:SHA",
+      "name": "Schaffhausen",
+      "position": {
+        "lat": 47.689842,
+        "lon": 8.620142
+      },
+      "elevation_m": 438.0
+    },
+    {
+      "id": "meteoswiss-smn:SIA",
+      "name": "Segl-Maria",
+      "position": {
+        "lat": 46.432331,
+        "lon": 9.762325
+      },
+      "elevation_m": 1804.0
+    },
+    {
+      "id": "meteoswiss-smn:SIM",
+      "name": "Simplon-Dorf",
+      "position": {
+        "lat": 46.196825,
+        "lon": 8.056336
+      },
+      "elevation_m": 1465.0
+    },
+    {
+      "id": "meteoswiss-smn:SIO",
+      "name": "Sion",
+      "position": {
+        "lat": 46.21865,
+        "lon": 7.330203
+      },
+      "elevation_m": 482.0
+    },
+    {
+      "id": "meteoswiss-smn:SMA",
+      "name": "Zürich / Fluntern",
+      "position": {
+        "lat": 47.381003,
+        "lon": 8.567194
+      },
+      "elevation_m": 604.0
+    },
+    {
+      "id": "meteoswiss-smn:SMM",
+      "name": "Sta. Maria, Val Müstair",
+      "position": {
+        "lat": 46.602256,
+        "lon": 10.426314
+      },
+      "elevation_m": 1386.0
+    },
+    {
+      "id": "meteoswiss-smn:SPF",
+      "name": "Schüpfheim",
+      "position": {
+        "lat": 46.947042,
+        "lon": 8.012442
+      },
+      "elevation_m": 744.0
+    },
+    {
+      "id": "meteoswiss-smn:SRS",
+      "name": "Schiers",
+      "position": {
+        "lat": 46.975506,
+        "lon": 9.668075
+      },
+      "elevation_m": 626.0
+    },
+    {
+      "id": "meteoswiss-smn:STC",
+      "name": "St. Chrischona",
+      "position": {
+        "lat": 47.571767,
+        "lon": 7.687094
+      },
+      "elevation_m": 493.0
+    },
+    {
+      "id": "meteoswiss-smn:STG",
+      "name": "St. Gallen",
+      "position": {
+        "lat": 47.425475,
+        "lon": 9.398528
+      },
+      "elevation_m": 776.0
+    },
+    {
+      "id": "meteoswiss-smn:STK",
+      "name": "Steckborn",
+      "position": {
+        "lat": 47.668628,
+        "lon": 8.981433
+      },
+      "elevation_m": 397.0
+    },
+    {
+      "id": "meteoswiss-smn:TAE",
+      "name": "Aadorf / Tänikon",
+      "position": {
+        "lat": 47.479892,
+        "lon": 8.904928
+      },
+      "elevation_m": 539.0
+    },
+    {
+      "id": "meteoswiss-smn:THU",
+      "name": "Thun",
+      "position": {
+        "lat": 46.749853,
+        "lon": 7.585222
+      },
+      "elevation_m": 570.0
+    },
+    {
+      "id": "meteoswiss-smn:TIT",
+      "name": "Titlis",
+      "position": {
+        "lat": 46.770608,
+        "lon": 8.425981
+      },
+      "elevation_m": 3045.0
+    },
+    {
+      "id": "meteoswiss-smn:UEB",
+      "name": "Uetliberg",
+      "position": {
+        "lat": 47.351364,
+        "lon": 8.490225
+      },
+      "elevation_m": 854.0
+    },
+    {
+      "id": "meteoswiss-smn:ULR",
+      "name": "Ulrichen",
+      "position": {
+        "lat": 46.504881,
+        "lon": 8.308236
+      },
+      "elevation_m": 1346.0
+    },
+    {
+      "id": "meteoswiss-smn:VAB",
+      "name": "Valbella",
+      "position": {
+        "lat": 46.755039,
+        "lon": 9.554433
+      },
+      "elevation_m": 1568.0
+    },
+    {
+      "id": "meteoswiss-smn:VAD",
+      "name": "Vaduz",
+      "position": {
+        "lat": 47.127472,
+        "lon": 9.517578
+      },
+      "elevation_m": 457.0
+    },
+    {
+      "id": "meteoswiss-smn:VEV",
+      "name": "Vevey / Corseaux",
+      "position": {
+        "lat": 46.471239,
+        "lon": 6.815056
+      },
+      "elevation_m": 405.0
+    },
+    {
+      "id": "meteoswiss-smn:VIO",
+      "name": "Vicosoprano",
+      "position": {
+        "lat": 46.353019,
+        "lon": 9.6278
+      },
+      "elevation_m": 1089.0
+    },
+    {
+      "id": "meteoswiss-smn:VIS",
+      "name": "Visp",
+      "position": {
+        "lat": 46.3029,
+        "lon": 7.842958
+      },
+      "elevation_m": 639.0
+    },
+    {
+      "id": "meteoswiss-smn:VIT",
+      "name": "Villars-Tiercelin",
+      "position": {
+        "lat": 46.621778,
+        "lon": 6.710069
+      },
+      "elevation_m": 859.0
+    },
+    {
+      "id": "meteoswiss-smn:VLS",
+      "name": "Vals",
+      "position": {
+        "lat": 46.627758,
+        "lon": 9.188711
+      },
+      "elevation_m": 1242.0
+    },
+    {
+      "id": "meteoswiss-smn:WAE",
+      "name": "Wädenswil",
+      "position": {
+        "lat": 47.220958,
+        "lon": 8.677706
+      },
+      "elevation_m": 485.0
+    },
+    {
+      "id": "meteoswiss-smn:WFJ",
+      "name": "Weissfluhjoch",
+      "position": {
+        "lat": 46.833342,
+        "lon": 9.806397
+      },
+      "elevation_m": 2691.0
+    },
+    {
+      "id": "meteoswiss-smn:WYN",
+      "name": "Wynau",
+      "position": {
+        "lat": 47.255025,
+        "lon": 7.787475
+      },
+      "elevation_m": 422.0
+    },
+    {
+      "id": "meteoswiss-smn:ZER",
+      "name": "Zermatt",
+      "position": {
+        "lat": 46.029272,
+        "lon": 7.752433
+      },
+      "elevation_m": 1638.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "meteoswiss-smn:ABO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.89,
+      "wind_gust_ms": 1.39,
+      "wind_direction_deg": 225.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.6,
+      "humidity_pct": 92.2,
+      "pressure_hpa": 857.7
+    },
+    {
+      "station": "meteoswiss-smn:AEG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.11,
+      "wind_gust_ms": 2.69,
+      "wind_direction_deg": 346.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:AIG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 8.69,
+      "wind_gust_ms": 14.89,
+      "wind_direction_deg": 144.0,
+      "gust_direction_deg": null,
+      "temperature_c": 7.1,
+      "humidity_pct": 77.7,
+      "pressure_hpa": 962.8
+    },
+    {
+      "station": "meteoswiss-smn:ALT",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.61,
+      "wind_gust_ms": 1.11,
+      "wind_direction_deg": 177.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.2,
+      "humidity_pct": 90.3,
+      "pressure_hpa": 956.4
+    },
+    {
+      "station": "meteoswiss-smn:AND",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.39,
+      "wind_gust_ms": 1.19,
+      "wind_direction_deg": 323.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.2,
+      "humidity_pct": 95.5,
+      "pressure_hpa": 896.7
+    },
+    {
+      "station": "meteoswiss-smn:ANT",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 4.69,
+      "wind_gust_ms": 6.81,
+      "wind_direction_deg": 203.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.9,
+      "humidity_pct": 87.8,
+      "pressure_hpa": 848.8
+    },
+    {
+      "station": "meteoswiss-smn:ARH",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.19,
+      "wind_gust_ms": 1.89,
+      "wind_direction_deg": 112.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.7,
+      "humidity_pct": 97.5,
+      "pressure_hpa": 962.3
+    },
+    {
+      "station": "meteoswiss-smn:ARO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.89,
+      "wind_gust_ms": 3.81,
+      "wind_direction_deg": 220.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.3,
+      "humidity_pct": 74.0,
+      "pressure_hpa": 802.8
+    },
+    {
+      "station": "meteoswiss-smn:ATT",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 4.89,
+      "wind_gust_ms": 7.69,
+      "wind_direction_deg": 201.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.7,
+      "humidity_pct": 93.0,
+      "pressure_hpa": 719.9
+    },
+    {
+      "station": "meteoswiss-smn:BAS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.0,
+      "wind_gust_ms": 5.89,
+      "wind_direction_deg": 80.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.4,
+      "humidity_pct": 95.6,
+      "pressure_hpa": 970.8
+    },
+    {
+      "station": "meteoswiss-smn:BEH",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.81,
+      "wind_gust_ms": 3.69,
+      "wind_direction_deg": 104.0,
+      "gust_direction_deg": null,
+      "temperature_c": -5.4,
+      "humidity_pct": 87.7,
+      "pressure_hpa": 766.9
+    },
+    {
+      "station": "meteoswiss-smn:BER",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.31,
+      "wind_gust_ms": 2.61,
+      "wind_direction_deg": 22.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.6,
+      "humidity_pct": 95.3,
+      "pressure_hpa": 943.2
+    },
+    {
+      "station": "meteoswiss-smn:BEZ",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.61,
+      "wind_gust_ms": 3.0,
+      "wind_direction_deg": 24.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.8,
+      "humidity_pct": 97.9,
+      "pressure_hpa": 970.7
+    },
+    {
+      "station": "meteoswiss-smn:BIA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.61,
+      "wind_gust_ms": 2.0,
+      "wind_direction_deg": 321.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.0,
+      "humidity_pct": 86.3,
+      "pressure_hpa": 979.0
+    },
+    {
+      "station": "meteoswiss-smn:BIE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.61,
+      "wind_gust_ms": 1.39,
+      "wind_direction_deg": 19.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.9,
+      "humidity_pct": 97.7,
+      "pressure_hpa": 928.2
+    },
+    {
+      "station": "meteoswiss-smn:BIN",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 1.69,
+      "wind_direction_deg": 47.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.0,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:BIV",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 4.39,
+      "wind_gust_ms": 7.0,
+      "wind_direction_deg": 120.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.7,
+      "humidity_pct": 77.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:BIZ",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.89,
+      "wind_gust_ms": 3.11,
+      "wind_direction_deg": 27.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.0,
+      "humidity_pct": 99.2,
+      "pressure_hpa": 949.4
+    },
+    {
+      "station": "meteoswiss-smn:BLA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.19,
+      "wind_gust_ms": 2.19,
+      "wind_direction_deg": 13.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.3,
+      "humidity_pct": 91.4,
+      "pressure_hpa": 836.5
+    },
+    {
+      "station": "meteoswiss-smn:BOL",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.5,
+      "wind_gust_ms": 2.11,
+      "wind_direction_deg": 234.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.0,
+      "humidity_pct": 99.4,
+      "pressure_hpa": 913.2
+    },
+    {
+      "station": "meteoswiss-smn:BOU",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 6.39,
+      "wind_gust_ms": 9.0,
+      "wind_direction_deg": 169.0,
+      "gust_direction_deg": null,
+      "temperature_c": 7.5,
+      "humidity_pct": 79.2,
+      "pressure_hpa": 963.7
+    },
+    {
+      "station": "meteoswiss-smn:BRL",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.81,
+      "wind_gust_ms": 3.81,
+      "wind_direction_deg": 106.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.9,
+      "humidity_pct": 93.4,
+      "pressure_hpa": 886.5
+    },
+    {
+      "station": "meteoswiss-smn:BRZ",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.69,
+      "wind_gust_ms": 2.89,
+      "wind_direction_deg": 100.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": 941.3
+    },
+    {
+      "station": "meteoswiss-smn:BUF",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.31,
+      "wind_gust_ms": 2.69,
+      "wind_direction_deg": 307.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.0,
+      "humidity_pct": 90.1,
+      "pressure_hpa": 795.2
+    },
+    {
+      "station": "meteoswiss-smn:BUS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 2.19,
+      "wind_direction_deg": 38.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.8,
+      "humidity_pct": 95.4,
+      "pressure_hpa": 962.9
+    },
+    {
+      "station": "meteoswiss-smn:CDF",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.11,
+      "wind_gust_ms": 2.31,
+      "wind_direction_deg": 136.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.0,
+      "humidity_pct": 84.2,
+      "pressure_hpa": 890.0
+    },
+    {
+      "station": "meteoswiss-smn:CDM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.39,
+      "wind_gust_ms": 4.81,
+      "wind_direction_deg": 210.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.2,
+      "humidity_pct": 99.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:CEV",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.81,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 88.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.5,
+      "humidity_pct": 91.8,
+      "pressure_hpa": 962.4
+    },
+    {
+      "station": "meteoswiss-smn:CGI",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.11,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 330.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.4,
+      "humidity_pct": 95.6,
+      "pressure_hpa": 954.0
+    },
+    {
+      "station": "meteoswiss-smn:CHA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 10.61,
+      "wind_gust_ms": 12.39,
+      "wind_direction_deg": 143.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.2,
+      "humidity_pct": 98.0,
+      "pressure_hpa": 828.4
+    },
+    {
+      "station": "meteoswiss-smn:CHB",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.69,
+      "wind_gust_ms": 5.61,
+      "wind_direction_deg": 86.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.2,
+      "humidity_pct": 94.5,
+      "pressure_hpa": 887.4
+    },
+    {
+      "station": "meteoswiss-smn:CHD",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.69,
+      "wind_gust_ms": 1.31,
+      "wind_direction_deg": 289.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.0,
+      "humidity_pct": 90.4,
+      "pressure_hpa": 889.8
+    },
+    {
+      "station": "meteoswiss-smn:CHM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 4.31,
+      "wind_gust_ms": 6.81,
+      "wind_direction_deg": 104.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.8,
+      "humidity_pct": 96.7,
+      "pressure_hpa": 877.7
+    },
+    {
+      "station": "meteoswiss-smn:CHU",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.0,
+      "wind_gust_ms": 7.11,
+      "wind_direction_deg": 179.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.9,
+      "humidity_pct": 68.9,
+      "pressure_hpa": 944.5
+    },
+    {
+      "station": "meteoswiss-smn:CHZ",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.19,
+      "wind_gust_ms": 2.39,
+      "wind_direction_deg": 324.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.6,
+      "humidity_pct": 99.9,
+      "pressure_hpa": 956.5
+    },
+    {
+      "station": "meteoswiss-smn:CIM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.61,
+      "wind_gust_ms": 1.0,
+      "wind_direction_deg": 291.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.9,
+      "humidity_pct": 98.5,
+      "pressure_hpa": 825.6
+    },
+    {
+      "station": "meteoswiss-smn:CMA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.5,
+      "wind_gust_ms": 2.89,
+      "wind_direction_deg": 136.0,
+      "gust_direction_deg": null,
+      "temperature_c": -5.4,
+      "humidity_pct": 95.1,
+      "pressure_hpa": 743.7
+    },
+    {
+      "station": "meteoswiss-smn:COM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.5,
+      "wind_gust_ms": 2.19,
+      "wind_direction_deg": 148.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.4,
+      "humidity_pct": 70.5,
+      "pressure_hpa": 944.2
+    },
+    {
+      "station": "meteoswiss-smn:COV",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 5.39,
+      "wind_gust_ms": 13.5,
+      "wind_direction_deg": 157.0,
+      "gust_direction_deg": null,
+      "temperature_c": -7.3,
+      "humidity_pct": 88.3,
+      "pressure_hpa": 670.7
+    },
+    {
+      "station": "meteoswiss-smn:COY",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.0,
+      "wind_gust_ms": 5.19,
+      "wind_direction_deg": 92.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.3,
+      "humidity_pct": 94.9,
+      "pressure_hpa": 926.4
+    },
+    {
+      "station": "meteoswiss-smn:CRM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.89,
+      "wind_gust_ms": 1.81,
+      "wind_direction_deg": 88.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.2,
+      "humidity_pct": 94.5,
+      "pressure_hpa": 957.5
+    },
+    {
+      "station": "meteoswiss-smn:DAV",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.19,
+      "wind_direction_deg": 79.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.7,
+      "humidity_pct": 90.7,
+      "pressure_hpa": 832.3
+    },
+    {
+      "station": "meteoswiss-smn:DEM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.19,
+      "wind_gust_ms": 0.61,
+      "wind_direction_deg": 75.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.2,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 956.2
+    },
+    {
+      "station": "meteoswiss-smn:DIS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 2.19,
+      "wind_direction_deg": 297.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.6,
+      "humidity_pct": 84.6,
+      "pressure_hpa": 873.7
+    },
+    {
+      "station": "meteoswiss-smn:DOL",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 9.89,
+      "wind_gust_ms": 13.39,
+      "wind_direction_deg": 199.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.2,
+      "humidity_pct": 97.8,
+      "pressure_hpa": 821.1
+    },
+    {
+      "station": "meteoswiss-smn:EBK",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.39,
+      "wind_gust_ms": 1.11,
+      "wind_direction_deg": 100.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.2,
+      "humidity_pct": 100.0,
+      "pressure_hpa": 935.9
+    },
+    {
+      "station": "meteoswiss-smn:EGH",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.81,
+      "wind_gust_ms": 4.81,
+      "wind_direction_deg": 129.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.3,
+      "humidity_pct": 97.3,
+      "pressure_hpa": 706.1
+    },
+    {
+      "station": "meteoswiss-smn:EGO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 1.61,
+      "wind_direction_deg": 55.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.5,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 947.0
+    },
+    {
+      "station": "meteoswiss-smn:EIN",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.11,
+      "wind_gust_ms": 1.61,
+      "wind_direction_deg": 273.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.0,
+      "humidity_pct": 93.8,
+      "pressure_hpa": 902.9
+    },
+    {
+      "station": "meteoswiss-smn:ELM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 1.61,
+      "wind_direction_deg": 163.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.6,
+      "humidity_pct": 77.3,
+      "pressure_hpa": 898.4
+    },
+    {
+      "station": "meteoswiss-smn:ENG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 2.69,
+      "wind_direction_deg": 83.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.8,
+      "humidity_pct": 77.1,
+      "pressure_hpa": 889.0
+    },
+    {
+      "station": "meteoswiss-smn:EVI",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 11.11,
+      "wind_gust_ms": 17.19,
+      "wind_direction_deg": 143.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.3,
+      "humidity_pct": 87.9,
+      "pressure_hpa": 952.1
+    },
+    {
+      "station": "meteoswiss-smn:EVO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 0.89,
+      "wind_direction_deg": 96.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.1,
+      "humidity_pct": 94.9,
+      "pressure_hpa": 807.2
+    },
+    {
+      "station": "meteoswiss-smn:FAH",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.19,
+      "wind_gust_ms": 3.81,
+      "wind_direction_deg": 78.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.8,
+      "humidity_pct": 98.3,
+      "pressure_hpa": 937.4
+    },
+    {
+      "station": "meteoswiss-smn:FLU",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.89,
+      "wind_gust_ms": 2.61,
+      "wind_direction_deg": 144.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.6,
+      "humidity_pct": 82.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:FRE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.61,
+      "wind_gust_ms": 1.31,
+      "wind_direction_deg": 98.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.1,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 870.2
+    },
+    {
+      "station": "meteoswiss-smn:FRU",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.81,
+      "wind_gust_ms": 2.81,
+      "wind_direction_deg": 182.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.9,
+      "humidity_pct": 99.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:GEN",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 6.61,
+      "wind_gust_ms": 8.81,
+      "wind_direction_deg": 80.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.2,
+      "humidity_pct": 99.2,
+      "pressure_hpa": 831.8
+    },
+    {
+      "station": "meteoswiss-smn:GES",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.81,
+      "wind_gust_ms": 1.31,
+      "wind_direction_deg": 24.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.2,
+      "humidity_pct": 90.9,
+      "pressure_hpa": 947.2
+    },
+    {
+      "station": "meteoswiss-smn:GIH",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.81,
+      "wind_gust_ms": 1.11,
+      "wind_direction_deg": 228.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.9,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 953.0
+    },
+    {
+      "station": "meteoswiss-smn:GLA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.89,
+      "wind_gust_ms": 1.31,
+      "wind_direction_deg": 159.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.2,
+      "humidity_pct": 91.5,
+      "pressure_hpa": 948.1
+    },
+    {
+      "station": "meteoswiss-smn:GOE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.89,
+      "wind_gust_ms": 2.19,
+      "wind_direction_deg": 58.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.0,
+      "humidity_pct": 95.2,
+      "pressure_hpa": 963.6
+    },
+    {
+      "station": "meteoswiss-smn:GOR",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.39,
+      "wind_gust_ms": 2.89,
+      "wind_direction_deg": 36.0,
+      "gust_direction_deg": null,
+      "temperature_c": -5.6,
+      "humidity_pct": 91.5,
+      "pressure_hpa": 685.0
+    },
+    {
+      "station": "meteoswiss-smn:GOS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 4.89,
+      "wind_gust_ms": 9.5,
+      "wind_direction_deg": 204.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.7,
+      "humidity_pct": 65.5,
+      "pressure_hpa": 899.6
+    },
+    {
+      "station": "meteoswiss-smn:GRA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.11,
+      "wind_gust_ms": 0.39,
+      "wind_direction_deg": 347.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.9,
+      "humidity_pct": 100.0,
+      "pressure_hpa": 931.7
+    },
+    {
+      "station": "meteoswiss-smn:GRC",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -0.7,
+      "humidity_pct": 93.3,
+      "pressure_hpa": 830.6
+    },
+    {
+      "station": "meteoswiss-smn:GRE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.61,
+      "wind_gust_ms": 2.31,
+      "wind_direction_deg": 70.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.6,
+      "humidity_pct": 96.5,
+      "pressure_hpa": 958.0
+    },
+    {
+      "station": "meteoswiss-smn:GRH",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 9.61,
+      "wind_gust_ms": 11.39,
+      "wind_direction_deg": 151.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.7,
+      "humidity_pct": 88.0,
+      "pressure_hpa": 794.4
+    },
+    {
+      "station": "meteoswiss-smn:GRO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.11,
+      "wind_gust_ms": 0.31,
+      "wind_direction_deg": 48.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.6,
+      "humidity_pct": 92.6,
+      "pressure_hpa": 973.6
+    },
+    {
+      "station": "meteoswiss-smn:GSB",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 5.5,
+      "wind_gust_ms": 8.81,
+      "wind_direction_deg": 288.0,
+      "gust_direction_deg": null,
+      "temperature_c": -5.5,
+      "humidity_pct": 96.4,
+      "pressure_hpa": 744.0
+    },
+    {
+      "station": "meteoswiss-smn:GUE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 8.89,
+      "wind_gust_ms": 11.5,
+      "wind_direction_deg": 128.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.2,
+      "humidity_pct": 90.7,
+      "pressure_hpa": 762.2
+    },
+    {
+      "station": "meteoswiss-smn:GUT",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.19,
+      "wind_gust_ms": 4.0,
+      "wind_direction_deg": 62.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.5,
+      "humidity_pct": 95.8,
+      "pressure_hpa": 957.3
+    },
+    {
+      "station": "meteoswiss-smn:GVE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.39,
+      "wind_gust_ms": 0.81,
+      "wind_direction_deg": 352.0,
+      "gust_direction_deg": null,
+      "temperature_c": 6.0,
+      "humidity_pct": 95.8,
+      "pressure_hpa": 959.7
+    },
+    {
+      "station": "meteoswiss-smn:HAI",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.11,
+      "wind_gust_ms": 3.61,
+      "wind_direction_deg": 100.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.2,
+      "humidity_pct": 99.4,
+      "pressure_hpa": 924.9
+    },
+    {
+      "station": "meteoswiss-smn:HLL",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.19,
+      "wind_gust_ms": 2.69,
+      "wind_direction_deg": 13.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.7,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 959.8
+    },
+    {
+      "station": "meteoswiss-smn:HOE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.31,
+      "wind_gust_ms": 3.5,
+      "wind_direction_deg": 217.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.5,
+      "humidity_pct": 60.3,
+      "pressure_hpa": 878.6
+    },
+    {
+      "station": "meteoswiss-smn:ILZ",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 0.7,
+      "humidity_pct": 99.4,
+      "pressure_hpa": 929.6
+    },
+    {
+      "station": "meteoswiss-smn:INT",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.61,
+      "wind_gust_ms": 3.81,
+      "wind_direction_deg": 184.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.1,
+      "humidity_pct": 97.0,
+      "pressure_hpa": 940.2
+    },
+    {
+      "station": "meteoswiss-smn:JUN",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.61,
+      "wind_gust_ms": 9.69,
+      "wind_direction_deg": 205.0,
+      "gust_direction_deg": null,
+      "temperature_c": -7.5,
+      "humidity_pct": 100.0,
+      "pressure_hpa": 646.7
+    },
+    {
+      "station": "meteoswiss-smn:KLO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.5,
+      "wind_gust_ms": 4.0,
+      "wind_direction_deg": 46.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.7,
+      "humidity_pct": 93.0,
+      "pressure_hpa": 958.7
+    },
+    {
+      "station": "meteoswiss-smn:KOP",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.61,
+      "wind_gust_ms": 2.81,
+      "wind_direction_deg": 2.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.8,
+      "humidity_pct": 96.9,
+      "pressure_hpa": 951.2
+    },
+    {
+      "station": "meteoswiss-smn:LAC",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 4.1,
+      "humidity_pct": 95.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:LAE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.0,
+      "wind_gust_ms": 4.69,
+      "wind_direction_deg": 52.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.6,
+      "humidity_pct": 98.8,
+      "pressure_hpa": 910.7
+    },
+    {
+      "station": "meteoswiss-smn:LAG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.0,
+      "wind_direction_deg": 25.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.5,
+      "humidity_pct": 98.2,
+      "pressure_hpa": 921.0
+    },
+    {
+      "station": "meteoswiss-smn:LAT",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.69,
+      "wind_gust_ms": 3.11,
+      "wind_direction_deg": 72.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.8,
+      "humidity_pct": 66.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:LEI",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.89,
+      "wind_gust_ms": 3.31,
+      "wind_direction_deg": 60.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.8,
+      "humidity_pct": 100.0,
+      "pressure_hpa": 968.9
+    },
+    {
+      "station": "meteoswiss-smn:LUG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.69,
+      "wind_gust_ms": 1.31,
+      "wind_direction_deg": 357.0,
+      "gust_direction_deg": null,
+      "temperature_c": 6.1,
+      "humidity_pct": 95.3,
+      "pressure_hpa": 976.8
+    },
+    {
+      "station": "meteoswiss-smn:LUZ",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.11,
+      "wind_gust_ms": 1.61,
+      "wind_direction_deg": 332.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.0,
+      "humidity_pct": 95.6,
+      "pressure_hpa": 954.9
+    },
+    {
+      "station": "meteoswiss-smn:MAG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.61,
+      "wind_gust_ms": 1.0,
+      "wind_direction_deg": 200.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.6,
+      "humidity_pct": 91.6,
+      "pressure_hpa": 988.3
+    },
+    {
+      "station": "meteoswiss-smn:MAH",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.0,
+      "wind_gust_ms": 2.69,
+      "wind_direction_deg": 42.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.4,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 956.9
+    },
+    {
+      "station": "meteoswiss-smn:MAR",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.11,
+      "wind_gust_ms": 6.61,
+      "wind_direction_deg": 238.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.5,
+      "humidity_pct": 93.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:MAS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.31,
+      "wind_gust_ms": 0.69,
+      "wind_direction_deg": 262.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.3,
+      "humidity_pct": 99.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:MER",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 0.89,
+      "wind_direction_deg": 111.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.9,
+      "humidity_pct": 90.7,
+      "pressure_hpa": 938.9
+    },
+    {
+      "station": "meteoswiss-smn:MLS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 9.0,
+      "wind_gust_ms": 14.39,
+      "wind_direction_deg": 212.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.0,
+      "humidity_pct": 97.6,
+      "pressure_hpa": 790.2
+    },
+    {
+      "station": "meteoswiss-smn:MOA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 1.89,
+      "wind_direction_deg": 272.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.3,
+      "humidity_pct": 100.0,
+      "pressure_hpa": 955.1
+    },
+    {
+      "station": "meteoswiss-smn:MOB",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.69,
+      "wind_gust_ms": 1.11,
+      "wind_direction_deg": 298.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.6,
+      "humidity_pct": 96.3,
+      "pressure_hpa": 913.3
+    },
+    {
+      "station": "meteoswiss-smn:MOE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 6.0,
+      "wind_gust_ms": 8.61,
+      "wind_direction_deg": 126.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.0,
+      "humidity_pct": 98.2,
+      "pressure_hpa": 968.0
+    },
+    {
+      "station": "meteoswiss-smn:MTE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.81,
+      "wind_gust_ms": 1.81,
+      "wind_direction_deg": 155.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.5,
+      "humidity_pct": 97.4,
+      "pressure_hpa": 832.5
+    },
+    {
+      "station": "meteoswiss-smn:MTR",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.39,
+      "wind_gust_ms": 2.19,
+      "wind_direction_deg": 73.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.6,
+      "humidity_pct": 98.6,
+      "pressure_hpa": 772.4
+    },
+    {
+      "station": "meteoswiss-smn:MUB",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.39,
+      "wind_gust_ms": 1.19,
+      "wind_direction_deg": 254.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.3,
+      "humidity_pct": 99.2,
+      "pressure_hpa": 951.6
+    },
+    {
+      "station": "meteoswiss-smn:MVE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.89,
+      "wind_gust_ms": 4.19,
+      "wind_direction_deg": 65.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.2,
+      "humidity_pct": 96.4,
+      "pressure_hpa": 849.3
+    },
+    {
+      "station": "meteoswiss-smn:NAP",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 4.11,
+      "wind_gust_ms": 8.39,
+      "wind_direction_deg": 103.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.3,
+      "humidity_pct": 79.2,
+      "pressure_hpa": 849.0
+    },
+    {
+      "station": "meteoswiss-smn:NAS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 5.11,
+      "wind_gust_ms": 7.0,
+      "wind_direction_deg": 254.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.7,
+      "humidity_pct": 79.2,
+      "pressure_hpa": 754.5
+    },
+    {
+      "station": "meteoswiss-smn:NEU",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.61,
+      "wind_gust_ms": 1.81,
+      "wind_direction_deg": 50.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.2,
+      "humidity_pct": 95.3,
+      "pressure_hpa": 951.2
+    },
+    {
+      "station": "meteoswiss-smn:OBR",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.81,
+      "wind_gust_ms": 2.19,
+      "wind_direction_deg": 219.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.9,
+      "humidity_pct": 99.4,
+      "pressure_hpa": 960.9
+    },
+    {
+      "station": "meteoswiss-smn:ORO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 145.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.5,
+      "humidity_pct": 99.2,
+      "pressure_hpa": 911.8
+    },
+    {
+      "station": "meteoswiss-smn:OTL",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.11,
+      "wind_gust_ms": 1.81,
+      "wind_direction_deg": 259.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.8,
+      "humidity_pct": 72.8,
+      "pressure_hpa": 968.2
+    },
+    {
+      "station": "meteoswiss-smn:PAY",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.11,
+      "wind_direction_deg": 25.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.2,
+      "humidity_pct": 97.9,
+      "pressure_hpa": 950.5
+    },
+    {
+      "station": "meteoswiss-smn:PFA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.69,
+      "wind_gust_ms": 1.19,
+      "wind_direction_deg": 268.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.6,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 945.7
+    },
+    {
+      "station": "meteoswiss-smn:PIL",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 7.81,
+      "wind_gust_ms": 9.31,
+      "wind_direction_deg": 160.0,
+      "gust_direction_deg": null,
+      "temperature_c": -2.7,
+      "humidity_pct": 95.3,
+      "pressure_hpa": 777.8
+    },
+    {
+      "station": "meteoswiss-smn:PIO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.11,
+      "wind_gust_ms": 2.61,
+      "wind_direction_deg": 279.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.4,
+      "humidity_pct": 88.4,
+      "pressure_hpa": 897.8
+    },
+    {
+      "station": "meteoswiss-smn:PLF",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.89,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 291.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.6,
+      "humidity_pct": 99.7,
+      "pressure_hpa": 887.6
+    },
+    {
+      "station": "meteoswiss-smn:PMA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 6.69,
+      "wind_gust_ms": 8.11,
+      "wind_direction_deg": 195.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.3,
+      "humidity_pct": 91.1,
+      "pressure_hpa": 726.7
+    },
+    {
+      "station": "meteoswiss-smn:PRE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.81,
+      "wind_gust_ms": 5.0,
+      "wind_direction_deg": 352.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:PSI",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 4.8,
+      "humidity_pct": 96.4,
+      "pressure_hpa": 969.7
+    },
+    {
+      "station": "meteoswiss-smn:PUY",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.19,
+      "wind_gust_ms": 3.89,
+      "wind_direction_deg": 92.0,
+      "gust_direction_deg": null,
+      "temperature_c": 6.8,
+      "humidity_pct": 90.9,
+      "pressure_hpa": 954.0
+    },
+    {
+      "station": "meteoswiss-smn:QUI",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.39,
+      "wind_gust_ms": 2.11,
+      "wind_direction_deg": 107.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": 959.3
+    },
+    {
+      "station": "meteoswiss-smn:RAG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 5.19,
+      "wind_gust_ms": 10.31,
+      "wind_direction_deg": 113.0,
+      "gust_direction_deg": null,
+      "temperature_c": 6.3,
+      "humidity_pct": 67.5,
+      "pressure_hpa": 950.7
+    },
+    {
+      "station": "meteoswiss-smn:REH",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.61,
+      "wind_gust_ms": 1.11,
+      "wind_direction_deg": 66.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.8,
+      "humidity_pct": 93.9,
+      "pressure_hpa": 956.6
+    },
+    {
+      "station": "meteoswiss-smn:ROB",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.0,
+      "wind_gust_ms": 0.11,
+      "wind_direction_deg": 0.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.5,
+      "humidity_pct": 94.4,
+      "pressure_hpa": 889.2
+    },
+    {
+      "station": "meteoswiss-smn:ROE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.11,
+      "wind_gust_ms": 0.31,
+      "wind_direction_deg": 172.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.1,
+      "humidity_pct": 98.0,
+      "pressure_hpa": 801.7
+    },
+    {
+      "station": "meteoswiss-smn:RUE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.89,
+      "wind_gust_ms": 5.61,
+      "wind_direction_deg": 65.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.6,
+      "humidity_pct": 96.9,
+      "pressure_hpa": 936.5
+    },
+    {
+      "station": "meteoswiss-smn:SAE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.0,
+      "wind_gust_ms": 5.89,
+      "wind_direction_deg": 189.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.4,
+      "humidity_pct": 71.0,
+      "pressure_hpa": 742.7
+    },
+    {
+      "station": "meteoswiss-smn:SAG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.19,
+      "wind_gust_ms": 3.0,
+      "wind_direction_deg": 47.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.7,
+      "humidity_pct": 98.1,
+      "pressure_hpa": 916.2
+    },
+    {
+      "station": "meteoswiss-smn:SAM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.39,
+      "wind_gust_ms": 1.0,
+      "wind_direction_deg": 334.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.2,
+      "humidity_pct": 90.9,
+      "pressure_hpa": 821.5
+    },
+    {
+      "station": "meteoswiss-smn:SBE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.11,
+      "wind_gust_ms": 0.39,
+      "wind_direction_deg": 232.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.5,
+      "humidity_pct": 97.9,
+      "pressure_hpa": 827.9
+    },
+    {
+      "station": "meteoswiss-smn:SBO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.11,
+      "wind_gust_ms": 0.39,
+      "wind_direction_deg": 233.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.3,
+      "humidity_pct": 96.8,
+      "pressure_hpa": 970.5
+    },
+    {
+      "station": "meteoswiss-smn:SCM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.39,
+      "wind_gust_ms": 2.5,
+      "wind_direction_deg": 94.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": 960.7
+    },
+    {
+      "station": "meteoswiss-smn:SCU",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 0.81,
+      "wind_direction_deg": 94.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.7,
+      "humidity_pct": 82.0,
+      "pressure_hpa": 863.8
+    },
+    {
+      "station": "meteoswiss-smn:SHA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.81,
+      "wind_gust_ms": 4.39,
+      "wind_direction_deg": 47.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.4,
+      "humidity_pct": 91.7,
+      "pressure_hpa": 957.4
+    },
+    {
+      "station": "meteoswiss-smn:SIA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.31,
+      "wind_gust_ms": 3.81,
+      "wind_direction_deg": 92.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.7,
+      "humidity_pct": 93.1,
+      "pressure_hpa": 811.6
+    },
+    {
+      "station": "meteoswiss-smn:SIM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.81,
+      "wind_gust_ms": 1.39,
+      "wind_direction_deg": 109.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.4,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 845.6
+    },
+    {
+      "station": "meteoswiss-smn:SIO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.0,
+      "wind_gust_ms": 0.11,
+      "wind_direction_deg": 0.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.9,
+      "humidity_pct": 92.1,
+      "pressure_hpa": 954.5
+    },
+    {
+      "station": "meteoswiss-smn:SMA",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.81,
+      "wind_gust_ms": 4.61,
+      "wind_direction_deg": 54.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.2,
+      "humidity_pct": 97.9,
+      "pressure_hpa": 937.8
+    },
+    {
+      "station": "meteoswiss-smn:SMM",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.11,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 167.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.2,
+      "humidity_pct": 59.7,
+      "pressure_hpa": 855.7
+    },
+    {
+      "station": "meteoswiss-smn:SPF",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 2.0,
+      "wind_direction_deg": 354.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.3,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 921.2
+    },
+    {
+      "station": "meteoswiss-smn:SRS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.19,
+      "wind_gust_ms": 1.69,
+      "wind_direction_deg": 98.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.2,
+      "humidity_pct": 98.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:STG",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.19,
+      "wind_gust_ms": 0.5,
+      "wind_direction_deg": 78.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.7,
+      "humidity_pct": 99.5,
+      "pressure_hpa": 918.3
+    },
+    {
+      "station": "meteoswiss-smn:STK",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.89,
+      "wind_gust_ms": 1.89,
+      "wind_direction_deg": 91.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": 962.4
+    },
+    {
+      "station": "meteoswiss-smn:TAE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 1.81,
+      "wind_direction_deg": 143.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.0,
+      "humidity_pct": 98.0,
+      "pressure_hpa": 945.6
+    },
+    {
+      "station": "meteoswiss-smn:THU",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.31,
+      "wind_gust_ms": 1.0,
+      "wind_direction_deg": 84.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.3,
+      "humidity_pct": 99.2,
+      "pressure_hpa": 941.0
+    },
+    {
+      "station": "meteoswiss-smn:TIT",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 9.19,
+      "wind_gust_ms": 12.11,
+      "wind_direction_deg": 197.0,
+      "gust_direction_deg": null,
+      "temperature_c": -5.6,
+      "humidity_pct": 94.6,
+      "pressure_hpa": 687.0
+    },
+    {
+      "station": "meteoswiss-smn:ULR",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.19,
+      "wind_gust_ms": 0.39,
+      "wind_direction_deg": 69.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.9,
+      "humidity_pct": 99.3,
+      "pressure_hpa": 858.2
+    },
+    {
+      "station": "meteoswiss-smn:VAB",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.89,
+      "wind_gust_ms": 5.5,
+      "wind_direction_deg": 164.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.1,
+      "humidity_pct": 91.8,
+      "pressure_hpa": 834.5
+    },
+    {
+      "station": "meteoswiss-smn:VAD",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.11,
+      "wind_gust_ms": 2.19,
+      "wind_direction_deg": 315.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.4,
+      "humidity_pct": 89.4,
+      "pressure_hpa": 955.0
+    },
+    {
+      "station": "meteoswiss-smn:VEV",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 3.31,
+      "wind_gust_ms": 7.11,
+      "wind_direction_deg": 133.0,
+      "gust_direction_deg": null,
+      "temperature_c": 7.6,
+      "humidity_pct": 82.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:VIO",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.19,
+      "wind_gust_ms": 0.61,
+      "wind_direction_deg": 29.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.9,
+      "humidity_pct": 78.6,
+      "pressure_hpa": 886.8
+    },
+    {
+      "station": "meteoswiss-smn:VIS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.5,
+      "wind_gust_ms": 5.61,
+      "wind_direction_deg": 115.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.4,
+      "humidity_pct": 83.3,
+      "pressure_hpa": 936.0
+    },
+    {
+      "station": "meteoswiss-smn:VIT",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 2.11,
+      "wind_gust_ms": 4.11,
+      "wind_direction_deg": 62.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.5,
+      "humidity_pct": 99.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:VLS",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 1.39,
+      "wind_gust_ms": 3.31,
+      "wind_direction_deg": 333.0,
+      "gust_direction_deg": null,
+      "temperature_c": 1.5,
+      "humidity_pct": 92.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "meteoswiss-smn:WAE",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.39,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 296.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.4,
+      "humidity_pct": 92.7,
+      "pressure_hpa": 951.6
+    },
+    {
+      "station": "meteoswiss-smn:WFJ",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 4.61,
+      "wind_gust_ms": 5.61,
+      "wind_direction_deg": 151.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.5,
+      "humidity_pct": 92.5,
+      "pressure_hpa": 724.6
+    },
+    {
+      "station": "meteoswiss-smn:WYN",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.61,
+      "wind_gust_ms": 1.11,
+      "wind_direction_deg": 14.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.4,
+      "humidity_pct": 96.2,
+      "pressure_hpa": 958.5
+    },
+    {
+      "station": "meteoswiss-smn:ZER",
+      "time": "2026-11-22T07:50:00Z",
+      "wind_speed_ms": 0.69,
+      "wind_gust_ms": 1.11,
+      "wind_direction_deg": 223.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.7,
+      "humidity_pct": 88.6,
+      "pressure_hpa": 827.2
+    }
+  ],
+  "report": {
+    "source": "meteoswiss-smn",
+    "requests": 2,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 158,
+    "observations": 154,
+    "newest_observation": "2026-11-22T07:50:00Z"
+  }
+}

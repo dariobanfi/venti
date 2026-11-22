@@ -1,0 +1,133 @@
+{
+"type": "FeatureCollection",
+"features":[
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T20:00:00+01","prec(mm)": "0.0","ta(°C)": "-1.8","tamin(°C)": "-2.1","tamax(°C)": "-1.7","vvmed(m/s)": "5.6","vvmax(m/s)": "9.5","dvmed(gN)": "222","umid(%)": "60","press(hPa)": "776.5","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "5"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:55:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:50:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "5.5","vvmax(m/s)": "13.3","dvmed(gN)": "230","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:45:00+01","prec(mm)": "0.0","ta(°C)": "-1.9","tamin(°C)": "-2.1","tamax(°C)": "-1.8","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "63","press(hPa)": "776.7","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "6"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:40:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "4.6","vvmax(m/s)": "9.9","dvmed(gN)": "206","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:35:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:30:00+01","prec(mm)": "0.0","ta(°C)": "-1.9","tamin(°C)": "-2.1","tamax(°C)": "-1.7","vvmed(m/s)": "5.1","vvmax(m/s)": "12.3","dvmed(gN)": "210","umid(%)": "63","press(hPa)": "776.3","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "5"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:25:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:20:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "4.6","vvmax(m/s)": "8.3","dvmed(gN)": "199","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:15:00+01","prec(mm)": "0.0","ta(°C)": "-1.8","tamin(°C)": "-2.0","tamax(°C)": "-1.6","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "65","press(hPa)": "776.1","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "5"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:10:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "5.2","vvmax(m/s)": "12.4","dvmed(gN)": "212","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:05:00+01","prec(mm)": "0.0","ta(°C)": "","tamin(°C)": "","tamax(°C)": "","vvmed(m/s)": "","vvmax(m/s)": "","dvmed(gN)": "","umid(%)": "","press(hPa)": "","radsg(W/mq)": "","radsn(W/mq)": "","hs(cm)": ""},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+},
+{"type": "Feature",
+"properties": {"idente": "PATUP","staz": "Marmolada (Sas Del Mul)","quota":"2606 m","code":"T0404","datetime": "2026-11-18T19:00:00+01","prec(mm)": "0.0","ta(°C)": "-1.7","tamin(°C)": "-1.9","tamax(°C)": "-1.6","vvmed(m/s)": "4.9","vvmax(m/s)": "11.0","dvmed(gN)": "219","umid(%)": "65","press(hPa)": "776.0","radsg(W/mq)": "0","radsn(W/mq)": "","hs(cm)": "5"},
+"geometry": {
+"type": "Point",
+"coordinates": [
+11.880813,
+46.443614
+]
+}
+}]}

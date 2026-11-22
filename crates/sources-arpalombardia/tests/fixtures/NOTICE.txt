@@ -1,0 +1,93 @@
+The files in this folder are data of ARPA Lombardia (ARPA - Regione
+Lombardia), measured by its weather stations and published on the open-data
+portal of Regione Lombardia, https://www.dati.lombardia.it, in the datasets
+"Stazioni Idro Nivo Meteorologiche" (nf78-nj6b) and "Dati sensori meteo"
+(647i-nhxk), under Creative Commons CC0 1.0 Universal (Public Domain
+Dedication), https://creativecommons.org/publicdomain/zero/1.0/, as the
+portal's records of both say (read 2026-11-22). They are not covered by the
+licence of the code around them.
+
+They were recorded on 2026-11-22 from https://www.dati.lombardia.it/resource/,
+without a key or token, with curl, one GET each, at the addresses the
+adapter writes for a run at 08:33:12 UTC over the Alps' box (5.0 to 17.2° E,
+43.5 to 48.5° N). requests.txt lists them, a tag and an address a line, as
+they were sent; a test holds the adapter's plan against it. The answers hold
+no personal data and no key.
+
+    sensors.json    GET nf78-nj6b.json?$select=...&$where=...    124,918
+                    asked at 08:33:13 UTC                         bytes,
+                                                                  whole and
+                    unchanged: 683 sensors in service of the four kinds
+                    (wind speed, wind direction, temperature, humidity) at
+                    250 stations, 132 of which have an anemometer
+
+    values_1.json   CUT from the answers to the three requests of values,
+    values_2.json   asked at 08:33:14 UTC, which were 737,927, 801,512 and
+    values_3.json   197,948 bytes: 7,775, 8,472 and 2,096 rows of 58, 59
+                    and 15 stations, the ten minutes from 02:30 to 07:00 or
+                    07:10 by the portal's clock (UTC+1)
+
+The answers are a JSON array whose rows are written one a line, each line
+after the first beginning with ",". The cut keeps the rows of eight stations,
+every one of their rows, in the answer's order, each line byte for byte as
+the portal wrote it, joined as in the answer, with the answer's last newline:
+
+    values_1.json   14 (Valfurva S. Caterina, no hygrometer), 1347 (Barzio
+                    Piani di Bobbio), 1382 (Veddasca Monte Cadrigna):
+                    379 rows, 36,025 bytes
+    values_2.json   629 (Crema, with 50 values marked "NA"), 1680
+                    (Vilminore di Scalve Presolana), 1650 (Bormio
+                    eliporto): 483 rows, 45,914 bytes
+    values_3.json   857 (Santa Margherita di Staffora Passo del Giovà),
+                    848 (Livigno La Vallaccia): 303 rows, 28,632 bytes
+
+They were chosen for what they show: a station without a hygrometer, values
+the agency marks invalid, stations in the first region's box, in the
+southern and in the western one. The cut was made by a script that split
+each answer between its lines and checked that every piece, read as JSON,
+is the row of the whole answer it was cut from.
+
+sensors_evening.json and values_evening.json are a sample for the server's
+development mode, whose clock stands at 19:05 UTC on 2026-11-18, four days
+before this source was recorded:
+
+    sensors_evening.json   sensors.json cut, in the same way, to the 11
+                           sensors of stations 14 (Valfurva S. Caterina),
+                           1090 (Valdisotto Bormio 2000) and 1091 (Livigno
+                           Mottolino): 2,041 bytes
+    values_evening.json    CUT from the answer to the address the adapter
+                           writes from sensors_evening.json for a run at
+                           19:05 UTC on 2026-11-18 over the first region's
+                           box, asked at 08:33:42 UTC on 2026-11-22: 640,988
+                           bytes, 6,726 rows from 13:00 on the 18th to 06:50
+                           on the 22nd by the portal's clock. The cut keeps
+                           the rows up to 2026-11-18T18:30:00.000: 439 rows,
+                           41,778 bytes
+
+The address has no end in time, so the portal answered with every value
+since. Which of them it had at 19:05 UTC on the 18th is its own record of
+when it took each row in (`:updated_at`, asked for each ten minutes on
+2026-11-22): the values of 18:30 by its clock (17:30 UTC) arrived at
+17:42:04 UTC, those of 18:40 at 23:25:08 UTC. So every value in the sample
+is one the portal gave, for the station and the ten minutes it says, and
+the portal had the ten minutes of every one by 19:05. Whether a value was
+changed after it arrived (the portal rewrote these rows the next night) is
+not known. The hygrometers of 1090 and 1091 are in the list and gave no
+value in those four days.
+
+sensors_damaged.json and values_damaged.json are not the portal's data:
+they are the evening sample with things changed by hand, to test how the
+adapter reports what it cannot read. The test that uses them says what was
+changed.
+
+To record them again: run the adapter's plan for a moment and a box, fetch
+the list of sensors and then the addresses of values the adapter writes from
+it, write requests.txt, cut the values as above; set the moment in
+tests/pipeline.rs; run the tests with VENTI_UPDATE_GOLDEN=1 and review what
+changed. The counts the tests pin will differ. The evening sample stays as
+it is for as long as the development mode's clock does. The values dataset
+holds the current month only: should the clock move, the sample can be made
+again only within the month of the new moment.
+
+A value in these files is what an instrument reported. It is no statement
+that a place can be flown.

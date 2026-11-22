@@ -1,0 +1,683 @@
+[{"idsensore":"10377","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"706","nomestazione":"Lecco v.Sora","quota":"272","lat":"45.86375372","lng":"9.39995481"}
+,{"idsensore":"10378","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"706","nomestazione":"Lecco v.Sora","quota":"272","lat":"45.86375372","lng":"9.39995481"}
+,{"idsensore":"10381","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"706","nomestazione":"Lecco v.Sora","quota":"272","lat":"45.86375372","lng":"9.39995481"}
+,{"idsensore":"10459","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1266","nomestazione":"Bertonico v.Moro","quota":"65","lat":"45.23349689","lng":"9.66625758"}
+,{"idsensore":"10469","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1266","nomestazione":"Bertonico v.Moro","quota":"65","lat":"45.23349689","lng":"9.66625758"}
+,{"idsensore":"10470","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1266","nomestazione":"Bertonico v.Moro","quota":"65","lat":"45.23349689","lng":"9.66625758"}
+,{"idsensore":"10551","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"554","nomestazione":"Saronno v.Santuario","quota":"212","lat":"45.62735705","lng":"9.02640138"}
+,{"idsensore":"10552","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"554","nomestazione":"Saronno v.Santuario","quota":"212","lat":"45.62735705","lng":"9.02640138"}
+,{"idsensore":"10553","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"554","nomestazione":"Saronno v.Santuario","quota":"212","lat":"45.62735705","lng":"9.02640138"}
+,{"idsensore":"10557","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"554","nomestazione":"Saronno v.Santuario","quota":"212","lat":"45.62735705","lng":"9.02640138"}
+,{"idsensore":"10658","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1898","nomestazione":"Valganna Mondonico","quota":"665","lat":"45.91491984","lng":"8.81066630"}
+,{"idsensore":"10661","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1898","nomestazione":"Valganna Mondonico","quota":"665","lat":"45.91491984","lng":"8.81066630"}
+,{"idsensore":"10662","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1898","nomestazione":"Valganna Mondonico","quota":"665","lat":"45.91491984","lng":"8.81066630"}
+,{"idsensore":"10664","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1898","nomestazione":"Valganna Mondonico","quota":"665","lat":"45.91491984","lng":"8.81066630"}
+,{"idsensore":"10773","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"35","nomestazione":"Caspoggio Piazzo Cavalli","quota":"1719","lat":"46.24987200","lng":"9.87088700"}
+,{"idsensore":"10778","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"16","nomestazione":"Valfurva Ghiacciaio dei Forni","quota":"2180","lat":"46.42078875","lng":"10.55541386"}
+,{"idsensore":"10787","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1266","nomestazione":"Bertonico v.Moro","quota":"65","lat":"45.23349689","lng":"9.66625758"}
+,{"idsensore":"10788","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"672","nomestazione":"Cornale v.Libertà","quota":"74","lat":"45.04008561","lng":"8.91415717"}
+,{"idsensore":"11007","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"822","nomestazione":"Valtorta","quota":"982","lat":"45.97360719","lng":"9.53889086"}
+,{"idsensore":"11008","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"822","nomestazione":"Valtorta","quota":"982","lat":"45.97360719","lng":"9.53889086"}
+,{"idsensore":"11011","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"912","nomestazione":"Foppolo","quota":"1682","lat":"46.04249594","lng":"9.75610761"}
+,{"idsensore":"11020","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1205","nomestazione":"Molteno Cimitero","quota":"278","lat":"45.78301922","lng":"9.30710044"}
+,{"idsensore":"11021","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1224","nomestazione":"Cortenova","quota":"456","lat":"46.00746603","lng":"9.38040375"}
+,{"idsensore":"11131","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"123","nomestazione":"Cavenago d'Adda","quota":"67","lat":"45.26927396","lng":"9.56265997"}
+,{"idsensore":"11132","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"123","nomestazione":"Cavenago d'Adda","quota":"67","lat":"45.26927396","lng":"9.56265997"}
+,{"idsensore":"11144","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"143","nomestazione":"Livigno Passo Foscagno","quota":"2320","lat":"46.49442378","lng":"10.20748854"}
+,{"idsensore":"11158","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1230","nomestazione":"San Giacomo Filippo Lago Truzzo","quota":"2010","lat":"46.36053879","lng":"9.31999148"}
+,{"idsensore":"11167","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1230","nomestazione":"San Giacomo Filippo Lago Truzzo","quota":"2010","lat":"46.36053879","lng":"9.31999148"}
+,{"idsensore":"11168","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1230","nomestazione":"San Giacomo Filippo Lago Truzzo","quota":"2010","lat":"46.36053879","lng":"9.31999148"}
+,{"idsensore":"11190","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"846","nomestazione":"Edolo Pantano d`Avio","quota":"2108","lat":"46.17700799","lng":"10.47282844"}
+,{"idsensore":"112","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"57","nomestazione":"Branzi Caserma Carabinieri","quota":"830","lat":"46.00185828","lng":"9.75913061"}
+,{"idsensore":"11216","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1202","nomestazione":"Vercana","quota":"980","lat":"46.18185467","lng":"9.32468906"}
+,{"idsensore":"11217","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1222","nomestazione":"Cavargna","quota":"1100","lat":"46.09155206","lng":"9.11084686"}
+,{"idsensore":"11218","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1222","nomestazione":"Cavargna","quota":"1100","lat":"46.09155206","lng":"9.11084686"}
+,{"idsensore":"115","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"58","nomestazione":"Carona Lago Fregabolgia","quota":"1955","lat":"46.02444861","lng":"9.86305936"}
+,{"idsensore":"11734","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"102","nomestazione":"San Colombano al Lambro","quota":"140","lat":"45.17191896","lng":"9.48899684"}
+,{"idsensore":"11735","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"106","nomestazione":"Varzi Nivione","quota":"500","lat":"44.80739989","lng":"9.17949163"}
+,{"idsensore":"11736","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"107","nomestazione":"Sondrio Fond.Fojanini","quota":"307","lat":"46.16755337","lng":"9.85094015"}
+,{"idsensore":"11737","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"108","nomestazione":"Samolaco v.Vignola","quota":"206","lat":"46.23610858","lng":"9.42666579"}
+,{"idsensore":"11739","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"110","nomestazione":"Gonzaga Palidano","quota":"22","lat":"44.96037167","lng":"10.75828107"}
+,{"idsensore":"11740","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"111","nomestazione":"Cassina Valsassina Moggio","quota":"1196","lat":"45.91309592","lng":"9.49750688"}
+,{"idsensore":"11741","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"114","nomestazione":"Landriano Cascina Marianna","quota":"88","lat":"45.32059361","lng":"9.26715311"}
+,{"idsensore":"11742","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1075","nomestazione":"Edolo Centrale ENEL","quota":"659","lat":"46.16907080","lng":"10.34047351"}
+,{"idsensore":"11743","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"119","nomestazione":"San Giovanni Bianco Cornalita","quota":"622","lat":"45.86969697","lng":"9.63912077"}
+,{"idsensore":"11745","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"127","nomestazione":"Casatenovo tetto","quota":"360","lat":"45.70194614","lng":"9.30914481"}
+,{"idsensore":"11746","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"129","nomestazione":"Capo di Ponte v.Briscioli","quota":"362","lat":"46.02656354","lng":"10.34250260"}
+,{"idsensore":"11747","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"132","nomestazione":"Bergamo v.Stezzano","quota":"211","lat":"45.66051928","lng":"9.65876847"}
+,{"idsensore":"11748","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"134","nomestazione":"Corzano Bargnano","quota":"93","lat":"45.43372847","lng":"10.03902737"}
+,{"idsensore":"11749","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"136","nomestazione":"Persico Dosimo","quota":"44","lat":"45.17951839","lng":"10.04494440"}
+,{"idsensore":"11750","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"137","nomestazione":"Rivolta d'Adda Ist. Spallanzani","quota":"102","lat":"45.44409052","lng":"9.52068901"}
+,{"idsensore":"11752","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"212","nomestazione":"Canzo","quota":"1233","lat":"45.84814356","lng":"9.31813681"}
+,{"idsensore":"11754","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"832","nomestazione":"Lanzada Palù","quota":"2151","lat":"46.29290690","lng":"9.88452786"}
+,{"idsensore":"11755","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"833","nomestazione":"Gerola Alta Pescegallo","quota":"1875","lat":"46.02619690","lng":"9.57112074"}
+,{"idsensore":"11756","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"835","nomestazione":"Valdisotto Oga S. Colombano","quota":"2300","lat":"46.45356516","lng":"10.30596404"}
+,{"idsensore":"11757","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"836","nomestazione":"Aprica","quota":"1950","lat":"46.12968795","lng":"10.14826598"}
+,{"idsensore":"11758","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"846","nomestazione":"Edolo Pantano d`Avio","quota":"2108","lat":"46.17700799","lng":"10.47282844"}
+,{"idsensore":"11759","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"847","nomestazione":"Carona Carisole","quota":"1954","lat":"46.03852339","lng":"9.79379959"}
+,{"idsensore":"11760","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"848","nomestazione":"Livigno La Vallaccia","quota":"2660","lat":"46.47730866","lng":"10.18873661"}
+,{"idsensore":"11761","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"900","nomestazione":"Chiari","quota":"140","lat":"45.52222206","lng":"9.93777821"}
+,{"idsensore":"11762","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"998","nomestazione":"Laveno-Mombello p.zza Matteotti","quota":"207","lat":"45.90991335","lng":"8.61868535"}
+,{"idsensore":"11763","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"999","nomestazione":"Laveno-Mombello Poggio S.Elsa","quota":"950","lat":"45.91099372","lng":"8.63818571"}
+,{"idsensore":"11811","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1202","nomestazione":"Vercana","quota":"980","lat":"46.18185467","lng":"9.32468906"}
+,{"idsensore":"11812","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"141","nomestazione":"Vertemate con Minoprio serre","quota":"310","lat":"45.71901089","lng":"9.08548850"}
+,{"idsensore":"11813","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"142","nomestazione":"Caiolo","quota":"274","lat":"46.15492316","lng":"9.79251888"}
+,{"idsensore":"11814","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"143","nomestazione":"Livigno Passo Foscagno","quota":"2320","lat":"46.49442378","lng":"10.20748854"}
+,{"idsensore":"11815","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"144","nomestazione":"Madesimo Spluga","quota":"1915","lat":"46.47166446","lng":"9.34812808"}
+,{"idsensore":"11817","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"146","nomestazione":"Mezzoldo Passo S.Marco","quota":"1824","lat":"46.03826280","lng":"9.62865186"}
+,{"idsensore":"11818","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"148","nomestazione":"Arconate SMR","quota":"182","lat":"45.54852147","lng":"8.84732669"}
+,{"idsensore":"12","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"3","nomestazione":"Sondalo Le Prese","quota":"950","lat":"46.35017633","lng":"10.35482008"}
+,{"idsensore":"12025","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1297","nomestazione":"Spinadesco v.Battisti","quota":"48","lat":"45.15047339","lng":"9.93059842"}
+,{"idsensore":"12026","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1297","nomestazione":"Spinadesco v.Battisti","quota":"48","lat":"45.15047339","lng":"9.93059842"}
+,{"idsensore":"121","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"60","nomestazione":"Villa di Chiavenna","quota":"665","lat":"46.33199472","lng":"9.51204364"}
+,{"idsensore":"12712","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"125","nomestazione":"Castello d'Agogna","quota":"106","lat":"45.24680044","lng":"8.70057165"}
+,{"idsensore":"12713","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"125","nomestazione":"Castello d'Agogna","quota":"106","lat":"45.24680044","lng":"8.70057165"}
+,{"idsensore":"12716","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1899","nomestazione":"Bereguardo Fornasetta","quota":"95","lat":"45.26278148","lng":"9.02191087"}
+,{"idsensore":"12719","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1899","nomestazione":"Bereguardo Fornasetta","quota":"95","lat":"45.26278148","lng":"9.02191087"}
+,{"idsensore":"12720","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1899","nomestazione":"Bereguardo Fornasetta","quota":"95","lat":"45.26278148","lng":"9.02191087"}
+,{"idsensore":"12722","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1899","nomestazione":"Bereguardo Fornasetta","quota":"95","lat":"45.26278148","lng":"9.02191087"}
+,{"idsensore":"12754","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"28","nomestazione":"Chiesa in Valmalenco Alpe Entova","quota":"1905","lat":"46.32141817","lng":"9.83412892"}
+,{"idsensore":"12755","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1510","nomestazione":"Monza v.Monte Generoso","quota":"173","lat":"45.58862553","lng":"9.24580749"}
+,{"idsensore":"12756","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1510","nomestazione":"Monza v.Monte Generoso","quota":"173","lat":"45.58862553","lng":"9.24580749"}
+,{"idsensore":"12757","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1511","nomestazione":"Rescaldina","quota":"215","lat":"45.60784534","lng":"8.95289668"}
+,{"idsensore":"12758","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1511","nomestazione":"Rescaldina","quota":"215","lat":"45.60784534","lng":"8.95289668"}
+,{"idsensore":"12759","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1512","nomestazione":"Pogliano Milanese","quota":"160","lat":"45.53557672","lng":"9.00519996"}
+,{"idsensore":"12760","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1512","nomestazione":"Pogliano Milanese","quota":"160","lat":"45.53557672","lng":"9.00519996"}
+,{"idsensore":"13","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"6","nomestazione":"Bormio Ponte sul  Frodolfo","quota":"1250","lat":"46.46511100","lng":"10.37275500"}
+,{"idsensore":"131","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"35","nomestazione":"Caspoggio Piazzo Cavalli","quota":"1719","lat":"46.24987200","lng":"9.87088700"}
+,{"idsensore":"132","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"35","nomestazione":"Caspoggio Piazzo Cavalli","quota":"1719","lat":"46.24987200","lng":"9.87088700"}
+,{"idsensore":"1325","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"69","nomestazione":"Lanzada Campo Franscia RTU 120","quota":"1670","lat":"46.28755197","lng":"9.90255599"}
+,{"idsensore":"133","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"61","nomestazione":"Valdisotto Arginone","quota":"1050","lat":"46.38438486","lng":"10.35398908"}
+,{"idsensore":"134","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"61","nomestazione":"Valdisotto Arginone","quota":"1050","lat":"46.38438486","lng":"10.35398908"}
+,{"idsensore":"1346","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"27","nomestazione":"Chiesa in Valmalenco Alpe dell' Oro","quota":"2040","lat":"46.32146572","lng":"9.76307569"}
+,{"idsensore":"1364","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"79","nomestazione":"Valdidentro Semogo RTU 230","quota":"1610","lat":"46.48866200","lng":"10.27363800"}
+,{"idsensore":"1365","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"79","nomestazione":"Valdidentro Semogo RTU 230","quota":"1610","lat":"46.48866200","lng":"10.27363800"}
+,{"idsensore":"1367","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"78","nomestazione":"Tirano Monte Masuccio","quota":"1750","lat":"46.24409100","lng":"10.17331980"}
+,{"idsensore":"137","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"61","nomestazione":"Valdisotto Arginone","quota":"1050","lat":"46.38438486","lng":"10.35398908"}
+,{"idsensore":"138","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"61","nomestazione":"Valdisotto Arginone","quota":"1050","lat":"46.38438486","lng":"10.35398908"}
+,{"idsensore":"1385","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"46","nomestazione":"Valdidentro Monte Trela","quota":"2330","lat":"46.50284199","lng":"10.26736607"}
+,{"idsensore":"1397","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"88","nomestazione":"Valfurva Scè di Sotto","quota":"1760","lat":"46.44443130","lng":"10.45172980"}
+,{"idsensore":"14001","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1077","nomestazione":"Oltre il Colle Zambla","quota":"1138","lat":"45.89119304","lng":"9.78893967"}
+,{"idsensore":"14006","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1077","nomestazione":"Oltre il Colle Zambla","quota":"1138","lat":"45.89119304","lng":"9.78893967"}
+,{"idsensore":"14007","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1077","nomestazione":"Oltre il Colle Zambla","quota":"1138","lat":"45.89119304","lng":"9.78893967"}
+,{"idsensore":"1401","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"89","nomestazione":"Branzi Il Pizzo","quota":"1600","lat":"45.99707900","lng":"9.74368000"}
+,{"idsensore":"14014","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1077","nomestazione":"Oltre il Colle Zambla","quota":"1138","lat":"45.89119304","lng":"9.78893967"}
+,{"idsensore":"14031","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1211","nomestazione":"Castronno","quota":"379","lat":"45.74873297","lng":"8.82076322"}
+,{"idsensore":"14039","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"836","nomestazione":"Aprica","quota":"1950","lat":"46.12968795","lng":"10.14826598"}
+,{"idsensore":"14049","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"150","nomestazione":"Pieve San Giacomo","quota":"39","lat":"45.12182840","lng":"10.19526123"}
+,{"idsensore":"14055","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1324","nomestazione":"Limone sul Garda","quota":"75","lat":"45.80683333","lng":"10.79005556"}
+,{"idsensore":"14058","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1324","nomestazione":"Limone sul Garda","quota":"75","lat":"45.80683333","lng":"10.79005556"}
+,{"idsensore":"14065","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1324","nomestazione":"Limone sul Garda","quota":"75","lat":"45.80683333","lng":"10.79005556"}
+,{"idsensore":"14066","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1324","nomestazione":"Limone sul Garda","quota":"75","lat":"45.80683333","lng":"10.79005556"}
+,{"idsensore":"14072","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1325","nomestazione":"Collio Memmo","quota":"1069","lat":"45.81136111","lng":"10.31552778"}
+,{"idsensore":"14075","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1325","nomestazione":"Collio Memmo","quota":"1069","lat":"45.81136111","lng":"10.31552778"}
+,{"idsensore":"14082","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1325","nomestazione":"Collio Memmo","quota":"1069","lat":"45.81136111","lng":"10.31552778"}
+,{"idsensore":"14083","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1325","nomestazione":"Collio Memmo","quota":"1069","lat":"45.81136111","lng":"10.31552778"}
+,{"idsensore":"14089","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1326","nomestazione":"Toscolano-Maderno","quota":"70","lat":"45.63641172","lng":"10.61687842"}
+,{"idsensore":"14092","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1326","nomestazione":"Toscolano-Maderno","quota":"70","lat":"45.63641172","lng":"10.61687842"}
+,{"idsensore":"14099","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1326","nomestazione":"Toscolano-Maderno","quota":"70","lat":"45.63641172","lng":"10.61687842"}
+,{"idsensore":"14100","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1326","nomestazione":"Toscolano-Maderno","quota":"70","lat":"45.63641172","lng":"10.61687842"}
+,{"idsensore":"14113","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"147","nomestazione":"Cinisello Balsamo Parco Nord","quota":"142","lat":"45.54266467","lng":"9.20560341"}
+,{"idsensore":"14125","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1328","nomestazione":"Teglio S. Giacomo","quota":"357","lat":"46.15827664","lng":"10.03847892"}
+,{"idsensore":"14130","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1329","nomestazione":"Lavena Ponte Tresa via della Boschiva","quota":"269","lat":"45.97169030","lng":"8.85024227"}
+,{"idsensore":"14132","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1329","nomestazione":"Lavena Ponte Tresa via della Boschiva","quota":"269","lat":"45.97169030","lng":"8.85024227"}
+,{"idsensore":"14139","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1330","nomestazione":"Olgiate Comasco v.Repubblica","quota":"400","lat":"45.77306208","lng":"8.97262961"}
+,{"idsensore":"14145","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1330","nomestazione":"Olgiate Comasco v.Repubblica","quota":"400","lat":"45.77306208","lng":"8.97262961"}
+,{"idsensore":"14165","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1219","nomestazione":"Casalbuttano ed Uniti","quota":"56","lat":"45.25595928","lng":"9.96349494"}
+,{"idsensore":"14189","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1342","nomestazione":"Ponte in Valtellina Lago Reguzzo","quota":"2440","lat":"46.09651358","lng":"9.96999939"}
+,{"idsensore":"14190","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1342","nomestazione":"Ponte in Valtellina Lago Reguzzo","quota":"2440","lat":"46.09651358","lng":"9.96999939"}
+,{"idsensore":"14191","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1342","nomestazione":"Ponte in Valtellina Lago Reguzzo","quota":"2440","lat":"46.09651358","lng":"9.96999939"}
+,{"idsensore":"14194","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1342","nomestazione":"Ponte in Valtellina Lago Reguzzo","quota":"2440","lat":"46.09651358","lng":"9.96999939"}
+,{"idsensore":"14216","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1343","nomestazione":"Lanzada Passo Marinelli","quota":"3032","lat":"46.34981046","lng":"9.91515411"}
+,{"idsensore":"14217","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1343","nomestazione":"Lanzada Passo Marinelli","quota":"3032","lat":"46.34981046","lng":"9.91515411"}
+,{"idsensore":"14218","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1343","nomestazione":"Lanzada Passo Marinelli","quota":"3032","lat":"46.34981046","lng":"9.91515411"}
+,{"idsensore":"14221","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1343","nomestazione":"Lanzada Passo Marinelli","quota":"3032","lat":"46.34981046","lng":"9.91515411"}
+,{"idsensore":"14232","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1345","nomestazione":"Piazzatorre","quota":"966","lat":"45.99338359","lng":"9.69328479"}
+,{"idsensore":"14237","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1345","nomestazione":"Piazzatorre","quota":"966","lat":"45.99338359","lng":"9.69328479"}
+,{"idsensore":"14238","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1345","nomestazione":"Piazzatorre","quota":"966","lat":"45.99338359","lng":"9.69328479"}
+,{"idsensore":"14242","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1345","nomestazione":"Piazzatorre","quota":"966","lat":"45.99338359","lng":"9.69328479"}
+,{"idsensore":"14251","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1346","nomestazione":"Campodolcino Alpe Motta","quota":"1880","lat":"46.42312151","lng":"9.36883561"}
+,{"idsensore":"14257","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1346","nomestazione":"Campodolcino Alpe Motta","quota":"1880","lat":"46.42312151","lng":"9.36883561"}
+,{"idsensore":"14265","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1346","nomestazione":"Campodolcino Alpe Motta","quota":"1880","lat":"46.42312151","lng":"9.36883561"}
+,{"idsensore":"14272","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1346","nomestazione":"Campodolcino Alpe Motta","quota":"1880","lat":"46.42312151","lng":"9.36883561"}
+,{"idsensore":"14278","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1347","nomestazione":"Barzio Piani di Bobbio","quota":"1713","lat":"45.95949713","lng":"9.50113918"}
+,{"idsensore":"14284","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1347","nomestazione":"Barzio Piani di Bobbio","quota":"1713","lat":"45.95949713","lng":"9.50113918"}
+,{"idsensore":"1429","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"91","nomestazione":"San Giacomo Filippo Val Genasca","quota":"840","lat":"46.32652100","lng":"9.36513600"}
+,{"idsensore":"14292","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1347","nomestazione":"Barzio Piani di Bobbio","quota":"1713","lat":"45.95949713","lng":"9.50113918"}
+,{"idsensore":"14299","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1347","nomestazione":"Barzio Piani di Bobbio","quota":"1713","lat":"45.95949713","lng":"9.50113918"}
+,{"idsensore":"14317","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"823","nomestazione":"Piazza Brembana vivaio","quota":"510","lat":"45.94611233","lng":"9.67277767"}
+,{"idsensore":"14320","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"823","nomestazione":"Piazza Brembana vivaio","quota":"510","lat":"45.94611233","lng":"9.67277767"}
+,{"idsensore":"14327","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"166","nomestazione":"Mantova Lunetta2 SMR","quota":"25","lat":"45.15799358","lng":"10.82394014"}
+,{"idsensore":"14348","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1359","nomestazione":"Breno Lago Della Vacca","quota":"2410","lat":"45.95749967","lng":"10.44272870"}
+,{"idsensore":"14351","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1359","nomestazione":"Breno Lago Della Vacca","quota":"2410","lat":"45.95749967","lng":"10.44272870"}
+,{"idsensore":"14358","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1359","nomestazione":"Breno Lago Della Vacca","quota":"2410","lat":"45.95749967","lng":"10.44272870"}
+,{"idsensore":"1436","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"92","nomestazione":"Valfurva Confinale","quota":"2300","lat":"46.44292000","lng":"10.47018800"}
+,{"idsensore":"14363","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1359","nomestazione":"Breno Lago Della Vacca","quota":"2410","lat":"45.95749967","lng":"10.44272870"}
+,{"idsensore":"14367","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1360","nomestazione":"Clusone SP 671","quota":"564","lat":"45.88094706","lng":"9.93314133"}
+,{"idsensore":"14370","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1360","nomestazione":"Clusone SP 671","quota":"564","lat":"45.88094706","lng":"9.93314133"}
+,{"idsensore":"14377","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1360","nomestazione":"Clusone SP 671","quota":"564","lat":"45.88094706","lng":"9.93314133"}
+,{"idsensore":"14382","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1360","nomestazione":"Clusone SP 671","quota":"564","lat":"45.88094706","lng":"9.93314133"}
+,{"idsensore":"14399","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1365","nomestazione":"Bione","quota":"911","lat":"45.66721826","lng":"10.32736288"}
+,{"idsensore":"14402","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1365","nomestazione":"Bione","quota":"911","lat":"45.66721826","lng":"10.32736288"}
+,{"idsensore":"14411","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1365","nomestazione":"Bione","quota":"911","lat":"45.66721826","lng":"10.32736288"}
+,{"idsensore":"14416","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1365","nomestazione":"Bione","quota":"911","lat":"45.66721826","lng":"10.32736288"}
+,{"idsensore":"14445","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1366","nomestazione":"Porlezza torrente","quota":"291","lat":"46.03777316","lng":"9.14079938"}
+,{"idsensore":"14446","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1366","nomestazione":"Porlezza torrente","quota":"291","lat":"46.03777316","lng":"9.14079938"}
+,{"idsensore":"14458","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1366","nomestazione":"Porlezza torrente","quota":"291","lat":"46.03777316","lng":"9.14079938"}
+,{"idsensore":"14459","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1366","nomestazione":"Porlezza torrente","quota":"291","lat":"46.03777316","lng":"9.14079938"}
+,{"idsensore":"14471","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1367","nomestazione":"Bagolino SP669","quota":"775","lat":"45.83860244","lng":"10.45219900"}
+,{"idsensore":"14472","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1367","nomestazione":"Bagolino SP669","quota":"775","lat":"45.83860244","lng":"10.45219900"}
+,{"idsensore":"14473","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1367","nomestazione":"Bagolino SP669","quota":"775","lat":"45.83860244","lng":"10.45219900"}
+,{"idsensore":"14478","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1367","nomestazione":"Bagolino SP669","quota":"775","lat":"45.83860244","lng":"10.45219900"}
+,{"idsensore":"14500","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1371","nomestazione":"Brembilla","quota":"468","lat":"45.81475229","lng":"9.60925258"}
+,{"idsensore":"14501","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1371","nomestazione":"Brembilla","quota":"468","lat":"45.81475229","lng":"9.60925258"}
+,{"idsensore":"14508","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1371","nomestazione":"Brembilla","quota":"468","lat":"45.81475229","lng":"9.60925258"}
+,{"idsensore":"14509","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1371","nomestazione":"Brembilla","quota":"468","lat":"45.81475229","lng":"9.60925258"}
+,{"idsensore":"14518","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1372","nomestazione":"Garzeno","quota":"581","lat":"46.13215260","lng":"9.24782090"}
+,{"idsensore":"14519","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1372","nomestazione":"Garzeno","quota":"581","lat":"46.13215260","lng":"9.24782090"}
+,{"idsensore":"14528","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1375","nomestazione":"Varano Borghi","quota":"241","lat":"45.76639371","lng":"8.71232365"}
+,{"idsensore":"14529","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1375","nomestazione":"Varano Borghi","quota":"241","lat":"45.76639371","lng":"8.71232365"}
+,{"idsensore":"14536","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1375","nomestazione":"Varano Borghi","quota":"241","lat":"45.76639371","lng":"8.71232365"}
+,{"idsensore":"14537","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1375","nomestazione":"Varano Borghi","quota":"241","lat":"45.76639371","lng":"8.71232365"}
+,{"idsensore":"14546","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1376","nomestazione":"Puegnago del Garda","quota":"291","lat":"45.57983780","lng":"10.50033090"}
+,{"idsensore":"14547","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1376","nomestazione":"Puegnago del Garda","quota":"291","lat":"45.57983780","lng":"10.50033090"}
+,{"idsensore":"14554","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1376","nomestazione":"Puegnago del Garda","quota":"291","lat":"45.57983780","lng":"10.50033090"}
+,{"idsensore":"14555","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1376","nomestazione":"Puegnago del Garda","quota":"291","lat":"45.57983780","lng":"10.50033090"}
+,{"idsensore":"14568","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1378","nomestazione":"Tignale Oldesio","quota":"374","lat":"45.73263930","lng":"10.72090630"}
+,{"idsensore":"14569","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1378","nomestazione":"Tignale Oldesio","quota":"374","lat":"45.73263930","lng":"10.72090630"}
+,{"idsensore":"14576","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1378","nomestazione":"Tignale Oldesio","quota":"374","lat":"45.73263930","lng":"10.72090630"}
+,{"idsensore":"14577","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1378","nomestazione":"Tignale Oldesio","quota":"374","lat":"45.73263930","lng":"10.72090630"}
+,{"idsensore":"14587","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1379","nomestazione":"Gargnano","quota":"984","lat":"45.72996009","lng":"10.61740677"}
+,{"idsensore":"14588","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1379","nomestazione":"Gargnano","quota":"984","lat":"45.72996009","lng":"10.61740677"}
+,{"idsensore":"14595","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1379","nomestazione":"Gargnano","quota":"984","lat":"45.72996009","lng":"10.61740677"}
+,{"idsensore":"14596","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1379","nomestazione":"Gargnano","quota":"984","lat":"45.72996009","lng":"10.61740677"}
+,{"idsensore":"14606","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1380","nomestazione":"Tremezzo","quota":"309","lat":"45.98771670","lng":"9.21405890"}
+,{"idsensore":"14607","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1380","nomestazione":"Tremezzo","quota":"309","lat":"45.98771670","lng":"9.21405890"}
+,{"idsensore":"14627","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1206","nomestazione":"Cavaria con Premezzo v. Cantalupa","quota":"274","lat":"45.68949617","lng":"8.80769797"}
+,{"idsensore":"14640","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1233","nomestazione":"Lurago Marinone","quota":"296","lat":"45.70496503","lng":"8.98833547"}
+,{"idsensore":"14641","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1233","nomestazione":"Lurago Marinone","quota":"296","lat":"45.70496503","lng":"8.98833547"}
+,{"idsensore":"14645","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1382","nomestazione":"Veddasca Monte Cadrigna","quota":"1302","lat":"46.07182708","lng":"8.76881513"}
+,{"idsensore":"14648","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1382","nomestazione":"Veddasca Monte Cadrigna","quota":"1302","lat":"46.07182708","lng":"8.76881513"}
+,{"idsensore":"14651","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1382","nomestazione":"Veddasca Monte Cadrigna","quota":"1302","lat":"46.07182708","lng":"8.76881513"}
+,{"idsensore":"14652","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1382","nomestazione":"Veddasca Monte Cadrigna","quota":"1302","lat":"46.07182708","lng":"8.76881513"}
+,{"idsensore":"14665","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1383","nomestazione":"Sarezzo v.della Fonte","quota":"290","lat":"45.66779897","lng":"10.18709620"}
+,{"idsensore":"14667","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1383","nomestazione":"Sarezzo v.della Fonte","quota":"290","lat":"45.66779897","lng":"10.18709620"}
+,{"idsensore":"14668","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1383","nomestazione":"Sarezzo v.della Fonte","quota":"290","lat":"45.66779897","lng":"10.18709620"}
+,{"idsensore":"14669","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1383","nomestazione":"Sarezzo v.della Fonte","quota":"290","lat":"45.66779897","lng":"10.18709620"}
+,{"idsensore":"14684","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1420","nomestazione":"Gordona","quota":"1362","lat":"46.29151911","lng":"9.33920315"}
+,{"idsensore":"14687","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1420","nomestazione":"Gordona","quota":"1362","lat":"46.29151911","lng":"9.33920315"}
+,{"idsensore":"14690","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1420","nomestazione":"Gordona","quota":"1362","lat":"46.29151911","lng":"9.33920315"}
+,{"idsensore":"14691","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1420","nomestazione":"Gordona","quota":"1362","lat":"46.29151911","lng":"9.33920315"}
+,{"idsensore":"14702","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"856","nomestazione":"Fortunago","quota":"501","lat":"44.91250111","lng":"9.19499417"}
+,{"idsensore":"14703","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"856","nomestazione":"Fortunago","quota":"501","lat":"44.91250111","lng":"9.19499417"}
+,{"idsensore":"14714","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1545","nomestazione":"San Siro Alpe Rescascìa","quota":"1285","lat":"46.07194520","lng":"9.23833270"}
+,{"idsensore":"14715","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1545","nomestazione":"San Siro Alpe Rescascìa","quota":"1285","lat":"46.07194520","lng":"9.23833270"}
+,{"idsensore":"14725","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1545","nomestazione":"San Siro Alpe Rescascìa","quota":"1285","lat":"46.07194520","lng":"9.23833270"}
+,{"idsensore":"14728","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1545","nomestazione":"San Siro Alpe Rescascìa","quota":"1285","lat":"46.07194520","lng":"9.23833270"}
+,{"idsensore":"14731","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"857","nomestazione":"Santa Margherita di Staffora Passo del Giovà","quota":"1363","lat":"44.68377850","lng":"9.21663743"}
+,{"idsensore":"14732","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"857","nomestazione":"Santa Margherita di Staffora Passo del Giovà","quota":"1363","lat":"44.68377850","lng":"9.21663743"}
+,{"idsensore":"14742","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1546","nomestazione":"Rho Scalo Fiorenza - Prato","quota":"143","lat":"45.51781084","lng":"9.08792330"}
+,{"idsensore":"14745","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1546","nomestazione":"Rho Scalo Fiorenza - Prato","quota":"143","lat":"45.51781084","lng":"9.08792330"}
+,{"idsensore":"14748","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1547","nomestazione":"Rho Scalo Fiorenza - Tetto","quota":"143","lat":"45.51728804","lng":"9.09161108"}
+,{"idsensore":"14749","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1547","nomestazione":"Rho Scalo Fiorenza - Tetto","quota":"143","lat":"45.51728804","lng":"9.09161108"}
+,{"idsensore":"14766","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1553","nomestazione":"Mozzanica v.Donizetti","quota":"104","lat":"45.47736192","lng":"9.68248866"}
+,{"idsensore":"14769","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1553","nomestazione":"Mozzanica v.Donizetti","quota":"104","lat":"45.47736192","lng":"9.68248866"}
+,{"idsensore":"14772","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1553","nomestazione":"Mozzanica v.Donizetti","quota":"104","lat":"45.47736192","lng":"9.68248866"}
+,{"idsensore":"14773","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1553","nomestazione":"Mozzanica v.Donizetti","quota":"104","lat":"45.47736192","lng":"9.68248866"}
+,{"idsensore":"14782","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1555","nomestazione":"Manerba del Garda Dusano","quota":"73","lat":"45.54370100","lng":"10.56663509"}
+,{"idsensore":"14783","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1555","nomestazione":"Manerba del Garda Dusano","quota":"73","lat":"45.54370100","lng":"10.56663509"}
+,{"idsensore":"152","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"63","nomestazione":"Montemezzo Gera Lario","quota":"680","lat":"46.18109800","lng":"9.35967800"}
+,{"idsensore":"16421","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"14","nomestazione":"Valfurva S. Caterina","quota":"1730","lat":"46.41214997","lng":"10.49466533"}
+,{"idsensore":"16422","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"14","nomestazione":"Valfurva S. Caterina","quota":"1730","lat":"46.41214997","lng":"10.49466533"}
+,{"idsensore":"16430","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1338","nomestazione":"Sueglio Monte Letee","quota":"1110","lat":"46.09760100","lng":"9.33686200"}
+,{"idsensore":"16463","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1340","nomestazione":"Sonico Pal alta","quota":"1310","lat":"46.16319660","lng":"10.37720680"}
+,{"idsensore":"17001","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1303","nomestazione":"Cremona v.Gerre Borghi","quota":"36","lat":"45.10954275","lng":"10.06924181"}
+,{"idsensore":"17002","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1303","nomestazione":"Cremona v.Gerre Borghi","quota":"36","lat":"45.10954275","lng":"10.06924181"}
+,{"idsensore":"17360","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1548","nomestazione":"Gianico Val Vedetta","quota":"1050","lat":"45.85427300","lng":"10.20175100"}
+,{"idsensore":"17418","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1862","nomestazione":"Broni","quota":"77","lat":"45.04448039","lng":"9.22386082"}
+,{"idsensore":"17419","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1862","nomestazione":"Broni","quota":"77","lat":"45.04448039","lng":"9.22386082"}
+,{"idsensore":"17432","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1862","nomestazione":"Broni","quota":"77","lat":"45.04448039","lng":"9.22386082"}
+,{"idsensore":"17435","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1862","nomestazione":"Broni","quota":"77","lat":"45.04448039","lng":"9.22386082"}
+,{"idsensore":"17443","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1692","nomestazione":"Bienno Piazze","quota":"472","lat":"45.92751023","lng":"10.29124095"}
+,{"idsensore":"17451","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1871","nomestazione":"Tavernola Bergamasca Gallinarga","quota":"185","lat":"45.69633020","lng":"10.05422004"}
+,{"idsensore":"17454","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1871","nomestazione":"Tavernola Bergamasca Gallinarga","quota":"185","lat":"45.69633020","lng":"10.05422004"}
+,{"idsensore":"17456","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1871","nomestazione":"Tavernola Bergamasca Gallinarga","quota":"185","lat":"45.69633020","lng":"10.05422004"}
+,{"idsensore":"17460","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1872","nomestazione":"Lasnigo s.Alessandro","quota":"554","lat":"45.88564351","lng":"9.26121361"}
+,{"idsensore":"17463","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1872","nomestazione":"Lasnigo s.Alessandro","quota":"554","lat":"45.88564351","lng":"9.26121361"}
+,{"idsensore":"17465","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"58","nomestazione":"Carona Lago Fregabolgia","quota":"1955","lat":"46.02444861","lng":"9.86305936"}
+,{"idsensore":"17468","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"58","nomestazione":"Carona Lago Fregabolgia","quota":"1955","lat":"46.02444861","lng":"9.86305936"}
+,{"idsensore":"17470","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"58","nomestazione":"Carona Lago Fregabolgia","quota":"1955","lat":"46.02444861","lng":"9.86305936"}
+,{"idsensore":"17472","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1871","nomestazione":"Tavernola Bergamasca Gallinarga","quota":"185","lat":"45.69633020","lng":"10.05422004"}
+,{"idsensore":"17481","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1873","nomestazione":"Abbiategrasso Strada Casalina","quota":"115","lat":"45.39465495","lng":"8.88970564"}
+,{"idsensore":"17483","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1873","nomestazione":"Abbiategrasso Strada Casalina","quota":"115","lat":"45.39465495","lng":"8.88970564"}
+,{"idsensore":"17488","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1874","nomestazione":"Magenta cascina Mainaga","quota":"137","lat":"45.45806524","lng":"8.85440899"}
+,{"idsensore":"17491","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1874","nomestazione":"Magenta cascina Mainaga","quota":"137","lat":"45.45806524","lng":"8.85440899"}
+,{"idsensore":"17502","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"817","nomestazione":"Pavia SS 35","quota":"71","lat":"45.18062204","lng":"9.14666412"}
+,{"idsensore":"17504","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"817","nomestazione":"Pavia SS 35","quota":"71","lat":"45.18062204","lng":"9.14666412"}
+,{"idsensore":"17507","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"816","nomestazione":"Sermide e Felonica SP 91","quota":"10","lat":"45.01536422","lng":"11.28993625"}
+,{"idsensore":"17509","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"816","nomestazione":"Sermide e Felonica SP 91","quota":"10","lat":"45.01536422","lng":"11.28993625"}
+,{"idsensore":"17533","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"3","nomestazione":"Sondalo Le Prese","quota":"950","lat":"46.35017633","lng":"10.35482008"}
+,{"idsensore":"17536","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"60","nomestazione":"Villa di Chiavenna","quota":"665","lat":"46.33199472","lng":"9.51204364"}
+,{"idsensore":"17537","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"60","nomestazione":"Villa di Chiavenna","quota":"665","lat":"46.33199472","lng":"9.51204364"}
+,{"idsensore":"17540","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"60","nomestazione":"Villa di Chiavenna","quota":"665","lat":"46.33199472","lng":"9.51204364"}
+,{"idsensore":"17545","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"33","nomestazione":"Lanzada Ganda","quota":"988","lat":"46.27022400","lng":"9.88450500"}
+,{"idsensore":"17552","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1877","nomestazione":"Asola v.Industria","quota":"38","lat":"45.22535225","lng":"10.39707082"}
+,{"idsensore":"17562","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1879","nomestazione":"Montichiari Boschetti","quota":"92","lat":"45.40275984","lng":"10.41406192"}
+,{"idsensore":"17567","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"858","nomestazione":"Santa Margherita di Staffora Casanova","quota":"575","lat":"44.76803261","lng":"9.23905083"}
+,{"idsensore":"17568","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"858","nomestazione":"Santa Margherita di Staffora Casanova","quota":"575","lat":"44.76803261","lng":"9.23905083"}
+,{"idsensore":"17573","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1880","nomestazione":"Lomello Cantona","quota":"84","lat":"45.12147725","lng":"8.80829914"}
+,{"idsensore":"17580","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"847","nomestazione":"Carona Carisole","quota":"1954","lat":"46.03852339","lng":"9.79379959"}
+,{"idsensore":"17583","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"847","nomestazione":"Carona Carisole","quota":"1954","lat":"46.03852339","lng":"9.79379959"}
+,{"idsensore":"17585","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1889","nomestazione":"Val Masino Merdarola","quota":"2280","lat":"46.22931619","lng":"9.58163635"}
+,{"idsensore":"17588","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1889","nomestazione":"Val Masino Merdarola","quota":"2280","lat":"46.22931619","lng":"9.58163635"}
+,{"idsensore":"17589","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1889","nomestazione":"Val Masino Merdarola","quota":"2280","lat":"46.22931619","lng":"9.58163635"}
+,{"idsensore":"17615","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"859","nomestazione":"Luino v. Piero Chiara","quota":"205","lat":"46.00414283","lng":"8.74272325"}
+,{"idsensore":"17616","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"859","nomestazione":"Luino v. Piero Chiara","quota":"205","lat":"46.00414283","lng":"8.74272325"}
+,{"idsensore":"19004","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"503","nomestazione":"Milano P.zza Zavattari","quota":"122","lat":"45.47606529","lng":"9.14178666"}
+,{"idsensore":"19007","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"620","nomestazione":"Milano v.Brera","quota":"122","lat":"45.47165828","lng":"9.18911083"}
+,{"idsensore":"19019","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"501","nomestazione":"Milano v.Marche","quota":"129","lat":"45.49631883","lng":"9.19093444"}
+,{"idsensore":"19045","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"687","nomestazione":"Ferno v.Di Dio","quota":"215","lat":"45.61924753","lng":"8.75697656"}
+,{"idsensore":"19058","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"525","nomestazione":"Corsico v.le Italia","quota":"119","lat":"45.43611269","lng":"9.09741197"}
+,{"idsensore":"19061","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"535","nomestazione":"Lacchiarella v.Molise","quota":"97","lat":"45.32452314","lng":"9.13452950"}
+,{"idsensore":"19064","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"646","nomestazione":"Como Villa Gallia","quota":"201","lat":"45.81504217","lng":"9.06697886"}
+,{"idsensore":"19100","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"586","nomestazione":"Costa Volpino v.Nazionale","quota":"192","lat":"45.82716061","lng":"10.09707131"}
+,{"idsensore":"19103","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"594","nomestazione":"Bergamo v.Goisis","quota":"290","lat":"45.71591825","lng":"9.68896994"}
+,{"idsensore":"19106","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"596","nomestazione":"Osio Sotto v.per Levate","quota":"182","lat":"45.62055568","lng":"9.61173782"}
+,{"idsensore":"19109","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"573","nomestazione":"Colico v.La Madoneta","quota":"229","lat":"46.13814090","lng":"9.38468725"}
+,{"idsensore":"19115","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"706","nomestazione":"Lecco v.Sora","quota":"272","lat":"45.86375372","lng":"9.39995481"}
+,{"idsensore":"19148","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"595","nomestazione":"Filago v.Don Milani","quota":"190","lat":"45.63387247","lng":"9.55609572"}
+,{"idsensore":"19159","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1297","nomestazione":"Spinadesco v.Battisti","quota":"48","lat":"45.15047339","lng":"9.93059842"}
+,{"idsensore":"19160","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1297","nomestazione":"Spinadesco v.Battisti","quota":"48","lat":"45.15047339","lng":"9.93059842"}
+,{"idsensore":"19165","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"679","nomestazione":"Valmadrera v.Pozzi","quota":"247","lat":"45.84221272","lng":"9.35166247"}
+,{"idsensore":"19178","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1303","nomestazione":"Cremona v.Gerre Borghi","quota":"36","lat":"45.10954275","lng":"10.06924181"}
+,{"idsensore":"19179","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1303","nomestazione":"Cremona v.Gerre Borghi","quota":"36","lat":"45.10954275","lng":"10.06924181"}
+,{"idsensore":"19242","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"502","nomestazione":"Milano v.Juvara","quota":"122","lat":"45.47322769","lng":"9.22231536"}
+,{"idsensore":"19282","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1513","nomestazione":"Introbio al bivio","quota":"574","lat":"45.96630100","lng":"9.45079990"}
+,{"idsensore":"19283","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1513","nomestazione":"Introbio al bivio","quota":"574","lat":"45.96630100","lng":"9.45079990"}
+,{"idsensore":"19293","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1514","nomestazione":"Carenno centro sportivo","quota":"633","lat":"45.80099390","lng":"9.46596925"}
+,{"idsensore":"19294","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1514","nomestazione":"Carenno centro sportivo","quota":"633","lat":"45.80099390","lng":"9.46596925"}
+,{"idsensore":"19300","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1514","nomestazione":"Carenno centro sportivo","quota":"633","lat":"45.80099390","lng":"9.46596925"}
+,{"idsensore":"19301","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1514","nomestazione":"Carenno centro sportivo","quota":"633","lat":"45.80099390","lng":"9.46596925"}
+,{"idsensore":"19307","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1518","nomestazione":"Dubino La Piazza","quota":"993","lat":"46.16725553","lng":"9.45812983"}
+,{"idsensore":"19308","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1518","nomestazione":"Dubino La Piazza","quota":"993","lat":"46.16725553","lng":"9.45812983"}
+,{"idsensore":"19333","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1551","nomestazione":"Premana v.Luciani papa","quota":"910","lat":"46.05190000","lng":"9.41987800"}
+,{"idsensore":"19334","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1551","nomestazione":"Premana v.Luciani papa","quota":"910","lat":"46.05190000","lng":"9.41987800"}
+,{"idsensore":"19340","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1551","nomestazione":"Premana v.Luciani papa","quota":"910","lat":"46.05190000","lng":"9.41987800"}
+,{"idsensore":"19341","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1551","nomestazione":"Premana v.Luciani papa","quota":"910","lat":"46.05190000","lng":"9.41987800"}
+,{"idsensore":"19342","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1556","nomestazione":"Prata Camportaccio Pratella","quota":"1035","lat":"46.29260800","lng":"9.41390600"}
+,{"idsensore":"19343","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1556","nomestazione":"Prata Camportaccio Pratella","quota":"1035","lat":"46.29260800","lng":"9.41390600"}
+,{"idsensore":"19345","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1560","nomestazione":"Padenghe sul Garda v.Fondrini","quota":"187","lat":"45.51828600","lng":"10.50612000"}
+,{"idsensore":"19346","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1560","nomestazione":"Padenghe sul Garda v.Fondrini","quota":"187","lat":"45.51828600","lng":"10.50612000"}
+,{"idsensore":"19352","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1560","nomestazione":"Padenghe sul Garda v.Fondrini","quota":"187","lat":"45.51828600","lng":"10.50612000"}
+,{"idsensore":"19353","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1560","nomestazione":"Padenghe sul Garda v.Fondrini","quota":"187","lat":"45.51828600","lng":"10.50612000"}
+,{"idsensore":"19354","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1561","nomestazione":"Porto Ceresio campo sportivo","quota":"275","lat":"45.89770027","lng":"8.89260364"}
+,{"idsensore":"19355","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1561","nomestazione":"Porto Ceresio campo sportivo","quota":"275","lat":"45.89770027","lng":"8.89260364"}
+,{"idsensore":"19363","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1559","nomestazione":"Dervio v.S.Cecilia","quota":"198","lat":"46.06896591","lng":"9.30538273"}
+,{"idsensore":"19364","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1559","nomestazione":"Dervio v.S.Cecilia","quota":"198","lat":"46.06896591","lng":"9.30538273"}
+,{"idsensore":"19375","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1651","nomestazione":"Morbegno eliporto","quota":"230","lat":"46.13664246","lng":"9.58432198"}
+,{"idsensore":"19376","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1651","nomestazione":"Morbegno eliporto","quota":"230","lat":"46.13664246","lng":"9.58432198"}
+,{"idsensore":"19382","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1651","nomestazione":"Morbegno eliporto","quota":"230","lat":"46.13664246","lng":"9.58432198"}
+,{"idsensore":"19383","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1651","nomestazione":"Morbegno eliporto","quota":"230","lat":"46.13664246","lng":"9.58432198"}
+,{"idsensore":"19388","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1650","nomestazione":"Bormio eliporto","quota":"1172","lat":"46.45370081","lng":"10.36603171"}
+,{"idsensore":"19389","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1650","nomestazione":"Bormio eliporto","quota":"1172","lat":"46.45370081","lng":"10.36603171"}
+,{"idsensore":"19395","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1650","nomestazione":"Bormio eliporto","quota":"1172","lat":"46.45370081","lng":"10.36603171"}
+,{"idsensore":"19396","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1650","nomestazione":"Bormio eliporto","quota":"1172","lat":"46.45370081","lng":"10.36603171"}
+,{"idsensore":"19401","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1652","nomestazione":"Tirano eliporto","quota":"481","lat":"46.21817780","lng":"10.18226719"}
+,{"idsensore":"19402","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1652","nomestazione":"Tirano eliporto","quota":"481","lat":"46.21817780","lng":"10.18226719"}
+,{"idsensore":"19408","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1652","nomestazione":"Tirano eliporto","quota":"481","lat":"46.21817780","lng":"10.18226719"}
+,{"idsensore":"19409","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1652","nomestazione":"Tirano eliporto","quota":"481","lat":"46.21817780","lng":"10.18226719"}
+,{"idsensore":"19415","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1656","nomestazione":"Casalmaggiore campo sportivo","quota":"26","lat":"44.99604400","lng":"10.41506800"}
+,{"idsensore":"19416","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1656","nomestazione":"Casalmaggiore campo sportivo","quota":"26","lat":"44.99604400","lng":"10.41506800"}
+,{"idsensore":"19426","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1657","nomestazione":"Mariano Comense campo sportivo","quota":"255","lat":"45.68488400","lng":"9.17777300"}
+,{"idsensore":"19427","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1657","nomestazione":"Mariano Comense campo sportivo","quota":"255","lat":"45.68488400","lng":"9.17777300"}
+,{"idsensore":"19434","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1657","nomestazione":"Mariano Comense campo sportivo","quota":"255","lat":"45.68488400","lng":"9.17777300"}
+,{"idsensore":"19436","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1657","nomestazione":"Mariano Comense campo sportivo","quota":"255","lat":"45.68488400","lng":"9.17777300"}
+,{"idsensore":"19438","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1658","nomestazione":"Mornico al Serio torre faro","quota":"162","lat":"45.59416200","lng":"9.80184100"}
+,{"idsensore":"19440","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1658","nomestazione":"Mornico al Serio torre faro","quota":"162","lat":"45.59416200","lng":"9.80184100"}
+,{"idsensore":"19441","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1659","nomestazione":"Mornico al Serio campo sportivo","quota":"162","lat":"45.59315400","lng":"9.80196100"}
+,{"idsensore":"19442","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1659","nomestazione":"Mornico al Serio campo sportivo","quota":"162","lat":"45.59315400","lng":"9.80196100"}
+,{"idsensore":"2001","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"100","nomestazione":"Milano Lambrate","quota":"120","lat":"45.49677982","lng":"9.25751540"}
+,{"idsensore":"2002","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"100","nomestazione":"Milano Lambrate","quota":"120","lat":"45.49677982","lng":"9.25751540"}
+,{"idsensore":"2003","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"100","nomestazione":"Milano Lambrate","quota":"120","lat":"45.49677982","lng":"9.25751540"}
+,{"idsensore":"2005","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"100","nomestazione":"Milano Lambrate","quota":"120","lat":"45.49677982","lng":"9.25751540"}
+,{"idsensore":"201","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"12","nomestazione":"Valdidentro Arnoga","quota":"1880","lat":"46.45882331","lng":"10.24200594"}
+,{"idsensore":"2039","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"102","nomestazione":"San Colombano al Lambro","quota":"140","lat":"45.17191896","lng":"9.48899684"}
+,{"idsensore":"2040","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"102","nomestazione":"San Colombano al Lambro","quota":"140","lat":"45.17191896","lng":"9.48899684"}
+,{"idsensore":"2048","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"102","nomestazione":"San Colombano al Lambro","quota":"140","lat":"45.17191896","lng":"9.48899684"}
+,{"idsensore":"206","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"13","nomestazione":"Valdidentro Cancano","quota":"1948","lat":"46.51444775","lng":"10.31683275"}
+,{"idsensore":"208","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"13","nomestazione":"Valdidentro Cancano","quota":"1948","lat":"46.51444775","lng":"10.31683275"}
+,{"idsensore":"2082","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"106","nomestazione":"Varzi Nivione","quota":"500","lat":"44.80739989","lng":"9.17949163"}
+,{"idsensore":"2083","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"106","nomestazione":"Varzi Nivione","quota":"500","lat":"44.80739989","lng":"9.17949163"}
+,{"idsensore":"209","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"13","nomestazione":"Valdidentro Cancano","quota":"1948","lat":"46.51444775","lng":"10.31683275"}
+,{"idsensore":"2091","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"106","nomestazione":"Varzi Nivione","quota":"500","lat":"44.80739989","lng":"9.17949163"}
+,{"idsensore":"2096","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"107","nomestazione":"Sondrio Fond.Fojanini","quota":"307","lat":"46.16755337","lng":"9.85094015"}
+,{"idsensore":"2097","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"107","nomestazione":"Sondrio Fond.Fojanini","quota":"307","lat":"46.16755337","lng":"9.85094015"}
+,{"idsensore":"210","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"16","nomestazione":"Valfurva Ghiacciaio dei Forni","quota":"2180","lat":"46.42078875","lng":"10.55541386"}
+,{"idsensore":"2104","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"107","nomestazione":"Sondrio Fond.Fojanini","quota":"307","lat":"46.16755337","lng":"9.85094015"}
+,{"idsensore":"211","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"16","nomestazione":"Valfurva Ghiacciaio dei Forni","quota":"2180","lat":"46.42078875","lng":"10.55541386"}
+,{"idsensore":"2110","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"108","nomestazione":"Samolaco v.Vignola","quota":"206","lat":"46.23610858","lng":"9.42666579"}
+,{"idsensore":"2111","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"108","nomestazione":"Samolaco v.Vignola","quota":"206","lat":"46.23610858","lng":"9.42666579"}
+,{"idsensore":"2117","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"108","nomestazione":"Samolaco v.Vignola","quota":"206","lat":"46.23610858","lng":"9.42666579"}
+,{"idsensore":"2122","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"109","nomestazione":"Sant'Angelo Lodigiano","quota":"64","lat":"45.23892146","lng":"9.40531527"}
+,{"idsensore":"2123","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"109","nomestazione":"Sant'Angelo Lodigiano","quota":"64","lat":"45.23892146","lng":"9.40531527"}
+,{"idsensore":"2134","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"110","nomestazione":"Gonzaga Palidano","quota":"22","lat":"44.96037167","lng":"10.75828107"}
+,{"idsensore":"2135","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"110","nomestazione":"Gonzaga Palidano","quota":"22","lat":"44.96037167","lng":"10.75828107"}
+,{"idsensore":"2141","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"110","nomestazione":"Gonzaga Palidano","quota":"22","lat":"44.96037167","lng":"10.75828107"}
+,{"idsensore":"2146","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"111","nomestazione":"Cassina Valsassina Moggio","quota":"1196","lat":"45.91309592","lng":"9.49750688"}
+,{"idsensore":"2147","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"111","nomestazione":"Cassina Valsassina Moggio","quota":"1196","lat":"45.91309592","lng":"9.49750688"}
+,{"idsensore":"2153","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"111","nomestazione":"Cassina Valsassina Moggio","quota":"1196","lat":"45.91309592","lng":"9.49750688"}
+,{"idsensore":"2187","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"114","nomestazione":"Landriano Cascina Marianna","quota":"88","lat":"45.32059361","lng":"9.26715311"}
+,{"idsensore":"2188","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"114","nomestazione":"Landriano Cascina Marianna","quota":"88","lat":"45.32059361","lng":"9.26715311"}
+,{"idsensore":"2194","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"114","nomestazione":"Landriano Cascina Marianna","quota":"88","lat":"45.32059361","lng":"9.26715311"}
+,{"idsensore":"22003","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1890","nomestazione":"Tavernole sul Mella Monte Guglielmo","quota":"1790","lat":"45.75389593","lng":"10.17540709"}
+,{"idsensore":"22006","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1890","nomestazione":"Tavernole sul Mella Monte Guglielmo","quota":"1790","lat":"45.75389593","lng":"10.17540709"}
+,{"idsensore":"22007","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1890","nomestazione":"Tavernole sul Mella Monte Guglielmo","quota":"1790","lat":"45.75389593","lng":"10.17540709"}
+,{"idsensore":"22009","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1890","nomestazione":"Tavernole sul Mella Monte Guglielmo","quota":"1790","lat":"45.75389593","lng":"10.17540709"}
+,{"idsensore":"22023","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1891","nomestazione":"Porto Valtravaglia San Michele","quota":"875","lat":"45.94458167","lng":"8.71373858"}
+,{"idsensore":"22026","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1891","nomestazione":"Porto Valtravaglia San Michele","quota":"875","lat":"45.94458167","lng":"8.71373858"}
+,{"idsensore":"2245","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"117","nomestazione":"Edolo Ist.Meneghini","quota":"699","lat":"46.17572375","lng":"10.33339293"}
+,{"idsensore":"2246","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"117","nomestazione":"Edolo Ist.Meneghini","quota":"699","lat":"46.17572375","lng":"10.33339293"}
+,{"idsensore":"2252","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1075","nomestazione":"Edolo Centrale ENEL","quota":"659","lat":"46.16907080","lng":"10.34047351"}
+,{"idsensore":"22552","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"214","nomestazione":"Bigarello","quota":"15","lat":"45.18849864","lng":"10.88713700"}
+,{"idsensore":"22553","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"214","nomestazione":"Bigarello","quota":"15","lat":"45.18849864","lng":"10.88713700"}
+,{"idsensore":"22572","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1955","nomestazione":"Magasa Malga Corva","quota":"1244","lat":"45.77409061","lng":"10.62758311"}
+,{"idsensore":"22573","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1955","nomestazione":"Magasa Malga Corva","quota":"1244","lat":"45.77409061","lng":"10.62758311"}
+,{"idsensore":"22576","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1955","nomestazione":"Magasa Malga Corva","quota":"1244","lat":"45.77409061","lng":"10.62758311"}
+,{"idsensore":"22579","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1955","nomestazione":"Magasa Malga Corva","quota":"1244","lat":"45.77409061","lng":"10.62758311"}
+,{"idsensore":"22590","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1985","nomestazione":"Caponago Casello idraulico","quota":"154","lat":"45.55743938","lng":"9.38509974"}
+,{"idsensore":"22593","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1985","nomestazione":"Caponago Casello idraulico","quota":"154","lat":"45.55743938","lng":"9.38509974"}
+,{"idsensore":"22599","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1986","nomestazione":"Darfo Boario Terme Cappellino","quota":"215","lat":"45.87434965","lng":"10.17126954"}
+,{"idsensore":"22602","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1986","nomestazione":"Darfo Boario Terme Cappellino","quota":"215","lat":"45.87434965","lng":"10.17126954"}
+,{"idsensore":"22604","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1986","nomestazione":"Darfo Boario Terme Cappellino","quota":"215","lat":"45.87434965","lng":"10.17126954"}
+,{"idsensore":"22605","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1986","nomestazione":"Darfo Boario Terme Cappellino","quota":"215","lat":"45.87434965","lng":"10.17126954"}
+,{"idsensore":"22661","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1090","nomestazione":"Valdisotto Bormio 2000","quota":"2328","lat":"46.43833000","lng":"10.40030000"}
+,{"idsensore":"22662","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1090","nomestazione":"Valdisotto Bormio 2000","quota":"2328","lat":"46.43833000","lng":"10.40030000"}
+,{"idsensore":"22666","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1090","nomestazione":"Valdisotto Bormio 2000","quota":"2328","lat":"46.43833000","lng":"10.40030000"}
+,{"idsensore":"22667","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1090","nomestazione":"Valdisotto Bormio 2000","quota":"2328","lat":"46.43833000","lng":"10.40030000"}
+,{"idsensore":"22678","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"22679","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"22683","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"22684","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"2270","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"119","nomestazione":"San Giovanni Bianco Cornalita","quota":"622","lat":"45.86969697","lng":"9.63912077"}
+,{"idsensore":"2271","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"119","nomestazione":"San Giovanni Bianco Cornalita","quota":"622","lat":"45.86969697","lng":"9.63912077"}
+,{"idsensore":"2277","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"119","nomestazione":"San Giovanni Bianco Cornalita","quota":"622","lat":"45.86969697","lng":"9.63912077"}
+,{"idsensore":"2327","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"123","nomestazione":"Cavenago d'Adda","quota":"67","lat":"45.26927396","lng":"9.56265997"}
+,{"idsensore":"2328","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"123","nomestazione":"Cavenago d'Adda","quota":"67","lat":"45.26927396","lng":"9.56265997"}
+,{"idsensore":"2361","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"125","nomestazione":"Castello d'Agogna","quota":"106","lat":"45.24680044","lng":"8.70057165"}
+,{"idsensore":"2362","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"125","nomestazione":"Castello d'Agogna","quota":"106","lat":"45.24680044","lng":"8.70057165"}
+,{"idsensore":"2383","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"127","nomestazione":"Casatenovo tetto","quota":"360","lat":"45.70194614","lng":"9.30914481"}
+,{"idsensore":"2400","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"129","nomestazione":"Capo di Ponte v.Briscioli","quota":"362","lat":"46.02656354","lng":"10.34250260"}
+,{"idsensore":"2401","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"129","nomestazione":"Capo di Ponte v.Briscioli","quota":"362","lat":"46.02656354","lng":"10.34250260"}
+,{"idsensore":"2407","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"129","nomestazione":"Capo di Ponte v.Briscioli","quota":"362","lat":"46.02656354","lng":"10.34250260"}
+,{"idsensore":"2414","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"130","nomestazione":"Brescia ITAS Pastori","quota":"149","lat":"45.52614578","lng":"10.26138219"}
+,{"idsensore":"2415","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"130","nomestazione":"Brescia ITAS Pastori","quota":"149","lat":"45.52614578","lng":"10.26138219"}
+,{"idsensore":"2433","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"132","nomestazione":"Bergamo v.Stezzano","quota":"211","lat":"45.66051928","lng":"9.65876847"}
+,{"idsensore":"2434","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"132","nomestazione":"Bergamo v.Stezzano","quota":"211","lat":"45.66051928","lng":"9.65876847"}
+,{"idsensore":"24408","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1974","nomestazione":"Grone San Fermo","quota":"1246","lat":"45.74415628","lng":"9.93587297"}
+,{"idsensore":"24411","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1974","nomestazione":"Grone San Fermo","quota":"1246","lat":"45.74415628","lng":"9.93587297"}
+,{"idsensore":"24412","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1974","nomestazione":"Grone San Fermo","quota":"1246","lat":"45.74415628","lng":"9.93587297"}
+,{"idsensore":"24414","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1974","nomestazione":"Grone San Fermo","quota":"1246","lat":"45.74415628","lng":"9.93587297"}
+,{"idsensore":"2442","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"132","nomestazione":"Bergamo v.Stezzano","quota":"211","lat":"45.66051928","lng":"9.65876847"}
+,{"idsensore":"2447","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"133","nomestazione":"Bema","quota":"958","lat":"46.10552765","lng":"9.56934230"}
+,{"idsensore":"2448","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"133","nomestazione":"Bema","quota":"958","lat":"46.10552765","lng":"9.56934230"}
+,{"idsensore":"2450","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"133","nomestazione":"Bema","quota":"958","lat":"46.10552765","lng":"9.56934230"}
+,{"idsensore":"2453","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"133","nomestazione":"Bema","quota":"958","lat":"46.10552765","lng":"9.56934230"}
+,{"idsensore":"2459","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"134","nomestazione":"Corzano Bargnano","quota":"93","lat":"45.43372847","lng":"10.03902737"}
+,{"idsensore":"2460","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"134","nomestazione":"Corzano Bargnano","quota":"93","lat":"45.43372847","lng":"10.03902737"}
+,{"idsensore":"2466","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"134","nomestazione":"Corzano Bargnano","quota":"93","lat":"45.43372847","lng":"10.03902737"}
+,{"idsensore":"2485","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"136","nomestazione":"Persico Dosimo","quota":"44","lat":"45.17951839","lng":"10.04494440"}
+,{"idsensore":"2486","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"136","nomestazione":"Persico Dosimo","quota":"44","lat":"45.17951839","lng":"10.04494440"}
+,{"idsensore":"2491","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"136","nomestazione":"Persico Dosimo","quota":"44","lat":"45.17951839","lng":"10.04494440"}
+,{"idsensore":"2497","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"137","nomestazione":"Rivolta d'Adda Ist. Spallanzani","quota":"102","lat":"45.44409052","lng":"9.52068901"}
+,{"idsensore":"2498","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"137","nomestazione":"Rivolta d'Adda Ist. Spallanzani","quota":"102","lat":"45.44409052","lng":"9.52068901"}
+,{"idsensore":"25","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"81","nomestazione":"Valdisotto Val Pola RTU 100","quota":"2350","lat":"46.37653598","lng":"10.32841500"}
+,{"idsensore":"2503","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"137","nomestazione":"Rivolta d'Adda Ist. Spallanzani","quota":"102","lat":"45.44409052","lng":"9.52068901"}
+,{"idsensore":"2548","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"192","nomestazione":"Idro Frana","quota":"427","lat":"45.73221400","lng":"10.44992900"}
+,{"idsensore":"2595","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"205","nomestazione":"Montevecchia cascina Butto","quota":"385","lat":"45.70480511","lng":"9.38387611"}
+,{"idsensore":"2597","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"205","nomestazione":"Montevecchia cascina Butto","quota":"385","lat":"45.70480511","lng":"9.38387611"}
+,{"idsensore":"26","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"82","nomestazione":"Valdisotto Val Pola RTU 004/5","quota":"2114","lat":"46.38354896","lng":"10.33030201"}
+,{"idsensore":"2611","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"212","nomestazione":"Canzo","quota":"1233","lat":"45.84814356","lng":"9.31813681"}
+,{"idsensore":"2612","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"212","nomestazione":"Canzo","quota":"1233","lat":"45.84814356","lng":"9.31813681"}
+,{"idsensore":"2613","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"212","nomestazione":"Canzo","quota":"1233","lat":"45.84814356","lng":"9.31813681"}
+,{"idsensore":"2620","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"214","nomestazione":"Bigarello","quota":"15","lat":"45.18849864","lng":"10.88713700"}
+,{"idsensore":"2621","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"214","nomestazione":"Bigarello","quota":"15","lat":"45.18849864","lng":"10.88713700"}
+,{"idsensore":"28","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"12","nomestazione":"Valdidentro Arnoga","quota":"1880","lat":"46.45882331","lng":"10.24200594"}
+,{"idsensore":"29","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"13","nomestazione":"Valdidentro Cancano","quota":"1948","lat":"46.51444775","lng":"10.31683275"}
+,{"idsensore":"30","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"14","nomestazione":"Valfurva S. Caterina","quota":"1730","lat":"46.41214997","lng":"10.49466533"}
+,{"idsensore":"30889","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1562","nomestazione":"Verceia Campo sportivo","quota":"200","lat":"46.19867700","lng":"9.45546700"}
+,{"idsensore":"30990","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1568","nomestazione":"Ponte Nizza Vignola","quota":"590","lat":"44.84575000","lng":"9.12193800"}
+,{"idsensore":"30997","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1569","nomestazione":"Paisco Loveno Grumello","quota":"1260","lat":"46.06698100","lng":"10.25587200"}
+,{"idsensore":"31","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"16","nomestazione":"Valfurva Ghiacciaio dei Forni","quota":"2180","lat":"46.42078875","lng":"10.55541386"}
+,{"idsensore":"31061","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1572","nomestazione":"Dossena ST1","quota":"1000","lat":"45.87839200","lng":"9.70172600"}
+,{"idsensore":"31095","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1576","nomestazione":"Gandellino Tezzi","quota":"1000","lat":"45.99630600","lng":"9.95468000"}
+,{"idsensore":"31134","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1577","nomestazione":"Abbadia Lariana Torrioni di Rialba","quota":"535","lat":"45.89523600","lng":"9.35672700"}
+,{"idsensore":"31290","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1583","nomestazione":"Pian Camuno Roncaglia SCM2","quota":"600","lat":"45.83598800","lng":"10.16058803"}
+,{"idsensore":"31338","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1589","nomestazione":"San Nazzaro Val Cavargna C5","quota":"980","lat":"46.08918704","lng":"9.13034906"}
+,{"idsensore":"31506","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1599","nomestazione":"Sellero Zinvill S1","quota":"1000","lat":"46.05656602","lng":"10.32737507"}
+,{"idsensore":"31537","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1601","nomestazione":"Dorio Bedolesso","quota":"790","lat":"46.10797603","lng":"9.37800595"}
+,{"idsensore":"31563","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1603","nomestazione":"Torre di Santa Maria Val Dagua","quota":"1200","lat":"46.23805000","lng":"9.86804200"}
+,{"idsensore":"31575","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1604","nomestazione":"Fuipiano Valle Imagna Pagafone","quota":"1000","lat":"45.85349000","lng":"9.52459300"}
+,{"idsensore":"31576","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1604","nomestazione":"Fuipiano Valle Imagna Pagafone","quota":"1000","lat":"45.85349000","lng":"9.52459300"}
+,{"idsensore":"31579","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1604","nomestazione":"Fuipiano Valle Imagna Pagafone","quota":"1000","lat":"45.85349000","lng":"9.52459300"}
+,{"idsensore":"31580","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1604","nomestazione":"Fuipiano Valle Imagna Pagafone","quota":"1000","lat":"45.85349000","lng":"9.52459300"}
+,{"idsensore":"32228","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"874","nomestazione":"Sarnico v. Roma","quota":"197","lat":"45.66594103","lng":"9.95688896"}
+,{"idsensore":"32229","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"874","nomestazione":"Sarnico v. Roma","quota":"197","lat":"45.66594103","lng":"9.95688896"}
+,{"idsensore":"32238","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"856","nomestazione":"Fortunago","quota":"501","lat":"44.91250111","lng":"9.19499417"}
+,{"idsensore":"32241","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"884","nomestazione":"Cuveglio","quota":"294","lat":"45.90332947","lng":"8.74277458"}
+,{"idsensore":"32244","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"885","nomestazione":"Arcisate","quota":"383","lat":"45.84610806","lng":"8.89055144"}
+,{"idsensore":"32247","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"904","nomestazione":"Paisco Loveno","quota":"816","lat":"46.07861336","lng":"10.29694303"}
+,{"idsensore":"32250","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"876","nomestazione":"Caino","quota":"428","lat":"45.60972056","lng":"10.32222392"}
+,{"idsensore":"32259","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"832","nomestazione":"Lanzada Palù","quota":"2151","lat":"46.29290690","lng":"9.88452786"}
+,{"idsensore":"32262","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"833","nomestazione":"Gerola Alta Pescegallo","quota":"1875","lat":"46.02619690","lng":"9.57112074"}
+,{"idsensore":"32336","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"905","nomestazione":"Cevo","quota":"1128","lat":"46.08055608","lng":"10.37778231"}
+,{"idsensore":"32339","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"857","nomestazione":"Santa Margherita di Staffora Passo del Giovà","quota":"1363","lat":"44.68377850","lng":"9.21663743"}
+,{"idsensore":"32353","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1807","nomestazione":"Ispra JRC","quota":"249","lat":"45.80595188","lng":"8.63656270"}
+,{"idsensore":"32354","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1807","nomestazione":"Ispra JRC","quota":"249","lat":"45.80595188","lng":"8.63656270"}
+,{"idsensore":"32370","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1679","nomestazione":"Sormano rifugio Alpetto","quota":"1158","lat":"45.90514139","lng":"9.23506881"}
+,{"idsensore":"32373","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1679","nomestazione":"Sormano rifugio Alpetto","quota":"1158","lat":"45.90514139","lng":"9.23506881"}
+,{"idsensore":"32376","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1679","nomestazione":"Sormano rifugio Alpetto","quota":"1158","lat":"45.90514139","lng":"9.23506881"}
+,{"idsensore":"32379","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1679","nomestazione":"Sormano rifugio Alpetto","quota":"1158","lat":"45.90514139","lng":"9.23506881"}
+,{"idsensore":"32391","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1555","nomestazione":"Manerba del Garda Dusano","quota":"73","lat":"45.54370100","lng":"10.56663509"}
+,{"idsensore":"32394","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1555","nomestazione":"Manerba del Garda Dusano","quota":"73","lat":"45.54370100","lng":"10.56663509"}
+,{"idsensore":"32401","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1680","nomestazione":"Vilminore di Scalve Presolana","quota":"1856","lat":"45.98117244","lng":"10.04157800"}
+,{"idsensore":"32404","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1680","nomestazione":"Vilminore di Scalve Presolana","quota":"1856","lat":"45.98117244","lng":"10.04157800"}
+,{"idsensore":"32407","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1680","nomestazione":"Vilminore di Scalve Presolana","quota":"1856","lat":"45.98117244","lng":"10.04157800"}
+,{"idsensore":"32410","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1680","nomestazione":"Vilminore di Scalve Presolana","quota":"1856","lat":"45.98117244","lng":"10.04157800"}
+,{"idsensore":"39","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"26","nomestazione":"Torre di Santa Maria Val Torreggio RTU 60","quota":"1275","lat":"46.23767804","lng":"9.83420599"}
+,{"idsensore":"4009","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"141","nomestazione":"Vertemate con Minoprio serre","quota":"310","lat":"45.71901089","lng":"9.08548850"}
+,{"idsensore":"4010","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"141","nomestazione":"Vertemate con Minoprio serre","quota":"310","lat":"45.71901089","lng":"9.08548850"}
+,{"idsensore":"4014","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"141","nomestazione":"Vertemate con Minoprio serre","quota":"310","lat":"45.71901089","lng":"9.08548850"}
+,{"idsensore":"4017","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"142","nomestazione":"Caiolo","quota":"274","lat":"46.15492316","lng":"9.79251888"}
+,{"idsensore":"4018","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"142","nomestazione":"Caiolo","quota":"274","lat":"46.15492316","lng":"9.79251888"}
+,{"idsensore":"4022","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"142","nomestazione":"Caiolo","quota":"274","lat":"46.15492316","lng":"9.79251888"}
+,{"idsensore":"4027","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"143","nomestazione":"Livigno Passo Foscagno","quota":"2320","lat":"46.49442378","lng":"10.20748854"}
+,{"idsensore":"4031","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"143","nomestazione":"Livigno Passo Foscagno","quota":"2320","lat":"46.49442378","lng":"10.20748854"}
+,{"idsensore":"4034","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"144","nomestazione":"Madesimo Spluga","quota":"1915","lat":"46.47166446","lng":"9.34812808"}
+,{"idsensore":"4035","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"144","nomestazione":"Madesimo Spluga","quota":"1915","lat":"46.47166446","lng":"9.34812808"}
+,{"idsensore":"4039","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"144","nomestazione":"Madesimo Spluga","quota":"1915","lat":"46.47166446","lng":"9.34812808"}
+,{"idsensore":"4050","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"146","nomestazione":"Mezzoldo Passo S.Marco","quota":"1824","lat":"46.03826280","lng":"9.62865186"}
+,{"idsensore":"4051","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"146","nomestazione":"Mezzoldo Passo S.Marco","quota":"1824","lat":"46.03826280","lng":"9.62865186"}
+,{"idsensore":"4055","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"146","nomestazione":"Mezzoldo Passo S.Marco","quota":"1824","lat":"46.03826280","lng":"9.62865186"}
+,{"idsensore":"4058","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"147","nomestazione":"Cinisello Balsamo Parco Nord","quota":"142","lat":"45.54266467","lng":"9.20560341"}
+,{"idsensore":"4059","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"147","nomestazione":"Cinisello Balsamo Parco Nord","quota":"142","lat":"45.54266467","lng":"9.20560341"}
+,{"idsensore":"4062","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"147","nomestazione":"Cinisello Balsamo Parco Nord","quota":"142","lat":"45.54266467","lng":"9.20560341"}
+,{"idsensore":"4066","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"148","nomestazione":"Arconate SMR","quota":"182","lat":"45.54852147","lng":"8.84732669"}
+,{"idsensore":"4067","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"148","nomestazione":"Arconate SMR","quota":"182","lat":"45.54852147","lng":"8.84732669"}
+,{"idsensore":"4071","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"148","nomestazione":"Arconate SMR","quota":"182","lat":"45.54852147","lng":"8.84732669"}
+,{"idsensore":"4082","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"150","nomestazione":"Pieve San Giacomo","quota":"39","lat":"45.12182840","lng":"10.19526123"}
+,{"idsensore":"4083","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"150","nomestazione":"Pieve San Giacomo","quota":"39","lat":"45.12182840","lng":"10.19526123"}
+,{"idsensore":"4087","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"150","nomestazione":"Pieve San Giacomo","quota":"39","lat":"45.12182840","lng":"10.19526123"}
+,{"idsensore":"5121","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"166","nomestazione":"Mantova Lunetta2 SMR","quota":"25","lat":"45.15799358","lng":"10.82394014"}
+,{"idsensore":"5122","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"166","nomestazione":"Mantova Lunetta2 SMR","quota":"25","lat":"45.15799358","lng":"10.82394014"}
+,{"idsensore":"5126","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"166","nomestazione":"Mantova Lunetta2 SMR","quota":"25","lat":"45.15799358","lng":"10.82394014"}
+,{"idsensore":"53","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"28","nomestazione":"Chiesa in Valmalenco Alpe Entova","quota":"1905","lat":"46.32141817","lng":"9.83412892"}
+,{"idsensore":"54","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"29","nomestazione":"Chiesa in Valmalenco Funivia Bernina","quota":"2014","lat":"46.29075900","lng":"9.86370600"}
+,{"idsensore":"56","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"33","nomestazione":"Lanzada Ganda","quota":"988","lat":"46.27022400","lng":"9.88450500"}
+,{"idsensore":"58","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"35","nomestazione":"Caspoggio Piazzo Cavalli","quota":"1719","lat":"46.24987200","lng":"9.87088700"}
+,{"idsensore":"5863","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"595","nomestazione":"Filago v.Don Milani","quota":"190","lat":"45.63387247","lng":"9.55609572"}
+,{"idsensore":"5864","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"594","nomestazione":"Bergamo v.Goisis","quota":"290","lat":"45.71591825","lng":"9.68896994"}
+,{"idsensore":"5865","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"596","nomestazione":"Osio Sotto v.per Levate","quota":"182","lat":"45.62055568","lng":"9.61173782"}
+,{"idsensore":"5868","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"586","nomestazione":"Costa Volpino v.Nazionale","quota":"192","lat":"45.82716061","lng":"10.09707131"}
+,{"idsensore":"5877","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"573","nomestazione":"Colico v.La Madoneta","quota":"229","lat":"46.13814090","lng":"9.38468725"}
+,{"idsensore":"5890","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"598","nomestazione":"San Rocco al Porto v.Matteotti","quota":"50","lat":"45.08199189","lng":"9.70079278"}
+,{"idsensore":"5897","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"620","nomestazione":"Milano v.Brera","quota":"122","lat":"45.47165828","lng":"9.18911083"}
+,{"idsensore":"5903","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"525","nomestazione":"Corsico v.le Italia","quota":"119","lat":"45.43611269","lng":"9.09741197"}
+,{"idsensore":"5909","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"502","nomestazione":"Milano v.Juvara","quota":"122","lat":"45.47322769","lng":"9.22231536"}
+,{"idsensore":"5910","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"535","nomestazione":"Lacchiarella v.Molise","quota":"97","lat":"45.32452314","lng":"9.13452950"}
+,{"idsensore":"5911","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"501","nomestazione":"Milano v.Marche","quota":"129","lat":"45.49631883","lng":"9.19093444"}
+,{"idsensore":"5917","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"614","nomestazione":"Rodano v.Turati","quota":"112","lat":"45.47258192","lng":"9.35349644"}
+,{"idsensore":"5920","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"503","nomestazione":"Milano P.zza Zavattari","quota":"122","lat":"45.47606529","lng":"9.14178666"}
+,{"idsensore":"5969","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"629","nomestazione":"Crema v.XI febbraio","quota":"79","lat":"45.36631075","lng":"9.70395139"}
+,{"idsensore":"5979","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"595","nomestazione":"Filago v.Don Milani","quota":"190","lat":"45.63387247","lng":"9.55609572"}
+,{"idsensore":"5981","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"594","nomestazione":"Bergamo v.Goisis","quota":"290","lat":"45.71591825","lng":"9.68896994"}
+,{"idsensore":"5983","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"596","nomestazione":"Osio Sotto v.per Levate","quota":"182","lat":"45.62055568","lng":"9.61173782"}
+,{"idsensore":"5994","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"586","nomestazione":"Costa Volpino v.Nazionale","quota":"192","lat":"45.82716061","lng":"10.09707131"}
+,{"idsensore":"6008","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"573","nomestazione":"Colico v.La Madoneta","quota":"229","lat":"46.13814090","lng":"9.38468725"}
+,{"idsensore":"6029","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"620","nomestazione":"Milano v.Brera","quota":"122","lat":"45.47165828","lng":"9.18911083"}
+,{"idsensore":"6038","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"525","nomestazione":"Corsico v.le Italia","quota":"119","lat":"45.43611269","lng":"9.09741197"}
+,{"idsensore":"6044","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"502","nomestazione":"Milano v.Juvara","quota":"122","lat":"45.47322769","lng":"9.22231536"}
+,{"idsensore":"6046","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"535","nomestazione":"Lacchiarella v.Molise","quota":"97","lat":"45.32452314","lng":"9.13452950"}
+,{"idsensore":"6048","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"501","nomestazione":"Milano v.Marche","quota":"129","lat":"45.49631883","lng":"9.19093444"}
+,{"idsensore":"6063","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"503","nomestazione":"Milano P.zza Zavattari","quota":"122","lat":"45.47606529","lng":"9.14178666"}
+,{"idsensore":"6157","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"595","nomestazione":"Filago v.Don Milani","quota":"190","lat":"45.63387247","lng":"9.55609572"}
+,{"idsensore":"6158","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"594","nomestazione":"Bergamo v.Goisis","quota":"290","lat":"45.71591825","lng":"9.68896994"}
+,{"idsensore":"6159","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"596","nomestazione":"Osio Sotto v.per Levate","quota":"182","lat":"45.62055568","lng":"9.61173782"}
+,{"idsensore":"6161","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"586","nomestazione":"Costa Volpino v.Nazionale","quota":"192","lat":"45.82716061","lng":"10.09707131"}
+,{"idsensore":"6164","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"573","nomestazione":"Colico v.La Madoneta","quota":"229","lat":"46.13814090","lng":"9.38468725"}
+,{"idsensore":"6170","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"598","nomestazione":"San Rocco al Porto v.Matteotti","quota":"50","lat":"45.08199189","lng":"9.70079278"}
+,{"idsensore":"6174","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"620","nomestazione":"Milano v.Brera","quota":"122","lat":"45.47165828","lng":"9.18911083"}
+,{"idsensore":"6176","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"525","nomestazione":"Corsico v.le Italia","quota":"119","lat":"45.43611269","lng":"9.09741197"}
+,{"idsensore":"6179","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"502","nomestazione":"Milano v.Juvara","quota":"122","lat":"45.47322769","lng":"9.22231536"}
+,{"idsensore":"6180","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"535","nomestazione":"Lacchiarella v.Molise","quota":"97","lat":"45.32452314","lng":"9.13452950"}
+,{"idsensore":"6183","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"614","nomestazione":"Rodano v.Turati","quota":"112","lat":"45.47258192","lng":"9.35349644"}
+,{"idsensore":"6185","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"503","nomestazione":"Milano P.zza Zavattari","quota":"122","lat":"45.47606529","lng":"9.14178666"}
+,{"idsensore":"6421","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"629","nomestazione":"Crema v.XI febbraio","quota":"79","lat":"45.36631075","lng":"9.70395139"}
+,{"idsensore":"6597","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"501","nomestazione":"Milano v.Marche","quota":"129","lat":"45.49631883","lng":"9.19093444"}
+,{"idsensore":"6788","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"653","nomestazione":"Brescia v.Ziziola","quota":"125","lat":"45.51456611","lng":"10.21846492"}
+,{"idsensore":"6795","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"653","nomestazione":"Brescia v.Ziziola","quota":"125","lat":"45.51456611","lng":"10.21846492"}
+,{"idsensore":"6796","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"653","nomestazione":"Brescia v.Ziziola","quota":"125","lat":"45.51456611","lng":"10.21846492"}
+,{"idsensore":"6797","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"653","nomestazione":"Brescia v.Ziziola","quota":"125","lat":"45.51456611","lng":"10.21846492"}
+,{"idsensore":"6815","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"656","nomestazione":"Gambara v.Parma","quota":"47","lat":"45.24955194","lng":"10.29913000"}
+,{"idsensore":"6823","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"656","nomestazione":"Gambara v.Parma","quota":"47","lat":"45.24955194","lng":"10.29913000"}
+,{"idsensore":"6824","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"656","nomestazione":"Gambara v.Parma","quota":"47","lat":"45.24955194","lng":"10.29913000"}
+,{"idsensore":"6825","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"656","nomestazione":"Gambara v.Parma","quota":"47","lat":"45.24955194","lng":"10.29913000"}
+,{"idsensore":"6834","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"657","nomestazione":"Lonato del Garda v.del Marchesino","quota":"180","lat":"45.46375819","lng":"10.48078183"}
+,{"idsensore":"6835","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"657","nomestazione":"Lonato del Garda v.del Marchesino","quota":"180","lat":"45.46375819","lng":"10.48078183"}
+,{"idsensore":"6849","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"659","nomestazione":"Odolo v.Praes","quota":"349","lat":"45.64605175","lng":"10.38929672"}
+,{"idsensore":"6850","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"659","nomestazione":"Odolo v.Praes","quota":"349","lat":"45.64605175","lng":"10.38929672"}
+,{"idsensore":"6987","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"679","nomestazione":"Valmadrera v.Pozzi","quota":"247","lat":"45.84221272","lng":"9.35166247"}
+,{"idsensore":"6992","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"679","nomestazione":"Valmadrera v.Pozzi","quota":"247","lat":"45.84221272","lng":"9.35166247"}
+,{"idsensore":"6994","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"679","nomestazione":"Valmadrera v.Pozzi","quota":"247","lat":"45.84221272","lng":"9.35166247"}
+,{"idsensore":"7025","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"687","nomestazione":"Ferno v.Di Dio","quota":"215","lat":"45.61924753","lng":"8.75697656"}
+,{"idsensore":"7029","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"687","nomestazione":"Ferno v.Di Dio","quota":"215","lat":"45.61924753","lng":"8.75697656"}
+,{"idsensore":"7030","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"687","nomestazione":"Ferno v.Di Dio","quota":"215","lat":"45.61924753","lng":"8.75697656"}
+,{"idsensore":"7046","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"695","nomestazione":"Ponti sul Mincio v.San Martino","quota":"113","lat":"45.41277633","lng":"10.68336214"}
+,{"idsensore":"7047","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"695","nomestazione":"Ponti sul Mincio v.San Martino","quota":"113","lat":"45.41277633","lng":"10.68336214"}
+,{"idsensore":"8005","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"857","nomestazione":"Santa Margherita di Staffora Passo del Giovà","quota":"1363","lat":"44.68377850","lng":"9.21663743"}
+,{"idsensore":"8007","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"856","nomestazione":"Fortunago","quota":"501","lat":"44.91250111","lng":"9.19499417"}
+,{"idsensore":"8008","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"835","nomestazione":"Valdisotto Oga S. Colombano","quota":"2300","lat":"46.45356516","lng":"10.30596404"}
+,{"idsensore":"8011","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"835","nomestazione":"Valdisotto Oga S. Colombano","quota":"2300","lat":"46.45356516","lng":"10.30596404"}
+,{"idsensore":"8013","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"833","nomestazione":"Gerola Alta Pescegallo","quota":"1875","lat":"46.02619690","lng":"9.57112074"}
+,{"idsensore":"8016","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"836","nomestazione":"Aprica","quota":"1950","lat":"46.12968795","lng":"10.14826598"}
+,{"idsensore":"8019","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"846","nomestazione":"Edolo Pantano d`Avio","quota":"2108","lat":"46.17700799","lng":"10.47282844"}
+,{"idsensore":"8027","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"848","nomestazione":"Livigno La Vallaccia","quota":"2660","lat":"46.47730866","lng":"10.18873661"}
+,{"idsensore":"8030","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"848","nomestazione":"Livigno La Vallaccia","quota":"2660","lat":"46.47730866","lng":"10.18873661"}
+,{"idsensore":"8092","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"832","nomestazione":"Lanzada Palù","quota":"2151","lat":"46.29290690","lng":"9.88452786"}
+,{"idsensore":"8096","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"912","nomestazione":"Foppolo","quota":"1682","lat":"46.04249594","lng":"9.75610761"}
+,{"idsensore":"8123","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"867","nomestazione":"Caslino d'Erba v. 4 novembre","quota":"427","lat":"45.83539031","lng":"9.23237261"}
+,{"idsensore":"8133","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"819","nomestazione":"Lozio","quota":"994","lat":"45.98580874","lng":"10.25975254"}
+,{"idsensore":"8134","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"820","nomestazione":"Pisogne","quota":"842","lat":"45.81611569","lng":"10.15694910"}
+,{"idsensore":"8136","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"874","nomestazione":"Sarnico v. Roma","quota":"197","lat":"45.66594103","lng":"9.95688896"}
+,{"idsensore":"8140","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"876","nomestazione":"Caino","quota":"428","lat":"45.60972056","lng":"10.32222392"}
+,{"idsensore":"8145","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"889","nomestazione":"Torre Boldone","quota":"311","lat":"45.71897778","lng":"9.71018546"}
+,{"idsensore":"8151","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"884","nomestazione":"Cuveglio","quota":"294","lat":"45.90332947","lng":"8.74277458"}
+,{"idsensore":"8157","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"817","nomestazione":"Pavia SS 35","quota":"71","lat":"45.18062204","lng":"9.14666412"}
+,{"idsensore":"8162","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"869","nomestazione":"Milano v.Feltre","quota":"119","lat":"45.49163405","lng":"9.24873914"}
+,{"idsensore":"8164","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"859","nomestazione":"Luino v. Piero Chiara","quota":"205","lat":"46.00414283","lng":"8.74272325"}
+,{"idsensore":"8166","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"870","nomestazione":"Como viale Geno","quota":"200","lat":"45.82025397","lng":"9.07990936"}
+,{"idsensore":"8168","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"885","nomestazione":"Arcisate","quota":"383","lat":"45.84610806","lng":"8.89055144"}
+,{"idsensore":"8180","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"895","nomestazione":"Soncino v. Brescia","quota":"87","lat":"45.39916950","lng":"9.89027567"}
+,{"idsensore":"8187","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"905","nomestazione":"Cevo","quota":"1128","lat":"46.08055608","lng":"10.37778231"}
+,{"idsensore":"8189","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"901","nomestazione":"Crema v.Camporelle","quota":"103","lat":"45.35656022","lng":"9.67144061"}
+,{"idsensore":"8191","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"908","nomestazione":"Voghera v. Cambiaso","quota":"95","lat":"44.99028150","lng":"9.01750575"}
+,{"idsensore":"8196","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"886","nomestazione":"Vigevano SS494","quota":"94","lat":"45.34248307","lng":"8.88066784"}
+,{"idsensore":"8198","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"911","nomestazione":"Lambrugo","quota":"273","lat":"45.76194769","lng":"9.24444953"}
+,{"idsensore":"8200","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"865","nomestazione":"Cantù Asnago","quota":"244","lat":"45.71853181","lng":"9.10037269"}
+,{"idsensore":"8202","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"858","nomestazione":"Santa Margherita di Staffora Casanova","quota":"575","lat":"44.76803261","lng":"9.23905083"}
+,{"idsensore":"8209","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"910","nomestazione":"Manerbio v.Dante","quota":"60","lat":"45.35975344","lng":"10.14555158"}
+,{"idsensore":"8212","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"903","nomestazione":"Misinto","quota":"247","lat":"45.66138472","lng":"9.06639475"}
+,{"idsensore":"8220","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"897","nomestazione":"Busto Arsizio v.Rossini","quota":"242","lat":"45.62639047","lng":"8.82388414"}
+,{"idsensore":"8223","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"816","nomestazione":"Sermide e Felonica SP 91","quota":"10","lat":"45.01536422","lng":"11.28993625"}
+,{"idsensore":"8225","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"873","nomestazione":"Ponti sul Mincio Monzambano","quota":"62","lat":"45.39264211","lng":"10.70629600"}
+,{"idsensore":"8227","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"904","nomestazione":"Paisco Loveno","quota":"816","lat":"46.07861336","lng":"10.29694303"}
+,{"idsensore":"8229","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"907","nomestazione":"Varese v.Appiani","quota":"416","lat":"45.83249661","lng":"8.82361133"}
+,{"idsensore":"83","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"45","nomestazione":"Valfurva Ruinon RTU 206","quota":"2140","lat":"46.44328904","lng":"10.46173396"}
+,{"idsensore":"8584","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"999","nomestazione":"Laveno-Mombello Poggio S.Elsa","quota":"950","lat":"45.91099372","lng":"8.63818571"}
+,{"idsensore":"8585","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"999","nomestazione":"Laveno-Mombello Poggio S.Elsa","quota":"950","lat":"45.91099372","lng":"8.63818571"}
+,{"idsensore":"8588","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"998","nomestazione":"Laveno-Mombello p.zza Matteotti","quota":"207","lat":"45.90991335","lng":"8.61868535"}
+,{"idsensore":"86","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"46","nomestazione":"Valdidentro Monte Trela","quota":"2330","lat":"46.50284199","lng":"10.26736607"}
+,{"idsensore":"9001","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1210","nomestazione":"Ranzanico","quota":"486","lat":"45.78641993","lng":"9.93304210"}
+,{"idsensore":"9002","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1211","nomestazione":"Castronno","quota":"379","lat":"45.74873297","lng":"8.82076322"}
+,{"idsensore":"9003","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1212","nomestazione":"Castione della Presolana","quota":"1180","lat":"45.92845581","lng":"10.06332908"}
+,{"idsensore":"9008","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1216","nomestazione":"Valbondione","quota":"1784","lat":"46.06383656","lng":"10.03907180"}
+,{"idsensore":"9010","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1235","nomestazione":"Cene Ponte","quota":"361","lat":"45.78420692","lng":"9.82153320"}
+,{"idsensore":"9011","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1230","nomestazione":"San Giacomo Filippo Lago Truzzo","quota":"2010","lat":"46.36053879","lng":"9.31999148"}
+,{"idsensore":"9012","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1238","nomestazione":"Val Masino S.Martino","quota":"915","lat":"46.23807398","lng":"9.63233889"}
+,{"idsensore":"9013","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1220","nomestazione":"Ponte di Legno Case Pirli","quota":"1640","lat":"46.28969035","lng":"10.53105110"}
+,{"idsensore":"9014","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1237","nomestazione":"Monno","quota":"1720","lat":"46.24753122","lng":"10.31903308"}
+,{"idsensore":"9015","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1229","nomestazione":"Gandellino Grabiasca","quota":"738","lat":"46.00767519","lng":"9.94787769"}
+,{"idsensore":"9016","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1224","nomestazione":"Cortenova","quota":"456","lat":"46.00746603","lng":"9.38040375"}
+,{"idsensore":"9017","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1205","nomestazione":"Molteno Cimitero","quota":"278","lat":"45.78301922","lng":"9.30710044"}
+,{"idsensore":"9019","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1201","nomestazione":"Canevino","quota":"455","lat":"44.93479528","lng":"9.27567400"}
+,{"idsensore":"9020","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1222","nomestazione":"Cavargna","quota":"1100","lat":"46.09155206","lng":"9.11084686"}
+,{"idsensore":"9021","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1234","nomestazione":"Osnago","quota":"234","lat":"45.67770650","lng":"9.38855728"}
+,{"idsensore":"9024","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1221","nomestazione":"Casnigo Campo Sportivo","quota":"502","lat":"45.81136488","lng":"9.86559107"}
+,{"idsensore":"9025","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1228","nomestazione":"Goito","quota":"30","lat":"45.26361744","lng":"10.66359803"}
+,{"idsensore":"9026","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1233","nomestazione":"Lurago Marinone","quota":"296","lat":"45.70496503","lng":"8.98833547"}
+,{"idsensore":"9027","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1206","nomestazione":"Cavaria con Premezzo v. Cantalupa","quota":"274","lat":"45.68949617","lng":"8.80769797"}
+,{"idsensore":"9030","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1218","nomestazione":"Ardesio Valcanale","quota":"1002","lat":"45.95056364","lng":"9.86343400"}
+,{"idsensore":"9031","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1219","nomestazione":"Casalbuttano ed Uniti","quota":"56","lat":"45.25595928","lng":"9.96349494"}
+,{"idsensore":"9034","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1209","nomestazione":"Rota d'Imagna","quota":"674","lat":"45.83984475","lng":"9.51135208"}
+,{"idsensore":"9076","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1211","nomestazione":"Castronno","quota":"379","lat":"45.74873297","lng":"8.82076322"}
+,{"idsensore":"9077","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1202","nomestazione":"Vercana","quota":"980","lat":"46.18185467","lng":"9.32468906"}
+,{"idsensore":"91064","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"65","nomestazione":"Saviore dell'Adamello Valle UR01","quota":"1100","lat":"46.06848400","lng":"10.42490000"}
+,{"idsensore":"91654","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"2181","nomestazione":"Delebio Canargo","quota":"900","lat":"46.11307673","lng":"9.45762893"}
+,{"idsensore":"9310","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"646","nomestazione":"Como Villa Gallia","quota":"201","lat":"45.81504217","lng":"9.06697886"}
+,{"idsensore":"9311","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"646","nomestazione":"Como Villa Gallia","quota":"201","lat":"45.81504217","lng":"9.06697886"}
+,{"idsensore":"9312","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"646","nomestazione":"Como Villa Gallia","quota":"201","lat":"45.81504217","lng":"9.06697886"}
+,{"idsensore":"9328","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"629","nomestazione":"Crema v.XI febbraio","quota":"79","lat":"45.36631075","lng":"9.70395139"}
+,{"idsensore":"9331","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"629","nomestazione":"Crema v.XI febbraio","quota":"79","lat":"45.36631075","lng":"9.70395139"}
+,{"idsensore":"9381","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1238","nomestazione":"Val Masino S.Martino","quota":"915","lat":"46.23807398","lng":"9.63233889"}
+,{"idsensore":"9384","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1210","nomestazione":"Ranzanico","quota":"486","lat":"45.78641993","lng":"9.93304210"}
+,{"idsensore":"9386","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1221","nomestazione":"Casnigo Campo Sportivo","quota":"502","lat":"45.81136488","lng":"9.86559107"}
+,{"idsensore":"9387","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1212","nomestazione":"Castione della Presolana","quota":"1180","lat":"45.92845581","lng":"10.06332908"}
+,{"idsensore":"9388","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1202","nomestazione":"Vercana","quota":"980","lat":"46.18185467","lng":"9.32468906"}
+,{"idsensore":"9390","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1216","nomestazione":"Valbondione","quota":"1784","lat":"46.06383656","lng":"10.03907180"}
+,{"idsensore":"9391","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1218","nomestazione":"Ardesio Valcanale","quota":"1002","lat":"45.95056364","lng":"9.86343400"}
+,{"idsensore":"9395","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1209","nomestazione":"Rota d'Imagna","quota":"674","lat":"45.83984475","lng":"9.51135208"}
+,{"idsensore":"9396","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1201","nomestazione":"Canevino","quota":"455","lat":"44.93479528","lng":"9.27567400"}
+,{"idsensore":"9397","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1237","nomestazione":"Monno","quota":"1720","lat":"46.24753122","lng":"10.31903308"}
+,{"idsensore":"9398","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1220","nomestazione":"Ponte di Legno Case Pirli","quota":"1640","lat":"46.28969035","lng":"10.53105110"}
+,{"idsensore":"9399","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1222","nomestazione":"Cavargna","quota":"1100","lat":"46.09155206","lng":"9.11084686"}
+,{"idsensore":"9664","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"2514","nomestazione":"Schignano Alpe Comana","quota":"1130","lat":"45.91758611","lng":"9.11396111"}
+,{"idsensore":"9665","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"2514","nomestazione":"Schignano Alpe Comana","quota":"1130","lat":"45.91758611","lng":"9.11396111"}
+,{"idsensore":"9741","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"900","nomestazione":"Chiari","quota":"140","lat":"45.52222206","lng":"9.93777821"}
+,{"idsensore":"9756","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"835","nomestazione":"Valdisotto Oga S. Colombano","quota":"2300","lat":"46.45356516","lng":"10.30596404"}
+,{"idsensore":"9757","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"833","nomestazione":"Gerola Alta Pescegallo","quota":"1875","lat":"46.02619690","lng":"9.57112074"}
+,{"idsensore":"9758","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"836","nomestazione":"Aprica","quota":"1950","lat":"46.12968795","lng":"10.14826598"}
+,{"idsensore":"9759","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"846","nomestazione":"Edolo Pantano d`Avio","quota":"2108","lat":"46.17700799","lng":"10.47282844"}
+,{"idsensore":"9760","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"847","nomestazione":"Carona Carisole","quota":"1954","lat":"46.03852339","lng":"9.79379959"}
+,{"idsensore":"9761","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"848","nomestazione":"Livigno La Vallaccia","quota":"2660","lat":"46.47730866","lng":"10.18873661"}
+,{"idsensore":"9763","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"832","nomestazione":"Lanzada Palù","quota":"2151","lat":"46.29290690","lng":"9.88452786"}
+,{"idsensore":"9765","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"999","nomestazione":"Laveno-Mombello Poggio S.Elsa","quota":"950","lat":"45.91099372","lng":"8.63818571"}
+,{"idsensore":"9766","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"998","nomestazione":"Laveno-Mombello p.zza Matteotti","quota":"207","lat":"45.90991335","lng":"8.61868535"}
+,{"idsensore":"9812","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"670","nomestazione":"Mantova S.Agnese","quota":"22","lat":"45.16057658","lng":"10.79557331"}
+,{"idsensore":"9813","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"670","nomestazione":"Mantova S.Agnese","quota":"22","lat":"45.16057658","lng":"10.79557331"}
+,{"idsensore":"9862","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"672","nomestazione":"Cornale v.Libertà","quota":"74","lat":"45.04008561","lng":"8.91415717"}
+,{"idsensore":"9868","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"672","nomestazione":"Cornale v.Libertà","quota":"74","lat":"45.04008561","lng":"8.91415717"}
+,{"idsensore":"9869","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"672","nomestazione":"Cornale v.Libertà","quota":"74","lat":"45.04008561","lng":"8.91415717"}
+,{"idsensore":"99","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"52","nomestazione":"Grosio Diga Fusino","quota":"1220","lat":"46.32706204","lng":"10.24598125"}
+,{"idsensore":"9931","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"677","nomestazione":"Cremona Via Fatebenefratelli","quota":"43","lat":"45.14254358","lng":"10.04384767"}
+,{"idsensore":"9938","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"677","nomestazione":"Cremona Via Fatebenefratelli","quota":"43","lat":"45.14254358","lng":"10.04384767"}
+,{"idsensore":"9939","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"677","nomestazione":"Cremona Via Fatebenefratelli","quota":"43","lat":"45.14254358","lng":"10.04384767"}
+,{"idsensore":"9940","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"677","nomestazione":"Cremona Via Fatebenefratelli","quota":"43","lat":"45.14254358","lng":"10.04384767"}]

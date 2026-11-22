@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<datiOggi xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.meteotrentino.it/">
+  <data>2026/11/22</data>
+  <tmin xsi:nil="true" />
+  <tmax xsi:nil="true" />
+  <rain>0</rain>
+  <temperature />
+  <precipitazioni />
+  <venti />
+  <radiazione />
+  <umidita_relativa />
+</datiOggi>

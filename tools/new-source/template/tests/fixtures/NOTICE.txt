@@ -1,0 +1,11 @@
+Recorded answers of __ID__.
+
+For each file in this folder, write:
+
+- the address it was fetched from, and the day and minute (UTC);
+- the licence it is under and the credit the provider asks for, as in
+  ../../manifest.toml;
+- what was cut from it (stations, days) and how;
+- for a file damaged by hand, what was done to which entry.
+
+Nothing in this folder is made up unless this file says so, entry by entry.

@@ -1,0 +1,43 @@
+id = "slf-imis"
+# The WSL Institute for Snow and Avalanche Research SLF runs the IMIS
+# stations for the avalanche warning service of Switzerland and Liechtenstein
+# and publishes their values.
+provider = "WSL Institute for Snow and Avalanche Research SLF"
+kinds = ["observations"]
+countries = ["CH", "LI"]
+# A station has a value every half hour: the means over the last 30 minutes,
+# by the service's own description (https://measurement-api.slf.ch/openapi.json,
+# read 2026-11-22).
+cadence_seconds = 1800
+auth = "none"
+# The larger of the two answers of a run was 3,302,282 bytes on 2026-11-22:
+# every station's half-hourly values of the last 24 hours. The station list
+# was 31 kB. Sent with gzip when asked, the larger is 395 kB.
+max_response_kb = 8192
+
+# The SLF publishes no limit in numbers. Its page forbids using the services
+# "in a form that could impair, overload or damage the infrastructure of the
+# SLF". A run makes two requests, four an hour.
+
+[licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+# "When displaying, processing or otherwise using the data, there must be a
+# clearly visible reference to the data source (WSL Institute for Snow and
+# Avalanche Research SLF), in the case of digital products as link
+# (www.slf.ch)."
+attribution = "Data source: WSL Institute for Snow and Avalanche Research SLF - www.slf.ch"
+link = "https://www.slf.ch"
+constraints = [
+    "The interfaces \"are designed for the retrieval of data by the customers and are not dimensioned to directly serve the requests of the customers' information systems\": the server fetches and the apps ask the server, never the SLF.",
+    "It is not permitted to use the SLF's electronic services in a form that could impair, overload or damage its infrastructure.",
+    "The SLF recommends registering at data@slf.ch for the \"Live measurement and model data\" to be told of changes and interruptions: for the owner.",
+    "Scientific publications using the IMIS data must cite https://doi.org/10.16904/envidat.406.",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://www.slf.ch/en/services-and-products/slf-data-service/",
+    "https://measurement-api.slf.ch/openapi.json",
+]

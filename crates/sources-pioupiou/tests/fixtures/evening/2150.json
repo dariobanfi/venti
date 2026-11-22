@@ -1,0 +1,17 @@
+{
+  "doc": "https://developers.pioupiou.fr/api/archive/",
+  "license": "https://developers.pioupiou.fr/data-licensing",
+  "attribution": "(c) contributors of the OpenWindMap wind network <https://www.openwindmap.org>",
+  "legend": ["time","latitude","longitude","wind_speed_min","wind_speed_avg","wind_speed_max","wind_heading","pressure"],
+  "units": ["utc","degrees","degrees","km/h","km/h","km/h","degrees","(deprecated)"],
+  "data": [
+    ["2026-11-18T18:31:32.000Z",47.360086,10.933592,10,24.5,38,135,null],
+    ["2026-11-18T18:36:32.000Z",47.360086,10.933592,0,8.75,24,67.5,null],
+    ["2026-11-18T18:41:36.000Z",47.360086,10.933592,0,4.25,17,270,null],
+    ["2026-11-18T18:46:36.000Z",47.360086,10.933592,0,8.25,27.5,337.5,null],
+    ["2026-11-18T18:51:39.000Z",47.360086,10.933592,0,9.5,33,225,null],
+    ["2026-11-18T18:56:39.000Z",47.360086,10.933592,0,2.25,8,315,null],
+    ["2026-11-18T19:01:42.000Z",47.360086,10.933592,0,6.5,20.5,0,null],
+    ["2026-11-18T19:06:42.000Z",47.360086,10.933592,0,10.5,29.5,0,null]
+  ]
+}

@@ -1,0 +1,57 @@
+id = "meteoswiss-smn"
+# SwissMetNet, the automatic weather stations of MeteoSwiss: 158 in the
+# station list on 2026-11-22, all in Switzerland but Vaduz in Liechtenstein.
+provider = "Federal Office of Meteorology and Climatology MeteoSwiss"
+kinds = ["observations"]
+countries = ["CH", "LI"]
+# The file of current values is written every ten minutes. The
+# documentation recommends asking "starting at minute xx:x9": on
+# 2026-11-22 the file asked at 08:09 UTC had been written at 08:00:10 and
+# held the values of 07:50. When in the ten minutes the scheduler asks is
+# not set here: to verify that a run at a random minute misses no values.
+cadence_seconds = 600
+auth = "none"
+# A run's two answers were 16 kB (the current values of every station) and
+# 152 kB (the station list) on 2026-11-22. The documentation estimates its
+# files at "≤5.3 MB per file", which is the files of a station's history.
+max_response_kb = 1024
+
+# MeteoSwiss's terms of use set no number: "excessive use in terms of
+# access frequency or data volume (in particular the high-frequency
+# downloading of the same content) is prohibited", and they make the
+# general terms of the Federal Spatial Data Infrastructure apply as well.
+# Those give "API Rest Services (general)", "*.geo.admin.ch", a fair-use
+# limit of "40 requests / minute" and "21 Mio requests / year"
+# (https://www.geo.admin.ch/en/general-terms-of-use-fsdi, 2.3, read
+# 2026-11-22). Whether that row is meant for the download service
+# data.geo.admin.ch is to verify; it is kept to here, as 2400 an hour. A run
+# is two requests, twelve an hour. The station list had last been written
+# at 04:19 UTC when asked at 08:09 on 2026-11-22 (how often it changes is
+# to verify) and is asked every run all the same, because the pipeline
+# needs it for every run's values: 144 downloads a day of a file that
+# rarely changes. Whether that is "high-frequency downloading of the same
+# content" is to verify; a conditional request with the ETag that the
+# server sends would make most of them a few hundred bytes.
+[rate_limit]
+per_hour = 2400
+
+[licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+# The terms give the credit in four languages: "Quelle: MeteoSchweiz;
+# Source: MétéoSuisse; Fonte: MeteoSvizzera; Source: MeteoSwiss".
+attribution = "Source: MeteoSwiss"
+link = "https://opendatadocs.meteoswiss.ch/general/terms-of-use"
+constraints = [
+    "MeteoSwiss's data may be passed on only with the source named, and the credit must not make it appear that MeteoSwiss supports Venti or its use.",
+    "Excessive use, in particular the high-frequency downloading of the same content, is prohibited and may get the server's address restricted or blocked.",
+    "The general terms of use of the Federal Spatial Data Infrastructure FSDI apply besides MeteoSwiss's own.",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://opendatadocs.meteoswiss.ch/general/terms-of-use",
+    "https://opendatadocs.meteoswiss.ch/a-data-groundbased/a1-automatic-weather-stations",
+    "https://www.geo.admin.ch/en/general-terms-of-use-fsdi",
+]

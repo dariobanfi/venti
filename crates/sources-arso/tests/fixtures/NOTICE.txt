@@ -1,0 +1,103 @@
+The files in this folder hold data of the Slovenian Environment Agency
+(Agencija Republike Slovenije za okolje, ARSO), measured by its automatic
+weather stations and published on meteo.arso.gov.si, whose terms of reuse,
+https://meteo.arso.gov.si/uploads/meteo/help/sl/copyright.html, make it
+freely available for reuse with the source named:
+
+    Vir: ARSO (Source: ARSO)
+
+They are not covered by the licence of the code around them.
+
+They were recorded on 2026-11-22 from https://meteo.arso.gov.si/, without
+a key, with curl, single GET requests.
+
+observationAms_si_latest.xml is the answer to the adapter's one request,
+
+    GET /uploads/probase/www/observ/surface/text/sl/observationAms_si_latest.xml
+        asked at 08:20:06 UTC (Date 08:20:07 GMT, Last-Modified 07:58:54
+        GMT), 811,155 bytes (28,173 gzipped), 103 stations; values of the
+        ten minutes to 07:50 UTC at 87 stations and of the half hour to
+        07:30 UTC at the 16 main ones
+
+cut down to fifteen of its stations. The file is one line: a head of
+elements about the file, then one <metData> per station, then </data>. The
+cut keeps the head and the fifteen <metData> elements byte for byte, in
+their order, and the closing </data>; a script checked that the head, all
+103 elements and the close put together again are the file. The fifteen,
+by ARSO's id:
+
+    south of 46.3 N (the southern box, 9.4 to 17.2 E, 43.5 to 46.3 N):
+      KRVAVEC_, RATIT-VEC_, VOGEL_, SLAVNIK_ (mountains, with wind),
+      NOVA-GOR_BILJE_ (wind and pressure), CELJE_MEDLOG_ (a main station,
+      half-hourly), KOPER_LUKA_ (at -2 m), TRZAS-ZAL_ (a buoy in the Gulf of
+      Trieste, with a gust and a direction of 0 and no mean),
+      BABNO-POL_ (no anemometer)
+    north of 46.3 N (the first region's box, 9.4 to 17.2 E, 46.3 to 48.5 N):
+      KANIN_, KREDA-ICA_, ROGLA_, URSLJ-GOR_ (mountains, with wind),
+      RATECE_, GORICKO_KRAJI-PAR_ (main stations whose wind was empty,
+      with state 2)
+
+The whole file had 103 stations, all inside the Alps' box (5.0 to 17.2 E,
+43.5 to 48.5 N): 68 in the southern box and 35 in the first region's. 56
+had a mean wind (40 south, 16 north), one more a gust only; 102 a
+temperature, 20 a pressure at the station.
+
+The folder evening/ holds three answers of ARSO's archive of measurements
+(https://meteo.arso.gov.si/met/sl/archive/), whole and unchanged, asked at
+about 08:25 UTC:
+
+    evening/ID.xml   GET /webmet/archive/data.xml?lang=si&vars=12,2,4,21,23,24
+                         &group=halfhourlyData0&type=halfhourly&id=ID
+                         &d1=2026-11-18&d2=2026-11-18
+
+for the stations 1820 (Kredarica), 1848 (Rogla) and 2845 (Uršlja gora):
+their values of every ten minutes of 18 November 2026. The parameters are
+12 (mean pressure, hPa), 2 (temperature at the term, °C), 4 (humidity at
+the term, %), 21 (mean wind speed, m/s), 23 (mean direction, °) and 24
+(strongest wind, m/s), as the archive's own settings
+(/webmet/archive/settings.xml?lang=si) name them. A row's key counts
+minutes, and it counts them on the clock in Slovenia: the archive's values
+for 13:00 on 2026-11-20 are those that ARSO's two-day history of
+Kredarica (/uploads/probase/www/observ/surface/text/sl/recent/
+observationAms_KREDA-ICA_history.xml) gives for 12:00 UTC. The archive
+rounds to one decimal (the pressure to whole hPa), and its mean direction
+is a vector mean that differed from the history's by up to 11 degrees in
+that comparison. The adapter does not ask the archive. These answers are
+here for the next file.
+
+observationAms_evening.xml is NOT an answer of ARSO as it gave it. It is a
+sample for the server's development mode, whose clock stands at 19:05 UTC
+on 2026-11-18, four days before this source was recorded; the latest file
+holds the newest values only, and the two-day history did not reach back
+that far. It is the head of observationAms_si_latest.xml and the
+<metData> of KREDA-ICA_, ROGLA_ and URSLJ-GOR_ from it, with in each:
+
+    the times set to the ten minutes to 18:50 UTC on 2026-11-18 (valid,
+    valid_UTC, validStart, validEnd, tsValid_issued and its variants, the
+    day's name "Sreda"), tsUpdated, sunrise and sunset emptied
+    t, rh, ffavg_val (and ff_val), ddavg_val (and dd_val), ffmax_val set
+    from the archive's row for 19:50 local time, that is 18:50 UTC; p from
+    it only at Kredarica, the one of the three whose latest file has a
+    pressure; their states set to 0
+    every other value and state emptied, as the file writes an empty
+    value (<x/>), and the webcams removed
+
+So every value in the sample is one ARSO gave, for the station and the
+moment the sample says. A test of this crate holds the sample against the
+archive.
+
+observationAms_empty.xml is the head of the recorded file with no station,
+written by hand: ARSO was not seen to answer so.
+
+observationAms_damaged.xml is not ARSO's data: it is the evening sample
+with things changed and stations added by hand, to test how the adapter
+reports what it cannot read. The test that uses it says what was changed.
+
+To record them again: fetch the file, cut it down as above (the counts the
+tests pin are of the fifteen stations and of that moment), set the moment
+in tests/pipeline.rs, run the tests with VENTI_UPDATE_GOLDEN=1 and review
+what changed. The evening sample stays as it is for as long as the
+development mode's clock does.
+
+A value in these files is what an instrument reported. It is no statement
+that a place can be flown.

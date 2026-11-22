@@ -23,15 +23,30 @@ west = 5.0
 north = 48.5
 east = 9.4
 
-# Stations of wind and weather. Two sources reach into the box today: DWD's
-# stations of the Black Forest and of Lake Constance, 30 of them, and the
+# Stations of wind and weather: DWD's stations of the Black Forest and of
+# Lake Constance, 30 of them; MeteoSwiss's, 134 of them, and the SLF's on
+# the ridges and summits of Switzerland, 162 (both counted on 2026-11-22);
+# the pilots' own sensors of Pioupiou, most of them in France; and the
 # airfields' reports, 27 of them, which are the wind at an airfield and not
-# at a take-off. The weather services of Switzerland, France and the
-# Italian regions have no adapter yet: docs/data-sources.md, "Catalogue:
-# the rest of the Alps", lists them in the order to write them.
+# at a take-off. The weather services of France and the Italian regions
+# have no adapter yet: docs/data-sources.md, "Catalogue: the rest of the
+# Alps", lists them in the order to write them. The order of the priority
+# is the first region's, and so is Pioupiou's condition.
 [observations]
-sources = ["dwd-10min", "awc-metar"]
-priority = ["dwd-10min", "awc-metar"]
+sources = [
+    "dwd-10min",
+    "meteoswiss-smn",
+    "slf-imis",
+    "pioupiou",
+    "awc-metar",
+]
+priority = [
+    "dwd-10min",
+    "meteoswiss-smn",
+    "slf-imis",
+    "pioupiou",
+    "awc-metar",
+]
 
 # No [airspace] yet. openAIP's adapter fetches the countries its manifest
 # names, and France is not among them: a layer over this box would be

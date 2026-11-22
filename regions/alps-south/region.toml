@@ -24,14 +24,34 @@ north = 46.3
 east = 17.2
 
 # Stations of wind and weather. South Tyrol's network has one station south
-# of the first region's box, Salurn at 46.24° N; the airfields' reports are
-# 24 here, the wind at an airfield and not at a take-off. The weather
-# services of Lombardy, Trentino, Veneto, Friuli and Slovenia have no
-# adapter yet: docs/data-sources.md, "Catalogue: the rest of the Alps",
-# lists them in the order to write them.
+# of the first region's box, Salurn at 46.24° N, and the SLF one; the
+# pilots' own sensors of Pioupiou are few here; the airfields' reports are
+# 24, the wind at an airfield and not at a take-off. The order of the
+# priority is the first region's, and so is Pioupiou's condition.
+# Meteotrentino's stations (46 with an anemometer) and ARSO's of Slovenia
+# (103) are collected since 2026-11-22; both reach into the first region's
+# box and are named there too. Lombardy's stations have an adapter
+# (`arpa-lombardia`) and are named in no pack: their values reach the
+# region's portal two to six hours late, which is no live wind. The weather
+# services of Veneto and Friuli have no adapter yet: docs/data-sources.md,
+# "Catalogue: the rest of the Alps", lists them in the order to write them.
 [observations]
-sources = ["suedtirol-meteo", "awc-metar"]
-priority = ["suedtirol-meteo", "awc-metar"]
+sources = [
+    "suedtirol-meteo",
+    "meteotrentino",
+    "arso-ams",
+    "slf-imis",
+    "pioupiou",
+    "awc-metar",
+]
+priority = [
+    "suedtirol-meteo",
+    "meteotrentino",
+    "arso-ams",
+    "slf-imis",
+    "pioupiou",
+    "awc-metar",
+]
 
 # No [airspace] yet: openAIP's adapter fetches the countries its manifest
 # names, and Bosnia and Herzegovina, which this box reaches into, is not

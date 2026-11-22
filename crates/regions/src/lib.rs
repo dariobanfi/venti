@@ -117,7 +117,11 @@ pub enum RegionError {
         source_id: SourceId,
     },
     /// The region names a source the build does not contain.
-    #[error("region {region}: no adapter is registered for source {source_id}")]
+    #[error(
+        "region {region} names the source {source_id}, and this build has no adapter of it \
+         for that kind of data: take the name out of the region pack, or check its spelling \
+         against the identifiers of the manifests (docs/adding-a-source.md)"
+    )]
     UnknownSource {
         /// The region.
         region: String,

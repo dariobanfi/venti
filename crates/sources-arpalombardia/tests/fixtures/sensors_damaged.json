@@ -1,0 +1,14 @@
+[{"idsensore":"16421","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"14","nomestazione":"Valfurva S. Caterina","quota":"1730","lat":"46.41214997","lng":"10.49466533"}
+,{"idsensore":"16422","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"14","nomestazione":"Valfurva S. Caterina","quota":"1730","lat":"46.41214997","lng":"10.49466533"}
+,{"idsensore":"22661","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1090","nomestazione":"Valdisotto Bormio 2000","lat":"46.43833000","lng":"10.40030000"}
+,{"idsensore":"22662","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1090","nomestazione":"Valdisotto Bormio 2000","lat":"46.43833000","lng":"10.40030000"}
+,{"idsensore":"22666","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1090","nomestazione":"Valdisotto Bormio 2000","lat":"46.43833000","lng":"10.40030000"}
+,{"idsensore":"22667","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1090","nomestazione":"Valdisotto Bormio 2000","lat":"46.43833000","lng":"10.40030000"}
+,{"idsensore":"22678","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"22679","tipologia":"Umidità Relativa","unit_dimisura":"%","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"22683","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"22684","tipologia":"Direzione Vento","unit_dimisura":"°","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"30","tipologia":"Temperatura","unit_dimisura":"°C","idstazione":"14","nomestazione":"Valfurva S. Caterina","quota":"1730","lat":"46.41214997","lng":"10.49466533"}
+,{"idsensore":"99001","tipologia":"Velocità Vento","unit_dimisura":"m/s","idstazione":"9901","nomestazione":"Senza posizione","quota":"1500","lat":"nord","lng":"10.2"}
+,{"idsensore":"99002","tipologia":"Velocità Vento","unit_dimisura":"km/h","idstazione":"1091","nomestazione":"Livigno Mottolino","quota":"1869","lat":"46.53567919","lng":"10.14345828"}
+,{"idsensore":"99003","tipologia":"Temperatura","unit_dimisura":"°C","nomestazione":"Senza stazione","quota":"900","lat":"46.4","lng":"10.3"}]

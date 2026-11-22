@@ -111,6 +111,15 @@ impl Dwd10Min {
     }
 }
 
+/// The network as a build takes it in: the adapter, and the sample that
+/// answers for it in the server's development mode. The server's list of
+/// adapters has one line for this function and names nothing else of the
+/// crate.
+pub fn network() -> venti_sources::StationNetwork {
+    venti_sources::StationNetwork::new(Dwd10Min::new())
+        .with_sample(fixtures::recorded_at(), fixtures::recorded())
+}
+
 impl Default for Dwd10Min {
     fn default() -> Self {
         Self::new()

@@ -1,0 +1,78 @@
+The files in this folder are data of the Federal Office of Meteorology and
+Climatology MeteoSwiss, measured by the automatic weather stations of its
+network SwissMetNet and published as Open Data under Creative Commons
+CC BY 4.0, https://creativecommons.org/licenses/by/4.0/, by MeteoSwiss's
+terms of use, https://opendatadocs.meteoswiss.ch/general/terms-of-use.
+Source: MeteoSwiss. The credit is no statement that MeteoSwiss supports
+this project or its use of the data. They are not covered by the licence
+of the code around them.
+
+They were recorded on 2026-11-22 from https://data.geo.admin.ch/, without
+a key, with curl, single GET requests.
+
+VQHA80.csv and ogd-smn_meta_stations.csv are the whole answers to the
+adapter's two requests, unchanged, both asked at 08:09:13 UTC:
+
+    VQHA80.csv                 GET /ch.meteoschweiz.messwerte-aktuell/VQHA80.csv
+                               16,210 bytes: 159 rows, the current values of
+                               every station; Last-Modified 08:00:10 UTC,
+                               values of 07:50 UTC
+    ogd-smn_meta_stations.csv  GET /ch.meteoschweiz.ogd-smn/ogd-smn_meta_stations.csv
+                               151,779 bytes: 158 stations; Last-Modified
+                               04:19:30 UTC; ISO 8859-1, lines end in CR LF
+
+VQHA80.csv has a row for MRP, which the station list does not hold, with
+no value in it.
+
+ogd-smn_meta_parameters.csv is MeteoSwiss's description of its parameters,
+GET /ch.meteoschweiz.ogd-smn/ogd-smn_meta_parameters.csv, asked right after
+the two (50,180 bytes), cut down to its header and the six rows of the
+parameters the adapter reads, each byte for byte as MeteoSwiss wrote it
+(ISO 8859-1, CR LF). A test holds the adapter's units against it.
+
+The folder evening/ holds three station files of ten-minute values, asked
+at 08:11:22 and 08:11:23 UTC:
+
+    evening/ogd-smn_STATION_t_recent.csv
+        GET /ch.meteoschweiz.ogd-smn/STATION/ogd-smn_STATION_t_recent.csv
+
+for the stations dav (Davos), sam (Samedan) and wfj (Weissfluhjoch). Each
+answer was the station's values of 2026 up to the day before, 5.6 to 6.5
+MB; kept here is its header line and its twelve rows from 18:00 to 19:50
+UTC on 2026-11-18, byte for byte. The adapter does not ask for these
+files. They are here for the next two files.
+
+stations_evening.csv and VQHA80_evening.csv are NOT answers of MeteoSwiss
+as it gave them. They are a sample for the server's development mode, whose
+clock stands at 19:05 UTC on 2026-11-18, four days before this source was
+recorded; the file of current values holds the newest values only.
+
+    stations_evening.csv   ogd-smn_meta_stations.csv cut down to its
+                           header and the rows of DAV, SAM and WFJ, byte
+                           for byte
+    VQHA80_evening.csv     the header of VQHA80.csv and a row for each of
+                           the three stations at 202611181850, with each
+                           column's value from that station's row of
+                           18.11.2026 18:50 in evening/, written with two
+                           decimals as VQHA80.csv writes them, and "-"
+                           where the station's file has no value or no
+                           such column (the columns of the towers)
+
+So every value in the sample is one MeteoSwiss gave, for the station, the
+parameter and the moment the sample says: 18:50 UTC on 2026-11-18, fifteen
+minutes before the development mode's clock. A test of this crate holds
+every value of the sample against the station's file.
+
+stations_damaged.csv and VQHA80_damaged.csv are not MeteoSwiss's data: they
+are the two evening files with things changed by hand, to test how the
+adapter reports what it cannot read. The test that uses them says what was
+changed.
+
+To record them again: fetch the two files of a run in one go and replace
+them; set the moment in tests/pipeline.rs; run the tests with
+VENTI_UPDATE_GOLDEN=1 and review what changed. The counts the tests pin
+(stations, stations with a wind, the 24 east of 9.4° E) are of that moment
+and may differ.
+
+A value in these files is what an instrument reported. It is no statement
+that a place can be flown.

@@ -1,0 +1,117 @@
+The files in this folder hold data of the Autonomous Province of Trento,
+measured by the automatic weather stations of its weather service,
+Meteotrentino, and published on the province's open-data portal under
+Creative Commons Attribution 4.0, https://creativecommons.org/licenses/by/4.0/:
+
+    https://dati.trentino.it/dataset/dati-recenti-delle-stazioni-meteo
+    https://dati.trentino.it/dataset/anagrafica-stazioni-meteo-stazioni-automatiche
+
+    Dati: Provincia Autonoma di Trento - Meteotrentino, CC BY 4.0
+
+The province says the values have not been validated and may hold errors.
+They are not covered by the licence of the code around them.
+
+They were recorded on 2026-11-22 from https://dati.meteotrentino.it/service.asmx,
+without a key, with curl, one GET each. The answers hold no personal data
+and no key. They are XML with CRLF line ends, encoded in UTF-8; every
+file below keeps that.
+
+    listaStazioni.xml   GET /listaStazioni          73,687 bytes, whole and
+                        asked at 08:20:15 UTC       unchanged: 208 stations,
+                                                    113 of them in service
+
+    T0129.xml, T0193.xml, T0368.xml, T0406.xml, T0419.xml, T0420.xml
+                        GET /ultimiDatiStazione?codice=CODE
+                        asked between 08:21:47 and 08:22:59 UTC
+                        CUT from answers of 89,355, 90,331, 85,651, 90,424,
+                        58,484 and 75,223 bytes
+
+A station's answer holds the station's values since midnight (UTC+1) at
+the start of the day before, a row every quarter of an hour in each of
+five sections. The cut keeps, in each section, the rows whose <data> is
+2026-11-22T07:00:00 or later, every one of them byte for byte with its
+indentation and line ends, and everything outside the rows as it was; a
+section left without a row is written <name />, as the service writes an
+empty section. So each file is the answer as it would be if the service
+had kept its values from 06:00 UTC only. The six are the wind stations of
+the southern box chosen for what they show: Paganella (T0406), Monte
+Bondone (T0368), Torbole on Lake Garda (T0193) and Trento Laste (T0129),
+with quarter hours that have a temperature and no wind; Tonadico (T0419),
+whose answer has no humidity section; and Mezzano (T0420), whose
+anemometer gave nothing after 03:45 (UTC+1), so that its cut answer has no
+wind at all.
+
+    listaStazioni_cut.xml is listaStazioni.xml cut down to nine stations:
+    the head, the <anagrafica> entries of T0129, T0154, T0193, T0368,
+    T0401, T0403, T0406, T0419 and T0420, each byte for byte and in the
+    list's order, and the closing tag. T0154 is out of service since 2005,
+    T0401 (Arco) has no anemometer, and T0403 (Ciampac) stands north of the
+    southern box. A script checked that the whole list is its head, its
+    entries and its closing tag, and that nothing else was changed.
+
+    empty.xml           GET /ultimiDatiStazione?codice=T0436
+                        asked at 08:22 UTC, 394 bytes, whole and unchanged:
+                        the answer for Rifugio Alimonta, a station in
+                        service that sent no values. The service answered
+                        the same for a code it does not have, T9999.
+
+On that day, at 08:22 UTC, the 113 stations in service answered with
+5,855,161 bytes in all. 46 had wind in their answer: their answers were
+3,810,764 bytes, 28 to 90 kB each. 7 answered with no values at all. The
+46 are the adapter's list of wind stations.
+
+The folder evening/ holds three answers of the service's other answer for
+one station, asked at 08:25:43 to 08:25:47 UTC:
+
+    evening/CODE.json   GET /datiRealtimeUnaStazione?stazione=CODE&h=90
+
+for T0076 (Rabbi, San Bernardo), T0403 (Canazei, Ciampac) and T0404
+(Marmolada, Sas del Mul): JSON, a row every five minutes from 15:30 (UTC+1)
+on 2026-11-18, 470,082, 476,742 and 471,707 bytes. Each is CUT to the 13
+rows from 2026-11-18T19:00:00+01 to 2026-11-18T20:00:00+01: the head, the
+13 features byte for byte as the service wrote them, joined as in the
+answer, and the closing "]}"; a script checked that every feature of the
+whole answer is one the cut was taken from, and that the cut reads as
+JSON. The adapter does not ask this answer: its licence is not stated
+(see the manifest). These files are here for the next four.
+
+listaStazioni_evening.xml is listaStazioni.xml cut down, as above, to the
+entries of T0403, T0404 and T0076.
+
+T0076_evening.xml, T0403_evening.xml and T0404_evening.xml are NOT
+answers of the service as it gave them. They are a sample for the server's
+development mode, whose clock stands at 19:05 UTC on 2026-11-18, four
+days before this source was recorded, and the service's answer for a
+station reaches back to the day before only. Each is written in the form
+of the answer of 2026-11-22, with the head of empty.xml, <data> set to
+2026/11/18, <tmin> and <tmax> nil and <rain> 0 as in empty.xml, empty
+sections of rain and radiation, and in the sections of temperature, wind
+and humidity a row for each quarter hour from 19:00 to 19:30 (UTC+1) at
+which the row of evening/CODE.json of the same time has the value: wind
+only at 19:00 and 19:30, the times at which the service's two answers were
+seen to agree on the wind (on 2026-11-22, for Trento Laste, at all 63 full
+and half hours; at a quarter past or to they did not). The sample ends at
+19:30 and not at 19:45, of which evening/ has the temperature and the
+humidity too: the wind of 19:45 is not known, and the development mode
+shows a station's newest reading, which would then be one without a wind
+for all three (the rows of 19:45 were in the sample until 2026-11-22, and
+T0404_damaged.xml, made from it then, still has them). A value is written
+as in evening/CODE.json, without a trailing ".0", as the service writes
+its XML. So every value in the sample is one the service gave, for the
+station and the moment the sample says. What the answer would have been
+at 19:05 UTC is not known. A test of this crate holds the sample against
+evening/.
+
+listaStazioni_damaged.xml, T0404_damaged.xml and unavailable.html are not
+the service's data: they are the evening sample with things changed by
+hand, and a page written by hand, to test how the adapter reports what it
+cannot read. The test that uses them says what was changed.
+
+To record them again: fetch the list and the answers, cut them as above
+(the counts the tests pin are of these stations and of that moment), set
+the moment in tests/pipeline.rs, run the tests with VENTI_UPDATE_GOLDEN=1
+and review what changed. The evening sample stays as it is for as long as
+the development mode's clock does.
+
+A value in these files is what an instrument reported. It is no statement
+that a place can be flown.

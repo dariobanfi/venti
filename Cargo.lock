@@ -2760,12 +2760,17 @@ version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
 dependencies = [
+ "async-compression",
  "bitflags",
  "bytes",
+ "futures-core",
  "futures-util",
  "http",
  "http-body",
+ "http-body-util",
  "pin-project-lite",
+ "tokio",
+ "tokio-util",
  "tower",
  "tower-layer",
  "tower-service",
@@ -3275,6 +3280,8 @@ dependencies = [
  "venti-mcp",
  "venti-regions",
  "venti-sources",
+ "venti-sources-arpalombardia",
+ "venti-sources-arso",
  "venti-sources-awc",
  "venti-sources-basemapat",
  "venti-sources-dwd",
@@ -3282,10 +3289,14 @@ dependencies = [
  "venti-sources-geosphere",
  "venti-sources-geosphere-radar",
  "venti-sources-ign",
+ "venti-sources-meteoswiss",
+ "venti-sources-meteotrentino",
  "venti-sources-ogn",
  "venti-sources-openaip",
  "venti-sources-openmeteo",
  "venti-sources-osm",
+ "venti-sources-pioupiou",
+ "venti-sources-slf",
  "venti-sources-suedtirol",
  "venti-store",
  "venti-tools",
@@ -3303,6 +3314,26 @@ dependencies = [
  "thiserror",
  "toml",
  "venti-domain",
+]
+
+[[package]]
+name = "venti-sources-arpalombardia"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-arso"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "venti-domain",
+ "venti-sources",
 ]
 
 [[package]]
@@ -3384,6 +3415,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "venti-sources-meteoswiss"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-meteotrentino"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
 name = "venti-sources-ogn"
 version = "0.1.0"
 dependencies = [
@@ -3419,6 +3471,28 @@ dependencies = [
 
 [[package]]
 name = "venti-sources-osm"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-pioupiou"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-slf"
 version = "0.1.0"
 dependencies = [
  "chrono",

@@ -1,26 +1,55 @@
 //! Every adapter this build contains.
 //!
 //! This module is the only place in the workspace that names a provider
-//! crate. Adding a provider means adding its crate and two lines here.
+//! crate. A station network is its crate and one line in
+//! [`station_networks`]: the registry and the development mode's recorded
+//! answers are made from that list, and no test here counts the adapters.
+//! `docs/adding-a-source.md` is the guide, for the other kinds of sources
+//! as well.
 
 use std::sync::Arc;
 
 use venti_api_types::v1::{THERMAL_GRID_DEG, ThermalGrid};
 use venti_domain::{GeoPoint, ModelId, Timestamp};
 use venti_sources::testing::FixtureFetch;
-use venti_sources::{ForecastSource, ImagerySource, LiveSource, RadarSource, Registry};
-use venti_sources_awc::AwcMetar;
+use venti_sources::{
+    ForecastSource, ImagerySource, LiveSource, RadarSource, Registry, StationNetwork,
+};
 use venti_sources_basemapat::BasemapAt;
-use venti_sources_dwd::Dwd10Min;
 use venti_sources_dwd_radar::DwdRadarRy;
-use venti_sources_geosphere::Tawes10Min;
 use venti_sources_geosphere_radar::GeosphereIncaRr;
 use venti_sources_ign::Ign;
 use venti_sources_ogn::Ogn;
 use venti_sources_openaip::OpenAip;
 use venti_sources_openmeteo::OpenMeteo;
 use venti_sources_osm::{OsmCables, OsmFreeFlying};
-use venti_sources_suedtirol::SuedtirolMeteo;
+
+/// Every station network this build contains: one line a crate.
+///
+/// A network in this list is in the registry under the identifier of its
+/// manifest, and a region pack that names it has it collected. One that no
+/// pack names costs nothing. The order is of no account: which station is
+/// handed out where two networks measure at one place is the packs'
+/// `priority`.
+///
+/// To add a network: its crate (`tools/new-source` writes the skeleton),
+/// its two lines in the two `Cargo.toml`, and its line here. To take one
+/// out of a server: leave it out of the region packs. To take it out of the
+/// build: this line and the crate.
+pub fn station_networks() -> Vec<StationNetwork> {
+    vec![
+        venti_sources_dwd::network(),
+        venti_sources_geosphere::network(),
+        venti_sources_suedtirol::network(),
+        venti_sources_meteotrentino::network(),
+        venti_sources_arpalombardia::network(),
+        venti_sources_meteoswiss::network(),
+        venti_sources_arso::network(),
+        venti_sources_slf::network(),
+        venti_sources_pioupiou::network(),
+        venti_sources_awc::network(),
+    ]
+}
 
 /// What whoever runs the server tells it about the services behind some of
 /// its sources.
@@ -123,18 +152,11 @@ pub fn registry() -> Registry {
 /// not list its kind; the tests of this module rule both out.
 pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
     let mut registry = Registry::new();
-    registry
-        .register_observations(Box::new(Dwd10Min::new()))
-        .expect("dwd-10min registers once");
-    registry
-        .register_observations(Box::new(Tawes10Min::new()))
-        .expect("geosphere-tawes registers once");
-    registry
-        .register_observations(Box::new(SuedtirolMeteo::new()))
-        .expect("suedtirol-meteo registers once");
-    registry
-        .register_observations(Box::new(AwcMetar::new()))
-        .expect("awc-metar registers once");
+    for network in station_networks() {
+        registry
+            .register_observations(network.adapter)
+            .unwrap_or_else(|problem| panic!("a station network: {problem}"));
+    }
     registry
         .register_airspace(Box::new(OpenAip::new()))
         .expect("openaip registers once");
@@ -235,20 +257,24 @@ pub fn radar_recorded_from(source: &venti_domain::SourceId) -> Timestamp {
 /// from them instead of the network. The development mode runs on these,
 /// with the adapters made for [`Providers::recorded`].
 ///
-/// South Tyrol's stations and the airfield reports joined three days after
-/// the first recordings. What answers for them is a sample of the evening
-/// the clock stands at, three stations each, made from what their services
-/// gave for that evening when asked later: see the `fixtures` of the two
-/// crates. The airfield reports are asked for by area, and their sample
-/// answers for the first region's box as it is; should the box change, the
-/// development mode says at its start that the reports no longer give a
-/// healthy run.
+/// The station networks answer with the samples of [`station_networks`].
+/// Those that joined after the first recordings (South Tyrol's stations and
+/// the airfield reports three days later, MeteoSwiss, the SLF, Pioupiou,
+/// Trentino's and Slovenia's four) have a sample of the evening the clock
+/// stands at, three stations each, made from what their services gave for
+/// that evening when asked later: see the `fixtures` of their crates. A
+/// network with a sample that the first region does not name (Lombardy's)
+/// is asked by nobody. The airfield reports are
+/// asked for by area, and their sample answers for the first region's box
+/// as it is; should the box change, the development mode says at its start
+/// that the reports no longer give a healthy run.
 pub fn recorded_payloads() -> FixtureFetch {
-    FixtureFetch::new()
-        .with_all(venti_sources_dwd::fixtures::recorded())
-        .with_all(venti_sources_geosphere::fixtures::recorded())
-        .with_all(venti_sources_suedtirol::fixtures::evening())
-        .with_all(venti_sources_awc::fixtures::evening())
+    station_networks()
+        .into_iter()
+        .filter_map(|network| network.sample)
+        .fold(FixtureFetch::new(), |fetch, sample| {
+            fetch.with_all(sample.answers)
+        })
         .with_all(venti_sources_openaip::fixtures::recorded())
         .with_all(venti_sources_osm::fixtures::recorded())
         .with_all(venti_sources_osm::fixtures::cables_recorded())
@@ -357,19 +383,19 @@ pub fn forecasts_recorded_at() -> Timestamp {
     venti_sources_openmeteo::fixtures::recorded_at()
 }
 
-/// The moment the development mode's clock stands at: the latest recording
-/// time of the first two sources of observations.
+/// The moment the development mode's clock stands at: 19:05 UTC on
+/// 2026-11-18, when the first two sources of observations were recorded.
 ///
 /// Wind is what ages by the minute, so the clock stays with the wind. The
 /// airspace files and the flying sites were recorded the day after; both
 /// change slowly, and the development mode serves them as fetched at this
-/// moment. The sources of observations that came later have samples made
-/// for this moment, and a test of this module holds them to it: an
-/// observation dated after the clock would be refused as one from the
+/// moment. The station networks that came later have samples made for this
+/// moment, and a test of this module holds every network's sample to it:
+/// an observation dated after the clock would be refused as one from the
 /// future, and to move the clock is to move what every app's tests are
 /// written against.
 pub fn recorded_at() -> Timestamp {
-    venti_sources_dwd::fixtures::recorded_at().max(venti_sources_geosphere::fixtures::recorded_at())
+    venti_sources_dwd::fixtures::recorded_at()
 }
 
 #[cfg(test)]
@@ -416,23 +442,148 @@ mod tests {
             }
         }
         // A server that was told nothing has no forecast source.
-        assert_eq!(registry.manifests().count(), 10);
+        assert!(
+            registry
+                .manifests()
+                .all(|manifest| !manifest.kinds.contains(&Kind::Forecasts))
+        );
         assert!(forecast_sources(&Providers::default()).unwrap().is_empty());
     }
 
     #[test]
-    fn the_samples_of_the_later_sources_are_for_the_moment_of_the_clock() {
-        assert_eq!(
-            venti_sources_suedtirol::fixtures::evening_at(),
-            recorded_at()
+    fn every_station_network_is_in_the_registry_under_its_own_name() {
+        let registry = registry();
+        let networks = station_networks();
+        for network in &networks {
+            let id = &network.adapter.manifest().id;
+            assert!(registry.observations(id).is_some(), "{id}");
+        }
+        // No two claim one name; `registry_for` would have panicked.
+        let names: std::collections::BTreeSet<_> = networks
+            .iter()
+            .map(|network| network.adapter.manifest().id.clone())
+            .collect();
+        assert_eq!(names.len(), networks.len());
+    }
+
+    #[test]
+    fn every_networks_sample_is_for_the_moment_of_the_clock() {
+        for network in station_networks() {
+            let id = network.adapter.manifest().id.clone();
+            if let Some(sample) = network.sample {
+                assert_eq!(sample.at, recorded_at(), "{id}");
+                assert!(!sample.answers.is_empty(), "{id}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_station_network_meets_the_contract_over_its_sample() {
+        let first = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../regions/alps-de-at/region.toml"
         );
-        assert_eq!(venti_sources_awc::fixtures::evening_at(), recorded_at());
+        let pack = RegionPack::from_toml(&std::fs::read_to_string(first).unwrap()).unwrap();
+        for network in station_networks() {
+            if let Some(sample) = &network.sample {
+                venti_sources::testing::check_station_adapter(
+                    network.adapter.as_ref(),
+                    &sample.answers,
+                    sample.at,
+                    pack.bounds,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn no_adapter_crate_opens_a_connection_a_file_or_a_clock() {
+        let crates = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let mut checked = 0;
+        for entry in std::fs::read_dir(crates).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if name.starts_with("sources-") {
+                venti_sources::testing::check_adapter_does_no_io(&path);
+                checked += 1;
+            }
+        }
+        assert!(checked > 0, "no adapter crates found");
+    }
+
+    #[test]
+    fn the_development_mode_has_a_sample_of_every_network_its_region_names() {
+        // The development mode runs the first region, and a network in it
+        // without recorded answers is a failed run at its start.
+        let first = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../regions/alps-de-at/region.toml"
+        );
+        let pack = RegionPack::from_toml(&std::fs::read_to_string(first).unwrap()).unwrap();
+        let sampled: Vec<_> = station_networks()
+            .into_iter()
+            .filter(|network| network.sample.is_some())
+            .map(|network| network.adapter.manifest().id.clone())
+            .collect();
+        for source in &pack.observations.sources {
+            assert!(
+                sampled.contains(source),
+                "{source} is in the first region and has no sample for the development mode"
+            );
+        }
+    }
+
+    #[test]
+    fn every_station_of_the_development_mode_has_a_wind_in_its_newest_reading() {
+        // The development mode shows each station's newest reading, and
+        // the apps' screens and the API's description are written against
+        // stations that have a wind there. A sample whose last rows are of
+        // a thermometer alone would put its stations on the map without
+        // one: cut it at the last time that has a wind.
+        let first = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../regions/alps-de-at/region.toml"
+        );
+        let pack = RegionPack::from_toml(&std::fs::read_to_string(first).unwrap()).unwrap();
+        let ctx = venti_sources::PlanCtx {
+            now: recorded_at(),
+            area: pack.bounds,
+        };
+        for network in station_networks() {
+            let id = network.adapter.manifest().id.clone();
+            let Some(sample) = network.sample else {
+                continue;
+            };
+            if !pack.observations.sources.contains(&id) {
+                continue;
+            }
+            let output = venti_sources::testing::block_on(venti_sources::run_observations(
+                network.adapter.as_ref(),
+                &FixtureFetch::new().with_all(sample.answers),
+                &venti_sources::testing::MemoryArchive::default(),
+                &ctx,
+                &venti_sources::RunOptions::default(),
+            ));
+            assert!(!output.stations.is_empty(), "{id}");
+            for station in &output.stations {
+                let newest = output
+                    .observations
+                    .iter()
+                    .filter(|observation| observation.station == station.id)
+                    .max_by_key(|observation| observation.time);
+                assert!(
+                    newest.is_some_and(|observation| observation.wind_speed_ms.is_some()),
+                    "{}: the newest reading of the sample has no wind",
+                    station.id
+                );
+            }
+        }
     }
 
     #[test]
     fn forecasts_are_there_only_when_the_server_is_told_where_from() {
         let told = registry_for(&Providers::recorded()).unwrap();
-        assert_eq!(told.manifests().count(), 11);
+        assert_eq!(told.manifests().count(), registry().manifests().count() + 1);
         let open_meteo = venti_domain::SourceId::new("open-meteo").unwrap();
         let manifest = told.manifest(&open_meteo, Kind::Forecasts).unwrap();
         assert_eq!(manifest.kinds, [Kind::Forecasts]);

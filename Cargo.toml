@@ -29,6 +29,12 @@ venti-sources-ign = { path = "crates/sources-ign" }
 venti-sources-openmeteo = { path = "crates/sources-openmeteo" }
 venti-sources-suedtirol = { path = "crates/sources-suedtirol" }
 venti-sources-awc = { path = "crates/sources-awc" }
+venti-sources-meteoswiss = { path = "crates/sources-meteoswiss" }
+venti-sources-pioupiou = { path = "crates/sources-pioupiou" }
+venti-sources-slf = { path = "crates/sources-slf" }
+venti-sources-arso = { path = "crates/sources-arso" }
+venti-sources-meteotrentino = { path = "crates/sources-meteotrentino" }
+venti-sources-arpalombardia = { path = "crates/sources-arpalombardia" }
 venti-regions = { path = "crates/regions" }
 venti-flight = { path = "crates/flight" }
 venti-sensors = { path = "crates/sensors" }
@@ -56,7 +62,9 @@ ipnet = "2.12.2"
 p256 = { version = "0.14.0", default-features = false, features = ["ecdh", "ecdsa", "std"] }
 js-sys = "=0.3.106"
 png = "0.18.1"
-reqwest = "0.13.5"
+# gzip: the fetcher asks for compressed answers and unpacks them; the
+# manifest's size bound counts the unpacked bytes.
+reqwest = { version = "0.13.5", features = ["gzip"] }
 # Sign in with Google: checking the RS256 signature of Google's ID tokens.
 # A release candidate: 0.10 is the first of sha2's generation, and the
 # registry mirror has no final release yet (2026-11-21).

@@ -1,0 +1,5544 @@
+{
+  "stations": [
+    {
+      "id": "slf-imis:ADE2",
+      "name": "Engstligenalp",
+      "position": {
+        "lat": 46.4343654484,
+        "lon": 7.5826331479
+      },
+      "elevation_m": 2304.0
+    },
+    {
+      "id": "slf-imis:ADE3",
+      "name": "Lavey-Sattligrat",
+      "position": {
+        "lat": 46.4755274076,
+        "lon": 7.4901379524
+      },
+      "elevation_m": 2355.0
+    },
+    {
+      "id": "slf-imis:ALB2",
+      "name": "Teststation Albula",
+      "position": {
+        "lat": 46.5809452447,
+        "lon": 9.8362238704
+      },
+      "elevation_m": 2322.0
+    },
+    {
+      "id": "slf-imis:ALI1",
+      "name": "Vanil des Artses",
+      "position": {
+        "lat": 46.4822477344,
+        "lon": 6.9872816394
+      },
+      "elevation_m": 1989.0
+    },
+    {
+      "id": "slf-imis:ALI2",
+      "name": "Chenau",
+      "position": {
+        "lat": 46.4886315485,
+        "lon": 6.9932975733
+      },
+      "elevation_m": 1708.0
+    },
+    {
+      "id": "slf-imis:AMD1",
+      "name": "Mattstock",
+      "position": {
+        "lat": 47.1696906605,
+        "lon": 9.1355924024
+      },
+      "elevation_m": 1932.0
+    },
+    {
+      "id": "slf-imis:AMD2",
+      "name": "Bärenfall",
+      "position": {
+        "lat": 47.1708370848,
+        "lon": 9.1468825807
+      },
+      "elevation_m": 1610.0
+    },
+    {
+      "id": "slf-imis:ANV1",
+      "name": "Corne de Sorebois",
+      "position": {
+        "lat": 46.1507642468,
+        "lon": 7.5866645685
+      },
+      "elevation_m": 2895.0
+    },
+    {
+      "id": "slf-imis:ANV2",
+      "name": "Orzival",
+      "position": {
+        "lat": 46.1882770501,
+        "lon": 7.5353719326
+      },
+      "elevation_m": 2640.0
+    },
+    {
+      "id": "slf-imis:ANV3",
+      "name": "Tracuit",
+      "position": {
+        "lat": 46.121164226,
+        "lon": 7.6564012963
+      },
+      "elevation_m": 2589.0
+    },
+    {
+      "id": "slf-imis:ARO1",
+      "name": "La Cassorte",
+      "position": {
+        "lat": 46.0353666322,
+        "lon": 7.4352901353
+      },
+      "elevation_m": 3300.0
+    },
+    {
+      "id": "slf-imis:ARO2",
+      "name": "Les Fontanesses",
+      "position": {
+        "lat": 46.0287818566,
+        "lon": 7.4458545197
+      },
+      "elevation_m": 2847.0
+    },
+    {
+      "id": "slf-imis:ARO3",
+      "name": "Bréona",
+      "position": {
+        "lat": 46.0874200118,
+        "lon": 7.5620595173
+      },
+      "elevation_m": 2602.0
+    },
+    {
+      "id": "slf-imis:ATT2",
+      "name": "Lac des Vaux",
+      "position": {
+        "lat": 46.1052869814,
+        "lon": 7.2699181277
+      },
+      "elevation_m": 2550.0
+    },
+    {
+      "id": "slf-imis:BED1",
+      "name": "Lucendro",
+      "position": {
+        "lat": 46.5388902709,
+        "lon": 8.5194658263
+      },
+      "elevation_m": 2963.0
+    },
+    {
+      "id": "slf-imis:BED3",
+      "name": "Cassinello",
+      "position": {
+        "lat": 46.4911587325,
+        "lon": 8.5219136101
+      },
+      "elevation_m": 2101.0
+    },
+    {
+      "id": "slf-imis:BED4",
+      "name": "Sabbioni",
+      "position": {
+        "lat": 46.5256303769,
+        "lon": 8.496417664
+      },
+      "elevation_m": 2305.0
+    },
+    {
+      "id": "slf-imis:BEL2",
+      "name": "Belalp",
+      "position": {
+        "lat": 46.3948462315,
+        "lon": 7.9741748172
+      },
+      "elevation_m": 2554.0
+    },
+    {
+      "id": "slf-imis:BER1",
+      "name": "Lagalb",
+      "position": {
+        "lat": 46.4314809644,
+        "lon": 10.0236433016
+      },
+      "elevation_m": 2956.0
+    },
+    {
+      "id": "slf-imis:BER2",
+      "name": "Motta Bianca",
+      "position": {
+        "lat": 46.4205714525,
+        "lon": 10.0292011292
+      },
+      "elevation_m": 2447.0
+    },
+    {
+      "id": "slf-imis:BER3",
+      "name": "Puoz Bass",
+      "position": {
+        "lat": 46.4409149517,
+        "lon": 9.9158896865
+      },
+      "elevation_m": 2625.0
+    },
+    {
+      "id": "slf-imis:BEV1",
+      "name": "Cho d'Valetta",
+      "position": {
+        "lat": 46.548854462,
+        "lon": 9.853533826
+      },
+      "elevation_m": 2490.0
+    },
+    {
+      "id": "slf-imis:BEV2",
+      "name": "Valetta",
+      "position": {
+        "lat": 46.5395638312,
+        "lon": 9.8370901184
+      },
+      "elevation_m": 2512.0
+    },
+    {
+      "id": "slf-imis:BIN4",
+      "name": "Schapleralpa",
+      "position": {
+        "lat": 46.3482268322,
+        "lon": 8.2089905908
+      },
+      "elevation_m": 2354.0
+    },
+    {
+      "id": "slf-imis:BOG1",
+      "name": "Martschenspitz",
+      "position": {
+        "lat": 46.3282673586,
+        "lon": 8.4600455064
+      },
+      "elevation_m": 2688.0
+    },
+    {
+      "id": "slf-imis:BOG2",
+      "name": "Hendar Furggu",
+      "position": {
+        "lat": 46.3338031644,
+        "lon": 8.4716178803
+      },
+      "elevation_m": 2299.0
+    },
+    {
+      "id": "slf-imis:BOG3",
+      "name": "Bombögn Wind",
+      "position": {
+        "lat": 46.3062217779,
+        "lon": 8.4909814117
+      },
+      "elevation_m": 2179.0
+    },
+    {
+      "id": "slf-imis:BOG4",
+      "name": "Bombögn Schnee",
+      "position": {
+        "lat": 46.307255,
+        "lon": 8.490197
+      },
+      "elevation_m": 2031.0
+    },
+    {
+      "id": "slf-imis:BOR2",
+      "name": "Bortelsee",
+      "position": {
+        "lat": 46.2905306886,
+        "lon": 8.1093018432
+      },
+      "elevation_m": 2517.0
+    },
+    {
+      "id": "slf-imis:BOV1",
+      "name": "Pointe de Boveire",
+      "position": {
+        "lat": 45.9945210176,
+        "lon": 7.2398808481
+      },
+      "elevation_m": 3211.0
+    },
+    {
+      "id": "slf-imis:BOV2",
+      "name": "Pointe de Toules",
+      "position": {
+        "lat": 45.9847921513,
+        "lon": 7.2372065768
+      },
+      "elevation_m": 2687.0
+    },
+    {
+      "id": "slf-imis:BRU2",
+      "name": "Ganda Plana",
+      "position": {
+        "lat": 46.26169,
+        "lon": 10.16702
+      },
+      "elevation_m": 2355.0
+    },
+    {
+      "id": "slf-imis:CAM1",
+      "name": "Tremorgio",
+      "position": {
+        "lat": 46.4826950381,
+        "lon": 8.7003813654
+      },
+      "elevation_m": 2668.0
+    },
+    {
+      "id": "slf-imis:CAM2",
+      "name": "Fontane",
+      "position": {
+        "lat": 46.4657248139,
+        "lon": 8.7174724568
+      },
+      "elevation_m": 2216.0
+    },
+    {
+      "id": "slf-imis:CAM3",
+      "name": "Solco",
+      "position": {
+        "lat": 46.4875754979,
+        "lon": 8.7088833554
+      },
+      "elevation_m": 2257.0
+    },
+    {
+      "id": "slf-imis:CHA1",
+      "name": "La Para",
+      "position": {
+        "lat": 46.3828977375,
+        "lon": 7.1524524668
+      },
+      "elevation_m": 2540.0
+    },
+    {
+      "id": "slf-imis:CHA2",
+      "name": "Pierres Fendues",
+      "position": {
+        "lat": 46.3769622463,
+        "lon": 7.1639864128
+      },
+      "elevation_m": 2218.0
+    },
+    {
+      "id": "slf-imis:CHA3",
+      "name": "Col de Bretaye",
+      "position": {
+        "lat": 46.325197,
+        "lon": 7.073748
+      },
+      "elevation_m": 1780.0
+    },
+    {
+      "id": "slf-imis:CMA2",
+      "name": "La Fuorcla",
+      "position": {
+        "lat": 46.8468715389,
+        "lon": 9.1834549366
+      },
+      "elevation_m": 2325.0
+    },
+    {
+      "id": "slf-imis:CON2",
+      "name": "Etang de Trente Pas",
+      "position": {
+        "lat": 46.2897391354,
+        "lon": 7.2742084386
+      },
+      "elevation_m": 2229.0
+    },
+    {
+      "id": "slf-imis:CSL2",
+      "name": "Col du Chasseral",
+      "position": {
+        "lat": 47.1163154815,
+        "lon": 7.0313366437
+      },
+      "elevation_m": 1455.0
+    },
+    {
+      "id": "slf-imis:DAV1",
+      "name": "Chrachenhorn",
+      "position": {
+        "lat": 46.688510327,
+        "lon": 9.8143102025
+      },
+      "elevation_m": 2890.0
+    },
+    {
+      "id": "slf-imis:DAV2",
+      "name": "Bärentälli",
+      "position": {
+        "lat": 46.6988884749,
+        "lon": 9.8194108372
+      },
+      "elevation_m": 2558.0
+    },
+    {
+      "id": "slf-imis:DAV3",
+      "name": "Hanengretji",
+      "position": {
+        "lat": 46.7888326157,
+        "lon": 9.7739900127
+      },
+      "elevation_m": 2455.0
+    },
+    {
+      "id": "slf-imis:DAV4",
+      "name": "Frauentobel",
+      "position": {
+        "lat": 46.7841942807,
+        "lon": 9.7847022813
+      },
+      "elevation_m": 2330.0
+    },
+    {
+      "id": "slf-imis:DAV6",
+      "name": "Luksch Alp",
+      "position": {
+        "lat": 46.7825936431,
+        "lon": 9.8912630265
+      },
+      "elevation_m": 2290.0
+    },
+    {
+      "id": "slf-imis:DIA2",
+      "name": "Tsanfleuron",
+      "position": {
+        "lat": 46.3154043248,
+        "lon": 7.241038066
+      },
+      "elevation_m": 2569.0
+    },
+    {
+      "id": "slf-imis:DTR1",
+      "name": "Costa",
+      "position": {
+        "lat": 46.5480673487,
+        "lon": 8.8660941256
+      },
+      "elevation_m": 2388.0
+    },
+    {
+      "id": "slf-imis:DTR2",
+      "name": "Preda",
+      "position": {
+        "lat": 46.5428657406,
+        "lon": 8.8690602761
+      },
+      "elevation_m": 2057.0
+    },
+    {
+      "id": "slf-imis:EGH2",
+      "name": "Flesch",
+      "position": {
+        "lat": 46.4168105095,
+        "lon": 8.0917150997
+      },
+      "elevation_m": 2500.0
+    },
+    {
+      "id": "slf-imis:ELA1",
+      "name": "Piz Salteras",
+      "position": {
+        "lat": 46.5815284657,
+        "lon": 9.7082343997
+      },
+      "elevation_m": 3110.0
+    },
+    {
+      "id": "slf-imis:ELA2",
+      "name": "Tschitta",
+      "position": {
+        "lat": 46.5914246875,
+        "lon": 9.714693958
+      },
+      "elevation_m": 2726.0
+    },
+    {
+      "id": "slf-imis:ELA3",
+      "name": "Muot",
+      "position": {
+        "lat": 46.6030343655,
+        "lon": 9.7697879551
+      },
+      "elevation_m": 2306.0
+    },
+    {
+      "id": "slf-imis:ELM1",
+      "name": "Mittler Blistock",
+      "position": {
+        "lat": 46.9314712074,
+        "lon": 9.1205691901
+      },
+      "elevation_m": 2447.0
+    },
+    {
+      "id": "slf-imis:ELM2",
+      "name": "Chüebodensee",
+      "position": {
+        "lat": 46.9356087844,
+        "lon": 9.1365005833
+      },
+      "elevation_m": 2058.0
+    },
+    {
+      "id": "slf-imis:ELM3",
+      "name": "Maadgrat",
+      "position": {
+        "lat": 46.894659,
+        "lon": 9.173698
+      },
+      "elevation_m": 2433.0
+    },
+    {
+      "id": "slf-imis:ELM4",
+      "name": "Chli Mittaghorn",
+      "position": {
+        "lat": 46.893052,
+        "lon": 9.164479
+      },
+      "elevation_m": 2378.0
+    },
+    {
+      "id": "slf-imis:ELS1",
+      "name": "Elsighorn",
+      "position": {
+        "lat": 46.5346885101,
+        "lon": 7.6396400099
+      },
+      "elevation_m": 2340.0
+    },
+    {
+      "id": "slf-imis:ELS2",
+      "name": "Elsige",
+      "position": {
+        "lat": 46.5296024413,
+        "lon": 7.6416414505
+      },
+      "elevation_m": 2143.0
+    },
+    {
+      "id": "slf-imis:ENG1",
+      "name": "Gulderstock",
+      "position": {
+        "lat": 46.993126583,
+        "lon": 9.2015829672
+      },
+      "elevation_m": 2510.0
+    },
+    {
+      "id": "slf-imis:ENG2",
+      "name": "Fitteren",
+      "position": {
+        "lat": 46.992781719,
+        "lon": 9.1894476808
+      },
+      "elevation_m": 2162.0
+    },
+    {
+      "id": "slf-imis:FAE1",
+      "name": "Albristhorn",
+      "position": {
+        "lat": 46.497117227,
+        "lon": 7.4893374776
+      },
+      "elevation_m": 2761.0
+    },
+    {
+      "id": "slf-imis:FAE2",
+      "name": "Färmel",
+      "position": {
+        "lat": 46.520413095,
+        "lon": 7.4952491757
+      },
+      "elevation_m": 1971.0
+    },
+    {
+      "id": "slf-imis:FIR2",
+      "name": "Schmidigen-Bidmeren",
+      "position": {
+        "lat": 46.668776692,
+        "lon": 8.0644030712
+      },
+      "elevation_m": 2111.0
+    },
+    {
+      "id": "slf-imis:FIS2",
+      "name": "Fisi",
+      "position": {
+        "lat": 46.4714646325,
+        "lon": 7.6738830911
+      },
+      "elevation_m": 2155.0
+    },
+    {
+      "id": "slf-imis:FLU2",
+      "name": "Flüelapass",
+      "position": {
+        "lat": 46.7527116321,
+        "lon": 9.9464445628
+      },
+      "elevation_m": 2394.0
+    },
+    {
+      "id": "slf-imis:FNH1",
+      "name": "Le Luisin",
+      "position": {
+        "lat": 46.120718532,
+        "lon": 6.9699710885
+      },
+      "elevation_m": 2785.0
+    },
+    {
+      "id": "slf-imis:FNH2",
+      "name": "L'Ecreuleuse",
+      "position": {
+        "lat": 46.1007594713,
+        "lon": 6.9641039266
+      },
+      "elevation_m": 2252.0
+    },
+    {
+      "id": "slf-imis:FOU1",
+      "name": "Le Portalet",
+      "position": {
+        "lat": 45.9915074932,
+        "lon": 7.0560007066
+      },
+      "elevation_m": 3344.0
+    },
+    {
+      "id": "slf-imis:FOU2",
+      "name": "Glacier de l'Evole",
+      "position": {
+        "lat": 45.9717551031,
+        "lon": 7.067234126
+      },
+      "elevation_m": 2800.0
+    },
+    {
+      "id": "slf-imis:FRA2",
+      "name": "Efra",
+      "position": {
+        "lat": 46.3382366776,
+        "lon": 8.8531771044
+      },
+      "elevation_m": 2100.0
+    },
+    {
+      "id": "slf-imis:FRA3",
+      "name": "Costa",
+      "position": {
+        "lat": 46.3519577648,
+        "lon": 8.8181148693
+      },
+      "elevation_m": 2170.0
+    },
+    {
+      "id": "slf-imis:FUL1",
+      "name": "Grand Chavalard",
+      "position": {
+        "lat": 46.1786788154,
+        "lon": 7.1130347864
+      },
+      "elevation_m": 2899.0
+    },
+    {
+      "id": "slf-imis:FUL2",
+      "name": "Grand Cor",
+      "position": {
+        "lat": 46.1946840247,
+        "lon": 7.089660915
+      },
+      "elevation_m": 2602.0
+    },
+    {
+      "id": "slf-imis:FUS2",
+      "name": "Alpe di Röd",
+      "position": {
+        "lat": 46.4364214753,
+        "lon": 8.6204462634
+      },
+      "elevation_m": 2390.0
+    },
+    {
+      "id": "slf-imis:GAD2",
+      "name": "Gschletteregg",
+      "position": {
+        "lat": 46.7441889175,
+        "lon": 8.3974880425
+      },
+      "elevation_m": 2063.0
+    },
+    {
+      "id": "slf-imis:GAN1",
+      "name": "Sackhorn",
+      "position": {
+        "lat": 46.4396794099,
+        "lon": 7.7662498371
+      },
+      "elevation_m": 3193.0
+    },
+    {
+      "id": "slf-imis:GAN2",
+      "name": "Gandegg",
+      "position": {
+        "lat": 46.4292605185,
+        "lon": 7.7606058532
+      },
+      "elevation_m": 2710.0
+    },
+    {
+      "id": "slf-imis:GLA2",
+      "name": "Guppen",
+      "position": {
+        "lat": 46.9966288477,
+        "lon": 9.0375823269
+      },
+      "elevation_m": 1632.0
+    },
+    {
+      "id": "slf-imis:GOM1",
+      "name": "Chummehorn",
+      "position": {
+        "lat": 46.4214595345,
+        "lon": 8.242043709
+      },
+      "elevation_m": 2728.0
+    },
+    {
+      "id": "slf-imis:GOM2",
+      "name": "Bodmerchumma",
+      "position": {
+        "lat": 46.4204561981,
+        "lon": 8.2324938175
+      },
+      "elevation_m": 2439.0
+    },
+    {
+      "id": "slf-imis:GOM3",
+      "name": "Treichbode",
+      "position": {
+        "lat": 46.4891417719,
+        "lon": 8.2285501986
+      },
+      "elevation_m": 2427.0
+    },
+    {
+      "id": "slf-imis:GOR2",
+      "name": "Gornergratsee",
+      "position": {
+        "lat": 45.987191604,
+        "lon": 7.7835986582
+      },
+      "elevation_m": 2953.0
+    },
+    {
+      "id": "slf-imis:GOS2",
+      "name": "Rientallücke",
+      "position": {
+        "lat": 46.6732650302,
+        "lon": 8.6317718837
+      },
+      "elevation_m": 2325.0
+    },
+    {
+      "id": "slf-imis:GOS3",
+      "name": "Gütsch",
+      "position": {
+        "lat": 46.656419602,
+        "lon": 8.6069666032
+      },
+      "elevation_m": 2209.0
+    },
+    {
+      "id": "slf-imis:GRA1",
+      "name": "Jumelles",
+      "position": {
+        "lat": 46.3522505663,
+        "lon": 6.8136286498
+      },
+      "elevation_m": 2210.0
+    },
+    {
+      "id": "slf-imis:GRA2",
+      "name": "Loz",
+      "position": {
+        "lat": 46.3460619908,
+        "lon": 6.7835498034
+      },
+      "elevation_m": 1984.0
+    },
+    {
+      "id": "slf-imis:GUT1",
+      "name": "Bänzlauistock",
+      "position": {
+        "lat": 46.6925215843,
+        "lon": 8.2779761225
+      },
+      "elevation_m": 2528.0
+    },
+    {
+      "id": "slf-imis:GUT2",
+      "name": "Homad",
+      "position": {
+        "lat": 46.679309577,
+        "lon": 8.2896913397
+      },
+      "elevation_m": 2115.0
+    },
+    {
+      "id": "slf-imis:HIN1",
+      "name": "Hinterrugg",
+      "position": {
+        "lat": 47.1533304738,
+        "lon": 9.3048184085
+      },
+      "elevation_m": 2306.0
+    },
+    {
+      "id": "slf-imis:HTR1",
+      "name": "Chilchalphorn",
+      "position": {
+        "lat": 46.5333514423,
+        "lon": 9.1541443427
+      },
+      "elevation_m": 3040.0
+    },
+    {
+      "id": "slf-imis:HTR2",
+      "name": "Alp Piänetsch",
+      "position": {
+        "lat": 46.5443790013,
+        "lon": 9.2043350473
+      },
+      "elevation_m": 2147.0
+    },
+    {
+      "id": "slf-imis:HTR3",
+      "name": "Unter Surettasee",
+      "position": {
+        "lat": 46.5365498146,
+        "lon": 9.3485265731
+      },
+      "elevation_m": 2200.0
+    },
+    {
+      "id": "slf-imis:ILI1",
+      "name": "Pointe des Mossettes",
+      "position": {
+        "lat": 46.1905725965,
+        "lon": 6.8162127612
+      },
+      "elevation_m": 2276.0
+    },
+    {
+      "id": "slf-imis:ILI2",
+      "name": "Les Collines",
+      "position": {
+        "lat": 46.1913556421,
+        "lon": 6.8277969399
+      },
+      "elevation_m": 2022.0
+    },
+    {
+      "id": "slf-imis:JAU1",
+      "name": "Chörblispitz",
+      "position": {
+        "lat": 46.6296849558,
+        "lon": 7.2689498572
+      },
+      "elevation_m": 2103.0
+    },
+    {
+      "id": "slf-imis:JAU2",
+      "name": "Fochsen",
+      "position": {
+        "lat": 46.6330485439,
+        "lon": 7.274541453
+      },
+      "elevation_m": 1707.0
+    },
+    {
+      "id": "slf-imis:JUL1",
+      "name": "Piz Bardella",
+      "position": {
+        "lat": 46.4823359001,
+        "lon": 9.7028930374
+      },
+      "elevation_m": 2838.0
+    },
+    {
+      "id": "slf-imis:JUL2",
+      "name": "Vairana",
+      "position": {
+        "lat": 46.4784967542,
+        "lon": 9.6923110222
+      },
+      "elevation_m": 2426.0
+    },
+    {
+      "id": "slf-imis:KES1",
+      "name": "Piz Val Müra",
+      "position": {
+        "lat": 46.6282585244,
+        "lon": 9.9006646574
+      },
+      "elevation_m": 3152.0
+    },
+    {
+      "id": "slf-imis:KES2",
+      "name": "Porta d'Es-cha",
+      "position": {
+        "lat": 46.6212841261,
+        "lon": 9.8981393038
+      },
+      "elevation_m": 2727.0
+    },
+    {
+      "id": "slf-imis:KLO1",
+      "name": "Sant Jaggem",
+      "position": {
+        "lat": 46.9208110854,
+        "lon": 9.8684912152
+      },
+      "elevation_m": 2542.0
+    },
+    {
+      "id": "slf-imis:KLO2",
+      "name": "Madrisa",
+      "position": {
+        "lat": 46.909114564,
+        "lon": 9.8738587175
+      },
+      "elevation_m": 2147.0
+    },
+    {
+      "id": "slf-imis:KLO3",
+      "name": "Gatschiefer",
+      "position": {
+        "lat": 46.8412707968,
+        "lon": 9.9316718171
+      },
+      "elevation_m": 2299.0
+    },
+    {
+      "id": "slf-imis:KLT1",
+      "name": "Wiggis",
+      "position": {
+        "lat": 47.065309518,
+        "lon": 9.0253846148
+      },
+      "elevation_m": 2282.0
+    },
+    {
+      "id": "slf-imis:KLT3",
+      "name": "Ruoggis, Unter Stafel",
+      "position": {
+        "lat": 47.03062,
+        "lon": 8.96921
+      },
+      "elevation_m": 1258.0
+    },
+    {
+      "id": "slf-imis:KLT4",
+      "name": "Schiiterböden",
+      "position": {
+        "lat": 47.047001,
+        "lon": 8.985869
+      },
+      "elevation_m": 1745.0
+    },
+    {
+      "id": "slf-imis:LAG1",
+      "name": "Lagrev",
+      "position": {
+        "lat": 46.4488905891,
+        "lon": 9.7330822954
+      },
+      "elevation_m": 3085.0
+    },
+    {
+      "id": "slf-imis:LAG2",
+      "name": "Tscheppa",
+      "position": {
+        "lat": 46.4513573465,
+        "lon": 9.7445797657
+      },
+      "elevation_m": 2730.0
+    },
+    {
+      "id": "slf-imis:LAG3",
+      "name": "Materdell",
+      "position": {
+        "lat": 46.4245268915,
+        "lon": 9.6977723914
+      },
+      "elevation_m": 2300.0
+    },
+    {
+      "id": "slf-imis:LAU1",
+      "name": "Lauenehore",
+      "position": {
+        "lat": 46.4402079652,
+        "lon": 7.3545037887
+      },
+      "elevation_m": 2476.0
+    },
+    {
+      "id": "slf-imis:LAU2",
+      "name": "Trüttlisbergpass",
+      "position": {
+        "lat": 46.4260290609,
+        "lon": 7.3798673829
+      },
+      "elevation_m": 1970.0
+    },
+    {
+      "id": "slf-imis:LAV1",
+      "name": "Gonda Cotschna",
+      "position": {
+        "lat": 46.7843261822,
+        "lon": 10.1123281211
+      },
+      "elevation_m": 2405.0
+    },
+    {
+      "id": "slf-imis:LHO2",
+      "name": "Russisprung",
+      "position": {
+        "lat": 46.5827908771,
+        "lon": 7.9437424189
+      },
+      "elevation_m": 2150.0
+    },
+    {
+      "id": "slf-imis:LUK1",
+      "name": "Piz Gannaretsch",
+      "position": {
+        "lat": 46.6119085207,
+        "lon": 8.7865471942
+      },
+      "elevation_m": 3040.0
+    },
+    {
+      "id": "slf-imis:LUK2",
+      "name": "Lai Verd",
+      "position": {
+        "lat": 46.6041530083,
+        "lon": 8.783521203
+      },
+      "elevation_m": 2555.0
+    },
+    {
+      "id": "slf-imis:LUM2",
+      "name": "Lumpegna Süd",
+      "position": {
+        "lat": 46.73118,
+        "lon": 8.86169
+      },
+      "elevation_m": 2365.0
+    },
+    {
+      "id": "slf-imis:LUM3",
+      "name": "Lumpegna Nord",
+      "position": {
+        "lat": 46.73228,
+        "lon": 8.86257
+      },
+      "elevation_m": 2355.0
+    },
+    {
+      "id": "slf-imis:MAE2",
+      "name": "Itramen",
+      "position": {
+        "lat": 46.6186487992,
+        "lon": 7.9435417948
+      },
+      "elevation_m": 2162.0
+    },
+    {
+      "id": "slf-imis:MAN1",
+      "name": "Männlichen",
+      "position": {
+        "lat": 46.6181151828,
+        "lon": 7.9380665942
+      },
+      "elevation_m": 2341.0
+    },
+    {
+      "id": "slf-imis:MEI2",
+      "name": "Laucheren",
+      "position": {
+        "lat": 46.7437676834,
+        "lon": 8.5510141702
+      },
+      "elevation_m": 2220.0
+    },
+    {
+      "id": "slf-imis:MES1",
+      "name": "Piz Pian Grand",
+      "position": {
+        "lat": 46.4174815167,
+        "lon": 9.1556970675
+      },
+      "elevation_m": 2688.0
+    },
+    {
+      "id": "slf-imis:MES2",
+      "name": "Pian Grand",
+      "position": {
+        "lat": 46.4140106135,
+        "lon": 9.1602965296
+      },
+      "elevation_m": 2384.0
+    },
+    {
+      "id": "slf-imis:MLB1",
+      "name": "Spitz",
+      "position": {
+        "lat": 47.0867605724,
+        "lon": 9.6239926506
+      },
+      "elevation_m": 2186.0
+    },
+    {
+      "id": "slf-imis:MLB2",
+      "name": "Bärgtälli",
+      "position": {
+        "lat": 47.088468281,
+        "lon": 9.6117701433
+      },
+      "elevation_m": 1974.0
+    },
+    {
+      "id": "slf-imis:MTR2",
+      "name": "Predanass",
+      "position": {
+        "lat": 46.4087259824,
+        "lon": 8.917591252
+      },
+      "elevation_m": 1884.0
+    },
+    {
+      "id": "slf-imis:MUN1",
+      "name": "Gärsthorn",
+      "position": {
+        "lat": 46.3438267916,
+        "lon": 7.9167006162
+      },
+      "elevation_m": 2926.0
+    },
+    {
+      "id": "slf-imis:MUN2",
+      "name": "Chiematte",
+      "position": {
+        "lat": 46.3330676419,
+        "lon": 7.9252033983
+      },
+      "elevation_m": 2205.0
+    },
+    {
+      "id": "slf-imis:MUO1",
+      "name": "Wasserbergfirst",
+      "position": {
+        "lat": 46.9393497859,
+        "lon": 8.7868534714
+      },
+      "elevation_m": 2325.0
+    },
+    {
+      "id": "slf-imis:MUO2",
+      "name": "Rupperslaui",
+      "position": {
+        "lat": 46.9382173093,
+        "lon": 8.7456210131
+      },
+      "elevation_m": 2083.0
+    },
+    {
+      "id": "slf-imis:MUT1",
+      "name": "Ruchi",
+      "position": {
+        "lat": 46.863574033,
+        "lon": 9.0450796939
+      },
+      "elevation_m": 3103.0
+    },
+    {
+      "id": "slf-imis:MUT2",
+      "name": "Mutten",
+      "position": {
+        "lat": 46.8587579889,
+        "lon": 9.0174835389
+      },
+      "elevation_m": 2481.0
+    },
+    {
+      "id": "slf-imis:NAR1",
+      "name": "Motto Crostel",
+      "position": {
+        "lat": 46.4651037066,
+        "lon": 8.8669171273
+      },
+      "elevation_m": 2299.0
+    },
+    {
+      "id": "slf-imis:NAR2",
+      "name": "Bassa di Nara",
+      "position": {
+        "lat": 46.4729905441,
+        "lon": 8.8686355598
+      },
+      "elevation_m": 2077.0
+    },
+    {
+      "id": "slf-imis:NAS2",
+      "name": "Schlivèra",
+      "position": {
+        "lat": 46.8150378313,
+        "lon": 10.2553208865
+      },
+      "elevation_m": 2350.0
+    },
+    {
+      "id": "slf-imis:NEN1",
+      "name": "Creppon Blanc",
+      "position": {
+        "lat": 46.1431275142,
+        "lon": 7.3540228301
+      },
+      "elevation_m": 2713.0
+    },
+    {
+      "id": "slf-imis:NEN3",
+      "name": "Combatzeline",
+      "position": {
+        "lat": 46.1431837197,
+        "lon": 7.3352965551
+      },
+      "elevation_m": 2203.0
+    },
+    {
+      "id": "slf-imis:OBM2",
+      "name": "Obere Meiel",
+      "position": {
+        "lat": 46.4217730982,
+        "lon": 7.2143855539
+      },
+      "elevation_m": 2097.0
+    },
+    {
+      "id": "slf-imis:OBW1",
+      "name": "Sidelhorn",
+      "position": {
+        "lat": 46.5498493386,
+        "lon": 8.3084154499
+      },
+      "elevation_m": 2733.0
+    },
+    {
+      "id": "slf-imis:OBW2",
+      "name": "Jostsee",
+      "position": {
+        "lat": 46.5452213932,
+        "lon": 8.3159555287
+      },
+      "elevation_m": 2432.0
+    },
+    {
+      "id": "slf-imis:OBW3",
+      "name": "Mällige",
+      "position": {
+        "lat": 46.5078623461,
+        "lon": 8.3544780372
+      },
+      "elevation_m": 2194.0
+    },
+    {
+      "id": "slf-imis:OFE1",
+      "name": "Piz Dora",
+      "position": {
+        "lat": 46.6050556165,
+        "lon": 10.3061266469
+      },
+      "elevation_m": 2949.0
+    },
+    {
+      "id": "slf-imis:OFE2",
+      "name": "Murtaröl",
+      "position": {
+        "lat": 46.6317061515,
+        "lon": 10.2890514554
+      },
+      "elevation_m": 2359.0
+    },
+    {
+      "id": "slf-imis:ORT2",
+      "name": "Ortstock Matt",
+      "position": {
+        "lat": 46.9180816426,
+        "lon": 8.9585495408
+      },
+      "elevation_m": 1824.0
+    },
+    {
+      "id": "slf-imis:OTT2",
+      "name": "Ottere",
+      "position": {
+        "lat": 46.5397016993,
+        "lon": 7.5616365285
+      },
+      "elevation_m": 2017.0
+    },
+    {
+      "id": "slf-imis:PAR2",
+      "name": "Kreuzweg",
+      "position": {
+        "lat": 46.8517245212,
+        "lon": 9.804844476
+      },
+      "elevation_m": 2290.0
+    },
+    {
+      "id": "slf-imis:PLD2",
+      "name": "Primelod",
+      "position": {
+        "lat": 46.4263551027,
+        "lon": 7.2506226655
+      },
+      "elevation_m": 2050.0
+    },
+    {
+      "id": "slf-imis:PLD3",
+      "name": "Primelod Hang",
+      "position": {
+        "lat": 46.426301,
+        "lon": 7.251164
+      },
+      "elevation_m": 2042.0
+    },
+    {
+      "id": "slf-imis:PMA2",
+      "name": "Colms da Parsonz",
+      "position": {
+        "lat": 46.5800758554,
+        "lon": 9.5373872088
+      },
+      "elevation_m": 2429.0
+    },
+    {
+      "id": "slf-imis:PUZ1",
+      "name": "La Muota",
+      "position": {
+        "lat": 46.6232728496,
+        "lon": 8.8568107945
+      },
+      "elevation_m": 2425.0
+    },
+    {
+      "id": "slf-imis:PUZ2",
+      "name": "Ils Plauns",
+      "position": {
+        "lat": 46.6263513736,
+        "lon": 8.8624548373
+      },
+      "elevation_m": 2196.0
+    },
+    {
+      "id": "slf-imis:RNZ3",
+      "name": "Rienzenstock",
+      "position": {
+        "lat": 46.684788,
+        "lon": 8.625968
+      },
+      "elevation_m": 2390.0
+    },
+    {
+      "id": "slf-imis:ROA1",
+      "name": "Brienzer Rothorn",
+      "position": {
+        "lat": 46.7871200871,
+        "lon": 8.0469171504
+      },
+      "elevation_m": 2348.0
+    },
+    {
+      "id": "slf-imis:ROA2",
+      "name": "Rotschalp",
+      "position": {
+        "lat": 46.7743190257,
+        "lon": 7.9939410504
+      },
+      "elevation_m": 1875.0
+    },
+    {
+      "id": "slf-imis:ROT3",
+      "name": "Plang Bi",
+      "position": {
+        "lat": 46.73311604,
+        "lon": 9.6043854696
+      },
+      "elevation_m": 2495.0
+    },
+    {
+      "id": "slf-imis:SAA1",
+      "name": "Platthorn",
+      "position": {
+        "lat": 46.1663450812,
+        "lon": 7.8612731182
+      },
+      "elevation_m": 3245.0
+    },
+    {
+      "id": "slf-imis:SAA2",
+      "name": "Seetal",
+      "position": {
+        "lat": 46.1718354106,
+        "lon": 7.8793527279
+      },
+      "elevation_m": 2480.0
+    },
+    {
+      "id": "slf-imis:SAA4",
+      "name": "Gibidum",
+      "position": {
+        "lat": 46.1244668489,
+        "lon": 7.9055305441
+      },
+      "elevation_m": 2680.0
+    },
+    {
+      "id": "slf-imis:SAA5",
+      "name": "Mälliga",
+      "position": {
+        "lat": 46.1274832422,
+        "lon": 7.9813854913
+      },
+      "elevation_m": 2952.0
+    },
+    {
+      "id": "slf-imis:SCA1",
+      "name": "Gross Windgällen",
+      "position": {
+        "lat": 46.8072552914,
+        "lon": 8.7321316095
+      },
+      "elevation_m": 3187.0
+    },
+    {
+      "id": "slf-imis:SCA2",
+      "name": "Seewli",
+      "position": {
+        "lat": 46.8129546327,
+        "lon": 8.7173428174
+      },
+      "elevation_m": 2032.0
+    },
+    {
+      "id": "slf-imis:SCA3",
+      "name": "Alpler Tor",
+      "position": {
+        "lat": 46.8915380517,
+        "lon": 8.7795393745
+      },
+      "elevation_m": 2338.0
+    },
+    {
+      "id": "slf-imis:SCB2",
+      "name": "Schönbüel",
+      "position": {
+        "lat": 46.7793748858,
+        "lon": 8.1034380926
+      },
+      "elevation_m": 1777.0
+    },
+    {
+      "id": "slf-imis:SCH1",
+      "name": "Schilthorn",
+      "position": {
+        "lat": 46.5573127411,
+        "lon": 7.8352019342
+      },
+      "elevation_m": 2996.0
+    },
+    {
+      "id": "slf-imis:SCH2",
+      "name": "Türliboden",
+      "position": {
+        "lat": 46.5769159849,
+        "lon": 7.8347322559
+      },
+      "elevation_m": 2332.0
+    },
+    {
+      "id": "slf-imis:SHE2",
+      "name": "Schibe",
+      "position": {
+        "lat": 46.7488254166,
+        "lon": 7.8124493033
+      },
+      "elevation_m": 1852.0
+    },
+    {
+      "id": "slf-imis:SIM1",
+      "name": "Cima del Simano",
+      "position": {
+        "lat": 46.4625100549,
+        "lon": 8.971946227
+      },
+      "elevation_m": 2579.0
+    },
+    {
+      "id": "slf-imis:SIM2",
+      "name": "Piano del Simano",
+      "position": {
+        "lat": 46.4674553164,
+        "lon": 8.9808234641
+      },
+      "elevation_m": 2450.0
+    },
+    {
+      "id": "slf-imis:SLF2",
+      "name": "Davos Stilli (SLF)",
+      "position": {
+        "lat": 46.8127671605,
+        "lon": 9.8482647161
+      },
+      "elevation_m": 1563.0
+    },
+    {
+      "id": "slf-imis:SMN2",
+      "name": "Ravaischer Salaas",
+      "position": {
+        "lat": 46.9563799569,
+        "lon": 10.3383398808
+      },
+      "elevation_m": 2512.0
+    },
+    {
+      "id": "slf-imis:SPN1",
+      "name": "Chesselhorn",
+      "position": {
+        "lat": 46.2182755158,
+        "lon": 8.0813786697
+      },
+      "elevation_m": 2980.0
+    },
+    {
+      "id": "slf-imis:SPN2",
+      "name": "Ze Seewe",
+      "position": {
+        "lat": 46.2294435858,
+        "lon": 8.1176235529
+      },
+      "elevation_m": 2620.0
+    },
+    {
+      "id": "slf-imis:SPN3",
+      "name": "Wenghorn",
+      "position": {
+        "lat": 46.1780120907,
+        "lon": 8.0451749053
+      },
+      "elevation_m": 2424.0
+    },
+    {
+      "id": "slf-imis:STH2",
+      "name": "Vorderstocken",
+      "position": {
+        "lat": 46.6820486806,
+        "lon": 7.5196488888
+      },
+      "elevation_m": 1791.0
+    },
+    {
+      "id": "slf-imis:STN2",
+      "name": "Oberer Stelligletscher",
+      "position": {
+        "lat": 46.1678110194,
+        "lon": 7.7505585279
+      },
+      "elevation_m": 2914.0
+    },
+    {
+      "id": "slf-imis:SWM1",
+      "name": "Schwarzmönch",
+      "position": {
+        "lat": 46.5513674314,
+        "lon": 7.9275415603
+      },
+      "elevation_m": 2673.0
+    },
+    {
+      "id": "slf-imis:TAM1",
+      "name": "Wildseehorn",
+      "position": {
+        "lat": 46.967421721,
+        "lon": 9.3997496729
+      },
+      "elevation_m": 2689.0
+    },
+    {
+      "id": "slf-imis:TAM2",
+      "name": "Wildsee",
+      "position": {
+        "lat": 46.9683642525,
+        "lon": 9.3909247472
+      },
+      "elevation_m": 2468.0
+    },
+    {
+      "id": "slf-imis:TAM3",
+      "name": "Schaftäli",
+      "position": {
+        "lat": 46.8909840671,
+        "lon": 9.4581666399
+      },
+      "elevation_m": 2166.0
+    },
+    {
+      "id": "slf-imis:TIT2",
+      "name": "Titlisboden",
+      "position": {
+        "lat": 46.7860094143,
+        "lon": 8.4094821255
+      },
+      "elevation_m": 2149.0
+    },
+    {
+      "id": "slf-imis:TRU1",
+      "name": "Schwarzhorn",
+      "position": {
+        "lat": 46.3834467189,
+        "lon": 7.570579072
+      },
+      "elevation_m": 3088.0
+    },
+    {
+      "id": "slf-imis:TRU2",
+      "name": "Trubelboden",
+      "position": {
+        "lat": 46.3709514336,
+        "lon": 7.5855719555
+      },
+      "elevation_m": 2459.0
+    },
+    {
+      "id": "slf-imis:TUJ1",
+      "name": "Crispalt",
+      "position": {
+        "lat": 46.6837291216,
+        "lon": 8.694490284
+      },
+      "elevation_m": 3028.0
+    },
+    {
+      "id": "slf-imis:TUJ2",
+      "name": "Culmatsch",
+      "position": {
+        "lat": 46.6838798567,
+        "lon": 8.7237506951
+      },
+      "elevation_m": 2262.0
+    },
+    {
+      "id": "slf-imis:TUJ3",
+      "name": "Nual",
+      "position": {
+        "lat": 46.6470311966,
+        "lon": 8.7402231419
+      },
+      "elevation_m": 2211.0
+    },
+    {
+      "id": "slf-imis:TUM1",
+      "name": "Piz Tumpiv",
+      "position": {
+        "lat": 46.7849760464,
+        "lon": 8.9922687513
+      },
+      "elevation_m": 3041.0
+    },
+    {
+      "id": "slf-imis:TUM2",
+      "name": "Val Miez",
+      "position": {
+        "lat": 46.7810661513,
+        "lon": 9.0214677369
+      },
+      "elevation_m": 2191.0
+    },
+    {
+      "id": "slf-imis:URS1",
+      "name": "Gross Schijen",
+      "position": {
+        "lat": 46.6681313349,
+        "lon": 8.6383104894
+      },
+      "elevation_m": 2784.0
+    },
+    {
+      "id": "slf-imis:URS2",
+      "name": "Giltnasen",
+      "position": {
+        "lat": 46.5867864305,
+        "lon": 8.5138591825
+      },
+      "elevation_m": 2169.0
+    },
+    {
+      "id": "slf-imis:VAL1",
+      "name": "Löita",
+      "position": {
+        "lat": 46.5492576511,
+        "lon": 8.6108477303
+      },
+      "elevation_m": 2450.0
+    },
+    {
+      "id": "slf-imis:VAL2",
+      "name": "Vallascia",
+      "position": {
+        "lat": 46.5490383567,
+        "lon": 8.6137900109
+      },
+      "elevation_m": 2268.0
+    },
+    {
+      "id": "slf-imis:VDS1",
+      "name": "Crêta Besse",
+      "position": {
+        "lat": 46.3051908681,
+        "lon": 7.3522749518
+      },
+      "elevation_m": 2696.0
+    },
+    {
+      "id": "slf-imis:VDS2",
+      "name": "Donin du Jour",
+      "position": {
+        "lat": 46.3215106638,
+        "lon": 7.3675047729
+      },
+      "elevation_m": 2385.0
+    },
+    {
+      "id": "slf-imis:VIN1",
+      "name": "Piz Alpetta",
+      "position": {
+        "lat": 46.9287879872,
+        "lon": 10.4493155571
+      },
+      "elevation_m": 2975.0
+    },
+    {
+      "id": "slf-imis:VIN2",
+      "name": "Alpetta",
+      "position": {
+        "lat": 46.9317665432,
+        "lon": 10.4428462856
+      },
+      "elevation_m": 2729.0
+    },
+    {
+      "id": "slf-imis:VLS1",
+      "name": "Piz Aul",
+      "position": {
+        "lat": 46.6228004828,
+        "lon": 9.1250666847
+      },
+      "elevation_m": 3121.0
+    },
+    {
+      "id": "slf-imis:VLS2",
+      "name": "Alp Calasa",
+      "position": {
+        "lat": 46.674410774,
+        "lon": 9.2052412263
+      },
+      "elevation_m": 2064.0
+    },
+    {
+      "id": "slf-imis:VRG3",
+      "name": "Porcaresc",
+      "position": {
+        "lat": 46.2403989608,
+        "lon": 8.4749541898
+      },
+      "elevation_m": 2038.0
+    },
+    {
+      "id": "slf-imis:VSC1",
+      "name": "Piz San Jon Dadaint",
+      "position": {
+        "lat": 46.7532597113,
+        "lon": 10.3391321077
+      },
+      "elevation_m": 3092.0
+    },
+    {
+      "id": "slf-imis:VSC2",
+      "name": "Trigl",
+      "position": {
+        "lat": 46.7488219219,
+        "lon": 10.3529058304
+      },
+      "elevation_m": 2914.0
+    },
+    {
+      "id": "slf-imis:WFJ2",
+      "name": "Weissfluhjoch",
+      "position": {
+        "lat": 46.8296377828,
+        "lon": 9.8092889157
+      },
+      "elevation_m": 2536.0
+    },
+    {
+      "id": "slf-imis:YBR2",
+      "name": "Wanne",
+      "position": {
+        "lat": 47.0354580174,
+        "lon": 8.8254164392
+      },
+      "elevation_m": 1701.0
+    },
+    {
+      "id": "slf-imis:ZER1",
+      "name": "Platthorn",
+      "position": {
+        "lat": 46.0536592487,
+        "lon": 7.7363289398
+      },
+      "elevation_m": 3345.0
+    },
+    {
+      "id": "slf-imis:ZER2",
+      "name": "Triftchumme",
+      "position": {
+        "lat": 46.0421771157,
+        "lon": 7.7274051006
+      },
+      "elevation_m": 2752.0
+    },
+    {
+      "id": "slf-imis:ZER4",
+      "name": "Stafelalp",
+      "position": {
+        "lat": 45.9979893991,
+        "lon": 7.7023907351
+      },
+      "elevation_m": 2408.0
+    },
+    {
+      "id": "slf-imis:ZNZ1",
+      "name": "Sarsura Pitschen",
+      "position": {
+        "lat": 46.7042518299,
+        "lon": 9.9976221513
+      },
+      "elevation_m": 3133.0
+    },
+    {
+      "id": "slf-imis:ZNZ2",
+      "name": "Pülschezza",
+      "position": {
+        "lat": 46.6977161659,
+        "lon": 10.018844256
+      },
+      "elevation_m": 2677.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T08:30:00Z",
+      "wind_speed_ms": 2.714,
+      "wind_gust_ms": 5.182,
+      "wind_direction_deg": 20.88,
+      "gust_direction_deg": null,
+      "temperature_c": -8.21,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T09:00:00Z",
+      "wind_speed_ms": 3.701,
+      "wind_gust_ms": 6.453,
+      "wind_direction_deg": 14.39,
+      "gust_direction_deg": null,
+      "temperature_c": -8.39,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T09:30:00Z",
+      "wind_speed_ms": 2.987,
+      "wind_gust_ms": 5.847,
+      "wind_direction_deg": 13.24,
+      "gust_direction_deg": null,
+      "temperature_c": -8.49,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": 3.188,
+      "wind_gust_ms": 5.632,
+      "wind_direction_deg": 23.75,
+      "gust_direction_deg": null,
+      "temperature_c": -8.24,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T10:30:00Z",
+      "wind_speed_ms": 2.232,
+      "wind_gust_ms": 4.185,
+      "wind_direction_deg": 37.79,
+      "gust_direction_deg": null,
+      "temperature_c": -8.09,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T11:00:00Z",
+      "wind_speed_ms": 1.651,
+      "wind_gust_ms": 4.674,
+      "wind_direction_deg": 35.54,
+      "gust_direction_deg": null,
+      "temperature_c": -7.99,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T11:30:00Z",
+      "wind_speed_ms": 0.868,
+      "wind_gust_ms": 2.288,
+      "wind_direction_deg": 331.9,
+      "gust_direction_deg": null,
+      "temperature_c": -7.06,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T12:00:00Z",
+      "wind_speed_ms": 1.606,
+      "wind_gust_ms": 3.031,
+      "wind_direction_deg": 275.2,
+      "gust_direction_deg": null,
+      "temperature_c": -6.803,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T12:30:00Z",
+      "wind_speed_ms": 1.913,
+      "wind_gust_ms": 3.344,
+      "wind_direction_deg": 243.7,
+      "gust_direction_deg": null,
+      "temperature_c": -7.34,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T13:00:00Z",
+      "wind_speed_ms": 3.319,
+      "wind_gust_ms": 6.082,
+      "wind_direction_deg": 267.6,
+      "gust_direction_deg": null,
+      "temperature_c": -7.26,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T13:30:00Z",
+      "wind_speed_ms": 3.922,
+      "wind_gust_ms": 7.61,
+      "wind_direction_deg": 308.3,
+      "gust_direction_deg": null,
+      "temperature_c": -8.53,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T14:00:00Z",
+      "wind_speed_ms": 3.147,
+      "wind_gust_ms": 6.082,
+      "wind_direction_deg": 259.3,
+      "gust_direction_deg": null,
+      "temperature_c": -8.15,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T14:30:00Z",
+      "wind_speed_ms": 3.372,
+      "wind_gust_ms": 5.867,
+      "wind_direction_deg": 249.8,
+      "gust_direction_deg": null,
+      "temperature_c": -8.26,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T15:00:00Z",
+      "wind_speed_ms": 3.369,
+      "wind_gust_ms": 5.808,
+      "wind_direction_deg": 236.4,
+      "gust_direction_deg": null,
+      "temperature_c": -8.41,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T15:30:00Z",
+      "wind_speed_ms": 2.957,
+      "wind_gust_ms": 4.537,
+      "wind_direction_deg": 213.9,
+      "gust_direction_deg": null,
+      "temperature_c": -8.16,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T16:00:00Z",
+      "wind_speed_ms": 3.618,
+      "wind_gust_ms": 5.065,
+      "wind_direction_deg": 216.9,
+      "gust_direction_deg": null,
+      "temperature_c": -8.93,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T16:30:00Z",
+      "wind_speed_ms": 3.149,
+      "wind_gust_ms": 4.615,
+      "wind_direction_deg": 223.6,
+      "gust_direction_deg": null,
+      "temperature_c": -9.21,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T17:00:00Z",
+      "wind_speed_ms": 3.921,
+      "wind_gust_ms": 6.062,
+      "wind_direction_deg": 215.1,
+      "gust_direction_deg": null,
+      "temperature_c": -9.25,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T17:30:00Z",
+      "wind_speed_ms": 5.987,
+      "wind_gust_ms": 8.23,
+      "wind_direction_deg": 224.0,
+      "gust_direction_deg": null,
+      "temperature_c": -9.22,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T18:00:00Z",
+      "wind_speed_ms": 5.748,
+      "wind_gust_ms": 8.1,
+      "wind_direction_deg": 218.4,
+      "gust_direction_deg": null,
+      "temperature_c": -9.34,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T18:30:00Z",
+      "wind_speed_ms": 5.987,
+      "wind_gust_ms": 8.25,
+      "wind_direction_deg": 223.2,
+      "gust_direction_deg": null,
+      "temperature_c": -9.42,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T19:00:00Z",
+      "wind_speed_ms": 5.018,
+      "wind_gust_ms": 7.51,
+      "wind_direction_deg": 211.6,
+      "gust_direction_deg": null,
+      "temperature_c": -9.41,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T19:30:00Z",
+      "wind_speed_ms": 4.656,
+      "wind_gust_ms": 6.551,
+      "wind_direction_deg": 200.8,
+      "gust_direction_deg": null,
+      "temperature_c": -9.54,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T20:00:00Z",
+      "wind_speed_ms": 4.975,
+      "wind_gust_ms": 7.61,
+      "wind_direction_deg": 198.7,
+      "gust_direction_deg": null,
+      "temperature_c": -9.4,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T20:30:00Z",
+      "wind_speed_ms": 5.047,
+      "wind_gust_ms": 8.12,
+      "wind_direction_deg": 203.1,
+      "gust_direction_deg": null,
+      "temperature_c": -8.6,
+      "humidity_pct": 91.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T21:00:00Z",
+      "wind_speed_ms": 5.224,
+      "wind_gust_ms": 7.78,
+      "wind_direction_deg": 198.8,
+      "gust_direction_deg": null,
+      "temperature_c": -7.92,
+      "humidity_pct": 67.19,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T21:30:00Z",
+      "wind_speed_ms": 4.532,
+      "wind_gust_ms": 6.395,
+      "wind_direction_deg": 193.2,
+      "gust_direction_deg": null,
+      "temperature_c": -7.69,
+      "humidity_pct": 66.45,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T22:00:00Z",
+      "wind_speed_ms": 5.113,
+      "wind_gust_ms": 7.0,
+      "wind_direction_deg": 196.5,
+      "gust_direction_deg": null,
+      "temperature_c": -7.0,
+      "humidity_pct": 58.35,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T22:30:00Z",
+      "wind_speed_ms": 5.529,
+      "wind_gust_ms": 7.51,
+      "wind_direction_deg": 192.9,
+      "gust_direction_deg": null,
+      "temperature_c": -6.732,
+      "humidity_pct": 54.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T23:00:00Z",
+      "wind_speed_ms": 5.757,
+      "wind_gust_ms": 8.19,
+      "wind_direction_deg": 192.7,
+      "gust_direction_deg": null,
+      "temperature_c": -6.289,
+      "humidity_pct": 49.91,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-21T23:30:00Z",
+      "wind_speed_ms": 5.535,
+      "wind_gust_ms": 7.35,
+      "wind_direction_deg": 191.1,
+      "gust_direction_deg": null,
+      "temperature_c": -6.22,
+      "humidity_pct": 50.54,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T00:00:00Z",
+      "wind_speed_ms": 4.792,
+      "wind_gust_ms": 5.965,
+      "wind_direction_deg": 189.5,
+      "gust_direction_deg": null,
+      "temperature_c": -6.082,
+      "humidity_pct": 49.15,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T00:30:00Z",
+      "wind_speed_ms": 5.281,
+      "wind_gust_ms": 6.727,
+      "wind_direction_deg": 191.1,
+      "gust_direction_deg": null,
+      "temperature_c": -6.088,
+      "humidity_pct": 49.36,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T01:00:00Z",
+      "wind_speed_ms": 5.344,
+      "wind_gust_ms": 7.37,
+      "wind_direction_deg": 189.2,
+      "gust_direction_deg": null,
+      "temperature_c": -6.041,
+      "humidity_pct": 50.19,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T01:30:00Z",
+      "wind_speed_ms": 4.943,
+      "wind_gust_ms": 7.39,
+      "wind_direction_deg": 195.5,
+      "gust_direction_deg": null,
+      "temperature_c": -5.788,
+      "humidity_pct": 49.82,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T02:00:00Z",
+      "wind_speed_ms": 4.302,
+      "wind_gust_ms": 6.199,
+      "wind_direction_deg": 188.6,
+      "gust_direction_deg": null,
+      "temperature_c": -5.582,
+      "humidity_pct": 49.95,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T02:30:00Z",
+      "wind_speed_ms": 4.043,
+      "wind_gust_ms": 5.632,
+      "wind_direction_deg": 197.0,
+      "gust_direction_deg": null,
+      "temperature_c": -5.779,
+      "humidity_pct": 52.87,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T03:00:00Z",
+      "wind_speed_ms": 4.674,
+      "wind_gust_ms": 6.708,
+      "wind_direction_deg": 192.1,
+      "gust_direction_deg": null,
+      "temperature_c": -5.44,
+      "humidity_pct": 50.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T03:30:00Z",
+      "wind_speed_ms": 4.797,
+      "wind_gust_ms": 7.24,
+      "wind_direction_deg": 190.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.839,
+      "humidity_pct": 45.75,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T04:00:00Z",
+      "wind_speed_ms": 4.509,
+      "wind_gust_ms": 6.493,
+      "wind_direction_deg": 191.8,
+      "gust_direction_deg": null,
+      "temperature_c": -4.534,
+      "humidity_pct": 42.79,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T04:30:00Z",
+      "wind_speed_ms": 4.513,
+      "wind_gust_ms": 5.867,
+      "wind_direction_deg": 192.7,
+      "gust_direction_deg": null,
+      "temperature_c": -4.754,
+      "humidity_pct": 44.72,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T05:00:00Z",
+      "wind_speed_ms": 4.413,
+      "wind_gust_ms": 8.14,
+      "wind_direction_deg": 192.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.637,
+      "humidity_pct": 44.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T05:30:00Z",
+      "wind_speed_ms": 4.002,
+      "wind_gust_ms": 6.238,
+      "wind_direction_deg": 188.7,
+      "gust_direction_deg": null,
+      "temperature_c": -4.942,
+      "humidity_pct": 47.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T06:00:00Z",
+      "wind_speed_ms": 4.512,
+      "wind_gust_ms": 7.31,
+      "wind_direction_deg": 190.8,
+      "gust_direction_deg": null,
+      "temperature_c": -5.35,
+      "humidity_pct": 53.98,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T06:30:00Z",
+      "wind_speed_ms": 4.228,
+      "wind_gust_ms": 7.18,
+      "wind_direction_deg": 183.9,
+      "gust_direction_deg": null,
+      "temperature_c": -6.099,
+      "humidity_pct": 69.55,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T07:00:00Z",
+      "wind_speed_ms": 4.247,
+      "wind_gust_ms": 7.14,
+      "wind_direction_deg": 180.4,
+      "gust_direction_deg": null,
+      "temperature_c": -6.981,
+      "humidity_pct": 89.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:DAV1",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": 5.812,
+      "wind_gust_ms": 8.66,
+      "wind_direction_deg": 179.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.419,
+      "humidity_pct": 99.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T08:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.802,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T09:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.621,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T09:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.295,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.918,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T10:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.98,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T11:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -3.885,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T11:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -2.778,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T12:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -3.34,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T12:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -3.156,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T13:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -2.04,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T13:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -1.687,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T14:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -2.136,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T14:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -2.725,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T15:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -3.657,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T15:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.688,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T16:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.56,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T16:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.693,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T17:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.47,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T17:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.91,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T18:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.18,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T18:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.42,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T19:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.61,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T19:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.66,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T20:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.62,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T20:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.56,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T21:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.52,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T21:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.34,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T22:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.02,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T22:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.81,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T23:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.69,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-21T23:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.5,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T00:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.42,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T00:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.45,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T01:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.41,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T01:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.2,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T02:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.978,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T02:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.999,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T03:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.522,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T03:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.766,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T04:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.823,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T04:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.913,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T05:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.062,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T05:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.819,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T06:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.603,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T06:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -3.823,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T07:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -3.597,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:FAE1",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -3.605,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T08:30:00Z",
+      "wind_speed_ms": 1.932,
+      "wind_gust_ms": 2.679,
+      "wind_direction_deg": 45.76,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T09:00:00Z",
+      "wind_speed_ms": 2.097,
+      "wind_gust_ms": 3.012,
+      "wind_direction_deg": 45.57,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T09:30:00Z",
+      "wind_speed_ms": 1.669,
+      "wind_gust_ms": 3.051,
+      "wind_direction_deg": 39.03,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": 1.869,
+      "wind_gust_ms": 2.64,
+      "wind_direction_deg": 38.04,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T10:30:00Z",
+      "wind_speed_ms": 2.225,
+      "wind_gust_ms": 3.52,
+      "wind_direction_deg": 43.78,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T11:00:00Z",
+      "wind_speed_ms": 2.052,
+      "wind_gust_ms": 3.207,
+      "wind_direction_deg": 40.6,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T11:30:00Z",
+      "wind_speed_ms": 2.661,
+      "wind_gust_ms": 4.244,
+      "wind_direction_deg": 32.96,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T12:00:00Z",
+      "wind_speed_ms": 1.162,
+      "wind_gust_ms": 3.07,
+      "wind_direction_deg": 25.66,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T12:30:00Z",
+      "wind_speed_ms": 0.64,
+      "wind_gust_ms": 2.444,
+      "wind_direction_deg": 53.98,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T13:00:00Z",
+      "wind_speed_ms": 0.648,
+      "wind_gust_ms": 1.897,
+      "wind_direction_deg": 342.6,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T13:30:00Z",
+      "wind_speed_ms": 1.823,
+      "wind_gust_ms": 3.52,
+      "wind_direction_deg": 21.28,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T14:00:00Z",
+      "wind_speed_ms": 1.714,
+      "wind_gust_ms": 4.009,
+      "wind_direction_deg": 1.143,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T14:30:00Z",
+      "wind_speed_ms": 1.761,
+      "wind_gust_ms": 4.205,
+      "wind_direction_deg": 13.71,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 99.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T15:00:00Z",
+      "wind_speed_ms": 1.129,
+      "wind_gust_ms": 3.168,
+      "wind_direction_deg": 21.57,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 97.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T15:30:00Z",
+      "wind_speed_ms": 0.753,
+      "wind_gust_ms": 3.09,
+      "wind_direction_deg": 40.3,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 95.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T16:00:00Z",
+      "wind_speed_ms": 0.499,
+      "wind_gust_ms": 1.506,
+      "wind_direction_deg": 56.32,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 95.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T16:30:00Z",
+      "wind_speed_ms": 0.07,
+      "wind_gust_ms": 0.86,
+      "wind_direction_deg": 309.8,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 95.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T17:00:00Z",
+      "wind_speed_ms": 0.453,
+      "wind_gust_ms": 1.271,
+      "wind_direction_deg": 318.1,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 91.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T17:30:00Z",
+      "wind_speed_ms": 0.248,
+      "wind_gust_ms": 0.782,
+      "wind_direction_deg": 331.6,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 90.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T18:00:00Z",
+      "wind_speed_ms": 0.217,
+      "wind_gust_ms": 0.802,
+      "wind_direction_deg": 351.3,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 91.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T18:30:00Z",
+      "wind_speed_ms": 0.494,
+      "wind_gust_ms": 1.056,
+      "wind_direction_deg": 339.5,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 86.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T19:00:00Z",
+      "wind_speed_ms": 0.443,
+      "wind_gust_ms": 1.115,
+      "wind_direction_deg": 318.1,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 84.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T19:30:00Z",
+      "wind_speed_ms": 0.443,
+      "wind_gust_ms": 1.115,
+      "wind_direction_deg": 318.7,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 82.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T20:00:00Z",
+      "wind_speed_ms": 0.262,
+      "wind_gust_ms": 0.919,
+      "wind_direction_deg": 281.4,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 83.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T20:30:00Z",
+      "wind_speed_ms": 0.295,
+      "wind_gust_ms": 1.369,
+      "wind_direction_deg": 293.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 82.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T21:00:00Z",
+      "wind_speed_ms": 0.166,
+      "wind_gust_ms": 0.978,
+      "wind_direction_deg": 346.4,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 80.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T21:30:00Z",
+      "wind_speed_ms": 0.573,
+      "wind_gust_ms": 2.699,
+      "wind_direction_deg": 27.63,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 73.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T22:00:00Z",
+      "wind_speed_ms": 0.244,
+      "wind_gust_ms": 1.467,
+      "wind_direction_deg": 333.7,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 60.67,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T22:30:00Z",
+      "wind_speed_ms": 0.526,
+      "wind_gust_ms": 3.149,
+      "wind_direction_deg": 9.96,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 56.72,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T23:00:00Z",
+      "wind_speed_ms": 0.814,
+      "wind_gust_ms": 2.484,
+      "wind_direction_deg": 19.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 56.35,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-21T23:30:00Z",
+      "wind_speed_ms": 1.276,
+      "wind_gust_ms": 3.364,
+      "wind_direction_deg": 351.2,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 45.59,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T00:00:00Z",
+      "wind_speed_ms": 0.357,
+      "wind_gust_ms": 1.428,
+      "wind_direction_deg": 328.3,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 43.19,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T00:30:00Z",
+      "wind_speed_ms": 1.568,
+      "wind_gust_ms": 3.305,
+      "wind_direction_deg": 21.35,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 43.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T01:00:00Z",
+      "wind_speed_ms": 1.698,
+      "wind_gust_ms": 3.07,
+      "wind_direction_deg": 23.51,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 43.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T01:30:00Z",
+      "wind_speed_ms": 1.664,
+      "wind_gust_ms": 5.104,
+      "wind_direction_deg": 7.22,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 41.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T02:00:00Z",
+      "wind_speed_ms": 1.772,
+      "wind_gust_ms": 4.381,
+      "wind_direction_deg": 329.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 39.14,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T02:30:00Z",
+      "wind_speed_ms": 0.281,
+      "wind_gust_ms": 3.403,
+      "wind_direction_deg": 308.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 35.39,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T03:00:00Z",
+      "wind_speed_ms": 0.584,
+      "wind_gust_ms": 3.168,
+      "wind_direction_deg": 290.6,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 38.07,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T03:30:00Z",
+      "wind_speed_ms": 1.157,
+      "wind_gust_ms": 4.068,
+      "wind_direction_deg": 15.09,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 36.83,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T04:00:00Z",
+      "wind_speed_ms": 2.143,
+      "wind_gust_ms": 4.948,
+      "wind_direction_deg": 22.76,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 40.47,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T04:30:00Z",
+      "wind_speed_ms": 2.148,
+      "wind_gust_ms": 3.579,
+      "wind_direction_deg": 26.12,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 37.49,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T05:00:00Z",
+      "wind_speed_ms": 0.705,
+      "wind_gust_ms": 2.249,
+      "wind_direction_deg": 353.9,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 35.31,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T05:30:00Z",
+      "wind_speed_ms": 0.337,
+      "wind_gust_ms": 1.995,
+      "wind_direction_deg": 345.8,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 35.96,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T06:00:00Z",
+      "wind_speed_ms": 0.536,
+      "wind_gust_ms": 1.682,
+      "wind_direction_deg": 289.2,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 36.12,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T06:30:00Z",
+      "wind_speed_ms": 0.158,
+      "wind_gust_ms": 0.86,
+      "wind_direction_deg": 77.2,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 33.71,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T07:00:00Z",
+      "wind_speed_ms": 0.272,
+      "wind_gust_ms": 2.581,
+      "wind_direction_deg": 270.3,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 35.57,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": 2.086,
+      "wind_gust_ms": 6.375,
+      "wind_direction_deg": 289.4,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 51.15,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:GLA2",
+      "time": "2026-11-22T08:00:00Z",
+      "wind_speed_ms": 0.915,
+      "wind_gust_ms": 4.517,
+      "wind_direction_deg": 351.4,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": 70.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T08:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.7,
+      "humidity_pct": 83.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T09:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.5,
+      "humidity_pct": 82.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T09:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.3,
+      "humidity_pct": 80.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.8,
+      "humidity_pct": 76.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T10:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.4,
+      "humidity_pct": 75.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T11:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.7,
+      "humidity_pct": 74.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T11:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.1,
+      "humidity_pct": 75.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T12:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.5,
+      "humidity_pct": 78.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T12:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.5,
+      "humidity_pct": 76.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T13:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.5,
+      "humidity_pct": 73.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T13:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.2,
+      "humidity_pct": 69.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T14:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.2,
+      "humidity_pct": 66.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T14:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.2,
+      "humidity_pct": 65.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T15:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.5,
+      "humidity_pct": 67.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T15:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.9,
+      "humidity_pct": 67.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T16:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.7,
+      "humidity_pct": 69.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T16:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.7,
+      "humidity_pct": 68.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T17:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.0,
+      "humidity_pct": 66.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T17:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.1,
+      "humidity_pct": 67.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T18:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.0,
+      "humidity_pct": 63.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T18:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.4,
+      "humidity_pct": 66.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T19:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.8,
+      "humidity_pct": 67.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T19:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.8,
+      "humidity_pct": 68.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T20:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.4,
+      "humidity_pct": 65.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T20:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.1,
+      "humidity_pct": 58.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T21:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.5,
+      "humidity_pct": 52.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T21:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.5,
+      "humidity_pct": 56.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T22:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.6,
+      "humidity_pct": 59.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T22:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.8,
+      "humidity_pct": 59.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T23:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.5,
+      "humidity_pct": 55.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-21T23:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.3,
+      "humidity_pct": 54.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T00:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.2,
+      "humidity_pct": 53.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T00:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.1,
+      "humidity_pct": 56.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T01:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.3,
+      "humidity_pct": 61.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T01:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.1,
+      "humidity_pct": 57.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T02:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.0,
+      "humidity_pct": 43.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T02:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.1,
+      "humidity_pct": 45.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T03:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -3.9,
+      "humidity_pct": 41.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T03:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.0,
+      "humidity_pct": 45.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T04:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.1,
+      "humidity_pct": 46.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T04:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.1,
+      "humidity_pct": 47.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T05:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.3,
+      "humidity_pct": 51.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T05:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -4.4,
+      "humidity_pct": 54.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T06:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -5.4,
+      "humidity_pct": 68.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T06:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.4,
+      "humidity_pct": 83.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T07:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.0,
+      "humidity_pct": 93.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:LAG2",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -6.3,
+      "humidity_pct": 95.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T08:30:00Z",
+      "wind_speed_ms": 1.951,
+      "wind_gust_ms": 4.518,
+      "wind_direction_deg": 226.5,
+      "gust_direction_deg": null,
+      "temperature_c": -4.914,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T09:00:00Z",
+      "wind_speed_ms": 2.142,
+      "wind_gust_ms": 5.066,
+      "wind_direction_deg": 228.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.921,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T09:30:00Z",
+      "wind_speed_ms": 1.971,
+      "wind_gust_ms": 4.694,
+      "wind_direction_deg": 225.2,
+      "gust_direction_deg": null,
+      "temperature_c": -4.827,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": 1.925,
+      "wind_gust_ms": 5.223,
+      "wind_direction_deg": 224.3,
+      "gust_direction_deg": null,
+      "temperature_c": -4.694,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T10:30:00Z",
+      "wind_speed_ms": 1.613,
+      "wind_gust_ms": 3.54,
+      "wind_direction_deg": 225.4,
+      "gust_direction_deg": null,
+      "temperature_c": -4.611,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T11:00:00Z",
+      "wind_speed_ms": 2.303,
+      "wind_gust_ms": 4.557,
+      "wind_direction_deg": 227.3,
+      "gust_direction_deg": null,
+      "temperature_c": -4.398,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T11:30:00Z",
+      "wind_speed_ms": 2.344,
+      "wind_gust_ms": 5.692,
+      "wind_direction_deg": 225.4,
+      "gust_direction_deg": null,
+      "temperature_c": -4.28,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T12:00:00Z",
+      "wind_speed_ms": 3.731,
+      "wind_gust_ms": 9.11,
+      "wind_direction_deg": 232.8,
+      "gust_direction_deg": null,
+      "temperature_c": -4.306,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T12:30:00Z",
+      "wind_speed_ms": 5.48,
+      "wind_gust_ms": 10.99,
+      "wind_direction_deg": 239.2,
+      "gust_direction_deg": null,
+      "temperature_c": -4.514,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T13:00:00Z",
+      "wind_speed_ms": 2.22,
+      "wind_gust_ms": 5.809,
+      "wind_direction_deg": 238.4,
+      "gust_direction_deg": null,
+      "temperature_c": -4.156,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T13:30:00Z",
+      "wind_speed_ms": 1.986,
+      "wind_gust_ms": 3.11,
+      "wind_direction_deg": 225.9,
+      "gust_direction_deg": null,
+      "temperature_c": -3.931,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T14:00:00Z",
+      "wind_speed_ms": 2.299,
+      "wind_gust_ms": 3.853,
+      "wind_direction_deg": 223.4,
+      "gust_direction_deg": null,
+      "temperature_c": -4.297,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T14:30:00Z",
+      "wind_speed_ms": 2.526,
+      "wind_gust_ms": 5.535,
+      "wind_direction_deg": 222.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.421,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T15:00:00Z",
+      "wind_speed_ms": 2.954,
+      "wind_gust_ms": 5.457,
+      "wind_direction_deg": 226.7,
+      "gust_direction_deg": null,
+      "temperature_c": -4.624,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T15:30:00Z",
+      "wind_speed_ms": 2.985,
+      "wind_gust_ms": 5.379,
+      "wind_direction_deg": 222.3,
+      "gust_direction_deg": null,
+      "temperature_c": -4.87,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T16:00:00Z",
+      "wind_speed_ms": 3.275,
+      "wind_gust_ms": 5.379,
+      "wind_direction_deg": 224.2,
+      "gust_direction_deg": null,
+      "temperature_c": -4.815,
+      "humidity_pct": 99.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T16:30:00Z",
+      "wind_speed_ms": 3.07,
+      "wind_gust_ms": 5.477,
+      "wind_direction_deg": 226.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.197,
+      "humidity_pct": 88.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T17:00:00Z",
+      "wind_speed_ms": 3.185,
+      "wind_gust_ms": 6.298,
+      "wind_direction_deg": 221.6,
+      "gust_direction_deg": null,
+      "temperature_c": -3.67,
+      "humidity_pct": 75.33,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T17:30:00Z",
+      "wind_speed_ms": 3.683,
+      "wind_gust_ms": 5.907,
+      "wind_direction_deg": 215.2,
+      "gust_direction_deg": null,
+      "temperature_c": -2.613,
+      "humidity_pct": 57.87,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T18:00:00Z",
+      "wind_speed_ms": 2.565,
+      "wind_gust_ms": 4.792,
+      "wind_direction_deg": 217.9,
+      "gust_direction_deg": null,
+      "temperature_c": -1.436,
+      "humidity_pct": 37.03,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T18:30:00Z",
+      "wind_speed_ms": 2.48,
+      "wind_gust_ms": 4.205,
+      "wind_direction_deg": 221.7,
+      "gust_direction_deg": null,
+      "temperature_c": -0.774,
+      "humidity_pct": 28.68,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T19:00:00Z",
+      "wind_speed_ms": 3.213,
+      "wind_gust_ms": 6.103,
+      "wind_direction_deg": 235.7,
+      "gust_direction_deg": null,
+      "temperature_c": 0.094,
+      "humidity_pct": 22.37,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T19:30:00Z",
+      "wind_speed_ms": 2.952,
+      "wind_gust_ms": 4.303,
+      "wind_direction_deg": 230.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.204,
+      "humidity_pct": 22.22,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T20:00:00Z",
+      "wind_speed_ms": 3.03,
+      "wind_gust_ms": 5.399,
+      "wind_direction_deg": 234.8,
+      "gust_direction_deg": null,
+      "temperature_c": 0.079,
+      "humidity_pct": 20.51,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T20:30:00Z",
+      "wind_speed_ms": 3.069,
+      "wind_gust_ms": 6.24,
+      "wind_direction_deg": 232.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.402,
+      "humidity_pct": 19.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T21:00:00Z",
+      "wind_speed_ms": 2.446,
+      "wind_gust_ms": 4.029,
+      "wind_direction_deg": 224.3,
+      "gust_direction_deg": null,
+      "temperature_c": 0.688,
+      "humidity_pct": 18.38,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T21:30:00Z",
+      "wind_speed_ms": 2.707,
+      "wind_gust_ms": 5.32,
+      "wind_direction_deg": 214.5,
+      "gust_direction_deg": null,
+      "temperature_c": 0.769,
+      "humidity_pct": 17.64,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T22:00:00Z",
+      "wind_speed_ms": 2.607,
+      "wind_gust_ms": 5.34,
+      "wind_direction_deg": 220.1,
+      "gust_direction_deg": null,
+      "temperature_c": 0.765,
+      "humidity_pct": 17.92,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T22:30:00Z",
+      "wind_speed_ms": 3.587,
+      "wind_gust_ms": 5.966,
+      "wind_direction_deg": 214.2,
+      "gust_direction_deg": null,
+      "temperature_c": 1.234,
+      "humidity_pct": 16.79,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T23:00:00Z",
+      "wind_speed_ms": 4.433,
+      "wind_gust_ms": 7.746,
+      "wind_direction_deg": 217.0,
+      "gust_direction_deg": null,
+      "temperature_c": 2.089,
+      "humidity_pct": 14.52,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-21T23:30:00Z",
+      "wind_speed_ms": 3.002,
+      "wind_gust_ms": 4.518,
+      "wind_direction_deg": 225.5,
+      "gust_direction_deg": null,
+      "temperature_c": 2.559,
+      "humidity_pct": 13.06,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T00:00:00Z",
+      "wind_speed_ms": 2.814,
+      "wind_gust_ms": 4.381,
+      "wind_direction_deg": 245.7,
+      "gust_direction_deg": null,
+      "temperature_c": 2.822,
+      "humidity_pct": 11.46,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T00:30:00Z",
+      "wind_speed_ms": 3.01,
+      "wind_gust_ms": 4.46,
+      "wind_direction_deg": 249.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.375,
+      "humidity_pct": 11.23,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T01:00:00Z",
+      "wind_speed_ms": 2.378,
+      "wind_gust_ms": 4.91,
+      "wind_direction_deg": 243.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.181,
+      "humidity_pct": 13.13,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T01:30:00Z",
+      "wind_speed_ms": 0.303,
+      "wind_gust_ms": 2.758,
+      "wind_direction_deg": 211.5,
+      "gust_direction_deg": null,
+      "temperature_c": 1.757,
+      "humidity_pct": 16.01,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T02:00:00Z",
+      "wind_speed_ms": 0.096,
+      "wind_gust_ms": 1.643,
+      "wind_direction_deg": 37.95,
+      "gust_direction_deg": null,
+      "temperature_c": 1.273,
+      "humidity_pct": 17.68,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T02:30:00Z",
+      "wind_speed_ms": 0.816,
+      "wind_gust_ms": 1.78,
+      "wind_direction_deg": 92.6,
+      "gust_direction_deg": null,
+      "temperature_c": 1.051,
+      "humidity_pct": 16.84,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T03:00:00Z",
+      "wind_speed_ms": 0.355,
+      "wind_gust_ms": 1.78,
+      "wind_direction_deg": 345.3,
+      "gust_direction_deg": null,
+      "temperature_c": 0.746,
+      "humidity_pct": 17.49,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T03:30:00Z",
+      "wind_speed_ms": 1.21,
+      "wind_gust_ms": 2.152,
+      "wind_direction_deg": 1.848,
+      "gust_direction_deg": null,
+      "temperature_c": 0.639,
+      "humidity_pct": 18.48,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T04:00:00Z",
+      "wind_speed_ms": 2.071,
+      "wind_gust_ms": 4.929,
+      "wind_direction_deg": 322.2,
+      "gust_direction_deg": null,
+      "temperature_c": -0.265,
+      "humidity_pct": 23.12,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T04:30:00Z",
+      "wind_speed_ms": 2.626,
+      "wind_gust_ms": 5.183,
+      "wind_direction_deg": 329.6,
+      "gust_direction_deg": null,
+      "temperature_c": -0.064,
+      "humidity_pct": 22.77,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T05:00:00Z",
+      "wind_speed_ms": 1.271,
+      "wind_gust_ms": 4.264,
+      "wind_direction_deg": 136.1,
+      "gust_direction_deg": null,
+      "temperature_c": -0.13,
+      "humidity_pct": 23.97,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T05:30:00Z",
+      "wind_speed_ms": 1.297,
+      "wind_gust_ms": 3.834,
+      "wind_direction_deg": 141.9,
+      "gust_direction_deg": null,
+      "temperature_c": -0.344,
+      "humidity_pct": 30.24,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T06:00:00Z",
+      "wind_speed_ms": 1.455,
+      "wind_gust_ms": 4.538,
+      "wind_direction_deg": 188.3,
+      "gust_direction_deg": null,
+      "temperature_c": -1.458,
+      "humidity_pct": 57.67,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T06:30:00Z",
+      "wind_speed_ms": 2.227,
+      "wind_gust_ms": 5.359,
+      "wind_direction_deg": 90.3,
+      "gust_direction_deg": null,
+      "temperature_c": -3.703,
+      "humidity_pct": 87.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T07:00:00Z",
+      "wind_speed_ms": 5.45,
+      "wind_gust_ms": 7.413,
+      "wind_direction_deg": 118.2,
+      "gust_direction_deg": null,
+      "temperature_c": -4.896,
+      "humidity_pct": 98.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": 3.32,
+      "wind_gust_ms": 7.139,
+      "wind_direction_deg": 182.4,
+      "gust_direction_deg": null,
+      "temperature_c": -3.345,
+      "humidity_pct": 99.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MAN1",
+      "time": "2026-11-22T08:00:00Z",
+      "wind_speed_ms": 3.39,
+      "wind_gust_ms": 5.223,
+      "wind_direction_deg": 214.9,
+      "gust_direction_deg": null,
+      "temperature_c": -1.661,
+      "humidity_pct": 99.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T08:30:00Z",
+      "wind_speed_ms": 2.859,
+      "wind_gust_ms": 6.2,
+      "wind_direction_deg": 300.2,
+      "gust_direction_deg": null,
+      "temperature_c": -4.07,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T09:00:00Z",
+      "wind_speed_ms": 2.628,
+      "wind_gust_ms": 6.1,
+      "wind_direction_deg": 293.1,
+      "gust_direction_deg": null,
+      "temperature_c": -3.859,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T09:30:00Z",
+      "wind_speed_ms": 3.423,
+      "wind_gust_ms": 5.5,
+      "wind_direction_deg": 298.1,
+      "gust_direction_deg": null,
+      "temperature_c": -3.701,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": 3.062,
+      "wind_gust_ms": 6.5,
+      "wind_direction_deg": 302.6,
+      "gust_direction_deg": null,
+      "temperature_c": -3.501,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T10:30:00Z",
+      "wind_speed_ms": 3.265,
+      "wind_gust_ms": 7.7,
+      "wind_direction_deg": 299.4,
+      "gust_direction_deg": null,
+      "temperature_c": -3.347,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T11:00:00Z",
+      "wind_speed_ms": 4.447,
+      "wind_gust_ms": 6.8,
+      "wind_direction_deg": 298.3,
+      "gust_direction_deg": null,
+      "temperature_c": -3.25,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T11:30:00Z",
+      "wind_speed_ms": 3.293,
+      "wind_gust_ms": 7.7,
+      "wind_direction_deg": 305.9,
+      "gust_direction_deg": null,
+      "temperature_c": -3.122,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T12:00:00Z",
+      "wind_speed_ms": 4.944,
+      "wind_gust_ms": 12.1,
+      "wind_direction_deg": 288.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.418,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T12:30:00Z",
+      "wind_speed_ms": 4.872,
+      "wind_gust_ms": 8.7,
+      "wind_direction_deg": 296.5,
+      "gust_direction_deg": null,
+      "temperature_c": -3.703,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T13:00:00Z",
+      "wind_speed_ms": 5.191,
+      "wind_gust_ms": 13.3,
+      "wind_direction_deg": 292.2,
+      "gust_direction_deg": null,
+      "temperature_c": -3.916,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T13:30:00Z",
+      "wind_speed_ms": 5.857,
+      "wind_gust_ms": 13.0,
+      "wind_direction_deg": 289.8,
+      "gust_direction_deg": null,
+      "temperature_c": -3.929,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T14:00:00Z",
+      "wind_speed_ms": 3.939,
+      "wind_gust_ms": 10.5,
+      "wind_direction_deg": 298.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.797,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T14:30:00Z",
+      "wind_speed_ms": 3.622,
+      "wind_gust_ms": 8.2,
+      "wind_direction_deg": 301.1,
+      "gust_direction_deg": null,
+      "temperature_c": -3.722,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T15:00:00Z",
+      "wind_speed_ms": 4.075,
+      "wind_gust_ms": 9.1,
+      "wind_direction_deg": 295.9,
+      "gust_direction_deg": null,
+      "temperature_c": -3.894,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T15:30:00Z",
+      "wind_speed_ms": 3.244,
+      "wind_gust_ms": 7.3,
+      "wind_direction_deg": 289.1,
+      "gust_direction_deg": null,
+      "temperature_c": -3.959,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T16:00:00Z",
+      "wind_speed_ms": 1.804,
+      "wind_gust_ms": 6.8,
+      "wind_direction_deg": 268.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.025,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T16:30:00Z",
+      "wind_speed_ms": 1.797,
+      "wind_gust_ms": 5.6,
+      "wind_direction_deg": 244.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.105,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T17:00:00Z",
+      "wind_speed_ms": 1.48,
+      "wind_gust_ms": 5.9,
+      "wind_direction_deg": 267.6,
+      "gust_direction_deg": null,
+      "temperature_c": -4.351,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T17:30:00Z",
+      "wind_speed_ms": 2.022,
+      "wind_gust_ms": 4.8,
+      "wind_direction_deg": 204.2,
+      "gust_direction_deg": null,
+      "temperature_c": -4.581,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T18:00:00Z",
+      "wind_speed_ms": 2.01,
+      "wind_gust_ms": 7.3,
+      "wind_direction_deg": 203.3,
+      "gust_direction_deg": null,
+      "temperature_c": -4.725,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T18:30:00Z",
+      "wind_speed_ms": 3.039,
+      "wind_gust_ms": 8.9,
+      "wind_direction_deg": 205.8,
+      "gust_direction_deg": null,
+      "temperature_c": -4.701,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T19:00:00Z",
+      "wind_speed_ms": 3.968,
+      "wind_gust_ms": 10.1,
+      "wind_direction_deg": 201.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.682,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T19:30:00Z",
+      "wind_speed_ms": 4.68,
+      "wind_gust_ms": 12.4,
+      "wind_direction_deg": 197.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.682,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T20:00:00Z",
+      "wind_speed_ms": 4.156,
+      "wind_gust_ms": 13.1,
+      "wind_direction_deg": 206.3,
+      "gust_direction_deg": null,
+      "temperature_c": -4.733,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T20:30:00Z",
+      "wind_speed_ms": 5.062,
+      "wind_gust_ms": 14.3,
+      "wind_direction_deg": 200.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.849,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T21:00:00Z",
+      "wind_speed_ms": 5.157,
+      "wind_gust_ms": 13.1,
+      "wind_direction_deg": 198.2,
+      "gust_direction_deg": null,
+      "temperature_c": -4.877,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T21:30:00Z",
+      "wind_speed_ms": 7.851,
+      "wind_gust_ms": 14.9,
+      "wind_direction_deg": 189.8,
+      "gust_direction_deg": null,
+      "temperature_c": -4.969,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T22:00:00Z",
+      "wind_speed_ms": 5.965,
+      "wind_gust_ms": 14.4,
+      "wind_direction_deg": 199.1,
+      "gust_direction_deg": null,
+      "temperature_c": -5.021,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T22:30:00Z",
+      "wind_speed_ms": 6.07,
+      "wind_gust_ms": 16.7,
+      "wind_direction_deg": 197.1,
+      "gust_direction_deg": null,
+      "temperature_c": -4.86,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T23:00:00Z",
+      "wind_speed_ms": 8.09,
+      "wind_gust_ms": 17.7,
+      "wind_direction_deg": 196.2,
+      "gust_direction_deg": null,
+      "temperature_c": -4.094,
+      "humidity_pct": 92.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-21T23:30:00Z",
+      "wind_speed_ms": 9.4,
+      "wind_gust_ms": 20.4,
+      "wind_direction_deg": 194.5,
+      "gust_direction_deg": null,
+      "temperature_c": -3.069,
+      "humidity_pct": 77.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T00:00:00Z",
+      "wind_speed_ms": 10.02,
+      "wind_gust_ms": 18.2,
+      "wind_direction_deg": 195.9,
+      "gust_direction_deg": null,
+      "temperature_c": -2.241,
+      "humidity_pct": 65.23,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T00:30:00Z",
+      "wind_speed_ms": 11.52,
+      "wind_gust_ms": 20.3,
+      "wind_direction_deg": 195.3,
+      "gust_direction_deg": null,
+      "temperature_c": -1.904,
+      "humidity_pct": 62.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T01:00:00Z",
+      "wind_speed_ms": 9.56,
+      "wind_gust_ms": 20.6,
+      "wind_direction_deg": 195.4,
+      "gust_direction_deg": null,
+      "temperature_c": -1.993,
+      "humidity_pct": 63.78,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T01:30:00Z",
+      "wind_speed_ms": 10.86,
+      "wind_gust_ms": 20.4,
+      "wind_direction_deg": 192.6,
+      "gust_direction_deg": null,
+      "temperature_c": -1.895,
+      "humidity_pct": 64.06,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T02:00:00Z",
+      "wind_speed_ms": 9.74,
+      "wind_gust_ms": 21.0,
+      "wind_direction_deg": 192.1,
+      "gust_direction_deg": null,
+      "temperature_c": -1.366,
+      "humidity_pct": 59.45,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T02:30:00Z",
+      "wind_speed_ms": 9.75,
+      "wind_gust_ms": 19.9,
+      "wind_direction_deg": 193.3,
+      "gust_direction_deg": null,
+      "temperature_c": -1.251,
+      "humidity_pct": 58.83,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T03:00:00Z",
+      "wind_speed_ms": 9.69,
+      "wind_gust_ms": 21.2,
+      "wind_direction_deg": 195.2,
+      "gust_direction_deg": null,
+      "temperature_c": -1.972,
+      "humidity_pct": 68.54,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T03:30:00Z",
+      "wind_speed_ms": 10.4,
+      "wind_gust_ms": 20.0,
+      "wind_direction_deg": 193.6,
+      "gust_direction_deg": null,
+      "temperature_c": -1.59,
+      "humidity_pct": 65.34,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T04:00:00Z",
+      "wind_speed_ms": 10.94,
+      "wind_gust_ms": 21.0,
+      "wind_direction_deg": 192.6,
+      "gust_direction_deg": null,
+      "temperature_c": -1.306,
+      "humidity_pct": 63.21,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T04:30:00Z",
+      "wind_speed_ms": 10.88,
+      "wind_gust_ms": 20.7,
+      "wind_direction_deg": 191.1,
+      "gust_direction_deg": null,
+      "temperature_c": -0.787,
+      "humidity_pct": 57.79,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T05:00:00Z",
+      "wind_speed_ms": 6.085,
+      "wind_gust_ms": 18.4,
+      "wind_direction_deg": 196.3,
+      "gust_direction_deg": null,
+      "temperature_c": -0.245,
+      "humidity_pct": 52.44,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T05:30:00Z",
+      "wind_speed_ms": 6.056,
+      "wind_gust_ms": 18.6,
+      "wind_direction_deg": 196.9,
+      "gust_direction_deg": null,
+      "temperature_c": -0.251,
+      "humidity_pct": 52.99,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T06:00:00Z",
+      "wind_speed_ms": 6.395,
+      "wind_gust_ms": 17.7,
+      "wind_direction_deg": 195.1,
+      "gust_direction_deg": null,
+      "temperature_c": -0.36,
+      "humidity_pct": 54.43,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T06:30:00Z",
+      "wind_speed_ms": 7.766,
+      "wind_gust_ms": 18.4,
+      "wind_direction_deg": 195.1,
+      "gust_direction_deg": null,
+      "temperature_c": -0.776,
+      "humidity_pct": 58.87,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T07:00:00Z",
+      "wind_speed_ms": 8.02,
+      "wind_gust_ms": 21.0,
+      "wind_direction_deg": 196.5,
+      "gust_direction_deg": null,
+      "temperature_c": -1.388,
+      "humidity_pct": 65.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": 9.48,
+      "wind_gust_ms": 21.3,
+      "wind_direction_deg": 194.8,
+      "gust_direction_deg": null,
+      "temperature_c": -1.914,
+      "humidity_pct": 72.45,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:MLB1",
+      "time": "2026-11-22T08:00:00Z",
+      "wind_speed_ms": 7.478,
+      "wind_gust_ms": 17.7,
+      "wind_direction_deg": 195.2,
+      "gust_direction_deg": null,
+      "temperature_c": -2.73,
+      "humidity_pct": 86.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T08:30:00Z",
+      "wind_speed_ms": 3.126,
+      "wind_gust_ms": 7.531,
+      "wind_direction_deg": 311.8,
+      "gust_direction_deg": null,
+      "temperature_c": -5.932,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T09:00:00Z",
+      "wind_speed_ms": 3.874,
+      "wind_gust_ms": 8.86,
+      "wind_direction_deg": 317.0,
+      "gust_direction_deg": null,
+      "temperature_c": -5.882,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T09:30:00Z",
+      "wind_speed_ms": 3.64,
+      "wind_gust_ms": 8.78,
+      "wind_direction_deg": 318.3,
+      "gust_direction_deg": null,
+      "temperature_c": -5.409,
+      "humidity_pct": 99.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": 3.823,
+      "wind_gust_ms": 8.8,
+      "wind_direction_deg": 330.2,
+      "gust_direction_deg": null,
+      "temperature_c": -5.266,
+      "humidity_pct": 99.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T10:30:00Z",
+      "wind_speed_ms": 4.247,
+      "wind_gust_ms": 7.804,
+      "wind_direction_deg": 330.3,
+      "gust_direction_deg": null,
+      "temperature_c": -5.421,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T11:00:00Z",
+      "wind_speed_ms": 3.088,
+      "wind_gust_ms": 7.687,
+      "wind_direction_deg": 317.7,
+      "gust_direction_deg": null,
+      "temperature_c": -5.215,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T11:30:00Z",
+      "wind_speed_ms": 1.185,
+      "wind_gust_ms": 3.267,
+      "wind_direction_deg": 290.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.647,
+      "humidity_pct": 98.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T12:00:00Z",
+      "wind_speed_ms": 0.741,
+      "wind_gust_ms": 5.751,
+      "wind_direction_deg": 248.6,
+      "gust_direction_deg": null,
+      "temperature_c": -4.566,
+      "humidity_pct": 97.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T12:30:00Z",
+      "wind_speed_ms": 0.005,
+      "wind_gust_ms": 3.09,
+      "wind_direction_deg": 118.6,
+      "gust_direction_deg": null,
+      "temperature_c": -3.651,
+      "humidity_pct": 93.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T13:00:00Z",
+      "wind_speed_ms": 0.959,
+      "wind_gust_ms": 4.988,
+      "wind_direction_deg": 308.5,
+      "gust_direction_deg": null,
+      "temperature_c": -4.736,
+      "humidity_pct": 93.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T13:30:00Z",
+      "wind_speed_ms": 0.346,
+      "wind_gust_ms": 3.051,
+      "wind_direction_deg": 108.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.735,
+      "humidity_pct": 94.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T14:00:00Z",
+      "wind_speed_ms": 0.134,
+      "wind_gust_ms": 2.269,
+      "wind_direction_deg": 125.7,
+      "gust_direction_deg": null,
+      "temperature_c": -4.823,
+      "humidity_pct": 97.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T14:30:00Z",
+      "wind_speed_ms": 0.14,
+      "wind_gust_ms": 2.171,
+      "wind_direction_deg": 66.46,
+      "gust_direction_deg": null,
+      "temperature_c": -5.135,
+      "humidity_pct": 98.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T15:00:00Z",
+      "wind_speed_ms": 0.108,
+      "wind_gust_ms": 1.741,
+      "wind_direction_deg": 328.6,
+      "gust_direction_deg": null,
+      "temperature_c": -5.315,
+      "humidity_pct": 97.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T15:30:00Z",
+      "wind_speed_ms": 0.258,
+      "wind_gust_ms": 1.271,
+      "wind_direction_deg": 355.5,
+      "gust_direction_deg": null,
+      "temperature_c": -5.978,
+      "humidity_pct": 99.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T16:00:00Z",
+      "wind_speed_ms": 0.177,
+      "wind_gust_ms": 0.841,
+      "wind_direction_deg": 356.1,
+      "gust_direction_deg": null,
+      "temperature_c": -6.392,
+      "humidity_pct": 98.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T16:30:00Z",
+      "wind_speed_ms": 0.488,
+      "wind_gust_ms": 1.643,
+      "wind_direction_deg": 4.004,
+      "gust_direction_deg": null,
+      "temperature_c": -6.642,
+      "humidity_pct": 96.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T17:00:00Z",
+      "wind_speed_ms": 0.526,
+      "wind_gust_ms": 1.369,
+      "wind_direction_deg": 327.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.696,
+      "humidity_pct": 93.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T17:30:00Z",
+      "wind_speed_ms": 0.655,
+      "wind_gust_ms": 1.682,
+      "wind_direction_deg": 15.67,
+      "gust_direction_deg": null,
+      "temperature_c": -7.132,
+      "humidity_pct": 93.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T18:00:00Z",
+      "wind_speed_ms": 0.571,
+      "wind_gust_ms": 1.76,
+      "wind_direction_deg": 342.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.919,
+      "humidity_pct": 91.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T18:30:00Z",
+      "wind_speed_ms": 0.617,
+      "wind_gust_ms": 1.8,
+      "wind_direction_deg": 338.6,
+      "gust_direction_deg": null,
+      "temperature_c": -6.945,
+      "humidity_pct": 90.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T19:00:00Z",
+      "wind_speed_ms": 0.431,
+      "wind_gust_ms": 1.408,
+      "wind_direction_deg": 348.2,
+      "gust_direction_deg": null,
+      "temperature_c": -6.841,
+      "humidity_pct": 87.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T19:30:00Z",
+      "wind_speed_ms": 0.305,
+      "wind_gust_ms": 1.35,
+      "wind_direction_deg": 343.4,
+      "gust_direction_deg": null,
+      "temperature_c": -7.274,
+      "humidity_pct": 86.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T20:00:00Z",
+      "wind_speed_ms": 0.495,
+      "wind_gust_ms": 2.582,
+      "wind_direction_deg": 48.43,
+      "gust_direction_deg": null,
+      "temperature_c": -6.755,
+      "humidity_pct": 79.72,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T20:30:00Z",
+      "wind_speed_ms": 0.244,
+      "wind_gust_ms": 2.836,
+      "wind_direction_deg": 15.18,
+      "gust_direction_deg": null,
+      "temperature_c": -6.533,
+      "humidity_pct": 77.02,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T21:00:00Z",
+      "wind_speed_ms": 0.659,
+      "wind_gust_ms": 3.149,
+      "wind_direction_deg": 274.5,
+      "gust_direction_deg": null,
+      "temperature_c": -6.272,
+      "humidity_pct": 75.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T21:30:00Z",
+      "wind_speed_ms": 0.34,
+      "wind_gust_ms": 2.191,
+      "wind_direction_deg": 316.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.127,
+      "humidity_pct": 71.65,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T22:00:00Z",
+      "wind_speed_ms": 0.074,
+      "wind_gust_ms": 2.386,
+      "wind_direction_deg": 245.9,
+      "gust_direction_deg": null,
+      "temperature_c": -5.622,
+      "humidity_pct": 66.72,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T22:30:00Z",
+      "wind_speed_ms": 0.883,
+      "wind_gust_ms": 6.866,
+      "wind_direction_deg": 144.6,
+      "gust_direction_deg": null,
+      "temperature_c": -5.311,
+      "humidity_pct": 66.73,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T23:00:00Z",
+      "wind_speed_ms": 4.636,
+      "wind_gust_ms": 9.35,
+      "wind_direction_deg": 151.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.556,
+      "humidity_pct": 62.45,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-21T23:30:00Z",
+      "wind_speed_ms": 4.789,
+      "wind_gust_ms": 9.51,
+      "wind_direction_deg": 147.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.151,
+      "humidity_pct": 57.52,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T00:00:00Z",
+      "wind_speed_ms": 4.435,
+      "wind_gust_ms": 7.863,
+      "wind_direction_deg": 150.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.911,
+      "humidity_pct": 56.35,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T00:30:00Z",
+      "wind_speed_ms": 5.248,
+      "wind_gust_ms": 11.97,
+      "wind_direction_deg": 148.9,
+      "gust_direction_deg": null,
+      "temperature_c": -3.606,
+      "humidity_pct": 54.89,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T01:00:00Z",
+      "wind_speed_ms": 4.534,
+      "wind_gust_ms": 9.39,
+      "wind_direction_deg": 151.4,
+      "gust_direction_deg": null,
+      "temperature_c": -3.643,
+      "humidity_pct": 54.87,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T01:30:00Z",
+      "wind_speed_ms": 4.422,
+      "wind_gust_ms": 9.33,
+      "wind_direction_deg": 153.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.678,
+      "humidity_pct": 58.27,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T02:00:00Z",
+      "wind_speed_ms": 3.448,
+      "wind_gust_ms": 7.961,
+      "wind_direction_deg": 151.9,
+      "gust_direction_deg": null,
+      "temperature_c": -3.506,
+      "humidity_pct": 55.94,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T02:30:00Z",
+      "wind_speed_ms": 3.427,
+      "wind_gust_ms": 8.7,
+      "wind_direction_deg": 153.1,
+      "gust_direction_deg": null,
+      "temperature_c": -3.293,
+      "humidity_pct": 54.12,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T03:00:00Z",
+      "wind_speed_ms": 3.917,
+      "wind_gust_ms": 8.67,
+      "wind_direction_deg": 146.3,
+      "gust_direction_deg": null,
+      "temperature_c": -3.039,
+      "humidity_pct": 54.36,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T03:30:00Z",
+      "wind_speed_ms": 3.988,
+      "wind_gust_ms": 9.15,
+      "wind_direction_deg": 153.1,
+      "gust_direction_deg": null,
+      "temperature_c": -2.715,
+      "humidity_pct": 52.35,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T04:00:00Z",
+      "wind_speed_ms": 3.23,
+      "wind_gust_ms": 7.687,
+      "wind_direction_deg": 135.0,
+      "gust_direction_deg": null,
+      "temperature_c": -2.558,
+      "humidity_pct": 50.83,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T04:30:00Z",
+      "wind_speed_ms": 2.893,
+      "wind_gust_ms": 8.08,
+      "wind_direction_deg": 140.1,
+      "gust_direction_deg": null,
+      "temperature_c": -2.372,
+      "humidity_pct": 48.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T05:00:00Z",
+      "wind_speed_ms": 2.96,
+      "wind_gust_ms": 6.377,
+      "wind_direction_deg": 133.0,
+      "gust_direction_deg": null,
+      "temperature_c": -2.298,
+      "humidity_pct": 49.25,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T05:30:00Z",
+      "wind_speed_ms": 1.944,
+      "wind_gust_ms": 7.081,
+      "wind_direction_deg": 138.0,
+      "gust_direction_deg": null,
+      "temperature_c": -2.465,
+      "humidity_pct": 50.72,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T06:00:00Z",
+      "wind_speed_ms": 3.576,
+      "wind_gust_ms": 8.51,
+      "wind_direction_deg": 146.1,
+      "gust_direction_deg": null,
+      "temperature_c": -2.749,
+      "humidity_pct": 56.59,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T06:30:00Z",
+      "wind_speed_ms": 5.144,
+      "wind_gust_ms": 10.99,
+      "wind_direction_deg": 145.8,
+      "gust_direction_deg": null,
+      "temperature_c": -2.89,
+      "humidity_pct": 60.79,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T07:00:00Z",
+      "wind_speed_ms": 4.041,
+      "wind_gust_ms": 9.7,
+      "wind_direction_deg": 151.7,
+      "gust_direction_deg": null,
+      "temperature_c": -3.422,
+      "humidity_pct": 68.73,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T07:30:00Z",
+      "wind_speed_ms": 3.023,
+      "wind_gust_ms": 8.51,
+      "wind_direction_deg": 173.9,
+      "gust_direction_deg": null,
+      "temperature_c": -4.678,
+      "humidity_pct": 87.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "slf-imis:WFJ2",
+      "time": "2026-11-22T08:00:00Z",
+      "wind_speed_ms": 2.329,
+      "wind_gust_ms": 4.812,
+      "wind_direction_deg": 169.9,
+      "gust_direction_deg": null,
+      "temperature_c": -5.533,
+      "humidity_pct": 98.8,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "slf-imis",
+    "requests": 2,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 207,
+    "observations": 333,
+    "newest_observation": "2026-11-22T08:00:00Z"
+  }
+}

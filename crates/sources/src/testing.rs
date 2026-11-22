@@ -4,14 +4,17 @@
 //! [`FixtureFetch`], the real pipeline runs over them, and the result is
 //! compared with a golden file checked into the repository.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use venti_domain::{RADAR_UNSEEN, RadarFrame, Timestamp};
+use venti_domain::{BoundingBox, RADAR_UNSEEN, RadarFrame, Timestamp};
 
-use crate::{Archive, ArchiveEntry, ArchiveError, Fetch, FetchError, Fetched, Request};
+use crate::{
+    Archive, ArchiveEntry, ArchiveError, Fetch, FetchError, Fetched, Kind, ObservationSource,
+    PlanCtx, Request, RunOptions, RunOutput, run_observations,
+};
 
 pub use futures::executor::block_on;
 
@@ -181,4 +184,209 @@ pub fn assert_golden(path: &Path, value: &impl Serialize) {
             path.display()
         );
     }
+}
+
+/// Holds a station adapter to the contract every one of them meets, over a
+/// recording of its provider's answers: `answers` are the answers with the
+/// addresses they answer, `at` the moment of a run over them and `area`
+/// the area of that run. An adapter crate calls this from a test of its
+/// own, with what it recorded; the server's tests call it for every
+/// network of the build, with the sample of the development mode.
+///
+/// What is held:
+///
+/// - **The manifest** names observations among its kinds, may be passed
+///   on (the server refuses to collect a source that may not), and says
+///   where and when its licence was read. That it parses, with a provider,
+///   countries, a cadence and a whole licence, was checked when the
+///   adapter was made.
+/// - **The plan** asks HTTPS addresses only; the server's fetcher asks no
+///   other.
+/// - **Recorded answers in, canonical records out**: a run over the
+///   recording is a healthy one: it delivers observations, and at most a
+///   tenth of its requests fail (a station's file that is late is part of
+///   an honest recording). Every station
+///   is the source's own and lies in the area, every observation is of
+///   one of those stations and not of the future, and at least one has a
+///   wind.
+/// - **Units in range**: nothing of a clean recording is refused by the
+///   pipeline's limits. A value outside them in an answer that was
+///   recorded whole is nearly always a unit read wrongly. (The limits are
+///   wide: km/h read as m/s passes them. A unit test of the adapter with a
+///   value converted by hand is what holds the unit.)
+/// - **The same in, the same out**: a second run gives the same records,
+///   so nothing in the adapter reads a clock or keeps a state.
+/// - **A damaged answer is survived**: each answer in turn cut off in its
+///   middle, emptied, and replaced by bytes that are no text, the others
+///   left whole. No run panics, and each still gives a report.
+///
+/// What it cannot hold, and a review does: that the values mean what the
+/// adapter takes them for, which the provider's own documentation says and
+/// a golden file shows; see `docs/adding-a-source.md`.
+///
+/// # Panics
+///
+/// Panics with what is not met.
+pub fn check_station_adapter<B: AsRef<[u8]>>(
+    adapter: &dyn ObservationSource,
+    answers: &[(String, B)],
+    at: Timestamp,
+    area: BoundingBox,
+) {
+    let manifest = adapter.manifest();
+    let id = &manifest.id;
+    assert!(
+        manifest.kinds.contains(&Kind::Observations),
+        "{id}: the manifest's kinds do not name observations"
+    );
+    assert!(
+        manifest.licence.redistribution,
+        "{id}: the manifest says the data may not be passed on, and passing on is all the \
+         server does with it"
+    );
+    assert!(
+        !manifest.licence.verified_from.is_empty(),
+        "{id}: the manifest names no page its licence was read on"
+    );
+
+    let ctx = PlanCtx { now: at, area };
+    let plan = adapter.plan(&ctx);
+    assert!(!plan.is_empty(), "{id}: nothing is asked for {area:?}");
+    for request in &plan {
+        assert!(
+            request.url.starts_with("https://"),
+            "{id}: {} is not an HTTPS address",
+            request.url
+        );
+    }
+
+    let run = |answers: &[(String, Vec<u8>)]| -> RunOutput {
+        let fetch = FixtureFetch::new().with_all(answers.iter().cloned());
+        block_on(run_observations(
+            adapter,
+            &fetch,
+            &MemoryArchive::default(),
+            &ctx,
+            &RunOptions::default(),
+        ))
+    };
+    let whole: Vec<(String, Vec<u8>)> = answers
+        .iter()
+        .map(|(url, body)| (url.clone(), body.as_ref().to_vec()))
+        .collect();
+    assert!(!whole.is_empty(), "{id}: record a fixture");
+
+    let output = run(&whole);
+    let report = &output.report;
+    assert!(report.is_healthy(), "{id}: not a healthy run: {report:?}");
+    assert!(
+        report.rejected.is_empty(),
+        "{id}: values outside the limits, which in a clean recording is a unit read wrongly: \
+         {:?}",
+        report.rejected
+    );
+    let stations: BTreeSet<_> = output.stations.iter().map(|station| &station.id).collect();
+    for station in &output.stations {
+        assert_eq!(
+            station.id.source(),
+            id,
+            "{}: another source's station",
+            station.id
+        );
+        assert!(
+            area.contains(station.position),
+            "{}: outside the area",
+            station.id
+        );
+        assert!(!station.name.trim().is_empty(), "{}: no name", station.id);
+    }
+    for observation in &output.observations {
+        assert!(
+            stations.contains(&observation.station),
+            "{}: an observation without its station",
+            observation.station
+        );
+        assert!(
+            observation.time <= at + chrono::Duration::minutes(15),
+            "{}: an observation of the future, {}",
+            observation.station,
+            observation.time
+        );
+    }
+    assert!(
+        output
+            .observations
+            .iter()
+            .any(|observation| observation.wind_speed_ms.is_some()),
+        "{id}: no observation of the recording has a wind"
+    );
+
+    assert_eq!(
+        run(&whole),
+        output,
+        "{id}: a second run gives other records"
+    );
+
+    let no_text: &[u8] = &[0xff, 0xfe, 0x00, 0x7b, 0x5b, 0x3b, 0x0a, 0xc3];
+    for damaged in 0..whole.len() {
+        let body = &whole[damaged].1;
+        for replaced in [&body[..body.len() / 2], &[][..], no_text] {
+            let mut answers = whole.clone();
+            answers[damaged].1 = replaced.to_vec();
+            // Whatever comes of it is a report: what is asked is that the
+            // adapter does not panic.
+            let _ = run(&answers);
+        }
+    }
+}
+
+/// Looks through the Rust files of an adapter crate's `src` folder for
+/// what an adapter does not do: open a connection, read or write a file,
+/// read a clock, read the environment or start a process. `crate_dir` is
+/// the crate's folder, `env!("CARGO_MANIFEST_DIR")` in a test of the
+/// crate.
+///
+/// This reads text, so it finds the plain cases and no more: it is a
+/// reminder to whoever writes an adapter, and the pipeline's shape is what
+/// holds the rule, since an adapter is only ever handed bytes.
+///
+/// # Panics
+///
+/// Panics with the file and the word found, or when the folder cannot be
+/// read.
+pub fn check_adapter_does_no_io(crate_dir: &Path) {
+    const NOT_IN_AN_ADAPTER: [&str; 11] = [
+        "std::net",
+        "std::fs",
+        "std::env",
+        "std::process",
+        "std::thread",
+        "SystemTime",
+        "Instant::now",
+        "Utc::now",
+        "Local::now",
+        "reqwest",
+        "tokio",
+    ];
+    let src = crate_dir.join("src");
+    let files = std::fs::read_dir(&src).unwrap_or_else(|e| panic!("{}: {e}", src.display()));
+    let mut read = 0;
+    for file in files {
+        let path = file.expect("a folder's entry").path();
+        if path.extension().is_none_or(|extension| extension != "rs") {
+            continue;
+        }
+        let text =
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        for word in NOT_IN_AN_ADAPTER {
+            assert!(
+                !text.contains(word),
+                "{} uses {word}: an adapter names addresses and reads bytes, and the pipeline \
+                 does the rest",
+                path.display()
+            );
+        }
+        read += 1;
+    }
+    assert!(read > 0, "{} has no Rust files", src.display());
 }

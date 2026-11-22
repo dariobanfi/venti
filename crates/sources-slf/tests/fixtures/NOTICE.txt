@@ -1,0 +1,92 @@
+The files in this folder are data of the WSL Institute for Snow and
+Avalanche Research SLF (www.slf.ch), measured by its IMIS stations and
+published through its measurement service, https://measurement-api.slf.ch,
+under Creative Commons CC BY 4.0,
+https://creativecommons.org/licenses/by/4.0/, as its data service's page
+says: https://www.slf.ch/en/services-and-products/slf-data-service/. They
+are not covered by the licence of the code around them.
+
+They were recorded on 2026-11-22 from
+https://measurement-api.slf.ch/public/api/imis/, without a key, with curl,
+one GET each. The answers hold no personal data and no key.
+
+    stations.json   GET /stations                 31,345 bytes, whole and
+                    asked at 08:09:08 UTC         unchanged: 207 stations,
+                                                  205 in Switzerland and 2
+                                                  in Liechtenstein
+
+    measurements.json                             CUT from the answer to
+                    GET /measurements             GET /measurements, asked
+                    asked at 08:09:08 UTC         at the same second, which
+                                                  was 3,302,282 bytes: 9,639
+                                                  rows of 203 stations, the
+                                                  half hours from 08:30 UTC
+                                                  on 2026-11-21 to 07:30 or
+                                                  08:00 UTC on 2026-11-22
+
+The answer is one JSON array written on one line, a flat object a row.
+measurements.json keeps the rows whose station_code is one of DAV1
+(Chrachenhorn), FAE1 (Albristhorn), GLA2 (Guppen), LAG2 (Tscheppa), MAN1
+(Männlichen), MLB1 (Spitz) and WFJ2 (Weissfluhjoch), every one of their
+rows, in the answer's order, each byte for byte as the service wrote it,
+joined by commas between "[" and "]" as in the answer: 333 rows, 112,815
+bytes. They were chosen for what they show: a wind station on a ridge
+whose anemometer gave nothing (FAE1), a snow station without an anemometer
+(LAG2) and one without a thermometer (GLA2), stations in the first
+region's box and in the western one, Liechtenstein. The cut was made by a
+script that split the array between "},{" and checked that every piece
+read as JSON is the row of the whole answer it was cut from.
+
+    openapi.json    GET https://measurement-api.slf.ch/openapi.json
+                    whole and unchanged, 14,341 bytes: the service's own
+                    description, which gives the unit of every value. A
+                    test reads the units from it.
+
+The folder evening/ holds three answers of the service's history of one
+station, whole and unchanged, asked at 08:11:12 UTC:
+
+    evening/STATION.json   GET /station/STATION/measurements
+                           ?period_in_days=7
+
+for DAV1, WFJ2 and MLB1: 336 half hours each, from 08:30 UTC on
+2026-11-15 to 08:00 UTC on 2026-11-22, in the same form as the rows of
+/measurements. The adapter does not ask for histories. They are here for
+the next two files.
+
+stations_evening.json and measurements_evening.json are NOT answers of
+the service as it gave them. They are a sample for the server's
+development mode, whose clock stands at 19:05 UTC on 2026-11-18, four
+days before this source was recorded; /measurements answers with the last
+24 hours only and cannot be asked for an earlier moment.
+
+    stations_evening.json      stations.json cut to DAV1, WFJ2 and MLB1,
+                               each object byte for byte, in the
+                               answer's order
+    measurements_evening.json  the rows of evening/STATION.json from
+                               2026-11-17T19:30:00Z to
+                               2026-11-18T18:30:00Z, byte for byte, the
+                               stations in the order DAV1, MLB1, WFJ2 as
+                               /measurements orders them: 47 rows each
+
+So every value in the sample is one the service gave, for the station and
+the half hour it says. The newest is of 18:30 UTC: at 08:09 UTC on
+2026-11-22 half of the stations had a value of 08:00 and half of 07:30,
+so the value of 19:00 is not taken to have been there at 19:05. What the
+service answered at that moment is not known. A test of this crate holds
+the sample against the histories.
+
+stations_damaged.json and measurements_damaged.json are not the service's
+data: they are the evening sample with things changed by hand, to test
+how the adapter reports what it cannot read. The test that uses them says
+what was changed.
+
+To record them again: fetch /stations and /measurements in one go and
+replace the two files, cut the second as above; set the moment in
+tests/pipeline.rs; run the tests with VENTI_UPDATE_GOLDEN=1 and review
+what changed. The counts the tests pin will differ. The evening sample
+stays as it is for as long as the development mode's clock does; should
+the clock move, make it again from histories asked within seven days of
+the new moment, as above.
+
+A value in these files is what an instrument reported. It is no statement
+that a place can be flown.

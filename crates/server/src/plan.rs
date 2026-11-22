@@ -399,45 +399,145 @@ mod tests {
         ));
         let packs = read(&[path], &adapters::registry()).unwrap();
         let jobs = plan(&packs, &adapters::registry()).unwrap();
-        let sources: Vec<&str> = jobs.iter().map(|job| job.source.as_str()).collect();
-        assert_eq!(
-            sources,
-            [
-                "awc-metar",
-                "dwd-10min",
-                "dwd-radar-ry",
-                "geosphere-inca-rr",
-                "geosphere-tawes",
-                "openaip",
-                "osm-cables",
-                "osm-free-flying",
-                "suedtirol-meteo"
-            ]
-        );
+        // What is collected is what the file names, and nothing else: a
+        // source is in or out of a server by its line in the pack. (The
+        // forecasts are not planned here: this registry was not told where
+        // a forecast service is.)
+        let pack = &packs[0];
+        let named: std::collections::BTreeSet<&SourceId> = [
+            &pack.observations,
+            &pack.airspace,
+            &pack.sites,
+            &pack.cables,
+            &pack.radar,
+        ]
+        .into_iter()
+        .flat_map(|list| &list.sources)
+        .collect();
+        let planned: std::collections::BTreeSet<&SourceId> =
+            jobs.iter().map(|job| &job.source).collect();
+        assert_eq!(planned, named);
+        assert!(planned.iter().any(|source| source.as_str() == "dwd-10min"));
 
-        // Where a weather service and an airfield's report measure at one
-        // place, the weather service's station is the one to hand out: it
-        // measures every ten minutes, with gusts, humidity and pressure.
-        // So the three weather services come before the reports.
+        // Where two networks measure at one place, the order of the pack
+        // says whose station is handed out. A weather service's station
+        // measures every ten minutes, with gusts, humidity and pressure:
+        // the weather services come first, the pilots' own sensors after
+        // every official network, and the airfields' reports last.
         let preferred: Vec<String> = station_priority(&packs)
             .iter()
             .map(ToString::to_string)
             .collect();
-        assert_eq!(
-            preferred,
-            [
-                "dwd-10min",
-                "geosphere-tawes",
-                "suedtirol-meteo",
-                "awc-metar"
-            ]
-        );
+        let place = |source: &str| {
+            preferred
+                .iter()
+                .position(|named| named == source)
+                .unwrap_or_else(|| panic!("{source} has no place in the priority"))
+        };
+        assert_eq!(preferred.len(), pack.observations.sources.len());
+        assert_eq!(place("dwd-10min"), 0);
+        assert_eq!(place("awc-metar"), preferred.len() - 1);
+        assert_eq!(place("pioupiou"), preferred.len() - 2);
+        assert!(place("meteoswiss-smn") < place("slf-imis"));
 
         let missing = PathBuf::from("regions/nowhere/region.toml");
         assert!(matches!(
             read(&[missing], &adapters::registry()),
             Err(PlanError::Read { .. })
         ));
+    }
+
+    #[test]
+    fn a_source_left_out_of_the_packs_is_not_collected_and_nothing_else_changes() {
+        let registry = adapters::registry();
+        let all = the_alps();
+        let planned = plan(&all, &registry).unwrap();
+
+        // A network of the build that no pack names fetches nothing: it
+        // has no job and no place in the priority. One that a pack names
+        // has one job, however many packs name it.
+        let mut collected = 0;
+        for network in adapters::station_networks() {
+            let id = network.adapter.manifest().id.clone();
+            let named = all
+                .iter()
+                .any(|pack| pack.observations.sources.contains(&id));
+            let jobs = planned.iter().filter(|job| job.source == id).count();
+            assert_eq!(jobs, usize::from(named), "{id}");
+            assert_eq!(station_priority(&all).contains(&id), named, "{id}");
+            collected += jobs;
+        }
+        assert!(collected > 0, "no pack names a station network");
+
+        // Each station network of the build in turn, taken out of every
+        // pack: its job is gone, every other job is as it was, and no
+        // file but the packs was touched.
+        for network in adapters::station_networks() {
+            let out = network.adapter.manifest().id.clone();
+            let was_named = planned.iter().any(|job| job.source == out);
+            let mut packs = all.clone();
+            for pack in &mut packs {
+                pack.observations.sources.retain(|source| *source != out);
+                pack.observations.priority.retain(|source| *source != out);
+            }
+            let without = plan(&packs, &registry).unwrap();
+            let expected: Vec<Job> = planned
+                .iter()
+                .filter(|job| job.source != out)
+                .cloned()
+                .collect();
+            assert_eq!(without, expected, "{out}");
+            assert_eq!(
+                without.len() + usize::from(was_named),
+                planned.len(),
+                "{out}"
+            );
+            assert!(!station_priority(&packs).contains(&out), "{out}");
+        }
+
+        // A pack left out of the server's configuration: what only that
+        // pack named is not collected, and the rest is collected for the
+        // packs that are left.
+        let without_the_west: Vec<RegionPack> = all
+            .iter()
+            .filter(|pack| pack.id != "alps-west")
+            .cloned()
+            .collect();
+        let jobs = plan(&without_the_west, &registry).unwrap();
+        let west = all.iter().find(|pack| pack.id == "alps-west").unwrap();
+        for job in &jobs {
+            assert!(job.area.west() >= west.bounds.east(), "{}", job.source);
+        }
+    }
+
+    #[test]
+    fn a_pack_that_names_a_source_this_build_lacks_stops_the_start_and_says_so() {
+        let first = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../regions/alps-de-at/region.toml"
+        );
+        let text = std::fs::read_to_string(first)
+            .unwrap()
+            .replace("\"pioupiou\"", "\"weird-country-wind\"");
+        let folder = std::env::temp_dir().join(format!("venti-plan-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let path = folder.join("region.toml");
+        std::fs::write(&path, text).unwrap();
+
+        let refused = read(std::slice::from_ref(&path), &adapters::registry()).unwrap_err();
+        std::fs::remove_dir_all(&folder).unwrap();
+
+        // The file, the region, the source, and what is wrong.
+        let sentence = refused.to_string();
+        assert!(matches!(refused, PlanError::Region { .. }), "{sentence}");
+        for part in [
+            path.to_str().unwrap(),
+            "region alps-de-at",
+            "weird-country-wind",
+            "this build has no adapter",
+        ] {
+            assert!(sentence.contains(part), "{part:?} is not in: {sentence}");
+        }
     }
 
     /// The three packs of the Alps, as a server reads them that is given
@@ -494,24 +594,40 @@ mod tests {
                 .area
         };
 
-        // No source is planned that the first region alone does not have:
-        // the new packs came with no adapter.
-        assert_eq!(jobs.len(), 9);
+        // No source is planned that the first region alone does not have,
+        // and each is planned once however many packs name it.
+        let first_alone = plan(&packs[..1], &adapters::registry()).unwrap();
+        let sources =
+            |jobs: &[Job]| -> Vec<SourceId> { jobs.iter().map(|job| job.source.clone()).collect() };
+        assert_eq!(sources(&jobs), sources(&first_alone));
 
-        // The sites and the airfields' reports are named by all three and
-        // are one job over one box around them. So is DWD, which the
-        // western pack names for the Black Forest: a job's area is one box
-        // around its regions, and Germany's stations end where Germany
-        // does.
-        for source in ["osm-free-flying", "awc-metar", "dwd-10min"] {
+        // The sites, the airfields' reports, the SLF's stations and the
+        // pilots' sensors are named by all three and are one job over one
+        // box around them. So is DWD, which the western pack names for the
+        // Black Forest: a job's area is one box around its regions, and
+        // Germany's stations end where Germany does.
+        for source in [
+            "osm-free-flying",
+            "awc-metar",
+            "dwd-10min",
+            "slf-imis",
+            "pioupiou",
+        ] {
             assert_eq!(area_of(source), whole, "{source}");
         }
+        // MeteoSwiss is named by the first and the western pack, and one
+        // box around those two is the whole as well.
+        assert_eq!(area_of("meteoswiss-smn"), whole);
         // South Tyrol's stations with the southern pack: Salurn at
-        // 46.24° N is inside.
-        assert_eq!(
-            area_of("suedtirol-meteo"),
-            BoundingBox::new(43.5, 9.4, 48.5, 17.2).unwrap()
-        );
+        // 46.24° N is inside. Trentino's and Slovenia's lie on both sides
+        // of the edge the two packs share, and are collected the same way.
+        for source in ["suedtirol-meteo", "meteotrentino", "arso-ams"] {
+            assert_eq!(
+                area_of(source),
+                BoundingBox::new(43.5, 9.4, 48.5, 17.2).unwrap(),
+                "{source}"
+            );
+        }
 
         // What only the first region names stays in its box. For airspace
         // that is the rule to keep: openAIP's manifest has no France, and
@@ -543,18 +659,6 @@ mod tests {
 
         // The order of stations at one place is the first region's, with
         // nothing new in it.
-        let preferred: Vec<String> = station_priority(&packs)
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        assert_eq!(
-            preferred,
-            [
-                "dwd-10min",
-                "geosphere-tawes",
-                "suedtirol-meteo",
-                "awc-metar"
-            ]
-        );
+        assert_eq!(station_priority(&packs), station_priority(&packs[..1]));
     }
 }

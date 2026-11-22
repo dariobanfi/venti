@@ -1,6 +1,61 @@
 {
   "stations": [
     {
+      "id": "arso-ams:KREDA-ICA_",
+      "source": "arso-ams",
+      "name": "Kredarica",
+      "position": {
+        "lat": 46.3787,
+        "lon": 13.8489
+      },
+      "elevation_m": 2514.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 2.9,
+        "wind_gust_ms": 8.9,
+        "wind_direction_deg": 28.0,
+        "temperature_c": -1.5,
+        "humidity_pct": 66.0,
+        "pressure_hpa": 736.0
+      }
+    },
+    {
+      "id": "arso-ams:ROGLA_",
+      "source": "arso-ams",
+      "name": "Rogla",
+      "position": {
+        "lat": 46.453,
+        "lon": 15.3315
+      },
+      "elevation_m": 1495.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 2.0,
+        "wind_gust_ms": 2.8,
+        "wind_direction_deg": 293.0,
+        "temperature_c": 3.7,
+        "humidity_pct": 75.0
+      }
+    },
+    {
+      "id": "arso-ams:URSLJ-GOR_",
+      "source": "arso-ams",
+      "name": "Uršlja gora",
+      "position": {
+        "lat": 46.4849,
+        "lon": 14.9634
+      },
+      "elevation_m": 1696.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 3.9,
+        "wind_gust_ms": 5.5,
+        "wind_direction_deg": 264.0,
+        "temperature_c": 3.4,
+        "humidity_pct": 71.0
+      }
+    },
+    {
       "id": "awc-metar:EDJA",
       "source": "awc-metar",
       "name": "Memmingerberg Arpt, BY, DE",
@@ -31,21 +86,6 @@
         "wind_speed_ms": 2.06,
         "wind_direction_deg": 320.0,
         "temperature_c": 7.0
-      }
-    },
-    {
-      "id": "awc-metar:LSZS",
-      "source": "awc-metar",
-      "name": "Samedan Arpt, GR, CH",
-      "position": {
-        "lat": 46.526,
-        "lon": 9.879
-      },
-      "elevation_m": 1708.0,
-      "latest": {
-        "time": "2026-11-18T18:50:00Z",
-        "wind_speed_ms": 1.54,
-        "temperature_c": 1.0
       }
     },
     {
@@ -202,6 +242,216 @@
       }
     },
     {
+      "id": "meteoswiss-smn:DAV",
+      "source": "meteoswiss-smn",
+      "name": "Davos",
+      "position": {
+        "lat": 46.812969,
+        "lon": 9.843558
+      },
+      "elevation_m": 1594.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 1.89,
+        "wind_gust_ms": 3.31,
+        "wind_direction_deg": 61.0,
+        "temperature_c": 0.5,
+        "humidity_pct": 85.2,
+        "pressure_hpa": 826.1
+      }
+    },
+    {
+      "id": "meteoswiss-smn:SAM",
+      "source": "meteoswiss-smn",
+      "name": "Samedan",
+      "position": {
+        "lat": 46.526247,
+        "lon": 9.879469
+      },
+      "elevation_m": 1709.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 1.31,
+        "wind_gust_ms": 3.19,
+        "wind_direction_deg": 324.0,
+        "temperature_c": 1.5,
+        "humidity_pct": 66.3,
+        "pressure_hpa": 814.2
+      }
+    },
+    {
+      "id": "meteoswiss-smn:WFJ",
+      "source": "meteoswiss-smn",
+      "name": "Weissfluhjoch",
+      "position": {
+        "lat": 46.833342,
+        "lon": 9.806397
+      },
+      "elevation_m": 2691.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 10.19,
+        "wind_gust_ms": 15.61,
+        "wind_direction_deg": 246.0,
+        "temperature_c": -4.2,
+        "humidity_pct": 74.1,
+        "pressure_hpa": 719.7
+      }
+    },
+    {
+      "id": "meteotrentino:T0076",
+      "source": "meteotrentino",
+      "name": "Rabbi (San Bernardo)",
+      "position": {
+        "lat": 46.401374,
+        "lon": 10.849515
+      },
+      "elevation_m": 1132.0,
+      "latest": {
+        "time": "2026-11-18T18:30:00Z",
+        "wind_speed_ms": 1.2,
+        "wind_gust_ms": 2.3,
+        "wind_direction_deg": 354.0,
+        "temperature_c": 4.3,
+        "humidity_pct": 84.0
+      }
+    },
+    {
+      "id": "meteotrentino:T0403",
+      "source": "meteotrentino",
+      "name": "Canazei (Ciampac)",
+      "position": {
+        "lat": 46.445989,
+        "lon": 11.769081
+      },
+      "elevation_m": 2150.0,
+      "latest": {
+        "time": "2026-11-18T18:30:00Z",
+        "wind_speed_ms": 3.0,
+        "wind_gust_ms": 6.9,
+        "wind_direction_deg": 151.0,
+        "temperature_c": 1.6,
+        "humidity_pct": 66.0
+      }
+    },
+    {
+      "id": "meteotrentino:T0404",
+      "source": "meteotrentino",
+      "name": "Marmolada (Sas Del Mul)",
+      "position": {
+        "lat": 46.443614,
+        "lon": 11.880813
+      },
+      "elevation_m": 2606.0,
+      "latest": {
+        "time": "2026-11-18T18:30:00Z",
+        "wind_speed_ms": 5.1,
+        "wind_gust_ms": 12.3,
+        "wind_direction_deg": 210.0,
+        "temperature_c": -1.9,
+        "humidity_pct": 63.0
+      }
+    },
+    {
+      "id": "pioupiou:1514",
+      "source": "pioupiou",
+      "name": "Kampenwand Hirschenstein 1453 m",
+      "position": {
+        "lat": 47.77225,
+        "lon": 12.36509
+      },
+      "latest": {
+        "time": "2026-11-18T19:02:00Z",
+        "wind_speed_ms": 7.916666666666666,
+        "wind_gust_ms": 13.61111111111111,
+        "wind_direction_deg": 157.5
+      }
+    },
+    {
+      "id": "pioupiou:2077",
+      "source": "pioupiou",
+      "name": "Osterfelder Nord -Startplatz",
+      "position": {
+        "lat": 47.439445,
+        "lon": 11.052041
+      },
+      "latest": {
+        "time": "2026-11-18T19:01:10Z",
+        "wind_speed_ms": 3.0555555555555554,
+        "wind_gust_ms": 6.25,
+        "wind_direction_deg": 180.0
+      }
+    },
+    {
+      "id": "pioupiou:2150",
+      "source": "pioupiou",
+      "name": "Coburgerhütte 1920m",
+      "position": {
+        "lat": 47.360086,
+        "lon": 10.933592
+      },
+      "latest": {
+        "time": "2026-11-18T19:01:42Z",
+        "wind_speed_ms": 1.8055555555555556,
+        "wind_gust_ms": 5.694444444444445,
+        "wind_direction_deg": 0.0
+      }
+    },
+    {
+      "id": "slf-imis:DAV1",
+      "source": "slf-imis",
+      "name": "Chrachenhorn",
+      "position": {
+        "lat": 46.688510327,
+        "lon": 9.8143102025
+      },
+      "elevation_m": 2890.0,
+      "latest": {
+        "time": "2026-11-18T18:30:00Z",
+        "wind_speed_ms": 8.78,
+        "wind_gust_ms": 13.42,
+        "wind_direction_deg": 258.2,
+        "temperature_c": -5.955,
+        "humidity_pct": 89.2
+      }
+    },
+    {
+      "id": "slf-imis:MLB1",
+      "source": "slf-imis",
+      "name": "Spitz",
+      "position": {
+        "lat": 47.0867605724,
+        "lon": 9.6239926506
+      },
+      "elevation_m": 2186.0,
+      "latest": {
+        "time": "2026-11-18T18:30:00Z",
+        "wind_speed_ms": 6.364,
+        "wind_gust_ms": 15.0,
+        "wind_direction_deg": 303.4,
+        "temperature_c": -1.485,
+        "humidity_pct": 89.4
+      }
+    },
+    {
+      "id": "slf-imis:WFJ2",
+      "source": "slf-imis",
+      "name": "Weissfluhjoch",
+      "position": {
+        "lat": 46.8296377828,
+        "lon": 9.8092889157
+      },
+      "elevation_m": 2536.0,
+      "latest": {
+        "time": "2026-11-18T18:30:00Z",
+        "wind_speed_ms": 0.884,
+        "wind_gust_ms": 5.848,
+        "wind_direction_deg": 41.33,
+        "temperature_c": -3.139,
+        "humidity_pct": 86.0
+      }
+    },
+    {
       "id": "suedtirol-meteo:35100WS",
       "source": "suedtirol-meteo",
       "name": "Jaufenkamm",
@@ -260,6 +510,13 @@
   "truncated": false,
   "attributions": [
     {
+      "source": "arso-ams",
+      "provider": "Slovenian Environment Agency ARSO",
+      "licence": "ARSO terms of reuse (Pogoji ponovne uporabe)",
+      "text": "Vir: ARSO (Source: Slovenian Environment Agency)",
+      "url": "https://meteo.arso.gov.si/uploads/meteo/help/sl/copyright.html"
+    },
+    {
       "source": "awc-metar",
       "provider": "Aviation Weather Center",
       "licence": "Public domain, U.S. Government",
@@ -279,6 +536,34 @@
       "licence": "CC BY 4.0",
       "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
       "url": "https://data.hub.geosphere.at"
+    },
+    {
+      "source": "meteoswiss-smn",
+      "provider": "Federal Office of Meteorology and Climatology MeteoSwiss",
+      "licence": "CC BY 4.0",
+      "text": "Source: MeteoSwiss",
+      "url": "https://opendatadocs.meteoswiss.ch/general/terms-of-use"
+    },
+    {
+      "source": "meteotrentino",
+      "provider": "Provincia Autonoma di Trento - Meteotrentino",
+      "licence": "CC BY 4.0",
+      "text": "Dati: Provincia Autonoma di Trento - Meteotrentino, CC BY 4.0",
+      "url": "https://dati.trentino.it/dataset/dati-recenti-delle-stazioni-meteo"
+    },
+    {
+      "source": "pioupiou",
+      "provider": "OpenWindMap (Pioupiou wind network)",
+      "licence": "Pioupiou Community License",
+      "text": "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org>",
+      "url": "https://openwindmap.org"
+    },
+    {
+      "source": "slf-imis",
+      "provider": "WSL Institute for Snow and Avalanche Research SLF",
+      "licence": "CC BY 4.0",
+      "text": "Data source: WSL Institute for Snow and Avalanche Research SLF - www.slf.ch",
+      "url": "https://www.slf.ch"
     },
     {
       "source": "suedtirol-meteo",

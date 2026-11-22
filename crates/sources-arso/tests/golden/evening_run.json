@@ -1,0 +1,78 @@
+{
+  "stations": [
+    {
+      "id": "arso-ams:KREDA-ICA_",
+      "name": "Kredarica",
+      "position": {
+        "lat": 46.3787,
+        "lon": 13.8489
+      },
+      "elevation_m": 2514.0
+    },
+    {
+      "id": "arso-ams:ROGLA_",
+      "name": "Rogla",
+      "position": {
+        "lat": 46.453,
+        "lon": 15.3315
+      },
+      "elevation_m": 1495.0
+    },
+    {
+      "id": "arso-ams:URSLJ-GOR_",
+      "name": "Uršlja gora",
+      "position": {
+        "lat": 46.4849,
+        "lon": 14.9634
+      },
+      "elevation_m": 1696.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "arso-ams:KREDA-ICA_",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 2.9,
+      "wind_gust_ms": 8.9,
+      "wind_direction_deg": 28.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.5,
+      "humidity_pct": 66.0,
+      "pressure_hpa": 736.0
+    },
+    {
+      "station": "arso-ams:ROGLA_",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 2.0,
+      "wind_gust_ms": 2.8,
+      "wind_direction_deg": 293.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.7,
+      "humidity_pct": 75.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "arso-ams:URSLJ-GOR_",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 3.9,
+      "wind_gust_ms": 5.5,
+      "wind_direction_deg": 264.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.4,
+      "humidity_pct": 71.0,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "arso-ams",
+    "requests": 1,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 3,
+    "newest_observation": "2026-11-18T18:50:00Z"
+  }
+}

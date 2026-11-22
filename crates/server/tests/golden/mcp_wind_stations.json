@@ -7,7 +7,8 @@
   "sources": [
     "Data source: Aviation Weather Center, aviationweather.gov (Public domain, U.S. Government)",
     "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
-    "Data source: GeoSphere Austria - https://data.hub.geosphere.at (CC BY 4.0)"
+    "Data source: GeoSphere Austria - https://data.hub.geosphere.at (CC BY 4.0)",
+    "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org> (Pioupiou Community License)"
   ],
   "stations": [
     {
@@ -23,6 +24,30 @@
       "wind_from": "W",
       "wind_from_deg": 260.0,
       "wind_km_h": 54.0
+    },
+    {
+      "age_min": 3,
+      "direction_from_place": "ENE",
+      "distance_km": 5.8,
+      "gusts_km_h": 23.0,
+      "measured_utc": "2026-11-18 19:01",
+      "name": "Osterfelder Nord -Startplatz",
+      "station_id": "pioupiou:2077",
+      "wind_from": "S",
+      "wind_from_deg": 180.0,
+      "wind_km_h": 11.0
+    },
+    {
+      "age_min": 3,
+      "direction_from_place": "SSW",
+      "distance_km": 7.5,
+      "gusts_km_h": 21.0,
+      "measured_utc": "2026-11-18 19:01",
+      "name": "Coburgerhütte 1920m",
+      "station_id": "pioupiou:2150",
+      "wind_from": "N",
+      "wind_from_deg": 0.0,
+      "wind_km_h": 7.0
     },
     {
       "age_min": 45,

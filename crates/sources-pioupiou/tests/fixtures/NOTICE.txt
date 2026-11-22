@@ -1,0 +1,80 @@
+The files in this folder hold wind data of the OpenWindMap wind network
+(formerly Pioupiou), measured by sensors that pilots, clubs and schools put
+up, and published under the network's Community License,
+https://developers.pioupiou.fr/data-licensing/:
+
+    Wind data (c) contributors of the OpenWindMap wind network
+    <https://openwindmap.org>
+
+They are not covered by the licence of the code around them.
+
+They were recorded on 2026-11-22 from https://api.pioupiou.fr/v1/, without
+a key, with curl.
+
+live_all.json is the answer to the adapter's one request,
+
+    GET /live/all   asked at 08:09:00 UTC (the answer's Date header:
+                    08:09:02 GMT), 462,653 bytes, 763 sensors
+
+cut down to sixteen of its sensors. The answer is JSON indented by two
+spaces with non-ASCII characters escaped, which Python's
+json.dumps(answer, indent=2) reproduces byte for byte: the cut was made by
+reading the answer, keeping the head ("doc", "license", "attribution") and
+the sixteen entries of "data" in their order, unchanged, and writing it out
+in the same way. The sixteen, by id:
+
+    in the Alps' western box (5.0 to 9.4 E, 43.5 to 48.5 N), with a reading
+    of wind: 69, 70 (Salève), 1343 (Nendaz), 1359 (Felci), 1708 (Anglettaz),
+    1724 (Planpraz); switched off, with a reading of 8 November: 1592, and
+    1635, whose reading has no maximum
+    in the box without a reading of wind: 123, 1720 (Doussard)
+    in the box, its position "no longer valid" by the network: 1602
+    without a latitude: 2392; at 0, 0: 916
+    outside the box: 41 (Gers), 1514 (Kampenwand), 2077 (Osterfelder)
+
+The whole answer had, inside the Alps' box (5.0 to 17.2 E, 43.5 to 48.5
+N), 369 sensors, 309 of them with a reading of the last ten minutes; 304 in
+the western box and 45 in the first region's (9.4 to 17.2 E, 46.3 to
+48.5 N). 62 of the 763 had a position the network calls no longer valid,
+2 none, and 38 no reading of wind.
+
+The folder evening/ holds three answers of the network's archive, whole
+and unchanged, asked at 08:10:30 UTC:
+
+    evening/ID.json   GET /archive/ID?start=2026-11-18T18:30Z
+                      &stop=2026-11-18T19:10Z
+
+for the sensors 1514 (Kampenwand Hirschenstein), 2077 (Osterfelder Nord)
+and 2150 (Coburgerhütte): their readings between 18:30 and 19:10 UTC on
+2026-11-18, eight each. The adapter does not ask the archive. They are here
+for the next file.
+
+live_evening.json is NOT an answer of the network as it gave it. It is a
+sample for the server's development mode, whose clock stands at 19:05 UTC
+on 2026-11-18, four days before this source was recorded; the live answer
+holds the newest reading only. It is the head of the answer of 2026-11-22
+and the entries of the three sensors above from it, written as above, with
+in each: location.latitude and location.longitude, measurements.date,
+wind_speed_min, wind_speed_avg, wind_speed_max, wind_heading and pressure
+replaced by the last row of evening/ID.json before 19:05 UTC, and
+location.date and status.date set to that row's time. So every value of
+wind and every position in the sample is one the network gave, for the
+sensor and the moment the sample says. What the live answer was at that
+moment is not known. A test of this crate holds the sample against the
+archive.
+
+live_empty.json is the head of the answer with an empty "data", written by
+hand: the network was not seen to answer so.
+
+live_damaged.json is not the network's data: it is live_evening.json with
+five things changed by hand, to test how the adapter reports what it
+cannot read. The test that uses it says what was changed.
+
+To record them again: fetch /live/all, cut it down as above (the counts
+the test pins are of the sixteen sensors and of that moment), set the
+moment in tests/pipeline.rs, run the tests with VENTI_UPDATE_GOLDEN=1 and
+review what changed. The evening sample stays as it is for as long as the
+development mode's clock does.
+
+A value in these files is what an instrument reported. It is no statement
+that a place can be flown.

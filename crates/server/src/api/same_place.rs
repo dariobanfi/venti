@@ -8,14 +8,25 @@
 //! so every station that is handed out still belongs to one source.
 //!
 //! **The same place** is a fixed rule, from what was measured on 2026-11-21
-//! between the 435 stations of the first region's four sources:
+//! between the 435 stations of the first region's four sources, and on
+//! 2026-11-22 between the SLF's stations and MeteoSwiss's:
 //!
-//! - *No farther apart than 2.75 km.* Ten airfields had a station of DWD or
-//!   of GeoSphere Austria beside them, between 40 m and 2.45 km from the
-//!   position their report gives. The nearest pair that is known to be two
-//!   places stood 3.03 km apart: Innsbruck's airfield and the university in
-//!   the town, known because GeoSphere has a station on the airfield as
-//!   well. The bound lies halfway between the two.
+//! - *An airfield's report and a station: no farther apart than 2.75 km.*
+//!   Ten airfields had a station of DWD or of GeoSphere Austria beside
+//!   them, between 40 m and 2.45 km from the position their report gives,
+//!   which is the airfield's and rounded to a thousandth of a degree. The
+//!   nearest pair that is known to be two places stood 3.03 km apart:
+//!   Innsbruck's airfield and the university in the town, known because
+//!   GeoSphere has a station on the airfield as well. The bound lies
+//!   halfway between the two.
+//! - *Two stations of weather networks: no farther apart than 750 m.* A
+//!   network gives the place of its mast, and two masts kilometres apart
+//!   in the mountains are two places: the SLF's Rientallücke and
+//!   MeteoSwiss's Gütsch, a pass and a summit 2.6 km apart and as high,
+//!   were one by the airfields' bound. The two pairs of those networks
+//!   that are one place stood 359 m (Davos) and 520 m (Naluns) apart. The
+//!   bound is half as much again as the farther of them: an estimate from
+//!   two pairs, and *to verify* on the first live run of every network.
 //! - *No more than 50 m apart in height.* The ten pairs differed by 0 to
 //!   9 m. A station in a valley and one on the ridge above it, which can
 //!   stand as near to each other, differ by hundreds. A station whose
@@ -38,8 +49,19 @@ use chrono::Duration;
 use venti_domain::{BoundingBox, SourceId, Station, Timestamp};
 use venti_store::StationLatest;
 
-/// The farthest apart two stations at the same place stand, in metres.
+/// The farthest apart an airfield's report and a station at the same
+/// place stand, in metres. No two stations at the same place stand farther
+/// apart.
 pub(crate) const SAME_PLACE_M: f64 = 2750.0;
+
+/// The farthest apart two stations of weather networks at the same place
+/// stand, in metres: neither of them an airfield's report. An estimate
+/// from two pairs, and to verify.
+pub(crate) const SAME_PLACE_OF_NETWORKS_M: f64 = 750.0;
+
+/// The source whose stations are airfields' reports. A report gives its
+/// airfield's position, rounded, and not its instruments'.
+const AIRFIELD_REPORTS: &str = "awc-metar";
 
 /// The most the heights of two stations at the same place differ, in
 /// metres.
@@ -60,10 +82,18 @@ pub(crate) fn same_place(a: &Station, b: &Station) -> bool {
     let (Some(height_a), Some(height_b)) = (a.elevation_m, b.elevation_m) else {
         return false;
     };
+    let a_report = [a, b]
+        .iter()
+        .any(|station| station.id.source().as_str() == AIRFIELD_REPORTS);
+    let reach_m = if a_report {
+        SAME_PLACE_M
+    } else {
+        SAME_PLACE_OF_NETWORKS_M
+    };
     (height_a - height_b).abs() <= SAME_HEIGHT_M
         // The latitudes alone rule out nearly every pair, without a cosine.
-        && (a.position.lat() - b.position.lat()).abs() * DEGREE_M <= SAME_PLACE_M
-        && a.position.distance_m(b.position) <= SAME_PLACE_M
+        && (a.position.lat() - b.position.lat()).abs() * DEGREE_M <= reach_m
+        && a.position.distance_m(b.position) <= reach_m
 }
 
 /// The box with as much room on every side as two stations at the same
@@ -187,6 +217,8 @@ mod tests {
             "dwd-10min",
             "geosphere-tawes",
             "suedtirol-meteo",
+            "meteoswiss-smn",
+            "slf-imis",
             "awc-metar",
         ]
         .map(|source| SourceId::new(source).unwrap())
@@ -253,6 +285,52 @@ mod tests {
     }
 
     #[test]
+    fn two_stations_of_weather_networks_are_one_place_only_when_they_stand_together() {
+        // Positions and heights as MeteoSwiss's and the SLF's lists gave
+        // them on 2026-11-22. MeteoSwiss comes first in the priority.
+        // Davos and Davos Stilli: 359 m and 31 m apart. One place.
+        let davos = [
+            station("slf-imis:SLF2", 46.812_767, 9.848_265, 1563.0, Some(20)),
+            station("meteoswiss-smn:DAV", 46.812_969, 9.843_558, 1594.0, Some(5)),
+        ];
+        assert_eq!(out(&davos), ["slf-imis:SLF2"]);
+        // Naluns / Schlivera and Schlivèra: 520 m and 30 m apart. One place.
+        let naluns = [
+            station("slf-imis:NAS2", 46.815_038, 10.255_321, 2350.0, Some(20)),
+            station("meteoswiss-smn:NAS", 46.817_164, 10.2614, 2380.0, Some(5)),
+        ];
+        assert_eq!(out(&naluns), ["slf-imis:NAS2"]);
+        // The Rientallücke and the Gütsch above Andermatt: a pass and a
+        // summit, 2.6 km and 39 m apart. Two places, which the bound that
+        // was measured on airfields took for one.
+        let rientalluecke = station("slf-imis:GOS2", 46.673_265, 8.631_772, 2325.0, Some(20));
+        let guetsch = station("meteoswiss-smn:GUE", 46.652_475, 8.615_531, 2286.0, Some(5));
+        let apart = rientalluecke
+            .station
+            .position
+            .distance_m(guetsch.station.position);
+        assert!((2500.0..SAME_PLACE_M).contains(&apart), "{apart}");
+        assert!(out(&[rientalluecke.clone(), guetsch.clone()]).is_empty());
+        // An airfield's report as near to the summit's station, were there
+        // one, would still give way: its position is the airfield's.
+        let mut report = rientalluecke;
+        report.station.id = "awc-metar:XXXX".parse().unwrap();
+        assert_eq!(out(&[report, guetsch]), ["awc-metar:XXXX"]);
+        // 750 m is still the same place, a little more is not.
+        let at = |metres: f64| {
+            let north = station(
+                "geosphere-tawes:2",
+                47.0 + metres / DEGREE_M,
+                11.0,
+                500.0,
+                Some(5),
+            );
+            out(&[station("dwd-10min:1", 47.0, 11.0, 500.0, Some(5)), north]).len()
+        };
+        assert_eq!((at(SAME_PLACE_OF_NETWORKS_M - 1.0), at(760.0)), (1, 0));
+    }
+
+    #[test]
     fn a_valley_and_the_ridge_above_it_are_two_places() {
         // A kilometre apart on the map and 400 m in height.
         let ridge = station("awc-metar:XXXX", 47.26, 11.344, 978.0, Some(5));
@@ -309,13 +387,14 @@ mod tests {
 
     #[test]
     fn nothing_is_left_out_for_the_sake_of_a_station_that_is_left_out() {
-        // Three in a row, 2 km from one to the next and 4 km from end to
-        // end. The middle one gives way to the first. The last is not at
-        // the first one's place, and stays.
+        // Three in a row: two weather services' stations 500 m apart, and
+        // an airfield's report 2.5 km beyond the second and 3 km from the
+        // first. The middle one gives way to the first. The report is at
+        // the middle one's place and not at the first one's, and stays.
         let stations = [
             station("dwd-10min:1", 47.0, 11.0, 500.0, Some(5)),
-            station("geosphere-tawes:2", 47.018, 11.0, 500.0, Some(5)),
-            station("awc-metar:3", 47.036, 11.0, 500.0, Some(5)),
+            station("geosphere-tawes:2", 47.0045, 11.0, 500.0, Some(5)),
+            station("awc-metar:3", 47.027, 11.0, 500.0, Some(5)),
         ];
         assert_eq!(out(&stations), ["geosphere-tawes:2"]);
     }

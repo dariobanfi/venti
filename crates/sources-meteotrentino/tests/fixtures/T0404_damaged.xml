@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<datiOggi xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.meteotrentino.it/">
+  <data>2026/11/18</data>
+  <tmin xsi:nil="true" />
+  <tmax xsi:nil="true" />
+  <rain>0</rain>
+  <temperature>
+    <temperatura_aria UM="°C">
+      <data>2026-11-18T19:00:00</data>
+      <temperatura>-1.7</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>18/11/2026 19:15</data>
+      <temperatura>-1.8</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-18T19:30:00</data>
+      <temperatura>-1.9</temperatura>
+    </temperatura_aria>
+    <temperatura_aria UM="°C">
+      <data>2026-11-18T19:45:00</data>
+      <temperatura>-1.9</temperatura>
+    </temperatura_aria>
+  </temperature>
+  <precipitazioni />
+  <venti>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-18T19:00:00</data>
+      <v>n/d</v>
+      <vmax>11</vmax>
+      <d>219</d>
+    </vento_al_suolo>
+    <vento_al_suolo UM_VV="m/s" UM_VVMAX="m/s" UM_DV="gN">
+      <data>2026-11-18T19:30:00</data>
+      <v>5.1</v>
+      <vmax>12.3</vmax>
+      <d>210</d>
+    </vento_al_suolo>
+  </venti>
+  <radiazione />
+  <umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-18T19:00:00</data>
+      <rh>65</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-18T19:15:00</data>
+      <rh>65</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="%">
+      <data>2026-11-18T19:30:00</data>
+      <rh>63</rh>
+    </umidita_relativa>
+    <umidita_relativa UM="‰">
+      <data>2026-11-18T19:45:00</data>
+      <rh>63</rh>
+    </umidita_relativa>
+  </umidita_relativa>
+</datiOggi>

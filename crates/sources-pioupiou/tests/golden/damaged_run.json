@@ -1,0 +1,72 @@
+{
+  "stations": [
+    {
+      "id": "pioupiou:2077",
+      "name": "Osterfelder Nord -Startplatz",
+      "position": {
+        "lat": 47.439445,
+        "lon": 11.052041
+      },
+      "elevation_m": null
+    },
+    {
+      "id": "pioupiou:9001",
+      "name": "Damaged 9001",
+      "position": {
+        "lat": 47.77225,
+        "lon": 12.36509
+      },
+      "elevation_m": null
+    }
+  ],
+  "observations": [
+    {
+      "station": "pioupiou:9001",
+      "time": "2026-11-18T19:02:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": 11.11111111111111,
+      "wind_direction_deg": 157.5,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "pioupiou",
+    "requests": 1,
+    "failures": [],
+    "skipped": [
+      {
+        "what": "1514",
+        "reason": "sensor cannot be read: invalid type: string \"38.5\", expected f64"
+      },
+      {
+        "what": "2077 2026-11-18 19:01",
+        "reason": "time stamp cannot be read"
+      },
+      {
+        "what": "\"Coburgerhütte\"",
+        "reason": "sensor cannot be read: invalid type: string \"Coburgerhütte\", expected u64"
+      },
+      {
+        "what": "9002",
+        "reason": "a sensor without a position"
+      }
+    ],
+    "rejected": [
+      {
+        "station": "pioupiou:9001",
+        "time": "2026-11-18T19:02:00Z",
+        "field": "wind_speed_ms",
+        "value": -5.555555555555555,
+        "reason": "outside 0..=120"
+      }
+    ],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 2,
+    "observations": 1,
+    "newest_observation": "2026-11-18T19:02:00Z"
+  }
+}

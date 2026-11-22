@@ -9,6 +9,7 @@
 #   apps/ios/scripts/ui-tests.sh                      all UI tests, on 3 simulators
 #   apps/ios/scripts/ui-tests.sh testA testB          only these
 #   apps/ios/scripts/ui-tests.sh -n 4 --unit          on 4, and the unit tests first
+#   apps/ios/scripts/ui-tests.sh --unit-only          the unit tests alone, on one
 #   apps/ios/scripts/ui-tests.sh --first "iPhone 17e" testA   that simulator first
 #
 # Run it from anywhere, with the core, the design pack and the project made
@@ -35,16 +36,18 @@ most=8
 
 count=3
 unit=false
+ui=true
 tests=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -n|--simulators) count="$2"; shift 2 ;;
     --unit) unit=true; shift ;;
+    --unit-only) unit=true; ui=false; shift ;;
     --first)
       # Never the owner's simulator, by any route.
       [ "$2" = "iPhone 18 Pro" ] && { echo "not the iPhone 18 Pro: the owner looks at it" >&2; exit 2; }
       names=("$2" "${names[@]}"); shift 2 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
     test*) tests+=("$1"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -65,6 +68,11 @@ else
   while read -r name; do tests+=("$name"); done < <(printf '%s\n' "${named[@]}" | LC_ALL=C sort -u)
 fi
 [ "$count" -gt ${#tests[@]} ] && count=${#tests[@]}
+# The unit tests alone need one simulator and no servers.
+if ! $ui; then
+  [ ${#tests[@]} -gt 0 ] && { echo "--unit-only runs no UI tests: leave out their names" >&2; exit 2; }
+  count=1
+fi
 
 run="$(date +%Y%m%d-%H%M%S)"
 out="target/apple/ui-tests/$run"
@@ -151,6 +159,11 @@ if $unit; then
   if [ -d "$out/unit.xcresult" ]; then
     xcrun xcresulttool export attachments --path "$out/unit.xcresult" --output-path "$out/attachments-unit" > /dev/null
   fi
+fi
+if ! $ui; then
+  echo "pictures the unit tests keep: $out/attachments-unit"
+  echo "wall time: $(( ($(date +%s) - started) / 60 )) min $(( ($(date +%s) - started) % 60 )) s"
+  exit $failed
 fi
 
 # Waits until a server answers its health check.

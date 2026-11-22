@@ -127,6 +127,12 @@ struct MapScreen: View {
                 others: hidesPilots ? [] : live.layer.others,
                 plans: groups.pins(),
                 followed: live.followed?.track ?? [],
+                keptOn: live.keptOnPosition,
+                onMovedByHand: {
+                    if live.keptOnMap != nil {
+                        live.keptOnMap = nil
+                    }
+                },
                 isFollowing: $isFollowing,
                 problem: $problem,
                 onRegion: { region in
@@ -444,6 +450,18 @@ struct MapScreen: View {
             guard scenePhase == .active else { return }
             await live.keepCurrent()
         }
+        // The map follows one thing at a time: the pilot's own position
+        // or a glider whose page is open.
+        .onChange(of: live.keptOnMap) { _, kept in
+            if kept != nil, isFollowing {
+                isFollowing = false
+            }
+        }
+        .onChange(of: isFollowing) { _, following in
+            if following, live.keptOnMap != nil {
+                live.keptOnMap = nil
+            }
+        }
         .sheet(item: $chosenOther) { chosen in
             OtherAircraftSheet(id: chosen.id)
                 .presentationDetents([.medium, .large])
@@ -460,6 +478,9 @@ struct MapScreen: View {
                     }
             }
             .presentationDetents([.medium, .large])
+            // The map above the page at half height can be moved by hand,
+            // which lets it go from a glider it is kept on.
+            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         }
         .sheet(
             isPresented: $showsGliders,

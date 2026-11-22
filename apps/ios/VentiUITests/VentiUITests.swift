@@ -2398,6 +2398,65 @@ final class VentiUITests: XCTestCase {
         }
     }
 
+    /// The map stays on a pilot one follows: "Follow on the map" on the
+    /// glider's page of the development server's demo glider in the air,
+    /// on and selected after a tap; a drag of the map by hand switches it
+    /// off. Light, then dark. The demo glider stands still, so no test
+    /// sees the map go after a new position.
+    func testTheMapStaysOnAPilotOneFollows() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        for dark in [false, true] {
+            let app = launch(bundledMap: true, dark: dark, extra: ["--server", server])
+            XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+            setLayer("layer-pilots", on: true, in: app)
+            let pilots = layersRow("Pilots in the air", in: app, timeout: 30)
+            XCTAssertTrue(pilots.exists)
+            pilots.tap()
+            XCTAssertTrue(app.navigationBars["In the air"].waitForExistence(timeout: 15))
+            // The glider in the air, not the one that landed.
+            let flying = app.buttons
+                .matching(NSPredicate(format: "identifier == 'live-row' AND NOT (label CONTAINS 'Landed')"))
+                .firstMatch
+            XCTAssertTrue(flying.waitForExistence(timeout: 15))
+            flying.tap()
+
+            let follow = app.buttons["live-keep-on-map"]
+            XCTAssertTrue(follow.waitForExistence(timeout: 20))
+            XCTAssertEqual(follow.label, "Follow on the map")
+            XCTAssertFalse(follow.isSelected)
+            // The page moves the map to the flight first.
+            sleep(3)
+            follow.tap()
+            XCTAssertTrue(follow.isSelected)
+            sleep(3)
+            keepScreenshot(dark ? "live-follow-dark-1-on" : "live-follow-1-on")
+
+            // A drag of the map above the page lets it go.
+            let from = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.22))
+            from.press(forDuration: 0.1, thenDragTo: from.withOffset(CGVector(dx: 90, dy: 40)))
+            let off = NSPredicate(format: "isSelected == false")
+            expectation(for: off, evaluatedWith: follow)
+            waitForExpectations(timeout: 10)
+            sleep(1)
+            keepScreenshot(dark ? "live-follow-dark-2-let-go" : "live-follow-2-let-go")
+
+            // On again, and the page closed: off when it opens again.
+            follow.tap()
+            XCTAssertTrue(follow.isSelected)
+            app.buttons["Done"].tap()
+            XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 15))
+            layersRow("Pilots in the air", in: app, timeout: 30).tap()
+            XCTAssertTrue(flying.waitForExistence(timeout: 15))
+            flying.tap()
+            XCTAssertTrue(follow.waitForExistence(timeout: 20))
+            XCTAssertFalse(follow.isSelected)
+            app.buttons["Done"].tap()
+            app.terminate()
+        }
+    }
+
     /// Live wind, from a Venti server running on the same machine in its
     /// development mode: six stations as they were on one evening. The CI
     /// workflow starts the server and names it; without one the test is
@@ -2700,7 +2759,13 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(saying("26 of 500", in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(element("comment-notice", in: app).exists)
         element("comment-send", in: app).tap()
-        XCTAssertTrue(labelled(containing: "Demo Pilot · just now", in: app).waitForExistence(timeout: 20))
+        // Its age goes by Venti's clock as read, advanced by the time
+        // since: the development server's clock stands still, so the
+        // comment it dates "now" is a minute or two old by then.
+        let written = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label CONTAINS 'Demo Pilot · ' AND (label CONTAINS 'just now' OR label CONTAINS 'min ago')"
+        )).firstMatch
+        XCTAssertTrue(written.waitForExistence(timeout: 20))
         XCTAssertTrue(element("comment-remove", in: app).exists)
         XCTAssertFalse(element("comment-report", in: app).exists)
         sleep(1)
@@ -3366,6 +3431,9 @@ final class VentiUITests: XCTestCase {
         }
         let app = launch(bundledMap: true, extra: ["--server", server])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        // The map tab asks for airspace only while it is switched on, and
+        // what it brings is what the Fly tab names before take-off.
+        setAirspace(on: true, in: app)
 
         // The same server knows the flying sites. They are drawn once the
         // map shows a valley and not a country: with the sample flight in
@@ -3453,6 +3521,8 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(element("airspace-from-server", in: app).waitForExistence(timeout: 15))
         XCTAssertTrue(saying("not certified", in: app).exists)
         keepScreenshot("airspace-2-from-server")
+        openTab("Map", in: app)
+        setAirspace(on: false, in: app)
     }
 
     /// An account on a Venti server: signing in as the development

@@ -148,8 +148,30 @@ struct LiveGliderScreen: View {
     static let caution =
         "Positions are as each pilot's app sent them. A glider nothing was heard of for a while has most likely no network: it is not known to have landed."
 
+    /// The button that keeps the map on this glider. The core has no
+    /// words for it.
+    static let followOnMap = "Follow on the map"
+
     private var glider: LiveGlider? {
         live.glider(id)
+    }
+
+    private var isKeptOnMap: Bool {
+        live.keptOnMap == id
+    }
+
+    /// One button that switches on and off, drawn as the app's chosen
+    /// things are: the main colour while on.
+    private var keepOnMapButton: some View {
+        Button {
+            live.keptOnMap = isKeptOnMap ? nil : id
+        } label: {
+            Text(Self.followOnMap)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.venti(isKeptOnMap ? .primary : .quiet))
+        .accessibilityIdentifier("live-keep-on-map")
+        .accessibilityAddTraits(isKeptOnMap ? .isSelected : [])
     }
 
     /// The flight so far, once the server has handed its track out.
@@ -160,6 +182,16 @@ struct LiveGliderScreen: View {
     var body: some View {
         VentiList {
             if let glider {
+                // The map behind the page stays on the glider while this
+                // is on: only while it flies and is heard of. First, so that
+                // it is there with the page at half height.
+                if !glider.landed, !glider.quiet {
+                    Section {
+                        keepOnMapButton
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                }
                 Section {
                     LabeledContent("Pilot", value: glider.name)
                     LabeledContent("Position", value: live.ageInWords(of: glider))
@@ -214,8 +246,7 @@ struct LiveGliderScreen: View {
                 }
             }
         }
-        .navigationTitle(glider.map { "@\($0.handle)" } ?? "Glider")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(glider.map { "@\($0.handle)" } ?? "Glider")        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $reporting) { reported in
             ReportSheet(reported: reported)
         }

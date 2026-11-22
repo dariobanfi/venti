@@ -29,6 +29,11 @@ struct OverviewMap: UIViewRepresentable {
     var plans: [GroupsModel.Pin] = []
     /// The track of the pilot whose flight is being followed, to draw.
     var followed: [TrailPointView] = []
+    /// Where the map stays: each new place re-centres it above the page
+    /// over its lower half, at the zoom it has. None while nothing is kept.
+    var keptOn: Coordinate?
+    /// Called when the pilot moves the map by hand.
+    var onMovedByHand: () -> Void = {}
     /// Whether the map keeps the pilot's position in its centre.
     @Binding var isFollowing: Bool
     /// Set when the position cannot be shown, with words for the pilot.
@@ -173,6 +178,8 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.show(gliders, on: map)
         coordinator.showOthers(others, on: map)
         coordinator.showFollowed(followed, on: map)
+        coordinator.onMovedByHand = onMovedByHand
+        coordinator.keep(on: keptOn, on: map)
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
         coordinator.show(airspace, on: map)
@@ -238,6 +245,9 @@ struct OverviewMap: UIViewRepresentable {
         private var drawnOutlines: [[Coordinate]]?
         private var stations: [WindStation] = []
         private var drawnStations: [WindStation]?
+        var onMovedByHand: () -> Void = {}
+        /// The place the map was last re-centred on.
+        private var keptOn: Coordinate?
         private var airspace: [AirspaceShape] = []
         private var drawnAirspace: [AirspaceShape]?
         private var sites: [SiteView] = []
@@ -417,6 +427,31 @@ struct OverviewMap: UIViewRepresentable {
             ThermalMapLayers.show(forecast, in: style)
         }
 
+        /// Re-centres the map on a place that is new, at the zoom it has,
+        /// in the middle of what the page over the lower half leaves.
+        func keep(on place: Coordinate?, on map: MLNMapView) {
+            guard place != keptOn else { return }
+            keptOn = place
+            if let place, isStyleLoaded {
+                centre(on: place, map)
+            }
+        }
+
+        private func centre(on place: Coordinate, _ map: MLNMapView) {
+            let target = CGPoint(x: map.bounds.midX, y: (90 + map.bounds.height / 2 - 24) / 2)
+            let at = map.convert(place.location, toPointTo: map)
+            let middle = map.convert(map.centerCoordinate, toPointTo: map)
+            let moved = CGPoint(x: middle.x + at.x - target.x, y: middle.y + at.y - target.y)
+            map.setCenter(map.convert(moved, toCoordinateFrom: map), animated: true)
+        }
+
+        /// A drag by the pilot lets the map go from what it is kept on.
+        func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+            if reason.contains(.gesturePan) {
+                onMovedByHand()
+            }
+        }
+
         func showFollowed(_ track: [TrailPointView], on map: MLNMapView) {
             followed = track
             drawFollowed(on: map)
@@ -483,6 +518,9 @@ struct OverviewMap: UIViewRepresentable {
             drawOthers(on: mapView)
             drawGliders(on: mapView)
             drawFollowed(on: mapView)
+            if let keptOn {
+                centre(on: keptOn, mapView)
+            }
             drawAirspace(on: mapView)
             drawForecast(on: mapView)
             drawHour(on: mapView)

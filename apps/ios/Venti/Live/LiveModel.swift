@@ -47,6 +47,18 @@ final class LiveModel {
     private(set) var followedAt = Date()
     /// Why a flight cannot be followed, in words.
     private(set) var followProblem: String?
+    /// The glider the map stays on, by its identifier: each new position
+    /// of it re-centres the map. Switched on on the glider's page, and off
+    /// by the pilot, by the map moved by hand, by the page closing, and
+    /// when the glider lands or goes quiet.
+    var keptOnMap: String?
+
+    /// Where the map is kept: the position of the glider it stays on, as
+    /// the newest answer has it, while that glider flies and is heard of.
+    var keptOnPosition: Coordinate? {
+        guard let id = keptOnMap, let glider = glider(id), !glider.landed, !glider.quiet else { return nil }
+        return glider.position
+    }
 
     /// The server to ask. The app sets this to the one in the settings.
     @ObservationIgnored var server: () -> URL? = { nil }
@@ -253,7 +265,15 @@ final class LiveModel {
     func follow(_ id: String) async {
         followed = nil
         followProblem = nil
-        defer { followed = nil }
+        if keptOnMap != id {
+            keptOnMap = nil
+        }
+        defer {
+            followed = nil
+            if keptOnMap == id {
+                keptOnMap = nil
+            }
+        }
         guard let server = server(), let flight = try? LiveFollow(id: id) else { return }
         while !Task.isCancelled {
             var more = false
@@ -265,12 +285,20 @@ final class LiveModel {
                 followed = view
                 followedAt = Date()
                 followProblem = nil
+                // A glider that landed or went quiet has no new position
+                // for the map to stay on.
+                if keptOnMap == id, view.glider.landed || view.glider.quiet {
+                    keptOnMap = nil
+                }
                 more = view.more
             } catch {
                 // Gone from the server: said, and not asked for again. Any
                 // other failure leaves the track as it was.
                 if flight.isOver() {
                     followProblem = error.words
+                    if keptOnMap == id {
+                        keptOnMap = nil
+                    }
                     return
                 }
             }

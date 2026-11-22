@@ -32,6 +32,9 @@ struct ForecastScreen: View {
     /// Whether the day to open on was looked for: once, when the forecast
     /// first came. After that the pilot's own choice stands.
     @State private var opened = false
+    /// Venti's time when the forecast came, by the server's clock where
+    /// that was read, and 0 where not: then no day is taken for today.
+    @State private var now: Int64 = 0
 
     var body: some View {
         Group {
@@ -71,6 +74,7 @@ struct ForecastScreen: View {
     private func load() async {
         do {
             let forecast = try await wind.forecast(at: place)
+            now = await wind.serverNowIfRead()
             if !opened {
                 opened = true
                 if let opening, let found = Self.opening(opening, among: forecast.models) {
@@ -91,12 +95,12 @@ struct ForecastScreen: View {
     @ViewBuilder
     private func loaded(_ forecast: ForecastView, model shown: ModelForecast) -> some View {
         let days = shown.days.filter { $0.hours.contains(where: \.isDaylight) }
-        let chosen = days.first { $0.startUnixS == day } ?? Self.today(among: days)
+        let chosen = days.first { $0.startUnixS == day } ?? Self.today(among: days, at: now)
         VentiList {
             if days.count > 1 {
                 Section {
                     VentiSegmented(
-                        options: days.map { (value: $0.startUnixS, name: Self.name(of: $0)) },
+                        options: days.map { (value: $0.startUnixS, name: Self.name(of: $0, at: now)) },
                         selection: Binding(
                             get: { chosen?.startUnixS ?? 0 },
                             set: { day = $0 }
@@ -164,20 +168,25 @@ struct ForecastScreen: View {
         return nil
     }
 
-    /// The day that holds this moment, or the first one.
-    private static func today(among days: [ForecastDay]) -> ForecastDay? {
-        let now = Int64(Date().timeIntervalSince1970)
-        return days.first { ($0.startUnixS..<($0.startUnixS + 86_400)).contains(now) } ?? days.first
+    /// The day that holds `now`, Venti's time (0 where the server's
+    /// clock has not been read, which no day holds), or the first one.
+    static func today(among days: [ForecastDay], at now: Int64) -> ForecastDay? {
+        days.first { holds($0, now) } ?? days.first
     }
 
-    /// "Today", or the weekday and the day of the month in short, so that
-    /// a forecast kept from last week is not taken for this week's.
-    static func name(of day: ForecastDay) -> String {
-        let date = Date(timeIntervalSince1970: TimeInterval(day.startUnixS + 12 * 3600))
-        if Calendar.current.isDateInToday(date) {
+    /// "Today" for the day that holds `now`, Venti's time, or the weekday
+    /// and the day of the month in short, so that a forecast kept from last
+    /// week is not taken for this week's.
+    static func name(of day: ForecastDay, at now: Int64) -> String {
+        if holds(day, now) {
             return "Today"
         }
+        let date = Date(timeIntervalSince1970: TimeInterval(day.startUnixS + 12 * 3600))
         return date.formatted(.dateTime.weekday(.abbreviated).day())
+    }
+
+    private static func holds(_ day: ForecastDay, _ now: Int64) -> Bool {
+        now > 0 && (day.startUnixS..<(day.startUnixS + 86_400)).contains(now)
     }
 
     /// What the thermals' rows are, under the table, where it has them:

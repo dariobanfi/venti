@@ -752,19 +752,11 @@ struct MapScreen: View {
     /// while the wind's notice says Venti is not reached.
     private var zoomInWords: String? {
         guard wind.problem == nil else { return nil }
-        let hasServer = wind.server != nil
         if isAirspaceTooWide {
             return mapLayersWords().airspaceTooWide
         }
-        if hasServer, showsClimbs, air.climbsTooWide {
-            return mapLayersWords().climbsTooWide
-        }
-        if hasServer, !hidesPilots, live.othersTooWide {
-            return othersTooWideWords()
-        }
-        if hasServer, showsFlown, air.flownTooWide {
-            return flownTooWideWords()
-        }
+        // Gliders, climbs and flights simply appear when the map is close
+        // enough: no words for it (owner decision 19).
         return nil
     }
 

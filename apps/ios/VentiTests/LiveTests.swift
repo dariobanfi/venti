@@ -187,7 +187,6 @@ final class LiveTests: XCTestCase {
         XCTAssertTrue(live.layer.others.allSatisfy(\.aircraft.isEmpty))
         XCTAssertEqual(live.layer.countWords, "")
         XCTAssertTrue(live.layer.credits.isEmpty)
-        XCTAssertFalse(othersTooWideWords().isEmpty)
     }
 
     func testAnAnswerThatDoesNotComeLeavesTheGlidersWhereTheyWere() async throws {

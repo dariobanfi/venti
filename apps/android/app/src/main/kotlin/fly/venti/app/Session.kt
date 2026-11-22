@@ -55,6 +55,8 @@ import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.app.cables.CablesModel
 import fly.venti.core.todayArea
+import fly.venti.core.SiteKind
+import fly.venti.core.TargetPlace
 import fly.venti.core.WaypointKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
@@ -261,6 +263,13 @@ sealed interface Session {
                     runCatching { todayArea(place.lat, place.lon) }.getOrNull()?.let { area -> sites.load(area, address) }
                 }
                 keptSites.cockpitTakeoffs(place, sites.heldAround(place))
+            }
+            // The landing fields among those sites, for the cockpit's
+            // standing reading of the nearest one within glide.
+            fly.landingsAround = { place ->
+                sites.heldAround(place)?.sites.orEmpty()
+                    .filter { SiteKind.LANDING in it.uses }
+                    .map { TargetPlace(it.name, it.position, it.elevationM) }
             }
             val today = TodayModel(keptSites)
             today.server = { (wind.server as? WindServer.Usable)?.url }

@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,7 @@ import fly.venti.app.R
 import fly.venti.app.alerts.AlertMeRow
 import fly.venti.app.alerts.AlertsModel
 import fly.venti.app.alerts.LocalAlerts
+import fly.venti.app.design.DisclosureRow
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
@@ -121,6 +123,8 @@ fun StationPage(
         }
     }
 
+    // The air's card and the chart's explanation stand behind a row at the end.
+    var showsMoreAir by rememberSaveable(station.id) { mutableStateOf(false) }
     Column {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 20.dp, end = 8.dp),
@@ -148,9 +152,6 @@ fun StationPage(
                 Now(station)
                 SectionFooter(ageText(station, wind.now))
             }
-            if (air.cloudBase != null || air.temperatureStep != null) {
-                item { Air(air) }
-            }
             item {
                 // The last 24 hours, or a day the pilot chose, back as far as
                 // the server keeps a station's readings.
@@ -161,7 +162,6 @@ fun StationPage(
                     // Today is the last 24 hours again.
                     DayChoice(days, date ?: days.lastDate, onChoose = { chosen -> date = chosen.takeIf { it != days.lastDate } })
                 }
-                SectionFooter(days.note)
                 Group(Modifier.padding(top = 8.dp)) {
                     row {
                         Box(Modifier.fillMaxWidth().padding(16.dp).testTag("station-chart")) {
@@ -212,6 +212,24 @@ fun StationPage(
                             AlertMeRow(alerts, "station-alert-me") { AlertsModel.windDraft(station.id, station.name) }
                         }
                     }
+                }
+            }
+            // What the core reads of the air from the readings, and how the
+            // chart's hours are to be read: behind a row at the end.
+            item {
+                Group(Modifier.padding(top = 24.dp)) {
+                    row {
+                        DisclosureRow(
+                            StationPageWords.MORE_AIR,
+                            isOpen = showsMoreAir,
+                            modifier = Modifier.testTag("station-more-air"),
+                            onChange = { showsMoreAir = it },
+                        )
+                    }
+                }
+                if (showsMoreAir) {
+                    SectionFooter(days.note, Modifier.testTag("station-days-note"))
+                    if (air.cloudBase != null || air.temperatureStep != null) Air(air)
                 }
             }
             val credit = (history as? History.Ready)?.history?.credits?.firstOrNull()
@@ -298,6 +316,12 @@ private fun DayChoice(days: StationDays, shown: String, onChoose: (String) -> Un
     ) {
         DatePicker(picker)
     }
+}
+
+/** A station's page's own words. */
+object StationPageWords {
+    /** The row at the end that unfolds the air's card and how the chart is read. */
+    const val MORE_AIR = "More about the air here"
 }
 
 /** A date picker's moments and the core's dates, one into the other. */

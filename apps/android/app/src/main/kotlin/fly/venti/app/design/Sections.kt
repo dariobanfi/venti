@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -183,6 +185,30 @@ fun LinkRow(
             Spacer(Modifier.width(4.dp))
         }
         Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * A row that unfolds what stands under it and folds it away again: the
+ * arrow at its end points down while folded, up while open.
+ */
+@Composable
+fun DisclosureRow(title: String, isOpen: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .toggleable(value = isOpen, role = Role.Button, onValueChange = onChange)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 16.dp, vertical = VentiSpace.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Icon(
+            painterResource(fly.venti.app.R.drawable.ic_arrow_drop_down),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.rotate(if (isOpen) 180f else 0f),
+        )
     }
 }
 

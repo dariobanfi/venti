@@ -431,9 +431,9 @@ class VentiUiTest {
             described("Glide") and saying("Needs "),
             described("Ground speed"),
             described("Wind"),
-            // The thermal view shows the track behind the glider now.
-            hasTestTag("thermal-view") and saying("The track behind the glider"),
         )
+        // The thermal view is gone with the circling, and the map has its room.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("thermal-view")) }
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-3-glide")
 
@@ -491,9 +491,12 @@ class VentiUiTest {
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("ahead-chart")) }
 
-        // A tap on the landing's badge lists the places to fly to.
-        waitFor(landing)
-        tap(landing)
+        // On the map's page the line under the map names the nearest
+        // landing, in the core's words; a tap on it lists the places to fly to.
+        val nearest = hasTestTag("nearest-landing")
+        waitFor(nearest and saying("Sample landing field"))
+        assertFalse(exists(landing))
+        tap(nearest)
         waitFor(hasText("Fly to"))
         tap(hasText("Cancel"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Fly to")) }
@@ -523,6 +526,16 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-5a-flight-page")
 
+        // The readings that have no place on a page, in the core's words:
+        // behind "Details" on this page.
+        tap(hasTestTag("cockpit-details"))
+        waitFor(hasTestTag("cockpit-details-sheet"))
+        waitFor(hasTestTag("cockpit-detail") and described("Altitude"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-5c-details")
+        tap(hasTestTag("cockpit-details-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cockpit-details-sheet")) }
+
         // Locked, the screen answers no touch: neither a swipe nor a tap
         // on the dots turns a page. Holding the lock opens it.
         tap(hasTestTag("cockpit-lock"))
@@ -547,6 +560,11 @@ class VentiUiTest {
         openFromToday("Settings")
         waitFor(hasText("Vario sound"))
         keepScreenshot("$prefix-settings-1")
+        // The glider: its class is none and "Never land" off until the pilot chooses.
+        screen.onNode(hasTestTag("never-land")).performScrollTo()
+        assertTrue(exists(hasTestTag("glider-class") and hasText("None")))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-settings-1b-glider")
 
         // The pilot's waypoints.
         tap(hasText("Waypoints"))
@@ -890,9 +908,10 @@ class VentiUiTest {
         tap(hasText("Airspace from Venti"))
         waitFor(hasText("Switched off: only your own files are used."))
         assertFalse(exists(hasTestTag("airspace-from-server")))
+        // The airspace's own page says what that means; the Fly tab's row says "None".
+        assertTrue(exists(hasText("without airspace the cockpit warns of none", substring = true)))
         tap(described("Back"))
         waitFor(line and hasText("None"))
-        assertTrue(exists(hasText("Without airspace the cockpit warns of none.", substring = true)))
     }
 
     /**
@@ -2167,6 +2186,7 @@ class VentiUiTest {
         tap(hasText("Add to my waypoints"))
         waitFor(hasText("In your waypoints"))
         screen.onNode(hasTestTag("site-page")).performScrollToNode(hasText("See or correct it at the source"))
+        unfoldHowASiteIsRead()
         assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
         letTheMapDraw(1)
         keepScreenshot("$prefix-sites-4-site")
@@ -2301,9 +2321,13 @@ class VentiUiTest {
 
         // A take-off's own page, over Today.
         tap(hasTestTag("today-card"))
-        waitFor(hasText("Wind it works in"))
+        waitFor(hasTestTag("site-outlook"))
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("$prefix-today-3-site")
+        // How it is read, whose data it is and the licence: behind a row at the page's end.
+        unfoldHowASiteIsRead()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-today-3b-site-how-read")
         tap(hasText("Done"))
         waitFor(hasTestTag("today-card"))
     }
@@ -2767,8 +2791,10 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             showsBothRadarLayers(scenario)
         }
-        // Whose rain it is, at the data: both sources with the map's other credits.
-        val credits = hasAnyAncestor(hasTestTag("wind-credits"))
+        // Whose rain it is, at the data: both sources with the map's other
+        // credits, which a tap on their line shows in full.
+        tap(hasTestTag("wind-credits"))
+        val credits = hasTestTag("wind-credits")
         waitForAll(
             hasText("Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben") and credits,
             hasText("Data source: GeoSphere Austria", substring = true) and credits,
@@ -3144,6 +3170,7 @@ class VentiUiTest {
             keepScreenshot("$prefix-air-around-4-hour")
 
             // What the layers and the wind near by are and are not, at the foot.
+            unfoldHowASiteIsRead()
             screen.onNode(page).performScrollToNode(hasTestTag("site-layers-note"))
             assertTrue(exists(hasTestTag("site-layers-note") and hasText("true sounding", substring = true)))
             assertTrue(exists(hasTestTag("site-nearby-note") and hasText("changes no verdict", substring = true)))
@@ -3213,6 +3240,7 @@ class VentiUiTest {
         screen.onNode(page).performScrollToNode(hasTestTag("site-website"))
         assertTrue(exists(hasTestTag("site-website") and hasText("https://www.dhv.de/")))
         screen.onNode(page).performScrollToNode(hasText("See or correct it at the source"))
+        unfoldHowASiteIsRead()
         assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("$prefix-own-1-site")
@@ -3247,11 +3275,13 @@ class VentiUiTest {
 
         // A ramp on the Wallberg, which has no name and is not among
         // Today's six: opened by its sign on the map, it has its mapper's
-        // words, as they were written.
+        // words, as they were written. Close enough that the development
+        // server's made-up paraglider, some 160 m away and drawn over the
+        // sites, is not under the finger too.
         val scenario = checkNotNull(app)
         tap(tab("Map"))
         waitFor(described("Show my position"))
-        assertTrue(TestDevice.lookAt(scenario, lat = 47.6653, lon = 11.7954, zoom = 14.0))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.6653, lon = 11.7954, zoom = 15.0))
         waitFor(described("Flying sites"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
@@ -3602,6 +3632,13 @@ class VentiUiTest {
      * nothing rises from a station: no cloud base then; the temperature
      * step is there, from Innsbruck in the valley to the Patscherkofel.
      */
+    /** Unfolds the row at the end of a site's page: how it is read, whose data it is, the licence. */
+    private fun unfoldHowASiteIsRead() {
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-how-read"))
+        tap(hasTestTag("site-how-read"))
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-footnote"))
+    }
+
     private fun lookAtAStationsAirAndDays(prefix: String, dark: Boolean) {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
@@ -3612,6 +3649,9 @@ class VentiUiTest {
         tap(described("Innsbruck/Universitaet"))
         waitFor(hasTestTag("station-page"))
         val page = screen.onNode(hasTestTag("station-page"))
+        // The air's card stands behind a row at the page's end.
+        page.performScrollToNode(hasTestTag("station-more-air"))
+        tap(hasTestTag("station-more-air"))
         page.performScrollToNode(hasTestTag("station-air"))
         waitFor(hasText("Patscherkofel, 8.2 km away and 1673 m higher", substring = true))
         assertTrue(exists(hasText("Cooler above, as in air at rest")))
@@ -3633,7 +3673,11 @@ class VentiUiTest {
         waitFor(hasTestTag("station-page"))
         page.performScrollToNode(hasTestTag("station-day"))
         assertTrue(exists(hasTestTag("station-day") and hasText("2026-11-18", substring = true)))
-        assertTrue(exists(hasText("last year", substring = true)))
+        // What the days are, behind the row at the page's end.
+        page.performScrollToNode(hasTestTag("station-more-air"))
+        tap(hasTestTag("station-more-air"))
+        waitFor(hasTestTag("station-days-note") and hasText("last year", substring = true))
+        page.performScrollToNode(hasTestTag("station-day"))
         tap(hasTestTag("station-day"))
         waitFor(hasTestTag("station-day-ok"))
         letTheMapDraw(1)

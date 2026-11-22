@@ -105,7 +105,8 @@ fun TodayScreen(
     wind: WindModel,
     preferences: Preferences,
     /** Opens a take-off's page. */
-    onOpen: (SiteView) -> Unit,
+    /** Opens a take-off's page on the day chosen here, named by its first moment. */
+    onOpen: (SiteView, Long?) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAssistant: () -> Unit,
     bars: PaddingValues,
@@ -190,7 +191,7 @@ fun TodayScreen(
                         // The pilot's own take-offs are on the phone, and
                         // are listed without Venti too.
                         if (places.isNotEmpty()) {
-                            Takeoffs(today, shown, chosen, onOpen)
+                            Takeoffs(today, shown, chosen, onOpen = { site -> onOpen(site, chosen?.startUnixS) })
                             SiteCredits(today)
                         }
                     }
@@ -219,7 +220,7 @@ fun TodayScreen(
                                 day = it
                             })
                         }
-                        Takeoffs(today, shown, chosen, onOpen)
+                        Takeoffs(today, shown, chosen, onOpen = { site -> onOpen(site, chosen?.startUnixS) })
                         underTakeoffs()
                         if (!(nearPilot && position.place != null) && !position.isDenied) {
                             OutlinedButton(
@@ -519,12 +520,7 @@ private fun TakeoffCard(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit
             if (day.hours.isNotEmpty()) {
                 HourStrip(day.hours)
                 Text(
-                    "Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not." +
-                        if (showsThermals(day.hours)) {
-                            " Under it the climb to expect in thermals, in m/s, with a bar that grows with it."
-                        } else {
-                            ""
-                        },
+                    TodayWords.hours(showsThermals(day.hours)),
                     style = MaterialTheme.typography.bodySmall,
                     color = colours.textSecondary,
                 )
@@ -710,4 +706,15 @@ private fun Foot(
         // credit they were kept with.
         SiteCredits(today)
     }
+}
+
+/** Today's own words. */
+object TodayWords {
+    /** Under a day's hours, in a line: what the numbers and the bars are. */
+    fun hours(withThermals: Boolean): String =
+        if (withThermals) {
+            "Wind in km/h at 10 m and the climb in m/s. A tall bar is a flyable hour."
+        } else {
+            "Wind in km/h at 10 m. A tall bar is a flyable hour."
+        }
 }

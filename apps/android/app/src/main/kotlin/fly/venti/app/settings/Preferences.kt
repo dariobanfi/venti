@@ -45,8 +45,21 @@ interface Preferences {
     /** Whether the pilot has switched off airspace from the server. */
     var airspaceWithoutServer: Boolean
 
-    /** Whether the cockpit's map leaves out the FAI triangle areas. */
-    var hidesFaiAreas: Boolean
+    /**
+     * Whether the cockpit's map draws the FAI triangle areas: off until
+     * the pilot switches it on.
+     */
+    var showsFaiAreas: Boolean
+
+    /**
+     * The class the pilot's glider is certified in, as the core names it
+     * ("A", "B", "C", "D", "CCC"), or `null` for none: with one the cockpit
+     * has the air's own rise and fall and a speed to fly.
+     */
+    var gliderClass: String?
+
+    /** Hike and fly: whether a flight is never ended by itself. */
+    var neverLand: Boolean
 
     /**
      * Whom flights are shown to while they are under way: "link", "public",
@@ -169,9 +182,20 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean(AIRSPACE_WITHOUT_SERVER, false)
         set(value) = store.edit { putBoolean(AIRSPACE_WITHOUT_SERVER, value) }
 
-    override var hidesFaiAreas: Boolean
-        get() = store.getBoolean(HIDES_FAI_AREAS, false)
-        set(value) = store.edit { putBoolean(HIDES_FAI_AREAS, value) }
+    // Kept under the key of the days when the areas were drawn unless
+    // switched off: a pilot who switched them on then has "false" there
+    // and keeps them; one who never chose has no value and sees none.
+    override var showsFaiAreas: Boolean
+        get() = store.contains(HIDES_FAI_AREAS) && !store.getBoolean(HIDES_FAI_AREAS, true)
+        set(value) = store.edit { putBoolean(HIDES_FAI_AREAS, !value) }
+
+    override var gliderClass: String?
+        get() = store.getString(GLIDER_CLASS, null)
+        set(value) = store.edit { if (value == null) remove(GLIDER_CLASS) else putString(GLIDER_CLASS, value) }
+
+    override var neverLand: Boolean
+        get() = store.getBoolean(NEVER_LAND, false)
+        set(value) = store.edit { putBoolean(NEVER_LAND, value) }
 
     override var liveAudience: String
         get() = store.getString(LIVE_AUDIENCE, null).orEmpty()
@@ -275,6 +299,8 @@ class StoredPreferences(context: Context) : Preferences {
         const val GLIDE_RATIO = "VentiGliderGlideRatio"
         const val AIRSPACE_WITHOUT_SERVER = "VentiAirspaceWithoutServer"
         const val HIDES_FAI_AREAS = "VentiCockpitHidesFaiAreas"
+        const val GLIDER_CLASS = "VentiGliderClass"
+        const val NEVER_LAND = "VentiCockpitNeverLand"
         const val LIVE_AUDIENCE = "VentiLiveAudience"
         const val DHVXC_USER = "dhvxc-user"
         const val DHVXC_GLIDER = "dhvxc-glider"
@@ -296,7 +322,9 @@ class MemoryPreferences : Preferences {
     override var trimSpeed = Preferences.DEFAULT_TRIM_SPEED
     override var glideRatio = Preferences.DEFAULT_GLIDE_RATIO
     override var airspaceWithoutServer = false
-    override var hidesFaiAreas = false
+    override var showsFaiAreas = false
+    override var gliderClass: String? = null
+    override var neverLand = false
     override var liveAudience = ""
     override var dhvxcUser = ""
     override var dhvxcGlider = ""

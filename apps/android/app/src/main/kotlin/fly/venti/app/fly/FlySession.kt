@@ -8,7 +8,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
+import fly.venti.app.settings.GliderWords
 import fly.venti.app.settings.Preferences
+import fly.venti.core.SiteKind
 import fly.venti.app.waypoints.place
 import fly.venti.core.GroundWind
 import fly.venti.core.GroundWindAlert
@@ -232,6 +234,16 @@ class FlySession(
     /** The take-offs around the glider, nearest first. */
     var takeoffs: CockpitTakeoffs? by mutableStateOf(null)
         private set
+
+    /**
+     * The landing fields among the sites the app holds around the glider,
+     * for the core's standing reading of the nearest one within glide. The
+     * app sets this; the pilot's own landings are added here.
+     */
+    var landingsAround: (Coordinate) -> List<TargetPlace> = { emptyList() }
+
+    /** The landings last handed to the core's session. */
+    private var handedLandings: List<TargetPlace>? = null
 
     /** When the take-offs were last asked for, by the phone's clock, and whether an answer is awaited. */
     private var askedForTakeoffs = Double.NEGATIVE_INFINITY
@@ -689,6 +701,11 @@ class FlySession(
         this.mode = mode
         // How the pilot's glider glides, for predicting arrival heights.
         session.setGlider(trimSpeedMs = preferences.trimSpeed / 3.6, glideRatio = preferences.glideRatio)
+        // Only for a pilot who set a class: the air's own rise and fall
+        // and a speed to fly. And hike and fly, which never lands.
+        session.setGliderClass(GliderWords.kind(preferences.gliderClass))
+        session.setNeverLand(preferences.neverLand)
+        handedLandings = null
         handedAirspace = airspace()
         session.useAirspace(handedAirspace)
         handedCables = cables()
@@ -894,6 +911,7 @@ class FlySession(
                 isAskingForTakeoffs = false
                 if (found == null || this@FlySession.session !== session) return@launch
                 if (found != takeoffs) takeoffs = found
+                handLandings(session, position, found)
             }
         }
         // Files brought in or removed in the middle of a session reach the
@@ -934,6 +952,27 @@ class FlySession(
             if (near != othersNear) othersNear = near
         }
         sound.play(view.tone)
+    }
+
+    /**
+     * Hands the core the landing fields it keeps a standing reading of:
+     * those among the sites the app holds around the glider and among the
+     * cockpit's take-offs, and the pilot's own landings. Again only when
+     * they have changed, since the core begins its reading anew with each.
+     */
+    @Synchronized
+    private fun handLandings(session: FlightSession, glider: Coordinate, found: CockpitTakeoffs) {
+        if (this.session !== session) return
+        val places = (
+            found.takeoffs.map { it.site }.filter { SiteKind.LANDING in it.uses }
+                .map { TargetPlace(it.name, it.position, it.elevationM) } +
+                landingsAround(glider) +
+                landings().map { it.place }
+            ).distinctBy { Triple(it.name, it.position.lat, it.position.lon) }
+        if (places != handedLandings) {
+            handedLandings = places
+            session.useLandings(places)
+        }
     }
 
     /** Hands the core an answer of the other networks, and takes what it keeps of them. */

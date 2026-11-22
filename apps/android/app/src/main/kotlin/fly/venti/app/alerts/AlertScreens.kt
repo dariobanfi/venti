@@ -340,6 +340,9 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                     when (draft.kind) {
                         AlertKind.WIND -> WindChoices(model, draft, faults) { draft = it }
                         AlertKind.DAY -> DayChoices(draft, faults) { draft = it }
+                        // An alarm for pilots in the air is made on the website: the
+                        // phone's form has no choices for it yet.
+                        AlertKind.PILOTS -> Unit
                     }
                     // What the core finds wrong that no field above shows.
                     faults.filter { it.field !in SHOWN_AT_A_FIELD }.forEach { fault -> Fault(fault.message) }

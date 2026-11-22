@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -982,25 +984,43 @@ private fun Notice(text: String, modifier: Modifier = Modifier) {
 
 /**
  * Whose wind, airspace and sites are on the map, in small type at its lower
- * edge: a line for each, so that none is cut short by another.
+ * edge: one line, as far as it fits, and after a tap a line for each in
+ * full, so that none is cut short by another. The licences ask that each
+ * credit can be read: it is one tap away, and a tap folds them again.
  */
 @Composable
 private fun Credits(lines: List<String>, modifier: Modifier = Modifier) {
+    var isOpen by rememberSaveable { mutableStateOf(false) }
+    val style = MaterialTheme.typography.labelSmall
+    val ink = MaterialTheme.colorScheme.onSurfaceVariant
     Surface(
-        modifier = modifier.testTag("wind-credits"),
+        onClick = { isOpen = !isOpen },
+        modifier = modifier.testTag("wind-credits").semantics {
+            stateDescription = if (isOpen) "In full" else "In a line"
+        },
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
     ) {
-        Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-            for (line in lines) {
-                Text(
-                    line,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    // Never cut: the licences ask that each credit can be
-                    // read, and four providers' names take three lines of
-                    // a narrow phone.
-                )
+        if (isOpen) {
+            Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                for (line in lines) {
+                    Text(line, style = style, color = ink)
+                }
+            }
+        } else {
+            Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                lines.forEachIndexed { index, line ->
+                    if (index > 0) Text(" · ", style = style, color = ink, maxLines = 1, softWrap = false)
+                    Text(
+                        line,
+                        style = style,
+                        color = ink,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
             }
         }
     }

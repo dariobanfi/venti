@@ -130,6 +130,7 @@ import fly.venti.core.AirspaceCheck
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightPhase
 import fly.venti.core.LandingOption
+import fly.venti.core.LandingReading
 import fly.venti.core.LiftCentreView
 import fly.venti.core.LiveScore
 import fly.venti.core.RouteKind
@@ -234,6 +235,7 @@ fun CockpitScreen(
     var isShowingAhead by remember { mutableStateOf(false) }
     var isShowingTask by remember { mutableStateOf(false) }
     var isShowingLive by remember { mutableStateOf(false) }
+    var isShowingDetails by remember { mutableStateOf(false) }
     // Whether the screen takes no touches: against a glove, a line or rain
     // pressing a button in flight.
     var isLocked by remember { mutableStateOf(false) }
@@ -328,6 +330,7 @@ fun CockpitScreen(
                         onLock = { isLocked = true },
                         live = fly.live,
                         onLive = { isShowingLive = true },
+                        onDetails = { isShowingDetails = true },
                         onRecordNow = fly::recordNow,
                         showsThermals = thermals.takeIf { offersThermals },
                         onThermals = {
@@ -339,15 +342,18 @@ fun CockpitScreen(
                 CockpitRule()
                 // The map alone gives way when a warning takes room at the
                 // top: the readings keep their size and their place. On the
-                // first page the thermal view stands beside it, on the left.
+                // first page the thermal view stands beside it, on the left,
+                // while the core says the glider is circling: on a glide the
+                // map takes the room.
+                val showsThermalView = page == CockpitPage.Instruments && view.circling
                 Row(Modifier.weight(1f).fillMaxWidth().heightIn(min = 120.dp)) {
-                    if (page == CockpitPage.Instruments) {
+                    if (showsThermalView) {
                         ThermalView(
                             view,
                             Modifier.weight(THERMAL_VIEW_SHARE).fillMaxHeight().padding(start = VentiSpace.s2, top = VentiSpace.s2, bottom = VentiSpace.s2),
                         )
                     }
-                    Box(Modifier.weight(if (page == CockpitPage.Instruments) 1 - THERMAL_VIEW_SHARE else 1f).fillMaxHeight()) {
+                    Box(Modifier.weight(if (showsThermalView) 1 - THERMAL_VIEW_SHARE else 1f).fillMaxHeight()) {
                         MapSurface(
                             content = map,
                             modifier = Modifier.fillMaxSize(),
@@ -364,7 +370,7 @@ fun CockpitScreen(
                                 map.others = fly.othersNear?.aircraft.orEmpty()
                                 // Beside the thermal view the map keeps to the glide:
                                 // the circle is looked at in the close-up.
-                                map.closeUp = page == CockpitPage.Instruments
+                                map.closeUp = showsThermalView
                                 // Not on the first page's small map beside the
                                 // thermal view, which the credit would cover.
                                 map.showAerial(aerial && page != CockpitPage.Instruments)
@@ -379,8 +385,12 @@ fun CockpitScreen(
                             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                         ) {
                             fly.daylight?.let { DaylightBadge(it) }
-                            fly.landing?.let { landing ->
-                                LandingBadge(landing, onOpen = { isChoosingTarget = true })
+                            // On the map's page the line under the map names the
+                            // nearest landing instead, once the core has one.
+                            if (page != CockpitPage.Map || view.nearestLanding == null) {
+                                fly.landing?.let { landing ->
+                                    LandingBadge(landing, onOpen = { isChoosingTarget = true })
+                                }
                             }
                         }
                         Column(
@@ -507,6 +517,12 @@ fun CockpitScreen(
                         TaskStrip(taskStatus, onOpen = { isShowingTask = true })
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
+                    // The nearest landing within glide in this wind, or the
+                    // caution that none is: one line, in the core's words.
+                    view.nearestLanding?.let { landing ->
+                        NearestLandingLine(landing, onOpen = { isChoosingTarget = true })
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
                     TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
                     MapReadings(view)
                 }
@@ -545,6 +561,7 @@ fun CockpitScreen(
         // The running session's bands: the list fills while it is open.
         WindByHeightSheet(
             view.windsByHeight,
+            words = view.windWords,
             ground = fly.windBelow,
             groundCredits = fly.windBelowCredits,
             groundFirst = windsBeginOnTheGround,
@@ -569,6 +586,11 @@ fun CockpitScreen(
 
     if (isShowingLive) {
         LiveSheet(fly, account, preferences, onDismiss = { isShowingLive = false })
+    }
+
+    if (isShowingDetails) {
+        // The running session's view: the rows follow the flight while it is open.
+        CockpitDetailsSheet(view, onDismiss = { isShowingDetails = false })
     }
 }
 
@@ -605,7 +627,8 @@ private fun Alerts(
     val warning = fly.windWarning
     val hasAirspace = AirspaceWords.shown(fly.airspaceWarnings) != null || AirspaceWords.notChecking(fly.airspaceCheck) != null
     val cable = fly.cableWarning
-    if (notice == null && warning == null && !hasAirspace && cable == null) return
+    val carriedBack = view.carriedBack
+    if (notice == null && warning == null && !hasAirspace && cable == null && carriedBack == null) return
     // An airspace warning of the level "Inside" stays above the cable's.
     val isInside = fly.airspaceWarnings.any { !it.silenced && it.level == AirspaceLevel.INSIDE }
     Column(
@@ -616,6 +639,7 @@ private fun Alerts(
         AirspaceBanner(fly.airspaceWarnings, fly.airspaceCheck, onOpen = onAirspace)
         if (cable != null && isInside) CableBanner(cable, onSeen = { fly.acknowledgeCable(cable.id) })
         warning?.let { GroundWindBanner(it, onOpen = onGroundWinds, onPutAway = fly::putWindWarningAway) }
+        carriedBack?.let { CarriedBackBanner(it) }
         notice?.let { (title, detail) -> PhaseNotice(view, title, detail) }
     }
 }
@@ -863,7 +887,10 @@ private fun InstrumentsPage(view: CockpitView, way: WayToTarget?, onWinds: () ->
                 "Climb",
                 view.climbMs?.let(Format::climb),
                 "m/s",
-                note = view.averageClimbMs?.let { "${Format.climb(it)} m/s average" },
+                // For a pilot who set a glider class, while the core's hint
+                // is to speed up: its words, in the place of the average.
+                note = view.speedToFly?.takeIf { it.speedUp }?.words
+                    ?: view.averageClimbMs?.let { "${Format.climb(it)} m/s average" },
                 size = ReadingSize.VeryLarge,
                 modifier = Modifier.weight(1f),
             )
@@ -963,6 +990,8 @@ private fun FlightPage(
     onLock: () -> Unit,
     live: LiveShareView?,
     onLive: () -> Unit,
+    /** Opens the readings that have no place on a page. */
+    onDetails: () -> Unit,
     onRecordNow: () -> Unit,
     /** Whether the thermal map shows on the map; `null` where the maps do not offer it. */
     showsThermals: Boolean? = null,
@@ -1008,9 +1037,10 @@ private fun FlightPage(
             }
         }
         // The thermal map on the cockpit's map, where the maps offer it:
-        // what can be switched is on this page.
-        if (showsThermals != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
+        // what can be switched is on this page. Beside it the readings
+        // that have no place on a page.
+        Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
+            if (showsThermals != null) {
                 QuietButton(
                     if (showsThermals) "Hide thermal map" else "Show thermal map",
                     R.drawable.venti_thermal,
@@ -1018,6 +1048,12 @@ private fun FlightPage(
                     onClick = onThermals,
                 )
             }
+            QuietButton(
+                CockpitDetailsWords.TITLE,
+                R.drawable.ic_info,
+                Modifier.weight(1f).testTag("cockpit-details"),
+                onClick = onDetails,
+            )
         }
     }
 }
@@ -1548,6 +1584,83 @@ private fun GroundWindBanner(alert: GroundWindAlert, onOpen: () -> Unit, onPutAw
                 Icon(painterResource(R.drawable.ic_close), contentDescription = "Put the warning away")
             }
         }
+    }
+}
+
+/**
+ * The wind carries the glider backwards on a glide, in the core's words:
+ * "The wind carries you back: 4 km/h backwards". A band among the cautions
+ * at the top of every page, on the amber of the wind's warning.
+ */
+@Composable
+private fun CarriedBackBanner(words: String) {
+    val colours = Venti.colours
+    Surface(
+        color = colours.cautionSoft,
+        contentColor = colours.caution,
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, colours.caution),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = VentiSize.touch)
+            .testTag("carried-back")
+            .clearAndSetSemantics {
+                contentDescription = "Wind"
+                stateDescription = words
+            },
+    ) {
+        Row(
+            Modifier.padding(horizontal = VentiSpace.s3, vertical = VentiSpace.s2),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(R.drawable.venti_caution), contentDescription = null, modifier = Modifier.size(VentiSize.icon))
+            Spacer(Modifier.width(VentiSpace.s3))
+            Text(words, style = fixed(VentiType.heading).numbers)
+        }
+    }
+}
+
+/**
+ * The nearest landing within glide in this wind, in the core's words, as
+ * one line under the map: "Landing Musterwiese: 2.1 km, +340 m". In the
+ * caution colour when none is within glide.
+ */
+@Composable
+private fun NearestLandingLine(landing: LandingReading, onOpen: () -> Unit) {
+    val ink = if (landing.withinGlide) MaterialTheme.colorScheme.onSurface else Venti.colours.caution
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .testTag("nearest-landing")
+            // As the landing's badge on the other pages: a tap lists the places to fly to.
+            .clickable(role = Role.Button, onClick = onOpen)
+            .clearAndSetSemantics {
+                contentDescription = "Nearest landing"
+                stateDescription = landing.words
+                role = Role.Button
+                onClick(label = "List the places to fly to") {
+                    onOpen()
+                    true
+                }
+            }
+            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(if (landing.withinGlide) R.drawable.venti_landing else R.drawable.venti_caution),
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = ink,
+        )
+        Spacer(Modifier.width(VentiSpace.s2))
+        Text(
+            landing.words,
+            style = fixed(VentiType.label).numbers,
+            color = ink,
+            // One line where it fits; a long caution takes a second before any of it is cut.
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

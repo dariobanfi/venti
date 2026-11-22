@@ -211,7 +211,7 @@ fun RootScreen(
             account = session.account,
             preferences = session.preferences,
             varioName = session.vario.connectedName,
-            showsFaiAreas = !session.preferences.hidesFaiAreas,
+            showsFaiAreas = session.preferences.showsFaiAreas,
             keptMap = session.maps.flyingMap,
             cables = session.cables,
             onFinish = {
@@ -264,6 +264,8 @@ private fun Sections(
     BackHandler(enabled = navigation.canGoBack) { navigation.back() }
     // A take-off opened from the Today tab: its page, in a sheet over it.
     var todaySite by remember { mutableStateOf<SiteView?>(null) }
+    // The day chosen on Today when the site's page was opened, by its first moment.
+    var todaySiteDay by remember { mutableStateOf<Long?>(null) }
     // A take-off opened from a pilot's page: its page, in a sheet over it.
     var pilotsSite by remember { mutableStateOf<SiteView?>(null) }
     // The core's line about what was just done to that site, and the form that corrects it.
@@ -380,9 +382,10 @@ private fun Sections(
                         session.keptSites,
                         session.wind,
                         session.preferences,
-                        onOpen = { site ->
+                        onOpen = { site, day ->
                             // The site's page names its source's credit, from the sites around it.
                             session.sites.show(around(site))
+                            todaySiteDay = day
                             todaySite = site
                         },
                         onOpenSettings = { navigation.showSettings() },
@@ -406,6 +409,8 @@ private fun Sections(
                             wind = session.wind,
                             showsList = false,
                             chosen = site,
+                            // The page speaks of the day chosen on Today.
+                            dayStartUnixS = todaySiteDay,
                             // A take-off of the pilot's own may lie where the map
                             // has no answer for: Today has the credit it was kept with.
                             known = SiteSources(session.today.siteCredits, session.today.sitesAsOf),

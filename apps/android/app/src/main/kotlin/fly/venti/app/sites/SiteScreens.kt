@@ -84,6 +84,7 @@ import fly.venti.app.alerts.LocalAlerts
 import fly.venti.app.today.AirChart
 import fly.venti.app.today.NearbyLine
 import fly.venti.app.today.ThermalLine
+import fly.venti.app.design.DisclosureRow
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
@@ -151,6 +152,12 @@ fun SiteSheet(
     known: SiteSources = SiteSources(),
     /** What the core offers for a site of Venti's own layers, and where each leads; `null` where the page offers none of it. */
     editing: SiteEditing? = null,
+    /**
+     * The day the page speaks of, by its first moment: the day chosen on
+     * Today. Without one, and where the forecast has no such day, the first
+     * day with flying hours.
+     */
+    dayStartUnixS: Long? = null,
 ) {
     // The site as the server has it now, where it is of Venti's own
     // layers: the map's answer may be an hour old.
@@ -301,6 +308,7 @@ fun SiteSheet(
                     onOpenFlight = onOpenFlight,
                     actions = actions,
                     edit = editing?.model,
+                    dayStartUnixS = dayStartUnixS,
                 )
             } else {
                 SiteList(sites, onOpen = onChoose, onDone = onDismiss, onFilter = onFilter)
@@ -694,6 +702,8 @@ private fun SitePage(
     edits: SitePageEdits? = null,
     /** Where what public flights say about the site is asked for; `null` where the page asks for none of it. */
     edit: SiteEditModel? = null,
+    /** The day to speak of, by its first moment; the first day with flying hours without one. */
+    dayStartUnixS: Long? = null,
 ) {
     val links = LocalUriHandler.current
     val scope = rememberCoroutineScope()
@@ -712,7 +722,9 @@ private fun SitePage(
     LaunchedEffect(site.id) {
         if (isForTakingOff && actions != null) outlook = actions.outlook(site)
     }
-    val day = outlook?.let(SiteWords::firstFlyingDay)
+    val day = outlook?.let { SiteWords.day(it, dayStartUnixS) }
+    // The paragraphs on how the page is read stand behind a row at its end.
+    var showsHowRead by rememberSaveable(site.id) { mutableStateOf(false) }
     // What the public flights that began here say about the site, as the
     // core reads the server's count: shown only for a take-off, and not
     // at all while it is not read or could not be.
@@ -935,14 +947,6 @@ private fun SitePage(
             // are not, in the core's words, while the page shows them.
             val layersNote = outlook?.layersNote.orEmpty().takeIf { day?.groundM != null }.orEmpty()
             val nearbyNote = outlook?.nearbyNote.orEmpty().takeIf { day != null }.orEmpty()
-            if (layersNote.isNotEmpty() || nearbyNote.isNotEmpty()) {
-                item {
-                    Column(Modifier.testTag("site-air-notes")) {
-                        if (layersNote.isNotEmpty()) SectionFooter(layersNote, Modifier.testTag("site-layers-note"))
-                        if (nearbyNote.isNotEmpty()) SectionFooter(nearbyNote, Modifier.testTag("site-nearby-note"))
-                    }
-                }
-            }
             if (edits != null && edits.showsEntries) {
                 item { SiteEditRows(edits) }
             }
@@ -956,7 +960,28 @@ private fun SitePage(
                         }
                     }
                 }
-                SectionFooter(SiteWords.footnote(site, sources))
+            }
+            // How the page is read, what a site on a map is worth, whose
+            // data it is and under which licence: one tap away, behind a
+            // row at the end, in the same words.
+            item {
+                Group {
+                    row {
+                        DisclosureRow(
+                            SiteWords.HOW_READ,
+                            isOpen = showsHowRead,
+                            modifier = Modifier.testTag("site-how-read"),
+                            onChange = { showsHowRead = it },
+                        )
+                    }
+                }
+                if (showsHowRead) {
+                    Column(Modifier.testTag("site-air-notes")) {
+                        if (layersNote.isNotEmpty()) SectionFooter(layersNote, Modifier.testTag("site-layers-note"))
+                        if (nearbyNote.isNotEmpty()) SectionFooter(nearbyNote, Modifier.testTag("site-nearby-note"))
+                        SectionFooter(SiteWords.footnote(site, sources), Modifier.testTag("site-footnote"))
+                    }
+                }
             }
         }
     }
@@ -1186,6 +1211,13 @@ object SiteWords {
     /** The first day the forecast has flying hours for; the first day it has at all where none has any. */
     fun firstFlyingDay(outlook: SiteOutlook): OutlookDay? =
         outlook.days.firstOrNull { it.hours.isNotEmpty() } ?: outlook.days.firstOrNull()
+
+    /** The day that begins at the moment asked for, where the forecast has it; else the first with flying hours. */
+    fun day(outlook: SiteOutlook, startUnixS: Long?): OutlookDay? =
+        startUnixS?.let { wanted -> outlook.days.firstOrNull { it.startUnixS == wanted } } ?: firstFlyingDay(outlook)
+
+    /** The row at the end of a site's page that unfolds how it is read, whose data it is and under which licence. */
+    const val HOW_READ = "How this is read"
 
     /** "Today: Good from noon. Gusts to 26 km/h after 15:00", with the day as the core names it. */
     fun outlook(day: OutlookDay): String =

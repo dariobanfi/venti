@@ -3,6 +3,7 @@ package fly.venti.app.settings
 import fly.venti.app.maps.OfflineMapsWords
 import fly.venti.app.sites.KeptSitesWords
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +58,7 @@ import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
 import fly.venti.app.fly.FlySession
 import fly.venti.app.wind.WindModel
+import fly.venti.core.GliderClassKind
 
 /** The pilot's settings, and what the app is made of. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,7 +81,9 @@ fun SettingsScreen(
     var glider by remember { mutableStateOf(preferences.glider) }
     var trimSpeed by remember { mutableStateOf(preferences.trimSpeed) }
     var glideRatio by remember { mutableStateOf(preferences.glideRatio) }
-    var showsFaiAreas by remember { mutableStateOf(!preferences.hidesFaiAreas) }
+    var showsFaiAreas by remember { mutableStateOf(preferences.showsFaiAreas) }
+    var gliderClass by remember { mutableStateOf(GliderWords.kind(preferences.gliderClass)) }
+    var neverLand by remember { mutableStateOf(preferences.neverLand) }
     val names = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false)
 
     Scaffold(
@@ -144,6 +150,21 @@ fun SettingsScreen(
                     LinkRow("Airspace", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Airspace) }
                 }
                 row {
+                    SwitchRow("FAI triangle areas", isOn = showsFaiAreas, modifier = Modifier.testTag("fai-areas")) { isOn ->
+                        showsFaiAreas = isOn
+                        preferences.showsFaiAreas = isOn
+                    }
+                }
+            }
+            SectionFooter(
+                "The FAI triangle areas are drawn on the cockpit's map once you have flown three kilometres " +
+                    "in a straight line: a turnpoint inside either of them makes that line one side of an " +
+                    "FAI triangle.",
+            )
+
+            SectionHeader(GliderWords.TITLE)
+            Group {
+                row {
                     StepperRow(
                         "Trim speed",
                         value = "${Format.whole(trimSpeed)} km/h",
@@ -162,19 +183,19 @@ fun SettingsScreen(
                     )
                 }
                 row {
-                    SwitchRow("FAI triangle areas", isOn = showsFaiAreas) { isOn ->
-                        showsFaiAreas = isOn
-                        preferences.hidesFaiAreas = !isOn
+                    GliderClassRow(gliderClass) { chosen ->
+                        gliderClass = chosen
+                        preferences.gliderClass = GliderWords.kept(chosen)
+                    }
+                }
+                row {
+                    SwitchRow(GliderWords.NEVER_LAND, isOn = neverLand, modifier = Modifier.testTag("never-land")) { isOn ->
+                        neverLand = isOn
+                        preferences.neverLand = isOn
                     }
                 }
             }
-            SectionFooter(
-                "Your glider's speed with the brakes up and its glide ratio. From them and the wind, the " +
-                    "cockpit predicts how high you arrive at the place you fly to. The prediction assumes " +
-                    "air that neither rises nor sinks on the way. The FAI triangle areas are drawn on the " +
-                    "cockpit's map once you have flown three kilometres in a straight line: a turnpoint " +
-                    "inside either of them makes that line one side of an FAI triangle.",
-            )
+            SectionFooter(GliderWords.FOOTER)
 
             SectionHeader("Venti")
             Group {
@@ -218,9 +239,9 @@ fun SettingsScreen(
 
 /** A row with a switch; pressing anywhere on it flips the switch. */
 @Composable
-private fun SwitchRow(title: String, isOn: Boolean, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(title: String, isOn: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .toggleable(value = isOn, role = Role.Switch, onValueChange = onChange)
             .heightIn(min = 56.dp)
@@ -229,6 +250,72 @@ private fun SwitchRow(title: String, isOn: Boolean, onChange: (Boolean) -> Unit)
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Switch(checked = isOn, onCheckedChange = null)
+    }
+}
+
+/** The words of the settings' "Glider" section, and how the glider's class is kept. */
+object GliderWords {
+    const val TITLE = "Glider"
+    const val CLASS = "Glider class"
+    const val NONE = "None"
+    const val NEVER_LAND = "Never land (hike and fly)"
+
+    /** Under the section: what each of its rows is for. */
+    const val FOOTER =
+        "Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit " +
+            "predicts how high you arrive at the place you fly to. The prediction assumes air that neither " +
+            "rises nor sinks on the way. With a glider class the cockpit also says what the air itself does " +
+            "on a glide and when to speed up; its numbers are typical of the class, not your glider's. " +
+            "With \"Never land\" a flight is not ended by itself: landing, walking on and taking off " +
+            "again stay one recording, which you end by hand."
+
+    /** The classes the menu offers, `null` first for none. */
+    val CLASSES: List<GliderClassKind?> = listOf(null) + GliderClassKind.entries
+
+    /** A class as the menu names it: "None", "EN A", "CCC". */
+    fun name(kind: GliderClassKind?): String = when (kind) {
+        null -> NONE
+        GliderClassKind.A -> "EN A"
+        GliderClassKind.B -> "EN B"
+        GliderClassKind.C -> "EN C"
+        GliderClassKind.D -> "EN D"
+        GliderClassKind.CCC -> "CCC"
+    }
+
+    /** The class as the preferences keep it, or `null` for none. */
+    fun kept(kind: GliderClassKind?): String? = kind?.name
+
+    /** The class the preferences kept; none for a word they never wrote. */
+    fun kind(kept: String?): GliderClassKind? = GliderClassKind.entries.firstOrNull { it.name == kept }
+}
+
+/** The glider's class, as a menu: none until the pilot chooses one. */
+@Composable
+private fun GliderClassRow(chosen: GliderClassKind?, onChoose: (GliderClassKind?) -> Unit) {
+    var isOpen by remember { mutableStateOf(false) }
+    Box {
+        LinkRow(
+            GliderWords.CLASS,
+            R.drawable.ic_arrow_drop_down,
+            Modifier.testTag("glider-class"),
+            value = GliderWords.name(chosen),
+        ) { isOpen = true }
+        DropdownMenu(expanded = isOpen, onDismissRequest = { isOpen = false }) {
+            for (kind in GliderWords.CLASSES) {
+                DropdownMenuItem(
+                    text = { Text(GliderWords.name(kind)) },
+                    onClick = {
+                        isOpen = false
+                        onChoose(kind)
+                    },
+                    trailingIcon = if (kind == chosen) {
+                        { Icon(painterResource(R.drawable.ic_check), contentDescription = "Chosen") }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
     }
 }
 

@@ -118,6 +118,8 @@ object WindByHeightWords {
 @Composable
 fun WindByHeightSheet(
     bands: List<WindAtHeightView>,
+    /** The wind the cockpit goes by, in the core's line: what it is, where it comes from and how old it is. */
+    words: String? = null,
     /** The wind the stations measured on the ground, if the cockpit has any. */
     ground: GroundWind?,
     /** Whose data those stations are. */
@@ -140,6 +142,15 @@ fun WindByHeightSheet(
         }
         val stations = ground?.stations.orEmpty()
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp)) {
+            if (words != null) {
+                item {
+                    Text(
+                        words,
+                        style = MaterialTheme.typography.bodyLarge.numbers,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp).testTag("wind-words"),
+                    )
+                }
+            }
             // The wind down where the landings are: first when asked for.
             if (groundFirst && stations.isNotEmpty()) {
                 onTheGround(stations, groundCredits)

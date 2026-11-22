@@ -179,14 +179,6 @@ fun FlyScreen(
                     )
                 }
             }
-            SectionFooter(
-                if (airspace.isEmpty) {
-                    "Without an external vario the phone's own pressure sensor is used. It is slower. " +
-                        "Without airspace the cockpit warns of none."
-                } else {
-                    "Without an external vario the phone's own pressure sensor is used. It is slower."
-                },
-            )
 
             Spacer(Modifier.height(28.dp))
             // The screen's one accent: the action that starts a flight.

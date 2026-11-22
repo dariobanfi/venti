@@ -182,7 +182,7 @@ fun AirspaceScreen(
                     "about to enter or are inside.",
             )
             SectionFooter(
-                "It knows the airspace listed here and no other. Where none of it reaches, the cockpit " +
+                "It knows the airspace listed here and no other: without airspace the cockpit warns of none. Where none of it reaches, the cockpit " +
                     "says that nothing is checked there; an old file it cannot tell from a new one. It " +
                     "does not know which areas are active today. For Germany and Austria it knows the " +
                     "rules a paraglider flies under; anywhere else it goes by an airspace's class and " +

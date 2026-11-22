@@ -435,7 +435,7 @@ pub struct PlannerWords {
     #[uniffi(default = "")]
     pub import_gpx: String,
     /// Asked before a file's route takes the place of one already drawn:
-    /// "Replace the route you have drawn with the file's?"
+    /// "Replace the route you have drawn with the file’s?"
     #[uniffi(default = "")]
     pub replace_question: String,
     /// Its yes: "Replace". The no is [`CommonWords::cancel`].
@@ -449,7 +449,7 @@ pub fn planner_words() -> PlannerWords {
     PlannerWords {
         export_gpx: "Export GPX".to_owned(),
         import_gpx: "Import GPX".to_owned(),
-        replace_question: "Replace the route you have drawn with the file's?".to_owned(),
+        replace_question: "Replace the route you have drawn with the file’s?".to_owned(),
         replace: "Replace".to_owned(),
     }
 }
@@ -537,7 +537,7 @@ pub struct PagesWords {
 #[uniffi::export]
 pub fn pages_words() -> PagesWords {
     PagesWords {
-        everyones_flights: "Everyone's flights".to_owned(),
+        everyones_flights: "Everyone’s flights".to_owned(),
         filter: "Filter".to_owned(),
         any_day: "Any day".to_owned(),
         about_forecast: "About this forecast".to_owned(),
@@ -668,7 +668,7 @@ mod tests {
             ["Done", "Back", "More", "OK", "Cancel", "Try again", "Close"]
         );
         let pages = pages_words();
-        assert_eq!(pages.everyones_flights, "Everyone's flights");
+        assert_eq!(pages.everyones_flights, "Everyone’s flights");
         assert_eq!(
             (pages.filter.as_str(), pages.any_day.as_str()),
             ("Filter", "Any day")

@@ -60,7 +60,10 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 		await expect(rows(page).last()).toContainText('4.71');
 	}
 
-	// One day: choosing the first day alone means that day.
+	// One day: choosing the first day alone means that day. The days are
+	// behind "Filter".
+	const filter = page.getByRole('button', { name: 'Filter', exact: true });
+	await filter.click();
 	await page.getByLabel('From').fill('2026-08-15');
 	await expect(page.getByLabel('to', { exact: true })).toHaveValue('2026-08-15');
 	await expect(rows(page)).toHaveCount(2);
@@ -71,11 +74,16 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	await expect(page).toHaveURL(/\?order=best&from=2026-08-15&to=2026-08-16$/);
 	await expect(rows(page).first()).toContainText('Mara Muster');
 	await expect(rows(page).first()).toContainText('Sun, 16 Aug 2026');
+	// The span chosen stands beside "Filter" as a chip.
+	await expect(page.getByText('Sat, 15 Aug 2026 – Sun, 16 Aug 2026')).toBeVisible();
 	await keep('62-everyone-best-days');
 
 	// The address holds the question: opened again, the list is the same.
 	await page.reload();
 	await expect(page.getByRole('radio', { name: 'Best' })).toBeChecked();
+	await expect(filter).toHaveAttribute('aria-expanded', 'false');
+	await expect(page.getByText('Sat, 15 Aug 2026 – Sun, 16 Aug 2026')).toBeVisible();
+	await filter.click();
 	await expect(page.getByLabel('From')).toHaveValue('2026-08-15');
 	await expect(rows(page)).toHaveCount(4);
 
@@ -90,10 +98,20 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	await page.getByRole('button', { name: 'Any day' }).click();
 	await expect(rows(page)).toHaveCount(ALL);
 
-	// The pilot's own side is one click away, and comes back to the same list.
-	await whose(page).getByRole('link', { name: 'Mine' }).click();
-	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
-	await whose(page).getByRole('link', { name: 'Everyone' }).click();
+	// The pilot's own side is one click away, and comes back to the same
+	// list: by the logbook's switch on a phone, by the bar across the top of
+	// a wide screen, which has no second switch under it.
+	if (wide) {
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Everyone’s flights');
+		await expect(whose(page)).toHaveCount(0);
+		await page.getByRole('link', { name: 'Logbook', exact: true }).click();
+		await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
+		await page.goBack();
+	} else {
+		await whose(page).getByRole('link', { name: 'Mine' }).click();
+		await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
+		await whose(page).getByRole('link', { name: 'Everyone' }).click();
+	}
 	await expect(page.getByRole('radio', { name: 'Best' })).toBeChecked();
 	expect(problems).toEqual([]);
 });
@@ -156,6 +174,7 @@ test('another pilot’s flight opens like one’s own, from its file, and is kep
 	page,
 	mapDrawn,
 	keep,
+	wide,
 	problems
 }) => {
 	await page.goto('/logbook/everyone/');
@@ -193,8 +212,13 @@ test('another pilot’s flight opens like one’s own, from its file, and is kep
 	await page.getByRole('link', { name: 'Everyone', exact: true }).filter({ visible: true }).click();
 	await expect(rows(page)).toHaveCount(ALL);
 
-	// Nothing of it is in the pilot's own logbook.
-	await whose(page).getByRole('link', { name: 'Mine' }).click();
+	// Nothing of it is in the pilot's own logbook: a wide screen has it in
+	// the bar across its top, a phone in the logbook's switch.
+	await (
+		wide
+			? page.getByRole('link', { name: 'Logbook', exact: true })
+			: whose(page).getByRole('link', { name: 'Mine' })
+	).click();
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
 	expect(problems).toEqual([]);
 });

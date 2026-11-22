@@ -130,6 +130,35 @@ export function keepCandidates(storage: Pick<Storage, 'setItem'> | undefined, on
 	}
 }
 
+/**
+ * Whether one of the two layers of what many gliders say together is on
+ * ("Climbs now", "Where thermals have been"; rows of the layers' sheet),
+ * as this browser remembers it. Off until the pilot switches it on.
+ */
+export function airLayerOn(
+	storage: Pick<Storage, 'getItem'> | undefined,
+	layer: 'climbs' | 'flown'
+): boolean {
+	try {
+		return storage?.getItem(`venti.map-${layer}`) === 'on';
+	} catch {
+		return false;
+	}
+}
+
+/** Remembers whether such a layer is on. Nothing happens where the browser keeps nothing. */
+export function keepAirLayer(
+	storage: Pick<Storage, 'setItem'> | undefined,
+	layer: 'climbs' | 'flown',
+	on: boolean
+): void {
+	try {
+		storage?.setItem(`venti.map-${layer}`, on ? 'on' : 'off');
+	} catch {
+		// A private window, or no storage: the choice lasts for the visit.
+	}
+}
+
 /** The layers the pilot switched off, as this browser remembers them. */
 export function layersOff(storage: Pick<Storage, 'getItem'> | undefined): MapLayer[] {
 	try {

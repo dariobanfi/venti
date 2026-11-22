@@ -21,7 +21,18 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { expect, mapTabDrawn, metric, showMyPosition, test } from './helpers';
+import {
+	expect,
+	mapTabDrawn,
+	metric,
+	showMyPosition,
+	test,
+	mapTool,
+	openLayers,
+	openSitesFilter,
+	toolRow,
+	closeLayers
+} from './helpers';
 
 /** The development mode's made-up take-off of a partner, with two confirmations. */
 const KOGEL = { latitude: 47.3, longitude: 10.9 };
@@ -114,7 +125,7 @@ const somewhere = () => ({
  * place" takes it.
  */
 async function addHere(page: Page, wide: boolean, as = AS_A_PILOT): Promise<Locator> {
-	await page.getByRole('button', { name: as.entry }).click();
+	await mapTool(page, as.entry);
 	const placing = page.getByRole('group', { name: as.entry });
 	await expect(placing).toContainText(PLACE_WORDS);
 	await placing.getByRole('button', { name: 'Use this place' }).click();
@@ -123,23 +134,19 @@ async function addHere(page: Page, wide: boolean, as = AS_A_PILOT): Promise<Loca
 	return form;
 }
 
-/** The sites' filter: a pane beside the map on a wide screen, a sheet on a narrow one. */
-async function openFilter(page: Page, wide: boolean): Promise<Locator> {
-	await page.getByRole('button', { name: 'Filter sites', exact: true }).click();
-	const filter = page.getByRole(wide ? 'complementary' : 'dialog', { name: 'Filter sites' });
-	await expect(filter).toBeVisible();
-	return filter;
+/** The sites' filter: inside the list of the sites, at every width. */
+async function openFilter(page: Page, _wide: boolean): Promise<Locator> {
+	return openSitesFilter(page);
 }
 
-async function closeFilter(page: Page, wide: boolean, filter: Locator): Promise<void> {
-	if (wide) await page.getByRole('button', { name: 'Filter sites', exact: true }).click();
-	else await filter.getByRole('button', { name: 'Done' }).click();
+async function closeFilter(_page: Page, _wide: boolean, filter: Locator): Promise<void> {
+	await filter.getByRole('button', { name: 'Done' }).click();
 	await expect(filter).toBeHidden();
 }
 
 /** Opens a site's page from the list of the sites on the map. */
 async function openFromList(page: Page, wide: boolean, name: string): Promise<Locator> {
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await list.getByRole('button', { name }).click();
 	const site = panel(page, wide, name);
@@ -159,8 +166,9 @@ test('a pilot adds a place from pilots, which the map shows once that layer is s
 	await mapAt(page, mapDrawn, somewhere());
 
 	// The entry on the map is the crowdsourced tier's: a pilot never reads "Add a site".
-	await expect(page.getByRole('button', { name: AS_A_PARTNER.entry, exact: true })).toHaveCount(0);
-	await page.getByRole('button', { name: AS_A_PILOT.entry }).click();
+	await openLayers(page);
+	await expect(toolRow(page, AS_A_PARTNER.entry)).toHaveCount(0);
+	await mapTool(page, AS_A_PILOT.entry);
 	const placing = page.getByRole('group', { name: AS_A_PILOT.entry });
 	await expect(placing).toContainText(PLACE_WORDS);
 	await keep('160-site-add-on-map');
@@ -246,7 +254,7 @@ test('a pilot adds a place from pilots, which the map shows once that layer is s
 	await closeFilter(page, wide, filter);
 
 	// Now it is on the map and in the list, marked, and opens from there.
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	const row = list.getByRole('listitem').filter({ hasText: name });
 	await expect(row).toContainText('From pilots');
@@ -390,15 +398,13 @@ test('places from pilots are on the map and in the list only once their switch i
 
 	// Off until the pilot switches it on: neither the map nor the list has the place.
 	expect(await signs(page)).not.toContain(JOCH_ID);
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await expect(list.getByRole('listitem').filter({ hasText: 'Musterkogel West' })).toBeVisible();
 	await expect(list.getByRole('listitem').filter({ hasText: 'Beispieljoch' })).toHaveCount(0);
 	await list.getByRole('button', { name: 'Done' }).click();
 
 	// The switch stands at the foot of the filter, with the core's sentence.
-	const opens = page.getByRole('button', { name: 'Filter sites', exact: true });
-	await expect(opens).toHaveAttribute('aria-pressed', 'false');
 	const filter = await openFilter(page, wide);
 	const layer = filter.getByRole('switch', { name: 'Places from pilots' });
 	await expect(layer).not.toBeChecked();
@@ -412,14 +418,12 @@ test('places from pilots are on the map and in the list only once their switch i
 	await expect(filter.getByRole('status')).toContainText(
 		/place from pilots: not official and not checked by anyone\.|places from pilots: not official and not checked by anyone\./
 	);
-	// It counts as a filter that is on.
-	await expect(opens).toHaveAttribute('aria-pressed', 'true');
 	await layer.scrollIntoViewIfNeeded();
 	await keep('167c-sites-pilots-switch-on');
 	await closeFilter(page, wide, filter);
 
 	// In the list it says its tier under its name; a partner's site says nothing there.
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	await expect(list.getByRole('listitem').filter({ hasText: 'Beispieljoch' })).toContainText(
 		'From pilots'
 	);
@@ -448,7 +452,10 @@ test('places from pilots are on the map and in the list only once their switch i
 	await expect(by).toContainText(
 		'Sign in to correct this site, to say that you took off here and to report it.'
 	);
-	// Signed out, the entry is the core's sentence about signing in, and leads to the account.
+	// Signed out, the entry is the core's sentence about signing in, and leads to the
+	// account. It is a row of the layers' sheet: a phone's site sheet is closed first.
+	if (!wide) await site.getByRole('button', { name: 'Done' }).click();
+	await openLayers(page);
 	await expect(page.getByRole('button', { name: AS_A_PILOT.entry })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: AS_A_PARTNER.entry, exact: true })).toHaveCount(0);
 	await expect(page.getByRole('link', { name: SIGN_IN_TO_ADD })).toHaveAttribute(
@@ -590,6 +597,7 @@ test('a partner of Venti reads “Add a site”, adds one that every map shows, 
 	await mapAt(page, mapDrawn, somewhere());
 
 	// The partners' entry, and no other.
+	await openLayers(page);
 	await expect(page.getByRole('button', { name: AS_A_PILOT.entry })).toHaveCount(0);
 	const form = await addHere(page, wide, AS_A_PARTNER);
 	await expect(
@@ -672,7 +680,9 @@ test('signed out, the entry on the map says to sign in and leads to the account'
 }) => {
 	await mapAt(page, mapDrawn, somewhere());
 
-	// The core's sentence in the entry's place, and no entry that opens a form.
+	// The core's sentence in the entry's place, a row of the layers' sheet,
+	// and no entry that opens a form.
+	await openLayers(page);
 	const entry = page.getByRole('link', { name: SIGN_IN_TO_ADD });
 	await expect(entry).toBeVisible();
 	await expect(page.getByRole('button', { name: AS_A_PILOT.entry })).toHaveCount(0);
@@ -755,7 +765,7 @@ test('a pilot finds a removed place under “Removed lately”, in the core’s 
 		.toBeGreaterThan(0);
 	await keep('167n-site-brought-back');
 	await site.getByRole('button', { name: wide ? 'Close' : 'Done' }).click();
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const row = page
 		.getByRole('dialog', { name: 'Flying sites' })
 		.getByRole('listitem')

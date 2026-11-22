@@ -219,10 +219,13 @@
 					)}{:else if chosenDate}A past day{:else}Last 24 hours{/if}
 			</h3>
 			{#if days}
-				<label class="pick">
+				<!-- What the picker reaches back to is its own help: said under
+				     a pointer and to a screen reader, not as a paragraph. -->
+				<label class="pick" title={days.note}>
 					<span class="visually-hidden">Day</span>
 					<input
 						type="date"
+						aria-describedby="history-days-note"
 						min={days.firstDate}
 						max={days.lastDate}
 						value={chosenDate ?? days.lastDate}
@@ -231,7 +234,7 @@
 				</label>
 			{/if}
 		</div>
-		{#if days}<p class="footnote picked">{days.note}</p>{/if}
+		{#if days}<p class="visually-hidden" id="history-days-note">{days.note}</p>{/if}
 		<div class="card history">
 			{#if chosenDate}
 				{#if dayPhase.is === 'loading'}
@@ -355,10 +358,6 @@
 
 	.history-head h3 {
 		padding-bottom: 0;
-	}
-
-	.picked {
-		padding-bottom: 0.5rem;
 	}
 
 	.pick input {

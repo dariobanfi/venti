@@ -6,7 +6,14 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, showTheValley, test } from './helpers';
+import {
+	BETWEEN_THE_MOUNTAINS,
+	expect,
+	mapTabDrawn,
+	showTheValley,
+	test,
+	mapTool
+} from './helpers';
 import { madeUpSummer } from './made-up-summer';
 
 /**
@@ -33,7 +40,7 @@ async function openTheTakeOff(
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await list.getByRole('searchbox', { name: 'Site' }).fill('Fluggelände');
 	await list.getByRole('listitem').first().getByRole('button').click();
@@ -131,7 +138,7 @@ test('a wind station’s page leads to the forecast for its place too', async ({
 	await page.clock.setFixedTime(THAT_MORNING);
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
-	await page.getByRole('button', { name: 'Wind stations' }).click();
+	await mapTool(page, 'Wind stations');
 	const list = page.getByRole('dialog', { name: 'Wind stations' });
 	await list.getByRole('searchbox', { name: 'Station' }).fill('Zugspitze');
 	await list.getByRole('listitem').first().getByRole('button').click();

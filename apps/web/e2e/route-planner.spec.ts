@@ -4,7 +4,7 @@
  * is cleared.
  */
 
-import { expect, mapTabDrawn, test } from './helpers';
+import { expect, mapTabDrawn, test, openCredits, mapTool } from './helpers';
 
 test('a route is drawn on the map, scored by the core and kept', async ({
 	page,
@@ -16,12 +16,10 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 
-	const planning = page.getByRole('button', { name: 'Plan a route' });
-	await expect(planning).toHaveAttribute('aria-pressed', 'false');
-	await planning.click();
-	await expect(planning).toHaveAttribute('aria-pressed', 'true');
-
 	const card = page.getByRole('region', { name: 'Plan a route' });
+	await expect(card).toBeHidden();
+	await mapTool(page, 'Plan a route');
+	await expect(card).toBeVisible();
 	const words = card.locator('[data-route-words]');
 	const legs = card.getByRole('list', { name: 'Legs' }).getByRole('listitem');
 	await expect(words).toHaveText('Tap the map where the route begins.');
@@ -60,6 +58,7 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	await mapDrawn();
 	if (wide) {
 		// The pane at the map's side ends above the credits at the map's foot.
+		await openCredits(page);
 		await expect(page.locator('.credits')).toBeVisible();
 		const pane = (await page.getByRole('complementary', { name: 'Plan a route' }).boundingBox())!;
 		const credits = (await page.locator('.credits').boundingBox())!;
@@ -81,10 +80,6 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	// A reload shows the route as it was left.
 	await page.reload();
 	await mapTabDrawn(page, mapDrawn);
-	await expect(page.getByRole('button', { name: 'Plan a route' })).toHaveAttribute(
-		'aria-pressed',
-		'true'
-	);
 	await expect(legs).toHaveCount(2);
 	await expect(words).toContainText('Flown like this it scores as');
 	await expect
@@ -116,10 +111,6 @@ test('a site’s page plans a route from the site, on the map around it', async 
 
 	await expect(page).toHaveURL(/\/\?lat=47\.66\d+&lon=11\.79\d+$/);
 	await mapTabDrawn(page, mapDrawn);
-	await expect(page.getByRole('button', { name: 'Plan a route' })).toHaveAttribute(
-		'aria-pressed',
-		'true'
-	);
 	const card = page.getByRole('region', { name: 'Plan a route' });
 	await expect(card.locator('[data-route-words]')).toHaveText('Tap the next place to fly to.');
 	await expect

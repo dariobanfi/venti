@@ -9,7 +9,7 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { expect, mapTabDrawn, metric, showMyPosition, test } from './helpers';
+import { expect, mapTabDrawn, metric, showMyPosition, test, mapTool } from './helpers';
 
 /** The newest of the development mode's public flights, Jonas Beispiel's. */
 const FLIGHT = 'nfmvgygyr34epnfbcekb04nwqc';
@@ -145,7 +145,7 @@ test('a live track is reported from its glider’s page on the map', async ({
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
-	await page.getByRole('button', { name: 'In the air' }).click();
+	await mapTool(page, 'In the air');
 	await page
 		.getByRole('dialog', { name: 'In the air' })
 		.getByRole('listitem')

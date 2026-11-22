@@ -58,6 +58,10 @@
 		};
 	});
 
+	/** Whether the terms for reusing the flights are unfolded. */
+	let termsOpen = $state(false);
+	const uid = $props.id();
+
 	/** The answer for this site, once it is read; nothing while another site's is held. */
 	const shown = $derived(flights?.siteId === id ? flights : undefined);
 </script>
@@ -91,8 +95,21 @@
 					{/each}
 				</ul>
 			{/if}
-			{#if shown.terms.text}
-				<p class="footnote">{shown.terms.text}</p>
+			{#if shown.terms.text && shown.terms.title && shown.flights > 0}
+				<!-- The terms for reusing these flights: one short link, titled
+				     by the core, that opens its words; only where there are flights. -->
+				<button
+					class="terms"
+					type="button"
+					aria-expanded={termsOpen}
+					aria-controls="{uid}-terms"
+					onclick={() => (termsOpen = !termsOpen)}
+				>
+					{shown.terms.title}
+				</button>
+				{#if termsOpen}
+					<p class="footnote" id="{uid}-terms">{shown.terms.text}</p>
+				{/if}
 			{/if}
 		{:else if problem}
 			<div class="card">
@@ -117,6 +134,16 @@
 		font-size: var(--subheadline);
 		font-weight: 600;
 		color: var(--text-secondary);
+	}
+
+	/* The terms' link: a line of the footnote's size in the link colour. */
+	.terms {
+		align-self: flex-start;
+		min-height: 2rem;
+		padding: 0 var(--space-4);
+		color: var(--link);
+		font-size: var(--footnote);
+		text-align: left;
 	}
 
 	.card {

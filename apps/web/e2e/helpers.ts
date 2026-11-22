@@ -214,8 +214,101 @@ export function flightDetails(page: Page): Locator {
  * the first answer of the wind server, which comes after both.
  */
 export async function mapTabDrawn(page: Page, mapDrawn: () => Promise<void>): Promise<void> {
-	await expect(page.getByRole('button', { name: 'Wind stations' })).toBeVisible();
+	await expect(page.locator('.screen[data-wind]')).toBeVisible();
 	await mapDrawn();
+}
+
+/**
+ * The one sheet of the map's layers and tools: a sheet at a phone's width,
+ * a card at the map's side on a wide screen.
+ */
+export function layersSheet(page: Page): Locator {
+	return page
+		.getByRole('dialog', { name: 'Layers', exact: true })
+		.or(page.getByRole('complementary', { name: 'Layers', exact: true }));
+}
+
+/** Opens the layers' sheet with the map's "Layers" button, where it is not open. */
+export async function openLayers(page: Page): Promise<Locator> {
+	const sheet = layersSheet(page);
+	if (!(await sheet.isVisible())) {
+		await page.getByRole('button', { name: 'Layers', exact: true }).click();
+	}
+	await expect(sheet).toBeVisible();
+	return sheet;
+}
+
+/** Closes the layers' sheet, where it is open. */
+export async function closeLayers(page: Page): Promise<void> {
+	const sheet = layersSheet(page);
+	if (await sheet.isVisible()) await sheet.getByRole('button', { name: /^(Done|Close)$/ }).click();
+	await expect(sheet).toBeHidden();
+}
+
+/** The switch of a layer in the layers' sheet, which has to be open. */
+export function layerSwitch(page: Page, name: string): Locator {
+	return layersSheet(page).getByRole('switch', { name, exact: true });
+}
+
+/** Switches a layer on or off in the layers' sheet, and closes the sheet again. */
+export async function switchLayer(page: Page, name: string, on: boolean): Promise<void> {
+	await openLayers(page);
+	await layerSwitch(page, name).setChecked(on);
+	await closeLayers(page);
+}
+
+/** Switches several layers on or off in the layers' sheet, and closes the sheet again. */
+export async function switchLayers(page: Page, names: string[], on: boolean): Promise<void> {
+	await openLayers(page);
+	for (const name of names) await layerSwitch(page, name).setChecked(on);
+	await closeLayers(page);
+}
+
+/** A tool of the map, a row of the layers' sheet, which has to be open. */
+export function toolRow(page: Page, name: string | RegExp): Locator {
+	const tools = layersSheet(page).getByRole('group', { name: 'Lists and plans' });
+	return tools.getByRole('button', { name, exact: true }).or(tools.getByRole('link', { name }));
+}
+
+/** Opens a tool of the map from the layers' sheet: "Wind stations", "Flying sites", … */
+export async function mapTool(page: Page, name: string): Promise<void> {
+	await openLayers(page);
+	await toolRow(page, name).click();
+}
+
+/**
+ * The sites' filter, which is inside the list of the sites: opens the list
+ * from the layers' sheet and unfolds the filter's choices in it. The list
+ * is what the choices are looked for in; "Done" closes it.
+ */
+export async function openSitesFilter(page: Page): Promise<Locator> {
+	await mapTool(page, 'Flying sites');
+	const list = page.getByRole('dialog', { name: 'Flying sites' });
+	const fold = list.locator('button.fold');
+	if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
+	await expect(fold).toHaveAttribute('aria-expanded', 'true');
+	return list;
+}
+
+/**
+ * Unfolds the credits with the map's "i": the map's own and Venti's, which
+ * are closed from the start.
+ */
+export async function openCredits(page: Page): Promise<void> {
+	const control = page.locator('.maplibregl-ctrl-attrib').first();
+	const state = () =>
+		control.evaluate((element) => ({
+			folds: element.classList.contains('maplibregl-compact'),
+			open: element.classList.contains('maplibregl-compact-show')
+		}));
+	// The control folds once the map's sources have said who made them.
+	await expect(control).not.toHaveClass(/maplibregl-attrib-empty/);
+	// A map that writes its credits out, as a flight's does on a wide
+	// screen, has nothing to unfold.
+	const now = await state();
+	if (!now.folds || now.open) return;
+	await page.getByLabel('Credits', { exact: true }).first().click();
+	await expect.poll(async () => (await state()).open).toBe(true);
 }
 
 /**

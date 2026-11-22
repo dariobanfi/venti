@@ -32,11 +32,13 @@
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
 	import { NOT_SEARCHED } from '#lib/community/search.ts';
 	import { nothingListed, RECKONING } from '#lib/community/words.ts';
+	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 
 	const app = getApp();
+	const text = format();
 	const everyone = $derived(app.everyone);
 
 	/** What the address asks for. It is not known while the pages are written out at build time. */
@@ -70,6 +72,23 @@
 	let open = $state(true);
 	const answered = $derived(open && search.text !== '' && !search.waiting);
 
+	/** Whether the pickers of the days are unfolded. */
+	let filtering = $state(false);
+	/** The day or the span of days chosen, as the chip beside "Filter" says it. */
+	const span = $derived.by(() => {
+		const named = (day: string) => {
+			const parts = day.split('-').map(Number);
+			// Noon by UTC is the same date wherever the reader is.
+			return parts.length === 3 && parts.every(Number.isFinite)
+				? text.day(Date.UTC(parts[0], parts[1] - 1, parts[2], 12) / 1000)
+				: day;
+		};
+		const { from, to } = asked;
+		if (!from && !to) return '';
+		if (from && to) return from === to ? named(from) : `${named(from)} – ${named(to)}`;
+		return from ? `From ${named(from)}` : `Until ${named(to)}`;
+	});
+
 	/** Whether the side column stands beside the table. */
 	const beside = $derived(wide.current && plain && Boolean(everyone?.front));
 
@@ -81,12 +100,17 @@
 </svelte:head>
 
 <div class="desk page">
+	<!-- A wide screen has "Flights", "Ranking" and "Logbook" in the bar across
+	     its top: the page is titled by what it is and does not repeat them. A
+	     phone reaches it from the logbook, whose switch it keeps. -->
 	<header>
-		<h1>Logbook</h1>
+		<h1>{wide.current ? 'Everyone’s flights' : 'Logbook'}</h1>
 	</header>
-	<div class="whose">
-		<WhoseFlights current="everyone" query={queryOf(asked)} />
-	</div>
+	{#if !wide.current}
+		<div class="whose">
+			<WhoseFlights current="everyone" query={queryOf(asked)} />
+		</div>
+	{/if}
 
 	{#if app.failure}
 		<div class="unavailable">
@@ -109,38 +133,58 @@
 					}
 				/>
 			</div>
-			<!-- A day, or a span of days: choosing the first alone means that day. -->
-			<div class="days" role="group" aria-label="Days">
-				<span class="day">
-					<label for="{id}-from">From</label>
-					<input
-						id="{id}-from"
-						type="date"
-						value={asked.from}
-						onchange={(event) =>
-							ask({ ...asked, ...withDay(asked, 'from', event.currentTarget.value) })}
-					/>
-				</span>
-				<span class="day">
-					<label for="{id}-to">to</label>
-					<input
-						id="{id}-to"
-						type="date"
-						value={asked.to}
-						onchange={(event) =>
-							ask({ ...asked, ...withDay(asked, 'to', event.currentTarget.value) })}
-					/>
-				</span>
-				{#if asked.from || asked.to}
-					<button
-						class="button-plain"
-						type="button"
-						onclick={() => ask({ ...asked, from: '', to: '' })}
-					>
-						Any day
-					</button>
+			<!-- The days are behind one control; the span chosen stands beside
+			     it as a chip, which also lets go of it. -->
+			<div class="filter">
+				<button
+					class="button-plain fold"
+					type="button"
+					aria-expanded={filtering}
+					aria-controls="{id}-days"
+					onclick={() => (filtering = !filtering)}
+				>
+					<Icon name="filter" />
+					Filter
+				</button>
+				{#if span}
+					<span class="span numeric">
+						{span}
+						<button
+							type="button"
+							aria-label="Any day"
+							title="Any day"
+							onclick={() => ask({ ...asked, from: '', to: '' })}
+						>
+							<Icon name="close" />
+						</button>
+					</span>
 				{/if}
 			</div>
+			{#if filtering}
+				<!-- A day, or a span of days: choosing the first alone means that day. -->
+				<div class="days" id="{id}-days" role="group" aria-label="Days">
+					<span class="day">
+						<label for="{id}-from">From</label>
+						<input
+							id="{id}-from"
+							type="date"
+							value={asked.from}
+							onchange={(event) =>
+								ask({ ...asked, ...withDay(asked, 'from', event.currentTarget.value) })}
+						/>
+					</span>
+					<span class="day">
+						<label for="{id}-to">to</label>
+						<input
+							id="{id}-to"
+							type="date"
+							value={asked.to}
+							onchange={(event) =>
+								ask({ ...asked, ...withDay(asked, 'to', event.currentTarget.value) })}
+						/>
+					</span>
+				</div>
+			{/if}
 			<div class="who">
 				<span class="day">
 					<label for="{id}-who">Pilot</label>
@@ -235,7 +279,57 @@
 		max-width: 16rem;
 	}
 
+	/* "Filter", and the span chosen beside it. */
+	.filter {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.fold {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.fold :global(svg) {
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+
+	/* The pack's chip, chosen: what the list is held to. */
+	.span {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-height: 2rem;
+		padding: 0 var(--space-1) 0 var(--space-3);
+		border-radius: var(--radius-pill);
+		background: var(--accent);
+		color: var(--on-accent);
+		font-size: var(--subheadline);
+		font-weight: 500;
+	}
+
+	.span button {
+		display: grid;
+		place-items: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: 50%;
+		color: inherit;
+	}
+
+	.span button :global(svg) {
+		width: 1rem;
+		height: 1rem;
+	}
+
 	.days {
+		/* A row of its own under the others. */
+		flex-basis: 100%;
+		order: 1;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
@@ -266,11 +360,6 @@
 		color: var(--text);
 		font: inherit;
 		font-variant-numeric: tabular-nums;
-	}
-
-	.days button {
-		min-height: 2.25rem;
-		padding: 0 0.625rem;
 	}
 
 	.unavailable {
@@ -383,10 +472,6 @@
 		}
 
 		input {
-			min-height: var(--target);
-		}
-
-		.days button {
 			min-height: var(--target);
 		}
 

@@ -11,7 +11,15 @@
  */
 
 import type { Page } from '@playwright/test';
-import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, showTheValley, test } from './helpers';
+import {
+	BETWEEN_THE_MOUNTAINS,
+	expect,
+	mapTabDrawn,
+	showTheValley,
+	test,
+	openCredits,
+	switchLayers
+} from './helpers';
 
 const MADE_UP_DAY = process.env.VENTI_MADE_UP_DAY_SERVER ?? 'http://127.0.0.1:8081';
 
@@ -70,12 +78,7 @@ async function forecastAt(
 	await context.setGeolocation(place);
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
-	for (const name of ['Wind', 'Sites', 'Pilots']) {
-		await page
-			.getByRole('group', { name: 'Layers on the map' })
-			.getByRole('button', { name })
-			.click();
-	}
+	await switchLayers(page, ['Wind', 'Sites', 'Pilots'], false);
 	await forecastChip(page).click();
 	await showTheValley(page, mapDrawn, 1);
 }
@@ -222,6 +225,7 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	await expect(card(page)).toContainText(/ICON-D2, run of \w{3}, \d+ \w{3} at \d\d:\d\d/);
 	// A square cannot be reached with the keys; a take-off can.
 	await expect(card(page).getByRole('link', { name: 'Today' })).toBeVisible();
+	await openCredits(page);
 	await expect(page.getByText(/^Forecast: Open-Meteo/)).toBeVisible();
 	if (!wide) await keep('130-map-forecast-key-and-notes');
 	await foldTheKey(page, wide);
@@ -234,12 +238,7 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	await keep('113-map-forecast-tomorrow');
 
 	// A square, chosen where nothing else is drawn: the other layers off.
-	for (const name of ['Wind', 'Sites', 'Pilots']) {
-		await page
-			.getByRole('group', { name: 'Layers on the map' })
-			.getByRole('button', { name })
-			.click();
-	}
+	await switchLayers(page, ['Wind', 'Sites', 'Pilots'], false);
 	await showTheValley(page, mapDrawn, 1);
 	const canvas = page.locator('canvas.maplibregl-canvas');
 	const box = (await canvas.boundingBox())!;
@@ -339,12 +338,7 @@ test('the forecast layer reads the development server’s November map, and says
 	await expect(days).toContainText('Tue');
 
 	// A square of the first day, around the pilot: not flyable, for rain.
-	for (const name of ['Wind', 'Sites', 'Pilots']) {
-		await page
-			.getByRole('group', { name: 'Layers on the map' })
-			.getByRole('button', { name })
-			.click();
-	}
+	await switchLayers(page, ['Wind', 'Sites', 'Pilots'], false);
 	await showTheValley(page, mapDrawn, 1);
 	await clickTheMiddle(page, wide);
 	const square = wide ? card(page) : page.getByRole('dialog');
@@ -352,12 +346,7 @@ test('the forecast layer reads the development server’s November map, and says
 	await expect(square).toContainText('Rain');
 	await expect(square).toContainText(/Judged at the model’s ground, \d+ m/);
 	if (!wide) await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
-	for (const name of ['Wind', 'Sites', 'Pilots']) {
-		await page
-			.getByRole('group', { name: 'Layers on the map' })
-			.getByRole('button', { name })
-			.click();
-	}
+	await switchLayers(page, ['Wind', 'Sites', 'Pilots'], true);
 
 	// Kept on as the pilot left it. The key is folded away again on a phone:
 	// that is kept while the page is open, not by the browser.

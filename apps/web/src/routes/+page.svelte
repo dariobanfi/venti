@@ -117,7 +117,7 @@
 			{#if takeoffs.length === 0}
 				<p class="quiet">No take-offs around here.</p>
 			{:else}
-				<table class="rows fit" aria-label="Take-offs">
+				<table class="rows fit takeoffs" aria-label="Take-offs">
 					<tbody>
 						{#each takeoffs as place (place.site.id)}
 							{@const day = place.outlook?.days[dayIndex]}
@@ -142,7 +142,9 @@
 						{/each}
 					</tbody>
 				</table>
-				{#if order.best}
+				<!-- The best take-off's line, where it says more than its chip
+				     does ("Good until 14:00"): the verdict alone is in every row. -->
+				{#if order.best && order.best.day.headline !== order.best.day.status}
 					<p class="line">{order.best.day.headline}</p>
 				{/if}
 			{/if}
@@ -501,6 +503,24 @@
 	.fit .name {
 		width: 100%;
 		max-width: 0;
+	}
+
+	/* At a phone's width a take-off's name takes a second line before it is
+	   cut: three "Startmöglichkei…" in a row name nothing. */
+	@media (max-width: 55.99rem) {
+		.takeoffs .name {
+			padding-block: var(--space-1);
+			white-space: normal;
+		}
+
+		.takeoffs .name a {
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 2;
+			line-clamp: 2;
+			overflow: hidden;
+			overflow-wrap: anywhere;
+		}
 	}
 
 	.rows .place {

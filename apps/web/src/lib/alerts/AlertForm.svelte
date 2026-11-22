@@ -1,16 +1,21 @@
 <!--
 	The form of an alarm: a wind alarm for a station (the directions the wind
 	is to come from, the least and the most wind, a limit for the gusts, the
-	hours), or a day alarm for a place (the days ahead and the least kind of
-	day). Over it the core's line of what the alarm waits for, as it changes
+	hours), or for a place a day alarm (the days ahead and the least kind of
+	day) or an alarm about pilots in the air there (the fewest pilots, and
+	for how many hours it rests after it fired); a new alarm for a place
+	offers the two kinds. Over it the core's line of what the alarm waits for, as it changes
 	(`alertLine`); the core's faults stand at their fields once the pilot has
 	tried to save (`alertCheck`), and the server's refusal under the form.
 
 	Every word of the form is the core's (`alertFormWords`): its title, its
-	labels, the names of the days and of the kinds of day, its buttons.
+	labels, the names of the days and of the kinds of day, its buttons; the
+	day alarm's name beside "Pilots in the air" is the core's too
+	(`mapLayersWords().alarmDayKind`).
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { AlertDraft, AlertFaultView } from '#lib/core/index.ts';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import type { AlertsModel } from './model.svelte';
@@ -79,6 +84,23 @@
 		return tried ? faults.filter((fault) => fields.includes(fault.field)) : [];
 	}
 
+	/** The day alarm's name where the form offers the kinds, in the core's word. */
+	let dayKind = $state('');
+	$effect(() => {
+		if (!open || dayKind) return;
+		void getApp()
+			.mapLayersWords()
+			.then(
+				(said) => (dayKind = said?.alarmDayKind ?? ''),
+				() => {}
+			);
+	});
+
+	/** The kind chosen for a new alarm for a place; an alarm that stands keeps its kind. */
+	function ofKind(kind: 'day' | 'pilots') {
+		draft.kind = kind;
+	}
+
 	const PLACED = [
 		'name',
 		'rule.station',
@@ -90,7 +112,9 @@
 		'rule.max_kmh',
 		'rule.gusts_max_kmh',
 		'rule.hours',
-		'rule.days_ahead'
+		'rule.days_ahead',
+		'rule.min_pilots',
+		'rule.rest_hours'
 	];
 	const elsewhere = $derived(tried ? faults.filter((fault) => !PLACED.includes(fault.field)) : []);
 
@@ -102,7 +126,8 @@
 		return Number.isNaN(number) ? undefined : Math.min(Math.max(number, 0), most);
 	}
 
-	type Numbered = 'minKmh' | 'maxKmh' | 'gustsMaxKmh' | 'fromHour' | 'toHour';
+	type Numbered =
+		'minKmh' | 'maxKmh' | 'gustsMaxKmh' | 'fromHour' | 'toHour' | 'minPilots' | 'restHours';
 	function set(field: Numbered, value: string) {
 		draft[field] = whole(value, field.endsWith('Hour') ? 99 : 9999);
 	}
@@ -185,7 +210,53 @@
 				)}
 			</div>
 
-			{#if draft.kind === 'wind'}
+			{#if !id && draft.kind !== 'wind'}
+				<!-- What a new alarm for a place waits for: a day worth flying, or
+				     pilots in the air there. -->
+				<div class="chips kinds" role="group" aria-label="Kind">
+					<button
+						class="chip"
+						type="button"
+						aria-pressed={draft.kind === 'day'}
+						onclick={() => ofKind('day')}>{dayKind}</button
+					>
+					<button
+						class="chip"
+						type="button"
+						aria-pressed={draft.kind === 'pilots'}
+						onclick={() => ofKind('pilots')}>{words.pilotsKind}</button
+					>
+				</div>
+			{/if}
+
+			{#if draft.kind === 'pilots'}
+				<section class="group">
+					<div class="group-card">
+						<label class="field wide-name">
+							<span>{words.pilotsAtLeast}</span>
+							<input
+								inputmode="numeric"
+								autocomplete="off"
+								placeholder="3"
+								value={draft.minPilots ?? ''}
+								oninput={(event) => set('minPilots', event.currentTarget.value)}
+							/>
+						</label>
+						<label class="field wide-name">
+							<span>{words.pilotsRest}</span>
+							<input
+								inputmode="numeric"
+								autocomplete="off"
+								placeholder="6"
+								value={draft.restHours ?? ''}
+								oninput={(event) => set('restHours', event.currentTarget.value)}
+							/>
+						</label>
+					</div>
+					<p class="group-note">{words.pilotsNote}</p>
+					{@render said(at('rule.min_pilots', 'rule.rest_hours'))}
+				</section>
+			{:else if draft.kind === 'wind'}
 				<section class="group" aria-labelledby="{uid}-from">
 					<h3 class="group-title" id="{uid}-from">{words.windFrom}</h3>
 					<div class="chips" role="group" aria-labelledby="{uid}-from">
@@ -367,6 +438,20 @@
 
 	.to {
 		margin-top: var(--space-3);
+	}
+
+	.kinds {
+		margin-top: var(--space-4);
+	}
+
+	/* A long name over a short number: the name wraps, the number keeps its room. */
+	.wide-name span {
+		flex: 1 1 auto;
+	}
+
+	.wide-name input {
+		flex: 0 0 4rem;
+		text-align: right;
 	}
 
 	.field input {

@@ -55,12 +55,23 @@ export interface Camera {
  * A map with the app's style in `container`, flat and north up. `label`
  * is what a screen reader calls it.
  */
-export function createMap(container: HTMLElement, label: string, camera: Camera): Map {
+export function createMap(
+	container: HTMLElement,
+	label: string,
+	camera: Camera,
+	/**
+	 * Given by a screen whose map keeps its credits folded behind their
+	 * button at every width: told whenever the pilot unfolds or folds them.
+	 */
+	oncredits?: (open: boolean) => void
+): Map {
 	prepare();
 	const map = new Map({
 		container,
 		style: mapStyle(),
 		...camera,
+		// What a screen reader calls the "i" that unfolds the credits.
+		locale: { 'AttributionControl.ToggleAttribution': 'Credits' },
 		// Added below, where every screen expects it.
 		attributionControl: false,
 		// The map is flat until a screen tilts it: turning it shows nothing more.
@@ -72,8 +83,9 @@ export function createMap(container: HTMLElement, label: string, camera: Camera)
 	map.touchZoomRotate.disableRotation();
 	map.keyboard.disableRotation();
 	// With no option given, the control decides by the map's width whether to fold.
-	map.addControl(new AttributionControl({}), 'bottom-left');
+	map.addControl(new AttributionControl(oncredits ? { compact: true } : {}), 'bottom-left');
 	foldCredits(map, container);
+	if (oncredits) tellCredits(container, oncredits);
 	map.getCanvas().setAttribute('aria-label', label);
 	return map;
 }
@@ -93,6 +105,20 @@ function foldCredits(map: Map, container: HTMLElement): void {
 	};
 	// The control decides whether to fold when the sources report who made them.
 	map.on('sourcedata', fold);
+}
+
+/**
+ * Tells a screen when the map's credits are unfolded and folded: the
+ * control says so only with a class on its element.
+ */
+function tellCredits(container: HTMLElement, oncredits: (open: boolean) => void): void {
+	const control = container.querySelector('.maplibregl-ctrl-attrib');
+	if (!control) return;
+	let open = false;
+	new MutationObserver(() => {
+		const now = control.classList.contains('maplibregl-compact-show');
+		if (now !== open) oncredits((open = now));
+	}).observe(control, { attributes: true, attributeFilter: ['class'] });
 }
 
 /** Runs `draw` as soon as the map's style is there to draw on. */

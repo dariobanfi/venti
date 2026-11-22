@@ -4,7 +4,7 @@
  * elevation tiles once the map is close enough, with its key.
  */
 
-import { expect, mapTabDrawn, test } from './helpers';
+import { expect, mapTabDrawn, test, openLayers, layerSwitch, switchLayer } from './helpers';
 
 type Drawn = { drawn: boolean; cells: number; classed: number; byClass: number[] };
 const drawn = (page: import('@playwright/test').Page) =>
@@ -25,10 +25,10 @@ test('the slopes around the Wallberg are drawn once the map is close, with their
 	await mapTabDrawn(page, mapDrawn);
 
 	// Off until the pilot switches it on; at the valley's zoom it asks to come closer.
-	const chip = page.getByRole('button', { name: 'Slopes', exact: true });
-	await expect(chip).toHaveAttribute('aria-pressed', 'false');
-	await chip.click();
-	await expect(chip).toHaveAttribute('aria-pressed', 'true');
+	// A row of the layers' sheet.
+	await openLayers(page);
+	await expect(layerSwitch(page, 'Slopes')).not.toBeChecked();
+	await switchLayer(page, 'Slopes', true);
 	await expect(page.getByText('Zoom in to a hillside to see how steep it is.')).toBeVisible();
 	expect((await drawn(page))?.drawn ?? false).toBe(false);
 
@@ -63,11 +63,11 @@ test('the slopes around the Wallberg are drawn once the map is close, with their
 	// Kept by the browser: still on after a reload.
 	await page.reload();
 	await mapTabDrawn(page, mapDrawn);
-	await expect(chip).toHaveAttribute('aria-pressed', 'true');
+	await openLayers(page);
+	await expect(layerSwitch(page, 'Slopes')).toBeChecked();
 
 	// Off again: nothing drawn, no key.
-	await chip.click();
-	await expect(chip).toHaveAttribute('aria-pressed', 'false');
+	await switchLayer(page, 'Slopes', false);
 	await expect.poll(async () => (await drawn(page))?.drawn ?? false).toBe(false);
 	await expect(key).toBeHidden();
 	expect(problems).toEqual([]);

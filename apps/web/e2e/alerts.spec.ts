@@ -8,7 +8,7 @@
  */
 
 import type { Page } from '@playwright/test';
-import { expect, mapTabDrawn, metric, test } from './helpers';
+import { expect, mapTabDrawn, metric, test, mapTool } from './helpers';
 
 const DEMO = { handle: 'demo', password: 'demo-pilot-password' };
 
@@ -83,7 +83,7 @@ test('a wind alarm is made from a station’s page, its fault shown and put righ
 	await signUp(page);
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
-	await page.getByRole('button', { name: 'Wind stations' }).click();
+	await mapTool(page, 'Wind stations');
 	const stations = page.getByRole('dialog', { name: 'Wind stations' });
 	await stations.getByRole('searchbox', { name: 'Station' }).fill('Patscherkofel');
 	await stations.getByRole('listitem').first().getByRole('button').click();

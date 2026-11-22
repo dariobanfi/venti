@@ -39,8 +39,11 @@ test('today says what the forecast says of the take-offs around', async ({
 	// Never a word that sounds like permission.
 	await expect(page.getByText(/\bsafe\b/i)).toHaveCount(0);
 	await expect(page.getByText(/They\s+are not\s+advice to fly/)).toBeVisible();
-	await expect(page.getByText(/run of/)).toBeVisible();
+	// The model's run is one click away, behind "About this forecast".
+	await expect(page.getByText(/run of/)).toBeHidden();
 	await keep('96-today');
+	await page.getByText('About this forecast').click();
+	await expect(page.getByText(/run of/)).toBeVisible();
 
 	// Another day.
 	const days = page.getByRole('radiogroup', { name: 'Day' }).getByRole('radio');
@@ -140,6 +143,8 @@ test('a strong day puts the take-offs in the order of their thermals, with the c
 	await expect(
 		page.getByText(/what the model’s heat and temperatures say of thermals/)
 	).toBeVisible();
+	// With the model's grid cell and its run, behind "About this forecast".
+	await page.getByText('About this forecast').click();
 	await expect(page.getByText(/Thermals are an estimate from the model.s heat/)).toBeVisible();
 	await expect(page.getByText(/\bsafe\b|\bgo\b/i)).toHaveCount(0);
 	await keep('105-today-thermals');

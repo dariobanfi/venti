@@ -40,6 +40,7 @@ import type {
 	AirspaceShape,
 	Bounds,
 	CablesMap,
+	MapLayersWords,
 	CandidateOffer,
 	GlideReach,
 	GlideReachSetting,
@@ -139,6 +140,7 @@ import type { GroundAsked, TerrainSource } from './terrain-source';
 import type { CablesSource } from './cables-source';
 import type { GlideReachSource } from './glide-reach-source';
 import type { SlopesAnswer, SlopesAsked, SlopesSource } from './slopes-source';
+import type { AirSource, ClimbsAnswer, FlownAnswer, SiteAirAsked } from './air-source';
 import type { WindAnswer, WindSource } from './wind-source';
 
 /** What the page learns when the core has started. */
@@ -380,6 +382,14 @@ export interface Calls {
 	 * core's classes. Nothing for a question asked since.
 	 */
 	slopes: { given: SlopesAsked; answer: SlopesAnswer | undefined };
+	/** Where pilots climb right now in a part of the map, as the core words each climb. */
+	liveClimbs: { given: Bounds; answer: ClimbsAnswer | undefined };
+	/** Where thermals have been in a part of the map, in a month of the year. */
+	flownThermals: { given: Bounds; answer: FlownAnswer | undefined };
+	/** What the layers' sheet of the map says, in the core's words. */
+	mapLayersWords: { given: undefined; answer: MapLayersWords };
+	/** The core's line of who flies at a site now; empty when nobody does. */
+	siteAir: { given: SiteAirAsked; answer: string };
 	/** Lets go of the ground kept for the map of slopes: the layer was switched off. */
 	forgetSlopes: { given: undefined; answer: undefined };
 	/**
@@ -612,6 +622,7 @@ export interface Answering {
 	glideReach: GlideReachSource;
 	cables: CablesSource;
 	slopes: SlopesSource;
+	air: AirSource;
 }
 
 /** Does what a call asks of the core. */
@@ -637,7 +648,8 @@ export async function answer<Name extends CallName>(
 		routeWeather,
 		glideReach,
 		cables,
-		slopes
+		slopes,
+		air
 	}: Answering,
 	call: Name,
 	given: Calls[Name]['given']
@@ -718,6 +730,10 @@ export async function answer<Name extends CallName>(
 		cables: (place) => cables.around(place),
 		slopes: (asked) => slopes.classes(asked),
 		forgetSlopes: () => slopes.forget(),
+		liveClimbs: (box) => air.climbs(box),
+		flownThermals: (box) => air.flown(box),
+		mapLayersWords: () => air.words(),
+		siteAir: (site) => air.siteAir(site),
 		keepSite: ({ site, credits, asOfUnixS }) => session.keepSite(site, credits, asOfUnixS),
 		forgetSite: (id) => session.forgetSite(id),
 		isSiteKept: (id) => session.isSiteKept(id),

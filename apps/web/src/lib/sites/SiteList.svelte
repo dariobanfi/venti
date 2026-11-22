@@ -29,10 +29,12 @@
 		model: SitesModel | undefined;
 		/** Called with the site the pilot chose. */
 		onchoose: (site: SiteView) => void;
+		/** Opens "Removed lately" from the foot of the filter's choices, where it is offered. */
+		onremoved?: () => void;
 		onclose: () => void;
 	}
 
-	let { open, sites, model, onchoose, onclose }: Props = $props();
+	let { open, sites, model, onchoose, onremoved, onclose }: Props = $props();
 
 	const text = format();
 
@@ -72,12 +74,40 @@
 	</li>
 {/snippet}
 
+{#snippet filterRow(model: SitesModel, left: NonNullable<SitesModel['left']>)}
+	<!-- What the filter is, where a list's title stands: the row unfolds its choices. -->
+	<button
+		class="fold"
+		type="button"
+		aria-expanded={choosing}
+		onclick={() => (choosing = !choosing)}
+	>
+		<Icon name="filter" />
+		<span class="filter-words">{left.filterWords}</span>
+		<span class="turn" class:up={choosing} aria-hidden="true"><Icon name="forward" /></span>
+	</button>
+	{#if choosing}
+		<div class="choices">
+			<SitesFilterCard sites={model} compact {onremoved} />
+		</div>
+	{:else}
+		<p class="left numeric" role="status">{left.words}</p>
+		{#if left.fromPilotsWords}
+			<p class="left numeric">{left.fromPilotsWords}</p>
+		{/if}
+	{/if}
+{/snippet}
+
 <Sheet {open} title="Flying sites" {onclose}>
 	{#if sites.sites.length === 0}
 		<div class="nothing">
 			<h3>No flying sites here</h3>
 			<p>{nothingListed(sites)}</p>
 		</div>
+		<!-- The filter is in reach here too: its switches decide what the map asks for. -->
+		{#if model && left}
+			{@render filterRow(model, left)}
+		{/if}
 	{:else}
 		<input
 			type="search"
@@ -87,27 +117,7 @@
 			bind:value={search}
 		/>
 		{#if model && left}
-			<!-- What the filter is, where a list's title stands: the row unfolds its choices. -->
-			<button
-				class="fold"
-				type="button"
-				aria-expanded={choosing}
-				onclick={() => (choosing = !choosing)}
-			>
-				<Icon name="filter" />
-				<span class="filter-words">{left.filterWords}</span>
-				<span class="turn" class:up={choosing} aria-hidden="true"><Icon name="forward" /></span>
-			</button>
-			{#if choosing}
-				<div class="choices">
-					<SitesFilterCard sites={model} compact />
-				</div>
-			{:else}
-				<p class="left numeric" role="status">{left.words}</p>
-				{#if left.fromPilotsWords}
-					<p class="left numeric">{left.fromPilotsWords}</p>
-				{/if}
-			{/if}
+			{@render filterRow(model, left)}
 		{/if}
 		{#if shown.length === 0 && apart.length === 0 && search.trim() !== ''}
 			<div class="nothing">

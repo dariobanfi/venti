@@ -92,6 +92,10 @@ export type {
 	GliderStatistics,
 	CableLine,
 	CablesMap,
+	ClimbView,
+	FlownCellView,
+	FlownThermals,
+	MapLayersWords,
 	ClosingCircleView,
 	GlideReach,
 	GlideReachSetting,
@@ -254,6 +258,7 @@ export { CoreClient } from './client';
 export type { TodayAnswer } from './today-source';
 export type { RouteWeatherAnswer, RouteWeatherAsked } from './route-weather-source';
 export type { SlopesAnswer, SlopesAsked } from './slopes-source';
+export type { ClimbsAnswer, FlownAnswer, SiteAirAsked } from './air-source';
 export type { SiteDraftChecked, SiteSent } from './site-edit-source';
 export type { Box } from './takeoffs-source';
 export type {

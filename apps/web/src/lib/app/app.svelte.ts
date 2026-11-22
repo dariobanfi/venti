@@ -21,7 +21,12 @@ import {
 	CoreClient,
 	type FlightView,
 	type ForecastView,
+	type Bounds,
 	type CablesMap,
+	type ClimbsAnswer,
+	type FlownAnswer,
+	type MapLayersWords,
+	type SiteAirAsked,
 	type SlopesAnswer,
 	type SlopesAsked,
 	type GlideReach,
@@ -238,6 +243,34 @@ export class App {
 	/** Lets go of the ground kept for the map of slopes. */
 	async forgetSlopes(): Promise<void> {
 		await this.#core?.forgetSlopes();
+	}
+
+	/** Where pilots climb right now in a part of the map; nothing without a server. */
+	async liveClimbs(box: Bounds): Promise<ClimbsAnswer | undefined> {
+		if (!browser) return undefined;
+		await this.start();
+		return this.#core?.liveClimbs(box);
+	}
+
+	/** Where thermals have been in a part of the map, in every month of the year. */
+	async flownThermals(box: Bounds): Promise<FlownAnswer | undefined> {
+		if (!browser) return undefined;
+		await this.start();
+		return this.#core?.flownThermals(box);
+	}
+
+	/** What the layers' sheet of the map says, in the core's words; nothing if the core could not start. */
+	async mapLayersWords(): Promise<MapLayersWords | undefined> {
+		if (!browser) return undefined;
+		await this.start();
+		return this.#core?.mapLayersWords();
+	}
+
+	/** The core's line of who flies at a site now; empty when nobody does. */
+	async siteAir(site: SiteAirAsked): Promise<string> {
+		if (!browser) return '';
+		await this.start();
+		return (await this.#core?.siteAir(site)) ?? '';
 	}
 
 	/**

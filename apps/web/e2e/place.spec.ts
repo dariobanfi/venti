@@ -13,7 +13,8 @@ import {
 	showTheValley,
 	rowsOf,
 	test,
-	BETWEEN_THE_MOUNTAINS
+	BETWEEN_THE_MOUNTAINS,
+	mapTool
 } from './helpers';
 
 /** The first of the Wallberg's two ramps, where the made-up flights take off. */
@@ -114,7 +115,7 @@ test('a site on the map leads to its page, which says when nobody flew from it',
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await list.getByRole('searchbox', { name: 'Site' }).fill('Fluggelände Jägerkamp');
 	await list.getByRole('listitem').first().getByRole('button').click();
@@ -135,7 +136,7 @@ test('a site on the map leads to its page, which says when nobody flew from it',
 	await page.goBack();
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	await list.getByRole('searchbox', { name: 'Site' }).fill('Landeplatz Jägerkamp');
 	await list.getByRole('listitem').first().getByRole('button').click();
 	const landing = page.getByRole(wide ? 'complementary' : 'dialog', {

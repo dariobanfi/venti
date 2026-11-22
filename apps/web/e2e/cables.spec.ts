@@ -6,7 +6,16 @@
  * ropeway, none with a mapped height, so all are drawn dashed.
  */
 
-import { expect, mapTabDrawn, test } from './helpers';
+import {
+	expect,
+	mapTabDrawn,
+	test,
+	mapTool,
+	openCredits,
+	openLayers,
+	closeLayers,
+	layerSwitch
+} from './helpers';
 
 interface Drawn {
 	lines: string[];
@@ -35,6 +44,7 @@ test('the map draws the cables near the Tegernsee, and a click on one says what 
 		return { lines: cables.lines.length, dashed: cables.dashed };
 	});
 	expect(drawn.dashed).toBe(drawn.lines);
+	await openCredits(page);
 	await expect(page.locator('.credits')).toContainText('Cables: © OpenStreetMap contributors');
 	await expect(page.getByText(/^Cables on this part of the map: .*no promise/)).toBeAttached();
 	await mapDrawn();
@@ -43,9 +53,11 @@ test('the map draws the cables near the Tegernsee, and a click on one says what 
 	// With the wind's arrows, the sites' signs and the pilots off, nothing
 	// else lies under a click on a line: the middle of a stretch of it
 	// that is in the open part of the map.
+	await openLayers(page);
 	for (const layer of ['Wind', 'Sites', 'Pilots']) {
-		await page.getByRole('button', { name: layer, exact: true }).click();
+		await layerSwitch(page, layer).uncheck();
 	}
+	await closeLayers(page);
 	await mapDrawn();
 	const canvas = page.locator('canvas.maplibregl-canvas');
 	const box = (await canvas.boundingBox())!;
@@ -92,7 +104,7 @@ test('three places that come back near the first make a triangle, and the planne
 }) => {
 	await page.goto('/?lat=47.70&lon=11.76');
 	await mapTabDrawn(page, mapDrawn);
-	await page.getByRole('button', { name: 'Plan a route' }).click();
+	await mapTool(page, 'Plan a route');
 	const card = page.getByRole('region', { name: 'Plan a route' });
 	const legs = card.getByRole('list', { name: 'Legs' }).getByRole('listitem');
 

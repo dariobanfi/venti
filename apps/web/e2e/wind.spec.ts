@@ -5,7 +5,19 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { expect, mapTabDrawn, metric, showMyPosition, test } from './helpers';
+import {
+	expect,
+	mapTabDrawn,
+	metric,
+	showMyPosition,
+	test,
+	mapTool,
+	openCredits,
+	openLayers,
+	closeLayers,
+	layerSwitch,
+	toolRow
+} from './helpers';
 
 /** Where the weather station of Garmisch-Partenkirchen stands. */
 const GARMISCH = { latitude: 47.483, longitude: 11.0621 };
@@ -29,13 +41,14 @@ test('the map shows the wind, lists its stations and opens one', async ({
 	await mapTabDrawn(page, mapDrawn);
 
 	// Whose data is on the map is written on the map.
+	await openCredits(page);
 	await expect(page.getByText(/^Wind: .*Deutscher Wetterdienst.*GeoSphere Austria/)).toBeVisible();
 	// The map places the arrows over a few frames and fades them in.
 	await page.waitForTimeout(1500);
 	await keep('18-map-wind');
 
 	// Everything the arrows say, as a list by name.
-	await page.getByRole('button', { name: 'Wind stations' }).click();
+	await mapTool(page, 'Wind stations');
 	const list = page.getByRole('dialog', { name: 'Wind stations' });
 	const rows = list.getByRole('listitem');
 	// The stations around what the map shows, each by its name.
@@ -131,7 +144,7 @@ test('a station’s page says what its readings tell of the air, and shows a pas
 }) => {
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
-	await page.getByRole('button', { name: 'Wind stations' }).click();
+	await mapTool(page, 'Wind stations');
 	const list = page.getByRole('dialog', { name: 'Wind stations' });
 	await list.getByRole('searchbox', { name: 'Station' }).fill('Innsbruck');
 	await list
@@ -156,7 +169,7 @@ test('a station’s page says what its readings tell of the air, and shows a pas
 
 	// A station with a recorded history: today first, a year back at most.
 	await closeButton(station, wide).click();
-	await page.getByRole('button', { name: 'Wind stations' }).click();
+	await mapTool(page, 'Wind stations');
 	await list.getByRole('searchbox', { name: 'Station' }).fill('Zugspitze');
 	await list.getByRole('listitem').first().getByRole('button').click();
 	const summit = stationPanel(page, wide, 'Zugspitze');
@@ -246,7 +259,7 @@ test('the map says so in words when the server cannot be reached', async ({
 	await keep('22-wind-unreachable');
 
 	// The list says the same instead of being empty without a reason.
-	await page.getByRole('button', { name: 'Wind stations' }).click();
+	await mapTool(page, 'Wind stations');
 	const list = page.getByRole('dialog', { name: 'Wind stations' });
 	await expect(list).toContainText('No stations here');
 	await expect(list).toContainText('Venti could not be reached for the wind.');
@@ -270,8 +283,13 @@ test('a site without a server has a map without wind and without sites, and says
 	await mapDrawn();
 
 	await expect(page.getByRole('button', { name: 'Show my position' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Wind stations' })).toBeHidden();
-	await expect(page.getByRole('button', { name: 'Flying sites' })).toBeHidden();
+	// The layers' sheet has the ground and the route planner, and no list of
+	// what a server would have answered.
+	await openLayers(page);
+	await expect(layerSwitch(page, 'Aerial view')).toBeVisible();
+	await expect(toolRow(page, 'Wind stations')).toHaveCount(0);
+	await expect(toolRow(page, 'Flying sites')).toHaveCount(0);
+	await closeLayers(page);
 	await expect(page.getByRole('status')).toBeHidden();
 	await expect(page.getByText(/^Wind: /)).toBeHidden();
 });

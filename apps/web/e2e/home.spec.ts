@@ -26,7 +26,10 @@ test('the home page shows what is going on, panel by panel', async ({ page, keep
 	// Today's take-offs, as the core judges them, with the way to Today.
 	const today = panel(page, /^Take-offs/);
 	await expect(today.getByRole('table', { name: 'Take-offs' }).getByRole('row')).toHaveCount(5);
-	await expect(today.getByText(/^(Flyable|Marginal|Not flyable)$/).first()).toBeVisible();
+	// Each row has the core's verdict as its chip; no line under the table repeats it.
+	await expect(
+		today.getByRole('cell', { name: /^(Flyable|Marginal|Not flyable)$/ }).first()
+	).toBeVisible();
 	await expect(today.getByRole('link', { name: 'Today' })).toBeVisible();
 
 	// Who is in the air: the core's count of Venti's pilots and the others.

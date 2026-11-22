@@ -220,7 +220,8 @@
 	const sentences = $derived(said(site));
 	const web = $derived(webPage(site.website));
 
-	const own = $derived(getApp().kept);
+	const app = getApp();
+	const own = $derived(app.kept);
 	/** Whether the site is one of the pilot's own, by the core. Unknown until it has answered. */
 	let kept = $state<boolean>();
 	let keeping = $state(false);
@@ -234,6 +235,34 @@
 		own?.isKept(id).then(
 			(is) => {
 				if (current) kept = is;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	/**
+	 * Who flies at the site now, in the core's line: "5 pilots in the air at
+	 * Wallberg, 2 took off in the last hour". Empty when nobody does, and
+	 * then nothing is shown.
+	 */
+	let inTheAir = $state('');
+	$effect(() => {
+		const asked = {
+			id: site.id,
+			// A site its source does not name is "Take-off" on the page: the
+			// line then names no place.
+			name: site.isNamed ? site.name : '',
+			lat: site.position.lat,
+			lon: site.position.lon
+		};
+		inTheAir = '';
+		let current = true;
+		app.siteAir(asked).then(
+			(line) => {
+				if (current) inTheAir = line;
 			},
 			() => {}
 		);
@@ -269,6 +298,9 @@
 			<StatusChip verdict={day.verdict} status={day.status} />
 		{/if}
 		<p>{siteLine(site, text)}</p>
+		{#if inTheAir}
+			<p class="in-the-air numeric" data-site-air>{inTheAir}</p>
+		{/if}
 		{#if site.byPilots?.label}
 			<!-- The tier, by the name: "From pilots", "From a partner". -->
 			<p class="lesser tier">{site.byPilots.label}</p>
@@ -552,6 +584,11 @@
 
 	.lesser {
 		color: var(--text-secondary);
+	}
+
+	/* Who flies here now: a line of its own under the site's. */
+	.in-the-air {
+		font-weight: 500;
 	}
 
 	.chart {

@@ -10,6 +10,7 @@ import type { GroundAsked } from './terrain-source';
 import type { RadarColours } from './radar-source';
 import type { RouteWeatherAsked } from './route-weather-source';
 import type { SlopesAsked } from './slopes-source';
+import type { SiteAirAsked } from './air-source';
 import type { HoursAsked } from './thermal-map-source';
 import type { AccessWanted } from './tokens-source';
 import type { Box } from './takeoffs-source';
@@ -453,6 +454,26 @@ export class CoreClient {
 	/** Lets go of the ground kept for the map of slopes. */
 	forgetSlopes() {
 		return this.#call('forgetSlopes', undefined);
+	}
+
+	/** Where pilots climb right now in a part of the map. Nothing if this site has no server. */
+	liveClimbs(box: Bounds) {
+		return this.#call('liveClimbs', box);
+	}
+
+	/** Where thermals have been in a part of the map, in every month of the year. */
+	flownThermals(box: Bounds) {
+		return this.#call('flownThermals', box);
+	}
+
+	/** What the layers' sheet of the map says, in the core's words. */
+	mapLayersWords() {
+		return this.#call('mapLayersWords', undefined);
+	}
+
+	/** The core's line of who flies at a site now; empty when nobody does. */
+	siteAir(site: SiteAirAsked) {
+		return this.#call('siteAir', site);
 	}
 
 	/** The cables around a place, as a map layer. Nothing if this site has no server. */

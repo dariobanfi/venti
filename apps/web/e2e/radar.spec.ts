@@ -16,7 +16,7 @@
  */
 
 import type { Page } from '@playwright/test';
-import { expect, mapTabDrawn, test } from './helpers';
+import { expect, mapTabDrawn, test, openCredits, switchLayers } from './helpers';
 
 const radarChip = (page: Page) =>
 	page.getByRole('group', { name: 'Layers on the map' }).getByRole('button', { name: 'Radar' });
@@ -78,12 +78,7 @@ const drawnOnMap = (page: Page) =>
 async function radarOn(page: Page, mapDrawn: () => Promise<void>) {
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
-	for (const name of ['Wind', 'Sites', 'Pilots']) {
-		await page
-			.getByRole('group', { name: 'Layers on the map' })
-			.getByRole('button', { name })
-			.click();
-	}
+	await switchLayers(page, ['Wind', 'Sites', 'Pilots'], false);
 	await radarChip(page).click();
 }
 
@@ -121,12 +116,7 @@ test('the radar layer shows both layers at the newest moment with its time, the 
 	await expect(radarChip(page)).toHaveAttribute('aria-pressed', 'false');
 	await expect(card(page)).toBeHidden();
 	expect(pictures).toEqual([]);
-	for (const name of ['Wind', 'Sites', 'Pilots']) {
-		await page
-			.getByRole('group', { name: 'Layers on the map' })
-			.getByRole('button', { name })
-			.click();
-	}
+	await switchLayers(page, ['Wind', 'Sites', 'Pilots'], false);
 	await radarChip(page).click();
 	await expect(radarChip(page)).toHaveAttribute('aria-pressed', 'true');
 
@@ -145,7 +135,9 @@ test('the radar layer shows both layers at the newest moment with its time, the 
 	// Each is a layer of its own on the map, the analysis under the radars.
 	await expect.poll(() => drawnOnMap(page)).toEqual(['radar-0', 'radar-1']);
 	// Both ask for their credit at the data: on the map while they show.
+	await openCredits(page);
 	await expect(page.locator('.credits').getByText(RADARS_CREDIT)).toBeVisible();
+	await openCredits(page);
 	await expect(page.locator('.credits').getByText(ANALYSIS_CREDIT)).toBeVisible();
 
 	// Far enough out to see the whole region: the radars see its north-west,

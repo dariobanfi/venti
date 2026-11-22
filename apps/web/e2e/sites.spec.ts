@@ -12,7 +12,10 @@ import {
 	metric,
 	showMyPosition,
 	showTheValley,
-	test
+	test,
+	mapTool,
+	openCredits,
+	openSitesFilter
 } from './helpers';
 
 /** Where OpenStreetMap has the take-off of the Jägerkamp. */
@@ -46,7 +49,7 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 	// carpet of dots. The list says how to get them.
 	await expect(shown(page)).toBeHidden();
 	await expect(page.getByText(/^Sites: /)).toBeHidden();
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await expect(list).toContainText('No flying sites here');
 	await expect(list).toContainText(
@@ -59,6 +62,7 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 	// the map. A phone's map is narrower and has to show more of the land
 	// for the same signs.
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
+	await openCredits(page);
 	await expect(page.getByText('Sites: OpenStreetMap contributors')).toBeVisible();
 	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
 	// The map places the signs over a few frames and fades their names in.
@@ -66,10 +70,14 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 	await keep('40-map-sites');
 
 	// Everything the signs say, as a list: the named ones first, by name.
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
+	// The list holds the sites of the box the map asked for, which reaches
+	// past the screen's edges (a wide screen's as far as the Blomberg), so
+	// which name comes first hangs on the width: the row is found by name.
 	const rows = list.getByRole('listitem');
-	await expect(rows.first()).toContainText('Fluggelände Jägerkamp/Nagelspitz');
-	await expect(rows.first()).toContainText('Take-off · 1560 m');
+	const named = rows.filter({ hasText: 'Fluggelände Jägerkamp/Nagelspitz' });
+	await expect(named).toContainText('Take-off · 1560 m');
+	await expect(rows.first()).not.toContainText('No more is known');
 	await expect(rows.filter({ hasText: 'Landeplatz Jägerkamp/Nagelspitz' })).toContainText(
 		'Landing'
 	);
@@ -138,7 +146,7 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 
 	// A take-off whose source says which wind it works in: in words, and as
 	// a wedge on a small compass.
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	await list.getByRole('searchbox', { name: 'Site' }).fill('vogelsang ost');
 	await expect(rows).toHaveCount(1);
 	await expect(rows.first()).toContainText('Take-off · wind NE');
@@ -213,7 +221,7 @@ test('a site named in a script the app has no letters for is drawn all the same'
 	// The map places the signs and their names over a few frames.
 	await page.waitForTimeout(1500);
 
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await expect(list.getByRole('listitem').first()).toContainText('Старт تجربة ทดสอบ სტარტი');
 });
@@ -236,7 +244,7 @@ test('a server that cannot be asked for sites is named in the list, and the map 
 	await expect(page.getByText(/^Sites: /)).toBeHidden();
 	await expect(shown(page)).toBeHidden();
 
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await expect(list).toContainText('No flying sites here');
 	await expect(list).toContainText('Venti could not be reached for flying sites.');
@@ -272,12 +280,8 @@ test('the sites are filtered by a wind: what fits, what stands apart, and what i
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
 
-	// The filter's choices: a pane at the map's side on a wide screen, a sheet
-	// of half the screen on a narrow one, the map staying in view above it.
-	const opens = page.getByRole('button', { name: 'Filter sites', exact: true });
-	await expect(opens).toHaveAttribute('aria-pressed', 'false');
-	await opens.click();
-	const filter = page.getByRole(wide ? 'complementary' : 'dialog', { name: 'Filter sites' });
+	// The filter's choices are inside the list of the sites.
+	const filter = await openSitesFilter(page);
 	// Nothing is asked yet, and the core says so.
 	await expect(filter.getByRole('status')).toContainText('All sites');
 	await expect(filter.getByRole('status')).toContainText(/^All sites\s*\d+ sites\s*$/);
@@ -317,7 +321,6 @@ test('the sites are filtered by a wind: what fits, what stands apart, and what i
 	expect([...onMap.signs, ...onMap.apart]).not.toContain(JAEGERKAMP_LANDING);
 	// Three take-offs are in view, none of them names a wind; the two landings are gone.
 	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 3.');
-	await expect(opens).toHaveAttribute('aria-pressed', 'true');
 	await page.waitForTimeout(1500);
 	await keep('142-sites-filter');
 
@@ -333,27 +336,34 @@ test('the sites are filtered by a wind: what fits, what stands apart, and what i
 	expect((await drawn(page)).apart).toContain('osm-free-flying:node/5964676196');
 	// The take-off is an area in its source, and has its outline with its sign.
 	expect((await drawn(page)).areas).toContain(JAEGERKAMP_TAKEOFF);
-	const close = filter.getByRole('button', { name: wide ? 'Close' : 'Done' });
-	await close.click();
+	await filter.getByRole('button', { name: 'Done' }).click();
 	await expect(filter).toBeHidden();
 	await page.waitForTimeout(1500);
 	await keep('143-map-sites-filtered');
 
 	// Closed, the filter stays said on the map, in the core's words, as a row
-	// that opens the choices again.
+	// that opens the choices again: a pane at the map's side on a wide
+	// screen, a sheet of half the screen on a narrow one.
 	await page.getByRole('button', { name: /^Take-offs from 1500 m up/ }).click();
-	await heights.getByText('Any', { exact: true }).click();
-	await winds.getByRole('button', { name: 'NE', exact: true }).click();
-	await expect(said).toContainText(`${fits} of ${takeoffs} take-offs`);
-	await close.click();
-	await expect(filter).toBeHidden();
+	const pane = page.getByRole(wide ? 'complementary' : 'dialog', { name: 'Filter sites' });
+	await pane
+		.getByRole('radiogroup', { name: 'Take-offs from' })
+		.getByText('Any', { exact: true })
+		.click();
+	await pane
+		.getByRole('group', { name: 'Take-offs for a wind from' })
+		.getByRole('button', { name: 'NE', exact: true })
+		.click();
+	await expect(pane.getByRole('status')).toContainText(`${fits} of ${takeoffs} take-offs`);
+	await pane.getByRole('button', { name: wide ? 'Close' : 'Done' }).click();
+	await expect(pane).toBeHidden();
 	const on = page.getByRole('button', { name: /^Take-offs for a wind from NE/ });
 	await expect(on).toContainText(`${fits} of ${takeoffs} take-offs`);
 	await expect(on).toContainText(`${unsaid} take-offs give no wind directions`);
 
 	// The list has the same filter: those that fit first, then the take-offs
 	// whose source does not say, under the core's heading and sentence.
-	await page.getByRole('button', { name: 'Flying sites', exact: true }).click();
+	await mapTool(page, 'Flying sites');
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await expect(list.getByRole('button', { name: 'Take-offs for a wind from NE' })).toBeVisible();
 	await expect(list.getByRole('status')).toHaveText(
@@ -390,7 +400,6 @@ test('the sites are filtered by a wind: what fits, what stands apart, and what i
 	// The browser remembers the filter, as it does the map's layers.
 	await page.reload();
 	await mapTabDrawn(page, mapDrawn);
-	await expect(page.getByRole('button', { name: 'Filter sites', exact: true })).toBeVisible();
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 	await expect(
 		page.getByRole('button', { name: /^Landings\s*[1-9]\d* landings\s*$/ })

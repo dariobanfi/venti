@@ -18,7 +18,8 @@ import {
 	mapTabDrawn,
 	metric,
 	panel,
-	test
+	test,
+	openCredits
 } from './helpers';
 
 /**
@@ -124,7 +125,9 @@ test('the map draws the airspace the server has for where the pilot looks, and s
 	// openAIP's licence asks for its credit and its notice wherever its
 	// airspace is shown. On the map that is a line; the airspace screen has
 	// it in full.
+	await openCredits(page);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
+	await openCredits(page);
 	await expect(page.getByText(/^Wind: .*Deutscher Wetterdienst.*GeoSphere Austria/)).toBeVisible();
 	await mapDrawn();
 	await keep('33-map-airspace');
@@ -135,6 +138,7 @@ test('the map draws the airspace the server has for where the pilot looks, and s
 	await page.reload();
 	await mapTabDrawn(page, mapDrawn);
 	await expect(drawn(page)).toHaveText(/: [1-9]\d*\.$/);
+	await openCredits(page);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
 
 	expect(problems).toEqual([]);
@@ -149,6 +153,7 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	// The map fetches the server's airspace; the screen that lists it does not.
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
+	await openCredits(page);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
 	const row = page.locator('.settings-page').getByRole('link', { name: /^Airspace/ });
@@ -251,6 +256,7 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	await fromTheServer.check();
 	await expect(page.getByText('Fetched the next time a map is open')).toBeVisible();
 	await sections(page).getByRole('link', { name: 'Map', exact: true }).click();
+	await openCredits(page);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
 });
 
@@ -270,6 +276,7 @@ test('the map of a flight draws the airspace around it', async ({ page, mapDrawn
 	await expect(drawn(page)).toHaveText(
 		/^Airspace on this part of the map, as it is today: [1-9]\d*\.$/
 	);
+	await openCredits(page);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
 	await mapDrawn();
 	await page.waitForTimeout(1000);

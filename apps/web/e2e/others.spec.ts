@@ -6,7 +6,7 @@
  * the same, as the server lists only what it heard in the last ten minutes.
  */
 
-import { expect, mapTabDrawn, test } from './helpers';
+import { expect, mapTabDrawn, test, openCredits } from './helpers';
 
 test('the map draws the aircraft the Open Glider Network hears, and a click opens one', async ({
 	page,
@@ -29,6 +29,7 @@ test('the map draws the aircraft the Open Glider Network hears, and a click open
 			page.evaluate(() => (globalThis as { ventiOthers?: string[] }).ventiOthers?.length ?? 0)
 		)
 		.toBeGreaterThan(0);
+	await openCredits(page);
 	await expect(page.locator('.credits')).toContainText(
 		'Positions: Open Glider Network, glidernet.org (ODbL)'
 	);

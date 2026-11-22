@@ -15,6 +15,7 @@
 	import type {
 		Bounds,
 		CandidateOffer,
+		MapLayersWords,
 		Coordinate,
 		Credit,
 		SiteCandidateView,
@@ -52,19 +53,22 @@
 	import OtherView from '#lib/live/OtherView.svelte';
 	import { otherById } from '#lib/live/others.ts';
 	import { NO_LIVE } from '#lib/live/watch.ts';
+	import { ClimbsModel, FlownModel } from '#lib/air/model.svelte.ts';
 	import MapButton from '#lib/map/MapButton.svelte';
+	import MapLayersSheet, { type LayerRow, type ToolRow } from '#lib/map/MapLayersSheet.svelte';
 	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
 	import {
 		aerialOn,
+		airLayerOn,
 		forecastOn,
 		keepAerial,
+		keepAirLayer,
 		keepForecast,
 		keepLayersOff,
 		keepRadar,
 		keepSlopes,
 		type MapLayer,
-		MAP_LAYERS,
 		layersOff,
 		radarOn,
 		slopesOn
@@ -219,13 +223,16 @@
 		showRadar ? (radar?.layersDrawn ?? []).flatMap((layer) => layer.credit?.text || []) : []
 	);
 
-	const CHIP_ICONS = {
-		wind: 'wind',
-		airspace: 'airspace',
-		cables: 'danger',
-		sites: 'pin',
-		pilots: 'glider'
-	} as const;
+	/**
+	 * Whether the one sheet of the map's layers and tools is open: a sheet
+	 * at a phone's width, a card at the map's side on a wide screen.
+	 */
+	let layersOpen = $state(false);
+	/**
+	 * Whether the credits are unfolded: closed from the start behind the
+	 * map's "i", which unfolds the map's own and Venti's together.
+	 */
+	let creditsOpen = $state(false);
 
 	const wind = $derived(app.wind);
 	const current = $derived(wind?.state ?? NO_WIND);
@@ -360,6 +367,64 @@
 		chosenCable = id;
 	}
 
+	// --- What many gliders say together: climbs now, and where thermals have been ---
+
+	/** Whether the map shows the climbs of the last minutes: off until the pilot asks. */
+	let climbsChosen = $state(airLayerOn(globalThis.localStorage, 'climbs'));
+	/** Whether the map shows where thermals have been: off until the pilot asks. */
+	let flownChosen = $state(airLayerOn(globalThis.localStorage, 'flown'));
+	const climbs = new ClimbsModel((box) => app.liveClimbs(box));
+	const flown = new FlownModel((box) => app.flownThermals(box));
+	/**
+	 * What the layers' sheet says, in the core's words: its title, its two
+	 * headings, the two layers' names and lines, and what is said where one
+	 * of them has nothing to show.
+	 */
+	let layerWords = $state.raw<MapLayersWords>();
+	$effect(() => {
+		void app.mapLayersWords().then(
+			(words) => (layerWords = words),
+			() => {}
+		);
+	});
+	const showClimbs = $derived(climbsChosen && Boolean(app.account?.hasServer));
+	const showFlown = $derived(flownChosen && Boolean(app.account?.hasServer));
+	// The climbs of the part in view, and again every half minute while on.
+	$effect(() => {
+		if (view && showClimbs) climbs.show(view.region);
+	});
+	$effect(() => {
+		if (showClimbs) return climbs.keepCurrent();
+	});
+	// Where thermals have been in the part in view, in every month of the year.
+	$effect(() => {
+		if (view && showFlown) flown.show(view.region);
+	});
+	/** Whose the climbs are, in the core's credits, while their layer is on. */
+	const climbsCredits = $derived(showClimbs ? (climbs.answer?.credits ?? []) : []);
+	/** What the core says where the climbs are on and there are none. */
+	const climbsSaid = $derived(
+		showClimbs
+			? climbs.problem || (climbs.answer?.climbs.length === 0 ? climbs.answer.emptyWords : '')
+			: ''
+	);
+	/**
+	 * What the core says where the map shows too much to ask for the
+	 * thermals, or where no cell lies in the part shown.
+	 */
+	const flownSaid = $derived(
+		showFlown
+			? flown.problem ||
+					flown.answer?.tooWide ||
+					(flown.answer?.thermals?.cells.length === 0 ? (layerWords?.flownEmpty ?? '') : '')
+			: ''
+	);
+
+	/** A climb or a cell clicked: the core's line about it, in the card of its place. */
+	function openAir(at: { position: Coordinate; line: string } | undefined) {
+		if (at) openPlace(at.position, false, at.line);
+	}
+
 	/** How many airspaces the map draws, or nothing while it is zoomed too far out for any. */
 	let airspaceDrawn = $state<number>();
 	/** Whose airspace is on the map. Their licences ask for this wherever it is shown. */
@@ -459,7 +524,13 @@
 	 * pointer: what airspace lies over it, where some does, and what can be
 	 * done from there (what a glide reaches, adding a site).
 	 */
-	let chosenPlace = $state.raw<{ place: Coordinate; name: string; airspace: boolean }>();
+	let chosenPlace = $state.raw<{
+		place: Coordinate;
+		name: string;
+		airspace: boolean;
+		/** The core's line about what was clicked there: a climb, or a cell of flown thermals. */
+		said?: string;
+	}>();
 	/** Counts the clicks on places, so that a slow answer for an older one is dropped. */
 	let placeAsked = 0;
 
@@ -467,8 +538,9 @@
 	 * Opens a place's card: with what airspace lies over it where the map
 	 * draws airspace (`withAirspace`) and some does.
 	 */
-	function openPlace(place: Coordinate, withAirspace = true) {
+	function openPlace(place: Coordinate, withAirspace = true, said?: string) {
 		chosenCandidate = undefined;
+		layersOpen = false;
 		const mine = ++placeAsked;
 		const open = (airspace: boolean) => {
 			if (mine !== placeAsked) return;
@@ -477,7 +549,7 @@
 			chosenSite = undefined;
 			chosenGlider = undefined;
 			chosenOther = undefined;
-			chosenPlace = { place, name: text.place(place.lat, place.lon), airspace };
+			chosenPlace = { place, name: text.place(place.lat, place.lon), airspace, said };
 		};
 		const model = app.airspace;
 		if (!withAirspace || !model || model.isEmpty) {
@@ -493,6 +565,7 @@
 	/** One thing is open beside the map at a time: a station, a site, a glider, a square or airspace. */
 	function openStation(picked: WindStation | undefined) {
 		chosenCandidate = undefined;
+		layersOpen = false;
 		if (!picked) return;
 		chosenPlace = undefined;
 		chosenSquare = undefined;
@@ -504,6 +577,7 @@
 
 	function openGlider(id: string) {
 		chosenCandidate = undefined;
+		layersOpen = false;
 		chosenPlace = undefined;
 		chosenSquare = undefined;
 		chosen = undefined;
@@ -519,6 +593,7 @@
 
 	function openSite(picked: SiteView | undefined) {
 		chosenCandidate = undefined;
+		layersOpen = false;
 		if (!picked) return;
 		chosenPlace = undefined;
 		chosenSquare = undefined;
@@ -638,6 +713,7 @@
 	});
 
 	function closeOthers() {
+		layersOpen = false;
 		chosenCable = undefined;
 		chosenCandidate = undefined;
 		chosenPlace = undefined;
@@ -832,6 +908,7 @@
 	function broughtBack(written: SiteWritten) {
 		removedLately = false;
 		filtering = false;
+		listingSites = false;
 		showWritten(written.site, written.words);
 	}
 
@@ -917,6 +994,136 @@
 	const sitesCredit = $derived(
 		places.sites.length === 0 ? '' : sitesCreditLine(places.credits, text)
 	);
+
+	// --- The chips, and the one sheet of layers and tools ---
+
+	function setForecast(on: boolean) {
+		forecast = on;
+		keepForecast(globalThis.localStorage, on);
+		if (!on) chosenSquare = undefined;
+	}
+	function setRadar(on: boolean) {
+		radarChosen = on;
+		keepRadar(globalThis.localStorage, on);
+	}
+	function setSlopes(on: boolean) {
+		slopesChosen = on;
+		keepSlopes(globalThis.localStorage, on);
+		if (!on) slopes.off();
+	}
+	function setAerial(on: boolean) {
+		aerial = on;
+		keepAerial(globalThis.localStorage, on);
+	}
+	function setClimbs(on: boolean) {
+		climbsChosen = on;
+		keepAirLayer(globalThis.localStorage, 'climbs', on);
+		if (!on) climbs.off();
+	}
+	function setFlown(on: boolean) {
+		flownChosen = on;
+		keepAirLayer(globalThis.localStorage, 'flown', on);
+		if (!on) flown.off();
+	}
+	/** A layer the chips' list switches (`off`), as a row or a chip. */
+	const listed = (layer: MapLayer) => ({
+		on: !off.includes(layer),
+		onchange: () => toggle(layer)
+	});
+
+	/** The four layers a pilot switches most: the chips along the map's top. */
+	const chips = $derived<LayerRow[]>([
+		{ key: 'forecast', name: 'Forecast', icon: 'forecast', on: forecast, onchange: setForecast },
+		{ key: 'radar', name: 'Radar', icon: 'rain', on: radarChosen, onchange: setRadar },
+		{ key: 'wind', name: 'Wind', icon: 'wind', ...listed('wind') },
+		{ key: 'sites', name: 'Sites', icon: 'pin', ...listed('sites') }
+	]);
+	/**
+	 * Every layer as a row with a switch: the chips' four in the same
+	 * state, then the others. A site without a server has the ground alone.
+	 */
+	const layerRows = $derived<LayerRow[]>([
+		...(app.account?.hasServer
+			? [
+					...chips,
+					{ key: 'airspace', name: 'Airspace', icon: 'airspace', ...listed('airspace') },
+					{ key: 'pilots', name: 'Pilots', icon: 'glider', ...listed('pilots') },
+					{
+						key: 'slopes',
+						name: 'Slopes',
+						icon: 'mountain',
+						on: slopesChosen,
+						onchange: setSlopes
+					},
+					{ key: 'cables', name: 'Cables', icon: 'warning', ...listed('cables') }
+				]
+			: []),
+		{ key: 'aerial', name: 'Aerial view', icon: 'layers', on: aerial, onchange: setAerial },
+		...(app.account?.hasServer && layerWords
+			? [
+					{
+						key: 'climbs',
+						name: layerWords.climbsNow,
+						icon: 'thermal',
+						on: climbsChosen,
+						onchange: setClimbs,
+						notes: [layerWords.climbsNowNote, climbs.answer?.countWords || climbsSaid]
+					},
+					{
+						key: 'flown',
+						name: layerWords.flownThermals,
+						icon: 'thermal',
+						on: flownChosen,
+						onchange: setFlown,
+						notes: [layerWords.flownThermalsNote, flownSaid, flown.answer?.thermals?.note ?? ''],
+						terms: flown.answer?.thermals && {
+							title: flown.answer.thermals.termsTitle ?? '',
+							text: flown.answer.thermals.terms
+						}
+					}
+				]
+			: [])
+	] as LayerRow[]);
+	/** A tool's row closes the sheet and opens what its round button used to. */
+	const opens = (open: () => void) => () => {
+		layersOpen = false;
+		open();
+	};
+	const toolRows = $derived<ToolRow[]>([
+		...(current.available
+			? ([
+					{
+						key: 'stations',
+						name: 'Wind stations',
+						icon: 'wind',
+						onclick: opens(() => (listing = true))
+					},
+					{
+						key: 'sites',
+						name: 'Flying sites',
+						icon: 'pin',
+						onclick: opens(() => (listingSites = true))
+					},
+					{
+						key: 'air',
+						name: 'In the air',
+						icon: 'glider',
+						onclick: opens(() => (listingGliders = true))
+					}
+				] satisfies ToolRow[])
+			: []),
+		{ key: 'route', name: 'Plan a route', icon: 'route', onclick: opens(togglePlanner) },
+		// A site of the pilot's own knowledge, in the core's words for the
+		// tier this account adds to; for someone who has to sign in first,
+		// its sentence about that, which leads to the account.
+		...(current.available && adding
+			? ([
+					adding.leadsToSignIn
+						? { key: 'add', name: adding.entryWords, icon: 'takeoff', href: accountHref() }
+						: { key: 'add', name: adding.entryWords, icon: 'takeoff', onclick: startAdding }
+				] satisfies ToolRow[])
+			: [])
+	]);
 </script>
 
 <svelte:head>
@@ -926,7 +1133,11 @@
 <h1 class="visually-hidden">Map</h1>
 <!-- The foot's height is set by the script once measured, never written
      into the built page, whose policy allows no style attribute. -->
-<div class="screen" style:--foot-height={footHeight > 0 ? `${footHeight}px` : undefined}>
+<div
+	class="screen"
+	style:--foot-height={footHeight > 0 ? `${footHeight}px` : undefined}
+	data-wind={current.available ? 'answered' : undefined}
+>
 	<OverviewMap
 		bind:this={map}
 		bind:following
@@ -945,6 +1156,11 @@
 		{coveredByPage}
 		cables={cablesShown}
 		oncable={openCable}
+		climbs={showClimbs ? climbs.climbs : []}
+		onclimb={(key) => openAir(climbs.climb(key))}
+		flown={showFlown ? flown.cells : []}
+		onflown={(key) => openAir(flown.cell(key))}
+		oncredits={(open) => (creditsOpen = open)}
 		airspace={app.airspace}
 		coveredBottom={navigationHeight}
 		onproblem={(problem) =>
@@ -975,59 +1191,19 @@
 	{#snippet alongTheRoute()}
 		<RouteWeather weather={routeWeather} days={routeDays} />
 	{/snippet}
-	<!-- The design pack's chips: what the map shows, switched on and off. -->
+	<!-- The design pack's chips: the four layers switched most. Every other
+	     layer, and these four in the same state, is a row of the layers' sheet. -->
 	{#if app.account?.hasServer}
 		<div class="chips" role="group" aria-label="Layers on the map">
-			<!-- The kind of day, square by square: the server's thermal map. -->
-			<button
-				class="chip"
-				type="button"
-				aria-pressed={forecast}
-				onclick={() => {
-					forecast = !forecast;
-					keepForecast(globalThis.localStorage, forecast);
-					if (!forecast) chosenSquare = undefined;
-				}}
-			>
-				<Icon name="forecast" />
-				Forecast
-			</button>
-			<!-- What the radars saw of the rain in the last two hours. -->
-			<button
-				class="chip"
-				type="button"
-				aria-pressed={radarChosen}
-				onclick={() => {
-					radarChosen = !radarChosen;
-					keepRadar(globalThis.localStorage, radarChosen);
-				}}
-			>
-				<Icon name="rain" />
-				Radar
-			</button>
-			<!-- How steep the ground is, for walking up to a take-off. -->
-			<button
-				class="chip"
-				type="button"
-				aria-pressed={slopesChosen}
-				onclick={() => {
-					slopesChosen = !slopesChosen;
-					keepSlopes(globalThis.localStorage, slopesChosen);
-					if (!slopesChosen) slopes.off();
-				}}
-			>
-				<Icon name="mountain" />
-				Slopes
-			</button>
-			{#each MAP_LAYERS as { layer, name } (layer)}
+			{#each chips as chip (chip.key)}
 				<button
 					class="chip"
 					type="button"
-					aria-pressed={!off.includes(layer)}
-					onclick={() => toggle(layer)}
+					aria-pressed={chip.on}
+					onclick={() => chip.onchange(!chip.on)}
 				>
-					<Icon name={CHIP_ICONS[layer]} />
-					{name}
+					<Icon name={chip.icon} />
+					{chip.name}
 				</button>
 			{/each}
 		</div>
@@ -1316,6 +1492,10 @@
 		>
 			{#if chosenPlace}
 				{@const { place } = chosenPlace}
+				{#if chosenPlace.said}
+					<!-- A climb of now or a cell of flown thermals: the core's line about it. -->
+					<p class="air-line numeric">{chosenPlace.said}</p>
+				{/if}
 				{#if chosenPlace.airspace && app.airspace}
 					<AirspaceOver {place} airspace={app.airspace} />
 				{/if}
@@ -1409,6 +1589,20 @@
 				{/if}
 			</MapPanel>
 		{/if}
+		<!-- Every layer and every tool of the map, in one place. -->
+		<MapPanel
+			shown={layersOpen ? 'layers' : undefined}
+			title={layerWords?.title ?? ''}
+			wide={wide.current}
+			onclose={() => (layersOpen = false)}
+		>
+			<MapLayersSheet
+				layers={layerRows}
+				tools={toolRows}
+				layersTitle={layerWords?.onTheMap ?? ''}
+				toolsTitle={layerWords?.listsTitle ?? ''}
+			/>
+		</MapPanel>
 		{#if said}
 			<p class="notice" role="status">
 				<Icon name="warning" />
@@ -1428,6 +1622,12 @@
 		{/if}
 		{#if inTheAir.othersSaid && !off.includes('pilots')}
 			<p class="notice" role="status">{inTheAir.othersSaid}</p>
+		{/if}
+		{#if climbsSaid}
+			<p class="notice" role="status">{climbsSaid}</p>
+		{/if}
+		{#if flownSaid}
+			<p class="notice" role="status">{flownSaid}</p>
 		{/if}
 	</div>
 
@@ -1488,7 +1688,9 @@
 				{@render thermalCard(false)}
 			</div>
 		{/if}
-		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredits.length > 0 || othersCredits.length > 0 || cablesCredits.length > 0}
+		<!-- Closed from the start: the map's "i" unfolds them with its own,
+		     every one complete. -->
+		{#if creditsOpen && (credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredits.length > 0 || othersCredits.length > 0 || cablesCredits.length > 0 || climbsCredits.length > 0)}
 			<p class="credits">
 				{#if photosCredit}<span>{photosCredit}</span>{/if}
 				{#if credits}<span>Wind: {credits}</span>{/if}
@@ -1498,6 +1700,11 @@
 				{#if forecastCredit}<span>{forecastCredit}</span>{/if}
 				{#each radarCredits as credit (credit)}<span>{credit}</span>{/each}
 				{#each othersCredits as credit (credit.source)}<span>{credit.text}</span>{/each}
+				{#each climbsCredits as credit (credit.source)}
+					{#if !othersCredits.some((other) => other.text === credit.text)}
+						<span>{credit.text}</span>
+					{/if}
+				{/each}
 			</p>
 		{/if}
 	</div>
@@ -1507,52 +1714,16 @@
 			<MapButton label="Zoom in" icon="plus" onclick={() => map?.zoomBy(1)} />
 			<MapButton label="Zoom out" icon="minus" onclick={() => map?.zoomBy(-1)} />
 		</div>
-		{#if current.available}
-			<!-- Everything the arrows say, as a list: for reading the numbers
-			     side by side, and for the keyboard and screen readers. -->
-			<MapButton label="Wind stations" icon="wind" onclick={() => (listing = true)} />
-			<!-- The signs on the map, as a list. The button is there before
-			     the map is close enough for signs: the list then says how to
-			     get them. -->
-			<MapButton label="Flying sites" icon="pin" onclick={() => (listingSites = true)} />
-			<!-- Which of the sites the map and the list show; lit while a filter is on. -->
-			{#if sites}
-				<MapButton
-					label="Filter sites"
-					icon="filter"
-					pressed={Boolean(sitesLeft?.isOn)}
-					onclick={() => (filtering = !filtering)}
-				/>
-			{/if}
-			<!-- A site of the pilot's own knowledge: shown where the core says
-			     this account may add one, in the words of the tier it adds to
-			     ("Add a site" for a partner of Venti, "Add a place pilots take
-			     off from" for every other pilot). For someone who has to sign
-			     in first it says so and leads to the account. -->
-			{#if adding?.leadsToSignIn}
-				<MapButton label={adding.entryWords} icon="takeoff" href={accountHref()} />
-			{:else if adding}
-				<MapButton
-					label={adding.entryWords}
-					icon="takeoff"
-					pressed={placing}
-					onclick={startAdding}
-				/>
-			{/if}
-			<!-- Everyone the map shows in the air, as a list. -->
-			<MapButton label="In the air" icon="glider" onclick={() => (listingGliders = true)} />
-		{/if}
-		<!-- The route planner: places tapped on the map, in order, and what
-		     the core says the route comes to. -->
-		<MapButton label="Plan a route" icon="route" pressed={planner.open} onclick={togglePlanner} />
-		<!-- The ground under everything: the drawn map, or photographs from above. -->
+		<!-- Every layer and every tool: one sheet. Shown from the start, so
+		     that the ground can be changed where no server answers. -->
 		<MapButton
-			label="Aerial view"
+			label={layerWords?.title || 'Layers'}
 			icon="layers"
-			pressed={aerial}
+			pressed={layersOpen}
 			onclick={() => {
-				aerial = !aerial;
-				keepAerial(globalThis.localStorage, aerial);
+				const open = !layersOpen;
+				if (open) closeOthers();
+				layersOpen = open;
 			}}
 		/>
 		<MapButton
@@ -1604,6 +1775,7 @@
 		listingSites = false;
 		openSite(picked);
 	}}
+	onremoved={openRemoved}
 	onclose={() => (listingSites = false)}
 />
 
@@ -1734,6 +1906,21 @@
 		height: 1.125rem;
 	}
 
+	/* At a phone's width the four share the row and none is cut off; with
+	   large text they keep their words and the row scrolls. */
+	@media (max-width: 55.99rem) {
+		.chips {
+			gap: 0.375rem;
+		}
+
+		.chip {
+			flex: 1 0 auto;
+			justify-content: center;
+			gap: 0.25rem;
+			padding: 0 0.5rem 0 0.375rem;
+		}
+	}
+
 	.chip[aria-pressed='true'] {
 		background: var(--accent);
 		color: var(--on-accent);
@@ -1851,6 +2038,12 @@
 
 	.cable-credit a {
 		color: var(--link);
+	}
+
+	/* The core's line about a climb or a cell, over what can be done there. */
+	.air-line {
+		margin: 0;
+		font-size: var(--subheadline);
 	}
 
 	/* "Add a site here", under what lies over the place. */

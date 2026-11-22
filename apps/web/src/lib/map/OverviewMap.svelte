@@ -9,6 +9,16 @@
 	import type { MapLayer } from './layers';
 	import type { ExpressionSpecification, ImageSource } from 'maplibre-gl';
 	import { onMount, untrack } from 'svelte';
+	import {
+		CLIMBS_LABELS,
+		CLIMBS_SOURCE,
+		climbFeatures,
+		climbLayers,
+		FLOWN_SOURCE,
+		flownFeatures,
+		flownLayer
+	} from '#lib/air/on-map.ts';
+	import type { ClimbView, FlownCellView } from '#lib/core/index.ts';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import { AIRSPACE_MIN_ZOOM } from '#lib/airspace/layers.ts';
 	import {
@@ -145,6 +155,16 @@
 		 * ropeways, solid where their height is mapped, dashed where not.
 		 */
 		cables?: readonly CableLine[];
+		/** The climbs of the last minutes, while their layer is on. */
+		climbs?: readonly ClimbView[];
+		/** Called with the key (`airKey`) of the climb the pilot chose. */
+		onclimb?: (key: string) => void;
+		/** The cells in which thermals have been flown, while their layer is on. */
+		flown?: readonly FlownCellView[];
+		/** Called with the key (`airKey`) of the cell the pilot chose. */
+		onflown?: (key: string) => void;
+		/** Called when the map's own credits are unfolded or folded with their button. */
+		oncredits?: (open: boolean) => void;
 		/** Called with a cable's identifier when the pilot clicks on or close to its line. */
 		oncable?: (id: string) => void;
 		/** Where the airspace to draw comes from, once the app has it. */
@@ -263,6 +283,11 @@
 		coveredByPage,
 		cables = [],
 		oncable,
+		climbs = [],
+		onclimb,
+		flown = [],
+		onflown,
+		oncredits,
 		airspace,
 		following = $bindable(),
 		coveredBottom,
@@ -329,7 +354,9 @@
 			created = module.createMap(
 				container,
 				'Map',
-				at ? { center: [at.lon, at.lat], zoom: AROUND_ZOOM } : START
+				at ? { center: [at.lon, at.lat], zoom: AROUND_ZOOM } : START,
+				// The credits stay folded behind their button at every width.
+				(open) => oncredits?.(open)
 			);
 			// Dragging the map away means the pilot wants to look elsewhere.
 			created.on('dragstart', () => (following = false));
@@ -437,6 +464,13 @@
 				'text-halo-width': 1.6
 			}
 		});
+		// What many gliders say together, under the gliders themselves:
+		// where thermals have been, and over it the climbs of now.
+		map.addSource(FLOWN_SOURCE, { type: 'geojson', data: NOTHING });
+		map.addLayer(flownLayer());
+		map.addSource(CLIMBS_SOURCE, { type: 'geojson', data: NOTHING });
+		for (const layer of climbLayers(module.LABEL_FONT)) map.addLayer(layer);
+
 		// Other pilots in the air, above everything: a wing turned the way it
 		// flies, with the pilot's name and altitude where there is room.
 		for (const picture of gliderPictures()) {
@@ -459,6 +493,8 @@
 			CANDIDATES_SOURCE,
 			CABLES_MAPPED,
 			CABLES_UNMAPPED,
+			CLIMBS_SOURCE,
+			FLOWN_SOURCE,
 			THERMAL_SOURCE
 		]) {
 			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
@@ -635,6 +671,8 @@
 			east: visible.getEast()
 		};
 		onregion(region, map.getZoom());
+		// A map says nothing of where it has come to rest; the browser tests read it here.
+		(globalThis as { ventiView?: unknown }).ventiView = { zoom: map.getZoom(), ...region };
 		makers ??= aerialMakers(map.getStyle());
 		onphotos?.(photosCredit(makers, region, map.getZoom()));
 	}
@@ -674,6 +712,23 @@
 			const nearest = hits.toSorted((first, second) => distance(first) - distance(second))[0];
 			if (typeof nearest?.properties.id === 'string') {
 				open(nearest.properties.id);
+				return;
+			}
+		}
+		// A climb of now, then a cell where thermals have been.
+		for (const [layers, open] of [
+			[[CLIMBS_SOURCE, CLIMBS_LABELS], onclimb],
+			[[FLOWN_SOURCE], onflown]
+		] as const) {
+			const hit = map.queryRenderedFeatures(
+				[
+					[point.x - REACH, point.y - REACH],
+					[point.x + REACH, point.y + REACH]
+				],
+				{ layers: [...layers] }
+			)[0];
+			if (open && typeof hit?.properties.id === 'string') {
+				open(hit.properties.id);
 				return;
 			}
 		}
@@ -957,6 +1012,29 @@
 		};
 	});
 
+	// Draws the climbs of now and where thermals have been when they change.
+	$effect(() => {
+		if (!map || !setup) return;
+		const now = climbFeatures(climbs);
+		const been = flownFeatures(flown);
+		setup.shapes(map, CLIMBS_SOURCE)?.setData(now);
+		setup.shapes(map, FLOWN_SOURCE)?.setData(been);
+		// A map says nothing of what it draws; the browser tests read it
+		// here, with where each mark stands on the screen now.
+		const shown = map;
+		const onScreen = (at: { position: { lat: number; lon: number } } | undefined) => {
+			if (!at) return undefined;
+			const { x, y } = shown.project([at.position.lon, at.position.lat]);
+			return { x, y };
+		};
+		(globalThis as { ventiAirLayers?: unknown }).ventiAirLayers = {
+			climbs: now.features.map((feature) => feature.properties?.label),
+			flown: been.features.length,
+			climbOnScreen: (index: number) => onScreen(climbs[index]),
+			flownOnScreen: (index: number) => onScreen(flown[index])
+		};
+	});
+
 	// Draws the take-offs without a site when they change.
 	$effect(() => {
 		if (!map || !setup) return;
@@ -966,6 +1044,16 @@
 		(globalThis as { ventiCandidates?: unknown }).ventiCandidates = features.features.map(
 			(feature) => feature.properties?.id
 		);
+		// And where a ring stands on the screen now, for a test's click.
+		const shown = map;
+		(globalThis as { ventiCandidateOnScreen?: unknown }).ventiCandidateOnScreen = (id: string) => {
+			const feature = features.features.find((one) => one.properties?.id === id);
+			if (!feature) return undefined;
+			const { x, y } = shown.project(
+				(feature.geometry as GeoJSON.Point).coordinates as [number, number]
+			);
+			return { x, y };
+		};
 	});
 
 	// Draws the stations when they change.

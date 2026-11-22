@@ -20,7 +20,9 @@ import {
 	sampleFlightOn,
 	showMyPosition,
 	test,
-	dropFiles
+	dropFiles,
+	mapTool,
+	openSitesFilter
 } from './helpers';
 
 /** The made-up place where pilots take off and no site stands. */
@@ -32,13 +34,6 @@ const CANDIDATE_KEY = `${CANDIDATE.latitude},${CANDIDATE.longitude}`;
  * mark of the position does not cover its ring.
  */
 const STANDING = { latitude: CANDIDATE.latitude + 0.005, longitude: CANDIDATE.longitude };
-/**
- * How far below the map's middle the ring is drawn, in pixels, at the zoom
- * "Show my position" goes to (12.5): MapLibre's metres per pixel there.
- */
-const RING_BELOW_PX =
-	(0.005 * 111_320) / ((78_271.5 * Math.cos((CANDIDATE.latitude * Math.PI) / 180)) / 2 ** 12.5);
-
 /**
  * The sample flight moved so that its track begins at a place: every fix
  * by the same step of latitude and longitude, on a day of its own.
@@ -100,7 +95,7 @@ test('a take-off’s page says what public flights began there, and the map offe
 	await showMyPosition(page, mapDrawn);
 
 	// The take-off's page: the section, its count line and the twelve months.
-	await page.getByRole('button', { name: 'Flying sites' }).click();
+	await mapTool(page, 'Flying sites');
 	await page
 		.getByRole('dialog', { name: 'Flying sites' })
 		.getByRole('button', { name: 'Musterkogel West' })
@@ -122,15 +117,14 @@ test('a take-off’s page says what public flights began there, and the map offe
 	await expect(site).toBeHidden();
 
 	// The layer, off until it is switched on in the sites' filter.
-	await page.getByRole('button', { name: 'Filter sites' }).click();
-	const filter = page.getByRole(wide ? 'complementary' : 'dialog', { name: 'Filter sites' });
+	const filter = await openSitesFilter(page);
 	const layer = filter.getByRole('switch', { name: 'Take-offs without a site' });
 	await expect(layer).not.toBeChecked();
 	await expect(filter).toContainText(
 		'Not checked by anyone: a place on the map is not permission to fly there.'
 	);
 	await layer.check();
-	await filter.getByRole('button', { name: wide ? 'Close' : 'Done' }).click();
+	await filter.getByRole('button', { name: 'Done' }).click();
 	await expect
 		.poll(() =>
 			page.evaluate(() => (globalThis as { ventiCandidates?: string[] }).ventiCandidates ?? [])
@@ -139,13 +133,22 @@ test('a take-off’s page says what public flights began there, and the map offe
 	await mapDrawn();
 	await keep('211-take-offs-without-a-site');
 
-	// A tap on the ring, below the middle of what the navigation leaves of the map.
+	// A tap on the ring, where the map says it stands. How far below the
+	// pilot's position that is hangs on the zoom, and "Show my position"
+	// keeps a zoom that is closer than its own: with a flight in the
+	// logbook a wide map opens closer than a phone's.
 	const map = (await page.locator('canvas.maplibregl-canvas').boundingBox())!;
-	const covered = await page.locator('.navigation-height').evaluate((bar) => bar.clientHeight);
-	await page.mouse.click(
-		map.x + map.width / 2 + 4,
-		map.y + (map.height - covered) / 2 + RING_BELOW_PX - 4
+	const ring = await page.evaluate(
+		(key) =>
+			(
+				globalThis as unknown as {
+					ventiCandidateOnScreen: (id: string) => { x: number; y: number } | undefined;
+				}
+			).ventiCandidateOnScreen(key),
+		CANDIDATE_KEY
 	);
+	expect(ring).toBeDefined();
+	await page.mouse.click(map.x + ring!.x + 4, map.y + ring!.y - 4);
 	// Titled by its height: the core's line begins with the core's title.
 	const sheet = page.getByRole(wide ? 'complementary' : 'dialog', { name: /^\d+ m$/ });
 	await expect(sheet).toContainText(/Pilots take off here: \d+ pilots/);

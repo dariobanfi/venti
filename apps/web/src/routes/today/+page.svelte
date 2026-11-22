@@ -555,16 +555,26 @@
 
 			<footer>
 				{#if outlook}
-					<p>{reading.note}</p>
 					{#if nearbyNote}
 						<p>{nearbyNote}</p>
 					{/if}
-					<p class="numeric">
-						{reading.model}, run of {text.day(reading.runUnixS)}
-						{text.time(reading.runUnixS)}. Venti last looked for a newer run at {text.time(
-							outlook.fetchedUnixS
-						)}.
-					</p>
+					<!-- The height of the model's grid cell, its run and when Venti
+					     last looked: one click away, for whoever asks. The model and
+					     the time of its run stay in the line itself: the pack asks
+					     that every forecast shows its update time. -->
+					<details class="about">
+						<summary>
+							About this forecast
+							<span class="numeric">· {reading.model} of {text.time(reading.runUnixS)}</span>
+						</summary>
+						<p>{reading.note}</p>
+						<p class="numeric">
+							{reading.model}, run of {text.day(reading.runUnixS)}
+							{text.time(reading.runUnixS)}. Venti last looked for a newer run at {text.time(
+								outlook.fetchedUnixS
+							)}.
+						</p>
+					</details>
 					{#each outlook.credits as credit (credit.source)}
 						<p><a href={credit.url} target="_blank" rel="noopener noreferrer">{credit.text}</a></p>
 					{/each}
@@ -1022,6 +1032,20 @@
 
 	footer a {
 		color: var(--link);
+	}
+
+	.about summary {
+		width: fit-content;
+		color: var(--link);
+		cursor: pointer;
+	}
+
+	.about summary span {
+		color: var(--text-secondary);
+	}
+
+	.about p {
+		margin-top: var(--space-2);
 	}
 
 	.waiting {

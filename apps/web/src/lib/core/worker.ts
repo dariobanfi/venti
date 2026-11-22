@@ -33,6 +33,7 @@ import { TerrainSource } from './terrain-source';
 import { ThermalMapSource } from './thermal-map-source';
 import { TodaySource } from './today-source';
 import { TokensSource } from './tokens-source';
+import { canRunWebAssembly, noWebAssembly } from './webassembly';
 import { WindSource } from './wind-source';
 
 const send = (reply: Reply) => postMessage(reply);
@@ -51,6 +52,9 @@ async function openStore(): Promise<FileStore> {
 }
 
 const starting: Promise<Answering> = (async () => {
+	// The page asks first and starts no worker without it; this is for a
+	// browser that gives a worker less than its page.
+	if (!canRunWebAssembly()) throw noWebAssembly();
 	await init({ module_or_path: wasmUrl });
 	const session = await CoreSession.open(await openStore());
 	session.onChangedElsewhere = () => send({ changedElsewhere: true });

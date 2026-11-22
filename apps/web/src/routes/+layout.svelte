@@ -8,6 +8,7 @@
 	import { App, setApp } from '#lib/app/app.svelte.ts';
 	import DropTarget from '#lib/app/DropTarget.svelte';
 	import Navigation from '#lib/app/Navigation.svelte';
+	import NoWebAssembly from '#lib/app/NoWebAssembly.svelte';
 	import NoticeDialog from '#lib/design/NoticeDialog.svelte';
 
 	let { children }: { children: Snippet } = $props();
@@ -25,8 +26,15 @@
 
 <Navigation />
 <main>
-	{@render children()}
+	<!-- Every screen needs the core, which cannot run without WebAssembly:
+	     none is drawn, and a popup over the whole window says why. -->
+	{#if !app.withoutWebAssembly}
+		{@render children()}
+	{/if}
 </main>
+{#if app.withoutWebAssembly}
+	<NoWebAssembly />
+{/if}
 <DropTarget />
 <NoticeDialog notice={app.notice} onclose={() => (app.notice = undefined)} />
 

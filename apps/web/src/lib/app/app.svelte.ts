@@ -21,8 +21,10 @@ import { CommunityModel } from '#lib/community/model.svelte.ts';
 import { ConnectModel } from '#lib/connect/model.svelte.ts';
 import {
 	askToKeepStorage,
+	canRunWebAssembly,
 	type Coordinate,
 	CoreClient,
+	NO_WEBASSEMBLY,
 	type FlightView,
 	type ForecastView,
 	type Bounds,
@@ -130,6 +132,15 @@ export class App {
 	/** Why the core could not start, if it could not. */
 	failure = $state.raw<string>();
 
+	/**
+	 * Whether this browser has WebAssembly switched off, so that the core
+	 * cannot run in it at all. The frame then says so in place of every
+	 * screen, and `failure` stays empty: the browser's own words for it are
+	 * not for the pilot. Asked as the app is made, before any screen is
+	 * drawn, so that none is drawn for nothing and none starts the core.
+	 */
+	withoutWebAssembly = $state.raw(browser && !canRunWebAssembly());
+
 	/** A message waiting to be shown as a dialog. */
 	notice = $state.raw<Notice>();
 
@@ -141,6 +152,9 @@ export class App {
 
 	/** Fetches and starts the Rust core and opens the logbook. Runs in the browser only. */
 	start(): Promise<void> {
+		// No worker is started where it could only fail. Nothing is set here:
+		// a screen being made can be what asks.
+		if (this.withoutWebAssembly) this.#started ??= Promise.resolve();
 		this.#started ??= CoreClient.open()
 			.then(async (core) => {
 				this.#core = core;
@@ -195,6 +209,11 @@ export class App {
 				this.airspace = airspace;
 			})
 			.catch((error) => {
+				// The page has it and the worker does not.
+				if (error instanceof Error && error.name === NO_WEBASSEMBLY) {
+					this.withoutWebAssembly = true;
+					return;
+				}
 				this.failure = error instanceof Error ? error.message : String(error);
 			});
 		return this.#started;

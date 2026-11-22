@@ -295,6 +295,7 @@ export type { AccessWanted, ProgramView } from './tokens-source';
 export type { AgreementRead, AgreementSaid } from './agreement-source';
 export type { AlertsHeld, AlertsSynced } from './alerts-source';
 export { CoreClient } from './client';
+export { canRunWebAssembly, NO_WEBASSEMBLY } from './webassembly';
 export type { TodayAnswer } from './today-source';
 export type { RouteWeatherAnswer, RouteWeatherAsked } from './route-weather-source';
 export type { SlopesAnswer, SlopesAsked } from './slopes-source';

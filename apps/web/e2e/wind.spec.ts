@@ -21,6 +21,10 @@ import {
 
 /** Where the weather station of Garmisch-Partenkirchen stands. */
 const GARMISCH = { latitude: 47.483, longitude: 11.0621 };
+/** Between MeteoSwiss's and the SLF's stations on the Weissfluhjoch, 400 m apart. */
+const WEISSFLUHJOCH = { latitude: 46.8315, longitude: 9.8078 };
+/** Where Pioupiou's sensor at the Osterfelder take-off stands. */
+const OSTERFELDER = { latitude: 47.439445, longitude: 11.052041 };
 
 /** A chosen station: a sheet on a narrow screen, a card beside the map on a wide one. */
 function stationPanel(page: Page, wide: boolean, name: string): Locator {
@@ -218,6 +222,66 @@ test('a station’s page says what its readings tell of the air, and shows a pas
 	expect(problems).toEqual([]);
 });
 
+test('two stations of one name are told apart in the list', async ({
+	context,
+	page,
+	mapDrawn,
+	keep
+}) => {
+	// The list holds the stations around the map in view: the pilot stands
+	// on the Weissfluhjoch.
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(WEISSFLUHJOCH);
+	await page.goto('/map/');
+	await mapTabDrawn(page, mapDrawn);
+	await showMyPosition(page, mapDrawn);
+	await mapTool(page, 'Wind stations');
+	const list = page.getByRole('dialog', { name: 'Wind stations' });
+	const rows = list.getByRole('listitem');
+
+	// Two real stations on the Weissfluhjoch, MeteoSwiss's and the SLF's, at
+	// different heights: the list tells them apart by the height.
+	await list.getByRole('searchbox', { name: 'Station' }).fill('Weissfluhjoch');
+	await expect(rows).toHaveCount(2);
+	await expect(rows.filter({ hasText: '2691 m' })).toHaveCount(1);
+	await expect(rows.filter({ hasText: '2536 m' })).toHaveCount(1);
+	await keep('19b-wind-stations-same-name');
+});
+
+test('a station its network gives no height has none', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	problems
+}) => {
+	// A Pioupiou sensor by the Osterfelder take-off: its network gives
+	// neither a height nor a temperature.
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(OSTERFELDER);
+	await page.goto('/map/');
+	await mapTabDrawn(page, mapDrawn);
+	await showMyPosition(page, mapDrawn);
+	await mapTool(page, 'Wind stations');
+	const list = page.getByRole('dialog', { name: 'Wind stations' });
+	await list.getByRole('searchbox', { name: 'Station' }).fill('Osterfelder');
+	const row = list.getByRole('listitem').filter({ hasText: 'Osterfelder' });
+	await expect(row).toHaveCount(1);
+	await expect(row).not.toContainText(/\d\s?m\b(?!\/)/);
+	await row.getByRole('button').click();
+	const station = stationPanel(page, wide, 'Osterfelder Nord -Startplatz');
+	await expect(station).toBeVisible();
+	// No height at all: no "0 m", and no dash with a unit.
+	await expect(station.locator('dt', { hasText: /^Height$/ })).toHaveCount(0);
+	await expect(station).not.toContainText(/\b0\sm\b/);
+	await expect(station).not.toContainText(/–\s(m|°C)\b/);
+	await expect(station).not.toContainText(/higher|lower/);
+	await expect(station).toContainText('OpenWindMap');
+	await keep('20b-wind-station-no-height');
+	expect(problems).toEqual([]);
+});
+
 test('a station is opened by its arrow, also one that gave way to a windier neighbour', async ({
 	context,
 	page,
@@ -243,8 +307,8 @@ test('a station is opened by its arrow, also one that gave way to a windier neig
 	await expect(station).toBeVisible();
 	await expect(metric(station, 'Wind')).toHaveText(/^5\skm\/h$/);
 	await expect(metric(station, 'From')).toHaveText(/^N\s350°$/);
-	// This station has no thermometer.
-	await expect(metric(station, 'Temperature')).toHaveText(/^–\s°C$/);
+	// This station has no thermometer: a dash, and no unit that reads as a value.
+	await expect(metric(station, 'Temperature')).toHaveText(/^–$/);
 
 	// A click on the bare map chooses nothing.
 	await closeButton(station, wide).click();

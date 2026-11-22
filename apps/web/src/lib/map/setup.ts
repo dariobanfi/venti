@@ -61,9 +61,10 @@ export function createMap(
 	camera: Camera,
 	/**
 	 * Given by a screen whose map keeps its credits folded behind their
-	 * button at every width: told whenever the pilot unfolds or folds them.
+	 * button at every width: told whenever the pilot unfolds or folds them,
+	 * with how tall they stand unfolded.
 	 */
-	oncredits?: (open: boolean) => void
+	oncredits?: (open: boolean, heightPx: number) => void
 ): Map {
 	prepare();
 	const map = new Map({
@@ -108,17 +109,28 @@ function foldCredits(map: Map, container: HTMLElement): void {
 }
 
 /**
- * Tells a screen when the map's credits are unfolded and folded: the
- * control says so only with a class on its element.
+ * Tells a screen when the map's credits are unfolded and folded, and how
+ * tall they stand while unfolded: the control says so only with a class on
+ * its element, and at a narrow width with large text its line runs to three.
  */
-function tellCredits(container: HTMLElement, oncredits: (open: boolean) => void): void {
+function tellCredits(
+	container: HTMLElement,
+	oncredits: (open: boolean, heightPx: number) => void
+): void {
 	const control = container.querySelector('.maplibregl-ctrl-attrib');
 	if (!control) return;
 	let open = false;
-	new MutationObserver(() => {
+	let height = 0;
+	const tell = () => {
 		const now = control.classList.contains('maplibregl-compact-show');
-		if (now !== open) oncredits((open = now));
-	}).observe(control, { attributes: true, attributeFilter: ['class'] });
+		const tall = now ? control.getBoundingClientRect().height : 0;
+		if (now === open && tall === height) return;
+		open = now;
+		height = tall;
+		oncredits(open, height);
+	};
+	new MutationObserver(tell).observe(control, { attributes: true, attributeFilter: ['class'] });
+	new ResizeObserver(tell).observe(control);
 }
 
 /** Runs `draw` as soon as the map's style is there to draw on. */

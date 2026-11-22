@@ -171,8 +171,11 @@
 		flown?: readonly FlownCellView[];
 		/** Called with the key (`airKey`) of the cell the pilot chose. */
 		onflown?: (key: string) => void;
-		/** Called when the map's own credits are unfolded or folded with their button. */
-		oncredits?: (open: boolean) => void;
+		/**
+		 * Called when the map's own credits are unfolded or folded with their
+		 * button, with how tall they stand unfolded (0 folded), in pixels.
+		 */
+		oncredits?: (open: boolean, heightPx: number) => void;
 		/** Called with a cable's identifier when the pilot clicks on or close to its line. */
 		oncable?: (id: string) => void;
 		/** Where the airspace to draw comes from, once the app has it. */
@@ -366,7 +369,7 @@
 				'Map',
 				at ? { center: [at.lon, at.lat], zoom: AROUND_ZOOM } : START,
 				// The credits stay folded behind their button at every width.
-				(open) => oncredits?.(open)
+				(open, heightPx) => oncredits?.(open, heightPx)
 			);
 			// Dragging the map away means the pilot wants to look elsewhere.
 			created.on('dragstart', () => {

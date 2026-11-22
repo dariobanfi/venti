@@ -162,12 +162,12 @@
 			<Metric
 				caption="Wind"
 				value={reading?.speedMs === undefined ? dash : text.kilometresPerHour(reading.speedMs)}
-				unit="km/h"
+				unit={reading?.speedMs === undefined ? '' : 'km/h'}
 			/>
 			<Metric
 				caption="Gusts"
 				value={reading?.gustMs === undefined ? dash : text.kilometresPerHour(reading.gustMs)}
-				unit="km/h"
+				unit={reading?.gustMs === undefined ? '' : 'km/h'}
 			/>
 			<Metric
 				caption="From"
@@ -177,13 +177,13 @@
 			<Metric
 				caption="Temperature"
 				value={reading?.temperatureC === undefined ? dash : text.temperature(reading.temperatureC)}
-				unit="°C"
+				unit={reading?.temperatureC === undefined ? '' : '°C'}
 			/>
-			<Metric
-				caption="Height"
-				value={station.elevationM === undefined ? dash : text.metres(station.elevationM)}
-				unit="m"
-			/>
+			<!-- A station its network gives no height (Pioupiou's) has no cell
+			     for one: no "0 m", and no dash that reads as a height. -->
+			{#if station.elevationM !== undefined}
+				<Metric caption="Height" value={text.metres(station.elevationM)} unit="m" />
+			{/if}
 			<Metric caption="Measured" value={reading ? text.time(reading.timeUnixS) : dash} />
 		</dl>
 		<p class="footnote">{ageText}</p>

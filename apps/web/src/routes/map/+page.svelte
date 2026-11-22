@@ -252,6 +252,8 @@
 	 * map's "i", which unfolds the map's own and Venti's together.
 	 */
 	let creditsOpen = $state(false);
+	/** How tall the map's own credits stand while unfolded, in pixels: Venti's stand above them. */
+	let mapCreditsHeight = $state(0);
 
 	const wind = $derived(app.wind);
 	const current = $derived(wind?.state ?? NO_WIND);
@@ -1203,6 +1205,7 @@
 <div
 	class="screen"
 	style:--foot-height={footHeight > 0 ? `${footHeight}px` : undefined}
+	style:--map-credits-height={mapCreditsHeight > 0 ? `${mapCreditsHeight}px` : undefined}
 	data-wind={current.available ? 'answered' : undefined}
 >
 	<OverviewMap
@@ -1229,7 +1232,10 @@
 		onclimb={(key) => openAir(climbs.climb(key))}
 		flown={showFlown ? flown.cells : []}
 		onflown={(key) => openAir(flown.cell(key))}
-		oncredits={(open) => (creditsOpen = open)}
+		oncredits={(open, heightPx) => {
+			creditsOpen = open;
+			mapCreditsHeight = heightPx;
+		}}
 		airspace={airspaceChosen ? app.airspace : undefined}
 		coveredBottom={navigationHeight}
 		onproblem={(problem) =>
@@ -2076,7 +2082,9 @@
 		position: absolute;
 		left: calc(0.75rem + var(--safe-left));
 		right: calc(5rem + var(--safe-right));
-		bottom: calc(var(--nav-bottom) + 2.875rem);
+		/* Above the map's own credits, which at a narrow width with large text
+		   unfold to three lines: their margin, their height and a gap. */
+		bottom: calc(var(--nav-bottom) + max(2.875rem, var(--map-credits-height, 0px) + 1.25rem));
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;

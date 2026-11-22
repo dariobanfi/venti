@@ -255,6 +255,9 @@ fun MapScreen(
     var chosenCandidate by remember { mutableStateOf<SiteCandidateView?>(null) }
     var candidateOffer by remember { mutableStateOf<CandidateOffer?>(null) }
     val map = remember { OverviewMap() }
+    // The region kept on the phone the map draws from, chosen once as the
+    // map is made: the network's tiles while there is a network.
+    val drawnFrom = remember { MapSetup.browsing() }
     // What a glide reaches from a place the pilot pressed: the core asked
     // again whenever a setting of its card changes.
     val glideReach = remember(terrain) {
@@ -466,8 +469,10 @@ fun MapScreen(
         climbs?.takeIf { it.climbs.isNotEmpty() }?.credits?.map { it.text }.orEmpty() +
         // What the flights are given under that the thermals' cells are made from.
         listOfNotNull(flown?.takeIf { it.cells.isNotEmpty() }?.terms?.takeIf { it.isNotBlank() })
-    // Every credit in full: Venti's data first, then whose the base map is.
-    val allCredits = (credits + MapWords.baseCredits).distinct()
+    // Every credit in full: Venti's data first, then whose the base map
+    // is: the credits of the region kept on the phone where the map draws
+    // its files, else the core's lines for OpenFreeMap's tiles and the terrain.
+    val allCredits = (credits + (drawnFrom?.credits?.takeIf { it.isNotEmpty() } ?: MapWords.baseCredits)).distinct()
     // The forecast map by the hour: the layer and the level as the pilot
     // left them, the hour not.
     val hours = thermalMap?.hours
@@ -521,6 +526,7 @@ fun MapScreen(
         MapSurface(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
+            kept = drawnFrom,
             onPhotosCredit = { photos = it },
             onUpdate = {
                 map.showAerial(aerial)
@@ -686,22 +692,10 @@ fun MapScreen(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Three at most: the layers and lists, what the pilot asks of
-            // the sites, and the pilot's own position. Everything else the
-            // map can show or lead to is a row of the layers sheet.
+            // Two: the layers and lists, and the pilot's own position.
+            // Everything else the map can show or lead to, the sites'
+            // filter too, is a row of the layers sheet.
             RoundButton(R.drawable.venti_layers, MapWords.core.title, Modifier.testTag("map-layers")) { showsLayers = true }
-            if (hasSites) {
-                // Drawn as a selected chip while a filter is on; it stays
-                // when a filter leaves no site.
-                RoundButton(
-                    R.drawable.ic_filter,
-                    SitesFilterWords.TITLE,
-                    Modifier.testTag("sites-filter-open"),
-                    isOn = filtered.isOn,
-                    fillsWhenOn = true,
-                    onClick = { showsSitesFilter = true },
-                )
-            }
             // Centres the map on the pilot and follows until the map is dragged.
             MapButton(
                 icon = if (isFollowing) R.drawable.ic_my_location else R.drawable.ic_location_searching,
@@ -810,6 +804,20 @@ fun MapScreen(
             if (hasServer && !hidesWind) add(MapList(MapWords.core.windStations, R.drawable.venti_wind, open { showsStations = true }))
             // The signs on the map, as a list.
             if (hasSites) add(MapList(MapWords.core.flyingSites, R.drawable.venti_site, open { showsSites = true }))
+            // Which of the sites the map and the list show; the filter's
+            // present words beside it while one is on. It stays when a
+            // filter leaves no site.
+            if (hasSites || (!hidesSites && filtered.isOn)) {
+                add(
+                    MapList(
+                        MapWords.core.filterSites,
+                        R.drawable.ic_filter,
+                        open { showsSitesFilter = true },
+                        value = filtered.filterWords.takeIf { filtered.isOn },
+                        tag = "sites-filter-open",
+                    ),
+                )
+            }
             // Who is in the air on this part of the map, as a list.
             if (gliders.isNotEmpty()) add(MapList(MapWords.core.pilotsInTheAir, R.drawable.venti_live, open { showsGliders = true }))
             // Who flies where today and on the days ahead: the plans of the pilot's groups.

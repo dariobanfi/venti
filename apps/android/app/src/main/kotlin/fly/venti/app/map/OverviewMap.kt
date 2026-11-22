@@ -252,12 +252,17 @@ class OverviewMap : MapContent {
     }
 
     override fun prepare(map: MapLibreMap, view: MapView) {
-        // The northern Alps between Lake Constance and Salzburg.
-        map.cameraPosition = CameraPosition.Builder().target(LatLng(47.45, 11.6)).zoom(7.4).build()
+        // Where the pilot left the map tab, when it is made again (back
+        // from the route planner or from another tab); at first the
+        // northern Alps between Lake Constance and Salzburg.
+        map.cameraPosition = left ?: CameraPosition.Builder().target(LatLng(47.45, 11.6)).zoom(7.4).build()
         // The credits are the screen's own (i) on this map: one button for
         // the base map's and for Venti's, each credit in full behind it.
         map.uiSettings.isAttributionEnabled = false
-        map.addOnCameraIdleListener { tellRegion(map, view) }
+        map.addOnCameraIdleListener {
+            left = map.cameraPosition
+            tellRegion(map, view)
+        }
         map.addOnMapClickListener { place -> tapped(place, map, view) }
         // A long press asks about the place under the finger.
         map.addOnMapLongClickListener { place ->
@@ -1022,6 +1027,10 @@ class OverviewMap : MapContent {
     }
 
     companion object {
+        /** Where the map tab's map last came to rest, while the app runs. */
+        @Volatile
+        private var left: CameraPosition? = null
+
         private const val TRACKS = "logbook-tracks"
         private const val WIND = "wind-stations"
         private const val SITES = "flying-sites"

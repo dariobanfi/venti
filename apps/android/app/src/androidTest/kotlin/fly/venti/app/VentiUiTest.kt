@@ -177,6 +177,39 @@ class VentiUiTest {
         }
     }
 
+    /**
+     * Waits until the map is back and has drawn its sites, and their count
+     * has come to rest: where a test waited for the sites' filter's round
+     * button before it left the map for the layers sheet. The count is
+     * what the map says it drew (`drawnOnTheMap`); a count taken while the
+     * signs still come in is smaller than the one after a filter.
+     */
+    private fun waitForSites() {
+        waitFor(hasTestTag("map-layers"))
+        val scenario = checkNotNull(app)
+        val drawn = { TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0 }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { drawn() > 0 }
+        var last = drawn()
+        repeat(TestDevice.PATIENCE_SECONDS.toInt()) {
+            TestDevice.letTheAppRun(screen, 1)
+            val now = drawn()
+            if (now == last && now > 0) return
+            last = now
+        }
+    }
+
+    /** Opens the sites' filter by its row of the layers sheet ("Filter the sites"). */
+    private fun openSitesFilter() {
+        tapInLayers(hasTestTag("sites-filter-open"))
+    }
+
+    /** Opens "Glider and cockpit" from the settings' first page. */
+    private fun openGliderAndCockpit() {
+        screen.onNode(hasTestTag("cockpit-settings-link")).performScrollTo()
+        tap(hasTestTag("cockpit-settings-link"))
+        waitFor(hasTestTag("cockpit-settings"))
+    }
+
     /** Opens the one sheet of the map's layers and lists, behind the layers button. */
     private fun openLayers() {
         waitFor(hasTestTag("map-layers"))
@@ -636,11 +669,18 @@ class VentiUiTest {
         openFromToday("Settings")
         waitFor(hasText("Vario sound"))
         keepScreenshot("$prefix-settings-1")
-        // The glider: its class is none and "Never land" off until the pilot chooses.
-        screen.onNode(hasTestTag("never-land")).performScrollTo()
+        // "Glider and cockpit", a page of its own: the class is none and
+        // "Never land" off until the pilot chooses.
+        openGliderAndCockpit()
         assertTrue(exists(hasTestTag("glider-class") and hasText("None")))
+        waitFor(hasTestTag("never-land"))
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("$prefix-settings-1b-glider")
+        screen.onNode(hasTestTag("cockpit-climbs")).performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-settings-1c-cockpit")
+        tap(described("Back"))
+        waitFor(hasText("Vario sound"))
 
         // The pilot's waypoints.
         tap(hasText("Waypoints"))
@@ -1271,6 +1311,14 @@ class VentiUiTest {
         waitFor(hasTestTag("share-link") and hasText("/f/", substring = true))
         letTheMapDraw(1)
         keepScreenshot("$prefix-account-4-share")
+        // Back to everyone, as the development server has it: the flight
+        // is the one others cheered and wrote under, and the tests of
+        // pilots among each other that run later against the same server
+        // look for that ("2 pilots cheered"), which a flight shared only
+        // by its link does not show.
+        val withEveryone = hasTestTag("share-public")
+        tap(withEveryone)
+        waitFor(withEveryone and isSelected())
         tap(hasText("Done"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(withTheLink) }
 
@@ -2193,13 +2241,13 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
         waitFor(described("Show my position"))
-        // A map of the whole northern Alps has no signs and no button for them.
-        assertFalse(exists(hasTestTag("sites-filter-open")))
+        // A map of the whole northern Alps has no signs.
+        assertEquals(0, TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0)
 
         // The take-off stands left of the round buttons along the right
         // edge, so that a tap on its pin is a tap on the pin.
         assertTrue(TestDevice.lookAt(scenario, lat = 47.69, lon = 11.875, zoom = 11.0))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
         seeInCredits(hasText("Sites: OpenStreetMap contributors"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
@@ -2228,16 +2276,16 @@ class VentiUiTest {
         letTheMapDraw(2)
         keepScreenshot("$prefix-sites-2b-plan-route")
         tap(described("Cancel"))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
 
         // The chips switch the sites off and on again, and the map
         // remembers.
         tapChip("layer-sites")
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("sites-filter-open")) }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) == 0 }
         letTheMapDraw(1)
         keepScreenshot("$prefix-sites-2c-sites-off")
         tapChip("layer-sites")
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
 
         // The same signs as a list: those with a name first.
         tapInLayers(described("Flying sites"))
@@ -2311,7 +2359,7 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(described(takeoff))
         tap(hasText("Done"))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
 
         // A take-off whose source says which wind it works in, on the Wank
         // above Garmisch. The map shipped with the app ends before it; the
@@ -2349,7 +2397,7 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(hasText("Wind it works in"))
         tap(hasText("Done"))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
 
         // The site that was kept is among the pilot's waypoints.
         openFromToday("Settings")
@@ -3361,7 +3409,7 @@ class VentiUiTest {
         tap(tab("Map"))
         waitFor(described("Show my position"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.6653, lon = 11.7954, zoom = 15.0))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
         }
@@ -3376,7 +3424,7 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-own-3-description")
         tap(hasText("Done"))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
 
         // All of the pilot's own, in the settings, with where they are kept.
         // Today comes back where it was scrolled to: the corner that opens
@@ -3526,7 +3574,7 @@ class VentiUiTest {
         tapChip("layer-wind")
         tapChip("layer-pilots")
         assertTrue(TestDevice.lookAt(scenario, lat = 47.59, lon = 11.845, zoom = 10.0))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
         }
@@ -3535,7 +3583,7 @@ class VentiUiTest {
         val before = TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0
 
         // The filter, in the core's words: three groups of choices and its note.
-        tap(hasTestTag("sites-filter-open"))
+        openSitesFilter()
         waitFor(hasTestTag("sites-filter-note"))
         for (words in listOf("Show", "All sites", "Take-offs", "Landings", "Take-offs for a wind from", "Take-offs from", "1000 m", "1500 m", "2000 m")) {
             assertTrue(words, exists(hasText(words) and hasAnyAncestor(hasTestTag("sites-filter"))))
@@ -3587,7 +3635,7 @@ class VentiUiTest {
         assertTrue(exists(lines and hasText("All sites, take-offs for a wind from SW")))
         assertTrue(exists(lines and written(fits)))
         assertTrue(exists(lines and written(apart)))
-        assertTrue(exists(hasTestTag("sites-filter-open") and isSelected()))
+        assertTrue(exists(hasTestTag("sites-filter-card")))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: before) < before
         }
@@ -4339,7 +4387,7 @@ class VentiUiTest {
     private fun lookAtTheMadeUpSites(scenario: ActivityScenario<MainActivity>, atLeast: Int = 2) {
         waitFor(described("Show my position"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.285, lon = 10.9, zoom = 12.0))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) >= atLeast
         }
@@ -4348,7 +4396,7 @@ class VentiUiTest {
 
     /** Switches the places from pilots on in the sites' filter, and waits for them on the map. */
     private fun showThePlacesFromPilots(scenario: ActivityScenario<MainActivity>) {
-        tap(hasTestTag("sites-filter-open"))
+        openSitesFilter()
         waitFor(hasTestTag("sites-filter"))
         screen.onNode(hasTestTag("sites-from-pilots")).performScrollTo().performClick()
         waitFor(hasTestTag("sites-from-pilots") and isOn())
@@ -4435,7 +4483,7 @@ class VentiUiTest {
         waitFor(described("Show my position"))
 
         // The layer's switch beside the places from pilots, off until switched on.
-        tap(hasTestTag("sites-filter-open"))
+        openSitesFilter()
         waitFor(hasTestTag("sites-filter"))
         val layer = hasTestTag("sites-candidates")
         screen.onNode(layer).performScrollTo()
@@ -4845,7 +4893,7 @@ class VentiUiTest {
             signInFromTheMap(scenario, "w${System.currentTimeMillis() % 1_000_000_000}")
 
             // The filter's sheet: the switch with the core's sentence, then what it leaves.
-            tap(hasTestTag("sites-filter-open"))
+            openSitesFilter()
             waitFor(hasTestTag("sites-filter"))
             screen.onNode(hasTestTag("sites-from-pilots")).performScrollTo().performClick()
             waitFor(hasTestTag("sites-from-pilots") and isOn())
@@ -5050,7 +5098,7 @@ class VentiUiTest {
         waitFor(described("Show my position"))
 
         // The switch at the foot of the filter, off, under the core's name and what it shows.
-        tap(hasTestTag("sites-filter-open"))
+        openSitesFilter()
         waitFor(hasTestTag("sites-filter"))
         screen.onNode(hasTestTag("sites-filter-note")).performScrollTo()
         assertTrue(exists(hasTestTag("sites-from-pilots") and isOff() and hasText("Places from pilots")))
@@ -5075,9 +5123,8 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) >= 3
         }
-        // The switch counts as part of the filter being on: the button is
-        // drawn as on, and the line on the map says what is shown.
-        assertTrue(exists(hasTestTag("sites-filter-open") and isSelected()))
+        // The switch counts as part of the filter being on: the line on
+        // the map says what is shown.
         waitFor(hasTestTag("sites-filter-card"))
         // The card's lines are one element for TalkBack and for a test.
         assertTrue(exists(hasTestTag("sites-filter-lines") and hasText(fromPilots, substring = true)))
@@ -5135,7 +5182,7 @@ class VentiUiTest {
         waitFor(described("Show my position"))
 
         // Off again: the place from pilots is gone from the map, and the filter is off.
-        tap(hasTestTag("sites-filter-open"))
+        openSitesFilter()
         waitFor(hasTestTag("sites-filter"))
         screen.onNode(hasTestTag("sites-from-pilots")).performScrollTo().performClick()
         waitFor(hasTestTag("sites-from-pilots") and isOff())
@@ -5144,7 +5191,6 @@ class VentiUiTest {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) == 2
         }
         assertFalse(exists(hasTestTag("sites-filter-card")))
-        assertTrue(exists(hasTestTag("sites-filter-open") and isSelected().not()))
     }
 
     /** A place from pilots in the dark appearance: its sign on the map with the others, and its page. Skipped without a server. */
@@ -5616,7 +5662,7 @@ class VentiUiTest {
     }
 
     /**
-     * The map as it is since 2026-11-22: three round buttons at most, an
+     * The map as it is since 2026-11-22: two round buttons, an
      * (i) for every credit in full, and one layers sheet with a switch
      * for every layer and a row for every list. In it "Climbs now", off
      * until switched on: the development server's two made-up climbs over
@@ -5632,10 +5678,10 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         waitFor(described("Show my position"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.655, lon = 11.775, zoom = 11.0))
-        waitFor(hasTestTag("sites-filter-open"))
-        // Three round buttons, and none of the lists' or the plans'.
+        waitForSites()
+        // Two round buttons, and none of the lists', the plans' or the sites' filter.
         assertTrue(exists(hasTestTag("map-layers")))
-        for (gone in listOf("Wind stations", "Flying sites", "Pilots in the air", "Flying plans", "Aerial view")) {
+        for (gone in listOf("Wind stations", "Flying sites", "Pilots in the air", "Flying plans", "Aerial view", "Filter sites")) {
             assertFalse(gone, exists(described(gone)))
         }
         letTheMapDraw()
@@ -5676,6 +5722,8 @@ class VentiUiTest {
         for (list in listOf("Wind stations", "Flying sites", "Flying plans")) {
             assertTrue(list, exists(described(list)))
         }
+        // The sites' filter is a row of the lists, in the core's words.
+        assertTrue(exists(hasTestTag("sites-filter-open") and described("Filter the sites")))
         screen.onNode(climbs).performClick()
         waitFor(climbs and isOn())
         // How many, in the core's words, under the row.
@@ -5755,7 +5803,7 @@ class VentiUiTest {
         tapChip("layer-wind")
         tapChip("layer-pilots")
         assertTrue(TestDevice.lookAt(scenario, lat = 47.6652, lon = 11.7954, zoom = 13.0))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
         }
@@ -5959,7 +6007,12 @@ class VentiUiTest {
         waitFor(hasText("26 of 500"))
         assertTrue(exists(hasTestTag("comment-notice")))
         tap(hasTestTag("comment-send"))
-        waitFor(hasText("Demo Pilot · just now"))
+        // The comment, by the pilot. Not its age: the server stamps it by
+        // its clock, which stands still, and the phone counts ages by
+        // that clock only once it has read it; a run whose phone had not
+        // said "3 d ago" here (2026-11-22) and failed.
+        waitFor(hasText("Nice line along the ridge."))
+        waitFor(hasText("Demo Pilot · ", substring = true) and hasAnyAncestor(hasTestTag("comments")))
         assertTrue(exists(hasTestTag("comment-remove")))
         assertFalse(exists(hasTestTag("comment-report")))
         letTheMapDraw(1)
@@ -6023,10 +6076,12 @@ class VentiUiTest {
             waitFor(hasText("Open the cockpit"))
             openFromToday("Settings")
             waitFor(hasText("Vario sound"))
-            screen.onNode(hasTestTag("never-land")).performScrollTo()
+            openGliderAndCockpit()
             assertTrue(exists(hasTestTag("glider-class")))
             TestDevice.letTheAppRun(screen, 1)
             keepScreenshot("$prefix-sheets-0b-glider")
+            tap(described("Back"))
+            waitFor(hasText("Vario sound"))
             tap(tab("Map"))
         }
         signInAsTheDemoPilot()
@@ -6035,7 +6090,7 @@ class VentiUiTest {
         tap(tab("Map"))
         waitFor(described("Show my position"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.655, lon = 11.775, zoom = 11.0))
-        waitFor(hasTestTag("sites-filter-open"))
+        waitForSites()
 
         tap(hasTestTag("map-credits"))
         val credits = hasTestTag("wind-credits")

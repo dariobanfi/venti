@@ -1,6 +1,7 @@
 package fly.venti.app.map
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,7 +67,15 @@ class MapLayer(
 )
 
 /** A list or a board the map leads to, as a row of the layers sheet. */
-class MapList(val title: String, @DrawableRes val icon: Int, val onOpen: () -> Unit)
+class MapList(
+    val title: String,
+    @DrawableRes val icon: Int,
+    val onOpen: () -> Unit,
+    /** What the row says beside its name, as the filter's present words. */
+    val value: String? = null,
+    /** For a test, where a row has more to it than its name. */
+    val tag: String? = null,
+)
 
 /**
  * The one sheet behind the map's layers button: a switch for every layer
@@ -112,14 +121,20 @@ fun MapLayersSheet(layers: List<MapLayer>, views: List<MapList>, onDismiss: () -
                 Group {
                     for (view in views) {
                         row {
-                            // Said to TalkBack by its name, as the round button it was.
-                            LinkRow(
-                                view.title,
-                                R.drawable.ic_chevron_right,
-                                Modifier.semantics { contentDescription = view.title },
-                                leading = view.icon,
-                                onClick = view.onOpen,
-                            )
+                            if (view.value.isNullOrEmpty()) {
+                                // Said to TalkBack by its name, as the round button it was.
+                                LinkRow(
+                                    view.title,
+                                    R.drawable.ic_chevron_right,
+                                    Modifier
+                                        .semantics { contentDescription = view.title }
+                                        .then(view.tag?.let { Modifier.testTag(it) } ?: Modifier),
+                                    leading = view.icon,
+                                    onClick = view.onOpen,
+                                )
+                            } else {
+                                ListRowWithValue(view)
+                            }
                         }
                     }
                 }
@@ -159,6 +174,44 @@ private fun LayerRow(layer: MapLayer) {
         }
         Spacer(Modifier.width(VentiSpace.s3))
         Switch(checked = layer.isOn, onCheckedChange = null)
+    }
+}
+
+/**
+ * A list's row that says something beside its name, as the sites' filter
+ * says what it asks: under the name, since the words can be long.
+ */
+@Composable
+private fun ListRowWithValue(view: MapList) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = view.onOpen)
+            .then(view.tag?.let { Modifier.testTag(it) } ?: Modifier)
+            .heightIn(min = VentiSize.touch)
+            .padding(start = VentiSpace.s4, end = VentiSpace.s4, top = VentiSpace.s2, bottom = VentiSpace.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(view.icon),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(VentiSpace.s4))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+            Text(view.title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                view.value.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Venti.colours.textSecondary,
+            )
+        }
+        Spacer(Modifier.width(VentiSpace.s3))
+        Icon(
+            painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

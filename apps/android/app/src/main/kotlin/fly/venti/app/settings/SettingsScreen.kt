@@ -1,8 +1,7 @@
 package fly.venti.app.settings
 
 import app.venti.design.VentiSpace
-import fly.venti.core.gliderClassName
-import fly.venti.core.gliderWords
+import fly.venti.core.pagesWords
 import fly.venti.app.maps.OfflineMapsWords
 import fly.venti.app.sites.KeptSitesWords
 import androidx.compose.foundation.clickable
@@ -84,12 +83,6 @@ fun SettingsScreen(
     val links = LocalUriHandler.current
     var pilot by remember { mutableStateOf(preferences.pilot) }
     var glider by remember { mutableStateOf(preferences.glider) }
-    var trimSpeed by remember { mutableStateOf(preferences.trimSpeed) }
-    var glideRatio by remember { mutableStateOf(preferences.glideRatio) }
-    var showsFaiAreas by remember { mutableStateOf(preferences.showsFaiAreas) }
-    var showsClimbs by remember { mutableStateOf(preferences.cockpitShowsClimbs) }
-    var gliderClass by remember { mutableStateOf(GliderWords.kind(preferences.gliderClass)) }
-    var neverLand by remember { mutableStateOf(preferences.neverLand) }
     val names = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false)
 
     Scaffold(
@@ -156,59 +149,15 @@ fun SettingsScreen(
                     LinkRow("Airspace", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Airspace) }
                 }
                 row {
-                    SwitchRow("FAI triangle areas", isOn = showsFaiAreas, modifier = Modifier.testTag("fai-areas")) { isOn ->
-                        showsFaiAreas = isOn
-                        preferences.showsFaiAreas = isOn
-                    }
-                }
-                row {
-                    SwitchRow(mapLayersWords().cockpitClimbs, isOn = showsClimbs, modifier = Modifier.testTag("cockpit-climbs")) { isOn ->
-                        showsClimbs = isOn
-                        preferences.cockpitShowsClimbs = isOn
-                    }
+                    // The glider, the FAI triangle areas and the cockpit's
+                    // other switches: on a page of their own.
+                    LinkRow(
+                        pagesWords().gliderAndCockpit,
+                        R.drawable.ic_chevron_right,
+                        Modifier.testTag("cockpit-settings-link"),
+                    ) { onOpen(SettingsRoute.GliderAndCockpit) }
                 }
             }
-            SectionFooter(
-                "The FAI triangle areas are drawn on the cockpit's map once you have flown three kilometres " +
-                    "in a straight line: a turnpoint inside either of them makes that line one side of an " +
-                    "FAI triangle.",
-            )
-            SectionFooter(mapLayersWords().cockpitClimbsNote)
-
-            SectionHeader(GliderWords.core.title)
-            Group {
-                row {
-                    StepperRow(
-                        "Trim speed",
-                        value = "${Format.whole(trimSpeed)} km/h",
-                        onLess = { trimSpeed = (trimSpeed - 1).coerceIn(TRIM_SPEEDS) },
-                        onMore = { trimSpeed = (trimSpeed + 1).coerceIn(TRIM_SPEEDS) },
-                        onChanged = { preferences.trimSpeed = trimSpeed },
-                    )
-                }
-                row {
-                    StepperRow(
-                        "Glide ratio",
-                        value = Format.glideRatio(glideRatio),
-                        onLess = { glideRatio = (glideRatio - 0.5).coerceIn(GLIDE_RATIOS) },
-                        onMore = { glideRatio = (glideRatio + 0.5).coerceIn(GLIDE_RATIOS) },
-                        onChanged = { preferences.glideRatio = glideRatio },
-                    )
-                }
-                row {
-                    GliderClassRow(gliderClass) { chosen ->
-                        gliderClass = chosen
-                        preferences.gliderClass = GliderWords.kept(chosen)
-                    }
-                }
-                row {
-                    SwitchRow(GliderWords.core.neverLand, isOn = neverLand, modifier = Modifier.testTag("never-land")) { isOn ->
-                        neverLand = isOn
-                        preferences.neverLand = isOn
-                    }
-                }
-            }
-            SectionFooter("${GliderWords.SPEED_AND_GLIDE} ${GliderWords.core.footer}")
 
             SectionHeader("Venti")
             Group {
@@ -252,7 +201,7 @@ fun SettingsScreen(
 
 /** A row with a switch; pressing anywhere on it flips the switch. */
 @Composable
-private fun SwitchRow(title: String, isOn: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(title: String, isOn: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -264,97 +213,6 @@ private fun SwitchRow(title: String, isOn: Boolean, modifier: Modifier = Modifie
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Switch(checked = isOn, onCheckedChange = null)
-    }
-}
-
-/** The words of the settings' "Glider" section, and how the glider's class is kept. */
-object GliderWords {
-    /** The core's words of the section: its heading, the class's row, "Never land" and what the two do. */
-    val core: fly.venti.core.GliderWords by lazy { gliderWords() }
-
-    /** Under the section, before the core's lines: what the speed and the glide ratio, the app's own two rows, are for. */
-    const val SPEED_AND_GLIDE =
-        "Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit " +
-            "predicts how high you arrive at the place you fly to. The prediction assumes air that neither " +
-            "rises nor sinks on the way."
-
-    /** The classes the menu offers, `null` first for none. */
-    val CLASSES: List<GliderClassKind?> = listOf(null) + GliderClassKind.entries
-
-    /** A class as the menu names it, in the core's words: "None", "EN A", "CCC". */
-    fun name(kind: GliderClassKind?): String = gliderClassName(kind)
-
-    /** The class as the preferences keep it, or `null` for none. */
-    fun kept(kind: GliderClassKind?): String? = kind?.name
-
-    /** The class the preferences kept; none for a word they never wrote. */
-    fun kind(kept: String?): GliderClassKind? = GliderClassKind.entries.firstOrNull { it.name == kept }
-}
-
-/** The glider's class, as a menu: none until the pilot chooses one. */
-@Composable
-private fun GliderClassRow(chosen: GliderClassKind?, onChoose: (GliderClassKind?) -> Unit) {
-    var isOpen by remember { mutableStateOf(false) }
-    Box {
-        LinkRow(
-            GliderWords.core.classTitle,
-            R.drawable.ic_arrow_drop_down,
-            Modifier.testTag("glider-class"),
-            value = GliderWords.name(chosen),
-        ) { isOpen = true }
-        DropdownMenu(expanded = isOpen, onDismissRequest = { isOpen = false }) {
-            for (kind in GliderWords.CLASSES) {
-                DropdownMenuItem(
-                    text = { Text(GliderWords.name(kind)) },
-                    onClick = {
-                        isOpen = false
-                        onChoose(kind)
-                    },
-                    trailingIcon = if (kind == chosen) {
-                        { Icon(painterResource(R.drawable.ic_check), contentDescription = "Chosen") }
-                    } else {
-                        null
-                    },
-                )
-            }
-        }
-    }
-}
-
-/** What a glider's trim speed can be set to, km/h, and its glide ratio. */
-private val TRIM_SPEEDS = 25.0..60.0
-private val GLIDE_RATIOS = 4.0..14.0
-
-/** A row with a number and a button either side of it to make it less or more. */
-@Composable
-private fun StepperRow(title: String, value: String, onLess: () -> Unit, onMore: () -> Unit, onChanged: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 16.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        IconButton(
-            onClick = {
-                onLess()
-                onChanged()
-            },
-        ) {
-            Icon(painterResource(R.drawable.ic_remove), contentDescription = "Less: $title")
-        }
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyLarge.numbers,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(min = 72.dp),
-        )
-        IconButton(
-            onClick = {
-                onMore()
-                onChanged()
-            },
-        ) {
-            Icon(painterResource(R.drawable.ic_add), contentDescription = "More: $title")
-        }
     }
 }
 

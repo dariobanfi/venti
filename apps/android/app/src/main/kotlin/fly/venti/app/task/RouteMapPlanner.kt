@@ -6,6 +6,7 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import fly.venti.core.routeToGpx
 import fly.venti.core.routeFromGpx
 import fly.venti.core.plannerWords
+import fly.venti.core.RouteFromFile
 import fly.venti.app.pilotMessage
 import fly.venti.app.SharedFiles
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +46,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -149,6 +151,14 @@ fun RouteMapPlanner(
     var imported by remember { mutableStateOf<String?>(null) }
     // The places of a file just brought in, for the map to frame once.
     var toFrame by remember { mutableStateOf<List<Coordinate>?>(null) }
+    // A file's route that would take the place of one already drawn, until the pilot says.
+    var replacing by remember { mutableStateOf<RouteFromFile?>(null) }
+    val take = { route: RouteFromFile ->
+        places = route.points
+        imported = route.words
+        toFrame = route.points
+        problem = null
+    }
     val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         try {
@@ -164,10 +174,9 @@ fun RouteMapPlanner(
                 String(read.toByteArray(), Charsets.UTF_8)
             }.orEmpty()
             val route = routeFromGpx(text)
-            places = route.points
-            imported = route.words
-            toFrame = route.points
-            problem = null
+            // A route of the pilot's own drawing is not replaced unasked;
+            // the take-off it began at alone is no route.
+            if (places.isNotEmpty() && places != listOfNotNull(from)) replacing = route else take(route)
         } catch (error: Exception) {
             imported = null
             problem = error.pilotMessage
@@ -191,6 +200,23 @@ fun RouteMapPlanner(
             map.frame(route)
             toFrame = null
         }
+    }
+
+    replacing?.let { route ->
+        AlertDialog(
+            onDismissRequest = { replacing = null },
+            text = { Text(words.replaceQuestion) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        replacing = null
+                        take(route)
+                    },
+                    modifier = Modifier.testTag("route-replace"),
+                ) { Text(words.replace) }
+            },
+            dismissButton = { TextButton(onClick = { replacing = null }) { Text(Common.words.cancel) } },
+        )
     }
 
     Scaffold(

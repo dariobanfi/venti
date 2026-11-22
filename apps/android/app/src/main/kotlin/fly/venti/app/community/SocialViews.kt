@@ -51,6 +51,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import app.venti.design.VentiSize
@@ -64,6 +66,7 @@ import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.Venti
 import fly.venti.app.logbook.groupedShape
 import fly.venti.core.CheerList
+import fly.venti.core.cheerButton
 import fly.venti.core.CommentList
 import fly.venti.core.CommentRow
 import fly.venti.core.FeedRow
@@ -269,11 +272,14 @@ fun FlightSocialBar(
                 val cheered = shown.cheered
                 val showsButton = cheered != null && social.isSignedIn && !isOwn
                 if (showsButton && cheered != null) {
+                    // A button in the pills' manner, filled while cheered, as on the iPhone.
                     Pill(
-                        shown.button,
+                        cheerButton(cheered),
                         Modifier
                             .testTag("flight-cheer")
-                            .toggleable(value = cheered, enabled = !isSending, role = Role.Switch) { wanted ->
+                            .semantics { selected = cheered }
+                            .clickable(enabled = !isSending, role = Role.Button) {
+                                val wanted = !cheered
                                 isSending = true
                                 problem = null
                                 requests.launch {

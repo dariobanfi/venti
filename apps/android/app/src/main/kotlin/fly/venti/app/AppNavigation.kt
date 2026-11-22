@@ -64,6 +64,9 @@ enum class SettingsRoute {
     /** The pilot's airspace. */
     Airspace,
 
+    /** The glider and the cockpit's switches: "Glider and cockpit". */
+    GliderAndCockpit,
+
     /** The pilot's account on a Venti server. */
     Account,
 

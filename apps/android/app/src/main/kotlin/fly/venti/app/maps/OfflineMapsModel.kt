@@ -38,7 +38,14 @@ import java.net.URI
 import kotlin.coroutines.coroutineContext
 
 /** A region kept on the phone, as a map draws from it: its two archives. */
-data class KeptMap(val id: String, val version: String, val basemap: File, val terrain: File)
+data class KeptMap(
+    val id: String,
+    val version: String,
+    val basemap: File,
+    val terrain: File,
+    /** Whose data the region's files hold, the base map's first: listed wherever it is drawn. */
+    val credits: List<String> = emptyList(),
+)
 
 /**
  * Fetches a file from one of its bytes on and hands it over in pieces as
@@ -174,7 +181,13 @@ class OfflineMapsModel(
     fun map(region: MapRegionView): KeptMap? {
         val home = folder ?: return null
         val place = place(region, home)
-        return KeptMap(region.id, region.version, place.resolve(region.basemap.name), place.resolve(region.terrain.name))
+        return KeptMap(
+            region.id,
+            region.version,
+            place.resolve(region.basemap.name),
+            place.resolve(region.terrain.name),
+            region.credits.map { it.text },
+        )
     }
 
     /** Downloads a region, or goes on with a download that stopped. */

@@ -57,6 +57,7 @@ import fly.venti.app.logbook.StatisticsScreen
 import fly.venti.app.logbook.TendenciesScreen
 import fly.venti.app.map.MapScreen
 import fly.venti.app.settings.CreditsScreen
+import fly.venti.app.settings.CockpitSettingsScreen
 import fly.venti.app.settings.SettingsScreen
 import fly.venti.app.task.TaskModel
 import fly.venti.app.task.TaskScreen
@@ -349,6 +350,7 @@ private fun Sections(
                         onBack = { navigation.back() },
                     )
                     SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
+                    SettingsRoute.GliderAndCockpit -> CockpitSettingsScreen(session.preferences, onBack = { navigation.back() })
                     SettingsRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
                     SettingsRoute.Account -> kept.SaveableStateProvider("account") {
                         AccountScreen(

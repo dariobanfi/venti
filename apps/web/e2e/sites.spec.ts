@@ -118,10 +118,25 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 	await expect(howRead.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeHidden();
 	await howRead.scrollIntoViewIfNeeded();
 	await keep('219-site-how-read-folded');
-	// By the keyboard: on a wide screen the map's open credits lie over the
-	// foot of the side panel.
-	await howRead.locator('summary').focus();
-	await page.keyboard.press('Enter');
+	if (wide) {
+		// The card at the map's side ends above the credits opened earlier,
+		// which would otherwise lie over its foot and the row there.
+		const credits = page.locator('.credits');
+		await expect(credits).toBeVisible();
+		await expect
+			.poll(async () => {
+				const card = (await site.boundingBox())!;
+				const open = (await credits.boundingBox())!;
+				const apart =
+					card.y + card.height <= open.y ||
+					open.y + open.height <= card.y ||
+					card.x + card.width <= open.x ||
+					open.x + open.width <= card.x;
+				return apart;
+			})
+			.toBe(true);
+	}
+	await howRead.locator('summary').click();
 	await expect(howRead).toContainText('A site on the map is not permission to fly there.');
 	await howRead.scrollIntoViewIfNeeded();
 	await keep('220-site-how-read-open');

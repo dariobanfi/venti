@@ -2261,11 +2261,11 @@
 			bottom: 2.375rem;
 		}
 
-		/* The panes end above the foot, whose credits run to several lines:
-		   the foot's top lies 2.375 rem and its height above the screen's
-		   edge, the panes' room ends 4 rem above it. */
-		.panes {
-			max-height: min(100%, calc(100% + 1.625rem - var(--foot-height, 0px) - var(--space-3)));
+		/* What lies at the map's side, the panes and a station's or a site's
+		   card, ends above the foot, whose credits run to several lines: the
+		   foot's top lies 2.375 rem and its height above the screen's edge. */
+		.over {
+			bottom: max(4rem, calc(2.375rem + var(--foot-height, 0px) + var(--space-3)));
 		}
 	}
 </style>

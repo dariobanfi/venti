@@ -118,7 +118,7 @@
 </script>
 
 <svelte:head>
-	<title>Everyone’s flights · Venti</title>
+	<title>{app.said ? `${app.said.pages.everyonesFlights} · Venti` : 'Venti'}</title>
 </svelte:head>
 
 <div class="desk page">
@@ -126,7 +126,7 @@
 	     its top: the page is titled by what it is and does not repeat them. A
 	     phone reaches it from the logbook, whose switch it keeps. -->
 	<header>
-		<h1>{wide.current ? 'Everyone’s flights' : 'Logbook'}</h1>
+		<h1>{wide.current ? (app.said?.pages.everyonesFlights ?? '') : 'Logbook'}</h1>
 	</header>
 	{#if !wide.current}
 		<div class="whose">
@@ -273,7 +273,7 @@
 					/>
 				{:else}
 					<PublicFlightList
-						label="Everyone’s flights"
+						label={app.said?.pages.everyonesFlights ?? ''}
 						{list}
 						named
 						nothing={nothingListed(list, asked)}

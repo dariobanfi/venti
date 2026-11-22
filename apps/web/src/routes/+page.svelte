@@ -347,7 +347,7 @@
 			class="span-8"
 			more={home?.flights.phase === 'loaded' && home.flights.value.ofToday
 				? { href: todaysBest, words: 'All of today' }
-				: { href: everyoneHref(), words: 'Everyone’s flights' }}
+				: { href: everyoneHref(), words: app.said?.pages.everyonesFlights ?? '' }}
 			loading={!home || home.flights.phase === 'loading'}
 			problem={home?.flights.phase === 'failed' ? home.flights.problem : undefined}
 			absent={home?.flights.phase === 'absent'}

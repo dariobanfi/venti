@@ -7,6 +7,7 @@
 	What another pilot wrote, a name or a glider, is set as text.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { everyoneHref, pilotHref, rankingHref } from '#lib/app/routes.ts';
 	import { format } from '#lib/design/format.ts';
 	import type { FrontState } from './model.svelte';
@@ -27,6 +28,7 @@
 	let { front, toEveryone = true, ranked = 3 }: Props = $props();
 	const top = $derived(front.top.slice(0, ranked));
 
+	const app = getApp();
 	const text = format();
 	const todaysBest = $derived(
 		everyoneHref(queryOf({ order: 'best', from: front.today, to: front.today }))
@@ -42,7 +44,7 @@
 					{#if front.ofToday}
 						<a class="more" href={todaysBest}>All of today</a>
 					{:else}
-						<a class="more" href={everyoneHref()}>Everyone’s flights</a>
+						<a class="more" href={everyoneHref()}>{app.said?.pages.everyonesFlights}</a>
 					{/if}
 				</div>
 				{#if front.flights.length > 0}

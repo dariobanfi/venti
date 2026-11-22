@@ -12,6 +12,9 @@ import type { LiveState } from './watch';
 export const CAUTION =
 	'Positions are as each pilot’s app sent them. A glider nothing was heard of for a while has most likely no network: it is not known to have landed.';
 
+/** The switch on a glider's page that keeps the map on it while it flies. */
+export const FOLLOW_ON_THE_MAP = 'Follow on the map';
+
 /** Said under a list the server cut short. */
 export const TRUNCATED = 'There are more than Venti lists at once. Zoom the map in.';
 

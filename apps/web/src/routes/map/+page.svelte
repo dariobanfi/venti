@@ -513,6 +513,31 @@
 	/** The live track being reported to whoever runs the server, by its identifier. */
 	let reportedGlider = $state<string>();
 	const glider = $derived(chosenGlider === undefined ? undefined : live?.glider(chosenGlider));
+	/** The glider the map is kept on, by its track's identifier: "Follow on the map". */
+	let gliderOnMap = $state<string>();
+	/** Where that glider is now, for the map to bring to its middle. */
+	const keepOn = $derived(gliderOnMap === undefined ? undefined : glider?.position);
+	// The map lets the glider go when its page closes or shows another, when
+	// it lands, goes quiet or is gone, and when the map follows the pilot.
+	$effect(() => {
+		if (gliderOnMap === undefined) return;
+		const gone =
+			gliderOnMap !== chosenGlider ||
+			!glider ||
+			glider.landed ||
+			glider.quiet ||
+			live?.followed.problem !== undefined ||
+			following;
+		if (gone) gliderOnMap = undefined;
+	});
+	function followOnTheMap(id: string) {
+		if (gliderOnMap === id) {
+			gliderOnMap = undefined;
+			return;
+		}
+		following = false;
+		gliderOnMap = id;
+	}
 	/**
 	 * The aircraft of another network the pilot chose, by its identifier:
 	 * its sheet shows it as the newest answer has it, and closes when the
@@ -1196,6 +1221,8 @@
 		others={othersShown}
 		followed={followedTrack}
 		{coveredByPage}
+		{keepOn}
+		onletgo={() => (gliderOnMap = undefined)}
 		cables={cablesShown}
 		oncable={openCable}
 		climbs={showClimbs ? climbs.climbs : []}
@@ -1571,7 +1598,13 @@
 				onclose={() => (chosenGlider = undefined)}
 			>
 				{#if chosenGlider}
-					<GliderView id={chosenGlider} {live} onreport={() => (reportedGlider = chosenGlider)} />
+					<GliderView
+						id={chosenGlider}
+						{live}
+						onreport={() => (reportedGlider = chosenGlider)}
+						onMap={gliderOnMap === chosenGlider}
+						onfollowonmap={() => chosenGlider && followOnTheMap(chosenGlider)}
+					/>
 				{/if}
 			</MapPanel>
 		{/if}

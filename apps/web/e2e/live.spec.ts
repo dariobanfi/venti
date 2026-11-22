@@ -136,6 +136,118 @@ test('the map draws who is in the air, lists them, and follows the flight of one
 	expect(problems).toEqual([]);
 });
 
+test('the map can be kept on a glider in the air, and lets it go when it is moved by hand', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	colorScheme
+}) => {
+	test.skip(
+		colorScheme === 'dark',
+		'The appearance has no part in this; the light shows the card.'
+	);
+	/** Where the made-up next position is: the server's clock stands still, and its glider with it. */
+	const NEXT = { lat: FLYING.latitude + 0.004, lon: FLYING.longitude + 0.012 };
+	let moved = false;
+	let track: Record<string, unknown> | undefined;
+	await context.route(
+		(address) => address.pathname === `/v1/live/${FLYING.id}`,
+		async (route) => {
+			if (!moved || !track) {
+				const response = await route.fetch();
+				if (response.status() === 200) track = (await response.json()).track;
+				return route.fulfill({ response });
+			}
+			// Made up: the glider flew on to the east-north-east.
+			const latest = {
+				time: '2026-11-18T19:05:00Z',
+				position: NEXT,
+				altitude_m: 1610,
+				ground_speed_ms: 10.5,
+				climb_ms: 0.5,
+				course_deg: 70.0
+			};
+			const since = new URL(route.request().url()).searchParams.get('since');
+			return route.fulfill({
+				json: {
+					time: '2026-11-18T19:05:00Z',
+					track: { ...track, latest, fixes: 1202 },
+					fixes: since === '1201' ? [latest] : [],
+					cursor: '1202',
+					more: false,
+					reset: false
+				}
+			});
+		}
+	);
+	/** The middle of the map's visible part, and its zoom, as the map last came to rest. */
+	const view = () =>
+		page.evaluate(() => {
+			const shown = (globalThis as { ventiView?: Record<string, number> }).ventiView!;
+			return {
+				zoom: shown.zoom,
+				lat: (shown.south + shown.north) / 2,
+				lon: (shown.west + shown.east) / 2
+			};
+		});
+
+	await mapAt(context, page, mapDrawn, BETWEEN);
+	await mapTool(page, 'Pilots in the air');
+	await page
+		.getByRole('dialog', { name: 'In the air' })
+		.getByRole('listitem')
+		.first()
+		.getByRole('button')
+		.click();
+	const glider = gliderPanel(page, wide);
+	await expect(metric(glider, 'Shown for')).toBeVisible();
+	await mapDrawn();
+
+	const onTheMap = glider.getByRole('button', { name: 'Follow on the map' });
+	await expect(onTheMap).toHaveAttribute('aria-pressed', 'false');
+	await onTheMap.click();
+	await expect(onTheMap).toHaveAttribute('aria-pressed', 'true');
+	await mapDrawn();
+	await page.waitForTimeout(800);
+	const before = await view();
+	await keep('60b-live-follow-on-map');
+
+	// The next position brings the map along, at the zoom it had.
+	moved = true;
+	await expect
+		.poll(async () => (await view()).lon - before.lon, { timeout: 25_000 })
+		.toBeCloseTo(NEXT.lon - FLYING.longitude, 3);
+	const after = await view();
+	expect(after.zoom).toBeCloseTo(before.zoom, 2);
+	expect(after.lat - before.lat).toBeCloseTo(NEXT.lat - FLYING.latitude, 3);
+	await expect(onTheMap).toHaveAttribute('aria-pressed', 'true');
+
+	if (wide) {
+		// Moved by hand, the map is the pilot's again.
+		const map = (await page.locator('canvas.maplibregl-canvas').boundingBox())!;
+		const from = { x: map.x + map.width * 0.7, y: map.y + map.height * 0.4 };
+		await page.mouse.move(from.x, from.y);
+		await page.mouse.down();
+		await page.mouse.move(from.x - 60, from.y + 30, { steps: 6 });
+		await page.mouse.up();
+		await expect(onTheMap).toHaveAttribute('aria-pressed', 'false');
+	} else {
+		// A phone's sheet holds the map while it is open; closed, it lets the glider go.
+		await closeButton(glider, wide).click();
+		await expect(glider).toBeHidden();
+		await mapTool(page, 'Pilots in the air');
+		await page
+			.getByRole('dialog', { name: 'In the air' })
+			.getByRole('listitem')
+			.first()
+			.getByRole('button')
+			.click();
+		await expect(onTheMap).toHaveAttribute('aria-pressed', 'false');
+	}
+});
+
 test('a position goes on ageing while the server has nothing new to say', async ({
 	context,
 	page,

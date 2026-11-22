@@ -6,9 +6,10 @@
 -->
 <script lang="ts">
 	import { compassPoint, format } from '#lib/design/format.ts';
+	import Icon from '#lib/design/Icon.svelte';
 	import Metric from '#lib/design/Metric.svelte';
 	import type { LiveModel } from './model.svelte';
-	import { CAUTION, NO_LONGER_HERE } from './words';
+	import { CAUTION, FOLLOW_ON_THE_MAP, NO_LONGER_HERE } from './words';
 
 	interface Props {
 		/** The identifier of the glider's track. */
@@ -16,9 +17,13 @@
 		live: LiveModel;
 		/** Opens the form that reports the track to whoever runs the server. */
 		onreport: () => void;
+		/** Whether the map is kept on this glider. */
+		onMap?: boolean;
+		/** Keeps the map on this glider, or lets it go. Offered while it is in the air. */
+		onfollowonmap?: () => void;
 	}
 
-	let { id, live, onreport }: Props = $props();
+	let { id, live, onreport, onMap = false, onfollowonmap }: Props = $props();
 
 	const text = format();
 
@@ -84,6 +89,15 @@
 			<p class="footnote">{CAUTION}</p>
 		</section>
 
+		{#if onfollowonmap && !glider.landed && !glider.quiet}
+			<div class="card">
+				<button class="link" type="button" aria-pressed={onMap} onclick={onfollowonmap}>
+					{FOLLOW_ON_THE_MAP}
+					{#if onMap}<Icon name="check" />{/if}
+				</button>
+			</div>
+		{/if}
+
 		<section>
 			<div class="card">
 				<a class="link" href={glider.pagePath} target="_blank" rel="noopener">
@@ -145,6 +159,8 @@
 	.link {
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
 		width: 100%;
 		min-height: var(--target);
 		padding: 0.5rem 1rem;

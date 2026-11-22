@@ -151,6 +151,14 @@
 		 */
 		coveredByPage: { left: number; right: number; bottom: number };
 		/**
+		 * Where the glider the map is kept on is, while the pilot follows it on
+		 * the map: each new position is brought to the middle of what the
+		 * glider's page leaves of the map, at the zoom the map has.
+		 */
+		keepOn?: { lat: number; lon: number };
+		/** Called when the pilot moves the map by hand while it is kept on a glider. */
+		onletgo?: () => void;
+		/**
 		 * The cables to draw, while the map is close enough: power lines and
 		 * ropeways, solid where their height is mapped, dashed where not.
 		 */
@@ -281,6 +289,8 @@
 		others = [],
 		followed,
 		coveredByPage,
+		keepOn,
+		onletgo,
 		cables = [],
 		oncable,
 		climbs = [],
@@ -359,7 +369,10 @@
 				(open) => oncredits?.(open)
 			);
 			// Dragging the map away means the pilot wants to look elsewhere.
-			created.on('dragstart', () => (following = false));
+			created.on('dragstart', () => {
+				following = false;
+				onletgo?.();
+			});
 			const styled = created;
 			module.whenStyled(styled, () => {
 				addLayers(module, styled);
@@ -1101,6 +1114,27 @@
 			left: coveredByPage.left,
 			right: coveredByPage.right,
 			bottom: Math.max(coveredByPage.bottom - coveredBottom, 0)
+		});
+	});
+
+	/** The glider's position the map was last brought to, while it is kept on one. */
+	let keptAt: { lat: number; lon: number } | undefined;
+
+	// Keeps the map on a glider: each new position goes to the middle of
+	// what its page leaves of the map. The zoom stays as the pilot set it.
+	$effect(() => {
+		if (!map || !keepOn) {
+			keptAt = undefined;
+			return;
+		}
+		if (keptAt && keptAt.lat === keepOn.lat && keptAt.lon === keepOn.lon) return;
+		keptAt = keepOn;
+		const page = untrack(() => coveredByPage);
+		// The map's own padding already keeps clear of the navigation.
+		const bottom = Math.max(page.bottom - untrack(() => coveredBottom), 0);
+		map.easeTo({
+			center: [keepOn.lon, keepOn.lat],
+			offset: [(page.left - page.right) / 2, -bottom / 2]
 		});
 	});
 

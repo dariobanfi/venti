@@ -10,8 +10,9 @@
 //!
 //! **No cable on the map, and no warning, is no promise.** The data is
 //! OpenStreetMap's and incomplete: many material ropeways and low lines
-//! are not mapped, and few cables have a height. Every view says so
-//! ([`CABLES_ARE_INCOMPLETE`]).
+//! are not mapped, and few cables have a height. The layer's "i" says so
+//! ([`CABLES_ARE_INCOMPLETE`]); a cable's card says what the cable is and
+//! credits OpenStreetMap, nothing more (owner decision 19).
 
 use std::sync::Arc;
 
@@ -32,9 +33,8 @@ const HALF_HEIGHT_DEG: f64 = 0.3;
 /// Half its width, in degrees: about 33 km at the latitude of the Alps.
 const HALF_WIDTH_DEG: f64 = 0.45;
 
-/// What every view of the cables says beside them.
-pub const CABLES_ARE_INCOMPLETE: &str = "Not every cable is mapped, and few have a height. \
-     No cable on the map and no warning is no promise that there is none.";
+/// What the cables' layer says behind its "i", never on a cable's card.
+pub const CABLES_ARE_INCOMPLETE: &str = "Not every cable is mapped, and few have a height.";
 
 /// What a cable is, for a shell to draw it by.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -128,9 +128,13 @@ pub struct CableLine {
 pub struct CablesMap {
     /// Every cable, source by source.
     pub lines: Vec<CableLine>,
-    /// The credit of every source, to show beside the layer.
+    /// The credit of every source, to show beside the layer and on a
+    /// cable's card: its line, linked to its address. The licence's full
+    /// wording (the answer's `notice`) is not here: it belongs to the page
+    /// of data and licences, not to a card.
     pub credits: Vec<Credit>,
-    /// What to say beside them: [`CABLES_ARE_INCOMPLETE`].
+    /// What to say behind the layer's "i": [`CABLES_ARE_INCOMPLETE`]. Not
+    /// on a cable's card.
     pub limits: String,
 }
 
@@ -154,7 +158,14 @@ impl CableSet {
     pub fn layer(&self) -> CablesMap {
         CablesMap {
             lines: self.cables.iter().map(line).collect(),
-            credits: self.credits.clone(),
+            credits: self
+                .credits
+                .iter()
+                .map(|credit| Credit {
+                    notice: None,
+                    ..credit.clone()
+                })
+                .collect(),
             limits: CABLES_ARE_INCOMPLETE.to_owned(),
         }
     }
@@ -314,8 +325,18 @@ mod tests {
             "{words:?}"
         );
         assert!(map.lines.iter().all(|line| !line.height_mapped));
+        // A card credits OpenStreetMap by its line and link alone.
         assert_eq!(map.credits.len(), 1);
-        assert!(map.limits.contains("no promise"));
+        assert_eq!(map.credits[0].text, "© OpenStreetMap contributors");
+        assert_eq!(
+            map.credits[0].url,
+            "https://www.openstreetmap.org/copyright"
+        );
+        assert_eq!(map.credits[0].notice, None);
+        assert_eq!(
+            map.limits,
+            "Not every cable is mapped, and few have a height."
+        );
     }
 
     #[test]

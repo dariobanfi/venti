@@ -166,11 +166,9 @@ pub fn glider_words() -> GliderWords {
         title: "Glider".to_owned(),
         class_title: "Glider class".to_owned(),
         never_land: "Never land (hike and fly)".to_owned(),
-        footer: "With a glider class the cockpit also says what the air itself does on a glide \
-                 and when to speed up, and reckons your arrivals with the class's polar, whose \
-                 numbers are typical of the class, not your glider's. With \"Never land\" a \
-                 flight is not ended by itself: landing, walking on and taking off again stay \
-                 one recording, which you end by hand."
+        footer: "A class adds what the air itself does on a glide, when to speed up, and your \
+                 arrivals by the class's typical polar. With \"Never land\" landing, walking on \
+                 and taking off again stay one recording, which you end by hand."
             .to_owned(),
     }
 }
@@ -256,7 +254,9 @@ pub struct MapLayersWords {
     #[uniffi(default = "")]
     pub flown_thermals_note: String,
     /// When the map shows too wide a part for the climbs: "Zoom in to see
-    /// where pilots climb now."
+    /// where pilots climb now." Deprecated: a hint that explains the
+    /// interface (owner decision 19); a shell shows nothing in its place,
+    /// and it goes when the three apps have dropped it.
     #[uniffi(default = "")]
     pub climbs_too_wide: String,
     /// When airspace is switched on and the map shows too wide a part to
@@ -288,12 +288,42 @@ pub struct MapLayersWords {
     /// The heading over the credits of what the map shows: "Credits".
     #[uniffi(default = "")]
     pub credits_title: String,
-    /// The layer of the forecast's hours: "Forecast".
+    /// The layer of the forecast's hours: "Forecast". Deprecated: the
+    /// phones' chip of before "One choice of what the map shows"; it goes
+    /// when they show [`MapLayersWords::rain`] and
+    /// [`MapLayersWords::cloud`] in its place.
     #[uniffi(default = "")]
     pub forecast: String,
-    /// The layer of the rain radar: "Radar".
+    /// The layer of the rain radar: "Radar". Deprecated, as
+    /// [`MapLayersWords::forecast`] is.
     #[uniffi(default = "")]
     pub radar: String,
+    /// The choice of what the map shows that is the rain, measured by the
+    /// radar before now and forecast after: "Rain".
+    #[uniffi(default = "")]
+    pub rain: String,
+    /// The choice that is the forecast's cloud: "Cloud".
+    #[uniffi(default = "")]
+    pub cloud: String,
+    /// The layers sheet's row of the pilot's own flights: "My flights".
+    #[uniffi(default = "")]
+    pub my_flights: String,
+    /// The layers sheet's row of the thermal map of thermal.kk7.ch:
+    /// "Thermal map".
+    #[uniffi(default = "")]
+    pub thermal_map: String,
+    /// The stop of the line of time between what was measured and what is
+    /// forecast: "Now".
+    #[uniffi(default = "")]
+    pub now: String,
+    /// In the panel's line, what was measured: "measured", as in "Rain,
+    /// 14:15, measured".
+    #[uniffi(default = "")]
+    pub measured: String,
+    /// In the panel's line, what is forecast: "forecast", as in "Wind at
+    /// the ground, 13:00, forecast, ICON-D2".
+    #[uniffi(default = "")]
+    pub forecast_word: String,
     /// The layer of the thermals: "Thermals".
     #[uniffi(default = "")]
     pub thermals: String,
@@ -373,11 +403,18 @@ pub fn map_layers_words() -> MapLayersWords {
         cockpit_climbs: "Climbs of others in the cockpit".to_owned(),
         cockpit_climbs_note: format!(
             "Where others climbed near you in the last {LIVE_CLIMB_MINUTES} minutes, on the \
-             cockpit's map: a hint, since a climb may be gone."
+             cockpit's map."
         ),
         credits_title: "Credits".to_owned(),
         forecast: "Forecast".to_owned(),
         radar: "Radar".to_owned(),
+        rain: "Rain".to_owned(),
+        cloud: "Cloud".to_owned(),
+        my_flights: "My flights".to_owned(),
+        thermal_map: "Thermal map".to_owned(),
+        now: "Now".to_owned(),
+        measured: "measured".to_owned(),
+        forecast_word: "forecast".to_owned(),
         thermals: "Thermals".to_owned(),
         wind: "Wind".to_owned(),
         airspace: "Airspace".to_owned(),
@@ -406,12 +443,11 @@ pub fn map_layers_words() -> MapLayersWords {
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct TodayWords {
-    /// Under the strip of hours: "Wind in km/h at 10 m. A tall bar is a
-    /// flyable hour."
+    /// Under the strip of hours, its key: "Wind in km/h at 10 m."
     #[uniffi(default = "")]
     pub hour_strip_note: String,
-    /// The same where the strip shows the climb too: "Wind in km/h at 10 m
-    /// and the climb in m/s. A tall bar is a flyable hour."
+    /// The same where the strip shows the climb too: "Wind in km/h at 10
+    /// m, the climb in m/s."
     #[uniffi(default = "")]
     pub hour_strip_note_with_thermals: String,
 }
@@ -420,9 +456,8 @@ pub struct TodayWords {
 #[uniffi::export]
 pub fn today_words() -> TodayWords {
     TodayWords {
-        hour_strip_note: "Wind in km/h at 10 m. A tall bar is a flyable hour.".to_owned(),
-        hour_strip_note_with_thermals:
-            "Wind in km/h at 10 m and the climb in m/s. A tall bar is a flyable hour.".to_owned(),
+        hour_strip_note: "Wind in km/h at 10 m.".to_owned(),
+        hour_strip_note_with_thermals: "Wind in km/h at 10 m, the climb in m/s.".to_owned(),
     }
 }
 
@@ -641,6 +676,31 @@ mod tests {
                 "Slopes",
                 "Cables",
                 "Aerial view"
+            ]
+        );
+        let one_choice = [
+            &words.wind,
+            &words.thermals,
+            &words.rain,
+            &words.cloud,
+            &words.my_flights,
+            &words.thermal_map,
+            &words.now,
+            &words.measured,
+            &words.forecast_word,
+        ];
+        assert_eq!(
+            one_choice.map(String::as_str),
+            [
+                "Wind",
+                "Thermals",
+                "Rain",
+                "Cloud",
+                "My flights",
+                "Thermal map",
+                "Now",
+                "measured",
+                "forecast"
             ]
         );
         assert_eq!(words.plan_route, "Plan a route");

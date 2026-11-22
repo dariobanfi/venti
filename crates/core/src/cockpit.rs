@@ -71,12 +71,13 @@ use crate::airspace::{AirspaceWatch, compass};
 use crate::cables::{CableKind, CableSet};
 use crate::cockpit_climbs::{ClimbsHeard, ClimbsNear};
 use crate::cockpit_others::{OthersHeard, OthersNear};
+use crate::cockpit_wind::{CockpitWindView, wind_shown};
 use crate::live::{self as sharing, LiveAudience, LiveShare, LiveShareView};
 use crate::route_plan::{ClosingCircleView, closing_circle_view};
 use crate::task::{TaskEventView, TaskFlown, TaskReadings, TaskStatusView};
 use crate::{
     AirspaceCheck, AirspaceLevel, AirspaceProximity, AirspaceSet, AirspaceWarning, Coordinate,
-    CoreError, LiveOthers, RouteKind, ServerRequest, Terrain,
+    CoreError, ForecastView, GroundWindStation, LiveOthers, RouteKind, ServerRequest, Terrain,
 };
 
 /// The cockpit's warning of a cable ahead.
@@ -560,6 +561,15 @@ pub struct CockpitView {
     pub glide_ratio: Option<f64>,
     /// The wind, from the last time the glider circled.
     pub wind: Option<WindView>,
+    /// The wind the thermal view shows, always with where it comes from:
+    /// the flight's own while there is one ("measured", "measured 7 min
+    /// ago"), before it a station near the glider at about its height (its
+    /// name), else the forecast's at the level nearest the glider
+    /// ("forecast", from [`FlightSession::use_forecast`]), else the first
+    /// station of [`FlightSession::use_ground_wind`]. Absent with none of
+    /// them. The rule is the core's: a shell shows this and keeps none.
+    #[uniffi(default = None)]
+    pub wind_shown: Option<CockpitWindView>,
     /// How long ago that was, seconds. A wind from half an hour ago and
     /// another height is a memory, not a measurement: the shell says its
     /// age once it is more than a few minutes.
@@ -1085,6 +1095,12 @@ struct Inner {
     vario: VarioWatch,
     /// A flight taken back, until the shell asks.
     false_start: Option<FalseStartView>,
+    /// The forecast for the flight's area, once the shell has handed it
+    /// over: the wind before the session has measured one.
+    forecast: Option<ForecastView>,
+    /// The wind stations around the glider, as the shell last had them
+    /// picked by [`crate::ground_wind`].
+    ground_winds: Vec<GroundWindStation>,
 }
 
 /// The external vario the pilot chose, and its link.
@@ -1289,6 +1305,8 @@ impl FlightSession {
                 replayed: false,
                 vario: VarioWatch::default(),
                 false_start: None,
+                forecast: None,
+                ground_winds: Vec::new(),
             }),
         })
     }
@@ -1628,6 +1646,24 @@ impl FlightSession {
         if let Some(watch) = self.lock().watch.as_mut() {
             watch.unsilence(&id);
         }
+    }
+
+    /// Hands the session the forecast for the flight's area, the answer
+    /// [`crate::forecast`] read for the take-off or the glider's place:
+    /// the thermal view's wind ([`CockpitView::wind_shown`]) comes from it
+    /// while no station speaks for the glider's air and the flight has not
+    /// measured one. Hand it again when it is fetched anew. `None` takes it
+    /// away.
+    pub fn use_forecast(&self, forecast: Option<ForecastView>) {
+        self.lock().forecast = forecast;
+    }
+
+    /// Hands the session the wind stations around the glider, each time
+    /// the shell has had them picked: [`crate::GroundWind::stations`], the
+    /// landing's first. The thermal view's wind takes a station's until
+    /// the flight has measured one. An empty list takes them away.
+    pub fn use_ground_wind(&self, stations: Vec<GroundWindStation>) {
+        self.lock().ground_winds = stations;
     }
 
     /// Hands the session the cables to watch for: the set read from the
@@ -2500,6 +2536,16 @@ impl FlightSession {
                 from_deg: wind.from_deg,
                 speed_ms: wind.speed_ms,
             }),
+            wind_shown: wind_shown(
+                state
+                    .wind
+                    .zip(wind_age_s)
+                    .map(|(wind, age)| (wind.from_deg, wind.speed_ms, age)),
+                state.altitude_m,
+                &inner.ground_winds,
+                inner.forecast.as_ref(),
+                now_unix_s,
+            ),
             wind_age_s,
             strong_wind: state
                 .wind
@@ -3037,8 +3083,10 @@ impl Recorder {
         // Only a recording that records itself is thrown away, and its
         // next flight is provisional again.
         self.provisional = true;
-        if let Some((file, name)) = self.file.take() {
-            drop(file);
+        // The file is closed, at the end of the closure, before it is
+        // removed. (Not `drop(file)`: on WebAssembly a file is nothing to
+        // drop, and clippy refuses that.)
+        if let Some(name) = self.file.take().map(|(_file, name)| name) {
             fs::remove_file(self.folder.join(name))?;
         }
         Ok(())
@@ -3050,8 +3098,8 @@ impl Recorder {
         let Some((file, name)) = self.file else {
             return Ok(None);
         };
-        file.sync_all()?;
-        drop(file);
+        // Written out and closed before it is read back.
+        close(file)?;
         let igc_text = fs::read_to_string(self.folder.join(&name))?;
         Ok(Some(PendingRecording {
             name,
@@ -3059,6 +3107,12 @@ impl Recorder {
             provisional: self.provisional,
         }))
     }
+}
+
+/// Writes a file out and closes it. Not `drop(file)`: on WebAssembly a
+/// file is nothing to drop, and clippy refuses that.
+fn close(file: File) -> io::Result<()> {
+    file.sync_all()
 }
 
 /// A recorded flight played back through a session.

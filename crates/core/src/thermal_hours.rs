@@ -133,8 +133,13 @@ pub struct ThermalMapKey {
     /// handed (`step` of a square of [`ThermalMapShapes::squares`]).
     pub step: u8,
     /// What it stands for: "Cross-country day", "20 to 30 km/h",
-    /// "Overcast".
+    /// "Overcast", "Heavy rain".
     pub words: String,
+    /// Its amount apart, where the class has one beside its name: "4 mm
+    /// an hour and more" for "Heavy rain". Empty where `words` is the
+    /// amount itself, or there is none.
+    #[uniffi(default = "")]
+    pub amount: String,
     /// The scale its colour is of.
     pub scale: ThermalMapScale,
     /// The step of that scale, from 1. Zero for the veil.
@@ -180,8 +185,6 @@ pub struct ThermalMapLevel {
 
 /// The layers, in the order a shell offers them.
 pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
-    let squares = "Each square stands for one cell of the model in it, of some twenty: a \
-                   valley's own wind is not in it.";
     let wind_key = || {
         [
             (WindBand::Strong, "30 km/h and more"),
@@ -193,6 +196,7 @@ pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
         .map(|(band, words)| ThermalMapKey {
             step: wind_step(band),
             words: words.to_owned(),
+            amount: String::new(),
             scale: ThermalMapScale::Wind,
             scale_step: wind_step(band),
         })
@@ -209,6 +213,7 @@ pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
                 .map(|entry| ThermalMapKey {
                     step: entry.scale_step.unwrap_or(0),
                     words: entry.words,
+                    amount: String::new(),
                     scale: match entry.scale_step {
                         Some(_) => ThermalMapScale::Thermal,
                         None => ThermalMapScale::Veil,
@@ -216,9 +221,7 @@ pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
                     scale_step: entry.scale_step.unwrap_or(0),
                 })
                 .collect(),
-            note: "Each hour judged as the day is: at the height of the model's ground, by the \
-                   wind, the rain and the heat the ground gives the air. An estimate by fixed \
-                   limits, and no advice to fly."
+            note: "Each hour judged at the model's ground by the wind, the rain and the heat."
                 .to_owned(),
         },
         ThermalMapLayerChoice {
@@ -227,11 +230,7 @@ pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
             has_levels: true,
             has_arrows: true,
             legend: wind_key(),
-            note: format!(
-                "The model's mean wind: 10 m above its own ground, or at a height above the \
-                 sea, read between the model's levels, which lie up to 1500 m apart. No wind \
-                 is shown where the model's ground lies above the height. {squares}"
-            ),
+            note: "The model's mean wind; a valley's own wind is not in it.".to_owned(),
         },
         ThermalMapLayerChoice {
             layer: ThermalHoursLayer::Gusts,
@@ -239,10 +238,7 @@ pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
             has_levels: false,
             has_arrows: true,
             legend: wind_key(),
-            note: format!(
-                "The strongest gust of the hour 10 m above the model's ground; the arrows \
-                 show where the mean wind blows. {squares}"
-            ),
+            note: "The hour's strongest gust; the arrows show the mean wind.".to_owned(),
         },
         ThermalMapLayerChoice {
             layer: ThermalHoursLayer::Cloud,
@@ -253,20 +249,19 @@ pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
                 ThermalMapKey {
                     step: 2,
                     words: "Overcast".to_owned(),
+                    amount: String::new(),
                     scale: CLOUD_STEPS[1].0,
                     scale_step: CLOUD_STEPS[1].1,
                 },
                 ThermalMapKey {
                     step: 1,
-                    words: "Cloudy, half the sky or more".to_owned(),
+                    words: "Cloudy".to_owned(),
+                    amount: String::new(),
                     scale: CLOUD_STEPS[0].0,
                     scale_step: CLOUD_STEPS[0].1,
                 },
             ],
-            note: "How much of the sky the model covers with cloud at any height: a thin high \
-                   veil counts as much as a low layer. Squares with less than half the sky \
-                   covered are not drawn."
-                .to_owned(),
+            note: "Cloud at any height: a thin high veil counts as much as a low layer.".to_owned(),
         },
         ThermalMapLayerChoice {
             layer: ThermalHoursLayer::Rain,
@@ -276,26 +271,27 @@ pub(crate) fn layers() -> Vec<ThermalMapLayerChoice> {
             legend: vec![
                 ThermalMapKey {
                     step: 3,
-                    words: "Heavy rain, 4 mm an hour and more".to_owned(),
+                    words: "Heavy rain".to_owned(),
+                    amount: "4 mm an hour and more".to_owned(),
                     scale: ThermalMapScale::Vario,
                     scale_step: RAIN_STEPS[2],
                 },
                 ThermalMapKey {
                     step: 2,
-                    words: "Rain, 1 to 4 mm".to_owned(),
+                    words: "Rain".to_owned(),
+                    amount: "1 to 4 mm an hour".to_owned(),
                     scale: ThermalMapScale::Vario,
                     scale_step: RAIN_STEPS[1],
                 },
                 ThermalMapKey {
                     step: 1,
-                    words: "Light rain, 0.2 to 1 mm".to_owned(),
+                    words: "Light rain".to_owned(),
+                    amount: "0.2 to 1 mm an hour".to_owned(),
                     scale: ThermalMapScale::Vario,
                     scale_step: RAIN_STEPS[0],
                 },
             ],
-            note: "The rain, showers and snow the model lets fall in the hour before, as water. \
-                   Squares with less than 0.2 mm are not drawn."
-                .to_owned(),
+            note: "Rain, showers and snow in the hour before, as water.".to_owned(),
         },
     ]
 }
@@ -406,9 +402,9 @@ pub struct ThermalMapHoursView {
     pub run_unix_s: i64,
     /// Whether every square has all of the day's daylight hours.
     pub whole: bool,
-    /// What to say under the line of hours: that the hours are the day's
-    /// daylight hours, and that some are missing when the day is not
-    /// whole.
+    /// What to say under the line of hours: that some hours are missing,
+    /// when the day is not whole. Empty on a whole day: the line of hours
+    /// shows which hours there are.
     pub note: String,
     /// The credits to show wherever the layer is.
     pub credits: Vec<Credit>,
@@ -566,15 +562,11 @@ impl ThermalMapHours {
             Some(height) => format!("at {height} m"),
             None => "at the ground".to_owned(),
         };
-        let mut note = "The hours are the day's daylight hours, from an hour after sunrise to \
-                        an hour before sunset."
-            .to_owned();
-        if !response.whole {
-            note.push_str(
-                " The model's runs at hand do not have all of them for this day: an hour that \
-                 is missing has no squares.",
-            );
-        }
+        let note = if response.whole {
+            String::new()
+        } else {
+            "Not every hour of this day is forecast yet.".to_owned()
+        };
         ThermalMapHoursView {
             date: response.date.format("%Y-%m-%d").to_string(),
             layer: self.layer,
@@ -1096,11 +1088,8 @@ mod tests {
         // last, 12:00 UTC.
         assert_eq!(view.first_hour, 2);
         assert!(view.whole);
-        assert_eq!(
-            view.note,
-            "The hours are the day's daylight hours, from an hour after sunrise to an hour \
-             before sunset."
-        );
+        // The line of hours shows which hours there are: nothing to say.
+        assert_eq!(view.note, "");
 
         let shown_at = |now: i64| {
             ThermalMapHours::read(200, thermals(), ThermalHoursLayer::Thermals, 7200, now)
@@ -1123,10 +1112,7 @@ mod tests {
         assert_ne!(partly, text);
         let view = read(ThermalHoursLayer::Thermals, partly.into_bytes()).view();
         assert!(!view.whole);
-        assert!(
-            view.note
-                .ends_with("an hour that is missing has no squares.")
-        );
+        assert_eq!(view.note, "Not every hour of this day is forecast yet.");
     }
 
     #[test]
@@ -1490,32 +1476,39 @@ mod tests {
             key(ThermalHoursLayer::Cloud),
             [
                 (2, "Overcast".to_owned(), ThermalMapScale::Veil, 0),
-                (
-                    1,
-                    "Cloudy, half the sky or more".to_owned(),
-                    ThermalMapScale::Vario,
-                    4
-                ),
+                (1, "Cloudy".to_owned(), ThermalMapScale::Vario, 4),
             ]
         );
         assert_eq!(
             key(ThermalHoursLayer::Rain),
             [
-                (
-                    3,
-                    "Heavy rain, 4 mm an hour and more".to_owned(),
-                    ThermalMapScale::Vario,
-                    1
-                ),
-                (2, "Rain, 1 to 4 mm".to_owned(), ThermalMapScale::Vario, 2),
-                (
-                    1,
-                    "Light rain, 0.2 to 1 mm".to_owned(),
-                    ThermalMapScale::Vario,
-                    3
-                ),
+                (3, "Heavy rain".to_owned(), ThermalMapScale::Vario, 1),
+                (2, "Rain".to_owned(), ThermalMapScale::Vario, 2),
+                (1, "Light rain".to_owned(), ThermalMapScale::Vario, 3),
             ]
         );
+        // The amounts apart, as the radar's key has them.
+        let amounts: Vec<&str> = layers
+            .iter()
+            .find(|choice| choice.layer == ThermalHoursLayer::Rain)
+            .unwrap()
+            .legend
+            .iter()
+            .map(|line| line.amount.as_str())
+            .collect();
+        assert_eq!(
+            amounts,
+            [
+                "4 mm an hour and more",
+                "1 to 4 mm an hour",
+                "0.2 to 1 mm an hour"
+            ]
+        );
+        // Each layer's note is one sentence.
+        for choice in &layers {
+            assert_eq!(choice.note.matches(". ").count(), 0, "{}", choice.note);
+            assert!(!choice.note.contains("advice"), "{}", choice.note);
+        }
     }
 
     #[test]

@@ -401,6 +401,9 @@ pub fn flown_thermals_path(
 }
 
 /// What a map says where it shows too much to ask for the thermals.
+/// Deprecated: a hint that explains the interface (owner decision 19); a
+/// shell shows nothing in its place, and it goes when the three apps have
+/// dropped it.
 #[uniffi::export]
 pub fn flown_too_wide_words() -> String {
     "Zoom in to see where pilots climbed.".to_owned()

@@ -132,9 +132,9 @@ pub struct LiveLayer {
 
 /// The path and query to `GET` for the aircraft other networks hear in a
 /// box. `None` for a box wider or taller than the server answers for: the
-/// shell then asks for no others and may say
-/// [`others_too_wide_words`]. Ask again every ten to fifteen seconds while
-/// the map is looked at.
+/// shell then asks for no others and says nothing of it: the gliders
+/// appear when the pilot zooms in (owner decision 19). Ask again every ten
+/// to fifteen seconds while the map is looked at.
 #[uniffi::export]
 pub fn live_others_path(south: f64, west: f64, north: f64, east: f64) -> Option<String> {
     if east - west > MAX_LIVE_OTHERS_BOX_DEG || north - south > MAX_LIVE_OTHERS_BOX_DEG {
@@ -148,12 +148,6 @@ pub fn live_others_path(south: f64, west: f64, north: f64, east: f64) -> Option<
     )
     .ok()?;
     Some(LiveOthersRequest { bbox }.path_and_query())
-}
-
-/// What a map says where it asked for no others because it shows too much.
-#[uniffi::export]
-pub fn others_too_wide_words() -> String {
-    "Zoom in to see the gliders of the Open Glider Network.".to_owned()
 }
 
 /// Reads the server's answer to [`live_others_path`].

@@ -369,9 +369,8 @@ fn row(pair: &FoehnPair, judgement: Judgement, now_unix_s: i64) -> FoehnRow {
         .collect();
     if !reduced_here.is_empty() {
         note.push_str(&format!(
-            " {} sent only the pressure at the station's own height, so Venti reduced it to \
-             sea level itself, from the station's height and temperature. That can be off by \
-             several hectopascals, so this number is less sure and gives Today no line.",
+            " Venti reduced {}'s pressure to sea level itself, which can be off by several \
+             hectopascals.",
             reduced_here.join(" and ")
         ));
     }
@@ -573,13 +572,11 @@ mod tests {
             row.words,
             "South foehn likely: 7 hPa higher at Bolzano than at Innsbruck"
         );
-        assert!(
-            row.note
-                .starts_with("From the province's foehn chart. Innsbruck sent only")
+        assert_eq!(
+            row.note,
+            "From the province's foehn chart. Venti reduced Innsbruck's pressure to sea level \
+             itself, which can be off by several hectopascals."
         );
-        assert!(row.note.contains("Venti reduced it to sea level itself"));
-        assert!(row.note.contains("off by several hectopascals"));
-        assert!(row.note.ends_with("gives Today no line."));
         // Against an unknown clock too.
         let ours = body_reduced_by(Some((AT_0900, 1014.5)), Some((AT_0900, 1007.8)), "venti");
         assert_eq!(

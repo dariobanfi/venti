@@ -2557,12 +2557,6 @@ pub fn live_others_path(south: f64, west: f64, north: f64, east: f64) -> Option<
     venti_core::live_others_path(south, west, north, east)
 }
 
-/// What a map says where it shows too much to ask for others.
-#[wasm_bindgen(js_name = othersTooWideWords)]
-pub fn others_too_wide_words() -> String {
-    venti_core::others_too_wide_words()
-}
-
 /// Reads the server's answer to `liveOthersPath`: each network's aircraft
 /// with words, and its credit.
 #[wasm_bindgen(js_name = liveOthers)]

@@ -191,8 +191,16 @@ pub struct RadarKey {
     /// The value the pixels of this step have in a frame's picture, from
     /// 1. The colours handed to [`radar_frame_image`] are in this order.
     pub step: u8,
-    /// What it stands for: "Heavy rain, 4 to 10 mm an hour".
+    /// What it stands for in full, for a screen reader and the key behind
+    /// the "i": "Heavy rain, 4 to 10 mm an hour".
     pub words: String,
+    /// The class alone, for a key's line or beside a scale strip: "Heavy
+    /// rain".
+    #[uniffi(default = "")]
+    pub name: String,
+    /// Its amount apart: "4 to 10 mm an hour".
+    #[uniffi(default = "")]
+    pub amount: String,
     /// The scale its stand-in colour is of.
     pub scale: ThermalMapScale,
     /// The step of that scale, from 1.
@@ -234,8 +242,12 @@ pub struct RadarMoment {
     /// What to write on the map while the moment is shown: the label of
     /// the topmost picture, and, where a picture under it is of another
     /// moment, that in words: "Rain radar, 14:15, 4 minutes ago.
-    /// Austria's analysis is of 14:00."
+    /// Austria's analysis is of 14:00." For a screen reader; the panel
+    /// shows `line`.
     pub label: String,
+    /// The same in the panel's one line: "Rain, 14:15, measured".
+    #[uniffi(default = "")]
+    pub line: String,
     /// The pictures to draw, in the order to draw them, the first at the
     /// bottom: for each layer its newest frame whose interval had ended
     /// at this moment. A layer has none here if it has no such frame, or
@@ -415,28 +427,21 @@ pub fn radar(
         layer.draws_unseen = true;
     }
 
-    let mut note = "What the weather service's radars saw of the rain in the minutes before each \
-                    picture's time. It is no forecast, and says nothing of a shower that has not \
-                    formed yet. A radar looks from afar: beyond its range, and behind mountains, \
-                    it sees nothing, and such places are marked as not seen, which is not dry. In \
-                    the Alps a radar that stands north of them sees little behind the first \
-                    chains and nothing south of the main ridge."
+    let mut note = "What the radars saw in the minutes before each picture; no forecast. Behind \
+                    mountains and beyond a radar's range nothing is seen, which is not dry."
         .to_owned();
+    // INCA's first step is taken for an analysis of the rain that fell, not
+    // already a forecast: *to verify* with GeoSphere Austria
+    // (docs/data-sources.md). A caveat of the project's own is no word on a
+    // screen (owner decision 19).
     if any_analysis {
         note.push_str(
-            " Austria's analysis is no radar picture: it is the first step of INCA, the nowcast \
-             of GeoSphere Austria, which puts the rain of a quarter of an hour together from \
-             radars and rain gauges on squares of a kilometre, and it arrives some 22 minutes \
-             after that quarter of an hour. That this first step is an analysis of the rain \
-             that fell, and not already a forecast, is still to verify with GeoSphere Austria.",
+            " Austria's analysis puts radars and rain gauges together, about 22 minutes after \
+             its quarter hour.",
         );
     }
     if layers.len() > 1 {
-        note.push_str(
-            " Where two layers see a place, the radar's picture lies on top, because it is \
-             minutes old and the analysis 22 to 37 minutes; a place is marked as not seen only \
-             where no layer sees it.",
-        );
+        note.push_str(" Where both see a place, the radar's picture lies on top.");
     }
     let moments = moments(&layers, &told);
     // The newest, which is the last: the frames come the oldest first.
@@ -522,6 +527,7 @@ fn moments(layers: &[RadarLayerView], told: &[Told]) -> Vec<RadarMoment> {
             RadarMoment {
                 time_unix_s: time,
                 clock: stop.clock.clone(),
+                line: format!("Rain, {}, measured", top.clock),
                 label,
                 frames: shown
                     .iter()
@@ -553,6 +559,8 @@ fn key() -> Vec<RadarKey> {
                 #[allow(clippy::cast_possible_truncation)]
                 step: at as u8 + 1,
                 words: format!("{}, {amount}", STEP_NAMES[at]),
+                name: STEP_NAMES[at].to_owned(),
+                amount,
                 scale: STAND_IN[at].0,
                 scale_step: STAND_IN[at].1,
             }
@@ -1199,13 +1207,16 @@ mod tests {
             "The newest picture of the analysis is 46 minutes old. It is not the rain of now."
         );
 
-        // The note says what the analysis is, what is still to verify,
-        // and how the two lie on each other.
-        assert!(view.note.contains("no forecast"));
-        assert!(view.note.contains("Austria's analysis is no radar picture"));
-        assert!(view.note.contains("still to verify with GeoSphere Austria"));
-        assert!(view.note.contains("the radar's picture lies on top"));
-        assert!(view.note.contains("not seen only where no layer sees it"));
+        // The note says what the analysis is and how the two lie on each
+        // other, in three sentences and no caveat of the project's own.
+        assert_eq!(
+            view.note,
+            "What the radars saw in the minutes before each picture; no forecast. Behind \
+             mountains and beyond a radar's range nothing is seen, which is not dry. Austria's \
+             analysis puts radars and rain gauges together, about 22 minutes after its quarter \
+             hour. Where both see a place, the radar's picture lies on top."
+        );
+        assert!(!view.note.contains("verify"));
         assert!(!analysis.what.contains("verify") && !analysis.line.contains("verify"));
 
         // A lowest layer without a picture cannot draw the veil: the
@@ -1306,6 +1317,8 @@ mod tests {
             view.moments[0].label,
             "Rain radar, 14:10, 9 minutes ago. Austria's analysis is of 14:00."
         );
+        // The panel's line is short.
+        assert_eq!(view.moments[1].line, "Rain, 14:15, measured");
 
         // A radar frame of the analysis' own moment says nothing more.
         let mut same = recorded();
@@ -1529,12 +1542,22 @@ mod tests {
                 ),
             ]
         );
+        // The class and its amount apart, for a key's line and a strip.
+        let apart: Vec<(&str, &str)> = view
+            .key
+            .iter()
+            .map(|line| (line.name.as_str(), line.amount.as_str()))
+            .collect();
+        assert_eq!(apart[2], ("Heavy rain", "4 to 10 mm an hour"));
+        assert_eq!(apart[5], ("A trace", "under 0.2 mm an hour"));
         assert_eq!(view.unseen_words, "Not seen by the radar");
-        // What a radar does not see, and what it does not say.
-        assert!(view.note.contains("no forecast"));
-        assert!(view.note.contains("a shower that has not formed yet"));
-        assert!(view.note.contains("not seen, which is not dry"));
-        assert!(view.note.contains("nothing south of the main ridge"));
+        // What a radar does not see, and what it does not say, in two
+        // sentences.
+        assert_eq!(
+            view.note,
+            "What the radars saw in the minutes before each picture; no forecast. Behind \
+             mountains and beyond a radar's range nothing is seen, which is not dry."
+        );
     }
 
     #[test]

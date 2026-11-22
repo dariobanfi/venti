@@ -98,6 +98,10 @@ pub struct ThermalMapDay {
     /// What to call it: "Today", "Tomorrow", else the day of the week,
     /// "Mon".
     pub name: String,
+    /// Whether the day is today by the pilot's clock. A shell asks this,
+    /// never whether `name` is "Today". False against an unknown clock.
+    #[uniffi(default = false)]
+    pub today: bool,
     /// The weather model the day is read from, by the name pilots know:
     /// "ICON-D2", or "ICON-EU" for a day the finest model does not reach.
     /// Show it with the day.
@@ -169,6 +173,10 @@ pub struct ThermalStripDay {
     pub date: String,
     /// What to call it: "Today", "Tomorrow", else the day of the week.
     pub name: String,
+    /// Whether the day is today by the pilot's clock, as
+    /// [`ThermalMapDay::today`].
+    #[uniffi(default = false)]
+    pub today: bool,
     /// The weather model the day is read from: "ICON-D2".
     pub model: String,
     /// Whether the square was judged with all of the day's daylight
@@ -237,6 +245,7 @@ pub fn thermal_map(
             ThermalMapDay {
                 date: day.date.format("%Y-%m-%d").to_string(),
                 name: day_name(day.date, today),
+                today: day.date == today,
                 model: model_name(model.as_str()),
                 run_unix_s: day.run.unwrap_or(response.run).timestamp(),
                 whole: day.whole,
@@ -256,12 +265,11 @@ pub fn thermal_map(
     Ok(ThermalMap {
         days,
         legend: legend(),
-        note: format!(
-            "Read from {name}. Each square stands for one cell of the model in it, judged at \
-             the height of the model's ground by the wind, the rain and the heat the ground \
-             gives the air. An estimate by fixed limits, and no advice to fly: it knows nothing \
-             of a slope or a take-off. A take-off's own page judges at the take-off's height."
-        ),
+        // An estimate by fixed limits that knows nothing of a slope: said
+        // in docs/design.md, not on the screen (owner decision 19).
+        note: "Each square judged at the model's ground by the wind, the rain and the heat; a \
+               take-off's own page judges at its height."
+            .to_owned(),
         model: name,
         run_unix_s: response.run.timestamp(),
         computed_unix_s: response.computed_at.timestamp(),
@@ -309,6 +317,7 @@ pub fn thermal_map_strip(
         .map(|day| ThermalStripDay {
             date: day.date.format("%Y-%m-%d").to_string(),
             name: day_name(day.date, today),
+            today: day.date == today,
             model: model_name(day.model.as_ref().unwrap_or(&response.model).as_str()),
             whole: day.whole,
             square: square(
@@ -382,17 +391,10 @@ pub(crate) fn today(utc_offset_s: i32, now_unix_s: i64) -> NaiveDate {
 pub(crate) fn day_note(whole: bool, coarser: Option<String>, finest: &str) -> String {
     let mut note = Vec::new();
     if let Some(coarser) = coarser {
-        note.push(format!(
-            "This day is read from {coarser}: {finest} does not reach it. {coarser}'s cells \
-             are wider than {finest}'s, so the day is a coarser reading than {finest}'s days."
-        ));
+        note.push(format!("Read from {coarser}, coarser than {finest}."));
     }
     if !whole {
-        note.push(
-            "Judged by the hours the model's runs at hand have of this day, which are not all \
-             of its daylight: it can look worse here than it is."
-                .to_owned(),
-        );
+        note.push("Not every hour is forecast yet: it can look worse than it is.".to_owned());
     }
     note.join(" ")
 }
@@ -639,6 +641,7 @@ mod tests {
         let strip = thermal_map_strip(200, body(), 7200, 0, 47.0, 11.0).unwrap();
         let names: Vec<&str> = strip.iter().map(|day| day.name.as_str()).collect();
         assert_eq!(names, ["Sat", "Sun", "Mon", "Tue"]);
+        assert!(strip.iter().all(|day| !day.today));
     }
 
     #[test]
@@ -646,6 +649,8 @@ mod tests {
         let map = map();
         let names: Vec<&str> = map.days.iter().map(|day| day.name.as_str()).collect();
         assert_eq!(names, ["Today", "Tomorrow", "Tue"]);
+        let today: Vec<bool> = map.days.iter().map(|day| day.today).collect();
+        assert_eq!(today, [true, false, false]);
         assert_eq!(map.days[0].date, "2026-07-12");
 
         // An hour before midnight in Greenwich it is the next day already
@@ -653,6 +658,7 @@ mod tests {
         let late = thermal_map(200, body(), 7200, NOON + 11 * 3600).unwrap();
         assert_eq!(late.days[0].date, "2026-07-13");
         assert_eq!(late.days[0].name, "Today");
+        assert!(late.days[0].today);
     }
 
     #[test]
@@ -737,7 +743,10 @@ mod tests {
     fn a_day_that_is_not_whole_says_so() {
         let map = map();
         assert!(!map.days[0].whole);
-        assert!(map.days[0].note.contains("not all of its daylight"));
+        assert_eq!(
+            map.days[0].note,
+            "Not every hour is forecast yet: it can look worse than it is."
+        );
         assert!(map.days[1].whole);
         assert_eq!(map.days[1].note, "");
     }
@@ -760,16 +769,12 @@ mod tests {
             ]
         );
         assert_eq!(map.days[1].note, "");
-        assert_eq!(
-            map.days[2].note,
-            "This day is read from ICON-EU: ICON-D2 does not reach it. ICON-EU's cells are \
-             wider than ICON-D2's, so the day is a coarser reading than ICON-D2's days."
-        );
+        assert_eq!(map.days[2].note, "Read from ICON-EU, coarser than ICON-D2.");
         // Both things said of a day that is the coarser model's and not
         // whole.
         let note = day_note(false, Some("ICON-EU".to_owned()), "ICON-D2");
-        assert!(note.starts_with("This day is read from ICON-EU"));
-        assert!(note.ends_with("it can look worse here than it is."));
+        assert!(note.starts_with("Read from ICON-EU"));
+        assert!(note.ends_with("it can look worse than it is."));
     }
 
     #[test]
@@ -805,10 +810,8 @@ mod tests {
         // Both things are said of it, the model first.
         assert_eq!(
             last.note,
-            "This day is read from ICON-EU: ICON-D2 does not reach it. ICON-EU's cells are \
-             wider than ICON-D2's, so the day is a coarser reading than ICON-D2's days. Judged \
-             by the hours the model's runs at hand have of this day, which are not all of its \
-             daylight: it can look worse here than it is."
+            "Read from ICON-EU, coarser than ICON-D2. Not every hour is forecast yet: it can \
+             look worse than it is."
         );
         // It is drawn like any other day: the squares that have a verdict.
         assert_eq!(last.cells.len(), 2);
@@ -817,7 +820,7 @@ mod tests {
         // The day before is the coarser model's as well, and whole: it
         // says the first thing alone.
         assert!(map.days[2].whole);
-        assert!(map.days[2].note.ends_with("than ICON-D2's days."));
+        assert!(map.days[2].note.ends_with("coarser than ICON-D2."));
     }
 
     #[test]
@@ -825,8 +828,11 @@ mod tests {
         let map = map();
         assert_eq!(map.model, "ICON-D2");
         assert_eq!(map.run_unix_s, 1_783_825_200);
-        assert!(map.note.starts_with("Read from ICON-D2."));
-        assert!(map.note.contains("no advice to fly"));
+        assert_eq!(
+            map.note,
+            "Each square judged at the model's ground by the wind, the rain and the heat; a \
+             take-off's own page judges at its height."
+        );
         assert_eq!(map.credits.len(), 1);
         let key: Vec<(&str, Option<u8>)> = map
             .legend

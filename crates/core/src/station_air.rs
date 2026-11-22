@@ -168,10 +168,8 @@ fn cloud_base(station: &WindStation) -> Option<StationCloudBase> {
         above_station_m: nearest(above_m),
         dew_point_c: (dew_point_c * 10.0).round() / 10.0,
         words: "Estimated cloud base".to_owned(),
-        note: "Worked out from this station's temperature and humidity: the height at which \
-               air lifted from the station would condense, 125 m for every degree between \
-               temperature and dew point. An estimate for air that rises from the station's \
-               height, not a measurement, and no statement that there is cloud."
+        note: "Where air lifted from this station would condense, from its temperature and \
+               humidity: an estimate, not a measurement."
             .to_owned(),
     })
 }
@@ -239,9 +237,8 @@ fn temperature_step(station: &WindStation, stations: &[WindStation]) -> Option<T
         kind,
         words: step_in_words(kind).to_owned(),
         rule: step_rule(kind),
-        note: "Two stations on the ground, not a sounding: each measures the air 2 m above \
-               its own ground, which the sun warms and the night cools more than the free \
-               air between them. It says nothing about whether one can fly."
+        note: "Two stations 2 m above their ground, not a sounding: the sun warms and the night \
+               cools the ground more than the free air between them."
             .to_owned(),
     })
 }
@@ -352,7 +349,6 @@ mod tests {
         assert_eq!(base.words, "Estimated cloud base");
         // What it is not is said with it.
         assert!(base.note.contains("not a measurement"), "{}", base.note);
-        assert!(base.note.contains("no statement that there is cloud"));
 
         // Saturated air condenses where it is: the station's own height.
         let in_cloud = station("Summit", 0.0, Some(2247.0), Some(1.5), Some(100.0));
@@ -422,7 +418,6 @@ mod tests {
             step.rule
         );
         assert!(step.note.contains("not a sounding"), "{}", step.note);
-        assert!(step.note.contains("nothing about whether one can fly"));
 
         // Asked from the summit, the same step is read down to the valley:
         // the figure is always from the lower station up.

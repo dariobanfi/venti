@@ -130,7 +130,7 @@ final class TaskTests: XCTestCase {
         XCTAssertFalse(RouteMapPlanner.asksBeforeReplacing([wallberg], from: wallberg))
         XCTAssertTrue(RouteMapPlanner.asksBeforeReplacing([wallberg], from: nil))
         XCTAssertTrue(RouteMapPlanner.asksBeforeReplacing([wallberg, east], from: wallberg))
-        XCTAssertEqual(plannerWords().replaceQuestion, "Replace the route you have drawn with the file's?")
+        XCTAssertEqual(plannerWords().replaceQuestion, "Replace the route you have drawn with the file’s?")
 
         // One place is no route. Kept, the places are named in order and
         // the cockpit can fly it like a route of waypoints.

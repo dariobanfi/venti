@@ -16,6 +16,7 @@
 	import AlertMe from '#lib/alerts/AlertMe.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { windDraft } from '#lib/alerts/model.svelte.ts';
+	import FoldRow from '#lib/design/FoldRow.svelte';
 	import Metric from '#lib/design/Metric.svelte';
 	import type { WindModel } from './model.svelte';
 	import WindChart from './WindChart.svelte';
@@ -188,35 +189,6 @@
 		<p class="footnote">{ageText}</p>
 	</section>
 
-	{#if air?.cloudBase || air?.temperatureStep}
-		{@const base = air.cloudBase}
-		{@const step = air.temperatureStep}
-		<section aria-label={moreAir}>
-			<h3>{moreAir}</h3>
-			<div class="card air">
-				{#if base}
-					<dl class="base">
-						<Metric caption={base.words} value={text.metres(base.baseM)} unit="m" />
-					</dl>
-					<p class="small">{base.note}</p>
-				{/if}
-				{#if step}
-					<div class="step">
-						<p>
-							{step.otherName}, {text.kilometres(step.distanceM)} km away and
-							<span class="numeric">{text.metres(Math.abs(step.higherByM))} m</span>
-							{step.higherByM >= 0 ? 'higher' : 'lower'}:
-							<span class="numeric">{text.perHundredMetres(step.per100mC)} °C</span> per 100 m
-						</p>
-						<p class="words">{step.words}</p>
-						<p class="small">{step.rule}</p>
-						<p class="small">{step.note}</p>
-					</div>
-				{/if}
-			</div>
-		</section>
-	{/if}
-
 	<section>
 		<div class="history-head">
 			<h3 id="history-heading">
@@ -294,6 +266,36 @@
 				</a>
 			</div>
 		</section>
+	{/if}
+
+	<!-- What the core reads of the air from the readings: behind a row at
+	     the end, closed from the start, as on the phones. -->
+	{#if air?.cloudBase || air?.temperatureStep}
+		{@const base = air.cloudBase}
+		{@const step = air.temperatureStep}
+		<FoldRow title={moreAir}>
+			<div class="air">
+				{#if base}
+					<dl class="base">
+						<Metric caption={base.words} value={text.metres(base.baseM)} unit="m" />
+					</dl>
+					<p class="small">{base.note}</p>
+				{/if}
+				{#if step}
+					<div class="step">
+						<p>
+							{step.otherName}, {text.kilometres(step.distanceM)} km away and
+							<span class="numeric">{text.metres(Math.abs(step.higherByM))} m</span>
+							{step.higherByM >= 0 ? 'higher' : 'lower'}:
+							<span class="numeric">{text.perHundredMetres(step.per100mC)} °C</span> per 100 m
+						</p>
+						<p class="words">{step.words}</p>
+						<p class="small">{step.rule}</p>
+						<p class="small">{step.note}</p>
+					</div>
+				{/if}
+			</div>
+		</FoldRow>
 	{/if}
 </div>
 

@@ -105,6 +105,27 @@ describe('wind from the server', () => {
 		expect(asked.filter((path) => path === '/v1/health')).toHaveLength(2);
 	});
 
+	it('gives the server’s time moved on since it was read, and 0 where it has none', async () => {
+		// This device's clock is three hours fast; the server's is what counts.
+		const { clock, read } = device(SERVER_NOW + 3 * 3_600_000);
+		const wind = new WindSource(server().get, read);
+		expect(await wind.serverNow()).toBe(SERVER_NOW / 1000);
+		clock.now += 20_000;
+		expect(await wind.serverNow()).toBe(SERVER_NOW / 1000 + 20);
+
+		// A server that does not answer, and a site without one: no time at all.
+		const failing = new WindSource(
+			server({ '/v1/health': { status: 503, body: new Uint8Array() } }).get,
+			read
+		);
+		expect(await failing.serverNow()).toBe(0);
+		const none = new WindSource(
+			server({ '/v1/health': { status: 404, body: new Uint8Array() } }).get,
+			read
+		);
+		expect(await none.serverNow()).toBe(0);
+	});
+
 	it('names the providers the server has not heard from', async () => {
 		const late = JSON.parse(new TextDecoder().decode(recorded('health.json')));
 		late.sources.find((source: { source: string }) => source.source === 'dwd-10min').stale = true;

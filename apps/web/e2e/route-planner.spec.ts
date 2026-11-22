@@ -129,6 +129,7 @@ test('a site’s page plans a route from the site, on the map around it', async 
 test('a route is read from a GPX file and written to one, from the card’s menu', async ({
 	page,
 	mapDrawn,
+	keep,
 	problems
 }) => {
 	await page.goto('/map/');
@@ -175,5 +176,32 @@ test('a route is read from a GPX file and written to one, from the card’s menu
 	await expect
 		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
 		.toMatchObject({ places: 3 });
+
+	// A file's route does not take the place of one drawn without the core's question.
+	const twoPlaces = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="A test" xmlns="http://www.topografix.com/GPX/1/1">
+<rte><rtept lat="47.6652" lon="11.7954"/><rtept lat="47.7100" lon="11.8500"/></rte></gpx>`;
+	const another = {
+		name: 'two.gpx',
+		mimeType: 'application/gpx+xml',
+		buffer: Buffer.from(twoPlaces)
+	};
+	const question = page.getByRole('alertdialog', {
+		name: 'Replace the route you have drawn with the file’s?'
+	});
+	await card.getByLabel('Import GPX').setInputFiles(another);
+	await expect(question).toBeVisible();
+	await keep('218-route-gpx-replace-question');
+	await question.getByRole('button', { name: 'Cancel' }).click();
+	await expect(question).toBeHidden();
+	await expect
+		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
+		.toMatchObject({ places: 3 });
+	await card.getByLabel('Import GPX').setInputFiles(another);
+	await question.getByRole('button', { name: 'Replace' }).click();
+	await expect(card.locator('[data-route-file]')).toHaveText('A route of 2 places.');
+	await expect
+		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
+		.toMatchObject({ places: 2 });
 	expect(problems).toEqual([]);
 });

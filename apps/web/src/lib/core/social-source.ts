@@ -73,12 +73,16 @@ export interface PushSubscribed {
 export class SocialSource {
 	#session: CoreSession;
 	#send: Send;
-	/** The current time by the server's clock, in seconds: ages are counted from it. */
+	/**
+	 * The current time by the server's clock, in seconds: ages are counted
+	 * from it. 0 where the app has not read the server's clock, never the
+	 * browser's own: the core then gives a comment's day instead of an age.
+	 */
 	#now: () => Promise<number>;
 
 	constructor(
 		session: CoreSession,
-		now: () => Promise<number> = async () => Math.round(Date.now() / 1000),
+		now: () => Promise<number> = async () => 0,
 		send: Send = sendToThisOrigin
 	) {
 		this.#session = session;

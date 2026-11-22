@@ -24,15 +24,9 @@
 		day: OutlookDay;
 		/** The take-off's height, metres above sea level, where its source gives one. */
 		takeoffM: number | undefined;
-		/** What the wind near by is and is not, the core's sentence (`SiteOutlook.nearbyNote`). */
-		nearbyNote?: string;
-		/** What the layers are and are not, the core's sentence (`SiteOutlook.layersNote`). */
-		layersNote?: string;
-		/** The heading over the notes on how the forecast is read, on a site's page: the core's. */
-		notesTitle?: string;
 	}
 
-	let { day, takeoffM, nearbyNote = '', layersNote = '', notesTitle = '' }: Props = $props();
+	let { day, takeoffM }: Props = $props();
 
 	/** Names the hatch of a stable layer for this picture alone. */
 	const uid = $props.id();
@@ -287,16 +281,7 @@
 			</div>
 		{/if}
 		<figcaption>
-			{#if notesTitle}
-				<p class="notes-title">{notesTitle}</p>
-			{/if}
 			<p>{caption}</p>
-			{#if layered && layersNote}
-				<p>{layersNote}</p>
-			{/if}
-			{#if detailed && nearbyNote}
-				<p>{nearbyNote}</p>
-			{/if}
 		</figcaption>
 	</figure>
 {/if}
@@ -471,10 +456,6 @@
 
 	.t6 {
 		fill: var(--thermal-6);
-	}
-
-	.notes-title {
-		font-weight: 600;
 	}
 
 	figcaption {

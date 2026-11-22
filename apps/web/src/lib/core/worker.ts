@@ -60,7 +60,7 @@ const starting: Promise<Answering> = (async () => {
 		account: new AccountSource(session),
 		tokens: new TokensSource(session),
 		alerts: new AlertsSource(session),
-		social: new SocialSource(session, () => wind.now()),
+		social: new SocialSource(session, () => wind.serverNow()),
 		airspace: new AirspaceSource(session, () => wind.present()),
 		sites,
 		siteEdits: new SiteEditSource(session, () => sites.wrote()),

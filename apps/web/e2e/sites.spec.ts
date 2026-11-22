@@ -112,7 +112,19 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 		'href',
 		'https://www.openstreetmap.org/way/1080986173'
 	);
-	await expect(site).toContainText('A site on the map is not permission to fly there.');
+	// How the page is read, what a site is worth and whose it is: behind a
+	// row at the end, closed from the start, as on the phones.
+	const howRead = site.getByRole('group', { name: 'How this is read' });
+	await expect(howRead.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeHidden();
+	await howRead.scrollIntoViewIfNeeded();
+	await keep('219-site-how-read-folded');
+	// By the keyboard: on a wide screen the map's open credits lie over the
+	// foot of the side panel.
+	await howRead.locator('summary').focus();
+	await page.keyboard.press('Enter');
+	await expect(howRead).toContainText('A site on the map is not permission to fly there.');
+	await howRead.scrollIntoViewIfNeeded();
+	await keep('220-site-how-read-open');
 	// The source's own notice, with its addresses to follow, and its credit.
 	await expect(site).toContainText("This data is OpenStreetMap's and is available under");
 	await expect(

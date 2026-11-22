@@ -123,6 +123,16 @@ describe('pilots among each other', () => {
 		expect(told?.lines.some((line) => line.flightId === FLIGHT)).toBe(true);
 	});
 
+	it('gives a comment’s day, not an age, while the server’s clock is not known', async () => {
+		const { server } = await open(true);
+		const social = new SocialSource(session, async () => 0, server.send);
+		const comments = await social.comments(FLIGHT, 'demo');
+		expect(comments.comments[0].byline).toMatch(/^Mara Muster · /);
+		expect(comments.comments[0].byline).not.toMatch(/ago/);
+		const told = await social.notifications();
+		expect(told?.lines.some((line) => /ago/.test(JSON.stringify(line)))).toBe(false);
+	});
+
 	it('looks at a comment as it is written, and posts it with the token', async () => {
 		const { server, social } = await open(true);
 		expect(social.draft('   ').canSend).toBe(false);

@@ -10,6 +10,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
@@ -58,16 +59,29 @@
 		saveFile('venti-route.gpx', text);
 	}
 
+	/** A file's route read while one is drawn: it waits for the pilot's answer to the core's question. */
+	let waiting = $state.raw<{ words: string; places: { lat: number; lon: number }[] }>();
+
 	async function importGpx(file: File | undefined) {
 		const core = app.social?.core;
 		if (!core || !file) return;
 		try {
 			const route = await core.routeFromGpx(await file.text());
-			planner.replace(route.points.map(({ lat, lon }) => ({ lat, lon })));
-			fromFile = { words: route.words, refused: false, places: planner.places };
+			const read = {
+				words: route.words,
+				places: route.points.map(({ lat, lon }) => ({ lat, lon }))
+			};
+			// A route already drawn is not replaced without asking.
+			if (planner.places.length > 0) waiting = read;
+			else takeFromFile(read);
 		} catch (error) {
 			fromFile = { words: error instanceof Error ? error.message : String(error), refused: true };
 		}
+	}
+
+	function takeFromFile(read: { words: string; places: { lat: number; lon: number }[] }) {
+		planner.replace(read.places);
+		fromFile = { words: read.words, refused: false, places: planner.places };
 	}
 
 	const menu = $derived<MenuItem[]>(
@@ -192,6 +206,22 @@
 		</button>
 	</div>
 </section>
+
+{#if said}
+	<!-- Before a file's route takes the place of the one drawn: the core's question. -->
+	<ConfirmDialog
+		open={waiting !== undefined}
+		title={said.planner.replaceQuestion}
+		message={waiting?.words ?? ''}
+		confirm={said.planner.replace}
+		cancel={said.common.cancel}
+		onconfirm={() => {
+			if (waiting) takeFromFile(waiting);
+			waiting = undefined;
+		}}
+		oncancel={() => (waiting = undefined)}
+	/>
+{/if}
 
 <style>
 	.route {

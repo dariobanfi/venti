@@ -77,6 +77,25 @@ test('tonight’s screens fit a narrow phone with large text', async ({
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await fits('a-map-chips');
+	// No name in the navigation is cut short: a long one takes a second line
+	// under its icon, inside its link.
+	const cut = await page
+		.getByRole('navigation', { name: 'Sections' })
+		.locator('li:visible .name')
+		.evaluateAll((names) =>
+			names
+				.filter((name) => {
+					const own = name.getBoundingClientRect();
+					const link = name.closest('a')!.getBoundingClientRect();
+					return (
+						name.scrollWidth > name.clientWidth + 1 ||
+						own.top < link.top - 0.5 ||
+						own.bottom > link.bottom + 0.5
+					);
+				})
+				.map((name) => name.textContent)
+		);
+	expect.soft(cut, 'names cut in the navigation').toEqual([]);
 	const sheet = await openLayers(page);
 	await fits('b-layers');
 	await sheet.getByRole('group', { name: 'Lists and plans' }).scrollIntoViewIfNeeded();

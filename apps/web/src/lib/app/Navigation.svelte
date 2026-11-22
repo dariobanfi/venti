@@ -41,6 +41,12 @@
 		exact?: boolean;
 		/** Which widths show it: the phone's bar has room for six. */
 		on: 'both' | 'wide' | 'narrow';
+		/**
+		 * The name with a soft hyphen where it may break, for the phone's bar:
+		 * at 360 px with text at 130 % "Logbook" and "Settings" are wider than
+		 * their sixth of the bar, and take two lines under the icon.
+		 */
+		breaks?: string;
 	}
 
 	const sections: Section[] = [
@@ -63,10 +69,24 @@
 			root: '/logbook/ranking',
 			on: 'wide'
 		},
-		{ name: 'Logbook', icon: 'track', href: logbookHref, root: '/logbook', on: 'both' },
+		{
+			name: 'Logbook',
+			breaks: 'Log\u00adbook',
+			icon: 'track',
+			href: logbookHref,
+			root: '/logbook',
+			on: 'both'
+		},
 		// Who means to fly where: the plans of the pilot's groups.
 		{ name: 'Plans', icon: 'calendar', href: plansHref, root: '/plans', on: 'both' },
-		{ name: 'Settings', icon: 'settings', href: settingsHref, root: '/settings', on: 'narrow' }
+		{
+			name: 'Settings',
+			breaks: 'Set\u00adtings',
+			icon: 'settings',
+			href: settingsHref,
+			root: '/settings',
+			on: 'narrow'
+		}
 	];
 
 	/** The section the current page belongs to: the one with the longest root its route is under. */
@@ -101,9 +121,13 @@
 	<ul>
 		{#each sections as section (section.name)}
 			<li class={section.on}>
-				<a href={section.href()} aria-current={current === section.name ? 'page' : undefined}>
+				<a
+					href={section.href()}
+					aria-label={section.breaks ? section.name : undefined}
+					aria-current={current === section.name ? 'page' : undefined}
+				>
 					<span class="icon"><Icon name={section.icon} /></span>
-					<span>{section.name}</span>
+					<span class="name">{section.breaks ?? section.name}</span>
 				</a>
 			</li>
 		{/each}
@@ -173,11 +197,15 @@
 		color: var(--icon-quiet);
 	}
 
-	a span:last-child {
+	/* No name is cut short. The caption is the pack's smallest size, so a
+	   name wider than its sixth of the bar (at 360 px with text at 130 %)
+	   takes a second line under the icon, broken where its soft hyphen is,
+	   and the bar grows with it. */
+	.name {
 		max-width: 100%;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		line-height: calc(16 / 12);
+		text-align: center;
+		overflow-wrap: anywhere;
 	}
 
 	/* Where the pilot is: the name in the text colour, the icon in coral,
@@ -287,6 +315,18 @@
 
 		.account {
 			border: 1px solid var(--separator);
+		}
+
+		.name {
+			white-space: nowrap;
+		}
+
+		/* A long handle is cut short on the wide bar, not wrapped. */
+		.end a span:last-child {
+			max-width: 100%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 	}
 </style>

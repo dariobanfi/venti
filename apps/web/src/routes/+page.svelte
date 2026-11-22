@@ -13,6 +13,7 @@
 	What another pilot wrote, a name or a place, is set as text.
 -->
 <script lang="ts">
+	import { MediaQuery } from 'svelte/reactivity';
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -28,6 +29,7 @@
 		todayHref
 	} from '#lib/app/routes.ts';
 	import { queryOf } from '#lib/community/pages.ts';
+	import PublicFlightRow from '#lib/community/PublicFlightRow.svelte';
 	import { distance, shape } from '#lib/community/words.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -86,6 +88,12 @@
 	$effect(() => social?.showFeed(own));
 	const feed = $derived(social?.feed);
 	const followed = $derived((feed?.rows ?? []).slice(0, 5));
+
+	/**
+	 * A wide screen has the flights as tables; a phone has them as rows in
+	 * the feed's manner, the row everyone's flights use there.
+	 */
+	const wide = new MediaQuery('min-width: 56rem', false);
 
 	const todaysBest = everyoneHref(queryOf({ order: 'best', from: todayDate, to: todayDate }));
 </script>
@@ -257,13 +265,24 @@
 				id="home-following"
 				title={social.words.feedFollowing}
 				class="span-12"
-				more={{ href: everyoneHref('?feed=following'), words: social.words.feedFollowing }}
+				more={{ href: everyoneHref('?feed=following'), words: 'All' }}
 				loading={!feed.known && !feed.problem}
 				problem={feed.problem}
 				again={() => social?.againFeed()}
 			>
 				{#if followed.length === 0}
 					<p class="quiet">{feed.emptyLine}</p>
+				{:else if !wide.current}
+					<!-- A phone: the feed's rows, the core's cheers and comments under each. -->
+					<ul class="feed" aria-label={social.words.feedFollowing}>
+						{#each followed as row (row.flight.id)}
+							<PublicFlightRow
+								flight={row.flight}
+								named
+								under={[row.cheersLine, row.commentsLine].filter(Boolean).join(' · ')}
+							/>
+						{/each}
+					</ul>
 				{:else}
 					<div class="scroll">
 						<table class="rows numeric" aria-label={social.words.feedFollowing}>
@@ -341,6 +360,12 @@
 				{/if}
 				{#if flights.flights.length === 0}
 					<p class="quiet">Nobody has shared a flight on Venti yet.</p>
+				{:else if !wide.current}
+					<ul class="feed" aria-label="Flights">
+						{#each flights.flights as flight (flight.id)}
+							<PublicFlightRow {flight} named />
+						{/each}
+					</ul>
 				{:else}
 					<div class="scroll">
 						<table class="rows numeric" aria-label="Flights">
@@ -516,6 +541,11 @@
 	.credit {
 		color: var(--text-secondary);
 		font-size: var(--caption);
+	}
+
+	/* A phone's rows reach the panel's edges, their words under its title. */
+	.feed {
+		margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-2));
 	}
 
 	/* Dense rows: a table of 32 px rows with hairlines between them. */

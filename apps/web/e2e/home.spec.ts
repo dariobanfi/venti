@@ -13,7 +13,12 @@ import { expect, metric, test } from './helpers';
 
 const panel = (page: Page, name: string | RegExp) => page.getByRole('region', { name });
 
-test('the home page shows what is going on, panel by panel', async ({ page, keep, problems }) => {
+test('the home page shows what is going on, panel by panel', async ({
+	page,
+	keep,
+	wide,
+	problems
+}) => {
 	await page.goto('/');
 	await expect(page).toHaveTitle('Venti');
 	await expect(page.getByRole('heading', { level: 1, name: 'What is going on' })).toBeVisible();
@@ -40,14 +45,25 @@ test('the home page shows what is going on, panel by panel', async ({ page, keep
 		/\/map\?show=pilots$/
 	);
 
-	// The newest flights, as a table, each leading to the flight.
+	// The newest flights, each leading to the flight: a table on a wide
+	// screen, the rows everyone's flights have on a phone.
 	const flights = panel(page, 'Flown lately');
-	const rows = flights.getByRole('table', { name: 'Flights' }).getByRole('row');
-	await expect(rows).toHaveCount(11);
-	await expect(rows.nth(1).getByRole('link', { name: /km$/ })).toHaveAttribute(
-		'href',
-		/\/logbook\/everyone\/flight\/?\?id=/
-	);
+	if (wide) {
+		const rows = flights.getByRole('table', { name: 'Flights' }).getByRole('row');
+		await expect(rows).toHaveCount(11);
+		await expect(rows.nth(1).getByRole('link', { name: /km$/ })).toHaveAttribute(
+			'href',
+			/\/logbook\/everyone\/flight\/?\?id=/
+		);
+	} else {
+		await expect(flights.getByRole('table')).toHaveCount(0);
+		const rows = flights.getByRole('list', { name: 'Flights' }).getByRole('listitem');
+		await expect(rows).toHaveCount(10);
+		await expect(rows.first().locator('a.flight')).toHaveAttribute(
+			'href',
+			/\/logbook\/everyone\/flight\/?\?id=/
+		);
+	}
 
 	// The top of the season.
 	const ranking = panel(page, /^Ranking/);
@@ -71,7 +87,7 @@ test('the home page shows what is going on, panel by panel', async ({ page, keep
 	expect(problems).toEqual([]);
 });
 
-test('signed in, the home page has the pilot’s alarms', async ({ page, keep }) => {
+test('signed in, the home page has the pilot’s alarms', async ({ page, keep, wide }) => {
 	await page.goto('/settings/account/');
 	await page.getByRole('textbox', { name: 'Handle', exact: true }).fill('demo');
 	await page.getByRole('textbox', { name: 'Password', exact: true }).fill('demo-pilot-password');
@@ -85,6 +101,23 @@ test('signed in, the home page has the pilot’s alarms', async ({ page, keep })
 	await expect(panel(page, 'Your alarms')).toBeVisible();
 	await expect(panel(page, 'Ranking 2026')).toBeVisible();
 	await keep('201-home-signed-in');
+
+	// What the pilots followed flew, with the core's lines of cheers and
+	// comments; the link says where it leads, not the heading again.
+	const following = panel(page, 'Following');
+	await expect(following.getByRole('link', { name: 'All', exact: true })).toHaveAttribute(
+		'href',
+		/feed=following/
+	);
+	await expect(following).toContainText(/cheered/);
+	if (!wide) {
+		await expect(following.getByRole('table')).toHaveCount(0);
+		await expect(
+			following.getByRole('list', { name: 'Following' }).getByRole('listitem').first()
+		).toBeVisible();
+	}
+	await following.scrollIntoViewIfNeeded();
+	await keep('222-home-following');
 });
 
 test('an address of the map from before goes to the map', async ({ page }) => {

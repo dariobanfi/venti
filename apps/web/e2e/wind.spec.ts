@@ -157,7 +157,13 @@ test('a station’s page says what its readings tell of the air, and shows a pas
 	// In the valley, with the Patscherkofel 1673 m above it 8 km away. The
 	// server's clock stands after dark, when nothing rises from a station:
 	// no cloud base, none of the six stations gives one then.
-	const air = station.getByRole('region', { name: 'More about the air here' });
+	// Behind a row at the end, closed from the start, as on the phones.
+	const air = station.getByRole('group', { name: 'More about the air here' });
+	await expect(air.getByText('Cooler above, as in air at rest')).toBeHidden();
+	await air.scrollIntoViewIfNeeded();
+	await keep('221-wind-station-air-folded');
+	await air.locator('summary').click();
+	await expect(air.getByText('Cooler above, as in air at rest')).toBeVisible();
 	await expect(air).toContainText('Patscherkofel, 8.2 km away and 1673 m higher');
 	await expect(air).toContainText('−0.60 °C per 100 m');
 	await expect(air).toContainText('Cooler above, as in air at rest');

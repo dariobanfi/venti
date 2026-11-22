@@ -50,6 +50,7 @@ test('a site’s page lists what was flown from it, the best first, and ranks it
 		'href',
 		'https://www.openstreetmap.org/node/5964676196'
 	);
+	await site.getByRole('group', { name: 'How this is read' }).locator('summary').click();
 	await expect(site.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeVisible();
 	await expect(site).toContainText('The flights are found by where they took off, not by the site');
 	await keep('86-place');

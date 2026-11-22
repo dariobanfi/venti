@@ -48,6 +48,7 @@
 		SiteWritten
 	} from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
+	import FoldRow from '#lib/design/FoldRow.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
@@ -214,6 +215,8 @@
 
 	/** The first day that still has flying hours: the one the forecast's line is about. */
 	const day = $derived(outlook?.days.find((one) => one.hours.length > 0) ?? outlook?.days[0]);
+	/** Whether the page draws the air through the day. */
+	const showsAir = $derived(Boolean(day && day.hours.length > 0 && day.groundM !== undefined));
 
 	const text = format();
 	const marked = $derived(marks(site));
@@ -314,16 +317,10 @@
 			{/if}
 		{/if}
 	</div>
-	{#if day && day.hours.length > 0 && day.groundM !== undefined}
+	{#if showsAir && day}
 		<section class="card chart" aria-label="The air through the day">
 			<h3>The air through the day</h3>
-			<AirChart
-				{day}
-				takeoffM={site.elevationM}
-				nearbyNote={outlook?.nearbyNote}
-				layersNote={outlook?.layersNote}
-				notesTitle={app.said?.siteSheet.howReadTitle}
-			/>
+			<AirChart {day} takeoffM={site.elevationM} />
 		</section>
 	{/if}
 
@@ -494,38 +491,54 @@
 		</section>
 	{/if}
 
-	<section>
-		{#if site.url}
-			<div class="card">
-				<a class="row link" href={site.url} target="_blank" rel="noopener noreferrer">
-					See or correct it at the source
-				</a>
-			</div>
-		{/if}
-		{#if !site.byPilots && offers?.note}
-			<p class="footnote">{offers.note}</p>
-		{/if}
-		<p class="footnote">{CAUTION}</p>
-		{#if credit?.notice}
-			<p class="footnote">
-				{#each withLinks(credit.notice) as piece, index (index)}
-					{#if piece.href}
-						<a href={piece.href} target="_blank" rel="noopener noreferrer">{piece.text}</a>
-					{:else}
-						{piece.text}
-					{/if}
-				{/each}
-			</p>
-		{/if}
-		{#if credit}
-			<p class="footnote">
-				<a href={credit.url} target="_blank" rel="noopener noreferrer">{credit.text}</a>
-			</p>
-		{/if}
-		{#if asOfUnixS !== undefined}
-			<p class="footnote">{asOf(asOfUnixS, text)}</p>
-		{/if}
-	</section>
+	{#if site.url || (!site.byPilots && offers?.note)}
+		<section>
+			{#if site.url}
+				<div class="card">
+					<a class="row link" href={site.url} target="_blank" rel="noopener noreferrer">
+						See or correct it at the source
+					</a>
+				</div>
+			{/if}
+			{#if !site.byPilots && offers?.note}
+				<p class="footnote">{offers.note}</p>
+			{/if}
+		</section>
+	{/if}
+
+	<!-- How the page is read, what a site on a map is worth, whose data it
+	     is and of when: behind a row at the end, closed from the start, as
+	     on the phones. -->
+	<FoldRow title={app.said?.siteSheet.howReadTitle ?? ''}>
+		<div class="how-read">
+			{#if showsAir && outlook?.layersNote}
+				<p>{outlook.layersNote}</p>
+			{/if}
+			{#if (showsAir || day?.nearby) && outlook?.nearbyNote}
+				<p>{outlook.nearbyNote}</p>
+			{/if}
+			<p>{CAUTION}</p>
+			{#if credit?.notice}
+				<p>
+					{#each withLinks(credit.notice) as piece, index (index)}
+						{#if piece.href}
+							<a href={piece.href} target="_blank" rel="noopener noreferrer">{piece.text}</a>
+						{:else}
+							{piece.text}
+						{/if}
+					{/each}
+				</p>
+			{/if}
+			{#if credit}
+				<p>
+					<a href={credit.url} target="_blank" rel="noopener noreferrer">{credit.text}</a>
+				</p>
+			{/if}
+			{#if asOfUnixS !== undefined}
+				<p>{asOf(asOfUnixS, text)}</p>
+			{/if}
+		</div>
+	</FoldRow>
 </div>
 
 {#if site.byPilots && edits && words}
@@ -727,10 +740,6 @@
 		.link:hover {
 			background: var(--fill);
 		}
-
-		.footnote a:hover {
-			text-decoration: underline;
-		}
 	}
 
 	.link:focus-visible {
@@ -745,7 +754,22 @@
 		overflow-wrap: anywhere;
 	}
 
-	.footnote a {
+	.how-read {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		font-size: var(--footnote);
+		color: var(--text-secondary);
+		overflow-wrap: anywhere;
+	}
+
+	.how-read a {
 		color: var(--link);
+	}
+
+	@media (hover: hover) {
+		.how-read a:hover {
+			text-decoration: underline;
+		}
 	}
 </style>

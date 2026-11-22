@@ -195,6 +195,18 @@ export class WindSource {
 		return this.#serverNow();
 	}
 
+	/**
+	 * The current time by the server's clock alone, in seconds, moved on by
+	 * the time passed since it was read: 0 while the app has not read it (no
+	 * server, or one that did not answer), never this device's own. Ages a
+	 * pilot reads of another pilot ("3 h ago") are counted from it; for 0
+	 * the core says the day instead of an age.
+	 */
+	async serverNow(): Promise<number> {
+		await this.present();
+		return this.#clock ? this.#serverNow() : 0;
+	}
+
 	/** The current time by the server's clock, in seconds. */
 	#serverNow(): number {
 		return Math.round((this.#deviceNow() + (this.#clock?.aheadMs ?? 0)) / 1000);

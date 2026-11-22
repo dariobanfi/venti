@@ -50,15 +50,20 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 	// The home page has the newest flights of the pilots followed.
 	await page.goto('/');
 	const home = page.getByRole('region', { name: 'Following' });
+	// Rows of a list at a phone's width, of a table at a desktop's.
 	await expect(
-		home.getByRole('table', { name: 'Following' }).locator('tbody > tr')
-	).not.toHaveCount(0);
+		home
+			.getByRole('table', { name: 'Following' })
+			.locator('tbody > tr')
+			.or(home.getByRole('list', { name: 'Following' }).getByRole('listitem'))
+			.first()
+	).toBeVisible();
 	await expect(home).toContainText(/cheered/);
 	await home.scrollIntoViewIfNeeded();
 	await keep('270-home-following');
 
 	// The whole feed, beside "Everyone".
-	await home.getByRole('link', { name: 'Following' }).click();
+	await home.getByRole('link', { name: 'All', exact: true }).click();
 	await expect(page).toHaveURL(/\/logbook\/everyone\/\?feed=following$/);
 	await expect(page.getByRole('radio', { name: 'Following' })).toBeChecked();
 	await expect(feed(page).first()).toBeVisible();

@@ -1,6 +1,6 @@
 # Cockpit checklist: parity with XCTrack
 
-Last revised: 2026-11-21
+Last revised: 2026-11-22
 
 XCTrack is the benchmark for the Fly mode. This document lists what XCTrack does, what our first cockpit release must match, and where we intend to go further.
 
@@ -59,14 +59,14 @@ Thermalling detection in XCTrack *(official)*: start when heading has changed at
 | Group | XCTrack widgets | Ours |
 |---|---|---|
 | Altitude | GPS altitude, barometric altitude (QNH automatic or manual), above ground, maximum, above takeoff, flight level, QNH, gain in current thermal | v1. Above ground: in the core since 2026-11-20, from the map's elevation tiles, and shown under the altitude in the iPhone's and Android's cockpits since the same day; tested on the tiles that come with the app and not in the air |
-| Vario | Numeric with selectable averaging, colour bar, altitude-over-time graph, netto (external sensor only) | v1; netto Later |
+| Vario | Numeric with selectable averaging, colour bar, altitude-over-time graph, netto (external sensor only) | v1. Netto in the engine since 2026-11-22 for a pilot who sets a polar (`f9e8968`), on no screen yet |
 | Speed and glide | Ground speed with blown-back indication, airspeed (estimated or external), current glide ratio, average XC speed | v1 |
 | Wind | Speed, direction, combined compass and wind, wind and climb by altitude band | v1. Wind and climb by band of 200 m: built on the iPhone and on Android on 2026-11-19, the climb through each band since 2026-11-20, as a list opened from the cockpit's wind (`WindByHeightSheet`); tested by replaying a flight and not flown |
 | Thermal | Thermal assistant: drift-corrected trail coloured by climb, previous thermals, optional airspace and navigation overlays | v1 |
 | Navigation | Next turnpoint name, distance, arrival height, required glide, arrival time; distance and course to takeoff; bearing; coordinates; nearest airfield | v1 |
 | Side view | Terrain and airspace cross-section along bearing or route, with glide lines | Built on the iPhone on 2026-11-20 for airspace, along the course or towards the target, ten kilometres, with one glide line. Since the same day the core draws the ground into it where the app holds elevation tiles, says where the glide meets it, and stands limits above ground on it; without tiles those limits are drawn as far as they may reach. Not along a task's route. On Android since the same day too (`fly/AheadSheet.kt`). Tried against a replayed flight, not flown |
 | XC | Map with live XContest optimisation, FAI sectors, closing circle, leg distances; flown distance; unfinished-triangle estimate; FAI triangle potential | v1 |
-| Competition | Task map, distance, altitude and glide to goal and to end of speed section, time to start, predicted time at start, speed to start, percent of speed section, task summary | Built on the iPhone as one line and a sheet, not as separate widgets: time to start, distance to the start's edge and speed to it, the time to the edge at the present speed, distance and glide to goal, distance to the end of the speed section, the task on the map and its summary. Percent of the speed section is worked out and not shown |
+| Competition | Task map, distance, altitude and glide to goal and to end of speed section, time to start, predicted time at start, speed to start, percent of speed section, task summary | Built on the iPhone as one line and a sheet, not as separate widgets: time to start, distance to the start's edge and speed to it, the time to the edge at the present speed, distance and glide to goal, distance to the end of the speed section, the task on the map and its summary. Percent of the speed section is worked out and not shown. Since 2026-11-21 both phones have a "Task" page with the next turnpoint's, goal's and the start's readings (core `81750e9`; iPhone `41db3a2`, Android `9a8365e`) |
 | Airspace | Proximity widget with nearest airspace, distance and direction | v1. In the core since 2026-11-21, with the height to floor or ceiling as well (`CockpitView::airspace_proximity`, [airspace.md](airspace.md#the-airspace-that-matters-next)), and on the iPhone and Android since the same day |
 | Time | Clock, flight time, sunset, civil twilight | v1 |
 | System | Status line (GPS, sensors, live, battery), brightness, volume, last notification | v1 |
@@ -141,7 +141,7 @@ Ours: v1, all of it. The missing-data alarm matters most with an external vario.
 
 | XCTrack | Ours |
 |---|---|
-| Offline vector road maps in Mapsforge format with flying-optimised themes; one map widget per page *(official)* | v1, with our own alpine map style and no one-widget limit. Built on the iPhone on 2026-11-20 (`Venti/Maps`): a region's map is downloaded from the pilot's server, kept, and drawn in the cockpit wherever the glider is inside it. No real region has been built yet, and Android does not download one |
+| Offline vector road maps in Mapsforge format with flying-optimised themes; one map widget per page *(official)* | v1, with our own alpine map style and no one-widget limit. Built on the iPhone on 2026-11-20 (`Venti/Maps`): a region's map is downloaded from the pilot's server, kept, and drawn in the cockpit wherever the glider is inside it. No real region has been built yet. Android downloads and flies with one too, since 2026-11-20 (`430e920`) |
 | Downloadable terrain used for height above ground, relief shading and the side view | v1, from 1 m elevation data in the first region. Built on 2026-11-20 from the map's own elevation tiles instead: the iPhone and Android fetch them around the glider and keep them, and the iPhone reads them from a downloaded region; the 1 m data is not used yet |
 | Map rotation: north, heading, bearing, navigation target or wind at top | v1 |
 | Pan mode with terrain height under the cross-hair and airspace inspection | v1 |
@@ -157,7 +157,7 @@ Ours: v1, all of it. The missing-data alarm matters most with an external vario.
 | Per-airspace status: disabled or active, for today or permanently *(manual)* | v1 | Built in part: an airspace can be ignored for a time. Nothing is stored between flights |
 | High airspace hidden until close | v1 | Built: a filter by box and by band of altitudes |
 | Per-class colours and per-airspace floor and ceiling adjustment (1.0, paid) | Later | |
-| Obstacle and cable warnings with safety margin and an emergency map zoom | v1 where open cable data exists (Tirol), Later elsewhere | Not built |
+| Obstacle and cable warnings with safety margin and an emergency map zoom | v1 where open cable data exists (Tirol), Later elsewhere | Built since 2026-11-21 over OpenStreetMap's power lines and ropeways (`77c8f81`): a cable near the next 30 s of the course and less than 100 m below the glider's height over the ground is spoken once and quieted with "Seen", on both phones (`41db3a2`, `9a8365e`); since 2026-11-22 judged by the height at arrival and wider on the side of the turn (`f9e8968`). No emergency zoom; no official data, Tirol's included |
 
 The widgets above that depend on it: the airspace proximity widget (nearest airspace, distance and direction, also the nearest way out from inside) is answered since 2026-11-21 by `WarningEngine::proximity`, which names the one airspace that matters next by the warnings' own checks ([airspace.md](airspace.md#the-airspace-that-matters-next)); `AirspaceIndex::nearby` lists all that are near. The airspace part of the side view is answered by `AirspaceIndex::cross_section`. Terrain for the side view and for limits above ground is in the core since 2026-11-20, from the map's elevation tiles (`crates/core/src/terrain.rs`).
 
@@ -165,7 +165,7 @@ The widgets above that depend on it: the airspace proximity widget (nearest airs
 
 | XCTrack | Ours |
 |---|---|
-| Live position to XContest, nearby pilots and their tracks on the map, final glide of others | v1 on our own service. Built on the iPhone and on Android on 2026-11-19 and 2026-11-20: the position goes to the pilot's Venti server, the map tab shows the gliders of pilots who share with everyone and the flight so far of one, and the iPhone's cockpit map shows them too. Final glide of others is not built. Not flown |
+| Live position to XContest, nearby pilots and their tracks on the map, final glide of others | v1 on our own service. Built on the iPhone and on Android on 2026-11-19 and 2026-11-20: the position goes to the pilot's Venti server, the map tab shows the gliders of pilots who share with everyone and the flight so far of one, and the iPhone's cockpit map shows them too. Since 2026-11-21 the Open Glider Network's aircraft as well, on the map tab of the three apps and the cockpit's map of both phones (`43d51de`; `41db3a2`, `9a8365e`). Final glide of others is not built. Not flown |
 | Text messages with presets, watchlist of pilots to follow | v1 |
 | FANET and FLARM traffic from an external receiver, with IDs bound to names | v1 |
 | SafeSky position sharing | Later |
@@ -228,24 +228,24 @@ What our cockpit already does in the layout's place, and where it differs:
 | A thermal assistant **beside** the map, always there | Since 2026-11-20 on the iPhone, by the owner's word: a drawn close-up beside the first page's map, with the last circles where their air is now, the circle to fly next and the wind; on the glide the last minutes of track ([design.md](design.md#the-cockpit)); on Android too. Not flown |
 | Airspace proximity as a standing reading (5 km), small on page 1 and large with a height line on page 3 | Airspace on the map, a band at the top once something is near, and a view from the side on the second page. Since 2026-11-21 the core also makes the reading: with every position the cockpit's view carries the one airspace that matters next, out to 5 km over the ground and also while no warning is up, with the distance and direction to its outline, the height to its floor or ceiling, and the words for a small place and a large one ("CTR Innsbruck · 3.2 km NE · floor 400 m above"). Which airspace that is among several, and what the reading does not know, is in [airspace.md](airspace.md#the-airspace-that-matters-next). On both phones since 2026-11-21: small at the lower right of the first page's map, large with a drawn height line in a strip under the map of the second page ([design.md](design.md#the-cockpit)). Tested in the core on scripted positions and a replayed flight, not flown |
 | Bearing as a reading | Since 2026-11-21 the core writes the course as a reading (`CockpitView::course_words`, "285° W": whole degrees and one of eight compass points), and leaves it out while the glider moves slower than 2 m/s over the ground. On both phones since 2026-11-21, as the small line under the ground speed |
-| The scored distance and the unclosed triangle beside the map | On the third page, and since 2026-11-21 as a badge on the map's page of both phones: the distance scored so far, what it scores as, and for an open triangle how far there is to close it. What the triangle scores once closed is in the core since 2026-11-21 (`LiveScore::closing`), on no screen yet |
-| The thermal map of thermal.kk7.ch under the track | To build. The author has agreed, by the owner's word; his terms are read ([data-sources.md](data-sources.md#thermalkk7ch-as-read-on-its-own-page-on-2026-11-20)). It waits for a domain Venti can name to his server |
-| Other pilots with their tracks | Other pilots who show their flight are on the cockpit's map; their tracks are not. Since 2026-11-21 the core keeps the Open Glider Network's aircraft around the glider with their tracks of the last five minutes, from the answers the shell hands it (`FlightSession::others_near`, [design.md](design.md#the-cockpit)); on no screen yet |
-| Obstacles on the map (cables), with a zoom-in when one is near | Cable cars from the base map only; no obstacle data and no warning yet (table above) |
-| Take-offs and towns on the map | Towns from the base map. Flying sites are on the map tab, not in the cockpit. Since 2026-11-21 the core gives the cockpit's map the take-offs the app holds around the glider, nearest first, fifty at most (`Core::cockpit_takeoffs`); on no screen yet |
-| FAI areas, closing circle | FAI areas, since 2026-11-19. The closing circle since 2026-11-21 in the core, by XContest's rule (5% of the perimeter around the triangle's start), with the distance to its edge and what the triangle scores closed (`LiveScore::closing`), and in the route planner (`RoutePlan::closing_circle`); on no screen yet |
-| The competition page's nine readings | A task has its line, its start and its progress in the cockpit ([design.md](design.md#a-task-in-the-cockpit)). Since 2026-11-21 the core makes the page's readings (`CockpitView::task_readings`): for the next turnpoint and goal the distance, the altitude needed on the glide in the wind along the shortest way, the altitude over or under it, the glide needed and the time of arrival; the time to the start gate and whether the glider arrives early; the speed section's average. A "Task" page for them is proposed ([design.md](design.md#the-cockpit)); on no screen yet |
+| The scored distance and the unclosed triangle beside the map | On the third page, and since 2026-11-21 as a badge on the map's page of both phones: the distance scored so far, what it scores as, and for an open triangle how far there is to close it. What the triangle scores once closed is in the core since 2026-11-21 (`LiveScore::closing`), and goes with the closing circle on the cockpit's map of both phones since the same day (`41db3a2`, `9a8365e`) |
+| The thermal map of thermal.kk7.ch under the track | To build. The author has agreed, by the owner's word; his terms are read ([data-sources.md](data-sources.md#thermalkk7ch-as-read-on-its-own-page-on-2026-11-20)). The domain `venti.fly` exists since 2026-11-21; the layer waits for the value to name to his server and his agreement in writing |
+| Other pilots with their tracks | Other pilots who show their flight are on the cockpit's map; their tracks are not. Since 2026-11-21 the core keeps the Open Glider Network's aircraft around the glider with their tracks of the last five minutes, from the answers the shell hands it (`FlightSession::others_near`, [design.md](design.md#the-cockpit)); on the cockpit's map of both phones since the same day (`41db3a2`, `9a8365e`). Venti's own pilots' tracks are not drawn there |
+| Obstacles on the map (cables), with a zoom-in when one is near | Since 2026-11-21 OpenStreetMap's power lines and ropeways on the cockpit's map of both phones, with a warning (`77c8f81`; `41db3a2`, `9a8365e`). No zoom-in when one is near (table above) |
+| Take-offs and towns on the map | Towns from the base map. Flying sites are on the map tab, not in the cockpit. Since 2026-11-21 the core gives the cockpit's map the take-offs the app holds around the glider, nearest first, fifty at most (`Core::cockpit_takeoffs`); on the cockpit's map of both phones since the same day (`41db3a2`, `9a8365e`) |
+| FAI areas, closing circle | FAI areas, since 2026-11-19. The closing circle since 2026-11-21 in the core, by XContest's rule (5% of the perimeter around the triangle's start), with the distance to its edge and what the triangle scores closed (`LiveScore::closing`), and in the route planner (`RoutePlan::closing_circle`); drawn with its words on the cockpit's map and in the route planner of both phones since the same day, and in the web's planner (`41db3a2`, `9a8365e`, `2d40372`) |
+| The competition page's nine readings | A task has its line, its start and its progress in the cockpit ([design.md](design.md#a-task-in-the-cockpit)). Since 2026-11-21 the core makes the page's readings (`CockpitView::task_readings`): for the next turnpoint and goal the distance, the altitude needed on the glide in the wind along the shortest way, the altitude over or under it, the glide needed and the time of arrival; the time to the start gate and whether the glider arrives early; the speed section's average. On a "Task" page of both phones since the same day (`41db3a2`, `9a8365e`) |
 
-What follows for the presets: the cross-country numbers belong on the map's page, and the nearest airspace should be readable while nothing is urgent. The first is not built. The second is made in the core since 2026-11-21, with the course in words, and is on no screen yet.
+What follows for the presets: the cross-country numbers belong on the map's page, and the nearest airspace should be readable while nothing is urgent. Both are on both phones since 2026-11-21: the scored distance as a badge on the map's page, and the airspace that matters next with the course in words as standing readings (`1712ab6`). The readings got the freed height of two large buttons the same day (iPhone `f53dd14`, Android `047184d`).
 
 ## Where we go beyond
 
 1. An iPhone app at this level, which does not exist today.
 2. Vario from barometer and accelerometer fusion for pilots without an external vario.
-3. Groups, Open Glider Network traffic and a buddy view.
+3. Groups, Open Glider Network traffic and a buddy view. The network's traffic is built since 2026-11-21 (`43d51de`); following another pilot is on the server and in the core since 2026-11-22 (`d3b9855`), on no screen yet.
 4. Live wind stations and forecast wind in the cockpit.
 5. Reachable landing fields with public transport home.
-6. A glider polar and speed-to-fly.
+6. A glider polar and speed-to-fly. In the engine and the core since 2026-11-22, unset until a pilot sets one (`f9e8968`); on no screen yet.
 7. A voice assistant on the pilot's own AI account.
 8. A Live Activity on the lock screen and, later, a watch companion.
 9. The glide range over the terrain on the cockpit's map, and landings behind a ridge taken out of reach. Built on the iPhone and on Android on 2026-11-20 as a straight glide in every direction; flying around a ridge is not worked out.
@@ -394,7 +394,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 
 **Which altitude a limit is held against.**
 - *How, publicly:* flight levels against standard pressure; limits above sea level against the barometric altitude at the QNH; limits above ground against the satellite altitude and terrain. A switch forces the satellite altitude for flight levels too, for competitions that rule so (W-nav2, A-p1, A-p2). The proximity reading can show a limit as written or turned into a satellite altitude with the QNH (W-nav2).
-- *Venti:* flight levels exact with a pressure altitude; limits above sea level against the cockpit's best altitude ([airspace.md](airspace.md)). No QNH.
+- *Venti:* flight levels exact with a pressure altitude; limits above sea level against the cockpit's best altitude ([airspace.md](airspace.md)). A QNH since 2026-11-22 (`f9e8968`, below), which the limits are not measured at yet.
 - *Gap:* a QNH (see [Altitude](#altitude-and-qnh)) and the switch. *Medium with the QNH.*
 
 **Active or not.**
@@ -409,7 +409,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 **Obstacles.**
 - *How, publicly:* cables and the like by country from XContest's service. The time to reach one is worked out with the worse of the configured and the present glide ratio and the faster of the configured and the present speed; the area looked at is widened and leans to the side the glider is turning; within a time window the pilot sets, an alert comes if the glider would arrive lower than the obstacle's height plus a margin. The map can zoom in by itself while one is near (A-p2, W-xc1; X-log, 0.9.9 and 0.9.10.1).
 - *Venti:* `flight/cables.rs`: a cable within a margin of the straight course of the next 30 s, with the glider less than 100 m above the cable's height over the ground, or below it.
-- *Gap:* since 2026-11-22 the rule compares the height at arrival, on the worse of the present glide and the glider's own in the wind, and looks wider on the side of the turn. Still open: the map's zoom, and the data beyond Tirol, which is the larger part.
+- *Gap:* since 2026-11-22 the rule compares the height at arrival, on the worse of the present glide and the glider's own in the wind, and looks wider on the side of the turn. Still open: the map's zoom, and data beyond OpenStreetMap's (`77c8f81`), which misses many material ropeways and hay lines; Tirol's official data is not built.
 
 ### A competition task
 
@@ -458,14 +458,14 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 - *Venti:* `live/vario.rs`, a two-state Kalman filter over altitude that weighs each source by its noise; an instrument's own climb is preferred (`VarioSourceKind`); an average over 20 s.
 - *Gap against XCTrack:* a second average the pilot sets (the owner flies with 2 s). *Small.* Beyond: fusing the phone's accelerometer, item 2 of [Where we go beyond](#where-we-go-beyond). *Large; per-frame work that stays in the shell by the architecture's rule.*
 
-**Netto and total energy.** Netto only as a value an instrument sends (X-log, 0.9.12.4). Total energy is on no page read. Venti: neither. Without a polar and an airspeed neither can be worked out honestly. *Medium once both exist.*
+**Netto and total energy.** Netto only as a value an instrument sends (X-log, 0.9.12.4). Total energy is on no page read. Venti: since 2026-11-22 netto for a pilot who set a polar (`f9e8968`), on no screen yet; no total energy. *Medium for total energy.*
 
 **Sources and falling back.** Several sensors at once, each named for what it supplies and put in order; the internal satellite receiver lost for 30 s hands over to the external one, and the flight file is then marked as not complying with CIVL's rules (A-p4). Venti: source fallback for the vario; no mark in the file. *Small, and it matters for a signed file.*
 
 ### Altitude and QNH
 
 - *How, publicly:* one QNH for the whole app since 0.9.6 (X-log). It is set from the satellite altitude on the ground before take-off, by hand, or in the paid version from the nearest airport's METAR or weather station at start and about hourly (A-p1, W-fly, W-air). Readings: satellite altitude; barometric altitude at the QNH or at 1013.25 hPa; flight level; height above ground; height above take-off (W-fly).
-- *Venti:* `live/atmosphere.rs` gives pressure altitude; the cockpit has one "best altitude". No QNH, no flight level reading.
+- *Venti:* `live/atmosphere.rs` gives pressure altitude; the cockpit has one "best altitude". A QNH since 2026-11-22 (`f9e8968`, below); no flight level reading.
 - *Gap:* since 2026-11-22 a QNH is worked out on the ground from the terrain's height under the glider, or set by hand, and the altitude at it is a reading (`CockpitView::qnh_hpa`, `qnh_altitude_m`). Still open: the airspace warnings measuring limits above sea level at it (the watch takes one altitude for those and for limits above ground: decision log), a QNH from a METAR, a flight level reading. *Medium.*
 
 ### Sound
@@ -493,7 +493,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 - FANET and FLARM, through an instrument or the AIR³'s module: the IDs go out every second and the pilot's name every minute, only while flying (A-fanet); incoming `PFLAA` and `FNNGB` sentences are read (A-p4); a device's ID is bound to a pilot by XContest, by hand or by FANET, and where they disagree XContest's word goes before the pilot's own and that before FANET's, so that one pilot seen by radio and by internet is drawn once (A-live; X-log, 0.9.5). The newest beta sends ADS-L (X-log, 1.0.7). SafeSky: the position is sent out, at an interval the pilot sets (A-p1; X-log, 0.9.11).
 - Navigating to a chosen live pilot is a navigation mode of its own in 1.0 (X-log, 1.0.0; A-p3 lists it among the modes a page can show in). How the target's position is aged between reports is not said: *to verify.*
 - What it does not do, by its tracker: the Open Glider Network (T-367, twenty votes, open since 2018), a traffic radar or buddy-list reading (T-1171), any collision alert. The "final glide of others" in the Livetracking table above was not found on a page read today: *to verify.*
-- *Venti:* the position to the pilot's Venti server, others who share on the map, OGN aircraft and their last five minutes in the core (`FlightSession::others_near`).
+- *Venti:* the position to the pilot's Venti server, others who share on the map, OGN aircraft and their last five minutes in the core (`FlightSession::others_near`) and on the cockpit's map of both phones (`41db3a2`, `9a8365e`).
 - *Gap:* traffic from the instrument's sentences; one pilot from two sources drawn once; a watchlist; messages; a pilot as a navigation target. *Large as a whole; the sentences and the merging are a medium first step.*
 
 ### Bearing, track and heading

@@ -8,7 +8,7 @@
  * screens and to the clock on the wall.
  */
 
-import type { Bounds, Credit, WindAnswer, WindStation } from '#lib/core/index.ts';
+import type { Bounds, Credit, WindMap, WindStation } from '#lib/core/index.ts';
 import { isInWords } from '#lib/core/index.ts';
 
 /** What the screens are shown. */
@@ -26,8 +26,11 @@ export interface WindState {
 	truncated: boolean;
 	/** Why the wind is missing or not current, in words for the pilot. */
 	problem: string | undefined;
-	/** The providers the server has not heard from lately. */
-	lateProviders: string[];
+	/**
+	 * The core's sentence about the networks with stations here that sent
+	 * nothing new for a while; none when every one delivers.
+	 */
+	lateNotice: string | undefined;
 }
 
 export const NO_WIND: WindState = {
@@ -36,7 +39,7 @@ export const NO_WIND: WindState = {
 	credits: [],
 	truncated: false,
 	problem: undefined,
-	lateProviders: []
+	lateNotice: undefined
 };
 
 /**
@@ -77,7 +80,7 @@ export function grown(box: Bounds, share: number): Bounds {
 }
 
 export class WindWatch {
-	#ask: (box: Bounds) => Promise<WindAnswer | undefined>;
+	#ask: (box: Bounds) => Promise<WindMap | undefined>;
 	#tell: (state: WindState) => void;
 	#now: () => number;
 	#state = NO_WIND;
@@ -89,7 +92,7 @@ export class WindWatch {
 	#asked = 0;
 
 	constructor(
-		ask: (box: Bounds) => Promise<WindAnswer | undefined>,
+		ask: (box: Bounds) => Promise<WindMap | undefined>,
 		tell: (state: WindState) => void,
 		now: () => number = Date.now
 	) {
@@ -136,11 +139,11 @@ export class WindWatch {
 			this.#answered = { area, at: this.#now() };
 			this.#set({
 				available: true,
-				stations: answer.map.stations,
-				credits: answer.map.credits,
-				truncated: answer.map.truncated,
+				stations: answer.stations,
+				credits: answer.credits,
+				truncated: answer.truncated,
 				problem: undefined,
-				lateProviders: answer.lateProviders
+				lateNotice: answer.lateNotice
 			});
 		} catch (error) {
 			if (asked !== this.#asked) return;
@@ -168,13 +171,10 @@ function words(error: unknown): string {
 }
 
 /** What the pilot should know about the wind on the map, if anything. */
-export function notice(state: WindState, list: (items: readonly string[]) => string): string {
+export function notice(state: WindState): string {
 	if (state.problem) return state.problem;
 	if (state.truncated) {
 		return 'There are more stations here than fit on the map. Zoom in to see them all.';
 	}
-	if (state.lateProviders.length > 0) {
-		return `No new wind data from ${list(state.lateProviders)} for a while.`;
-	}
-	return '';
+	return state.lateNotice ?? '';
 }

@@ -48,12 +48,12 @@ describe('wind from the server', () => {
 		const answer = await wind.windMap(ALPS);
 
 		expect(asked).toEqual(['/v1/health', '/v1/stations?bbox=10,46.5,13.5,48.5']);
-		expect(answer?.map.stations.map((station) => station.name)).toContain('Zugspitze');
-		const providers = answer?.map.credits.map((credit) => credit.provider);
+		expect(answer?.stations.map((station) => station.name)).toContain('Zugspitze');
+		const providers = answer?.credits.map((credit) => credit.provider);
 		expect(providers).toContain('Deutscher Wetterdienst');
 		expect(providers).toContain('GeoSphere Austria');
 		expect(new Set(providers).size).toBe(providers?.length);
-		expect(answer?.lateProviders).toEqual([]);
+		expect(answer?.lateNotice).toBeUndefined();
 	});
 
 	it('measures the age of a reading against the server’s clock, not the device’s', async () => {
@@ -63,7 +63,7 @@ describe('wind from the server', () => {
 
 		const answer = await wind.windMap(ALPS);
 
-		const zugspitze = answer!.map.stations.find((station) => station.name === 'Zugspitze')!;
+		const zugspitze = answer!.stations.find((station) => station.name === 'Zugspitze')!;
 		// Measured at 18:20, and it is 19:05 on the server.
 		expect(zugspitze.ageMin).toBe(45);
 		expect(zugspitze.isOld).toBe(false);
@@ -73,7 +73,7 @@ describe('wind from the server', () => {
 		const { get } = server();
 		const wind = new WindSource(get, () => SERVER_NOW);
 
-		const stations = (await wind.windMap(ALPS))!.map.stations;
+		const stations = (await wind.windMap(ALPS))!.stations;
 
 		// 14.9 m/s from 260° with gusts of 25.7: a strong wind blowing to 80°.
 		const zugspitze = stations.find((station) => station.name === 'Zugspitze')!;
@@ -126,16 +126,20 @@ describe('wind from the server', () => {
 		expect(await none.serverNow()).toBe(0);
 	});
 
-	it('names the providers the server has not heard from', async () => {
-		const late = JSON.parse(new TextDecoder().decode(recorded('health.json')));
-		late.sources.find((source: { source: string }) => source.source === 'dwd-10min').stale = true;
+	it('passes on the core’s notice of the networks late here, from the stations’ answer', async () => {
+		// A made-up answer: the recorded stations with one of their sources late.
+		const late = JSON.parse(new TextDecoder().decode(recorded('stations.json')));
+		late.late_sources = ['dwd-10min'];
 		const { get } = server({
-			'/v1/health': { status: 200, body: new TextEncoder().encode(JSON.stringify(late)) }
+			'/v1/stations': { status: 200, body: new TextEncoder().encode(JSON.stringify(late)) }
 		});
 
 		const answer = await new WindSource(get, () => SERVER_NOW).windMap(ALPS);
 
-		expect(answer?.lateProviders).toEqual(['Deutscher Wetterdienst']);
+		expect(answer?.lateNetworks).toHaveLength(1);
+		expect(answer?.lateNotice).toBe(
+			`No new wind data from ${answer?.lateNetworks?.[0]} for a while.`
+		);
 	});
 
 	it('says who may create an account, by the server’s own word', async () => {
@@ -236,7 +240,7 @@ describe('wind from the server', () => {
 	it('says what two stations far apart in height say about the air between them', async () => {
 		const { get } = server();
 		const wind = new WindSource(get, () => SERVER_NOW);
-		const stations = (await wind.windMap(ALPS))!.map.stations;
+		const stations = (await wind.windMap(ALPS))!.stations;
 		const valley = stations.find((station) => station.name === 'Innsbruck/Universitaet')!;
 
 		const air = wind.air(valley, stations);

@@ -1042,7 +1042,7 @@
 		if (!wide.current) map?.showAbove(place, globalThis.innerHeight * REACH_CARD_SHARE);
 	}
 
-	const said = $derived(notice(current, text.list));
+	const said = $derived(notice(current));
 	const credits = $derived(text.list(current.credits.map((credit) => credit.provider)));
 	/** Whose sites are on the map. Their licence asks for this wherever they are shown. */
 	const sitesCredit = $derived(

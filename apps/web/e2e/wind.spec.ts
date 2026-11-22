@@ -240,11 +240,12 @@ test('two stations of one name are told apart in the list', async ({
 	const rows = list.getByRole('listitem');
 
 	// Two real stations on the Weissfluhjoch, MeteoSwiss's and the SLF's, at
-	// different heights: the list tells them apart by the height.
+	// different heights: the core's line under each name says its height
+	// and its network.
 	await list.getByRole('searchbox', { name: 'Station' }).fill('Weissfluhjoch');
 	await expect(rows).toHaveCount(2);
-	await expect(rows.filter({ hasText: '2691 m' })).toHaveCount(1);
-	await expect(rows.filter({ hasText: '2536 m' })).toHaveCount(1);
+	await expect(rows.filter({ hasText: /2691 m · (.+ · )?MeteoSwiss/ })).toHaveCount(1);
+	await expect(rows.filter({ hasText: /2536 m · (.+ · )?SLF/ })).toHaveCount(1);
 	await keep('19b-wind-stations-same-name');
 });
 

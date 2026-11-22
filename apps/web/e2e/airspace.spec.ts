@@ -175,7 +175,7 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	await expect(fromServer).toContainText('openAIP');
 	await expect(fromServer).toContainText(/\d+ airspaces · as of \w{3}, \d+ \w{3} \d{4} · fetched /);
 	await expect(fromServer).toContainText(
-		'The airspace of Germany, Austria, Switzerland, Italy, Slovenia, Croatia, Hungary and Slovakia. Of other countries none is kept'
+		'The airspace of Germany, Austria, Switzerland, France, Italy, Slovenia, Croatia, Bosnia & Herzegovina, Hungary and Slovakia. Of other countries none is kept'
 	);
 	await expect(fromServer).toContainText(
 		'OpenAIP data is not certified and must not be used for primary navigation or flight planning.'

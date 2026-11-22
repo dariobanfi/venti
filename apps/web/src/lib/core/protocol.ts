@@ -120,6 +120,7 @@ import type {
 	TokenForm,
 	TodayOrder,
 	TodayStanding,
+	WindMap,
 	WindStation,
 	CheerList,
 	CheerState,
@@ -178,7 +179,7 @@ import type { CablesSource } from './cables-source';
 import type { GlideReachSource } from './glide-reach-source';
 import type { SlopesAnswer, SlopesAsked, SlopesSource } from './slopes-source';
 import type { AirSource, ClimbsAnswer, FlownAnswer, SiteAirAsked } from './air-source';
-import type { WindAnswer, WindSource } from './wind-source';
+import type { WindSource } from './wind-source';
 
 /** What the page learns when the core has started. */
 export interface Started {
@@ -215,7 +216,7 @@ export interface Calls {
 	/** Given the number of a question about the ground: lets go of it. */
 	forgetFlightGround: { given: number; answer: undefined };
 	/** The wind stations in a box of the map. Nothing if this site has no server. */
-	wind: { given: Bounds; answer: WindAnswer | undefined };
+	wind: { given: Bounds; answer: WindMap | undefined };
 	/** Given a station's identifier: what it measured over the last 24 hours. */
 	stationHistory: { given: string; answer: StationHistory };
 	/**

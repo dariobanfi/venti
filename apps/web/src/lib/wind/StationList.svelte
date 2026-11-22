@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
 	import type { WindStation } from '#lib/core/index.ts';
-	import { age, compassPoint, format } from '#lib/design/format.ts';
+	import { compassPoint } from '#lib/design/format.ts';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import { spoken } from './mark';
 	import type { WindState } from './watch';
@@ -21,8 +21,6 @@
 	}
 
 	let { open, wind, onchoose, onclose }: Props = $props();
-
-	const text = format();
 
 	let search = $state('');
 
@@ -41,20 +39,9 @@
 			);
 	});
 
-	/** The station's height, and how old its reading is if that matters. */
-	function detail(station: WindStation): string {
-		const parts: string[] = [];
-		if (station.elevationM !== undefined) parts.push(`${text.metres(station.elevationM)} m`);
-		if (!station.latest) parts.push('no reading');
-		else if (station.isOld && station.ageMin !== undefined) parts.push(age(station.ageMin));
-		return parts.join(' · ');
-	}
-
 	/** A row in one sentence, for a screen reader. */
 	function sentence(station: WindStation): string {
-		return [station.name, spoken(station, compassPoint), detail(station)]
-			.filter(Boolean)
-			.join('. ');
+		return [station.name, spoken(station, compassPoint), station.line].filter(Boolean).join('. ');
 	}
 </script>
 
@@ -86,7 +73,8 @@
 							<WindGlyph {mark} />
 							<span class="pair">
 								<span class="name">{station.name}</span>
-								<span class="lesser">{detail(station)}</span>
+								<!-- The core's line: height, an old reading's age, the network. -->
+								<span class="lesser">{station.line}</span>
 							</span>
 							{#if mark.label}
 								<span class="wind numeric">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Bounds, WindAnswer } from '#lib/core/index.ts';
+import type { Bounds, WindMap } from '#lib/core/index.ts';
 import { station } from './testing';
 import {
 	contains,
@@ -22,15 +22,12 @@ const CREDIT = {
 	url: 'https://example.org/'
 };
 
-function answerWith(given: Partial<WindAnswer['map']> = {}): WindAnswer {
-	return {
-		map: { stations: [station()], credits: [CREDIT], truncated: false, ...given },
-		lateProviders: []
-	};
+function answerWith(given: Partial<WindMap> = {}): WindMap {
+	return { stations: [station()], credits: [CREDIT], truncated: false, ...given };
 }
 
 /** A watch over a server the test plays, with a clock the test sets. */
-function watching(reply: () => Promise<WindAnswer | undefined> = async () => answerWith()) {
+function watching(reply: () => Promise<WindMap | undefined> = async () => answerWith()) {
 	const server = { reply, asked: [] as Bounds[] };
 	const clock = { now: 1_000_000 };
 	const told: WindState[] = [];
@@ -120,7 +117,7 @@ describe('the wind for the part of the map in view', () => {
 	});
 
 	it('drops an answer that a later question has overtaken', async () => {
-		const first = Promise.withResolvers<WindAnswer | undefined>();
+		const first = Promise.withResolvers<WindMap | undefined>();
 		const { watch, server, state } = watching(() => first.promise);
 		watch.show(VALLEY);
 		const slow = watch.load();
@@ -141,7 +138,7 @@ describe('a site without a server', () => {
 		await watch.load();
 
 		expect(state()).toEqual({ ...NO_WIND, available: false });
-		expect(notice(state(), (items) => items.join(' and '))).toBe('');
+		expect(notice(state())).toBe('');
 		expect(watch.show(VALLEY)).toBe(false);
 		expect(watch.due).toBe(false);
 
@@ -217,27 +214,38 @@ describe('a server that does not answer', () => {
 });
 
 describe('what the pilot is told about the wind', () => {
-	const list = (items: readonly string[]) => items.join(' and ');
-
 	it('is nothing while all is well', () => {
-		expect(notice({ ...NO_WIND, available: true }, list)).toBe('');
+		expect(notice({ ...NO_WIND, available: true })).toBe('');
 	});
 
 	it('is the problem before anything else', () => {
-		const state = { ...NO_WIND, problem: 'No answer.', truncated: true, lateProviders: ['A'] };
+		const state = { ...NO_WIND, problem: 'No answer.', truncated: true, lateNotice: 'Late.' };
 
-		expect(notice(state, list)).toBe('No answer.');
+		expect(notice(state)).toBe('No answer.');
 	});
 
 	it('is to zoom in when stations were left out', () => {
-		expect(notice({ ...NO_WIND, truncated: true, lateProviders: ['A'] }, list)).toBe(
+		expect(notice({ ...NO_WIND, truncated: true, lateNotice: 'Late.' })).toBe(
 			'There are more stations here than fit on the map. Zoom in to see them all.'
 		);
 	});
 
-	it('names the providers that are late', () => {
-		expect(notice({ ...NO_WIND, lateProviders: ['Wetterdienst', 'GeoSphere'] }, list)).toBe(
-			'No new wind data from Wetterdienst and GeoSphere for a while.'
-		);
+	it('is the core’s sentence about the late networks where it gives one', async () => {
+		// A made-up answer: the core names the networks late here.
+		const late = 'No new wind data from Testnetz for a while.';
+		const { watch, state } = watching(async () => answerWith({ lateNotice: late }));
+		watch.show(VALLEY);
+		await watch.load();
+
+		expect(notice(state())).toBe(late);
+	});
+
+	it('says nothing of late networks where the core gives no sentence', async () => {
+		const { watch, state } = watching();
+		watch.show(VALLEY);
+		await watch.load();
+
+		expect(state().lateNotice).toBeUndefined();
+		expect(notice(state())).toBe('');
 	});
 });

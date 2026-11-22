@@ -7,8 +7,10 @@
  * Only the makers of photographs that can show on the part of the map on
  * screen are named, as `docs/design.md` says: each aerial layer of the
  * shared style names its maker in its metadata (`venti:credit`), its
- * source says where it has photographs (`bounds`), and the layer from
- * which zoom it shows (`minzoom`). This file imports nothing of the map
+ * source says where it has photographs (`bounds`), and the layer and
+ * the source from which zoom it shows: the higher of their `minzoom`s,
+ * since a layer drawn from 12 over a source with tiles from 13 shows
+ * nothing at 12. This file imports nothing of the map
  * engine, so that the pages can use it before the map is loaded.
  */
 
@@ -48,13 +50,13 @@ export function aerialMakers(style: StyleLike): AerialMaker[] {
 		if (layer.type !== 'raster' || layer.metadata?.['venti:view'] !== 'aerial') continue;
 		if (typeof credit !== 'string' || layer.source === undefined) continue;
 		const source = style.sources[layer.source] as
-			{ bounds?: [number, number, number, number] } | undefined;
+			{ bounds?: [number, number, number, number]; minzoom?: number } | undefined;
 		if (!source) continue;
 		const bounds = source.bounds;
 		makers.push({
 			credit,
 			area: bounds && { west: bounds[0], south: bounds[1], east: bounds[2], north: bounds[3] },
-			minzoom: layer.minzoom ?? 0
+			minzoom: Math.max(layer.minzoom ?? 0, source.minzoom ?? 0)
 		});
 	}
 	return makers;

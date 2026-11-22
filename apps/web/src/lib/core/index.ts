@@ -309,7 +309,6 @@ export type {
 	SeasonRanking
 } from './community-source';
 export type { LiveAnswer, LiveFollowAnswer, LiveOthersAnswer } from './live-source';
-export type { WindAnswer } from './wind-source';
 export type { HoursAsked } from './thermal-map-source';
 export type { RadarColours } from './radar-source';
 

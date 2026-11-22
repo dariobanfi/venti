@@ -44,13 +44,6 @@ export interface Answer {
 /** Fetches a path from the server. Throws when no answer came at all. */
 export type Get = (path: string) => Promise<Answer>;
 
-/** The wind map of a box, with what the server said about its providers. */
-export interface WindAnswer {
-	map: WindMap;
-	/** The providers the server has not heard from lately. */
-	lateProviders: string[];
-}
-
 /**
  * How far the pilot's clock is ahead of UTC at a moment, in seconds; at
  * this moment where the moment is not known (0: the server's clock not read).
@@ -87,7 +80,6 @@ export class WindSource {
 	#deviceNow: () => number;
 	/** The server's clock minus this device's, and when it was read. */
 	#clock: { aheadMs: number; readAt: number } | undefined;
-	#lateProviders: string[] = [];
 	/** Who may create an account on the server, by its own last word. */
 	#registration: Registration | undefined;
 	/** Whether the server takes flying sites from pilots, by its own last word. */
@@ -106,13 +98,10 @@ export class WindSource {
 	 * The stations in a box of the map. Nothing if this site has no server.
 	 * Throws, with words for the pilot, when the server gives no usable answer.
 	 */
-	async windMap(box: Bounds): Promise<WindAnswer | undefined> {
+	async windMap(box: Bounds): Promise<WindMap | undefined> {
 		if (!(await this.#readClock())) return undefined;
 		const answer = await this.#get(windMapPath(box.south, box.west, box.north, box.east));
-		return {
-			map: windMap(answer.status, answer.body, this.#serverClock()),
-			lateProviders: this.#lateProviders
-		};
+		return windMap(answer.status, answer.body, this.#serverClock());
 	}
 
 	/**
@@ -244,7 +233,6 @@ export class WindSource {
 		const status = serverStatus(answer.status, answer.body);
 		const now = this.#deviceNow();
 		this.#clock = { aheadMs: status.timeUnixS * 1000 - now, readAt: now };
-		this.#lateProviders = status.lateProviders;
 		this.#registration = status.registration;
 		this.#takesSites = status.takesSitesFromPilots ?? false;
 		this.#googleSignIn = status.googleSignIn ?? false;

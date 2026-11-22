@@ -41,17 +41,22 @@ describe('the short line of whose the photographs are', () => {
 		);
 		expect(photosCredit(makers, INTERLAKEN, 11)).toBe('Photos: swisstopo · EOX');
 		// France's box (Corsica to Alsace) takes in western Switzerland:
-		// the line goes by the boxes, and names IGN there from zoom 12.
-		expect(photosCredit(makers, INTERLAKEN, 12)).toBe('Photos: swisstopo · IGN · EOX');
+		// the line goes by the boxes, and names IGN there from zoom 13,
+		// where its source has tiles.
+		expect(photosCredit(makers, INTERLAKEN, 12)).toBe('Photos: swisstopo · EOX');
+		expect(photosCredit(makers, INTERLAKEN, 13)).toBe('Photos: swisstopo · IGN · EOX');
 		expect(photosCredit(makers, FREIBURG, 11)).toBe('Photos: LGL-BW · EOX');
 		expect(photosCredit(makers, ISNY, 14)).toBe(
 			'Photos: swisstopo · basemap.at · LGL-BW · Bayerische Vermessungsverwaltung · EOX'
 		);
 	});
 
-	it('names France’s photographs from zoom 12, inside their box', () => {
+	it('names France’s photographs from zoom 13, where their source has tiles, inside their box', () => {
+		// The layer is drawn from 12, but its source has no tiles before 13.
+		expect(makers.find((maker) => maker.credit === 'IGN')?.minzoom).toBe(13);
 		expect(photosCredit(makers, GRENOBLE, 11)).toBe('Photos: EOX');
-		expect(photosCredit(makers, GRENOBLE, 12)).toBe('Photos: IGN · EOX');
+		expect(photosCredit(makers, GRENOBLE, 12)).toBe('Photos: EOX');
+		expect(photosCredit(makers, GRENOBLE, 13)).toBe('Photos: IGN · EOX');
 		expect(photosCredit(makers, ANNECY, 15)).toBe('Photos: swisstopo · IGN · EOX');
 		expect(photosCredit(makers, TEGERNSEE, 15)).not.toContain('IGN');
 	});

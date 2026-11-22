@@ -255,15 +255,19 @@
 
 	<AlertMe look="card" start={() => windDraft(station)} />
 
-	{#if credit}
+	{#if credit || station.network}
 		<section>
 			<h3>Source</h3>
 			<div class="card source">
-				<p>{credit.text}</p>
-				<p class="lesser">{credit.provider}, under {credit.licence}.</p>
-				<a class="lesser" href={credit.url} target="_blank" rel="noopener noreferrer">
-					{host(credit.url)}
-				</a>
+				<!-- The network's short name: what tells two stations of one name apart. -->
+				{#if station.network}<p class="network">{station.network}</p>{/if}
+				{#if credit}
+					<p>{credit.text}</p>
+					<p class="lesser">{credit.provider}, under {credit.licence}.</p>
+					<a class="lesser" href={credit.url} target="_blank" rel="noopener noreferrer">
+						{host(credit.url)}
+					</a>
+				{/if}
 			</div>
 		</section>
 	{/if}
@@ -407,6 +411,10 @@
 		align-items: flex-start;
 		gap: 0.25rem;
 		overflow-wrap: anywhere;
+	}
+
+	.network {
+		font-weight: 600;
 	}
 
 	.lesser {

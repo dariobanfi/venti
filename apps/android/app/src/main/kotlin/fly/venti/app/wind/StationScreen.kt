@@ -138,13 +138,25 @@ fun StationPage(
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                 }
             }
-            Text(
-                station.name,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    station.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // The network, quietly: what tells apart two stations of one name.
+                station.network?.let { network ->
+                    Text(
+                        network,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("station-network"),
+                    )
+                }
+            }
             TextButton(onClick = onDone) { Text(Common.words.done) }
         }
         LazyColumn(

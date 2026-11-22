@@ -1265,6 +1265,8 @@ object SiteWords {
             val rounded = (abs(higher) / 10).roundToLong() * 10.0
             parts += "${Format.metres(rounded)} m ${if (higher > 0) "higher" else "lower"}"
         }
+        // The network last, as in the station list: two stations can share a name.
+        near.station.network?.let { parts += it }
         return parts.joinToString(" · ")
     }
 

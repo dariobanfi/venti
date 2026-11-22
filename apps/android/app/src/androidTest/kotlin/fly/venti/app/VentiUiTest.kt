@@ -3967,6 +3967,38 @@ class VentiUiTest {
         tap(hasText("Done"))
     }
 
+    /**
+     * Two stations of one name, MeteoSwiss's and the SLF's on the
+     * Weissfluhjoch above Davos: the list tells them apart by the network
+     * at the end of each row's line. No Swiss station is in view where the
+     * map starts, so the map is moved over Davos first.
+     */
+    @Test
+    fun theListTellsTwoStationsOfOneNameApartByTheirNetwork() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(hasTestTag("layer-wind"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 46.83, lon = 9.81, zoom = 10.0))
+        tapInLayers(described("Wind stations"))
+        val swiss = described("Weissfluhjoch") and saying("MeteoSwiss")
+        val slf = described("Weissfluhjoch") and saying("SLF")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(hasTestTag("station-list")).performScrollToNode(swiss) }.isSuccess
+        }
+        screen.onNode(hasTestTag("station-list")).performScrollToNode(slf)
+        assertTrue(exists(swiss))
+        assertTrue(exists(slf))
+        letTheMapDraw(1)
+        keepScreenshot("light-wind-3b-stations-of-one-name")
+
+        // A station's page names its network under its name.
+        tap(slf)
+        waitFor(hasTestTag("station-network") and hasText("SLF"))
+        tap(hasText("Done"))
+    }
+
     @Test
     fun aStationSaysWhatItsReadingsTellOfTheAir() = lookAtAStationsAirAndDays("light", dark = false)
 

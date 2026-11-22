@@ -124,8 +124,11 @@ class WindModel(
     var problem: String? by mutableStateOf(null)
         private set
 
-    /** The providers the server has not heard from lately. */
-    var lateProviders: List<String> by mutableStateOf(emptyList())
+    /**
+     * The core's sentence on the networks among the stations here that have
+     * sent nothing new for a while; `null` when every one of them delivers.
+     */
+    var lateNotice: String? by mutableStateOf(null)
         private set
 
     /** Whether the server takes sites from pilots, as its health answer says: no until it has said so. */
@@ -187,8 +190,7 @@ class WindModel(
     val notice: String?
         get() = problem ?: when {
             isTruncated -> "There are more stations here than fit on the map. Zoom in to see them all."
-            lateProviders.isNotEmpty() -> "No new wind data from ${Format.list(lateProviders)} for a while."
-            else -> null
+            else -> lateNotice
         }
 
     /**
@@ -291,7 +293,6 @@ class WindModel(
                 val answer = transport(server + serverStatusPath())
                 val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
                 take(state)
-                lateProviders = state.lateProviders
             }
             val answer = transport(server + windMapPath(area.south, area.west, area.north, area.east))
             // Against Venti's clock, or 0 while it is unread: then the core gives no age.
@@ -301,6 +302,7 @@ class WindModel(
             stations = map.stations
             credits = map.credits
             isTruncated = map.truncated
+            lateNotice = map.lateNotice
             answered = area to clock()
             problem = null
         } catch (error: CancellationException) {

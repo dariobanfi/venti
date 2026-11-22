@@ -379,7 +379,8 @@ class SitesModelTest {
         // The summit of the Zugspitze, 14 km on, is within reach too; the nearest comes first.
         val valley = near(takeoff).first()
         assertEquals("Garmisch-Partenkirchen", valley.station.name)
-        assertEquals("6.4 km W · 980 m lower", SiteWords.whereabouts(valley))
+        // The network last: two stations can share a name.
+        assertEquals("6.4 km W · 980 m lower · DWD", SiteWords.whereabouts(valley))
         assertEquals("From N: not a direction the site works in", SiteWords.fit(valley))
 
         // The same site turned to the north: the same wind fits, and that is all that is said.
@@ -388,7 +389,7 @@ class SitesModelTest {
 
         // A site that gives no height and no directions: no word on either.
         val bare = near(takeoff.copy(elevationM = null, wind = emptyList())).first()
-        assertEquals("6.4 km W", SiteWords.whereabouts(bare))
+        assertEquals("6.4 km W · DWD", SiteWords.whereabouts(bare))
         assertNull(SiteWords.fit(bare))
 
         // Two hours on, the reading no longer stands for the wind now.

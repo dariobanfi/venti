@@ -122,20 +122,20 @@ class WindMarkTest {
         val summit = station("Zugspitze")
         assertEquals("2956 m", StationWords.detail(summit, recordedAt).substringBefore(" ·"))
         assertEquals(
-            "Wind 54 kilometres per hour, gusts 93, from W",
+            "Wind 54 kilometres per hour, gusts 93, from W, DWD",
             StationWords.spoken(summit, summit.mark, StationWords.detail(summit, recordedAt)),
         )
 
         val later = recordedAt + 120 * 60
         val old = station("Zugspitze", minutesLater = 120)
         val detail = StationWords.detail(old, later)
-        assertTrue(detail, detail.endsWith("3 hours ago"))
+        assertEquals("2956 m · 3 hours ago · DWD", detail)
         assertTrue(StationWords.spoken(old, old.mark, detail).startsWith("No current reading."))
 
         // Too weak for a direction: none is spoken. And one is one.
         val calm = station("Innsbruck/Universitaet")
         assertEquals(
-            "Wind 1 kilometre per hour, gusts 5",
+            "Wind 1 kilometre per hour, gusts 5, GeoSphere",
             StationWords.spoken(calm, calm.mark, StationWords.detail(calm, recordedAt)),
         )
     }
@@ -150,5 +150,50 @@ class WindMarkTest {
         // With the clock known, the age.
         val known = station("Zugspitze", minutesLater = 25)
         assertEquals("70 minutes ago", StationWords.age(known, checkNotNull(known.latest), recordedAt + 25 * 60))
+    }
+
+    @Test
+    fun aRowEndsWithItsNetworkAsTheCoresLineDoes() {
+        val now = java.time.Instant.parse("2026-11-18T19:05:00Z").epochSecond
+        val stations = windMap(200.toUShort(), MadeUp.networks, now).stations
+        // At the answer's own time the row says what the core's line says.
+        assertEquals(
+            listOf("2691 m · MeteoSwiss", "2536 m · 3 hours ago · SLF", "no reading · Meteotrentino", "900 m · no reading"),
+            stations.map { StationWords.detail(it, now) },
+        )
+        assertEquals(stations.map { it.line }, stations.map { StationWords.detail(it, now) })
+        // Later by the phone's running clock the age counts on, and the network stays last.
+        assertEquals("2536 m · 4 hours ago · SLF", StationWords.detail(stations[1], now + 3600))
+    }
+
+    /** A made-up answer: two stations of one name in two networks, and two networks late. */
+    object MadeUp {
+        val networks: ByteArray = """
+            {
+              "stations": [
+                {"id": "meteoswiss-smn:WFJ", "source": "meteoswiss-smn", "name": "Weissfluhjoch",
+                 "network": "MeteoSwiss", "position": {"lat": 46.833, "lon": 9.806},
+                 "elevation_m": 2690.6,
+                 "latest": {"time": "2026-11-18T19:00:00Z", "wind_speed_ms": 4.0}},
+                {"id": "slf-imis:WFJ2", "source": "slf-imis", "name": "Weissfluhjoch",
+                 "network": "SLF", "position": {"lat": 46.829, "lon": 9.809},
+                 "elevation_m": 2536.0,
+                 "latest": {"time": "2026-11-18T16:05:00Z", "wind_speed_ms": 4.0}},
+                {"id": "meteotrentino:T0099", "source": "meteotrentino", "name": "Paganella",
+                 "network": "Meteotrentino", "position": {"lat": 46.14, "lon": 11.04}},
+                {"id": "old-server:1", "source": "old-server", "name": "Somewhere",
+                 "position": {"lat": 46.0, "lon": 11.0}, "elevation_m": 900.0}
+              ],
+              "truncated": false,
+              "attributions": [
+                {"source": "meteotrentino", "provider": "Provincia Autonoma di Trento - Meteotrentino",
+                 "short_name": "Meteotrentino", "licence": "CC BY 4.0", "text": "Meteotrentino",
+                 "url": "https://www.meteotrentino.it/"},
+                {"source": "slf-imis", "provider": "WSL Institute for Snow and Avalanche Research SLF",
+                 "short_name": "SLF", "licence": "CC BY 4.0", "text": "SLF", "url": "https://www.slf.ch/"}
+              ],
+              "late_sources": ["meteotrentino", "slf-imis"]
+            }
+        """.trimIndent().toByteArray()
     }
 }

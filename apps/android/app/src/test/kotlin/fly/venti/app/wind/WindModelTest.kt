@@ -56,6 +56,10 @@ class WindModelTest {
         @Volatile
         var refusesBoxes = false
 
+        /** Stations to answer with in place of the recorded ones. */
+        @Volatile
+        var stations: ByteArray? = null
+
         /** The server's clock when the answers were recorded, in seconds since 1970. */
         val clock: Long = serverStatus(200.toUShort(), recorded("health.json")).timeUnixS
 
@@ -67,7 +71,7 @@ class WindModelTest {
                 path == serverStatusPath() -> HttpAnswer(200, recorded("health.json"))
                 path.startsWith("/v1/stations?") && refusesBoxes ->
                     HttpAnswer(400, recorded("error_missing_bbox.json"))
-                path.startsWith("/v1/stations?") -> HttpAnswer(200, recorded("stations.json"))
+                path.startsWith("/v1/stations?") -> HttpAnswer(200, stations ?: recorded("stations.json"))
                 path.startsWith("/v1/stations/") -> HttpAnswer(200, recorded("observations.json"))
                 else -> HttpAnswer(404, ByteArray(0))
             }
@@ -117,7 +121,6 @@ class WindModelTest {
             "Deutscher Wetterdienst",
             "GeoSphere Austria",
             "Federal Office of Meteorology and Climatology MeteoSwiss",
-            "Provincia Autonoma di Trento - Meteotrentino",
             "OpenWindMap (Pioupiou wind network)",
             "WSL Institute for Snow and Avalanche Research SLF",
             "Autonome Provinz Bozen - Südtirol",
@@ -135,6 +138,26 @@ class WindModelTest {
             listOf(BASE + serverStatusPath(), BASE + windMapPath(area.south, area.west, area.north, area.east)),
             server.asked.toList(),
         )
+    }
+
+    @Test
+    fun theMapNamesOnlyTheLateNetworksTheCoreNames() = runBlocking {
+        val server = Server()
+        val wind = model(server)
+        wind.show(alps)
+        wind.load()
+        // The recorded answer has no late network: nothing is said.
+        assertNull(wind.lateNotice)
+        assertNull(wind.notice)
+
+        server.stations = WindMarkTest.MadeUp.networks
+        wind.load()
+        assertEquals("No new wind data from Meteotrentino and SLF for a while.", wind.notice)
+
+        // Once they deliver again the notice goes.
+        server.stations = null
+        wind.load()
+        assertNull(wind.notice)
     }
 
     @Test

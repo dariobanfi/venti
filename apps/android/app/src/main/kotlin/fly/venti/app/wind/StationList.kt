@@ -262,7 +262,12 @@ private fun StationRow(
 
 /** What a station's row says beside its name, on screen and aloud. */
 object StationWords {
-    /** The station's height, and how old its reading is if that matters. */
+    /**
+     * The station's height, how old its reading is if that matters, and its
+     * network: the core's `line`, built here only because the age is counted
+     * on by this phone's running clock, where the core's is as old as the
+     * answer.
+     */
     fun detail(station: WindStation, now: Long): String {
         val parts = mutableListOf<String>()
         station.elevationM?.let { parts += "${Format.metres(it)} m" }
@@ -272,6 +277,7 @@ object StationWords {
         } else if (station.isOld) {
             parts += age(station, reading, now)
         }
+        station.network?.let { parts += it }
         return parts.joinToString(" · ")
     }
 
@@ -296,6 +302,8 @@ object StationWords {
         if (mark.symbol is WindSymbol.Arrow && from != null) {
             parts += "from ${Format.compassPoint(from)}"
         }
+        // The network last, as on screen: two stations can share a name.
+        station.network?.let { parts += it }
         return parts.joinToString(", ")
     }
 }

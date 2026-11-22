@@ -23,6 +23,7 @@ struct MapScreen: View {
     @Environment(CandidatesModel.self) private var candidates
     @Environment(TerrainModel.self) private var terrain
     @Environment(CablesModel.self) private var cables
+    @Environment(AirModel.self) private var air
     @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
@@ -32,6 +33,12 @@ struct MapScreen: View {
     @AppStorage(Preferences.mapHidesCables) private var hidesCables = false
     /// The cable the pilot tapped, while its words are shown.
     @State private var chosenCable: ChosenCable?
+    /// The two layers of what others found in the air: off until the
+    /// pilot switches them on in the layers sheet.
+    @AppStorage(Preferences.mapShowsClimbs) private var showsClimbs = false
+    @AppStorage(Preferences.mapShowsFlownThermals) private var showsFlown = false
+    /// A climb or a cell of where thermals have been, tapped.
+    @State private var chosenAir: ChosenAirLine?
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
     @AppStorage(Preferences.mapShowsRadar) private var showsRadar = false
@@ -215,6 +222,18 @@ struct MapScreen: View {
                 onCable: { id in
                     guard let layer = cables.layer, let line = layer.lines.first(where: { $0.id == id }) else { return }
                     chosenCable = ChosenCable(line: line, credits: layer.credits, limits: layer.limits)
+                },
+                climbs: climbsOnTheMap?.climbs ?? [],
+                onClimb: { index in
+                    if let climbs = climbsOnTheMap, climbs.climbs.indices.contains(index) {
+                        chosenAir = ChosenAirLine(climb: climbs.climbs[index], among: climbs)
+                    }
+                },
+                flown: flownOnTheMap,
+                onFlownCell: { index in
+                    if let flown = flownOnTheMap, flown.cells.indices.contains(index) {
+                        chosenAir = ChosenAirLine(cell: flown.cells[index], of: flown)
+                    }
                 }
             )
             .sheet(item: $chosenCable) { cable in
@@ -261,8 +280,11 @@ struct MapScreen: View {
                 notice
                 candidatesNotice
                 othersNotice
+                airNotice
             }
         }
+        // What others found in the air: asked for while its layers are on.
+        .modifier(AirOnTheMap(region: region, address: wind.server == nil ? "" : wind.address, chosen: $chosenAir))
         .overlay(alignment: .bottomLeading) {
             VStack(alignment: .leading, spacing: VentiSpace.s2) {
                 if isForecastOn {
@@ -340,6 +362,8 @@ struct MapScreen: View {
                 offers: layersOffers,
                 filterWords: sites.filtered.isOn ? sites.filtered.filterWords : "",
                 pilotsWords: live.layer.countWords,
+                climbsWords: climbsWords,
+                flownWords: flownWords,
                 open: { opening in
                     fromLayers = opening
                     showsLayers = false
@@ -488,6 +512,7 @@ struct MapScreen: View {
                 showsReach = false
                 chosenSquare = nil
                 chosenAirspace = nil
+                chosenAir = nil
                 showsStations = false
                 showsSites = false
                 showsSitesFilter = false
@@ -670,6 +695,60 @@ struct MapScreen: View {
         }
     }
 
+    /// The climbs the map draws: the layer's answer while it is on and
+    /// there is a Venti to ask.
+    private var climbsOnTheMap: LiveClimbs? {
+        showsClimbs && wind.server != nil ? air.climbs : nil
+    }
+
+    /// Where thermals have been, while that layer is on.
+    private var flownOnTheMap: FlownThermals? {
+        showsFlown && wind.server != nil ? air.flown : nil
+    }
+
+    /// What the layer "Climbs now" says of itself under its name in the
+    /// layers sheet while it is on, in the core's words: to zoom in, how
+    /// many climbs, or that nobody was heard climbing.
+    private var climbsWords: String {
+        guard showsClimbs else { return "" }
+        if air.climbsTooWide {
+            return mapLayersWords().climbsTooWide
+        }
+        guard let climbs = air.climbs else { return "" }
+        return climbs.climbs.isEmpty ? liveClimbsEmptyWords() : climbs.countWords
+    }
+
+    /// The same for where thermals have been: to zoom in, or that no
+    /// shared flight climbed in this part of the map.
+    private var flownWords: String {
+        guard showsFlown else { return "" }
+        if air.flownTooWide {
+            return flownTooWideWords()
+        }
+        return air.flown?.cells.isEmpty == true ? mapLayersWords().flownEmpty : ""
+    }
+
+    /// What the two layers of the air say over the map when it shows too
+    /// much for them to be asked for: the core's words, as the Pilots
+    /// layer's.
+    @ViewBuilder private var airNotice: some View {
+        if wind.server != nil {
+            let words = [
+                showsFlown && air.flownTooWide ? flownTooWideWords() : "",
+                showsClimbs && air.climbsTooWide ? mapLayersWords().climbsTooWide : "",
+            ].filter { !$0.isEmpty }
+            ForEach(words, id: \.self) { words in
+                Text(words)
+                    .font(.venti(.footnote))
+                    .padding(.horizontal, VentiSpace.s3)
+                    .padding(.vertical, VentiSpace.s2)
+                    .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
+                    .padding(.horizontal, VentiSpace.s4)
+                    .accessibilityIdentifier("air-notice")
+            }
+        }
+    }
+
     /// Whose wind, airspace, sites and the rest are on the map, a line for
     /// each. Their licences ask for the credit at the data: it is one tap
     /// away, behind the map's credits button, in full; the full wording
@@ -696,6 +775,10 @@ struct MapScreen: View {
         }
         if !hidesCables, let words = cables.creditWords, let region, region.north - region.south < 0.5 {
             parts.append(words)
+        }
+        // The credit of the networks whose gliders a climb drawn is from.
+        if let climbs = climbsOnTheMap {
+            parts.append(contentsOf: climbs.credits.map(\.text).filter { !parts.contains($0) })
         }
         if forecastDay != nil, let map = thermals.map, !map.credits.isEmpty {
             parts.append("Forecast: \(map.credits.map(\.provider).formatted(.list(type: .and)))")

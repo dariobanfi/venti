@@ -26,6 +26,11 @@ struct MapLayersSheet: View {
     var filterWords = ""
     /// How many are in the air on this part of the map, in the core's words.
     var pilotsWords = ""
+    /// What the layer "Climbs now" says of itself while it is on: how
+    /// many climbs, why none, or to zoom in. The core's words.
+    var climbsWords = ""
+    /// The same for where thermals have been.
+    var flownWords = ""
     let open: (Opening) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -33,6 +38,8 @@ struct MapLayersSheet: View {
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
     @AppStorage(Preferences.mapHidesCables) private var hidesCables = false
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+    @AppStorage(Preferences.mapShowsClimbs) private var showsClimbs = false
+    @AppStorage(Preferences.mapShowsFlownThermals) private var showsFlown = false
 
     var body: some View {
         let words = mapLayersWords()
@@ -57,6 +64,21 @@ struct MapLayersSheet: View {
                         Label(words.aerialView, image: "icon-layers")
                     }
                     .accessibilityIdentifier("map-aerial")
+                    // What others found in the air: off until the pilot
+                    // asks for it, each with the core's line about what
+                    // it is, and what it says of itself while it is on.
+                    if offers.hasServer {
+                        airLayer(
+                            words.climbsNow, icon: "icon-thermal", note: words.climbsNowNote, says: climbsWords,
+                            isOn: $showsClimbs
+                        )
+                        .accessibilityIdentifier("layer-climbs")
+                        airLayer(
+                            words.flownThermals, icon: "icon-track", note: words.flownThermalsNote, says: flownWords,
+                            isOn: $showsFlown
+                        )
+                        .accessibilityIdentifier("layer-flown")
+                    }
                 } header: {
                     Text(words.onTheMap)
                 }
@@ -98,6 +120,29 @@ struct MapLayersSheet: View {
                         dismiss()
                     }
                 }
+            }
+        }
+    }
+
+    /// A layer of what others found in the air: its name, the core's line
+    /// about what it is, and under that what it says of itself while on.
+    private func airLayer(
+        _ title: String, icon: String, note: String, says: String, isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            Label {
+                VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                    Text(title)
+                    ForEach([note, says].filter { !$0.isEmpty }, id: \.self) { line in
+                        Text(line)
+                            .font(.venti(.footnote))
+                            .foregroundStyle(.venti(.textSecondary))
+                            .monospacedDigit()
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } icon: {
+                Image(icon)
             }
         }
     }

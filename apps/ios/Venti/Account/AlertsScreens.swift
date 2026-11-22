@@ -210,7 +210,7 @@ struct AlertForm: View {
     /// the head.
     private static let fieldsShown: Set<String> = [
         "name", "rule.directions", "rule.min_kmh", "rule.max_kmh", "rule.gusts_max_kmh", "rule.hours",
-        "rule.days_ahead",
+        "rule.days_ahead", "rule.min_pilots", "rule.rest_hours",
     ]
 
     var body: some View {
@@ -242,6 +242,20 @@ struct AlertForm: View {
                     }
                 } header: {
                     Text(words.name)
+                }
+
+                // A new alarm for a place is one of two kinds: of the
+                // day there, or of pilots in the air there. An alarm that
+                // stands keeps its kind.
+                if id == nil, draft.kind != .wind {
+                    Section {
+                        VentiSegmented(
+                            options: [(AlertKind.day, mapLayersWords().alarmDayKind), (AlertKind.pilots, words.pilotsKind)],
+                            selection: kind
+                        )
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("alert-kind")
+                    }
                 }
 
                 switch draft.kind {
@@ -391,18 +405,37 @@ struct AlertForm: View {
         }
     }
 
-    /// An alarm about pilots in the air at a place, which the web makes:
-    /// its two numbers under the core's words, the core's own where the
-    /// pilot chose none.
+    /// The kind of a new alarm for a place, as the choice sets it.
+    private var kind: Binding<AlertKind> {
+        Binding(
+            get: { draft.kind },
+            set: { draft = AlertsModel.draft(draft, ofKind: $0) }
+        )
+    }
+
+    /// An alarm about pilots in the air at a place: its two numbers under
+    /// the core's words, within the core's bounds (`pilotsAlarmNumbers()`)
+    /// and at its defaults where the pilot chose none.
     @ViewBuilder private var pilotsFields: some View {
+        let numbers = pilotsAlarmNumbers()
         Section {
-            Stepper(value: number(\.minPilots, else: 3), in: 1...50) {
-                LabeledContent(words.pilotsAtLeast, value: Format.metres(Double(draft.minPilots ?? 3)))
+            Stepper(
+                value: number(\.minPilots, else: numbers.minPilotsDefault),
+                in: Int(numbers.minPilotsLeast)...Int(numbers.minPilotsMost)
+            ) {
+                LabeledContent(
+                    words.pilotsAtLeast, value: Format.metres(Double(draft.minPilots ?? numbers.minPilotsDefault))
+                )
             }
             .accessibilityIdentifier("alert-min-pilots")
             faultLines("rule.min_pilots")
-            Stepper(value: number(\.restHours, else: 6), in: 1...48) {
-                LabeledContent(words.pilotsRest, value: Format.metres(Double(draft.restHours ?? 6)))
+            Stepper(
+                value: number(\.restHours, else: numbers.restHoursDefault),
+                in: Int(numbers.restHoursLeast)...Int(numbers.restHoursMost)
+            ) {
+                LabeledContent(
+                    words.pilotsRest, value: Format.metres(Double(draft.restHours ?? numbers.restHoursDefault))
+                )
             }
             .accessibilityIdentifier("alert-rest-hours")
             faultLines("rule.rest_hours")

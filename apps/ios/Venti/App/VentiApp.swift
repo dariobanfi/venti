@@ -18,7 +18,7 @@ struct VentiApp: App {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
                 let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar,
-                let candidates, let alerts, let cables
+                let candidates, let alerts, let cables, let air
             ):
                 RootScreen()
                     .environment(logbook)
@@ -42,6 +42,7 @@ struct VentiApp: App {
                     .environment(candidates)
                     .environment(alerts)
                     .environment(cables)
+                    .environment(air)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -65,7 +66,7 @@ enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
         TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
-        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel, CablesModel
+        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel, CablesModel, AirModel
     )
     case failed(String)
 
@@ -170,6 +171,12 @@ enum Session {
             let cables = CablesModel()
             cables.server = { wind.server }
             fly.cables = { cables.set }
+            // What others found in the air: the map tab's two layers, a
+            // site's line, and the climbs around the glider where the
+            // pilot switched them on for the cockpit.
+            let air = AirModel()
+            air.server = { wind.server }
+            fly.climbsAround = { place in await air.climbsAround(place) }
             // The take-offs around the glider: the pilot's own and those
             // the map holds.
             let held: () -> SitesMap? = {
@@ -236,7 +243,7 @@ enum Session {
             UNUserNotificationCenter.current().delegate = AlertNotices.showsInFront
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps, today, thermals, own, radar, candidates, alerts, cables
+                groups, maps, today, thermals, own, radar, candidates, alerts, cables, air
             )
         } catch {
             return .failed(error.words)

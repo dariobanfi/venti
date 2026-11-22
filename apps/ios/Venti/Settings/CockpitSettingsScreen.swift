@@ -35,6 +35,7 @@ struct CockpitSettingsScreen: View {
     @AppStorage(Preferences.neverLand) private var neverLand = false
     @AppStorage(Preferences.showsFaiAreas) private var showsFaiAreas = false
     @AppStorage(Preferences.cockpitKeepsBrightness) private var keepsBrightness = false
+    @AppStorage(Preferences.cockpitShowsClimbs) private var showsClimbs = false
 
     var body: some View {
         let glider = gliderWords()
@@ -68,6 +69,16 @@ struct CockpitSettingsScreen: View {
                     .accessibilityIdentifier("fai-areas")
             } footer: {
                 Text("The FAI triangle areas are drawn on the cockpit's map once you have flown three kilometres in a straight line: a turnpoint inside either of them makes that line one side of an FAI triangle.")
+            }
+
+            // Where others climb near the glider, on the cockpit's map:
+            // off until the pilot asks for it, and then nothing is asked
+            // of Venti for it. The name and the line are the core's.
+            Section {
+                Toggle(mapLayersWords().cockpitClimbs, isOn: $showsClimbs)
+                    .accessibilityIdentifier("cockpit-climbs")
+            } footer: {
+                Text(mapLayersWords().cockpitClimbsNote)
             }
 
             Section {

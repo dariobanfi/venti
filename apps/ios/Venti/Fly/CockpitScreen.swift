@@ -373,6 +373,7 @@ struct CockpitScreen: View {
             closing: fly.score?.closing,
             takeoffs: fly.takeoffsNear?.takeoffs ?? [],
             others: fly.othersNear?.aircraft ?? [],
+            climbs: fly.climbsNear?.climbs ?? [],
             showsWholeFlight: showsWholeFlight,
             task: fly.task == nil ? nil : tasks.task,
             taskStatus: fly.task,
@@ -503,6 +504,12 @@ struct CockpitScreen: View {
                     if page != .instruments, let near = fly.othersNear, !near.countWords.isEmpty {
                         MapWords(text: near.countWords, identifier: "cockpit-others-count")
                     }
+                    // The nearest climb of others, in the core's one line,
+                    // on the map page and only while the pilot has the
+                    // climbs switched on: a hint, not an instrument.
+                    if page == .map, let nearest = fly.climbsNear?.climbs.first {
+                        MapWords(text: nearest.line, identifier: "cockpit-climb-near")
+                    }
                 }
                 .padding(VentiSpace.s2)
             }
@@ -578,6 +585,10 @@ struct CockpitScreen: View {
         }
         if let near = fly.othersNear {
             parts.append(contentsOf: near.credits.map(\.text))
+        }
+        // The networks whose gliders a climb drawn is from, said once.
+        if let climbs = fly.climbsNear {
+            parts.append(contentsOf: climbs.credits.map(\.text).filter { !parts.contains($0) })
         }
         if let takeoffs = fly.takeoffsNear, !takeoffs.takeoffs.isEmpty, !takeoffs.credits.isEmpty {
             parts.append("Sites: \(takeoffs.credits.map(\.provider).formatted(.list(type: .and)))")

@@ -205,6 +205,20 @@ final class AlertsModel {
         return draft
     }
 
+    /// A new alarm for a place as the other of its two kinds: the place
+    /// and the name stay, and an alarm for pilots in the air starts at the
+    /// core's numbers (`pilotsAlarmNumbers()`) where the draft names none.
+    static func draft(_ draft: AlertDraft, ofKind kind: AlertKind) -> AlertDraft {
+        var changed = draft
+        changed.kind = kind
+        if kind == .pilots {
+            let numbers = pilotsAlarmNumbers()
+            changed.minPilots = draft.minPilots ?? numbers.minPilotsDefault
+            changed.restHours = draft.restHours ?? numbers.restHoursDefault
+        }
+        return changed
+    }
+
     private static func empty(
         kind: AlertKind, name: String, stationId: String = "", stationName: String = ""
     ) -> AlertDraft {

@@ -90,6 +90,16 @@ struct OverviewMap: UIViewRepresentable {
     var cables: [CableLine] = []
     /// Called with a cable's identifier when the pilot taps its line.
     var onCable: (String) -> Void = { _ in }
+    /// Where pilots climb now, as the core lists them; none while the
+    /// layer is off.
+    var climbs: [ClimbView] = []
+    /// Called with a climb's place among `climbs` when the pilot taps its
+    /// mark.
+    var onClimb: (Int) -> Void = { _ in }
+    /// Where thermals have been; `nil` while the layer is off.
+    var flown: FlownThermals?
+    /// Called with a cell's place among `flown`'s when the pilot taps it.
+    var onFlownCell: (Int) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -149,6 +159,10 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onHourPlace = onHourPlace
         coordinator.onCable = onCable
         coordinator.showCables(cables, on: map)
+        coordinator.onClimb = onClimb
+        coordinator.onFlownCell = onFlownCell
+        coordinator.showClimbs(climbs, on: map)
+        coordinator.showFlown(flown, on: map)
         coordinator.showForecast(forecast, on: map)
         coordinator.showHour(forecastHour, on: map)
         coordinator.showRadar(radar, on: map)
@@ -179,6 +193,12 @@ struct OverviewMap: UIViewRepresentable {
         var onCable: (String) -> Void = { _ in }
         private var cables: [CableLine] = []
         private var drawnCables: [CableLine]?
+        var onClimb: (Int) -> Void = { _ in }
+        var onFlownCell: (Int) -> Void = { _ in }
+        private var climbs: [ClimbView] = []
+        private var drawnClimbs: [ClimbView]?
+        private var flown: FlownThermals?
+        private var drawnFlown: FlownThermals??
         var onCandidate: (String) -> Void = { _ in }
         var onGlider: (String) -> Void = { _ in }
         var onOther: (String) -> Void = { _ in }
@@ -308,6 +328,32 @@ struct OverviewMap: UIViewRepresentable {
             guard isStyleLoaded, cables != drawnCables, let style = map.style else { return }
             drawnCables = cables
             CablesLayers.show(cables, in: style)
+        }
+
+        func showClimbs(_ climbs: [ClimbView], on map: MLNMapView) {
+            self.climbs = climbs
+            drawClimbs(on: map)
+        }
+
+        /// Draws the climbs, once the style is there and only when they
+        /// have changed.
+        private func drawClimbs(on map: MLNMapView) {
+            guard isStyleLoaded, climbs != drawnClimbs, let style = map.style else { return }
+            drawnClimbs = climbs
+            AirLayers.show(climbs, in: style)
+        }
+
+        func showFlown(_ flown: FlownThermals?, on map: MLNMapView) {
+            self.flown = flown
+            drawFlown(on: map)
+        }
+
+        /// Draws where thermals have been, once the style is there and
+        /// only when the answer is another.
+        private func drawFlown(on map: MLNMapView) {
+            guard isStyleLoaded, drawnFlown != .some(flown), let style = map.style else { return }
+            drawnFlown = .some(flown)
+            AirLayers.show(flown, in: style)
         }
 
         func showReach(_ reach: GlideReachDrawing?, on map: MLNMapView) {
@@ -443,6 +489,8 @@ struct OverviewMap: UIViewRepresentable {
             drawRadar(on: mapView)
             drawReach(on: mapView)
             drawCables(on: mapView)
+            drawFlown(on: mapView)
+            drawClimbs(on: mapView)
             tellRegion(of: mapView)
         }
 
@@ -511,15 +559,32 @@ struct OverviewMap: UIViewRepresentable {
                     return
                 }
             }
+            // A climb's mark, under the signs above: it is a place in the
+            // air, and a site or a station under the finger is the thing
+            // the pilot more likely means.
+            let marks = map.visibleFeatures(in: reach, styleLayerIdentifiers: [AirLayers.climbs])
+            let nearest = marks.min { first, second in
+                Self.distance(from: point, to: first, on: map) < Self.distance(from: point, to: second, on: map)
+            }
+            if let id = nearest?.attribute(forKey: "id") as? String, let index = Int(id) {
+                onClimb(index)
+                return
+            }
             // A cable's line under the finger, where nothing above it is.
             let wires = map.visibleFeatures(in: reach, styleLayerIdentifiers: Set(CablesLayers.lineLayers))
             if let id = wires.first?.attribute(forKey: "id") as? String {
                 onCable(id)
                 return
             }
+            let under = CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2)
+            // A cell of where thermals have been, under the finger itself.
+            let cells = map.visibleFeatures(in: under, styleLayerIdentifiers: [AirLayers.flown])
+            if let id = cells.first?.attribute(forKey: "id") as? String, let index = Int(id) {
+                onFlownCell(index)
+                return
+            }
             // Nothing of those: the forecast map's square under the finger
             // itself, if one is drawn there.
-            let under = CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2)
             let squares = map.visibleFeatures(in: under, styleLayerIdentifiers: [ThermalMapLayers.layer])
             if let id = squares.first?.attribute(forKey: "id") as? String, let index = Int(id) {
                 onSquare(index)
@@ -572,6 +637,9 @@ struct OverviewMap: UIViewRepresentable {
         private func prepare(_ style: MLNStyle) {
             ThermalMapLayers.add(to: style)
             ThermalMapLayers.addHours(to: style)
+            // Where thermals have been, under the airspace and all the
+            // app's lines and signs.
+            AirLayers.addFlown(to: style)
             AirspaceLayers.add(to: style)
             // The cables, over the airspace.
             CablesLayers.add(to: style)
@@ -687,6 +755,10 @@ struct OverviewMap: UIViewRepresentable {
             names.textHaloWidth = NSExpression(forConstantValue: 1.6)
             names.textAllowsOverlap = NSExpression(forConstantValue: true)
             style.addLayer(names)
+
+            // Where pilots climb now: a dot in the colour of the climb with
+            // the core's label, under the gliders themselves.
+            AirLayers.addClimbs(to: style)
 
             // Other pilots in the air, above everything: a wing turned the
             // way it flies, with the pilot's name and altitude where there

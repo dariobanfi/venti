@@ -35,6 +35,9 @@ struct CockpitMap: UIViewRepresentable {
     var takeoffs: [CockpitTakeoff] = []
     /// The other networks' aircraft near, each with its track.
     var others: [OtherNearView] = []
+    /// Where others climb near the glider, as the core gives them; none
+    /// while the pilot has them switched off.
+    var climbs: [ClimbNearView] = []
     /// Whether the map shows the whole flight, with the scored route and
     /// the FAI triangle areas, instead of following the glider closely.
     var showsWholeFlight = false
@@ -83,6 +86,7 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.closing = closing
         context.coordinator.takeoffs = takeoffs
         context.coordinator.others = others
+        context.coordinator.climbs = climbs
         context.coordinator.showsWholeFlight = showsWholeFlight
         context.coordinator.task = task
         context.coordinator.taskStatus = taskStatus
@@ -137,6 +141,8 @@ struct CockpitMap: UIViewRepresentable {
         private var drawnTakeoffs: [CockpitTakeoff]?
         var others: [OtherNearView] = []
         private var drawnOthers: [OtherNearView]?
+        var climbs: [ClimbNearView] = []
+        private var drawnClimbs: [ClimbNearView]?
         var showsWholeFlight = false
         /// The box the map shows while it shows the whole flight.
         private var wholeFlight: Bounds?
@@ -359,6 +365,11 @@ struct CockpitMap: UIViewRepresentable {
                 )
             )
 
+            // Where others climb near the glider, while the pilot has them
+            // switched on: the map tab's mark, the label at the cockpit's
+            // smallest size. Under every aircraft.
+            AirLayers.addClimbs(to: style, named: Self.climbsLayer, textSize: 14)
+
             // The other networks' aircraft: each one's track of the last
             // five minutes as a thin line in the muted ink, and its wing,
             // under Venti's own pilots.
@@ -403,6 +414,7 @@ struct CockpitMap: UIViewRepresentable {
             drawnClosing = nil
             drawnTakeoffs = nil
             drawnOthers = nil
+            drawnClimbs = nil
             drawnRoute = nil
             drawnTask = nil
             drawnTaskNext = nil
@@ -591,6 +603,10 @@ struct CockpitMap: UIViewRepresentable {
                 drawnTakeoffs = takeoffs
                 source.shape = MLNShapeCollectionFeature(shapes: takeoffs.map(Self.takeoffFeature))
             }
+            if climbs != drawnClimbs {
+                drawnClimbs = climbs
+                AirLayers.show(climbs.map(\.climb), in: style, named: Self.climbsLayer)
+            }
             if others != drawnOthers {
                 drawnOthers = others
                 if let source = style.source(withIdentifier: "cockpit-others") as? MLNShapeSource {
@@ -605,6 +621,9 @@ struct CockpitMap: UIViewRepresentable {
                 }
             }
         }
+
+        /// The layer of the climbs of others.
+        static let climbsLayer = "cockpit-climbs"
 
         static func takeoffFeature(for takeoff: CockpitTakeoff) -> MLNPointFeature {
             let feature = MLNPointFeature()

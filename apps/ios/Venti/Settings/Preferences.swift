@@ -44,6 +44,15 @@ enum Preferences {
     /// Whether the map tab shows the rain radar, the last frames of rain
     /// the radars saw. Off until the pilot switches it on.
     static let mapShowsRadar = "VentiMapShowsRadar"
+    /// Whether the map tab shows where gliders climb at this moment, and
+    /// where the public flights' thermals have been: two layers of the
+    /// layers sheet, each off until the pilot switches it on.
+    static let mapShowsClimbs = "VentiMapShowsClimbs"
+    static let mapShowsFlownThermals = "VentiMapShowsFlownThermals"
+    /// Whether the cockpit asks for the climbs of others around the
+    /// glider and draws them on its map: off until the pilot switches it
+    /// on, and then nothing is asked or drawn.
+    static let cockpitShowsClimbs = "VentiCockpitShowsClimbs"
     /// The height up to which the maps draw airspace, in metres; 0 for all
     /// heights. One choice for every map that draws airspace but the
     /// cockpit's, which draws all of it.

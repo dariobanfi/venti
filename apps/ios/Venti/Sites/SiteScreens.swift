@@ -340,7 +340,11 @@ struct SiteScreen: View {
     @Environment(FlySession.self) private var fly
     @Environment(KeptSitesModel.self) private var own
     @Environment(AccountModel.self) private var account
+    @Environment(AirModel.self) private var air
 
+    /// Who flies here now, in the core's one line, with the credit of the
+    /// networks that counted; empty when nobody does.
+    @State private var inTheAir = AirModel.SiteLine()
     /// Whether the site is one of the pilot's own, as the core says.
     @State private var isOwn = false
     /// The date a kept site's record is of, for keeping it again as it is.
@@ -633,6 +637,11 @@ struct SiteScreen: View {
             guard isForTakingOff else { return }
             outlook = await today.outlook(of: site)
         }
+        // Who flies here now: the site's own name, or none, never a word
+        // of the app's in its place.
+        .task(id: site.id) {
+            inTheAir = await air.siteAir(id: site.id, name: site.isNamed ? site.name : "", position: site.position)
+        }
         .fullScreenCover(isPresented: $isPlanningRoute) {
             RouteMapPlanner(from: site.position)
         }
@@ -752,6 +761,14 @@ struct SiteScreen: View {
                 }
                 Text(inALine)
                     .foregroundStyle(.venti(.textSecondary))
+                // Who flies here now, in the core's one line; nothing
+                // when nobody does.
+                if !inTheAir.words.isEmpty {
+                    Text(inTheAir.words)
+                        .foregroundStyle(.venti(.textSecondary))
+                        .monospacedDigit()
+                        .accessibilityIdentifier("site-air")
+                }
                 if let day {
                     Text(Self.words(of: day))
                         .foregroundStyle(.venti(.textSecondary))
@@ -813,7 +830,9 @@ struct SiteScreen: View {
     /// a map is worth.
     private var footnote: String {
         let credit = ((credits ?? []) + sites.credits).first { $0.source == site.source }
-        let parts = [Self.caution, credit?.notice, credit?.text]
+        // And the credit of the networks that counted who flies here now,
+        // while the page says so.
+        let parts = [Self.caution, credit?.notice, credit?.text] + inTheAir.credits.map(\.text)
         return parts.compactMap { $0 }.joined(separator: "\n\n")
     }
 }

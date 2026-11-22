@@ -55,7 +55,9 @@ final class VentiUITests: XCTestCase {
     /// The layers the map tab keeps as switches in its layers sheet; the
     /// others ("layer-wind", "layer-sites", the forecast and the radar)
     /// are chips on the map.
-    private static let layersInTheSheet: Set<String> = ["layer-airspace", "layer-pilots", "layer-cables", "map-aerial"]
+    private static let layersInTheSheet: Set<String> = [
+        "layer-airspace", "layer-pilots", "layer-cables", "map-aerial", "layer-climbs", "layer-flown",
+    ]
 
     /// Opens the map tab's layers sheet, from the first of its two round
     /// buttons: the layers without a chip are switches in it, and the
@@ -2748,6 +2750,125 @@ final class VentiUITests: XCTestCase {
             app.buttons["Done"].tap()
             app.terminate()
         }
+    }
+
+    /// What others found in the air, against a Venti server in development
+    /// mode, which has two made-up climbs by the Tegernsee and two cells
+    /// where its made-up public flights climbed: the layers sheet's two
+    /// switches, off until switched on; "Climbs now" with a mark for each
+    /// climb and a climb's line on a tap; and where thermals have been.
+    /// Both are switched off again at the end: the choice is kept.
+    func testTheMapShowsWhereOthersClimbNow() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        // The map opens on the climb east of the Wallberg.
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.6675,11.8025,13.5"])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        // The map has the server's answer once the sites' credit is there:
+        // the Wallberg's ramps are in view. No wind station is.
+        XCTAssertTrue(waitForCredit("Sites", in: app))
+        // Both start off, whatever a test before this one left.
+        setLayer("layer-climbs", on: false, in: app)
+        setLayer("layer-flown", on: false, in: app)
+
+        XCTAssertTrue(openLayers(in: app))
+        let climbs = app.switches["layer-climbs"]
+        XCTAssertTrue(climbs.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["layer-flown"].exists)
+        XCTAssertTrue(labelled(containing: "Climbs now", in: app).exists)
+        XCTAssertTrue(labelled(containing: "Where thermals have been", in: app).exists)
+        sleep(1)
+        keepScreenshot("air-1-layers-off")
+        set(climbs, on: true)
+        // The layer says how many climb in the part of the map in view,
+        // in the core's words: "1 climb in the last 10 minutes".
+        let counted = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "climb in the last", "climbs in the last")
+        ).firstMatch
+        XCTAssertTrue(counted.waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("air-2-layers-climbs-on")
+        closeLayers(in: app)
+        sleep(2)
+        keepScreenshot("air-3-map-climbs")
+
+        // A tap on the climb in the map's middle, with what lies over it
+        // off: its line, and whose gliders it is from.
+        setLayer("layer-pilots", on: false, in: app)
+        setLayer("layer-wind", on: false, in: app)
+        setLayer("layer-sites", on: false, in: app)
+        // The network's credit is with the map's while the climbs are drawn.
+        XCTAssertTrue(waitForCredit("Open Glider Network", in: app, timeout: 20))
+        let middle = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let line = element("climb-line", in: app)
+        for _ in 0..<5 where !line.exists {
+            middle.tap()
+            _ = line.waitForExistence(timeout: 3)
+        }
+        XCTAssertTrue(line.exists)
+        XCTAssertTrue(line.label.hasPrefix("Climbing now: +2.4 m/s"), line.label)
+        XCTAssertTrue(labelled(containing: "Open Glider Network", in: app).exists)
+        sleep(1)
+        keepScreenshot("air-4-climb-line")
+        element("air-line-close", in: app).tap()
+        usleep(800_000)
+
+        // Where thermals have been: its cells on the map, and a cell's
+        // line where the tap finds the one up and left of the middle.
+        setLayer("layer-climbs", on: false, in: app)
+        XCTAssertTrue(openLayers(in: app))
+        let flown = app.switches["layer-flown"]
+        XCTAssertTrue(flown.waitForExistence(timeout: 10))
+        set(flown, on: true)
+        closeLayers(in: app)
+        sleep(4)
+        keepScreenshot("air-5-map-flown")
+        let cell = element("flown-line", in: app)
+        middle.withOffset(CGVector(dx: -165, dy: -122)).tap()
+        if cell.waitForExistence(timeout: 5) {
+            sleep(1)
+            keepScreenshot("air-6-flown-line")
+        }
+        // Whatever the tap opened is closed again.
+        for close in [element("air-line-close", in: app), app.buttons["Done"].firstMatch] where close.exists {
+            close.tap()
+            usleep(800_000)
+            break
+        }
+
+        // As it was: the two layers off, the others on.
+        setLayer("layer-flown", on: false, in: app)
+        setLayer("layer-pilots", on: true, in: app)
+        setLayer("layer-wind", on: true, in: app)
+        setLayer("layer-sites", on: true, in: app)
+    }
+
+    /// A site's page says who flies there now, in the core's one line: the
+    /// development server's made-up gliders are in the air over the
+    /// Wallberg, whose two ramps have no name of their own, so the line
+    /// says "here".
+    func testASitesPageSaysWhoIsInTheAirThere() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(
+            bundledMap: true, extra: ["--server", server, "--all-sites", "--map-at", "47.6652,11.7954,13"]
+        )
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        XCTAssertTrue(waitForCredit("Sites", in: app))
+        layersRow("Flying sites", in: app).tap()
+        let ramp = app.descendants(matching: .any).matching(identifier: "site-row")
+            .matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Take-off", "47.665"))
+            .firstMatch
+        XCTAssertTrue(ramp.waitForExistence(timeout: 30))
+        bringUp(ramp, in: app)
+        ramp.tap()
+        let line = element("site-air", in: app)
+        XCTAssertTrue(line.waitForExistence(timeout: 30))
+        XCTAssertTrue(line.label.contains("in the air here"), line.label)
+        sleep(1)
+        keepScreenshot("air-7-site-pilots-in-the-air")
     }
 
     /// A route of the pilot's own waypoints: tapped in the order to fly

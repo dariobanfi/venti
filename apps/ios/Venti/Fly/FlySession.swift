@@ -57,6 +57,18 @@ final class FlySession {
     /// Asks the server for the other networks' aircraft around a place.
     /// The app sets this; `nil` when there is no answer.
     @ObservationIgnored var otherNetworks: (Coordinate) async -> LiveOthers? = { _ in nil }
+    /// Where others climb near the glider, as the core's session ages
+    /// them. Absent while the pilot has them switched off, and while
+    /// there is none.
+    private(set) var climbsNear: ClimbsNear?
+    /// Asks the server for the climbs of the last minutes around a place.
+    /// The app sets this; `nil` when there is no answer.
+    @ObservationIgnored var climbsAround: (Coordinate) async -> LiveClimbs? = { _ in nil }
+    /// Whether the pilot has "Climbs of others in the cockpit" switched
+    /// on: off until then, and off nothing is asked or drawn.
+    @ObservationIgnored var showsClimbs: () -> Bool = {
+        UserDefaults.standard.bool(forKey: Preferences.cockpitShowsClimbs)
+    }
     /// The take-offs around the glider, for the cockpit's map.
     private(set) var takeoffsNear: CockpitTakeoffs?
     /// Works out the take-offs around the glider from what the app holds.
@@ -153,6 +165,12 @@ final class FlySession {
     /// answer is still awaited.
     @ObservationIgnored private var ticksSinceNetworks = 0
     @ObservationIgnored private var isAskingForNetworks = false
+    /// Refreshes since the climbs of others were asked for, whether an
+    /// answer is still awaited, and whether the core's session was handed
+    /// one in this flight.
+    @ObservationIgnored private var ticksSinceClimbs = 0
+    @ObservationIgnored private var isAskingForClimbs = false
+    @ObservationIgnored private var hasHandedClimbs = false
     /// Refreshes since the take-offs around were worked out.
     @ObservationIgnored private var ticksSinceTakeoffs = 0
     /// Refreshes of the screen since the score was last asked for.
@@ -183,6 +201,10 @@ final class FlySession {
     /// Who else is in the air is asked this many refreshes apart: every
     /// fifteen seconds, which is what the server asks for.
     private static let ticksBetweenOthers = 75
+
+    /// The climbs of others around the glider are asked for this many
+    /// refreshes apart: every minute, while the pilot has them on.
+    static let ticksBetweenClimbs = 300
 
     /// The take-offs around the glider are worked out again this many
     /// refreshes apart: every half minute.
@@ -499,6 +521,10 @@ final class FlySession {
         handedCables = nil
         cableWarning = nil
         othersNear = nil
+        climbsNear = nil
+        hasHandedClimbs = false
+        ticksSinceClimbs = Self.ticksBetweenClimbs
+        isAskingForClimbs = false
         takeoffsNear = nil
         ticksSinceNetworks = Self.ticksBetweenOthers
         isAskingForNetworks = false
@@ -575,6 +601,11 @@ final class FlySession {
         handedCables = cables()
         session.useCables(cables: handedCables)
         ticksSinceNetworks = Self.ticksBetweenOthers
+        // The climbs of others are asked for as soon as the glider flies,
+        // where the pilot has them on.
+        ticksSinceClimbs = Self.ticksBetweenClimbs
+        isAskingForClimbs = false
+        hasHandedClimbs = false
         ticksSinceTakeoffs = Self.ticksBetweenTakeoffs
         // The ground, as far as the iPhone has it; more of it arrives
         // while the session runs.
@@ -721,6 +752,31 @@ final class FlySession {
                 session.onOthers(others: found, nowUnixS: self.replay?.now() ?? Date().timeIntervalSince1970)
             }
         }
+        // The climbs of others around the glider: only where the pilot
+        // switched them on, in flight only, once a minute. Off, nothing
+        // is asked and nothing is kept to draw.
+        let wantsClimbs = showsClimbs()
+        if !wantsClimbs {
+            if climbsNear != nil {
+                climbsNear = nil
+            }
+        } else {
+            ticksSinceClimbs += 1
+            if ticksSinceClimbs >= Self.ticksBetweenClimbs, !isAskingForClimbs, view.phase == .flying,
+               let position = view.position
+            {
+                ticksSinceClimbs = 0
+                isAskingForClimbs = true
+                Task { [weak self] in
+                    guard let self else { return }
+                    let found = await self.climbsAround(position)
+                    self.isAskingForClimbs = false
+                    guard let found, self.mode != nil, let session = self.session else { return }
+                    session.onClimbs(climbs: found, nowUnixS: self.replay?.now() ?? Date().timeIntervalSince1970)
+                    self.hasHandedClimbs = true
+                }
+            }
+        }
         // The take-offs around the glider, whenever it has a position.
         ticksSinceTakeoffs += 1
         if ticksSinceTakeoffs >= Self.ticksBetweenTakeoffs, let position = view.position {
@@ -781,6 +837,15 @@ final class FlySession {
             let shownNear = near.aircraft.isEmpty ? nil : near
             if shownNear != othersNear {
                 othersNear = shownNear
+            }
+            // The climbs of others near, aged to now by the core: read
+            // every two seconds, and only once an answer was handed over.
+            if wantsClimbs, hasHandedClimbs {
+                let climbing = session.climbsNear(nowUnixS: now)
+                let shownClimbs = climbing.climbs.isEmpty ? nil : climbing
+                if shownClimbs != climbsNear {
+                    climbsNear = shownClimbs
+                }
             }
             // And how far it glides, every way, over the ground as it is.
             let reach = session.glideRange(nowUnixS: now)

@@ -190,8 +190,11 @@ pub fn foehn(
             })
         });
         // The strongest level of the pairs near by; of two equal ones the
-        // first.
+        // first. A pair whose stations or limits no weather service gave
+        // (`to_verify`) is shown in the view and never speaks on Today: a
+        // warning there has to rest on more than Venti's own guess.
         if near
+            && !pair.to_verify
             && matches!(row.level, FoehnLevel::Possible | FoehnLevel::Likely)
             && today_line
                 .as_ref()
@@ -512,6 +515,18 @@ mod tests {
             "North foehn possible: 4 hPa higher at Innsbruck than at Bolzano"
         );
         assert_eq!(line.level, FoehnLevel::Possible);
+    }
+
+    #[test]
+    fn a_pair_that_is_venti_s_own_guess_never_speaks_on_today() {
+        let guessed = String::from_utf8(body(Some((AT_1850, 1021.2)), Some((AT_1900, 1015.0))))
+            .unwrap()
+            .replace(r#""to_verify": false"#, r#""to_verify": true"#)
+            .into_bytes();
+        let view = foehn(200, guessed, vec![WALLBERG], NOW).unwrap();
+        assert_eq!(view.today_line, None);
+        // The view still shows what the pressure says.
+        assert_eq!(view.rows[0].level, FoehnLevel::Likely);
     }
 
     #[test]

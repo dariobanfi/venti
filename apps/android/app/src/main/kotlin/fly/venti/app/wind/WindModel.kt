@@ -212,6 +212,24 @@ class WindModel(
      * no answer.
      */
     suspend fun serverNow(): Long {
+        readClockIfUnread()
+        return now
+    }
+
+    /**
+     * The server's clock as last read, advanced by the time passed since,
+     * in seconds since 1970; read from the server first if it has not been
+     * yet. 0 while there is no answer, never this phone's own time: the
+     * core then says a comment's day, where an age counted by a wrong
+     * phone clock would be days off.
+     */
+    suspend fun serverTimeOrZero(): Long {
+        readClockIfUnread()
+        return if (serverClock == null) 0 else now
+    }
+
+    /** Reads the server's health when its clock has not been read yet. Quiet: without an answer it stays unread. */
+    private suspend fun readClockIfUnread() {
         val server = url
         if (serverClock == null && server != null) {
             try {
@@ -221,10 +239,9 @@ class WindModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                // This phone's clock, then.
+                // Unread, then: asked again next time.
             }
         }
-        return now
     }
 
     /**

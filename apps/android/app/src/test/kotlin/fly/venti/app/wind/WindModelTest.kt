@@ -304,6 +304,32 @@ class WindModelTest {
         assertEquals(WindServer.NeedsEncryption, wind.server)
     }
 
+    @Test
+    fun theSocialClockIsTheServersOrZeroNeverThePhones() = runBlocking {
+        val server = Server()
+        // The phone's clock is three days ahead of the server's.
+        val phone = Clock((server.clock + 3 * 86_400) * 1000)
+        val wind = model(server, clock = phone)
+
+        // No answer yet: zero, where the old clock gave the phone's time.
+        server.isReachable = false
+        assertEquals(0L, wind.serverTimeOrZero())
+        assertEquals(server.clock + 3 * 86_400, wind.serverNow())
+        // Each look asks again while the clock is unread.
+        val asked = server.asked.count { it.endsWith(serverStatusPath()) }
+        assertTrue("asked $asked times", asked >= 2)
+
+        // Read: the server's time, and on from there by the time passed.
+        server.isReachable = true
+        assertEquals(server.clock, wind.serverTimeOrZero())
+        phone.pass(5)
+        assertEquals(server.clock + 300, wind.serverTimeOrZero())
+        // Once read, it is not asked again for this.
+        server.isReachable = false
+        assertEquals(server.clock + 300, wind.serverTimeOrZero())
+        assertEquals(server.clock + 300, wind.serverNow())
+    }
+
     private suspend fun waitUntil(isTrue: () -> Boolean) {
         var waited = 0
         while (!isTrue() && waited < 5000) {

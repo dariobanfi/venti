@@ -62,11 +62,12 @@ class SocialModel(
     /** Fetches an address without a token: what everyone may read. */
     private val transport: WindTransport = { url -> Http.get(url) },
     /**
-     * The time now, in seconds since 1970: by it a comment is "3 h ago".
-     * The app sets Venti's own clock, as the radar's ages are counted, so
-     * that a phone whose clock is off says no wrong age.
+     * The time now by Venti's clock, in seconds since 1970: by it a comment
+     * is "3 h ago". 0 while that clock has not been read, and the core then
+     * says the day: never the phone's own clock, which can be days off.
+     * The app sets `WindModel.serverTimeOrZero`.
      */
-    private val now: suspend () -> Long = { System.currentTimeMillis() / 1000 },
+    private val now: suspend () -> Long = { 0L },
     private val background: CoroutineDispatcher = Dispatchers.Default,
 ) {
     /** Venti's address, without a slash at its end. The app sets this to the one the lists are read from. */

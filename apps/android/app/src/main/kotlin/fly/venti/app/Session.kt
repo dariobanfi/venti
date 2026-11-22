@@ -310,7 +310,9 @@ sealed interface Session {
                 ?: CredentialManagerGoogle(BuildConfig.GOOGLE_CLIENT_ID)
             // Pilots among each other, asked of the same Venti: with the
             // account's token where a request needs one.
-            val social = SocialModel(account, now = { wind.serverNow() })
+            // Its ages are counted by Venti's clock alone: 0 until that
+            // has been read, and the core then says the day.
+            val social = SocialModel(account, now = { wind.serverTimeOrZero() })
             social.server = { (wind.server as? WindServer.Usable)?.url }
             // The pilot's own take-offs are on the account too, once signed in.
             logbook.follow(account, keptSites, scope)

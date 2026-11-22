@@ -19,7 +19,12 @@ import {
 	metric,
 	panel,
 	test,
-	openCredits
+	openCredits,
+	airspaceButton,
+	closeLayers,
+	layerSwitch,
+	openLayers,
+	switchAirspaceOn
 } from './helpers';
 
 /**
@@ -119,6 +124,8 @@ test('the map draws the airspace the server has for where the pilot looks, and s
 }) => {
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
+	await switchAirspaceOn(page);
+	await mapDrawn();
 
 	// Fetched around what the map shows, kept, and drawn: no file was needed.
 	await expect(drawn(page)).toHaveText(/^Airspace on this part of the map: [1-9]\d*\.$/);
@@ -153,6 +160,7 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	// The map fetches the server's airspace; the screen that lists it does not.
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
+	await switchAirspaceOn(page);
 	await openCredits(page);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
@@ -391,6 +399,7 @@ test('a site without a server draws the pilot’s own files and credits nobody',
 	await keep('37-airspace-no-server');
 
 	await sections(page).getByRole('link', { name: 'Map', exact: true }).click();
+	await switchAirspaceOn(page);
 	await mapDrawn();
 	await expect(drawn(page)).toHaveText('Airspace on this part of the map: 2.');
 	await expect(page.getByText(/^Airspace: /)).toBeHidden();
@@ -443,6 +452,7 @@ test('a click on the map says what airspace lies over the place, and the height 
 	await addFiles(page, [upload('Over the valley.txt', OVER_THE_VALLEY)]);
 	await page.getByRole('dialog', { name: 'Airspace' }).getByRole('button', { name: 'OK' }).click();
 	await sections(page).getByRole('link', { name: 'Map', exact: true }).click();
+	await switchAirspaceOn(page);
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(IN_THE_VALLEY);
 	await page.getByRole('button', { name: 'Show my position' }).click();
@@ -492,6 +502,7 @@ test('a server that cannot be asked for airspace is named on the airspace screen
 	});
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
+	await switchAirspaceOn(page);
 	// The map says nothing: it simply has no airspace.
 	await expect(page.getByText(/^Airspace: /)).toBeHidden();
 
@@ -502,4 +513,66 @@ test('a server that cannot be asked for airspace is named on the airspace screen
 	await sections(page).getByRole('link', { name: 'Map', exact: true }).click();
 	await mapTabDrawn(page, mapDrawn);
 	expect(asked).toBe(1);
+});
+
+test('the map tab opens without airspace, and one round button switches it on and off', async ({
+	page,
+	mapDrawn,
+	keep,
+	problems
+}) => {
+	let asked = 0;
+	page.on('request', (request) => {
+		if (new URL(request.url()).pathname.startsWith('/v1/airspace')) asked += 1;
+	});
+	await page.goto('/map/');
+	await mapTabDrawn(page, mapDrawn);
+	await mapDrawn();
+
+	// Off as the map opens: nothing drawn, nothing asked for, nobody credited.
+	const button = airspaceButton(page);
+	await expect(button).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.locator('.controls > button')).toHaveCount(3);
+	await expect(drawn(page)).toBeHidden();
+	expect(asked).toBe(0);
+	await openCredits(page);
+	await expect(page.getByText(/^Airspace: /)).toBeHidden();
+	await openCredits(page);
+	await page.waitForTimeout(800);
+	await keep('277-map-airspace-off');
+
+	// One tap: drawn, credited, and the layers' row is on with it.
+	await button.click();
+	await expect(button).toHaveAttribute('aria-pressed', 'true');
+	await mapDrawn();
+	await expect(drawn(page)).toHaveText(/^Airspace on this part of the map: [1-9]\d*\.$/);
+	await openLayers(page);
+	await expect(layerSwitch(page, 'Airspace')).toBeChecked();
+	await closeLayers(page);
+	await page.waitForTimeout(800);
+	await keep('278-map-airspace-on');
+
+	// Too far out to draw any, the map says so in the core's words.
+	const zoomIn = page.getByText('Zoom in to see airspace.');
+	await expect(zoomIn).toBeHidden();
+	const canvas = page.locator('canvas.maplibregl-canvas');
+	await canvas.focus();
+	for (let step = 0; step < 8 && !(await zoomIn.isVisible()); step += 1) {
+		await page.keyboard.press('Minus');
+		await mapDrawn();
+	}
+	await expect(zoomIn).toBeVisible();
+	await canvas.blur();
+
+	// Kept by the browser; off again by the layers' row, which the button follows.
+	await page.reload();
+	await mapTabDrawn(page, mapDrawn);
+	await expect(airspaceButton(page)).toHaveAttribute('aria-pressed', 'true');
+	await openLayers(page);
+	await layerSwitch(page, 'Airspace').uncheck();
+	await closeLayers(page);
+	await expect(airspaceButton(page)).toHaveAttribute('aria-pressed', 'false');
+	await mapDrawn();
+	await expect(drawn(page)).toBeHidden();
+	expect(problems).toEqual([]);
 });

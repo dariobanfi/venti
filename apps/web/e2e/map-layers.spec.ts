@@ -19,6 +19,7 @@ import {
 	openLayers,
 	closeLayers,
 	layerSwitch,
+	switchAirspaceOn,
 	toolRow
 } from './helpers';
 
@@ -46,13 +47,13 @@ test('four chips and one sheet switch the map’s layers, and the browser rememb
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
 
-	// Four chips, the layers switched most, and two round buttons.
+	// Four chips, the layers switched most, and three round buttons: airspace, layers, position.
 	const chips = page.getByRole('group', { name: 'Layers on the map' }).getByRole('button');
 	await expect(chips).toHaveText([/Forecast/, /Radar/, /Wind/, /Sites/]);
 	for (const name of ['Wind', 'Sites']) {
 		await expect(chip(page, name)).toHaveAttribute('aria-pressed', 'true');
 	}
-	await expect(page.locator('.controls > button')).toHaveCount(2);
+	await expect(page.locator('.controls > button')).toHaveCount(3);
 	// The credits are closed from the start.
 	await expect(page.locator('.credits')).toBeHidden();
 	await page.waitForTimeout(1500);
@@ -61,10 +62,11 @@ test('four chips and one sheet switch the map’s layers, and the browser rememb
 	// Everything else is in the one sheet: every layer as a row with a
 	// switch, the chips' four in the same state, and the tools under them.
 	const sheet = await openLayers(page);
-	for (const name of ['Wind', 'Sites', 'Airspace', 'Pilots', 'Cables']) {
+	for (const name of ['Wind', 'Sites', 'Pilots', 'Cables']) {
 		await expect(layerSwitch(page, name)).toBeChecked();
 	}
 	for (const name of [
+		'Airspace',
 		'Forecast',
 		'Radar',
 		'Slopes',
@@ -95,8 +97,10 @@ test('four chips and one sheet switch the map’s layers, and the browser rememb
 	await expect(layerSwitch(page, 'Wind')).toBeChecked();
 	await closeLayers(page);
 
-	// One click on the map's "i" shows every credit, complete.
+	// One click on the map's "i" shows every credit, complete; airspace's once it is on.
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
+	await switchAirspaceOn(page);
+	await mapDrawn();
 	await openCredits(page);
 	const credits = page.locator('.credits');
 	await expect(credits).toContainText(/Wind: .*Deutscher Wetterdienst.*GeoSphere Austria/);

@@ -2,7 +2,9 @@
  * The layers of the map tab that its chips switch on and off, as the design
  * pack's map screen has them, and how the browser remembers the pilot's
  * choice. It is a convenience of this browser: kept in `localStorage`, and
- * all layers are on wherever that cannot be read.
+ * all layers but airspace are on wherever that cannot be read. Airspace is
+ * off until the pilot switches it on (the owner, 2026-11-22), and kept
+ * apart from the others, as "on".
  */
 
 export type MapLayer = 'wind' | 'airspace' | 'cables' | 'sites' | 'pilots';
@@ -16,6 +18,7 @@ export const MAP_LAYERS: readonly { layer: MapLayer; name: string }[] = [
 ];
 
 const KEY = 'venti.map-layers-off';
+const AIRSPACE_KEY = 'venti.map-airspace';
 const AERIAL_KEY = 'venti.map-aerial';
 const FORECAST_KEY = 'venti.map-forecast';
 const RADAR_KEY = 'venti.map-radar';
@@ -159,25 +162,51 @@ export function keepAirLayer(
 	}
 }
 
-/** The layers the pilot switched off, as this browser remembers them. */
+/**
+ * Whether the map tab draws airspace, as this browser remembers it. Off
+ * until the pilot switches it on, with the round button or the layers' row.
+ */
+export function airspaceOn(storage: Pick<Storage, 'getItem'> | undefined): boolean {
+	try {
+		return storage?.getItem(AIRSPACE_KEY) === 'on';
+	} catch {
+		return false;
+	}
+}
+
+/** Remembers whether airspace is on. Nothing happens where the browser keeps nothing. */
+export function keepAirspace(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
+	try {
+		storage?.setItem(AIRSPACE_KEY, on ? 'on' : 'off');
+	} catch {
+		// A private window, or no storage: the choice lasts for the visit.
+	}
+}
+
+/**
+ * The layers the pilot switched off, as this browser remembers them.
+ * Never airspace, which is kept apart (`airspaceOn`).
+ */
 export function layersOff(storage: Pick<Storage, 'getItem'> | undefined): MapLayer[] {
 	try {
 		const kept: unknown = JSON.parse(storage?.getItem(KEY) ?? '[]');
 		return Array.isArray(kept)
-			? MAP_LAYERS.map(({ layer }) => layer).filter((layer) => kept.includes(layer))
+			? MAP_LAYERS.map(({ layer }) => layer).filter(
+					(layer) => layer !== 'airspace' && kept.includes(layer)
+				)
 			: [];
 	} catch {
 		return [];
 	}
 }
 
-/** Remembers the layers switched off. Nothing happens where the browser keeps nothing. */
+/** Remembers the layers switched off, airspace aside. Nothing happens where the browser keeps nothing. */
 export function keepLayersOff(
 	storage: Pick<Storage, 'setItem'> | undefined,
 	off: MapLayer[]
 ): void {
 	try {
-		storage?.setItem(KEY, JSON.stringify(off));
+		storage?.setItem(KEY, JSON.stringify(off.filter((layer) => layer !== 'airspace')));
 	} catch {
 		// A private window, or no storage: the choice lasts for the visit.
 	}

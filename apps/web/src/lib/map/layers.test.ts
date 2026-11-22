@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	aerialOn,
+	airspaceOn,
+	keepAirspace,
 	candidatesOn,
 	keepCandidates,
 	forecastOn,
@@ -84,6 +86,23 @@ describe('the layers switched off on the map', () => {
 		};
 		expect(layersOff(refusing)).toEqual([]);
 		expect(() => keepLayersOff(refusing, ['wind'])).not.toThrow();
+	});
+});
+
+describe('airspace on the map tab', () => {
+	it('is off until the pilot switches it on, and kept apart from the layers switched off', () => {
+		const storage = memory();
+		expect(airspaceOn(storage)).toBe(false);
+		keepAirspace(storage, true);
+		expect(airspaceOn(storage)).toBe(true);
+		keepLayersOff(storage, ['airspace', 'wind']);
+		expect(layersOff(storage)).toEqual(['wind']);
+		storage.setItem('venti.map-layers-off', '["airspace"]');
+		expect(layersOff(storage)).toEqual([]);
+		expect(airspaceOn(storage)).toBe(true);
+		keepAirspace(storage, false);
+		expect(airspaceOn(storage)).toBe(false);
+		expect(airspaceOn(undefined)).toBe(false);
 	});
 });
 

@@ -264,6 +264,21 @@ export async function switchLayers(page: Page, names: string[], on: boolean): Pr
 	await closeLayers(page);
 }
 
+/**
+ * The map tab's round button that switches airspace on and off: off until
+ * the pilot switches it on, as the browser remembers it.
+ */
+export function airspaceButton(page: Page): Locator {
+	return page.locator('.controls').getByRole('button', { name: 'Airspace', exact: true });
+}
+
+/** Switches airspace on with its round button on the map tab, where it is off. */
+export async function switchAirspaceOn(page: Page): Promise<void> {
+	const button = airspaceButton(page);
+	if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+	await expect(button).toHaveAttribute('aria-pressed', 'true');
+}
+
 /** A tool of the map, a row of the layers' sheet, which has to be open. */
 export function toolRow(page: Page, name: string | RegExp): Locator {
 	const tools = layersSheet(page).getByRole('group', { name: 'Lists and plans' });

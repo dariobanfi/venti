@@ -9,6 +9,7 @@
 	import { browser } from '$app/env';
 	import { page } from '$app/state';
 	import { creditLine } from '#lib/airspace/words.ts';
+	import { AIRSPACE_MIN_ZOOM } from '#lib/airspace/layers.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { CablesModel } from '#lib/cables/model.svelte.ts';
 	import { accountHref, mapAroundIn, placeHref } from '#lib/app/routes.ts';
@@ -61,9 +62,11 @@
 	import {
 		aerialOn,
 		airLayerOn,
+		airspaceOn,
 		forecastOn,
 		keepAerial,
 		keepAirLayer,
+		keepAirspace,
 		keepForecast,
 		keepLayersOff,
 		keepRadar,
@@ -123,9 +126,25 @@
 		layersOff(globalThis.localStorage).filter((layer) => layer !== shownByAddress)
 	);
 	function toggle(layer: MapLayer) {
+		if (layer === 'airspace') {
+			setAirspace(!airspaceChosen);
+			return;
+		}
 		off = off.includes(layer) ? off.filter((one) => one !== layer) : [...off, layer];
 		keepLayersOff(globalThis.localStorage, off);
 	}
+	/**
+	 * Whether the map tab draws airspace: off until the pilot switches it on
+	 * (the owner, 2026-11-22), with the round button or the layers' row.
+	 * While off it is not drawn, not asked for, opens nothing and is not credited.
+	 */
+	let airspaceChosen = $state(airspaceOn(globalThis.localStorage) || shownByAddress === 'airspace');
+	function setAirspace(on: boolean) {
+		airspaceChosen = on;
+		keepAirspace(globalThis.localStorage, on);
+	}
+	/** The layers the map does not draw: those switched off, and airspace until it is on. */
+	const hiddenLayers = $derived<MapLayer[]>(airspaceChosen ? off : [...off, 'airspace']);
 	/** Whether the ground is photographs from above: the pilot's choice for every map. */
 	let aerial = $state(aerialOn(globalThis.localStorage));
 	/** Whose photographs can show where the map has come to rest, as the map says. */
@@ -316,7 +335,7 @@
 	// The airspace around what the pilot is looking at is fetched from the
 	// server when the core says it is time, and kept.
 	$effect(() => {
-		if (!view) return;
+		if (!view || !airspaceChosen) return;
 		const { region } = view;
 		void app.airspace?.refresh({
 			lat: (region.south + region.north) / 2,
@@ -429,7 +448,15 @@
 	let airspaceDrawn = $state<number>();
 	/** Whose airspace is on the map. Their licences ask for this wherever it is shown. */
 	const airspaceCredit = $derived(
-		airspaceDrawn === undefined ? '' : creditLine(app.airspace?.credits ?? [], text)
+		!airspaceChosen || airspaceDrawn === undefined
+			? ''
+			: creditLine(app.airspace?.credits ?? [], text)
+	);
+	/** The core's words where airspace is on and the map shows too wide a part to draw it. */
+	const airspaceSaid = $derived(
+		airspaceChosen && view !== undefined && view.zoom < AIRSPACE_MIN_ZOOM
+			? (layerWords?.airspaceTooWide ?? '')
+			: ''
 	);
 	// Asks again every minute while the map is on screen.
 	$effect(() => wind?.keepCurrent());
@@ -552,7 +579,7 @@
 			chosenPlace = { place, name: text.place(place.lat, place.lon), airspace, said };
 		};
 		const model = app.airspace;
-		if (!withAirspace || !model || model.isEmpty) {
+		if (!withAirspace || !airspaceChosen || !model || model.isEmpty) {
 			open(false);
 			return;
 		}
@@ -1027,7 +1054,7 @@
 	}
 	/** A layer the chips' list switches (`off`), as a row or a chip. */
 	const listed = (layer: MapLayer) => ({
-		on: !off.includes(layer),
+		on: !hiddenLayers.includes(layer),
 		onchange: () => toggle(layer)
 	});
 
@@ -1176,7 +1203,7 @@
 		flown={showFlown ? flown.cells : []}
 		onflown={(key) => openAir(flown.cell(key))}
 		oncredits={(open) => (creditsOpen = open)}
-		airspace={app.airspace}
+		airspace={airspaceChosen ? app.airspace : undefined}
 		coveredBottom={navigationHeight}
 		onproblem={(problem) =>
 			(app.notice = { title: 'Position unavailable', lines: [problemText(problem)] })}
@@ -1187,7 +1214,7 @@
 		onglider={openGlider}
 		onother={openOther}
 		onairspace={(count) => (airspaceDrawn = count)}
-		hidden={off}
+		hidden={hiddenLayers}
 		{aerial}
 		{thermalDay}
 		{thermalHour}
@@ -1224,7 +1251,7 @@
 		</div>
 	{/if}
 	<!-- A map says nothing to a screen reader: this much it can be told. -->
-	{#if airspaceDrawn !== undefined && !app.airspace?.isEmpty}
+	{#if airspaceChosen && airspaceDrawn !== undefined && !app.airspace?.isEmpty}
 		<p class="visually-hidden">
 			Airspace on this part of the map: {text.count(airspaceDrawn)}.
 		</p>
@@ -1638,7 +1665,11 @@
 		{#if inTheAir.othersSaid && !off.includes('pilots')}
 			<p class="notice" role="status">{inTheAir.othersSaid}</p>
 		{/if}
-		{#if climbsSaid}
+		<!-- Airspace's "zoom in" first; the climbs' says the same and gives way. -->
+		{#if airspaceSaid}
+			<p class="notice" role="status">{airspaceSaid}</p>
+		{/if}
+		{#if climbsSaid && !(airspaceSaid && climbsSaid === layerWords?.climbsTooWide)}
 			<p class="notice" role="status">{climbsSaid}</p>
 		{/if}
 		{#if flownSaid}
@@ -1729,6 +1760,13 @@
 			<MapButton label="Zoom in" icon="plus" onclick={() => map?.zoomBy(1)} />
 			<MapButton label="Zoom out" icon="minus" onclick={() => map?.zoomBy(-1)} />
 		</div>
+		<!-- Airspace with one tap, the same switch as the layers' row. -->
+		<MapButton
+			label={layerWords?.airspace || 'Airspace'}
+			icon="airspace"
+			pressed={airspaceChosen}
+			onclick={() => setAirspace(!airspaceChosen)}
+		/>
 		<!-- Every layer and every tool: one sheet. Shown from the start, so
 		     that the ground can be changed where no server answers. -->
 		<MapButton

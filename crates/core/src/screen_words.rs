@@ -434,6 +434,13 @@ pub struct PlannerWords {
     /// The entry of [`crate::route_from_gpx`]: "Import GPX".
     #[uniffi(default = "")]
     pub import_gpx: String,
+    /// Asked before a file's route takes the place of one already drawn:
+    /// "Replace the route you have drawn with the file's?"
+    #[uniffi(default = "")]
+    pub replace_question: String,
+    /// Its yes: "Replace". The no is [`CommonWords::cancel`].
+    #[uniffi(default = "")]
+    pub replace: String,
 }
 
 /// The words of the route planner's menu.
@@ -442,6 +449,8 @@ pub fn planner_words() -> PlannerWords {
     PlannerWords {
         export_gpx: "Export GPX".to_owned(),
         import_gpx: "Import GPX".to_owned(),
+        replace_question: "Replace the route you have drawn with the file's?".to_owned(),
+        replace: "Replace".to_owned(),
     }
 }
 

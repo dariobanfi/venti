@@ -139,6 +139,24 @@ class AlertsModel(
             atLeast = AlertDayKind.CROSS_COUNTRY,
         )
 
+        /** Where the two numbers of an alarm for pilots in the air start: what the core takes where none is given. */
+        const val PILOTS_START = 3
+        const val REST_HOURS_START = 6
+
+        /**
+         * A new alarm for a place as the other of its two kinds: the place
+         * and the name stay; an alarm for pilots starts at three pilots
+         * and six hours of quiet.
+         */
+        fun ofKind(draft: AlertDraft, kind: AlertKind): AlertDraft = when (kind) {
+            AlertKind.PILOTS -> draft.copy(
+                kind = kind,
+                minPilots = draft.minPilots ?: PILOTS_START.toUShort(),
+                restHours = draft.restHours ?: REST_HOURS_START.toUByte(),
+            )
+            else -> draft.copy(kind = kind)
+        }
+
         /** A new day alarm for a take-off: today and tomorrow, a cross-country day or better. */
         fun dayDraft(siteId: String, name: String, lat: Double, lon: Double) = windDraft("", "").copy(
             name = name,

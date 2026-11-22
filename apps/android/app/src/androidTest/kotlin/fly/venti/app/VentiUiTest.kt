@@ -149,15 +149,84 @@ class VentiUiTest {
         }
     }
 
+    /**
+     * The layers that are rows of the layers sheet only. The map's chips
+     * switch four: "layer-wind", "layer-airspace", "layer-sites", "layer-pilots".
+     */
+    private val SHEET_LAYERS =
+        setOf("layer-forecast", "layer-radar", "layer-thermals", "layer-cables", "map-aerial", "layer-climbs", "layer-flown")
+
     private fun exists(what: SemanticsMatcher) = screen.onAllNodes(what).fetchSemanticsNodes().isNotEmpty()
 
     private fun tap(what: SemanticsMatcher) {
         screen.onAllNodes(what).onFirst().performClick()
     }
 
-    /** One of the map tab's chips, scrolled into view first: their row scrolls sideways. */
+    /**
+     * Switches a layer of the map: one of the four chips along its top,
+     * scrolled into view first, or a row of the layers sheet for every
+     * other layer, behind the layers button.
+     */
     private fun tapChip(tag: String) {
-        screen.onNode(hasTestTag(tag)).performScrollTo().performClick()
+        if (tag in SHEET_LAYERS) {
+            switchLayer(tag)
+        } else {
+            screen.onNode(hasTestTag(tag)).performScrollTo().performClick()
+        }
+    }
+
+    /** Opens the one sheet of the map's layers and lists, behind the layers button. */
+    private fun openLayers() {
+        waitFor(hasTestTag("map-layers"))
+        tap(hasTestTag("map-layers"))
+        waitFor(hasTestTag("layers-sheet"))
+    }
+
+    /** Closes the layers sheet and waits until the map is free again. */
+    private fun closeLayers() {
+        tap(hasTestTag("layers-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("layers-sheet")) }
+    }
+
+    /**
+     * Taps a row of the layers sheet that leads elsewhere (the lists of
+     * stations, sites and pilots, the plans): the sheet opens first, and
+     * closes behind what the row opens.
+     */
+    private fun tapInLayers(row: SemanticsMatcher) {
+        openLayers()
+        waitFor(row)
+        screen.onNode(row).performScrollTo().performClick()
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("layers-sheet")) }
+    }
+
+    /**
+     * Switches a layer by its row of the layers sheet, and closes the
+     * sheet. With `on`, the row was the other way before and is so after.
+     */
+    private fun switchLayer(tag: String, on: Boolean? = null) {
+        openLayers()
+        val row = hasTestTag(tag)
+        waitFor(row)
+        screen.onNode(row).performScrollTo()
+        if (on != null) waitFor(row and (if (on) isOff() else isOn()))
+        screen.onNode(row).performClick()
+        if (on != null) waitFor(row and (if (on) isOn() else isOff()))
+        closeLayers()
+    }
+
+    /**
+     * Opens every credit in full behind the map's (i), waits for these
+     * among them, and closes them. The credits are one element, its lines
+     * its texts.
+     */
+    private fun seeInCredits(vararg lines: SemanticsMatcher) {
+        tap(hasTestTag("map-credits"))
+        val credits = hasTestTag("wind-credits")
+        waitFor(credits)
+        waitForAll(*lines.map { it and credits }.toTypedArray())
+        tap(hasTestTag("credits-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(credits) }
     }
 
     /**
@@ -659,13 +728,12 @@ class VentiUiTest {
         }
         val scenario = checkNotNull(app)
 
-        waitFor(described("Wind stations"))
+        waitFor(hasTestTag("layer-wind"))
         // The wind's credit appears with the server's first answer about
         // wind. The airspace's has a line of its own in the same box and
         // may be there before it.
         // Every provider whose stations are in view is named.
-        waitFor(hasText("Wind: ", substring = true) and hasText("Deutscher Wetterdienst", substring = true) and hasText("GeoSphere Austria", substring = true))
-        assertTrue(exists(hasTestTag("wind-credits")))
+        seeInCredits(hasText("Wind: ", substring = true) and hasText("Deutscher Wetterdienst", substring = true) and hasText("GeoSphere Austria", substring = true))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "wind-stations") ?: 0) > 0 }
         letTheMapDraw()
         keepScreenshot("$prefix-wind-1-map")
@@ -679,10 +747,10 @@ class VentiUiTest {
         letTheMapDraw(2)
         keepScreenshot("$prefix-wind-2-station-from-the-map")
         tap(hasText("Done"))
-        waitFor(described("Wind stations"))
+        waitFor(hasTestTag("layer-wind"))
 
         // The same stations as a list, by name.
-        tap(described("Wind stations"))
+        tapInLayers(described("Wind stations"))
         waitFor(described("Zugspitze"))
         // A name the provider writes in capitals is shown in ordinary case.
         assertTrue(exists(described("Patscherkofel")))
@@ -714,7 +782,7 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(described("Zugspitze"))
         tap(hasText("Done"))
-        waitFor(described("Wind stations"))
+        waitFor(hasTestTag("layer-wind"))
 
         // The assistant looks up the same wind on the same server.
         openFromToday("Assistant")
@@ -887,7 +955,7 @@ class VentiUiTest {
         waitFor(described("Show my position"))
 
         // The map asked for the airspace around what it shows.
-        waitFor(hasText("Airspace: openAIP, not certified"))
+        seeInCredits(hasText("Airspace: openAIP, not certified"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceEdgesOnTheMap(scenario) > 0 }
         letTheMapDraw(3)
         keepScreenshot("$prefix-airspace-1-map")
@@ -1262,8 +1330,7 @@ class VentiUiTest {
         // made-up plans are for the days around that mode's standing
         // clock and not for today: the test posts one for today.
         tap(tab("Map"))
-        waitFor(described("Flying plans"))
-        tap(described("Flying plans"))
+        tapInLayers(described("Flying plans"))
         waitFor(hasTestTag("plans-groups"))
         tap(described("New plan"))
         waitFor(hasTestTag("plan-place"))
@@ -1430,8 +1497,8 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(tab("Map"))
         tap(tab("Map"))
-        waitFor(described("Wind stations"))
-        tap(described("Wind stations"))
+        waitFor(hasTestTag("layer-wind"))
+        tapInLayers(described("Wind stations"))
         waitFor(described("Zugspitze"))
         tap(described("Zugspitze"))
         waitFor(hasTestTag("station-page"))
@@ -1455,7 +1522,7 @@ class VentiUiTest {
         screen.onNode(hasTestTag("alert-save")).performScrollTo().performClick()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("alert-form")) }
         tap(hasText("Done"))
-        waitFor(described("Wind stations"))
+        waitFor(hasTestTag("layer-wind"))
 
         // The list has it.
         openFromToday("Settings")
@@ -1731,14 +1798,12 @@ class VentiUiTest {
             }
         }
         lookAtTheValley()
-        // The round button for the list is there once somebody is.
-        waitFor(described("Pilots in the air"))
         letTheMapDraw()
         keepScreenshot("$prefix-air-1-map")
 
         // Both as a list: the pilot, and how high, how it climbs and how
         // old the position is.
-        tap(described("Pilots in the air"))
+        tapInLayers(described("Pilots in the air"))
         waitFor(hasTestTag("live-row"))
         assertTrue(exists(hasText("In the air")))
         val landed = hasTestTag("live-row") and saying("Landed 9 min ago")
@@ -1811,7 +1876,7 @@ class VentiUiTest {
         // Plans for a flying day are shared in groups on the server and
         // need an account: signed out, the board says so and offers
         // nothing else.
-        tap(described("Flying plans"))
+        tapInLayers(described("Flying plans"))
         waitFor(hasTestTag("plans-signed-out"))
         assertFalse(exists(described("New plan")))
         assertFalse(exists(hasTestTag("plans-groups")))
@@ -2080,7 +2145,7 @@ class VentiUiTest {
             screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
                 (TestDevice.drawnOnTheMap(scenario, "live-others") ?: 0) > 0
             }
-            waitFor(hasText("Positions: Open Glider Network", substring = true))
+            seeInCredits(hasText("Positions: Open Glider Network", substring = true))
             letTheMapDraw(2)
             keepScreenshot("$prefix-others-1-map")
 
@@ -2119,13 +2184,13 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         waitFor(described("Show my position"))
         // A map of the whole northern Alps has no signs and no button for them.
-        assertFalse(exists(described("Flying sites")))
+        assertFalse(exists(hasTestTag("sites-filter-open")))
 
         // The take-off stands left of the round buttons along the right
         // edge, so that a tap on its pin is a tap on the pin.
         assertTrue(TestDevice.lookAt(scenario, lat = 47.69, lon = 11.875, zoom = 11.0))
-        waitFor(described("Flying sites"))
-        waitFor(hasText("Sites: OpenStreetMap contributors"))
+        waitFor(hasTestTag("sites-filter-open"))
+        seeInCredits(hasText("Sites: OpenStreetMap contributors"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
         }
@@ -2153,19 +2218,19 @@ class VentiUiTest {
         letTheMapDraw(2)
         keepScreenshot("$prefix-sites-2b-plan-route")
         tap(described("Cancel"))
-        waitFor(described("Flying sites"))
+        waitFor(hasTestTag("sites-filter-open"))
 
         // The chips switch the sites off and on again, and the map
         // remembers.
         tapChip("layer-sites")
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(described("Flying sites")) }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("sites-filter-open")) }
         letTheMapDraw(1)
         keepScreenshot("$prefix-sites-2c-sites-off")
         tapChip("layer-sites")
-        waitFor(described("Flying sites"))
+        waitFor(hasTestTag("sites-filter-open"))
 
         // The same signs as a list: those with a name first.
-        tap(described("Flying sites"))
+        tapInLayers(described("Flying sites"))
         waitFor(described(takeoff))
         assertTrue(exists(described("Landeplatz Jägerkamp/Nagelspitz")))
         assertTrue(exists(hasText("A site on the map is not permission to fly there.", substring = true)))
@@ -2236,13 +2301,13 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(described(takeoff))
         tap(hasText("Done"))
-        waitFor(described("Flying sites"))
+        waitFor(hasTestTag("sites-filter-open"))
 
         // A take-off whose source says which wind it works in, on the Wank
         // above Garmisch. The map shipped with the app ends before it; the
         // sites are the server's all the same.
         assertTrue(TestDevice.lookAt(scenario, lat = 47.5067, lon = 11.10, zoom = 10.5))
-        tap(described("Flying sites"))
+        tapInLayers(described("Flying sites"))
         val south = "Startplatz Wank Süd"
         // The list is the old part's until the server has answered for
         // this one, and then longer than the screen.
@@ -2274,7 +2339,7 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(hasText("Wind it works in"))
         tap(hasText("Done"))
-        waitFor(described("Flying sites"))
+        waitFor(hasTestTag("sites-filter-open"))
 
         // The site that was kept is among the pilot's waypoints.
         openFromToday("Settings")
@@ -2404,10 +2469,7 @@ class VentiUiTest {
         assumeTrue("No stand-in with a made-up day was named in the madeUpDayServer argument.", !server.isNullOrEmpty())
         launch { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        val chip = hasTestTag("layer-forecast")
-        waitFor(chip)
-        // Off until the pilot switches it on.
-        screen.onNode(chip).assertIsOff()
+        waitFor(hasTestTag("layer-wind"))
         // Nothing else of Venti's under the finger where a square is tapped.
         // The chips' row scrolls: a chip beyond its edge is scrolled to
         // first. A test's choices are its own: every launch starts a new
@@ -2417,8 +2479,8 @@ class VentiUiTest {
             screen.onNode(hasTestTag(layer)).assertIsOff()
         }
         assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
-        tapChip("layer-forecast")
-        screen.onNode(chip).assertIsOn()
+        // Off until the pilot switches it on, in the layers sheet.
+        switchLayer("layer-forecast", on = true)
 
         // The card: the days and, behind "Key and notes", the key from the
         // best kind of day down to "Not flyable" and the model with its run.
@@ -2441,7 +2503,7 @@ class VentiUiTest {
             (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
         }
         // Whose forecast it is, with the map's other credits.
-        waitFor(hasText("Forecast: ", substring = true))
+        seeInCredits(hasText("Forecast: ", substring = true))
         letTheMapDraw()
         keepScreenshot("map-forecast-1-today")
 
@@ -2578,7 +2640,7 @@ class VentiUiTest {
         assumeTrue("No stand-in with a made-up day was named in the madeUpDayServer argument.", !server.isNullOrEmpty())
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        waitFor(hasTestTag("layer-forecast"))
+        waitFor(hasTestTag("map-layers"))
         for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
             tapChip(layer)
         }
@@ -2712,7 +2774,7 @@ class VentiUiTest {
         HoursHeldBack(checkNotNull(server)).use { held ->
             launch { putExtra(LaunchOptions.SERVER, held.address) }
             val scenario = checkNotNull(app)
-            waitFor(hasTestTag("layer-forecast"))
+            waitFor(hasTestTag("map-layers"))
             for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
                 tapChip(layer)
             }
@@ -2769,14 +2831,11 @@ class VentiUiTest {
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        val chip = hasTestTag("layer-radar")
-        waitFor(chip)
-        // Off until the pilot switches it on.
-        screen.onNode(chip).assertIsOff()
+        waitFor(hasTestTag("layer-wind"))
         assertFalse(showsARadarLayer(scenario))
         lookAtTheWholeRadar(scenario)
-        tapChip("layer-radar")
-        screen.onNode(chip).assertIsOn()
+        // Off until the pilot switches it on, in the layers sheet.
+        switchLayer("layer-radar", on = true)
 
         // The card: two moments, the newest chosen, and its line in the
         // core's words, which says of the analysis under it what it is of.
@@ -2793,11 +2852,9 @@ class VentiUiTest {
         }
         // Whose rain it is, at the data: both sources with the map's other
         // credits, which a tap on their line shows in full.
-        tap(hasTestTag("wind-credits"))
-        val credits = hasTestTag("wind-credits")
-        waitForAll(
-            hasText("Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben") and credits,
-            hasText("Data source: GeoSphere Austria", substring = true) and credits,
+        seeInCredits(
+            hasText("Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben"),
+            hasText("Data source: GeoSphere Austria", substring = true),
         )
         assertFalse(exists(hasTestTag("radar-key")))
         assertFalse(exists(hasTestTag("radar-stale")))
@@ -2860,7 +2917,7 @@ class VentiUiTest {
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        waitFor(hasTestTag("layer-radar"))
+        waitFor(hasTestTag("map-layers"))
         lookAtTheWholeRadar(scenario)
         tapChip("layer-radar")
         waitFor(hasTestTag("radar-said"))
@@ -2891,7 +2948,7 @@ class VentiUiTest {
             held.hours = HoursHeldBack.Hours.REFUSED
             launch { putExtra(LaunchOptions.SERVER, held.address) }
             val scenario = checkNotNull(app)
-            waitFor(hasTestTag("layer-radar"))
+            waitFor(hasTestTag("map-layers"))
             lookAtTheWholeRadar(scenario)
             tapChip("layer-radar")
 
@@ -2957,7 +3014,7 @@ class VentiUiTest {
         try {
             launch { putExtra(LaunchOptions.SERVER, server) }
             val scenario = checkNotNull(app)
-            waitFor(hasTestTag("layer-forecast"))
+            waitFor(hasTestTag("map-layers"))
             for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
                 tapChip(layer)
             }
@@ -3020,7 +3077,7 @@ class VentiUiTest {
         assumeTrue("No stand-in with a made-up day was named in the madeUpDayServer argument.", !server.isNullOrEmpty())
         launch(bundledMap = false, dark = true) { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        waitFor(hasTestTag("layer-forecast"))
+        waitFor(hasTestTag("map-layers"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
         tapChip("layer-forecast")
         waitFor(hasTestTag("forecast-days"))
@@ -3030,13 +3087,10 @@ class VentiUiTest {
         letTheMapDraw(12)
         keepScreenshot("map-forecast-4-dark")
 
-        val aerial = hasTestTag("map-aerial")
-        tap(aerial)
-        waitFor(aerial and isSelected())
+        switchLayer("map-aerial", on = true)
         letTheMapDraw(12)
         keepScreenshot("map-forecast-5-dark-aerial")
-        tap(aerial)
-        waitFor(aerial and isSelected().not())
+        switchLayer("map-aerial", on = false)
     }
 
     @Test
@@ -3282,7 +3336,7 @@ class VentiUiTest {
         tap(tab("Map"))
         waitFor(described("Show my position"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.6653, lon = 11.7954, zoom = 15.0))
-        waitFor(described("Flying sites"))
+        waitFor(hasTestTag("sites-filter-open"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
         }
@@ -3297,7 +3351,7 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-own-3-description")
         tap(hasText("Done"))
-        waitFor(described("Flying sites"))
+        waitFor(hasTestTag("sites-filter-open"))
 
         // All of the pilot's own, in the settings, with where they are kept.
         // Today comes back where it was scrolled to: the corner that opens
@@ -3447,7 +3501,7 @@ class VentiUiTest {
         tapChip("layer-wind")
         tapChip("layer-pilots")
         assertTrue(TestDevice.lookAt(scenario, lat = 47.59, lon = 11.845, zoom = 10.0))
-        waitFor(described("Flying sites"))
+        waitFor(hasTestTag("sites-filter-open"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
         }
@@ -3519,7 +3573,7 @@ class VentiUiTest {
         // The list: the filter where its title stands, what it leaves, the
         // sites that fit first, and those whose source does not say apart
         // under the core's heading and sentence.
-        tap(described("Flying sites"))
+        tapInLayers(described("Flying sites"))
         waitFor(hasTestTag("site-list-title") and hasText("All sites, take-offs for a wind from SW"))
         assertTrue(exists(hasTestTag("site-list-leaves") and written(fits)))
         val list = screen.onNode(hasTestTag("site-list"))
@@ -3643,8 +3697,8 @@ class VentiUiTest {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
-        waitFor(described("Wind stations"))
-        tap(described("Wind stations"))
+        waitFor(hasTestTag("layer-wind"))
+        tapInLayers(described("Wind stations"))
         waitFor(described("Innsbruck/Universitaet"))
         tap(described("Innsbruck/Universitaet"))
         waitFor(hasTestTag("station-page"))
@@ -3659,7 +3713,7 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-station-1-air")
         tap(hasText("Done"))
-        waitFor(described("Wind stations"))
+        waitFor(hasTestTag("layer-wind"))
 
         // Another day: the picker opens on today, the server's, and offers
         // a year back to it; the days after are not offered. Choosing a day
@@ -3667,7 +3721,7 @@ class VentiUiTest {
         // Material's picker was not delivered in a UI test on the emulator.
         // What a chosen day shows is tested against the core in
         // StationDayWordsTest.
-        tap(described("Wind stations"))
+        tapInLayers(described("Wind stations"))
         waitFor(described("Zugspitze"))
         tap(described("Zugspitze"))
         waitFor(hasTestTag("station-page"))
@@ -4222,14 +4276,11 @@ class VentiUiTest {
 
         // The aerial view: photographs from above under the names and
         // everything Venti draws. Off until the pilot switches it on.
-        val aerial = hasTestTag("map-aerial")
-        waitFor(aerial and isSelected().not())
-        tap(aerial)
-        waitFor(aerial and isSelected())
+        switchLayer("map-aerial", on = true)
         // Whose photographs they are, by name, while they show: those in
         // view. The map opens zoomed out over the Alps, where only the
         // world's mosaic is drawn.
-        waitFor(hasText("Photos: EOX"))
+        seeInCredits(hasText("Photos: EOX"))
         letTheMapDraw(12)
         keepScreenshot("online-1b-map-aerial")
 
@@ -4239,6 +4290,7 @@ class VentiUiTest {
         waitFor(described("Flight details"))
         // One choice for every map: the flight's map shows the photographs too,
         // close over the Tegernsee, with Bavaria's among them.
+        val aerial = hasTestTag("map-aerial")
         waitFor(aerial and isSelected())
         waitFor(hasTestTag("photos-credit"))
         waitFor(hasText("Bayerische Vermessungsverwaltung", substring = true))
@@ -4262,7 +4314,7 @@ class VentiUiTest {
     private fun lookAtTheMadeUpSites(scenario: ActivityScenario<MainActivity>, atLeast: Int = 2) {
         waitFor(described("Show my position"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.285, lon = 10.9, zoom = 12.0))
-        waitFor(described("Flying sites"))
+        waitFor(hasTestTag("sites-filter-open"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) >= atLeast
         }
@@ -4286,7 +4338,7 @@ class VentiUiTest {
     /** Opens a site's page from the list of the sites on the map, which opens at full height. */
     private fun openFromTheListOfSites(name: String) {
         if (!exists(hasTestTag("site-list"))) {
-            tap(described("Flying sites"))
+            tapInLayers(described("Flying sites"))
             waitFor(hasTestTag("site-list"))
         }
         val row = hasTestTag("site-row") and described(name)
@@ -4600,7 +4652,7 @@ class VentiUiTest {
         }
         letTheMapDraw(2)
         keepScreenshot("site-edit-5c-on-the-map")
-        tap(described("Flying sites"))
+        tapInLayers(described("Flying sites"))
         waitFor(hasTestTag("site-list"))
         screen.onNode(hasTestTag("site-list")).performScrollToNode(hasTestTag("site-row") and described("Testkogel (not real)"))
         assertTrue(exists(hasTestTag("site-row") and described("Testkogel (not real)") and saying("From pilots")))
@@ -4964,7 +5016,7 @@ class VentiUiTest {
         // Off: the partner's two sites, and no place from pilots, on the map and in the list.
         assertEquals(2, TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0)
         assertFalse(exists(hasTestTag("sites-filter-card")))
-        tap(described("Flying sites"))
+        tapInLayers(described("Flying sites"))
         waitFor(hasTestTag("site-list"))
         assertTrue(exists(hasTestTag("site-row") and described("Musterkogel West")))
         assertFalse(exists(described("Beispieljoch")))
@@ -5008,7 +5060,7 @@ class VentiUiTest {
         keepScreenshot("sites-pilots-3-map")
 
         // In the list: marked in its line, and the partner's site is not.
-        tap(described("Flying sites"))
+        tapInLayers(described("Flying sites"))
         waitFor(hasTestTag("site-list"))
         assertTrue(exists(hasTestTag("site-list-leaves") and hasText(fromPilots, substring = true)))
         val row = hasTestTag("site-row") and described("Beispieljoch")
@@ -5539,6 +5591,194 @@ class VentiUiTest {
     }
 
     /**
+     * The map as it is since 2026-11-22: three round buttons at most, an
+     * (i) for every credit in full, and one layers sheet with a switch
+     * for every layer and a row for every list. In it "Climbs now", off
+     * until switched on: the development server's two made-up climbs over
+     * the Tegernsee valley, each a mark with the core's label, and the
+     * core's line on a tap; and "Where thermals have been", its two
+     * made-up cells. Skipped without a server.
+     */
+    @Test
+    fun theLayersSheetShowsWhereOthersClimbNow() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch {
+            putExtra(LaunchOptions.SERVER, server)
+            // The development server's made-up flights are of August.
+            putExtra(LaunchOptions.FLOWN_MONTH, 8)
+        }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.655, lon = 11.775, zoom = 11.0))
+        waitFor(hasTestTag("sites-filter-open"))
+        // Three round buttons, and none of the lists' or the plans'.
+        assertTrue(exists(hasTestTag("map-layers")))
+        for (gone in listOf("Wind stations", "Flying sites", "Pilots in the air", "Flying plans", "Aerial view")) {
+            assertFalse(gone, exists(described(gone)))
+        }
+        letTheMapDraw()
+        keepScreenshot("light-layers-1-map")
+
+        // The (i): every credit in full, Venti's data and the base map's.
+        tap(hasTestTag("map-credits"))
+        val credits = hasTestTag("wind-credits")
+        waitForAll(
+            credits and hasText("Airspace: openAIP, not certified"),
+            credits and hasText("Sites: OpenStreetMap contributors"),
+            // The base map's own, which the map's button showed before.
+            credits and hasText("© OpenStreetMap contributors", substring = true),
+        )
+        letTheMapDraw(1)
+        keepScreenshot("light-layers-2-credits")
+        tap(hasTestTag("credits-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(credits) }
+
+        // The sheet: the chips' four in the chips' state, the layers that
+        // have no chip, and the lists.
+        openLayers()
+        waitForAll(
+            hasTestTag("layers-wind") and isOn(),
+            hasTestTag("layers-sites") and isOn(),
+            hasTestTag("layer-forecast") and isOff(),
+            hasTestTag("layer-radar") and isOff(),
+        )
+        letTheMapDraw(1)
+        keepScreenshot("light-layers-3-sheet")
+        // What others found in the air: off until the pilot asks for it.
+        val climbs = hasTestTag("layer-climbs")
+        screen.onNode(climbs).performScrollTo()
+        waitFor(climbs and isOff())
+        assertTrue(exists(hasTestTag("layer-flown") and isOff()))
+        for (list in listOf("Wind stations", "Flying sites", "Flying plans")) {
+            assertTrue(list, exists(described(list)))
+        }
+        screen.onNode(climbs).performClick()
+        waitFor(climbs and isOn())
+        // How many, in the core's words, under the row.
+        waitFor(climbs and hasText("2 climbs in the last 10 minutes"))
+        screen.onNode(hasTestTag("layer-flown")).performScrollTo()
+        letTheMapDraw(1)
+        keepScreenshot("light-layers-4-sheet-climbs-on")
+        closeLayers()
+
+        // On the map: a mark for each, and the network's credit with the map's.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "live-climbs") ?: 0) >= 2
+        }
+        letTheMapDraw()
+        keepScreenshot("light-layers-5-climbs-on-the-map")
+        seeInCredits(hasText("Positions: Open Glider Network", substring = true))
+
+        // A tap on the climb east of the Wallberg: the core's line.
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6675, lon = 11.8025)))
+        waitFor(hasTestTag("climb-line") and hasText("Climbing now: +2.4 m/s between 1,600 and 2,100 m, 3 pilots", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("light-layers-6-climb")
+        tap(hasTestTag("air-line-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("climb-line")) }
+
+        // Where thermals have been: the two cells, with the note and the
+        // flights' terms under the row. Nothing else under the finger.
+        tapChip("layer-wind")
+        tapChip("layer-sites")
+        tapChip("layer-pilots")
+        switchLayer("layer-climbs", on = false)
+        openLayers()
+        val flown = hasTestTag("layer-flown")
+        screen.onNode(flown).performScrollTo().performClick()
+        waitFor(flown and isOn())
+        waitFor(flown and hasText("Where pilots climbed, from the public flights on Venti.", substring = true))
+        closeLayers()
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flown-thermals") ?: 0) >= 2 &&
+                (TestDevice.drawnOnTheMap(scenario, "live-climbs") ?: 0) == 0
+        }
+        letTheMapDraw()
+        keepScreenshot("light-layers-7-thermals-flown")
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6875, lon = 11.7525)))
+        waitFor(hasTestTag("flown-line") and hasText(" climbs of 3 pilots, +1.5 m/s on average", substring = true))
+        tap(hasTestTag("air-line-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("flown-line")) }
+
+        // Zoomed out beyond a degree the core says to zoom in.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.655, lon = 11.775, zoom = 7.0))
+        waitFor(hasText("Zoom in to see where pilots climbed."))
+        assertTrue(exists(hasTestTag("flown-too-wide")))
+        letTheMapDraw(1)
+        keepScreenshot("light-layers-8-thermals-zoom-in")
+    }
+
+    /**
+     * Pilots in the air at a site: the line under the name of the
+     * Wallberg's take-off, where the development server has made-up
+     * paragliders in the air, and an alarm for it made from the take-off's
+     * "Alert me", the second kind of the form, which the list then shows.
+     * Skipped without a server.
+     */
+    @Test
+    fun aPilotSetsAnAlarmForPilotsInTheAirAtATakeoff() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        TestDevice.allowNotifications()
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        signInAsTheDemoPilot()
+        tap(described("Back"))
+        waitFor(tab("Map"))
+        tap(tab("Map"))
+        waitFor(described("Show my position"))
+        // Only the sites under the finger.
+        tapChip("layer-wind")
+        tapChip("layer-pilots")
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.6652, lon = 11.7954, zoom = 13.0))
+        waitFor(hasTestTag("sites-filter-open"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
+        }
+        letTheMapDraw(2)
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6652212, lon = 11.7954245)))
+        waitFor(hasTestTag("site-page"))
+        // Who flies there now, in the core's words, under the name.
+        waitFor(hasTestTag("site-air") and hasText("in the air", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("light-air-site-1-pilots-line")
+
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-alert-me"))
+        tap(hasTestTag("site-alert-me"))
+        waitFor(hasTestTag("alert-form"))
+        // The form opens as the day's alarm; the second kind is the core's "Pilots in the air".
+        val kinds = hasAnyAncestor(hasTestTag("alert-kind"))
+        waitFor(hasText("Pilots in the air") and kinds)
+        tap(hasText("Pilots in the air") and kinds)
+        waitFor(hasTestTag("alert-line") and hasText("3 pilots or more in the air at ", substring = true) and hasText(", at most once in 6 hours", substring = true))
+        assertTrue(exists(hasTestTag("alert-pilots-note") and hasText("Counts paragliders and hang gliders flying within 5 km of the place", substring = true)))
+        // Five pilots, and quiet for four hours after.
+        screen.onNode(hasTestTag("alert-pilots-more")).performScrollTo().performClick()
+        screen.onNode(hasTestTag("alert-pilots-more")).performClick()
+        screen.onNode(hasTestTag("alert-rest-less")).performScrollTo().performClick()
+        screen.onNode(hasTestTag("alert-rest-less")).performClick()
+        waitFor(hasTestTag("alert-line") and hasText("5 pilots or more in the air at ", substring = true) and hasText(", at most once in 4 hours", substring = true))
+        screen.onNode(hasTestTag("alert-line")).performScrollTo()
+        letTheMapDraw(1)
+        keepScreenshot("light-air-site-2-alarm-form")
+        screen.onNode(hasTestTag("alert-save")).performScrollTo().performClick()
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("alert-form")) }
+        tap(hasText("Done"))
+        waitFor(described("Show my position"))
+
+        // The list has it, with the core's line.
+        openFromToday("Settings")
+        screen.onNode(hasTestTag("account-link")).performScrollTo()
+        tap(hasTestTag("account-link"))
+        screen.onNode(hasTestTag("account-alerts")).performScrollTo()
+        tap(hasTestTag("account-alerts"))
+        waitFor(hasTestTag("alert-row") and hasText("5 pilots or more in the air at ", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("light-air-site-3-alarm-in-the-list")
+    }
+
+    /**
      * Cables near the Tegernsee, which the development server serves from
      * its recorded answer: drawn on the map from close in, dashed where
      * their height is not mapped, and a tap on one says what it is, with
@@ -5550,7 +5790,7 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
         waitFor(described("Show my position"))
-        waitFor(hasTestTag("layer-cables"))
+        waitFor(hasTestTag("map-layers"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.7229, lon = 11.7112, zoom = 15.0))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "cables-dashed") ?: 0) > 0

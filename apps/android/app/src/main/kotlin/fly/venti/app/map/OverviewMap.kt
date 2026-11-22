@@ -10,6 +10,9 @@ import android.view.HapticFeedbackConstants
 import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.cables.CableLayers
 import fly.venti.core.CableLine
+import fly.venti.core.ClimbView
+import fly.venti.core.FlownCellView
+import fly.venti.core.FlownThermals
 import fly.venti.app.forecast.ThermalHoursLayers
 import fly.venti.app.forecast.ThermalMapLayer
 import fly.venti.app.live.GliderFeature
@@ -119,6 +122,55 @@ class OverviewMap : MapContent {
     /** Told a cable's identifier when the pilot taps its line. */
     var onCable: (String) -> Unit = {}
 
+    /** Told the climb whose mark the pilot taps, while the layer "Climbs now" is on. */
+    var onClimb: (ClimbView) -> Unit = {}
+
+    /** Told the cell of where thermals have been that the pilot taps, where nothing else of Venti's lies. */
+    var onFlownCell: (FlownCellView) -> Unit = {}
+
+    /**
+     * Whose the base map is as it is drawn now, a line for each of its
+     * sources' credits: the map's own credits button is not shown on this
+     * map, and the screen's (i) lists these with Venti's.
+     */
+    fun baseCredits(): List<String> = style?.let(MapCredits::of).orEmpty()
+
+    /** The climbs of the last minutes to draw, and those drawn; compared by identity. */
+    private var climbs: List<ClimbView> = emptyList()
+    private var drawnClimbs: List<ClimbView>? = null
+
+    /** Where thermals have been, to draw, and what is drawn; compared by identity. */
+    private var flown: FlownThermals? = null
+    private var drawnFlown: FlownThermals? = null
+    private var flownIsDrawn = false
+
+    /** Where pilots climb now; none while the layer is off. */
+    fun showClimbs(now: List<ClimbView>) {
+        climbs = now
+        drawClimbs()
+    }
+
+    private fun drawClimbs() {
+        val style = style ?: return
+        if (climbs === drawnClimbs) return
+        drawnClimbs = climbs
+        AirLayers.showClimbs(style, climbs)
+    }
+
+    /** Where thermals have been; `null` while the layer is off. */
+    fun showFlown(cells: FlownThermals?) {
+        flown = cells
+        drawFlown()
+    }
+
+    private fun drawFlown() {
+        val style = style ?: return
+        if (flownIsDrawn && flown === drawnFlown) return
+        flownIsDrawn = true
+        drawnFlown = flown
+        AirLayers.showFlown(style, flown)
+    }
+
     /** The cables to draw, and those drawn. */
     private var cables: List<CableLine> = emptyList()
     private var drawnCables: List<CableLine>? = null
@@ -209,6 +261,9 @@ class OverviewMap : MapContent {
     override fun prepare(map: MapLibreMap, view: MapView) {
         // The northern Alps between Lake Constance and Salzburg.
         map.cameraPosition = CameraPosition.Builder().target(LatLng(47.45, 11.6)).zoom(7.4).build()
+        // The credits are the screen's own (i) on this map: one button for
+        // the base map's and for Venti's, each credit in full behind it.
+        map.uiSettings.isAttributionEnabled = false
         map.addOnCameraIdleListener { tellRegion(map, view) }
         map.addOnMapClickListener { place -> tapped(place, map, view) }
         // A long press asks about the place under the finger.
@@ -251,6 +306,8 @@ class OverviewMap : MapContent {
         // the flights over it, then the flying sites, the wind above them,
         // and other pilots above everything.
         AirspaceLayers.add(style)
+        // Where thermals have been: a ground under the flights and the signs.
+        AirLayers.addFlown(style)
         addReach(style)
         addTracks(style)
         addFollowed(style)
@@ -264,6 +321,12 @@ class OverviewMap : MapContent {
         addWind(style, view)
         addGliders(style, view)
         addOthers(style)
+        // Where pilots climb now, over everything: a layer the pilot asked for.
+        AirLayers.addClimbs(style)
+        drawnClimbs = null
+        drawClimbs()
+        flownIsDrawn = false
+        drawFlown()
         draw()
         drawStations()
         drawSites()
@@ -890,6 +953,10 @@ class OverviewMap : MapContent {
                 .minByOrNull { distance(point, it, map) }
                 ?.getStringProperty(key)
         }
+        nearest(AirLayers.CLIMBS, AirLayers.INDEX)?.toIntOrNull()?.let(drawnClimbs.orEmpty()::getOrNull)?.let { climb ->
+            onClimb(climb)
+            return true
+        }
         nearest(GLIDERS, GliderFeature.ID)?.let { id ->
             onGlider(id)
             return true
@@ -917,6 +984,16 @@ class OverviewMap : MapContent {
         CableLayers.tapped(map, style, finger)?.let { id ->
             onCable(id)
             return true
+        }
+        // A cell of where thermals have been, under the finger's middle.
+        if (style.getLayer(AirLayers.FLOWN) != null) {
+            map.queryRenderedFeatures(point, AirLayers.FLOWN).firstOrNull()
+                ?.getStringProperty(AirLayers.INDEX)?.toIntOrNull()
+                ?.let(drawnFlown?.cells.orEmpty()::getOrNull)
+                ?.let { cell ->
+                    onFlownCell(cell)
+                    return true
+                }
         }
         // While a layer of hours is on: its square under the finger, or the
         // place, whose square the core finds.

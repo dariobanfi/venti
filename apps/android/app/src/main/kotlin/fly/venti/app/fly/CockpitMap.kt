@@ -26,6 +26,8 @@ import fly.venti.core.OtherNearView
 import fly.venti.core.SiteView
 import android.graphics.RectF
 import fly.venti.app.design.ClimbBand
+import fly.venti.app.map.AirLayers
+import fly.venti.core.ClimbView
 import fly.venti.app.map.Covered
 import fly.venti.app.map.MapContent
 import fly.venti.app.map.MapSetup
@@ -161,6 +163,10 @@ class CockpitMap : MapContent {
     /** The aircraft other networks hear around the glider, with their tracks, and those last drawn. */
     var others: List<OtherNearView> = emptyList()
     private var drawnOthers: List<OtherNearView>? = null
+
+    /** Where others climb near the glider, while the pilot has them switched on: a mark each, with the core's label. */
+    var climbs: List<ClimbView> = emptyList()
+    private var drawnClimbs: List<ClimbView>? = null
 
     /** The thermals last drawn. */
     private var drawnThermals: List<ThermalMarkView>? = null
@@ -431,6 +437,9 @@ class CockpitMap : MapContent {
             ),
         )
         drawnOthers = null
+        // The climbs of others: a hint, drawn as the map tab draws them.
+        AirLayers.addClimbs(style)
+        drawnClimbs = null
         style.addSource(GeoJsonSource(GLIDERS))
         style.addLayer(
             SymbolLayer(GLIDERS, GLIDERS).withProperties(
@@ -641,6 +650,10 @@ class CockpitMap : MapContent {
             style.getSourceAs<GeoJsonSource>(OTHERS)
                 ?.setGeoJson(FeatureCollection.fromFeatures(others.map { OtherFeature.of(it.aircraft) }))
             style.getSourceAs<GeoJsonSource>(OTHER_TRACKS)?.setGeoJson(FeatureCollection.fromFeatures(trackFeatures(others)))
+        }
+        if (climbs != drawnClimbs) {
+            drawnClimbs = climbs
+            AirLayers.showClimbs(style, climbs)
         }
     }
 

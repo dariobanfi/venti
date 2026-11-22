@@ -22,9 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,8 +44,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -58,7 +53,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import app.venti.design.VentiSpace
-import fly.venti.app.design.AerialButton
 import fly.venti.app.design.LayerChip
 import fly.venti.app.design.RoundButton
 import fly.venti.app.design.Venti
@@ -86,6 +80,12 @@ import fly.venti.app.groups.PlansSheet
 import fly.venti.app.live.GliderListSheet
 import fly.venti.app.live.GliderSheet
 import fly.venti.app.live.LiveModel
+import fly.venti.app.live.AirModel
+import fly.venti.core.ClimbView
+import fly.venti.core.FlownCellView
+import fly.venti.core.flownTooWideWords
+import fly.venti.core.liveClimbsEmptyWords
+import kotlinx.coroutines.delay
 import fly.venti.app.live.OtherAircraftSheet
 import fly.venti.core.othersTooWideWords
 import fly.venti.app.logbook.LogbookModel
@@ -169,6 +169,8 @@ fun MapScreen(
     terrain: TerrainModel? = null,
     /** The cables of OpenStreetMap around what is in view; `null` where the map draws none. */
     cables: CablesModel? = null,
+    /** Where pilots climb now and where thermals have been, for the two layers of the layers sheet; `null` for neither. */
+    air: AirModel? = null,
 ) {
     val context = LocalContext.current
     // The layers the chips switch, as the pilot left them.
@@ -201,6 +203,15 @@ fun MapScreen(
     var chosen by remember { mutableStateOf<WindStation?>(null) }
     var showsSites by remember { mutableStateOf(false) }
     var showsPlans by remember { mutableStateOf(false) }
+    // The one sheet of the map's layers and lists, behind the layers button.
+    var showsLayers by remember { mutableStateOf(false) }
+    // Every credit in full, behind the (i).
+    var showsCredits by remember { mutableStateOf(false) }
+    // Whose the base map is, as its style says.
+    var mapCredits by remember { mutableStateOf<List<String>>(emptyList()) }
+    // A climb and a cell of where thermals have been, tapped on the map.
+    var chosenClimb by remember { mutableStateOf<ClimbView?>(null) }
+    var chosenFlown by remember { mutableStateOf<FlownCellView?>(null) }
     // A plan whose mark on the map was tapped: the board opens at it.
     var planOnMap by remember { mutableStateOf<String?>(null) }
     var chosenSite by remember { mutableStateOf<SiteView?>(null) }
@@ -275,6 +286,8 @@ fun MapScreen(
         }
     }
     map.onCable = { id -> chosenCable = id }
+    map.onClimb = { climb -> chosenClimb = climb }
+    map.onFlownCell = { cell -> chosenFlown = cell }
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
     map.onCandidate = { place ->
@@ -360,6 +373,43 @@ fun MapScreen(
         if (!hidesPilots) live.again()
     }
 
+    // The two layers of what others found in the air, as the pilot left
+    // them: off until switched on, and nothing asked while they are off.
+    LaunchedEffect(air, preferences) {
+        if (air != null && preferences != null) {
+            air.climbsOn = preferences.mapShowsClimbs
+            air.flownOn = preferences.mapShowsFlown
+        }
+    }
+    // The climbs are of this moment: asked for when the layer is switched
+    // on and when the map comes to rest elsewhere, and again every half
+    // minute while the map is on screen.
+    val showsClimbs = air?.climbsOn == true && hasServer
+    LaunchedEffect(showsClimbs, region, wind.address, lifecycle) {
+        if (air == null) return@LaunchedEffect
+        if (!showsClimbs) {
+            air.loadClimbs(null)
+            return@LaunchedEffect
+        }
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            delay(AirModel.REST_MILLISECONDS)
+            while (true) {
+                air.loadClimbs(region)
+                delay(AirModel.CLIMBS_EVERY_MILLISECONDS)
+            }
+        }
+    }
+    // Where thermals have been does not change by the minute: asked for
+    // when the layer is switched on and when the map rests elsewhere.
+    val showsFlown = air?.flownOn == true && hasServer
+    LaunchedEffect(showsFlown, region, wind.address) {
+        if (air == null) return@LaunchedEffect
+        if (showsFlown) delay(AirModel.REST_MILLISECONDS)
+        air.loadFlown(if (showsFlown) region else null)
+    }
+    val climbs = air?.climbs?.takeIf { showsClimbs }
+    val flown = air?.flown?.takeIf { showsFlown }
+
     val statusBar = WindowInsets.statusBars.getTop(LocalDensity.current)
     val outlines = logbook.view.years.flatMap { year -> year.flights.map { it.outline } }
     val stations = if (hidesWind) emptyList() else wind.stations
@@ -412,7 +462,13 @@ fun MapScreen(
         // Each of the radar's sources asks for its credit directly at the data.
         radar?.creditLines?.takeIf { showsRadar }.orEmpty() +
         // The other networks' positions, while any of their aircraft is drawn.
-        live.othersCredits.map { it.text }.takeIf { others.isNotEmpty() }.orEmpty()
+        live.othersCredits.map { it.text }.takeIf { others.isNotEmpty() }.orEmpty() +
+        // The networks the climbs are derived from, while any is drawn.
+        climbs?.takeIf { it.climbs.isNotEmpty() }?.credits?.map { it.text }.orEmpty() +
+        // What the flights are given under that the thermals' cells are made from.
+        listOfNotNull(flown?.takeIf { it.cells.isNotEmpty() }?.terms?.takeIf { it.isNotBlank() })
+    // Every credit in full: Venti's data first, then whose the base map is.
+    val allCredits = (credits + mapCredits).distinct()
     // The forecast map by the hour: the layer and the level as the pilot
     // left them, the hour not.
     val hours = thermalMap?.hours
@@ -435,6 +491,24 @@ fun MapScreen(
     // list from the core, handed over whole. Not while an hour is shown.
     val squares = if (showsForecast && !byTheHour) thermalMap?.day?.cells.orEmpty() else emptyList()
 
+    // What the chips and the rows of the layers sheet switch: one state for both.
+    val setWind = { on: Boolean ->
+        hidesWind = !on
+        preferences?.mapHidesWind = !on
+    }
+    val setAirspace = { on: Boolean ->
+        hidesAirspace = !on
+        preferences?.mapHidesAirspace = !on
+    }
+    val setSites = { on: Boolean ->
+        hidesSites = !on
+        preferences?.mapHidesSites = !on
+    }
+    val setPilots = { on: Boolean ->
+        hidesPilots = !on
+        preferences?.mapHidesPilots = !on
+    }
+
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
             content = map,
@@ -449,6 +523,8 @@ fun MapScreen(
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins, unsaidSites)
                 map.showOthers(others)
                 map.showCables(if (hidesCables) emptyList() else cables?.lines.orEmpty())
+                map.showClimbs(climbs?.climbs.orEmpty())
+                map.showFlown(flown)
                 map.showCandidates(if (hidesSites || !hasServer) emptyList() else candidates?.candidates.orEmpty())
                 map.showReach(glideReach.answer?.takeIf { glideReach.place != null }, glideReach.place)
                 map.follow(isFollowing)
@@ -486,53 +562,23 @@ fun MapScreen(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = VentiSpace.s4),
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
-                // The kind of day first, as on the iPhone and the web.
-                if (hasServer && thermalMap != null) {
-                    LayerChip("Forecast", R.drawable.venti_forecast, forecast, onChange = { on ->
-                        forecast = on
-                        preferences?.mapShowsForecast = on
-                    }, Modifier.testTag("layer-forecast"))
-                }
-                // What fell in the last hours, beside what is forecast.
-                if (hasServer && radar != null) {
-                    LayerChip(RadarWords.LAYER, R.drawable.ic_rainy, rain, onChange = { on ->
-                        rain = on
-                        preferences?.mapShowsRadar = on
-                        if (!on) playing?.cancel()
-                    }, Modifier.testTag("layer-radar"))
-                }
-                if (offersThermals) {
-                    LayerChip("Thermals", R.drawable.venti_thermal, thermals, onChange = { on ->
-                        thermals = on
-                        preferences?.mapShowsThermals = on
-                    }, Modifier.testTag("layer-thermals"))
-                }
+                // The pack's four, as quick switches; every layer, these
+                // among them, has its row in the layers sheet.
                 if (hasServer) {
-                    LayerChip("Wind", R.drawable.venti_wind, !hidesWind, onChange = { on ->
-                        hidesWind = !on
-                        preferences?.mapHidesWind = !on
-                    }, Modifier.testTag("layer-wind"))
+                    LayerChip(MapWords.WIND, R.drawable.venti_wind, !hidesWind, onChange = setWind, Modifier.testTag("layer-wind"))
                 }
-                LayerChip("Airspace", R.drawable.venti_airspace, !hidesAirspace, onChange = { on ->
-                    hidesAirspace = !on
-                    preferences?.mapHidesAirspace = !on
-                }, Modifier.testTag("layer-airspace"))
-                if (hasServer && cables != null) {
-                    LayerChip("Cables", R.drawable.venti_caution, !hidesCables, onChange = { on ->
-                        hidesCables = !on
-                        preferences?.mapHidesCables = !on
-                    }, Modifier.testTag("layer-cables"))
-                }
+                LayerChip(MapWords.AIRSPACE, R.drawable.venti_airspace, !hidesAirspace, onChange = setAirspace, Modifier.testTag("layer-airspace"))
                 if (hasServer) {
-                    LayerChip("Sites", R.drawable.venti_site, !hidesSites, onChange = { on ->
-                        hidesSites = !on
-                        preferences?.mapHidesSites = !on
-                    }, Modifier.testTag("layer-sites"))
-                    LayerChip("Pilots", R.drawable.venti_live, !hidesPilots, onChange = { on ->
-                        hidesPilots = !on
-                        preferences?.mapHidesPilots = !on
-                    }, Modifier.testTag("layer-pilots"))
+                    LayerChip(MapWords.SITES, R.drawable.venti_site, !hidesSites, onChange = setSites, Modifier.testTag("layer-sites"))
+                    LayerChip(MapWords.PILOTS, R.drawable.venti_live, !hidesPilots, onChange = setPilots, Modifier.testTag("layer-pilots"))
                 }
+            }
+            // Zoomed out too far for where thermals have been, in the core's words.
+            if (showsFlown && air?.flownTooWide == true) {
+                Notice(
+                    flownTooWideWords(),
+                    Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4).testTag("flown-too-wide"),
+                )
             }
             // Zoomed out too far for the other networks' aircraft, in the core's words.
             if (live.othersTooWide && !hidesPilots && hasServer) {
@@ -617,30 +663,29 @@ fun MapScreen(
                     onTryAgainHours = { hoursAttempt += 1 },
                 )
             }
-            if (credits.isNotEmpty()) {
-                // Clear of the map's own credits button on the left and of
-                // the round buttons on the right.
-                Credits(credits, Modifier.padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
-            } else if (showsForecast || showsRadar || (hasSites && filtered.isOn)) {
-                // The card stands clear of the map's own credits button.
-                Spacer(Modifier.height(VentiSpace.s6))
-            }
+            // The (i) alone: every credit, Venti's and the base map's, in
+            // full behind it. Light on the photographs, which are dark.
+            MapCreditsButton(
+                tint = if (aerial) Palette.haloOnMap else Palette.inkOnMap,
+                onOpen = {
+                    // Whose the base map is, as it is drawn at this moment.
+                    mapCredits = map.baseCredits()
+                    showsCredits = true
+                },
+            )
         }
 
         Column(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (hasServer && !hidesWind) {
-                // Everything the arrows say, as a list: for reading the
-                // numbers side by side, and for pilots who use TalkBack.
-                MapButton(R.drawable.venti_wind, "Wind stations") { showsStations = true }
-            }
+            // Three at most: the layers and lists, what the pilot asks of
+            // the sites, and the pilot's own position. Everything else the
+            // map can show or lead to is a row of the layers sheet.
+            RoundButton(R.drawable.venti_layers, MapWords.LAYERS, Modifier.testTag("map-layers")) { showsLayers = true }
             if (hasSites) {
-                // The signs on the map, as a list; and beside it what the
-                // pilot asks of them, drawn as a selected chip while a
-                // filter is on. Both stay when a filter leaves no site.
-                MapButton(R.drawable.venti_site, "Flying sites") { showsSites = true }
+                // Drawn as a selected chip while a filter is on; it stays
+                // when a filter leaves no site.
                 RoundButton(
                     R.drawable.ic_filter,
                     SitesFilterWords.TITLE,
@@ -650,20 +695,6 @@ fun MapScreen(
                     onClick = { showsSitesFilter = true },
                 )
             }
-            if (gliders.isNotEmpty()) {
-                // Who is in the air on this part of the map, as a list.
-                MapButton(R.drawable.venti_live, "Pilots in the air") { showsGliders = true }
-            }
-            if (account.isSignedIn || wind.server is WindServer.Usable) {
-                // Who flies where today and on the days ahead: the plans
-                // of the pilot's groups.
-                MapButton(R.drawable.ic_calendar_month, "Flying plans") { showsPlans = true }
-            }
-            // The ground under everything: the drawn map, or photographs from above.
-            AerialButton(aerial, onChange = { on ->
-                aerial = on
-                preferences?.mapShowsAerial = on
-            })
             // Centres the map on the pilot and follows until the map is dragged.
             MapButton(
                 icon = if (isFollowing) R.drawable.ic_my_location else R.drawable.ic_location_searching,
@@ -680,6 +711,135 @@ fun MapScreen(
                 }
             }
         }
+    }
+
+    if (showsLayers) {
+        val layers = buildList {
+            // The kind of day first, as on the iPhone and the web.
+            if (hasServer && thermalMap != null) {
+                add(MapLayer(MapWords.FORECAST, R.drawable.venti_forecast, "layer-forecast", forecast) { on ->
+                    forecast = on
+                    preferences?.mapShowsForecast = on
+                })
+            }
+            // What fell in the last hours, beside what is forecast.
+            if (hasServer && radar != null) {
+                add(MapLayer(RadarWords.LAYER, R.drawable.ic_rainy, "layer-radar", rain) { on ->
+                    rain = on
+                    preferences?.mapShowsRadar = on
+                    if (!on) playing?.cancel()
+                })
+            }
+            if (offersThermals) {
+                add(MapLayer(MapWords.THERMALS, R.drawable.venti_thermal, "layer-thermals", thermals) { on ->
+                    thermals = on
+                    preferences?.mapShowsThermals = on
+                })
+            }
+            // The chips' four, in the same state.
+            if (hasServer) add(MapLayer(MapWords.WIND, R.drawable.venti_wind, "layers-wind", !hidesWind, onChange = setWind))
+            add(MapLayer(MapWords.AIRSPACE, R.drawable.venti_airspace, "layers-airspace", !hidesAirspace, onChange = setAirspace))
+            if (hasServer) {
+                add(MapLayer(MapWords.SITES, R.drawable.venti_site, "layers-sites", !hidesSites, onChange = setSites))
+                add(MapLayer(MapWords.PILOTS, R.drawable.venti_live, "layers-pilots", !hidesPilots, onChange = setPilots))
+            }
+            if (hasServer && cables != null) {
+                add(MapLayer(MapWords.CABLES, R.drawable.venti_caution, "layer-cables", !hidesCables) { on ->
+                    hidesCables = !on
+                    preferences?.mapHidesCables = !on
+                })
+            }
+            // The ground under everything: the drawn map, or photographs from above.
+            add(MapLayer(MapWords.AERIAL, R.drawable.venti_map, "map-aerial", aerial) { on ->
+                aerial = on
+                preferences?.mapShowsAerial = on
+            })
+            // What others found in the air: off until the pilot asks for it.
+            if (hasServer && air != null) {
+                add(
+                    MapLayer(
+                        MapWords.CLIMBS_NOW,
+                        R.drawable.venti_thermal,
+                        "layer-climbs",
+                        air.climbsOn,
+                        // How many, in the core's words; or why none.
+                        notes = when {
+                            !air.climbsOn -> emptyList()
+                            air.climbsTooWide -> listOf(MapWords.CLIMBS_TOO_WIDE)
+                            else -> listOfNotNull(
+                                air.climbs?.let { if (it.climbs.isEmpty()) liveClimbsEmptyWords() else it.countWords },
+                            )
+                        },
+                    ) { on ->
+                        air.climbsOn = on
+                        preferences?.mapShowsClimbs = on
+                    },
+                )
+                add(
+                    MapLayer(
+                        MapWords.FLOWN_THERMALS,
+                        R.drawable.venti_track,
+                        "layer-flown",
+                        air.flownOn,
+                        // What the layer is and what its flights are given under; or to zoom in.
+                        notes = when {
+                            !air.flownOn -> emptyList()
+                            air.flownTooWide -> listOf(flownTooWideWords())
+                            else -> listOfNotNull(
+                                air.flown?.note?.takeIf { it.isNotBlank() },
+                                MapWords.FLOWN_NONE.takeIf { air.flown?.cells?.isEmpty() == true },
+                                air.flown?.terms?.takeIf { it.isNotBlank() && air.flown?.cells?.isNotEmpty() == true },
+                            )
+                        },
+                    ) { on ->
+                        air.flownOn = on
+                        preferences?.mapShowsFlown = on
+                    },
+                )
+            }
+        }
+        val open = { show: () -> Unit ->
+            {
+                showsLayers = false
+                show()
+            }
+        }
+        val lists = buildList {
+            // Everything the arrows say, as a list: for reading the
+            // numbers side by side, and for pilots who use TalkBack.
+            if (hasServer && !hidesWind) add(MapList(MapWords.WIND_STATIONS, R.drawable.venti_wind, open { showsStations = true }))
+            // The signs on the map, as a list.
+            if (hasSites) add(MapList(MapWords.FLYING_SITES, R.drawable.venti_site, open { showsSites = true }))
+            // Who is in the air on this part of the map, as a list.
+            if (gliders.isNotEmpty()) add(MapList(MapWords.PILOTS_IN_THE_AIR, R.drawable.venti_live, open { showsGliders = true }))
+            // Who flies where today and on the days ahead: the plans of the pilot's groups.
+            if (account.isSignedIn || hasServer) add(MapList(MapWords.FLYING_PLANS, R.drawable.ic_calendar_month, open { showsPlans = true }))
+        }
+        MapLayersSheet(layers, lists, onDismiss = { showsLayers = false })
+    }
+
+    if (showsCredits) {
+        MapCreditsSheet(allCredits, onDismiss = { showsCredits = false })
+    }
+
+    chosenClimb?.let { climb ->
+        AirLineSheet(
+            title = MapWords.CLIMBS_NOW,
+            line = climb.line,
+            notes = climbs?.credits?.filter { it.source == climb.source }?.map { it.text }.orEmpty(),
+            tag = "climb-line",
+            onDismiss = { chosenClimb = null },
+        )
+    }
+
+    chosenFlown?.let { cell ->
+        AirLineSheet(
+            title = MapWords.FLOWN_THERMALS,
+            line = cell.line,
+            notes = listOfNotNull(flown?.note?.takeIf { it.isNotBlank() }, flown?.terms?.takeIf { it.isNotBlank() }),
+            tag = "flown-line",
+            onDismiss = { chosenFlown = null },
+        )
     }
 
     if (showsStations || chosen != null) {
@@ -978,50 +1138,6 @@ private fun Notice(text: String, modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.width(8.dp))
             Text(text, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-/**
- * Whose wind, airspace and sites are on the map, in small type at its lower
- * edge: one line, as far as it fits, and after a tap a line for each in
- * full, so that none is cut short by another. The licences ask that each
- * credit can be read: it is one tap away, and a tap folds them again.
- */
-@Composable
-private fun Credits(lines: List<String>, modifier: Modifier = Modifier) {
-    var isOpen by rememberSaveable { mutableStateOf(false) }
-    val style = MaterialTheme.typography.labelSmall
-    val ink = MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(
-        onClick = { isOpen = !isOpen },
-        modifier = modifier.testTag("wind-credits").semantics {
-            stateDescription = if (isOpen) "In full" else "In a line"
-        },
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-    ) {
-        if (isOpen) {
-            Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                for (line in lines) {
-                    Text(line, style = style, color = ink)
-                }
-            }
-        } else {
-            Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                lines.forEachIndexed { index, line ->
-                    if (index > 0) Text(" · ", style = style, color = ink, maxLines = 1, softWrap = false)
-                    Text(
-                        line,
-                        style = style,
-                        color = ink,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                }
-            }
         }
     }
 }

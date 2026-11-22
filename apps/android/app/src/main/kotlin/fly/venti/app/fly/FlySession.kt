@@ -27,7 +27,10 @@ import fly.venti.core.CableSet
 import fly.venti.core.CableWarning
 import fly.venti.core.CockpitTakeoffs
 import fly.venti.core.OthersNear
+import fly.venti.core.ClimbsNear
+import fly.venti.core.cockpitClimbsPath
 import fly.venti.core.cockpitOthersPath
+import fly.venti.core.liveClimbs
 import fly.venti.core.liveOthers
 import fly.venti.core.CockpitView
 import fly.venti.core.Coordinate
@@ -224,6 +227,24 @@ class FlySession(
     /** When the other networks were last asked, by the phone's clock, and whether an answer is awaited. */
     private var askedForNetworks = Double.NEGATIVE_INFINITY
     private var isAskingForNetworks = false
+
+    /**
+     * Whether the pilot has "Climbs of others in the cockpit" switched on.
+     * The app sets this. While it is off nothing is asked and nothing drawn.
+     */
+    var wantsClimbs: () -> Boolean = { false }
+
+    /**
+     * Where others circle and climb near the glider, as the core keeps and
+     * ages them; `null` while the setting is off or nothing was heard. A
+     * hint, not an instrument.
+     */
+    var climbsNear: ClimbsNear? by mutableStateOf(null)
+        private set
+
+    /** When the climbs were last asked for, by the phone's clock, and whether an answer is awaited. */
+    private var askedForClimbs = Double.NEGATIVE_INFINITY
+    private var isAskingForClimbs = false
 
     /**
      * The take-offs around the glider for the cockpit's map, as the core
@@ -682,6 +703,9 @@ class FlySession(
         cableWarning = null
         othersNear = null
         isAskingForNetworks = false
+        climbsNear = null
+        isAskingForClimbs = false
+        askedForClimbs = Double.NEGATIVE_INFINITY
         takeoffs = null
         isAskingForTakeoffs = false
         task = null
@@ -901,6 +925,28 @@ class FlySession(
                 }
             }
         }
+        // The climbs of others around the glider, only while the pilot has
+        // them switched on, in flight, once a minute.
+        val climbsWanted = wantsClimbs()
+        if (!climbsWanted) {
+            if (climbsNear != null) climbsNear = null
+        } else if (position != null && view.phase == FlightPhase.FLYING && !isAskingForClimbs &&
+            wallClock - askedForClimbs >= CLIMBS_SECONDS
+        ) {
+            val path = cockpitClimbsPath(position.lat, position.lon)
+            if (path != null) {
+                askedForClimbs = wallClock
+                isAskingForClimbs = true
+                scope.launch {
+                    val answer = fetch(path)
+                    isAskingForClimbs = false
+                    if (answer == null || this@FlySession.session !== session) return@launch
+                    val status = answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()
+                    val read = runCatching { liveClimbs(status, answer.body) }.getOrNull() ?: return@launch
+                    takeClimbs(session, read)
+                }
+            }
+        }
         // The take-offs around the glider, every half minute: the core
         // takes them from the pilot's own and from what the app holds.
         if (position != null && !isAskingForTakeoffs && wallClock - askedForTakeoffs >= TAKEOFFS_SECONDS) {
@@ -950,6 +996,11 @@ class FlySession(
         if (refreshesSinceScore == 0) {
             val near = session.othersNear(now)
             if (near != othersNear) othersNear = near
+            // The climbs heard, aged by the core between two answers.
+            if (climbsWanted && climbsNear != null) {
+                val climbs = session.climbsNear(now)
+                if (climbs != climbsNear) climbsNear = climbs
+            }
         }
         sound.play(view.tone)
     }
@@ -973,6 +1024,15 @@ class FlySession(
             handedLandings = places
             session.useLandings(places)
         }
+    }
+
+    /** Hands the core the climbs around the glider, and takes those near it as the core gives them. */
+    @Synchronized
+    private fun takeClimbs(session: FlightSession, climbs: fly.venti.core.LiveClimbs) {
+        if (this.session !== session || !wantsClimbs()) return
+        val now = replay?.now() ?: clock()
+        session.onClimbs(climbs, now)
+        climbsNear = session.climbsNear(now)
     }
 
     /** Hands the core an answer of the other networks, and takes what it keeps of them. */
@@ -1032,6 +1092,9 @@ class FlySession(
 
         /** How often the other gliders around are asked for in flight, seconds. */
         const val OTHERS_SECONDS = 15.0
+
+        /** How often the climbs of others around the glider are asked for, seconds, while the pilot has them on. */
+        const val CLIMBS_SECONDS = 60.0
 
         /** How often the take-offs around the glider are asked for, seconds. */
         const val TAKEOFFS_SECONDS = 30.0

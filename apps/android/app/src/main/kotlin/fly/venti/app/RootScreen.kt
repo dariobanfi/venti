@@ -39,6 +39,7 @@ import fly.venti.app.account.AccountScreen
 import fly.venti.app.alerts.AlertsEntry
 import fly.venti.app.alerts.AlertsScreen
 import fly.venti.app.alerts.LocalAlerts
+import fly.venti.app.live.LocalAir
 import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
 import fly.venti.app.community.LeagueScreen
@@ -234,7 +235,7 @@ fun RootScreen(
         // "Alert me" on a station's page and a take-off's page, wherever
         // they open; signed out it leads to the account.
         val alerts = remember(session) { AlertsEntry(session.alerts, onSignIn = { navigation.showAccount() }) }
-        CompositionLocalProvider(LocalAlerts provides alerts) {
+        CompositionLocalProvider(LocalAlerts provides alerts, LocalAir provides session.air) {
             Sections(session, navigation, onNotice = { notice = it })
         }
     }
@@ -509,6 +510,7 @@ private fun Sections(
                     onSignIn = { navigation.showAccount() },
                     terrain = session.terrain,
                     cables = session.cables,
+                    air = session.air,
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {

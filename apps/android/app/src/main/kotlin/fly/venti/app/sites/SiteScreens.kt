@@ -81,6 +81,7 @@ import fly.venti.app.R
 import fly.venti.app.alerts.AlertMeRow
 import fly.venti.app.alerts.AlertsModel
 import fly.venti.app.alerts.LocalAlerts
+import fly.venti.app.live.LocalAir
 import fly.venti.app.today.AirChart
 import fly.venti.app.today.NearbyLine
 import fly.venti.app.today.ThermalLine
@@ -798,6 +799,8 @@ private fun SitePage(
                             modifier = Modifier.testTag("site-tier"),
                         )
                     }
+                    // Who flies here now, in the core's line; nothing when nobody does.
+                    SiteAirLine(site)
                 }
                 day?.let { shown ->
                     StatusChip(shown.verdict.status, shown.status, Modifier.testTag("site-status"))
@@ -1327,4 +1330,26 @@ object SiteWords {
         val (from, sweep) = if (width == 0.0) span.fromDeg - 11.25 to 22.5 else span.fromDeg to width
         return (from - 90).toFloat() to sweep.toFloat()
     }
+}
+
+/**
+ * How many pilots are in the air at a site now, and how many took off in
+ * the last hour: one quiet line under the site's name, in the core's
+ * words, asked for when the page opens. Nothing is shown when nobody
+ * flies there, without a server, and when the server does not say.
+ */
+@Composable
+private fun SiteAirLine(site: SiteView) {
+    val air = LocalAir.current ?: return
+    var words by remember(site.id) { mutableStateOf("") }
+    LaunchedEffect(site.id, air) {
+        words = air.siteAir(site.id, site.name, site.position)
+    }
+    if (words.isEmpty()) return
+    Text(
+        words,
+        style = MaterialTheme.typography.bodyMedium.numbers,
+        color = Venti.colours.textSecondary,
+        modifier = Modifier.testTag("site-air"),
+    )
 }

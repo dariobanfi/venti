@@ -36,6 +36,7 @@ import fly.venti.app.fly.VarioLink
 import fly.venti.app.fly.VarioSound
 import fly.venti.app.groups.GroupsModel
 import fly.venti.app.live.LiveModel
+import fly.venti.app.live.AirModel
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.map.MapSetup
 import fly.venti.app.settings.MemoryPreferences
@@ -85,6 +86,8 @@ sealed interface Session {
         val airspace: AirspaceModel,
         val sites: SitesModel,
         val live: LiveModel,
+        /** Where pilots climb now, where thermals have been, and who is in the air at a site. */
+        val air: AirModel,
         val community: CommunityModel,
         val account: AccountModel,
         val groups: GroupsModel,
@@ -150,6 +153,8 @@ sealed interface Session {
             slowGlider: Boolean = false,
             /** A UI test's Google account, for the development server's made-up Google; `null` for Google itself. */
             googleTestAccount: String? = null,
+            /** A UI test's month of the year for where thermals have been; `null` for this month. */
+            flownMonth: Int? = null,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -288,6 +293,12 @@ sealed interface Session {
             live.server = { (wind.server as? WindServer.Usable)?.url }
             // The cockpit's map shows them too, around the glider.
             fly.others = { place -> live.around(place) }
+            // What only a server that sees many gliders can say: two layers
+            // of the map and a line of a site's page, and in the cockpit
+            // the climbs around the glider once the pilot switches them on.
+            val air = if (flownMonth != null) AirModel(month = { flownMonth }) else AirModel()
+            air.server = { (wind.server as? WindServer.Usable)?.url }
+            fly.wantsClimbs = { preferences.cockpitShowsClimbs }
             // And everyone's public flights, on the Logbook tab.
             val community = CommunityModel()
             community.server = { (wind.server as? WindServer.Usable)?.url }
@@ -386,7 +397,7 @@ sealed interface Session {
                 if (isUnderTest) MemoryUploadPasswordStore() else KeystoreUploadPasswordStore(app),
             )
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, alerts, siteEdit, tasks,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, account, groups, alerts, siteEdit, tasks,
                 leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(app, preferences, logbook), preferences, files, scope,
             )
         }
@@ -422,6 +433,7 @@ class VentiApplication : Application() {
             sampleTask = options.usesSampleTask,
             slowGlider = options.usesSlowGlider,
             googleTestAccount = options.googleTestAccount,
+            flownMonth = options.flownMonth,
         ).also { testSession = it }
     }
 }
@@ -475,6 +487,12 @@ data class LaunchOptions(
      * sheet, so that the sign-in can be tested without a Google account.
      */
     val googleTestAccount: String? = null,
+    /**
+     * The month of the year, 1 to 12, that "Where thermals have been" is
+     * asked for instead of this month: the development server's made-up
+     * flights are of August, and a test runs in any month.
+     */
+    val flownMonth: Int? = null,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
@@ -487,6 +505,7 @@ data class LaunchOptions(
         const val SAMPLE_TASK = "sample-task"
         const val SLOW_GLIDER = "slow-glider"
         const val GOOGLE_TEST_ACCOUNT = "google-test-account"
+        const val FLOWN_MONTH = "flown-month"
 
         /** The name the made-up Google gives the test's account. */
         const val GOOGLE_TEST_NAME = "UI Test"
@@ -552,6 +571,7 @@ data class LaunchOptions(
                 usesSampleTask = intent.getBooleanExtra(SAMPLE_TASK, false),
                 usesSlowGlider = intent.getBooleanExtra(SLOW_GLIDER, false),
                 googleTestAccount = intent.getStringExtra(GOOGLE_TEST_ACCOUNT),
+                flownMonth = intent.getIntExtra(FLOWN_MONTH, 0).takeIf { it in 1..12 },
             )
         }
     }

@@ -337,12 +337,23 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         modifier = Modifier.fillMaxWidth().testTag("alert-name"),
                     )
+                    // A new alarm for a place is one of two kinds: of the day
+                    // the forecast makes there, or of the pilots in the air
+                    // there. An alarm that stands keeps its kind.
+                    if (id == null && draft.kind != AlertKind.WIND) {
+                        Spacer(Modifier.height(VentiSpace.s4))
+                        SegmentedPills(
+                            listOf(AlertWords.DAY_KIND, AlertWords.core.pilotsKind),
+                            if (draft.kind == AlertKind.PILOTS) 1 else 0,
+                            Modifier.testTag("alert-kind"),
+                            fitToWords = true,
+                            onChoose = { index -> draft = AlertsModel.ofKind(draft, if (index == 1) AlertKind.PILOTS else AlertKind.DAY) },
+                        )
+                    }
                     when (draft.kind) {
                         AlertKind.WIND -> WindChoices(model, draft, faults) { draft = it }
                         AlertKind.DAY -> DayChoices(draft, faults) { draft = it }
-                        // An alarm for pilots in the air is made on the website: the
-                        // phone's form has no choices for it yet.
-                        AlertKind.PILOTS -> Unit
+                        AlertKind.PILOTS -> PilotsChoices(draft, faults) { draft = it }
                     }
                     // What the core finds wrong that no field above shows.
                     faults.filter { it.field !in SHOWN_AT_A_FIELD }.forEach { fault -> Fault(fault.message) }
@@ -415,6 +426,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
 private val SHOWN_AT_A_FIELD = setOf(
     "name", "rule.station", "rule.station_name", "rule.directions", "rule.min_kmh", "rule.max_kmh",
     "rule.gusts_max_kmh", "rule.hours", "rule.place", "rule.place_name", "rule.days_ahead",
+    "rule.min_pilots", "rule.rest_hours",
 )
 
 /** The core's words for what is wrong at a field, all of them, or `null`. */
@@ -522,6 +534,35 @@ private fun DayChoices(draft: AlertDraft, faults: List<AlertFaultView>, onChange
         fitToWords = true,
         onChoose = { index -> onChange(draft.copy(atLeast = AlertWords.core.dayKinds[index].kind)) },
     )
+}
+
+/**
+ * The choices of an alarm for pilots in the air at the place: how many at
+ * least, and for how many hours it then stays quiet, with the core's note
+ * on who is counted.
+ */
+@Composable
+private fun PilotsChoices(draft: AlertDraft, faults: List<AlertFaultView>, onChange: (AlertDraft) -> Unit) {
+    faults.at("rule.place", "rule.place_name")?.let { Fault(it) }
+    val pilots = draft.minPilots?.toInt() ?: AlertsModel.PILOTS_START
+    val rest = draft.restHours?.toInt() ?: AlertsModel.REST_HOURS_START
+    Spacer(Modifier.height(VentiSpace.s4))
+    Group {
+        row {
+            Stepper(AlertWords.core.pilotsAtLeast, pilots.toString(), faults.at("rule.min_pilots"), "alert-pilots",
+                onLess = { onChange(draft.copy(minPilots = (pilots - 1).coerceAtLeast(1).toUShort())) },
+                onMore = { onChange(draft.copy(minPilots = (pilots + 1).toUShort())) },
+            )
+        }
+        row {
+            Stepper(AlertWords.core.pilotsRest, rest.toString(), faults.at("rule.rest_hours"), "alert-rest",
+                onLess = { onChange(draft.copy(restHours = (rest - 1).coerceAtLeast(1).toUByte())) },
+                onMore = { onChange(draft.copy(restHours = (rest + 1).toUByte())) },
+            )
+        }
+    }
+    // The core's note has runs of spaces inside it (a line break in its source): written with one.
+    SectionFooter(AlertWords.core.pilotsNote.replace(Regex(" {2,}"), " "), Modifier.testTag("alert-pilots-note"))
 }
 
 /** A row of choices that scrolls sideways, as the sites' filter shows the winds. */

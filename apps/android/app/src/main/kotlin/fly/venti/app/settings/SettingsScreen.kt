@@ -82,6 +82,7 @@ fun SettingsScreen(
     var trimSpeed by remember { mutableStateOf(preferences.trimSpeed) }
     var glideRatio by remember { mutableStateOf(preferences.glideRatio) }
     var showsFaiAreas by remember { mutableStateOf(preferences.showsFaiAreas) }
+    var showsClimbs by remember { mutableStateOf(preferences.cockpitShowsClimbs) }
     var gliderClass by remember { mutableStateOf(GliderWords.kind(preferences.gliderClass)) }
     var neverLand by remember { mutableStateOf(preferences.neverLand) }
     val names = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false)
@@ -155,12 +156,19 @@ fun SettingsScreen(
                         preferences.showsFaiAreas = isOn
                     }
                 }
+                row {
+                    SwitchRow(CockpitClimbsWords.SETTING, isOn = showsClimbs, modifier = Modifier.testTag("cockpit-climbs")) { isOn ->
+                        showsClimbs = isOn
+                        preferences.cockpitShowsClimbs = isOn
+                    }
+                }
             }
             SectionFooter(
                 "The FAI triangle areas are drawn on the cockpit's map once you have flown three kilometres " +
                     "in a straight line: a turnpoint inside either of them makes that line one side of an " +
                     "FAI triangle.",
             )
+            SectionFooter(CockpitClimbsWords.ABOUT)
 
             SectionHeader(GliderWords.TITLE)
             Group {
@@ -362,4 +370,15 @@ object SettingsWords {
     const val VENTI =
         "The map's wind, sites and forecast come from Venti, and the assistant can look them up. " +
             "With an account your flights are kept there and can be shared; without one, your flights stay on this phone."
+}
+
+/** The words of the cockpit's setting for the climbs of others, which are the app's own. */
+object CockpitClimbsWords {
+    const val SETTING = "Climbs of others in the cockpit"
+
+    /** Under the cockpit's switches: what the setting draws, and that it is a hint. */
+    const val ABOUT =
+        "With the climbs of others on, the cockpit's map marks where pilots near you circled and climbed in " +
+            "the last minutes, and names the nearest. A hint, not an instrument: a climb found minutes ago " +
+            "may be gone."
 }

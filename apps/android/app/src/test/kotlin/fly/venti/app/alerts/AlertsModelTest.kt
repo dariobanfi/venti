@@ -118,6 +118,20 @@ class AlertsModelTest {
     }
 
     @Test
+    fun aDraftForATakeoffBecomesAnAlarmForPilotsInTheAirAndBackWithItsPlace() {
+        val day = AlertsModel.dayDraft("site-1", "Wallberg", 47.664, 11.748)
+        val pilots = AlertsModel.ofKind(day, fly.venti.core.AlertKind.PILOTS)
+        assertEquals("3 pilots or more in the air at Wallberg, at most once in 6 hours", fly.venti.core.alertLine(pilots))
+        assertTrue(fly.venti.core.alertCheck(pilots).isEmpty())
+        assertEquals("Pilots in the air", AlertWords.core.pilotsKind)
+        // What the pilot chose stays across the two kinds.
+        val five = pilots.copy(minPilots = 5u)
+        val back = AlertsModel.ofKind(five, fly.venti.core.AlertKind.DAY)
+        assertEquals("A cross-country day or better at Wallberg, today or tomorrow", fly.venti.core.alertLine(back))
+        assertTrue(fly.venti.core.alertLine(AlertsModel.ofKind(back, fly.venti.core.AlertKind.PILOTS)).startsWith("5 pilots or more"))
+    }
+
+    @Test
     fun aStepperStartsFromAnyAndGoesBackToIt() {
         assertEquals(10, AlertSteps.more(null, 5, 10))
         assertEquals(15, AlertSteps.more(10, 5, 10))

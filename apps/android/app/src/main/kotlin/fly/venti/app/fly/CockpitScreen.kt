@@ -368,6 +368,7 @@ fun CockpitScreen(
                                 map.closing = fly.score?.closing?.outline.orEmpty()
                                 map.takeoffs = fly.takeoffs?.takeoffs.orEmpty().map { it.site }
                                 map.others = fly.othersNear?.aircraft.orEmpty()
+                                map.climbs = fly.climbsNear?.climbs.orEmpty().map { it.climb }
                                 // Beside the thermal view the map keeps to the glide:
                                 // the circle is looked at in the close-up.
                                 map.closeUp = showsThermalView
@@ -436,7 +437,8 @@ fun CockpitScreen(
                                 val credits = (
                                     cables?.creditLine?.let(::listOf).orEmpty() +
                                         fly.takeoffs?.credits.orEmpty().map { it.text } +
-                                        fly.othersNear?.credits.orEmpty().map { it.text }
+                                        fly.othersNear?.credits.orEmpty().map { it.text } +
+                                        fly.climbsNear?.credits.orEmpty().map { it.text }
                                     ).distinct()
                                 if (credits.isNotEmpty()) {
                                     Text(
@@ -521,6 +523,20 @@ fun CockpitScreen(
                     // caution that none is: one line, in the core's words.
                     view.nearestLanding?.let { landing ->
                         NearestLandingLine(landing, onOpen = { isChoosingTarget = true })
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                    // The nearest climb of others, only while the pilot has
+                    // them switched on: one quiet line, a hint and no warning.
+                    fly.climbsNear?.climbs?.firstOrNull()?.let { nearest ->
+                        Text(
+                            nearest.line,
+                            style = MaterialTheme.typography.bodyMedium.numbers,
+                            color = Venti.colours.textSecondary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("climb-near")
+                                .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
+                        )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                     TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })

@@ -117,6 +117,15 @@ interface Preferences {
     /** Whether the map tab shows the places where pilots take off and no site stands. Off until the pilot switches it on. */
     var mapShowsCandidates: Boolean
 
+    /** Whether the map tab shows where pilots climb now. Off until the pilot switches it on. */
+    var mapShowsClimbs: Boolean
+
+    /** Whether the map tab shows where the public flights' thermals have been. Off until the pilot switches it on. */
+    var mapShowsFlown: Boolean
+
+    /** Whether the cockpit asks for the climbs of others around the glider and draws them. Off until the pilot switches it on. */
+    var cockpitShowsClimbs: Boolean
+
     /** What the pilot asks of the sites on the map, the places from pilots among it, as `SitesFilterWords.kept` writes it; `null` for nothing. */
     var mapSitesFilter: String?
 
@@ -273,6 +282,18 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsRadar", false)
         set(value) = store.edit { putBoolean("VentiMapShowsRadar", value) }
 
+    override var mapShowsClimbs: Boolean
+        get() = store.getBoolean("VentiMapShowsClimbs", false)
+        set(value) = store.edit { putBoolean("VentiMapShowsClimbs", value) }
+
+    override var mapShowsFlown: Boolean
+        get() = store.getBoolean("VentiMapShowsFlown", false)
+        set(value) = store.edit { putBoolean("VentiMapShowsFlown", value) }
+
+    override var cockpitShowsClimbs: Boolean
+        get() = store.getBoolean("VentiCockpitShowsClimbs", false)
+        set(value) = store.edit { putBoolean("VentiCockpitShowsClimbs", value) }
+
     override var mapSitesFilter: String?
         get() = store.getString("VentiMapSitesFilter", null)
         set(value) = store.edit { putString("VentiMapSitesFilter", value) }
@@ -343,6 +364,9 @@ class MemoryPreferences : Preferences {
     override var mapShowsForecast = false
     override var mapShowsRadar = false
     override var mapShowsCandidates = false
+    override var mapShowsClimbs = false
+    override var mapShowsFlown = false
+    override var cockpitShowsClimbs = false
     override var mapSitesFilter: String? = null
     override var watchedFolder = ""
     override var watchedSeen: Set<String> = emptySet()

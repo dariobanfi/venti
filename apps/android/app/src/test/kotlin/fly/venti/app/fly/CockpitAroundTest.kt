@@ -85,6 +85,46 @@ class CockpitAroundTest {
     }
 
     @Test
+    fun theClimbsOfOthersAreAskedForAndDrawnOnlyWhileThePilotHasThemOn() {
+        val preferences = MemoryPreferences()
+        val fly = FlySession(TestSupport.newFolder("climbs"), preferences, NoSensors(), SilentTone(), scope)
+        fly.wantsClimbs = { preferences.cockpitShowsClimbs }
+        val asked = CopyOnWriteArrayList<String>()
+        val climbs = recorded("live_climbs.json")
+        val others = recorded("live_others.json")
+        fly.fetch = { path ->
+            asked += path
+            HttpAnswer(200, if ("/v1/live/climbs" in path) climbs else others)
+        }
+
+        // Off, as a new phone has it: nothing asked, nothing to draw.
+        fly.startReplay(TestSupport.sampleFlight, speed = 200.0)
+        Thread.sleep(1_500)
+        assertTrue(asked.none { "/v1/live/climbs" in it })
+        assertNull(fly.climbsNear)
+        fly.finish()
+
+        // On: asked by the core's path around the glider, and the nearest first with the core's line.
+        preferences.cockpitShowsClimbs = true
+        asked.clear()
+        fly.startReplay(TestSupport.sampleFlight, speed = 200.0)
+        Thread.sleep(1_500)
+        val path = asked.firstOrNull { "/v1/live/climbs" in it }
+        assertNotNull("the climbs were not asked for", path)
+        assertEquals(1, asked.count { "/v1/live/climbs" in it })
+        val near = checkNotNull(fly.climbsNear)
+        assertTrue(near.climbs.isNotEmpty())
+        assertTrue(near.climbs.first().line, near.climbs.first().line.startsWith("Climb "))
+        assertTrue(near.climbs.first().climb.label.startsWith("+"))
+
+        // Switched off in the flight: gone with the next refresh.
+        preferences.cockpitShowsClimbs = false
+        Thread.sleep(500)
+        assertNull(fly.climbsNear)
+        fly.finish()
+    }
+
+    @Test
     fun aCableSeenIsQuietedInTheCore() {
         val fly = FlySession(TestSupport.newFolder("cable"), MemoryPreferences(), NoSensors(), SilentTone(), scope)
         fly.cables = { CableSet.fromAnswer(200u, recorded("cables.json")) }

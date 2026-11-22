@@ -15,6 +15,13 @@ object AlertWords {
     /** The core's words, read once. */
     val core: AlertFormWords by lazy { alertFormWords() }
 
+    /**
+     * The choice of the kind of an alarm about the day the forecast makes,
+     * beside the core's "Pilots in the air": the core has a word for the
+     * second kind only.
+     */
+    const val DAY_KIND = "Flying day"
+
     const val SIGN_IN = "Sign in"
     const val CANCEL = "Cancel"
     const val OK = "OK"

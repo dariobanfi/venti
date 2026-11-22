@@ -41,6 +41,13 @@ final class LocationProvider: NSObject, @preconcurrency CLLocationManagerDelegat
         background = nil
     }
 
+    /// Whether the pilot has allowed the position already, so that it can
+    /// be read without asking.
+    static var isAllowed: Bool {
+        let status = CLLocationManager().authorizationStatus
+        return status == .authorizedWhenInUse || status == .authorizedAlways
+    }
+
     /// A position worse than this, in metres, is a guess from the phone
     /// network and not a fix: the next one can lie a kilometre away, which
     /// between two seconds looks like speed.

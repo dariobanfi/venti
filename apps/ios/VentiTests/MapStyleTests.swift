@@ -99,8 +99,17 @@ final class MapStyleTests: XCTestCase {
             let left = try XCTUnwrap(without["layers"] as? [[String: Any]])
             XCTAssertFalse(left.contains { $0["source"] as? String == "thermals" })
         }
-        // Venti names no domain yet: see `MapStyle.appDomain`.
-        XCTAssertNil(MapStyle.appDomain)
+        // Venti names itself by the owner's domain, and the style the app
+        // prepares asks for the thermal map with it.
+        XCTAssertEqual(MapStyle.appDomain, "venti.fly")
+        let prepared = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(MapStyle.json(for: .bundled, server: nil).utf8)) as? [String: Any]
+        )
+        let asked = try XCTUnwrap((prepared["sources"] as? [String: [String: Any]])?["thermals"])
+        XCTAssertEqual(
+            asked["tiles"] as? [String],
+            ["https://thermal.kk7.ch/tiles/thermals_all_all/{z}/{x}/{y}.png?src=venti.fly"]
+        )
     }
 
     /// The shared style marks which layers belong to the drawn ground and

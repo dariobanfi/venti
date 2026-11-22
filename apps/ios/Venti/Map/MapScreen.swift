@@ -42,6 +42,8 @@ struct MapScreen: View {
     /// A climb or a cell of where thermals have been, tapped.
     @State private var chosenAir: ChosenAirLine?
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+    /// The thermal map of thermal.kk7.ch, switched in the layers sheet.
+    @AppStorage(Preferences.mapShowsThermalMap) private var showsThermalMap = false
     @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
     @AppStorage(Preferences.mapShowsRadar) private var showsRadar = false
     @AppStorage(Preferences.mapAirspaceCeilingM) private var airspaceCeilingM = 0.0
@@ -191,6 +193,7 @@ struct MapScreen: View {
                 },
                 source: maps.browsingSource(at: nil),
                 aerial: showsAerial,
+                thermalMap: showsThermalMap && MapStyle.appDomain != nil,
                 photos: photos,
                 forecast: dayOnTheMap,
                 onSquare: { index in
@@ -784,6 +787,10 @@ struct MapScreen: View {
     /// "Data and licences".
     private var creditLines: [String] {
         var parts: [String] = []
+        // The thermal map's licence asks for its credit while it shows.
+        if showsThermalMap, MapStyle.appDomain != nil {
+            parts.append(MapStyle.thermalMapCredit)
+        }
         if !wind.credits.isEmpty, !hidesWind {
             parts.append("Wind: \(wind.credits.map(\.provider).formatted(.list(type: .and)))")
         }

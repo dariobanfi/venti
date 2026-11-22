@@ -26,15 +26,11 @@ struct StatisticsRoute: Hashable {}
 final class AppNavigation {
     var tab: AppTab = .today
     var logbookPath = NavigationPath()
-    /// Set when the cockpit was asked for from another tab, a site's
-    /// page for one: the Fly tab opens it and takes this back.
-    var wantsCockpit = false
 
-    /// "Start flight" outside the Fly tab: that tab comes to the front
-    /// and opens the cockpit, which waits for the take-off.
+    /// "Start flight" outside the Fly tab: that tab comes to the front,
+    /// and a Fly tab in front is the cockpit, which waits for the take-off.
     func startFlight() {
         tab = .fly
-        wantsCockpit = true
     }
 
     /// Set when the alarms' page was asked for: the Today tab, whose
@@ -60,6 +56,7 @@ struct RootScreen: View {
     @Environment(AlertsModel.self) private var alerts
     @Environment(TaskModel.self) private var tasks
     @Environment(WatchedFolder.self) private var watched
+    @Environment(FlySession.self) private var fly
     @Environment(\.scenePhase) private var scenePhase
     @State private var navigation = AppNavigation()
     @State private var notice: ImportNotice?
@@ -106,7 +103,15 @@ struct RootScreen: View {
                 // pilot has Venti watch: without a word, the flights are
                 // in the logbook.
                 Task { await watched.bringInNew() }
+                // And a take-off, on whatever tab: it opens the cockpit,
+                // which records it.
+                if LaunchOptions.watchesForTakeoff {
+                    fly.watchForTakeoff()
+                }
             } else if phase == .background {
+                // Only a flight goes on in the background; a watch for a
+                // take-off is for while the app is in front.
+                fly.stopWatching()
                 alerts.scheduleRefresh()
                 // The home-screen widget, which the pilot may look at next.
                 TakeoffWidgetWriter.running?.leftTheScreen()
@@ -118,6 +123,21 @@ struct RootScreen: View {
             if opens {
                 AlertNotices.taps.opensAlerts = false
                 navigation.showAlerts()
+            }
+        }
+        // The cockpit closed: the watch for the next take-off begins anew,
+        // while the app is in front.
+        .onChange(of: fly.mode == nil) { _, isIdle in
+            if isIdle, scenePhase == .active, LaunchOptions.watchesForTakeoff {
+                fly.watchForTakeoff()
+            }
+        }
+        // A take-off seen on another tab brings the Fly tab to the front,
+        // whose cockpit then opens over it.
+        .onAppear {
+            let navigation = navigation
+            fly.onTakeoffSeen = {
+                navigation.tab = .fly
             }
         }
         .onChange(of: logbook.view.totals.flights) {

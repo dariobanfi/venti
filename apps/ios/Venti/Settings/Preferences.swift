@@ -52,6 +52,12 @@ enum Preferences {
     /// layers sheet, each off until the pilot switches it on.
     static let mapShowsClimbs = "VentiMapShowsClimbs"
     static let mapShowsFlownThermals = "VentiMapShowsFlownThermals"
+    /// Whether the map tab shows the thermal map of thermal.kk7.ch: off
+    /// until switched on in the layers sheet.
+    static let mapShowsThermalMap = "VentiMapShowsThermalMap"
+    /// Whether the cockpit's map shows it: on until switched off in the
+    /// cockpit's settings, at 40 % as the owner's XCTrack layout has it.
+    static let cockpitHidesThermalMap = "VentiCockpitHidesThermalMap"
     /// Whether the cockpit asks for the climbs of others around the
     /// glider and draws them on its map: off until the pilot switches it
     /// on, and then nothing is asked or drawn.

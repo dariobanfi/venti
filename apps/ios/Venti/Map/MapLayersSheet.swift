@@ -47,6 +47,7 @@ struct MapLayersSheet: View {
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     @AppStorage(Preferences.mapShowsClimbs) private var showsClimbs = false
     @AppStorage(Preferences.mapShowsFlownThermals) private var showsFlown = false
+    @AppStorage(Preferences.mapShowsThermalMap) private var showsThermalMap = false
 
     var body: some View {
         let words = mapLayersWords()
@@ -92,6 +93,15 @@ struct MapLayersSheet: View {
                             Label(words.cables, image: "icon-caution")
                         }
                         .accessibilityIdentifier("layer-cables")
+                    }
+                    // Where thermals are found, from thermal.kk7.ch: off
+                    // until switched on, and only where the app can name
+                    // itself to its author.
+                    if MapStyle.appDomain != nil {
+                        Toggle(isOn: $showsThermalMap) {
+                            Label(words.thermals, image: "icon-thermal")
+                        }
+                        .accessibilityIdentifier("layer-thermal-map")
                     }
                     // The ground under everything: the drawn map, or
                     // photographs from above.

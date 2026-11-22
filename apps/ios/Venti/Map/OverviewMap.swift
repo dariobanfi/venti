@@ -66,6 +66,8 @@ struct OverviewMap: UIViewRepresentable {
     var source: MapStyle.Source = .standard
     /// Whether the ground is photographs from above instead of the drawn map.
     var aerial = false
+    /// Whether the thermal map of thermal.kk7.ch lies over the ground.
+    var thermalMap = false
     /// Where the map says who made the photographs in view.
     var photos: PhotoCredits?
     /// The day of the forecast map to draw, square by square; nothing
@@ -185,6 +187,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.show(airspace, on: map)
         coordinator.photos = photos
         coordinator.showAerial(aerial, on: map)
+        coordinator.showThermalMap(thermalMap, on: map)
         coordinator.follow(isFollowing, on: map)
     }
 
@@ -505,9 +508,21 @@ struct OverviewMap: UIViewRepresentable {
             }
         }
 
+        private var thermalMap = false
+
+        /// Shows or hides the thermal map, now or once the style is there.
+        func showThermalMap(_ isOn: Bool, on map: MLNMapView) {
+            guard isOn != thermalMap else { return }
+            thermalMap = isOn
+            if isStyleLoaded {
+                MapSetup.showThermalMap(isOn, on: map)
+            }
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             prepare(style)
             MapSetup.showAerial(aerial, on: mapView)
+            MapSetup.showThermalMap(thermalMap, on: mapView)
             photos?.update(from: mapView)
             isStyleLoaded = true
             drawOutlines(on: mapView)

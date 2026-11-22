@@ -334,6 +334,12 @@ enum LaunchOptions {
     /// tiles, so a screenshot does not depend on the network.
     static let usesBundledMap = arguments.contains("--bundled-map")
 
+    /// Whether the app watches for a take-off on every tab while it is in
+    /// front (`FlySession.watchForTakeoff`). Under test only with
+    /// `--watch-takeoff`: the other tests keep the cockpit to the moment
+    /// they open it, and the unit tests' host watches nothing.
+    static let watchesForTakeoff = !isUnderTest || arguments.contains("--watch-takeoff")
+
     /// Answer the assistant's requests from a script instead of a provider,
     /// so its screen can be tested without a key or a network.
     static let usesScriptedAssistant = arguments.contains("--scripted-assistant")

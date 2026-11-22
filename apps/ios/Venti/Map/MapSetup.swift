@@ -50,6 +50,29 @@ enum MapSetup {
         map.attributionButton.tintColor = creditsTint(aerial: aerial)
     }
 
+    /// Shows or hides the thermal map of thermal.kk7.ch, at the style's
+    /// opacity or at the one given. Its tiles are fetched only while it
+    /// shows, as the map needs them: never ahead, never into a region kept
+    /// on the iPhone. Nothing happens before the map has its style, nor
+    /// where the style left the layer out.
+    static func showThermalMap(_ isOn: Bool, opacity: Double? = nil, on map: MLNMapView) {
+        guard let views, let style = map.style else { return }
+        for name in views.thermals {
+            guard let layer = style.layer(withIdentifier: name) else { continue }
+            layer.isVisible = isOn
+            if let opacity, let raster = layer as? MLNRasterStyleLayer {
+                raster.rasterOpacity = NSExpression(forConstantValue: opacity)
+            }
+        }
+    }
+
+    /// Whether this map's style has the thermal map: only where the app
+    /// has a domain to name to its author.
+    static func hasThermalMap(on map: MLNMapView) -> Bool {
+        guard let views, let style = map.style else { return false }
+        return views.thermals.contains { style.layer(withIdentifier: $0) != nil }
+    }
+
     /// The layers of photographs of the shared style, read once.
     private static let makers = (try? MapStyle.aerialMakers()) ?? []
 

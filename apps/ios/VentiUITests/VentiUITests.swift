@@ -57,7 +57,7 @@ final class VentiUITests: XCTestCase {
     /// are chips on the map, and airspace ("layer-airspace") is its own
     /// round button too, which `setLayer` taps (`setAirspace`).
     private static let layersInTheSheet: Set<String> = [
-        "layer-pilots", "layer-cables", "map-aerial", "layer-climbs", "layer-flown",
+        "layer-pilots", "layer-cables", "map-aerial", "layer-climbs", "layer-flown", "layer-thermal-map",
     ]
 
     /// Switches airspace on the map tab on or off with its round button,
@@ -227,6 +227,68 @@ final class VentiUITests: XCTestCase {
         let end = element("cockpit-end", in: app)
         XCTAssertTrue(end.waitForExistence(timeout: 10))
         end.press(forDuration: 1.6)
+    }
+
+    /// The Fly tab is the cockpit: choosing it opens the cockpit, which
+    /// waits for the take-off and asks for the position the first time.
+    /// That is answered with `answer`, "Allow Once" unless a test says
+    /// otherwise, so that the simulator keeps no answer for the tests
+    /// after. On the Fly tab already, at rest after "End", the button
+    /// opens it again. The tab bar lies under the cockpit once it is open,
+    /// so the tab cannot be asked whether it is selected.
+    private func openTheCockpit(in app: XCUIApplication, answer: String = "Allow Once") {
+        let tab = app.tabBars.buttons["Fly"]
+        let again = app.buttons["open-cockpit"]
+        let end = element("cockpit-end", in: app)
+        let question = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons[answer]
+        XCTAssertTrue(tab.waitForExistence(timeout: 15))
+        for _ in 0..<4 {
+            if end.exists {
+                return
+            }
+            for _ in 0..<40 where !(tab.exists && tab.isHittable) {
+                usleep(250_000)
+            }
+            usleep(400_000)
+            if again.exists, again.isHittable {
+                again.tap()
+            } else if tab.exists, tab.isHittable {
+                tab.tap()
+            }
+            if question.waitForExistence(timeout: 3) {
+                question.tap()
+            }
+            if end.waitForExistence(timeout: 10) {
+                return
+            }
+        }
+        XCTFail("The Fly tab did not open the cockpit.")
+    }
+
+    /// Opens the cockpit's settings: what the Fly tab listed before
+    /// take-off, behind the one button on the cockpit's top line.
+    private func openTheCockpitsSettings(in app: XCUIApplication) {
+        if !element("cockpit-end", in: app).exists {
+            openTheCockpit(in: app)
+        }
+        let settings = element("cockpit-settings", in: app)
+        XCTAssertTrue(settings.waitForExistence(timeout: 15))
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+    }
+
+    /// Replays the sample flight through the cockpit, from its settings:
+    /// "In real time" or "20 times faster".
+    private func replayTheSampleFlight(_ speed: String = "20 times faster", in app: XCUIApplication) {
+        if !app.navigationBars["Settings"].exists {
+            openTheCockpitsSettings(in: app)
+        }
+        let replay = app.buttons["Replay the sample flight"]
+        for _ in 0..<3 where !(replay.exists && isOnScreen(replay, in: app)) {
+            app.swipeUp()
+            usleep(500_000)
+        }
+        choose(speed, from: replay, in: app)
     }
 
     /// Half a metre to and fro, for `put`.
@@ -625,22 +687,30 @@ final class VentiUITests: XCTestCase {
     /// lift, and four minutes later it glides on.
     func testTheCockpitShowsAReplayedFlight() {
         let app = launch(bundledMap: true, extra: ["--sample-waypoints"])
-        openTab("Fly", in: app)
-        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 30))
+        // The Fly tab opens on the cockpit, waiting for the take-off: the
+        // thermal view beside the map is there on the ground too.
+        openTheCockpit(in: app)
+        XCTAssertTrue(element("thermal-view", in: app).waitForExistence(timeout: 10))
+        sleep(1)
         keepScreenshot("fly-1-ready")
 
-        // Who may watch a flight while it is under way: nobody, until the
-        // pilot says otherwise, and nobody can be chosen without an
-        // account to send the positions to.
+        // What was checked before take-off is behind the one settings
+        // button. Who may watch a flight while it is under way: nobody,
+        // until the pilot says otherwise, and nobody can be chosen
+        // without an account to send the positions to.
+        openTheCockpitsSettings(in: app)
+        XCTAssertTrue(element("cockpit-sound", in: app).exists)
+        sleep(1)
+        keepScreenshot("fly-1a-settings")
         element("live-before-takeoff", in: app).tap()
         XCTAssertTrue(app.navigationBars["Live tracking"].waitForExistence(timeout: 10))
         XCTAssertTrue(saying("Nothing is sent", in: app).waitForExistence(timeout: 10))
         sleep(1)
         keepScreenshot("fly-1b-live")
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
 
-        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
+        replayTheSampleFlight(in: app)
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
 
         // Circling in lift, the cockpit changes to its thermal numbers by
@@ -661,9 +731,10 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(element("Glide", in: app).waitForExistence(timeout: 150))
         XCTAssertTrue(element("Wind", in: app).exists)
         sleep(3)
-        // On a glide the map has the room: the thermal view is there
-        // only while the core says the glider circles.
-        XCTAssertFalse(element("thermal-view", in: app).exists)
+        // On a glide the thermal view stays beside the map, with the last
+        // minutes of track and the wind it worked out.
+        XCTAssertTrue(element("thermal-view", in: app).exists)
+        XCTAssertTrue(element("thermal-view-wind", in: app).exists)
         keepScreenshot("fly-3-glide")
 
         // The second page: the map as large as it gets, and under it the
@@ -727,12 +798,11 @@ final class VentiUITests: XCTestCase {
             }
         }
 
-        // The third page: how the flight stands, and what can be switched.
+        // The third page: how the flight stands. The vario's sound is no
+        // button there: its switch is in the settings.
         XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Flight"))
-        let lock = element("cockpit-lock", in: app)
-        XCTAssertTrue(lock.waitForExistence(timeout: 10))
-        XCTAssertTrue(element("Flight time", in: app).exists)
-        XCTAssertTrue(element("cockpit-mute", in: app).exists)
+        XCTAssertTrue(element("Flight time", in: app).waitForExistence(timeout: 10))
+        XCTAssertFalse(element("cockpit-mute", in: app).exists)
         sleep(1)
         keepScreenshot("fly-5d-flight-page")
 
@@ -744,11 +814,14 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("fly-5d2-details")
         app.navigationBars["Details"].buttons["Done"].tap()
-        XCTAssertTrue(lock.waitForExistence(timeout: 10))
+        XCTAssertTrue(element("cockpit-details", in: app).waitForExistence(timeout: 10))
 
-        // Locked, the screen answers no touch: neither a tap on the dots
-        // nor a swipe turns the page, and "End" ends nothing. Holding the
-        // lock opens it.
+        // Locked from the settings, the screen answers no touch: neither a
+        // tap on the dots nor a swipe turns the page, and "End" ends
+        // nothing. Holding the lock opens it.
+        openTheCockpitsSettings(in: app)
+        let lock = element("cockpit-lock", in: app)
+        XCTAssertTrue(lock.waitForExistence(timeout: 10))
         lock.tap()
         let unlock = element("cockpit-unlock", in: app)
         XCTAssertTrue(unlock.waitForExistence(timeout: 10))
@@ -757,13 +830,13 @@ final class VentiUITests: XCTestCase {
         element("cockpit-end", in: app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(forDuration: 1.6)
         sleep(1)
-        XCTAssertTrue(lock.exists)
+        XCTAssertTrue(unlock.exists)
         XCTAssertTrue((element("cockpit-pages", in: app).value as? String)?.hasPrefix("Flight") == true)
         keepScreenshot("fly-5e-locked")
         unlock.press(forDuration: 1.6)
         sleep(1)
         XCTAssertFalse(element("cockpit-unlock", in: app).exists)
-        XCTAssertTrue(lock.exists)
+        XCTAssertTrue(element("cockpit-end", in: app).exists)
 
         endTheCockpit(in: app)
         XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
@@ -814,21 +887,15 @@ final class VentiUITests: XCTestCase {
         app.launchArguments = Self.naming(["--ui-testing", "--bundled-map"])
         continueAfterFailure = false
         app.launch()
-        openTab("Fly", in: app)
-        let open = app.buttons["Open the cockpit"]
-        XCTAssertTrue(open.waitForExistence(timeout: 30))
 
         // The flight stands, flies and lands at the height the app's own
         // terrain has for the take-off: the core ends no flight while
         // known ground lies more than 50 m under the glider.
         let ground = Self.takeoffGroundM
         put(metresNorth: 0, altitude: ground, speed: 0)
-        open.tap()
-        // The system asks whether Venti may use the position.
-        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow While Using App"]
-        if allow.waitForExistence(timeout: 15) {
-            allow.tap()
-        }
+        // The Fly tab opens the cockpit, and the system asks whether Venti
+        // may use the position: for this run of the app only.
+        openTheCockpit(in: app)
 
         // Standing at the take-off: ready, and nothing is recorded.
         for _ in 0..<8 {
@@ -893,6 +960,118 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("self-5-saved")
     }
 
+    /// The positions the cockpit's recording holds, as its top line says
+    /// them to VoiceOver; `nil` while it records nothing.
+    private func recordedPositions(in app: XCUIApplication) -> Int? {
+        let recording = element("cockpit-recording", in: app)
+        guard recording.waitForExistence(timeout: 10),
+              let found = "\(recording.value ?? "")".firstMatch(of: /(\d+) positions/)
+        else { return nil }
+        return Int(found.1)
+    }
+
+    /// A take-off seen while the app is open on another tab: the watch for
+    /// it runs on every tab while the app is in front (`--watch-takeoff`;
+    /// without it a test keeps the cockpit to the moment it opens it), and
+    /// the take-off brings the Fly tab and its cockpit to the front,
+    /// recording. Then the app goes to the back for half a minute while the
+    /// glider flies on, and the recording has gone on with it.
+    func testATakeoffOnAnotherTabOpensTheCockpitAndRecords() {
+        let app = XCUIApplication()
+        app.resetAuthorizationStatus(for: .location)
+        app.launchArguments = Self.naming(["--ui-testing", "--bundled-map", "--watch-takeoff"])
+        continueAfterFailure = false
+        app.launch()
+        let ground = Self.takeoffGroundM
+        put(metresNorth: 0, altitude: ground, speed: 0)
+        // The watch reads the position only where the pilot has allowed
+        // it: once, in the cockpit, which is then ended on the ground.
+        openTheCockpit(in: app)
+        endTheCockpit(in: app)
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
+
+        // On the map tab, standing at the take-off: nothing opens.
+        openTab("Map", in: app)
+        for _ in 0..<6 {
+            put(metresNorth: 0, altitude: ground, speed: 0)
+            sleep(1)
+        }
+        let end = element("cockpit-end", in: app)
+        XCTAssertFalse(end.exists)
+        keepScreenshot("watch-1-map-standing")
+
+        // Off at 10 m/s over the ground: the core sees the take-off, and
+        // the cockpit opens over the map tab, recording.
+        var metres = 0.0
+        for _ in 0..<40 where !end.exists {
+            metres += 10
+            put(metresNorth: metres, altitude: ground, speed: 10)
+            sleep(1)
+        }
+        XCTAssertTrue(end.waitForExistence(timeout: 10), "The take-off did not open the cockpit.")
+        XCTAssertTrue(saying("Recording", in: app).waitForExistence(timeout: 10))
+        keepScreenshot("watch-2-cockpit-opened-by-the-take-off")
+
+        // To the back for thirty seconds, flying on: the positions still
+        // reach the recording.
+        let before = recordedPositions(in: app) ?? 0
+        XCUIDevice.shared.press(.home)
+        for _ in 0..<30 {
+            metres += 10
+            put(metresNorth: metres, altitude: ground, speed: 10)
+            sleep(1)
+        }
+        app.activate()
+        XCTAssertTrue(end.waitForExistence(timeout: 15))
+        XCTAssertTrue(saying("Recording", in: app).exists)
+        let after = recordedPositions(in: app) ?? 0
+        XCTAssertGreaterThanOrEqual(
+            after - before, 20, "Positions in the back: \(after - before) (\(before) before, \(after) after)."
+        )
+        sleep(1)
+        keepScreenshot("watch-3-back-from-the-background")
+    }
+
+    /// The thermal map of thermal.kk7.ch on the map tab: off until it is
+    /// switched on in the layers sheet, then its tiles over the Alps from
+    /// the author's server (the network is needed) and its credit among
+    /// the map's. Switched off again at the end: the choice is kept
+    /// between launches.
+    func testTheThermalMapOnTheMapTab() {
+        let app = launch(bundledMap: true, extra: ["--map-at", "47.65,11.75,9"])
+        let credits = app.buttons["map-credits"]
+        XCTAssertTrue(credits.waitForExistence(timeout: 60))
+        setLayer("layer-thermal-map", on: true, in: app)
+        sleep(8)
+        keepScreenshot("thermal-map-1-map-tab")
+        XCTAssertTrue((credits.value as? String)?.contains("thermal.kk7.ch") == true)
+        setLayer("layer-thermal-map", on: false, in: app)
+        XCTAssertFalse((credits.value as? String)?.contains("thermal.kk7.ch") == true)
+    }
+
+    /// The cockpit at the text size above the largest standard one: on the
+    /// ground waiting, circling and on a glide, the thermal view beside the
+    /// map each time, and its settings.
+    func testTheCockpitWithLargerText() {
+        let app = launch(bundledMap: true, extra: ["--sample-waypoints"] + Self.largerText)
+        openTheCockpit(in: app)
+        XCTAssertTrue(element("thermal-view", in: app).waitForExistence(timeout: 10))
+        sleep(2)
+        keepScreenshot("larger-cockpit-1-ground")
+        openTheCockpitsSettings(in: app)
+        sleep(1)
+        keepScreenshot("larger-cockpit-1b-settings")
+        replayTheSampleFlight(in: app)
+        XCTAssertTrue(waitForAll(["Gained", "lift-badge"], in: app, timeout: 180))
+        sleep(1)
+        keepScreenshot("larger-cockpit-2-circling")
+        XCTAssertTrue(element("Glide", in: app).waitForExistence(timeout: 150))
+        sleep(3)
+        XCTAssertTrue(element("thermal-view", in: app).exists)
+        keepScreenshot("larger-cockpit-3-glide")
+        endTheCockpit(in: app)
+    }
+
     /// Airspace: a made-up control zone lies beside the end of the sample
     /// flight. Replayed at twenty times its speed, the glider comes near it
     /// after about a minute, and the cockpit says so.
@@ -905,8 +1084,7 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
         setAirspace(on: false, in: app)
 
-        openTab("Fly", in: app)
-        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
+        replayTheSampleFlight(in: app)
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
 
         // A minute of flying later the zone is still far off, and the
@@ -2407,8 +2585,10 @@ final class VentiUITests: XCTestCase {
         XCTAssertFalse(app.textFields["Server address"].exists)
         sleep(1)
         keepScreenshot("settings-0-venti")
-        // The tabs stay while the settings are open.
-        openTab("Fly", in: app)
+        // The tabs stay while the settings are open: the Fly tab is the
+        // cockpit.
+        openTheCockpit(in: app)
+        endTheCockpit(in: app)
         XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
     }
 
@@ -3037,7 +3217,7 @@ final class VentiUITests: XCTestCase {
     /// leads on to the next turnpoint.
     func testATaskLeadsThroughTheCockpit() {
         let app = launch(bundledMap: true, extra: ["--sample-task"])
-        openTab("Fly", in: app)
+        openTheCockpitsSettings(in: app)
         let row = element("task-before-takeoff", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 30))
         XCTAssertTrue(saying("4 turnpoints", in: app).exists)
@@ -3060,8 +3240,8 @@ final class VentiUITests: XCTestCase {
 
         // The flight leaves the start cylinder seven minutes in, which at
         // twenty times its speed is after some twenty seconds.
-        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
-        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        replayTheSampleFlight(in: app)
         // Where the flight stands in its task is on the map's page.
         nextPage(in: app)
         let strip = element("task-strip", in: app)
@@ -3097,9 +3277,7 @@ final class VentiUITests: XCTestCase {
     /// on the map's page the closing circle where the flight makes one.
     func testTheCockpitShowsTheTaskPage() {
         let app = launch(bundledMap: true, extra: ["--sample-task"])
-        openTab("Fly", in: app)
-        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 30))
-        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
+        replayTheSampleFlight(in: app)
         // Instruments, map, flight, then the task's page.
         for _ in 0..<3 {
             nextPage(in: app)
@@ -3417,10 +3595,7 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("larger-dark-cockpit-2-glider-and-cockpit-lower")
         app.navigationBars.buttons.firstMatch.tap()
 
-        openTab("Fly", in: app)
-        let replay = app.buttons["Replay the sample flight"]
-        XCTAssertTrue(replay.waitForExistence(timeout: 30))
-        choose("20 times faster", from: replay, in: app)
+        replayTheSampleFlight(in: app)
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
         XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Map"))
         XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Flight"))
@@ -3437,7 +3612,7 @@ final class VentiUITests: XCTestCase {
     /// them and kept as the task.
     func testARouteIsPlannedFromWaypoints() {
         let app = launch(bundledMap: true, extra: ["--sample-waypoints"])
-        openTab("Fly", in: app)
+        openTheCockpitsSettings(in: app)
         let row = element("task-before-takeoff", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 30))
         row.tap()
@@ -3591,7 +3766,7 @@ final class VentiUITests: XCTestCase {
     /// Opens the map to draw a route on from the Fly tab, and draws three
     /// places on it.
     private func drawATriangle(in app: XCUIApplication) {
-        openTab("Fly", in: app)
+        openTheCockpitsSettings(in: app)
         let row = element("task-before-takeoff", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 30))
         row.tap()
@@ -3706,12 +3881,10 @@ final class VentiUITests: XCTestCase {
         done.tap()
 
         // Nothing has asked for airspace so far: the map tab's is off, and
-        // the Fly tab does not know where the pilot is.
-        openTab("Fly", in: app)
+        // the app does not know where the pilot is. (The Fly tab is the
+        // cockpit, which asks for the position: it is not opened here
+        // before the pilot has allowed it on Today.)
         let line = element("airspace-before-takeoff", in: app)
-        XCTAssertTrue(line.waitForExistence(timeout: 30))
-        sleep(3)
-        XCTAssertFalse(saying("openAIP", in: app).exists, "Airspace was fetched before the pilot's position was known.")
 
         // The pilot is by the Tegernsee and lets Venti know, on Today.
         XCUIDevice.shared.location = XCUILocation(
@@ -3736,8 +3909,8 @@ final class VentiUITests: XCTestCase {
         allow.tap()
 
         // The Fly tab asks for the airspace around the pilot by itself and
-        // says what the cockpit will warn from.
-        openTab("Fly", in: app)
+        // the cockpit's settings say what it will warn from.
+        openTheCockpitsSettings(in: app)
         XCTAssertTrue(line.waitForExistence(timeout: 30))
         XCTAssertTrue(saying("openAIP", in: app).waitForExistence(timeout: 90))
         keepScreenshot("airspace-1-before-takeoff")
@@ -3752,9 +3925,8 @@ final class VentiUITests: XCTestCase {
         // from: the reading of the airspace that matters next stands on
         // its map page only while the session checks airspace, and the
         // map names whose it is.
-        let open = app.buttons["Open the cockpit"]
-        XCTAssertTrue(open.waitForExistence(timeout: 15))
-        open.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        app.navigationBars["Settings"].buttons["Done"].tap()
         XCTAssertTrue(element("cockpit-end", in: app).waitForExistence(timeout: 30))
         XCTAssertTrue(element("cockpit-airspace-credit", in: app).waitForExistence(timeout: 30))
         // Standing at the take-off, with positions that have a height:
@@ -4182,10 +4354,9 @@ final class VentiUITests: XCTestCase {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")
         }
         let app = launch(bundledMap: true, extra: ["--server", server])
-        openTab("Fly", in: app)
-        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 30))
+        openTheCockpitsSettings(in: app)
 
-        // Before take-off the Fly tab says whether there is a map for
+        // Before take-off the cockpit's settings say whether there is a map for
         // flying without a network, and leads to the regions.
         let before = element("map-before-takeoff", in: app)
         XCTAssertTrue(before.waitForExistence(timeout: 30))
@@ -4220,16 +4391,17 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("maps-2-kept")
 
-        // Back on the Fly tab, the region is named among what to check.
+        // Back in the settings, the region is named among what to check.
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
         XCTAssertTrue(labelled(containing: "Tegernsee valley", in: app).waitForExistence(timeout: 10))
 
         // The sample flight is over the Tegernsee, inside the region: the
-        // cockpit draws its map from the download and says so.
-        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
+        // cockpit draws its map from the download, and its top line says
+        // nothing of a missing map.
+        replayTheSampleFlight(in: app)
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
-        XCTAssertTrue(element("map-kept", in: app).waitForExistence(timeout: 30))
+        XCTAssertFalse(element("cockpit-check-map", in: app).exists)
         // Time for the map to be made anew and to draw.
         sleep(6)
         keepScreenshot("maps-3-cockpit")

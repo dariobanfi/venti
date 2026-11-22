@@ -56,8 +56,14 @@ struct CockpitMap: UIViewRepresentable {
     /// Whether the ground is photographs from above instead of the drawn
     /// map, as on the app's other maps.
     var aerial = false
+    /// Whether the thermal map of thermal.kk7.ch lies over the ground.
+    var thermalMap = false
     /// Where the map says who made the photographs in view.
     var photos: PhotoCredits?
+
+    /// The thermal map's opacity in the cockpit: 40 %, as the layout the
+    /// owner flies with has it.
+    static let thermalMapOpacity = 0.4
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -93,6 +99,7 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.followsTheCircle = followsTheCircle
         context.coordinator.photos = photos
         context.coordinator.showAerial(aerial, on: map)
+        context.coordinator.showThermalMap(thermalMap, on: map)
         context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
     }
@@ -107,6 +114,7 @@ struct CockpitMap: UIViewRepresentable {
 
         private var isStyleLoaded = false
         private var aerial = false
+        private var thermalMap = false
         /// The light casings under the map's plain dark lines, shown while
         /// the photographs show, on which a dark line alone is lost.
         private static let casings = [
@@ -164,6 +172,15 @@ struct CockpitMap: UIViewRepresentable {
             }
         }
 
+        /// Shows or hides the thermal map, now or once the style is there.
+        func showThermalMap(_ isOn: Bool, on map: MLNMapView) {
+            guard isOn != thermalMap else { return }
+            thermalMap = isOn
+            if isStyleLoaded {
+                MapSetup.showThermalMap(isOn, opacity: CockpitMap.thermalMapOpacity, on: map)
+            }
+        }
+
         private func showCasings(on map: MLNMapView) {
             for name in Self.casings {
                 map.style?.layer(withIdentifier: name)?.isVisible = aerial
@@ -184,6 +201,7 @@ struct CockpitMap: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             MapSetup.showAerial(aerial, on: mapView)
+            MapSetup.showThermalMap(thermalMap, opacity: CockpitMap.thermalMapOpacity, on: mapView)
             photos?.update(from: mapView)
             // Airspace lowest of all.
             AirspaceLayers.add(to: style)

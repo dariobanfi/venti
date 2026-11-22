@@ -792,7 +792,7 @@ struct SiteScreen: View {
                 }
                 .buttonStyle(.venti(.quiet))
                 .accessibilityIdentifier("site-plan-route")
-                if isForTakingOff, fly.mode == nil {
+                if isForTakingOff, !fly.isCockpitOpen {
                     Button {
                         navigation.startFlight()
                     } label: {

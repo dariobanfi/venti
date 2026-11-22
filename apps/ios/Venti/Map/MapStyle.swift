@@ -204,12 +204,16 @@ enum MapStyle {
     /// by to a provider that asks who is calling.
     static let domainPlaceholder = "__APP_DOMAIN__"
 
-    /// The domain Venti names itself by. The thermal map's author asks
-    /// every request to say whose app is asking (docs/data-sources.md).
-    /// Venti has no domain yet, so there is nothing true to say, and the
-    /// style then leaves the thermal map out: nothing is asked of his
-    /// server without it.
-    static let appDomain: String? = nil
+    /// The domain Venti names itself by: the owner's, `venti.fly`
+    /// (2026-11-21). The thermal map's author asks every request to say
+    /// whose app is asking (docs/data-sources.md); a style prepared with
+    /// no domain leaves the thermal map out, so that nothing is asked of
+    /// his server without it.
+    static let appDomain: String? = "venti.fly"
+
+    /// The thermal map's credit, as its licence asks for it beside the
+    /// map while it is shown.
+    static let thermalMapCredit = "Thermals: thermal.kk7.ch, CC BY-NC-SA 4.0"
 
     /// The Venti server the pilot has set, if the address is one.
     static var savedServer: URL? {

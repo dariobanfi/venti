@@ -73,7 +73,9 @@ struct CockpitScreen: View {
     @Environment(TaskModel.self) private var tasks
     @Environment(OfflineMapsModel.self) private var maps
     @Environment(CablesModel.self) private var cables
+    @Environment(WindModel.self) private var wind
     @State private var page = CockpitPage.instruments
+    @State private var isShowingSettings = false
     @State private var isShowingTask = false
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
@@ -92,6 +94,14 @@ struct CockpitScreen: View {
     @AppStorage(Preferences.showsFaiAreas) private var showsFaiAreas = false
     /// The aerial view: one choice for every map of the app.
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+    /// The thermal map of thermal.kk7.ch on the cockpit's map: on until
+    /// the pilot switches it off in the cockpit's settings.
+    @AppStorage(Preferences.cockpitHidesThermalMap) private var hidesThermalMap = false
+
+    /// Whether the cockpit's map shows the thermal map.
+    private var showsThermalMap: Bool {
+        !hidesThermalMap && MapStyle.appDomain != nil
+    }
     /// Who made the photographs in view on the map.
     @State private var photos = PhotoCredits()
 
@@ -102,22 +112,52 @@ struct CockpitScreen: View {
         showsAerial && page != .instruments
     }
 
-    /// Whether the cockpit's map is drawn from a region kept on the iPhone.
-    private var mapIsKept: Bool {
-        if case .kept = maps.flyingSource {
-            return true
+    /// Whether the cockpit's map is there without a network: drawn from a
+    /// region kept on the iPhone, or from the one inside the app.
+    private var mapIsOffline: Bool {
+        switch maps.flyingSource {
+        case .kept, .bundled: true
+        case .online: false
         }
-        return false
+    }
+
+    /// The checks of before take-off that fail now, the most urgent first:
+    /// each said in the top line as a sign and a word while it fails, and
+    /// nothing while all is well. The position at all times; airspace
+    /// where the cockpit has none for here; the map for flying without a
+    /// network only while waiting on the ground. The vario has its own
+    /// mark.
+    private func checks(_ view: CockpitView) -> [CockpitCheck] {
+        var failing: [CockpitCheck] = []
+        if view.positionAgeS.map({ $0 > 5 }) ?? true {
+            failing.append(.noGPS)
+        }
+        if fly.airspaceCheck == .noAirspace || fly.airspaceCheck == .outsideFiles {
+            failing.append(.noAirspace)
+        }
+        if fly.mode == .live, view.phase == .ground, !mapIsOffline {
+            failing.append(.noOfflineMap)
+        }
+        return failing
+    }
+
+    /// What the forecast's wind is asked for by: the glider's place to a
+    /// tenth of a degree and the hour, while the core has no wind.
+    static func forecastKey(_ view: CockpitView) -> String {
+        guard view.wind == nil, view.position != nil else { return "" }
+        return "\(cablesKey(view.position)),\(Int(Date().timeIntervalSince1970 / 3600))"
     }
 
     var body: some View {
         if let view = fly.view {
             VStack(spacing: 0) {
                 StatusLine(
-                    view: view, mode: fly.mode, varioName: fly.vario.connectedName, mapIsKept: mapIsKept,
+                    view: view, mode: fly.mode, checks: checks(view),
+                    vario: fly.mode == .live ? fly.vario.mark(talking: view.instrument?.talking) : nil,
                     pages: CockpitPage.all(hasTask: hasTask), page: page,
                     nextPage: { page = page.next(hasTask: hasTask) },
                     previousPage: { page = page.previous(hasTask: hasTask) },
+                    openSettings: { isShowingSettings = true },
                     end: onFinish
                 )
                 alerts(view)
@@ -135,8 +175,6 @@ struct CockpitScreen: View {
                     }
                 case .flight:
                     FlightPage(view: view, score: fly.score, isReplay: isReplay) {
-                        isLocked = true
-                    } showLive: {
                         isShowingLive = true
                     } showDetails: {
                         isShowingDetails = true
@@ -204,6 +242,19 @@ struct CockpitScreen: View {
                     await cables.refresh(around: position)
                 }
             }
+            // Before the glider has measured a wind, the forecast's for the
+            // place and the hour, marked as such in the thermal view: asked
+            // for while the core has none, again as the glider moves on and
+            // with every hour.
+            .task(id: Self.forecastKey(view)) {
+                guard view.wind == nil, let position = view.position else { return }
+                let now = Date().timeIntervalSince1970
+                if let forecast = try? await wind.forecast(at: position),
+                   let before = WindBefore.from(forecast, atUnixS: now, altitudeM: view.altitudeM)
+                {
+                    fly.windBefore = before
+                }
+            }
             // Without a task its page is not there.
             .onChange(of: view.taskReadings == nil) { _, hasNone in
                 if hasNone, page == .task {
@@ -241,6 +292,13 @@ struct CockpitScreen: View {
                                 .padding(.vertical, VentiSpace.s3)
                         }
                 }
+            }
+            .sheet(isPresented: $isShowingSettings) {
+                CockpitSettingsSheet {
+                    isLocked = true
+                }
+                .presentationDetents([.large])
+                .ventiFlightThemed()
             }
             .sheet(isPresented: $isShowingAirspace) {
                 AirspaceWarningsSheet()
@@ -341,16 +399,16 @@ struct CockpitScreen: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// The room under the readings. On the first page it is shared while
-    /// the core says the glider is circling, and for as long after as the
-    /// core keeps the circles: the thermal view on the left, a little
-    /// under half the width, and the map on the right. On a glide, and on
-    /// the other pages, the map has all of it.
+    /// The room under the readings. On the first page it is shared, on
+    /// the ground, on a glide and circling alike (the owner, 2026-11-20
+    /// and 2026-11-22): the thermal view on the left, a little under half
+    /// the width, with the wind, and the map on the right. On the other
+    /// pages the map has all of it.
     private func map(_ view: CockpitView) -> some View {
         GeometryReader { proxy in
             HStack(spacing: 0) {
-                if page == .instruments, view.circling || view.lift != nil {
-                    ThermalCloseUp(view: view)
+                if page == .instruments {
+                    ThermalCloseUp(view: view, windBefore: fly.windBefore)
                         .frame(width: (proxy.size.width * 0.48).rounded())
                     Rectangle()
                         .fill(.venti(.border))
@@ -385,6 +443,7 @@ struct CockpitScreen: View {
             // circle is looked at.
             followsTheCircle: page != .instruments,
             aerial: mapIsAerial,
+            thermalMap: showsThermalMap,
             photos: photos
         )
             // Drawn from the region kept on the iPhone wherever one covers
@@ -552,7 +611,11 @@ struct CockpitScreen: View {
                             .accessibilityIdentifier("cockpit-airspace-credit")
                     }
                     // And whose cables, aircraft and take-offs it draws.
-                    if page != .instruments, let credit = otherCredits {
+                    // On the first page's small map only the thermal map's,
+                    // which is drawn there too.
+                    if let credit = page == .instruments
+                        ? (showsThermalMap ? MapStyle.thermalMapCredit : nil) : otherCredits
+                    {
                         Text(credit)
                             .font(.ventiType(.label))
                             .multilineTextAlignment(.trailing)
@@ -583,6 +646,10 @@ struct CockpitScreen: View {
     /// take-offs the map draws, in a line; `nil` while it draws none.
     private var otherCredits: String? {
         var parts: [String] = []
+        // The thermal map's licence asks for its credit while it shows.
+        if showsThermalMap {
+            parts.append(MapStyle.thermalMapCredit)
+        }
         if let words = cables.creditWords {
             parts.append(words)
         }
@@ -921,21 +988,74 @@ private struct ReplaySpeedMenu: View {
     }
 }
 
+/// A check of before take-off that fails, as the top line says it: a sign
+/// and a word, in the colour of how much it matters.
+enum CockpitCheck: Equatable {
+    /// No position for five seconds, or none yet.
+    case noGPS
+    /// No airspace to warn from here.
+    case noAirspace
+    /// No map for flying without a network, while waiting on the ground.
+    case noOfflineMap
+
+    var word: String {
+        switch self {
+        case .noGPS: "No GPS"
+        case .noAirspace: "No airspace"
+        case .noOfflineMap: "No offline map"
+        }
+    }
+
+    var role: VentiColor.Role {
+        switch self {
+        case .noGPS: .danger
+        case .noAirspace, .noOfflineMap: .caution
+        }
+    }
+
+    var identifier: String {
+        switch self {
+        case .noGPS: "cockpit-check-gps"
+        case .noAirspace: "cockpit-check-airspace"
+        case .noOfflineMap: "cockpit-check-map"
+        }
+    }
+
+    @ViewBuilder var sign: some View {
+        switch self {
+        case .noGPS:
+            Image(systemName: "location.slash.fill")
+        case .noAirspace:
+            Image("icon-airspace")
+                .resizable()
+                .frame(width: VentiSize.icon, height: VentiSize.icon)
+        case .noOfflineMap:
+            Image("icon-map")
+                .resizable()
+                .frame(width: VentiSize.icon, height: VentiSize.icon)
+        }
+    }
+}
+
 /// The line at the top: is it recording, how long, which page is in
-/// front, and are the sensors there, with "End" at its end. What is lost
-/// is said in words: "No GPS".
+/// front, what of the checks before take-off fails, how the vario is, and
+/// at its end the settings and "End". What fails is said as a sign and a
+/// word; all well, nothing is said.
 private struct StatusLine: View {
     let view: CockpitView
     let mode: FlySession.Mode?
-    let varioName: String?
-    /// Whether the map is drawn from a region kept on the iPhone, and so
-    /// stays when the network goes.
-    var mapIsKept = false
+    /// The checks that fail now, the most urgent first: the first is said
+    /// in a word, the others are read out with it.
+    let checks: [CockpitCheck]
+    /// The external vario's mark; `nil` without one, and in a replay.
+    let vario: VarioLink.Mark?
     /// The cockpit's pages, and the one in front.
     let pages: [CockpitPage]
     let page: CockpitPage
     let nextPage: () -> Void
     let previousPage: () -> Void
+    /// Opens what was checked before take-off.
+    let openSettings: () -> Void
     /// Ends the session, once "End" has been held.
     let end: () -> Void
 
@@ -950,6 +1070,10 @@ private struct StatusLine: View {
                     Image(systemName: "record.circle.fill")
                         .foregroundStyle(.venti(.accentText))
                 }
+                // How many positions are in the file: what shows that the
+                // recording went on with the app in the back.
+                .accessibilityValue("\(view.recordedFixes) positions")
+                .accessibilityIdentifier("cockpit-recording")
             } else if view.waitingForTakeoff {
                 Text("Ready")
             }
@@ -960,39 +1084,28 @@ private struct StatusLine: View {
             Spacer(minLength: VentiSpace.s2)
             PageDots(pages: pages, page: page, next: nextPage, previous: previousPage)
             Spacer(minLength: VentiSpace.s2)
-            if positionIsLost {
-                Label("No GPS", systemImage: "location.slash.fill")
-                    .foregroundStyle(.venti(.danger))
-            }
-            if mapIsKept {
-                // One glyph: the line is full as it is.
-                Image(systemName: "arrow.down.circle.fill")
-                    .accessibilityLabel("Map from this iPhone")
-                    .accessibilityIdentifier("map-kept")
-            }
-            // The words of the vario give way first in a narrow line, and
-            // whole: where the core's words do not fit, its short form
-            // stands, and where that does not either, a caution sign for
-            // a vario that fell silent. Never cut short.
-            let source = source
-            ViewThatFits(in: .horizontal) {
-                Text(source.words)
-                    .fixedSize()
-                Text(source.short)
-                    .fixedSize()
-                    .accessibilityLabel(source.words)
-                Group {
-                    if varioIsLost {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                    } else {
-                        Color.clear.frame(width: 1, height: 1)
+            // The word gives way first in a narrow line, and whole: the
+            // sign alone stands where it does not fit.
+            if let check = checks.first {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: VentiSpace.s1) {
+                        check.sign
+                        Text(check.word)
+                            .fixedSize()
                     }
+                    check.sign
                 }
-                .accessibilityLabel(source.words)
+                .foregroundStyle(.venti(check.role))
+                .layoutPriority(-1)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(checks.map(\.word).joined(separator: ", "))
+                .accessibilityIdentifier(check.identifier)
             }
-            .foregroundStyle(.venti(varioIsLost ? .danger : .text))
-            .layoutPriority(-1)
-            .accessibilityIdentifier("cockpit-vario-source")
+            if let vario {
+                VarioMark(mark: vario)
+                    .layoutPriority(-1)
+            }
+            SettingsControl(action: openSettings)
             EndControl(action: end)
         }
         .font(.ventiType(.label))
@@ -1000,28 +1113,74 @@ private struct StatusLine: View {
         .padding(.horizontal, VentiSpace.s4)
         .padding(.vertical, VentiSpace.s2)
     }
+}
 
-    /// No position for five seconds means the fix is gone.
-    private var positionIsLost: Bool {
-        view.positionAgeS.map { $0 > 5 } ?? true
-    }
+/// The external vario on the top line: the pack's vario sign alone while
+/// it is connected, with a word while it is not. Lost is in the alert's
+/// colour; the cockpit says it aloud once, in the air.
+private struct VarioMark: View {
+    let mark: VarioLink.Mark
 
-    /// An external vario that was talking and has stopped.
-    private var varioIsLost: Bool {
-        view.instrument.map { !$0.talking } ?? false
-    }
-
-    /// Where the climb comes from, in the core's words and their short
-    /// form. In a replay the pressure is the recording's, not this
-    /// phone's, which the core is told.
-    private var source: CockpitSourceWords {
-        var isReplay = false
-        if case .replay = mode {
-            isReplay = true
+    private var word: String? {
+        switch mark {
+        case .connected: nil
+        case .connecting: "Connecting"
+        case .lost: "Vario lost"
+        case .noBluetooth: "No Bluetooth"
         }
-        return cockpitSourceWords(
-            varioSource: view.varioSource, instrument: view.instrument, varioName: varioName, isReplay: isReplay
-        )
+    }
+
+    private var role: VentiColor.Role {
+        switch mark {
+        case .connected: .text
+        case .connecting: .textSecondary
+        case .lost: .danger
+        case .noBluetooth: .caution
+        }
+    }
+
+    var body: some View {
+        let sign = Image("icon-vario")
+            .resizable()
+            .frame(width: VentiSize.icon, height: VentiSize.icon)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: VentiSpace.s1) {
+                sign
+                if let word {
+                    Text(word)
+                        .fixedSize()
+                }
+            }
+            sign
+        }
+        .foregroundStyle(.venti(role))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Vario")
+        .accessibilityValue(word ?? "Connected")
+        .accessibilityIdentifier("cockpit-vario")
+    }
+}
+
+/// The cockpit's one settings button, on the top line: a sign whose touch
+/// reaches past it as far as a gloved finger needs, without making the
+/// line taller. It opens what the Fly tab checked before take-off.
+private struct SettingsControl: View {
+    let action: () -> Void
+
+    var body: some View {
+        Image(systemName: "gearshape.fill")
+            .font(.ventiType(.heading))
+            .foregroundStyle(.venti(.text))
+            // The touch reaches past the sign, as "End"'s does.
+            .padding(VentiSpace.s5)
+            .contentShape(.rect)
+            .padding(-VentiSpace.s5)
+            .onTapGesture(perform: action)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Settings")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(.default, action)
+            .accessibilityIdentifier("cockpit-settings")
     }
 }
 
@@ -1155,34 +1314,11 @@ private struct FlightPage: View {
     /// How the flight scores so far.
     let score: LiveScore?
     let isReplay: Bool
-    let lock: () -> Void
     let showLive: () -> Void
     /// Opens what the cockpit knows beyond its pages' readings.
     let showDetails: () -> Void
 
     @Environment(FlySession.self) private var fly
-
-    /// The vario's sound and the lock, laid out by the row or column
-    /// around them.
-    @ViewBuilder
-    private var muteAndLock: some View {
-        Button {
-            fly.isMuted.toggle()
-        } label: {
-            Label(fly.isMuted ? "Unmute vario" : "Mute vario", systemImage: fly.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
-        }
-        .accessibilityIdentifier("cockpit-mute")
-        // Nothing on the screen answers a touch until it is unlocked by
-        // holding a finger on the lock.
-        Button(action: lock) {
-            Label("Lock screen", systemImage: "lock.fill")
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
-        }
-        .accessibilityIdentifier("cockpit-lock")
-    }
 
     var body: some View {
         VStack(spacing: VentiSpace.s2) {
@@ -1200,17 +1336,6 @@ private struct FlightPage: View {
                     unit: "km",
                     note: score.map(ScoreBadge.kind)
                 )
-            }
-            // Side by side where both labels fit whole, else one under
-            // the other: with larger text "Mute vario" and "Lock screen"
-            // were cut short on the narrowest iPhone.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: VentiSpace.s3) {
-                    muteAndLock
-                }
-                VStack(spacing: VentiSpace.s3) {
-                    muteAndLock
-                }
             }
             HStack(spacing: VentiSpace.s3) {
                 // Who watches the flight, and whether it is going out. Not

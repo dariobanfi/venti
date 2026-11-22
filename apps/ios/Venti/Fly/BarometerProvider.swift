@@ -11,6 +11,12 @@ final class BarometerProvider {
 
     private let altimeter = CMAltimeter()
 
+    /// Whether the pilot has answered the iPhone's question about motion
+    /// and fitness with yes, so that the sensor is read without asking.
+    static var isAllowed: Bool {
+        CMAltimeter.authorizationStatus() == .authorized
+    }
+
     func start() {
         guard CMAltimeter.isRelativeAltitudeAvailable() else { return }
         altimeter.startRelativeAltitudeUpdates(to: .main) { [weak self] data, _ in

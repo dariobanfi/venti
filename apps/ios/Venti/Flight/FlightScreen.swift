@@ -68,7 +68,7 @@ struct FlightScreen: View {
                     // The flight once more, as the cockpit would have
                     // shown it in the air: its wind, its thermals, the
                     // airspace it came near. Not while a flight is on.
-                    if fly.mode == nil {
+                    if !fly.isCockpitOpen {
                         Menu("Replay in the cockpit", systemImage: "play") {
                             Button("In real time") {
                                 replay(speed: 1)

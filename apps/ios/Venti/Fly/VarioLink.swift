@@ -42,7 +42,21 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
         var lines: [String] = []
     }
 
+    /// The vario's state as the cockpit marks it on its top line.
+    enum Mark: Equatable {
+        case connected
+        /// Chosen and looked for, not yet connected.
+        case connecting
+        /// It was connected and is not: the link dropped, or it fell
+        /// silent. It is looked for again all the while.
+        case lost
+        /// Bluetooth cannot be used.
+        case noBluetooth
+    }
+
     private(set) var state: State = .idle
+    /// Whether the chosen vario's link dropped since it last connected.
+    private(set) var wasLost = false
     /// Devices found while scanning, likely varios first.
     private(set) var devices: [Device] = []
     private(set) var report = Report()
@@ -86,6 +100,23 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
         UserDefaults.standard.string(forKey: Self.rememberedKey) != nil
     }
 
+    /// The mark for the cockpit's top line, with whether the vario still
+    /// sends anything understandable (the core's `instrument.talking`).
+    /// `nil` while the pilot uses no external vario: nothing is shown.
+    func mark(talking: Bool?) -> Mark? {
+        switch state {
+        case .connected:
+            return talking == false ? .lost : .connected
+        case .connecting:
+            return wasLost ? .lost : .connecting
+        case .unavailable:
+            return hasRememberedVario ? .noBluetooth : nil
+        case .idle, .scanning:
+            guard hasRememberedVario else { return nil }
+            return wasLost ? .lost : .connecting
+        }
+    }
+
     /// Starts listing nearby devices.
     func scan() {
         wantsScan = true
@@ -124,6 +155,7 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
             central?.cancelPeripheralConnection(chosen)
         }
         chosen = nil
+        wasLost = false
         state = .idle
     }
 
@@ -202,6 +234,7 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         state = .connected(peripheral.name ?? "Vario")
+        wasLost = false
         report = Report()
         unfinishedLine = ""
         peripheral.discoverServices(nil)
@@ -216,6 +249,9 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
     func centralManager(
         _ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: (any Error)?
     ) {
+        if peripheral.identifier == chosen?.identifier {
+            wasLost = true
+        }
         retry(peripheral, with: central)
     }
 

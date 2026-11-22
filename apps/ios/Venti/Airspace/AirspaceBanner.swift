@@ -26,11 +26,12 @@ struct AirspaceBanner: View {
     /// What to say when the app is not checking, so that its silence is
     /// not taken for "no airspace near".
     private var notice: String? {
+        // No airspace for here at all is said on the cockpit's top line,
+        // as a sign and a word ("No airspace").
         switch check {
-        case .checking, .noAirspace: nil
+        case .checking, .noAirspace, .outsideFiles: nil
         case .waitingForHeight: "Airspace is not being checked yet: no position with a height."
         case .stale: "Airspace is not being checked: no position. What is shown is from the last one."
-        case .outsideFiles: "Your airspace does not cover this place. Nothing is checked here."
         }
     }
 

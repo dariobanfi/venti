@@ -73,9 +73,12 @@ struct StationRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(station.name)
                     .lineLimit(1)
-                Text(detail)
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.secondary)
+                // Nothing to say (no height, a fresh reading): no line.
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.venti(.footnote))
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
             if !mark.label.isEmpty {
@@ -106,7 +109,7 @@ struct StationRow: View {
 
     private func spoken(_ mark: WindMark) -> String {
         guard let reading = station.latest, let speed = reading.speedMs, !station.isOld else {
-            return "No current reading. \(detail)"
+            return detail.isEmpty ? "No current reading." : "No current reading. \(detail)"
         }
         var parts = ["Wind \(Format.spokenKilometresPerHour(metresPerSecond: speed))"]
         if let gust = reading.gustMs {

@@ -58,11 +58,11 @@ if ! [[ "$count" =~ ^[0-9]+$ ]] || [ "$count" -lt 1 ] || [ "$count" -gt "$most" 
 fi
 
 # The tests to run, sorted by name: all of them, or those named.
-if [ ${#tests[@]} -eq 0 ]; then
+if [ ${#tests[@]} -eq 0 ] && $ui; then
   while read -r name; do tests+=("$name"); done < <(
     grep -oE 'func test[A-Za-z0-9_]+' apps/ios/VentiUITests/VentiUITests.swift | sed 's/^func //' | LC_ALL=C sort
   )
-else
+elif [ ${#tests[@]} -gt 0 ]; then
   named=("${tests[@]}")
   tests=()
   while read -r name; do tests+=("$name"); done < <(printf '%s\n' "${named[@]}" | LC_ALL=C sort -u)

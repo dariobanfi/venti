@@ -145,8 +145,10 @@ struct CreditsScreen: View {
                 ForEach(Self.photographs, id: \.layer) { maker in
                     credit(
                         maker.credit,
-                        maker.wording + (Self.wordingIsOurs.contains(maker.layer) ? Self.oursNote : ""),
-                        link: maker.link ?? ""
+                        maker.wording
+                            + (Self.licenceBesides[maker.layer].map { ", " + $0 } ?? "")
+                            + (Self.wordingIsOurs.contains(maker.layer) ? Self.oursNote : ""),
+                        links: maker.links
                     )
                 }
             }
@@ -183,16 +185,28 @@ struct CreditsScreen: View {
     private static let wordingIsOurs: Set<String> = ["aerial-south-tyrol"]
     private static let oursNote = " Worded by Venti: the province prescribes no credit."
 
+    /// The licence of a provider whose attribution in the shared style
+    /// names none: IGN's, by the data set's record (docs/data-sources.md).
+    private static let licenceBesides: [String: String] = [
+        "aerial-france": "Licence Ouverte / Open Licence 2.0 (Etalab)"
+    ]
+
     private func credit(_ title: String, _ text: String, link: String) -> some View {
+        credit(title, text, links: [link])
+    }
+
+    private func credit(_ title: String, _ text: String, links: [String]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.venti(.headline))
             Text(text)
                 .font(.venti(.subheadline))
                 .foregroundStyle(.secondary)
-            if let url = URL(string: link) {
-                Link(url.host() ?? link, destination: url)
-                    .font(.venti(.subheadline))
+            ForEach(links, id: \.self) { link in
+                if let url = URL(string: link), url.host() != nil {
+                    Link(url.host() ?? link, destination: url)
+                        .font(.venti(.subheadline))
+                }
             }
         }
         .padding(.vertical, 2)

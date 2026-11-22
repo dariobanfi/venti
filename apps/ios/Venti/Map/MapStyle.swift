@@ -108,8 +108,9 @@ enum MapStyle {
         /// The provider's own wording, as the source's attribution has it,
         /// without its links.
         var wording = ""
-        /// The first link of that attribution.
-        var link: String?
+        /// Every link of that attribution, in its order: the provider's
+        /// page first, and its licence where the attribution links it.
+        var links: [String] = []
     }
 
     /// The layers of photographs in the shared style, in its order: every
@@ -143,7 +144,7 @@ enum MapStyle {
             let attribution = source?["attribution"] as? String ?? ""
             return AerialMaker(
                 layer: id, credit: credit, bounds: box, minZoom: zoom,
-                wording: plainText(attribution), link: firstLink(in: attribution)
+                wording: plainText(attribution), links: links(in: attribution)
             )
         }
     }
@@ -155,10 +156,16 @@ enum MapStyle {
             .trimmingCharacters(in: .whitespaces)
     }
 
-    /// The address of an attribution's first link.
-    static func firstLink(in html: String) -> String? {
-        guard let range = html.range(of: #"href="[^"]+""#, options: .regularExpression) else { return nil }
-        return String(html[range].dropFirst(6).dropLast())
+    /// The addresses of an attribution's links, each once, in its order.
+    static func links(in html: String) -> [String] {
+        var found: [String] = []
+        var rest = html[...]
+        while let range = rest.range(of: #"href="[^"]+""#, options: .regularExpression) {
+            let address = String(rest[range].dropFirst(6).dropLast())
+            if !found.contains(address) { found.append(address) }
+            rest = rest[range.upperBound...]
+        }
+        return found
     }
 
     /// The short line that names the makers of the photographs in view:
@@ -213,7 +220,7 @@ enum MapStyle {
     ///
     /// Label fonts always come from inside the app, so place names never
     /// wait for the network. What the style asks of Venti itself, the
-    /// photographs of Austria that Venti cuts at the border, is asked of
+    /// photographs of Austria and France that Venti cuts at the border, is asked of
     /// `server`; what has to be told who is asking, the thermal map, is
     /// told `domain`. A source that needs one of the two and has none is
     /// left out, with its layers.

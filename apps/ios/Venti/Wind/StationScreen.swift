@@ -223,16 +223,17 @@ struct StationScreen: View {
 
     @ViewBuilder private var now: some View {
         let reading = station.latest
+        // A value the station did not give is a dash without a unit.
         HStack(alignment: .top) {
             Metric(
                 caption: "Wind",
                 value: reading?.speedMs.map { Format.kilometresPerHour(metresPerSecond: $0) } ?? "–",
-                unit: "km/h"
+                unit: reading?.speedMs == nil ? "" : "km/h"
             )
             Metric(
                 caption: "Gusts",
                 value: reading?.gustMs.map { Format.kilometresPerHour(metresPerSecond: $0) } ?? "–",
-                unit: "km/h"
+                unit: reading?.gustMs == nil ? "" : "km/h"
             )
             Metric(
                 caption: "From",
@@ -244,17 +245,21 @@ struct StationScreen: View {
             Metric(
                 caption: "Temperature",
                 value: reading?.temperatureC.map { Format.temperature(celsius: $0) } ?? "–",
-                unit: "°C"
-            )
-            Metric(
-                caption: "Height",
-                value: station.elevationM.map { Format.metres($0) } ?? "–",
-                unit: "m"
+                unit: reading?.temperatureC == nil ? "" : "°C"
             )
             Metric(
                 caption: "Measured",
                 value: reading.map { Format.time(unixSeconds: $0.timeUnixS) } ?? "–"
             )
+            // A station whose source gives no height has none here: not
+            // "0 m", not a dash. The room stays, so the row keeps the
+            // columns of the row above.
+            if let elevation = station.elevationM {
+                Metric(caption: "Height", value: Format.metres(elevation), unit: "m")
+                    .accessibilityIdentifier("station-height")
+            } else {
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+            }
         }
     }
 

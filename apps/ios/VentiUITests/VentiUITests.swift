@@ -2540,7 +2540,8 @@ final class VentiUITests: XCTestCase {
     }
 
     /// Live wind, from a Venti server running on the same machine in its
-    /// development mode: six stations as they were on one evening. The CI
+    /// development mode: the stations of nine networks as they were on
+    /// one evening (28 in the first region). The CI
     /// workflow starts the server and names it; without one the test is
     /// skipped. On a Mac: `cargo run -p venti-server -- dev`, then run the
     /// tests with `TEST_RUNNER_VENTI_SERVER=http://127.0.0.1:8080`.
@@ -2582,12 +2583,23 @@ final class VentiUITests: XCTestCase {
 
         layersRow("Wind stations", in: app).tap()
         XCTAssertTrue(app.navigationBars["Wind stations"].waitForExistence(timeout: 15))
-        let summit = labelled(containing: "Zugspitze", in: app)
-        XCTAssertTrue(summit.waitForExistence(timeout: 15))
-        // A name the provider writes in capitals is shown in ordinary case.
-        XCTAssertTrue(labelled(containing: "Patscherkofel", in: app).exists)
+        XCTAssertTrue(element("station-row", in: app).waitForExistence(timeout: 15))
         sleep(1)
         keepScreenshot("wind-2-stations")
+        // The list is by name and longer than the screen: the stations
+        // further down are brought in.
+        let byName = { (name: String) -> XCUIElement in
+            let row = self.labelled(containing: name, in: app)
+            for _ in 0..<8 where !self.isOnScreen(row, in: app) {
+                app.swipeUp()
+                usleep(500_000)
+            }
+            return row
+        }
+        // A name the provider writes in capitals is shown in ordinary case.
+        XCTAssertTrue(byName("Patscherkofel").exists)
+        let summit = byName("Zugspitze")
+        XCTAssertTrue(summit.exists)
 
         summit.tap()
         XCTAssertTrue(element("wind-chart", in: app).waitForExistence(timeout: 30))
@@ -2638,8 +2650,42 @@ final class VentiUITests: XCTestCase {
         sleep(2)
         keepScreenshot("station-2-past-day")
 
-        // Back to the map.
+        // A station whose source gives no height and no temperature: a
+        // pilots' Pioupiou sensor on the Kampenwand. Its page says neither
+        // "0 m" nor a unit after a dash.
         app.navigationBars.buttons.firstMatch.tap()
+        let sensor = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'station-row' AND label CONTAINS 'Kampenwand'"))
+            .firstMatch
+        for _ in 0..<8 where !isOnScreen(sensor, in: app) {
+            app.swipeDown()
+            usleep(500_000)
+        }
+        if sensor.exists {
+            sensor.tap()
+            // The development server has one reading of it: no chart,
+            // the page's line that it has no history yet.
+            let page = app.descendants(matching: .any)
+                .matching(NSPredicate(
+                    format: "identifier IN %@ OR label BEGINSWITH 'The server has no history'",
+                    ["wind-chart", "station-day-empty"]
+                ))
+                .firstMatch
+            XCTAssertTrue(page.waitForExistence(timeout: 30))
+            XCTAssertFalse(element("station-height", in: app).exists)
+            XCTAssertFalse(app.descendants(matching: .any)["Height"].exists)
+            let temperature = app.descendants(matching: .any)["Temperature"].firstMatch
+            if temperature.exists {
+                XCTAssertEqual(temperature.value as? String, "–")
+            }
+            sleep(2)
+            keepScreenshot("station-3-no-height")
+            app.navigationBars.buttons.firstMatch.tap()
+        } else {
+            XCTFail("No Pioupiou station on the Kampenwand in the list")
+        }
+
+        // Back to the map.
         app.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 15))
 
@@ -4198,6 +4244,33 @@ final class VentiUITests: XCTestCase {
         // The aerial view is a switch in the layers sheet here.
         XCTAssertTrue(openLayers(in: app))
         XCTAssertTrue(isOn(app.switches["map-aerial"]))
+        setLayer("map-aerial", on: false, in: app)
+    }
+
+    /// The aerial view over Freiburg im Breisgau, from the network:
+    /// Baden-Württemberg's photographs, whose source is a WMS asked for
+    /// a box of each tile, close enough that the world's mosaic would be
+    /// a blur. France's box reaches here too, and its photographs come
+    /// through Venti: the test names a Venti where nothing listens
+    /// (`nowhere`), so the French layer is in the style and IGN is named,
+    /// though none of its photographs come. Its maker is named from
+    /// zoom 13, where its source begins.
+    func testTheAerialViewOverBadenWuerttemberg() {
+        let app = launch(bundledMap: false, extra: ["--map-at", "47.995,7.852,16"])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        setLayer("map-aerial", on: true, in: app)
+        let photos = element("photo-credits", in: app)
+        XCTAssertTrue(photos.waitForExistence(timeout: 30))
+        sleep(15)
+        keepScreenshot("aerial-bw-1-freiburg")
+        XCTAssertEqual(photos.label, "Photos: IGN · LGL-BW · EOX")
+        // In full in the credits, with the map's own.
+        app.buttons["map-credits"].tap()
+        let credits = element("wind-credits", in: app)
+        XCTAssertTrue(credits.waitForExistence(timeout: 10))
+        XCTAssertTrue(credits.label.contains("LGL-BW"), credits.label)
+        app.navigationBars["Credits"].buttons["Done"].tap()
+        usleep(700_000)
         setLayer("map-aerial", on: false, in: app)
     }
 

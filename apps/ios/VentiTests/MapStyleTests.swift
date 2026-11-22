@@ -39,28 +39,39 @@ final class MapStyleTests: XCTestCase {
     /// providers wherever the rest is drawn from.
     private func sources(of style: [String: Any]) throws -> [String: [String: Any]] {
         let sources = try XCTUnwrap(style["sources"] as? [String: [String: Any]])
-        XCTAssertEqual(Set(sources.keys), ["basemap", "terrain", "aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-bavaria"])
+        XCTAssertEqual(Set(sources.keys), [
+            "basemap", "terrain", "aerial-world", "aerial-switzerland", "aerial-south-tyrol",
+            "aerial-baden-wuerttemberg", "aerial-bavaria",
+        ])
         return sources.filter { !$0.key.hasPrefix("aerial-") }
     }
 
-    /// Austria's photographs come through Venti, which cuts them at the
-    /// border: with a server they are asked of it, and without one the
-    /// source and its layer are not in the style at all.
-    func testAustriasPhotographsAreAskedOfThePilotsServer() throws {
+    /// Austria's and France's photographs come through Venti, which cuts
+    /// them at the border: with a server they are asked of it, and without
+    /// one the sources and their layers are not in the style at all.
+    func testAustriasAndFrancesPhotographsAreAskedOfThePilotsServer() throws {
+        let throughVenti = [
+            "aerial-austria": ("https://venti.example/v1/imagery/basemap-at/{z}/{x}/{y}", "basemap.at"),
+            "aerial-france": ("https://venti.example/v1/imagery/ign-ortho/{z}/{x}/{y}", "IGN"),
+        ]
         for source in try everySource() {
             let with = try style(for: source, server: server)
-            let asked = try XCTUnwrap((with["sources"] as? [String: [String: Any]])?["aerial-austria"])
-            XCTAssertEqual(asked["tiles"] as? [String], ["https://venti.example/v1/imagery/basemap-at/{z}/{x}/{y}"])
-            XCTAssertTrue((asked["attribution"] as? String)?.contains("basemap.at") == true)
             let layers = try XCTUnwrap(with["layers"] as? [[String: Any]])
-            XCTAssertTrue(layers.contains { $0["id"] as? String == "aerial-austria" })
+            for (name, (tiles, maker)) in throughVenti {
+                let asked = try XCTUnwrap((with["sources"] as? [String: [String: Any]])?[name], name)
+                XCTAssertEqual(asked["tiles"] as? [String], [tiles])
+                XCTAssertTrue((asked["attribution"] as? String)?.contains(maker) == true, name)
+                XCTAssertTrue(layers.contains { $0["id"] as? String == name }, name)
+            }
 
             let without = try style(for: source)
-            XCTAssertNil((without["sources"] as? [String: [String: Any]])?["aerial-austria"])
             let left = try XCTUnwrap(without["layers"] as? [[String: Any]])
-            XCTAssertFalse(left.contains { $0["source"] as? String == "aerial-austria" })
-            // Nothing else goes with it.
-            XCTAssertEqual(left.count, layers.count - 1)
+            for name in throughVenti.keys {
+                XCTAssertNil((without["sources"] as? [String: [String: Any]])?[name], name)
+                XCTAssertFalse(left.contains { $0["source"] as? String == name }, name)
+            }
+            // Nothing else goes with them.
+            XCTAssertEqual(left.count, layers.count - throughVenti.count)
         }
     }
 
@@ -100,8 +111,8 @@ final class MapStyleTests: XCTestCase {
         XCTAssertEqual(
             views.aerial,
             [
-                "aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-austria", "aerial-bavaria",
-                "aerial-road", "aerial-aerialway-casing",
+                "aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-france", "aerial-austria",
+                "aerial-baden-wuerttemberg", "aerial-bavaria", "aerial-road", "aerial-aerialway-casing",
             ]
         )
         XCTAssertEqual(views.drawn, ["path", "track", "road-minor", "road-major", "rail"])
@@ -116,7 +127,9 @@ final class MapStyleTests: XCTestCase {
             }
             // Whoever made the photographs is named with them.
             let sources = try XCTUnwrap(style["sources"] as? [String: [String: Any]])
-            for name in ["aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-bavaria"] {
+            for name in [
+                "aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-baden-wuerttemberg", "aerial-bavaria",
+            ] {
                 XCTAssertEqual(sources[name]?["type"] as? String, "raster", name)
                 XCTAssertFalse((sources[name]?["attribution"] as? String ?? "").isEmpty, name)
             }
@@ -135,7 +148,26 @@ final class MapStyleTests: XCTestCase {
         let makers = try MapStyle.aerialMakers()
         XCTAssertEqual(
             makers.map(\.credit),
-            ["EOX", "swisstopo", "Autonome Provinz Bozen - Südtirol", "basemap.at", "Bayerische Vermessungsverwaltung"]
+            [
+                "EOX", "swisstopo", "Autonome Provinz Bozen - Südtirol", "IGN", "basemap.at", "LGL-BW",
+                "Bayerische Vermessungsverwaltung",
+            ]
+        )
+        // Over Freiburg im Breisgau, within France's box and
+        // Baden-Württemberg's: France's photographs from zoom 13, where
+        // its source begins, Baden-Württemberg's from 11.
+        XCTAssertEqual(
+            MapStyle.photoCredit(makers, visible: around(lat: 47.99, lon: 7.85), zoom: 13),
+            "Photos: IGN · LGL-BW · EOX"
+        )
+        XCTAssertEqual(
+            MapStyle.photoCredit(makers, visible: around(lat: 47.99, lon: 7.85), zoom: 12),
+            "Photos: LGL-BW · EOX"
+        )
+        // Over Chamonix: France and Switzerland.
+        XCTAssertEqual(
+            MapStyle.photoCredit(makers, visible: around(lat: 45.92, lon: 6.87), zoom: 13),
+            "Photos: swisstopo · IGN · EOX"
         )
         // Over the Tegernsee.
         XCTAssertEqual(
@@ -171,8 +203,28 @@ final class MapStyleTests: XCTestCase {
         for maker in try MapStyle.aerialMakers() {
             XCTAssertFalse(maker.wording.isEmpty, maker.layer)
             XCTAssertFalse(maker.wording.contains("<"), maker.wording)
-            XCTAssertTrue(maker.link?.hasPrefix("https://") == true, maker.layer)
+            XCTAssertFalse(maker.links.isEmpty, maker.layer)
+            XCTAssertTrue(maker.links.allSatisfy { $0.hasPrefix("https://") }, maker.layer)
         }
+        let byLayer = Dictionary(uniqueKeysWithValues: try MapStyle.aerialMakers().map { ($0.layer, $0) })
+        // The world's mosaic of 2025, under its licence, linked.
+        XCTAssertEqual(
+            byLayer["aerial-world"]?.wording,
+            "EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025), CC BY-NC-SA 4.0"
+        )
+        XCTAssertEqual(byLayer["aerial-world"]?.links.last, "https://creativecommons.org/licenses/by-nc-sa/4.0/")
+        XCTAssertEqual(byLayer["aerial-france"]?.wording, "IGN – BD ORTHO®")
+        XCTAssertEqual(
+            byLayer["aerial-france"]?.links, ["https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO"]
+        )
+        XCTAssertEqual(
+            byLayer["aerial-baden-wuerttemberg"]?.wording,
+            "LGL-BW (2026) Datenlizenz Deutschland - Namensnennung - Version 2.0"
+        )
+        XCTAssertEqual(
+            byLayer["aerial-baden-wuerttemberg"]?.links,
+            ["https://www.lgl-bw.de", "https://www.govdata.de/dl-de/by-2-0"]
+        )
         XCTAssertEqual(
             MapStyle.plainText(#"<a href="https://basemap.at">Datenquelle: basemap.at</a>"#), "Datenquelle: basemap.at"
         )

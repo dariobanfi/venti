@@ -4,6 +4,9 @@ import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.PointF
 import android.graphics.RectF
+import android.location.Criteria
+import android.location.Location
+import android.location.LocationManager
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
@@ -52,6 +55,44 @@ object TestDevice {
         for (permission in listOf("ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "POST_NOTIFICATIONS")) {
             shell("pm grant $app android.permission.$permission")
         }
+    }
+
+    /**
+     * Has Android's satellite receiver report one made-up place, standing,
+     * as the phone's position: the cockpit opens where the test flies, not
+     * where the emulator happens to be (California, as it starts). Undone
+     * by [noMadeUpPosition].
+     */
+    @Suppress("DEPRECATION")
+    fun standAt(lat: Double, lon: Double, altitude: Double = 1500.0) {
+        val context = instrumentation.targetContext
+        shell("appops set ${context.packageName} android:mock_location allow")
+        val locations = checkNotNull(context.getSystemService(LocationManager::class.java))
+        runCatching {
+            locations.addTestProvider(
+                LocationManager.GPS_PROVIDER,
+                false, true, false, false, true, true, true,
+                Criteria.POWER_LOW, Criteria.ACCURACY_FINE,
+            )
+        }
+        locations.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true)
+        locations.setTestProviderLocation(
+            LocationManager.GPS_PROVIDER,
+            Location(LocationManager.GPS_PROVIDER).apply {
+                latitude = lat
+                longitude = lon
+                this.altitude = altitude
+                accuracy = 4f
+                time = System.currentTimeMillis()
+                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+            },
+        )
+    }
+
+    /** The emulator's own position again. */
+    fun noMadeUpPosition() {
+        val locations = instrumentation.targetContext.getSystemService(LocationManager::class.java)
+        runCatching { locations?.removeTestProvider(LocationManager.GPS_PROVIDER) }
     }
 
     /**

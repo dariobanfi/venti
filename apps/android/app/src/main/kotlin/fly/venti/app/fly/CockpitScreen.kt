@@ -1,6 +1,5 @@
 package fly.venti.app.fly
 
-import androidx.compose.ui.platform.LocalWindowInfo
 import fly.venti.core.cockpitSourceWords
 import fly.venti.app.map.MapSetup
 import androidx.compose.ui.platform.LocalContext
@@ -42,9 +41,10 @@ import fly.venti.app.design.PhotosCredit
 import androidx.compose.ui.semantics.selected
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -60,21 +60,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -86,8 +81,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -110,6 +103,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.map.OverviewMap
+import fly.venti.app.today.PilotPosition
+import fly.venti.app.task.inALine
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceBanner
 import fly.venti.app.cables.CableSheet
@@ -122,7 +118,6 @@ import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.airspace.AirspaceWarningsSheet
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
-import fly.venti.app.design.Palette
 import fly.venti.app.design.numbers
 import fly.venti.app.map.MapSurface
 import fly.venti.app.settings.Preferences
@@ -214,14 +209,24 @@ fun CockpitScreen(
     /** The pilot's account, through which a flight is shared, and the choice of who may watch. */
     account: AccountModel,
     preferences: Preferences,
-    /** The connected vario's name, if one is connected. */
-    varioName: String?,
+    /** The Bluetooth vario: its state is a mark in the top line, and it is chosen in the settings. */
+    vario: VarioLink,
     /** Whether the map draws where to fly for an FAI triangle: the pilot's setting. */
     showsFaiAreas: Boolean,
     /** The region kept on the phone that covers the glider, which the map is drawn from. */
     keptMap: KeptMap? = null,
     /** The cables of the flight's area: fetched around the first position, and drawn on the map. */
     cables: CablesModel? = null,
+    /** The maps kept for flying without a network, in a line, for the settings. */
+    offlineMaps: String = "",
+    /** Called to show the list of the pilot's airspace, from the settings. */
+    onOpenAirspace: () -> Unit = {},
+    /** Called to show the maps for flying without a network, from the settings. */
+    onOpenMaps: () -> Unit = {},
+    /** Called to show the pilot's task, from the settings. */
+    onOpenTask: () -> Unit = {},
+    /** Called with how many times faster the sample flight is to be replayed, from the settings. */
+    onReplay: (Double) -> Unit = {},
     /** Called when the pilot has held the button that ends the session. */
     onFinish: () -> Unit,
 ) {
@@ -243,6 +248,15 @@ fun CockpitScreen(
     var isShowingTask by remember { mutableStateOf(false) }
     var isShowingLive by remember { mutableStateOf(false) }
     var isShowingDetails by remember { mutableStateOf(false) }
+    // What the Fly tab listed before take-off, behind the one settings button.
+    var isShowingSettings by remember { mutableStateOf(false) }
+    var isChoosingVario by remember { mutableStateOf(false) }
+    // Whether the chosen vario has been connected in this cockpit: once it
+    // has, a link that is not there is a vario lost, not one looked for.
+    var varioWasConnected by remember { mutableStateOf(false) }
+    LaunchedEffect(vario.state) {
+        if (vario.state is VarioState.Connected) varioWasConnected = true
+    }
     // Whether the screen takes no touches: against a glove, a line or rain
     // pressing a button in flight.
     var isLocked by remember { mutableStateOf(false) }
@@ -256,11 +270,13 @@ fun CockpitScreen(
     // glider: the map is made anew when the glider comes into one or
     // leaves it.
     val map = remember(keptMap) { CockpitMap() }
-    // The thermal map on the cockpit's map, one choice with the map tab's;
-    // never for a region kept for flying without a network.
+    // The thermal map on the cockpit's map: on until the pilot switches it
+    // off in the settings, a choice apart from the map tab's. Fetched tile
+    // by tile for the map in view, never for a region kept for flying
+    // without a network.
     val context = LocalContext.current
     val offersThermals = remember(keptMap) { keptMap == null && MapSetup.offersThermals(context) }
-    var thermals by remember { mutableStateOf(preferences.mapShowsThermals) }
+    var thermals by remember { mutableStateOf(preferences.cockpitShowsThermals) }
     // The ground: the drawn map or photographs from above, one choice with every other map.
     var aerial by remember { mutableStateOf(preferences.mapShowsAerial) }
     // Who made the photographs in view, as the map last said.
@@ -286,6 +302,15 @@ fun CockpitScreen(
     // With the first position, and a network, the airspace around it is
     // fetched if what the phone keeps is old or from elsewhere. A change
     // reaches the running session by itself.
+    // And at once, before any position: around the pilot where the phone
+    // knows where they are, else around where they last looked on the map.
+    // The core says whether what is kept is due; without a network what
+    // was kept stays.
+    LaunchedEffect(Unit) {
+        val pilot = PilotPosition(context.applicationContext)
+        pilot.readIfAllowed()
+        airspace.refreshSoon(pilot.place ?: OverviewMap.lastLookedAt)
+    }
     val hasPosition = view.position != null
     LaunchedEffect(hasPosition) {
         view.position?.let(airspace::refreshSoon)
@@ -310,9 +335,18 @@ fun CockpitScreen(
                 StatusLine(
                     view,
                     fly.mode,
-                    varioName,
+                    checks = CockpitChecks.of(
+                        view,
+                        isReplay = isReplay,
+                        airspaceCheck = fly.airspaceCheck,
+                        hasRememberedVario = vario.hasRememberedVario,
+                        varioState = vario.state,
+                        varioWasConnected = varioWasConnected,
+                        varioName = vario.connectedName,
+                        mapIsKept = keptMap != null,
+                    ),
                     onReplaySpeed = fly::setReplaySpeed,
-                    mapIsKept = keptMap != null,
+                    onSettings = { isShowingSettings = true },
                     page = page,
                     pages = CockpitPage.pages(hasTask),
                     onNextPage = { chosenPage = page.next(hasTask) },
@@ -335,32 +369,26 @@ fun CockpitScreen(
                         view,
                         fly.score,
                         isReplay,
-                        isMuted = fly.isMuted,
-                        onMute = { fly.isMuted = !fly.isMuted },
                         onLock = { isLocked = true },
                         live = fly.live,
                         onLive = { isShowingLive = true },
                         onDetails = { isShowingDetails = true },
                         onRecordNow = fly::recordNow,
-                        showsThermals = thermals.takeIf { offersThermals },
-                        onThermals = {
-                            thermals = !thermals
-                            preferences.mapShowsThermals = thermals
-                        },
                     )
                 }
                 CockpitRule()
                 // The map alone gives way when a warning takes room at the
                 // top: the readings keep their size and their place. On the
                 // first page the thermal view stands beside it, on the left,
-                // while the core says the glider is circling: on a glide the
-                // map takes the room.
-                val showsThermalView = page == CockpitPage.Instruments && view.circling
+                // always: on the ground, on a glide and while circling, with
+                // the wind (the owner, 2026-11-20 and 2026-11-22).
+                val showsThermalView = page == CockpitPage.Instruments
                 Row(Modifier.weight(1f).fillMaxWidth().heightIn(min = 120.dp)) {
                     if (showsThermalView) {
                         ThermalView(
                             view,
                             Modifier.weight(THERMAL_VIEW_SHARE).fillMaxHeight().padding(start = VentiSpace.s2, top = VentiSpace.s2, bottom = VentiSpace.s2),
+                            ground = fly.windBelow?.stations?.firstOrNull(),
                         )
                     }
                     Box(Modifier.weight(if (showsThermalView) 1 - THERMAL_VIEW_SHARE else 1f).fillMaxHeight()) {
@@ -442,10 +470,20 @@ fun CockpitScreen(
                             if (aerial && page != CockpitPage.Instruments) {
                                 PhotosCredit(photos)
                             }
+                            // Whose the thermal map is, on every page while it shows.
+                            if (thermals && offersThermals && page != CockpitPage.Map) {
+                                Text(
+                                    MapSetup.THERMALS_CREDIT,
+                                    style = fixed(VentiType.label).copy(fontWeight = FontWeight.Normal),
+                                    color = Venti.colours.textMuted,
+                                    modifier = Modifier.testTag("cockpit-thermals-credit"),
+                                )
+                            }
                             // Whose cables, take-offs and other aircraft are drawn.
                             if (page == CockpitPage.Map) {
                                 val credits = (
-                                    cables?.creditLine?.let(::listOf).orEmpty() +
+                                    listOfNotNull(MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals }) +
+                                        cables?.creditLine?.let(::listOf).orEmpty() +
                                         fly.takeoffs?.credits.orEmpty().map { it.text } +
                                         fly.othersNear?.credits.orEmpty().map { it.text } +
                                         fly.climbsNear?.credits.orEmpty().map { it.text }
@@ -618,6 +656,60 @@ fun CockpitScreen(
         // The running session's view: the rows follow the flight while it is open.
         CockpitDetailsSheet(view, onDismiss = { isShowingDetails = false })
     }
+
+    if (isShowingSettings) {
+        CockpitSettingsSheet(
+            vario = varioSummary(vario),
+            isMuted = fly.isMuted,
+            onMute = { fly.isMuted = it },
+            // Where the maps offer it: never over a region kept on the phone.
+            showsThermals = thermals.takeIf { offersThermals },
+            onThermals = { on ->
+                thermals = on
+                preferences.cockpitShowsThermals = on
+            },
+            airspace = airspace.inALine,
+            offlineMaps = offlineMaps,
+            task = tasks.task?.inALine,
+            live = LiveChoice.stored(preferences).summary(account.isSignedIn),
+            // A replay takes the place of a cockpit that waits with nothing
+            // written, or of another replay; never of a flight recorded.
+            canReplay = isReplay || !view.recording,
+            onVario = {
+                isShowingSettings = false
+                isChoosingVario = true
+            },
+            onAirspace = {
+                isShowingSettings = false
+                onOpenAirspace()
+            },
+            onMaps = {
+                isShowingSettings = false
+                onOpenMaps()
+            },
+            onTask = {
+                isShowingSettings = false
+                onOpenTask()
+            },
+            onLive = {
+                isShowingSettings = false
+                isShowingLive = true
+            },
+            onReplay = { speed ->
+                isShowingSettings = false
+                if (isReplay) {
+                    fly.setReplaySpeed(speed)
+                } else {
+                    onReplay(speed)
+                }
+            },
+            onDismiss = { isShowingSettings = false },
+        )
+    }
+
+    if (isChoosingVario) {
+        VarioSheet(vario) { isChoosingVario = false }
+    }
 }
 
 /** The direction of travel, once the glider moves fast enough for it to mean something. */
@@ -734,19 +826,21 @@ private fun PhaseNotice(view: CockpitView, title: String, detail: String?) {
 }
 
 /**
- * The line at the top: ready, recording or replaying, how long, where the
- * climb comes from, the pages as dots, and "End". It is as high as a finger
- * needs, so that the dots and "End" can be pressed in flight.
+ * The line at the top: ready, recording or replaying, how long, what is
+ * wrong (each as a sign and a word, gone when put right), the vario's
+ * mark, the settings, the pages as dots, and "End". It is as high as a
+ * finger needs, so that what is in it can be pressed in flight.
  */
 @Composable
 private fun StatusLine(
     view: CockpitView,
     mode: FlySession.Mode?,
-    varioName: String?,
+    /** What is wrong, the most urgent first, and the vario's mark. */
+    checks: List<CockpitCheck>,
     /** Called with the speed the pilot chose for a replay. */
     onReplaySpeed: (Double) -> Unit,
-    /** Whether the map is drawn from a region kept on the phone, and so stays when the network goes. */
-    mapIsKept: Boolean = false,
+    /** Opens the settings: what the Fly tab listed before take-off. */
+    onSettings: () -> Unit,
     page: CockpitPage,
     pages: List<CockpitPage>,
     onNextPage: () -> Unit,
@@ -756,7 +850,6 @@ private fun StatusLine(
     isLocked: Boolean,
 ) {
     val style = fixed(VentiType.label)
-    val danger = Venti.colours.danger
     Row(
         modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).padding(start = VentiSpace.s4, end = VentiSpace.s2),
         verticalAlignment = Alignment.CenterVertically,
@@ -781,46 +874,186 @@ private fun StatusLine(
             Text(Format.stopwatch(seconds), style = style.numbers, maxLines = 1, modifier = Modifier.testTag("flight-time"))
         }
         Spacer(Modifier.width(VentiSpace.s2))
-        // To the right, before the dots and "End": what the readings come
-        // from. Only its words give way when the line is short.
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            // No position for five seconds means the fix is gone.
-            if (view.positionAgeS?.let { it > 5 } != false) {
-                Icon(painterResource(R.drawable.ic_location_off), contentDescription = null, modifier = Modifier.size(18.dp), tint = danger)
-                Spacer(Modifier.width(VentiSpace.s1))
-                Text("No GPS", style = style, color = danger, maxLines = 1)
-                Spacer(Modifier.width(VentiSpace.s2))
+        // To the right, before the settings, the dots and "End": what is
+        // wrong, and the vario, each a sign. The words follow in the order
+        // of urgency for as long as the line has room for them whole; a
+        // word that does not fit leaves its sign alone, never cut short.
+        BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            val measurer = rememberTextMeasurer()
+            val density = LocalDensity.current
+            var room = maxWidth - (18.dp + VentiSpace.s2) * checks.size
+            var wordsFit = true
+            val withWords = checks.map { check ->
+                val word = check.word ?: return@map false
+                val width = with(density) { measurer.measure(word, style.numbers).size.width.toDp() } + VentiSpace.s1
+                wordsFit = wordsFit && width <= room
+                if (wordsFit) room -= width
+                wordsFit
             }
-            // The map is drawn from the phone: an arrow in a circle says so.
-            if (mapIsKept) {
-                Icon(
-                    painterResource(R.drawable.ic_map_kept),
-                    contentDescription = "Map from this phone",
-                    modifier = Modifier.size(18.dp).testTag("map-kept"),
-                )
-                Spacer(Modifier.width(VentiSpace.s2))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                checks.forEachIndexed { index, check ->
+                    CheckMark(check, withWord = withWords[index], style = style)
+                }
             }
-            // An external vario that was talking and has stopped.
-            val varioIsLost = view.instrument?.talking == false
-            Text(
-                // A phone of 360 dp, or one with large text, has room for the short form only.
-                varioText(
-                    view,
-                    mode,
-                    varioName,
-                    narrow = LocalDensity.current.let { LocalWindowInfo.current.containerSize.width / (it.density * it.fontScale) } < NARROW_BAR_DP,
-                ),
-                style = style,
-                color = if (varioIsLost) danger else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
         }
         Row(Modifier.alpha(if (isLocked) 0f else 1f), verticalAlignment = Alignment.CenterVertically) {
+            SettingsButton(onSettings)
             PageDots(page, pages, onNext = onNextPage)
             HoldToEnd(onEnd)
         }
+    }
+}
+
+/** How a check in the top line looks: as a fault, as a caution, as a quiet state, or plain. */
+enum class CheckTone { Danger, Caution, Quiet, Plain }
+
+/**
+ * One thing the top line says: a sign, a word where there is one, and the
+ * tone. What it is said for a screen reader is `spoken`.
+ */
+data class CockpitCheck(
+    val tag: String,
+    @param:DrawableRes val icon: Int,
+    val word: String?,
+    val tone: CheckTone,
+    val spoken: String,
+)
+
+/**
+ * What the top line says is wrong, as a sign and a word, the most urgent
+ * first, and the vario's mark: what the Fly tab once listed before take-off
+ * speaks here only when it fails, and goes when it is put right.
+ */
+object CockpitChecks {
+    const val NO_GPS = "No GPS"
+    const val NO_AIRSPACE = "No airspace"
+    const val NO_MAP = "No offline map"
+    const val CONNECTING = "Connecting"
+    const val VARIO_LOST = "Vario lost"
+    const val NO_BLUETOOTH = "No Bluetooth"
+
+    fun of(
+        view: CockpitView,
+        isReplay: Boolean,
+        airspaceCheck: AirspaceCheck,
+        /** Whether the pilot has chosen an external vario. */
+        hasRememberedVario: Boolean,
+        varioState: VarioState,
+        /** Whether that vario has been connected in this cockpit. */
+        varioWasConnected: Boolean,
+        varioName: String?,
+        /** Whether the map is drawn from a region kept on the phone. */
+        mapIsKept: Boolean,
+    ): List<CockpitCheck> = listOfNotNull(
+        // No position for five seconds means the fix is gone.
+        if (view.positionAgeS?.let { it > 5 } != false) {
+            CockpitCheck("check-gps", R.drawable.ic_location_off, NO_GPS, CheckTone.Danger, NO_GPS)
+        } else {
+            null
+        },
+        vario(view, isReplay, hasRememberedVario, varioState, varioWasConnected, varioName),
+        // The cockpit holds no airspace at all: it warns of none.
+        if (airspaceCheck == AirspaceCheck.NO_AIRSPACE) {
+            CockpitCheck("check-airspace", R.drawable.venti_airspace, NO_AIRSPACE, CheckTone.Caution, NO_AIRSPACE)
+        } else {
+            null
+        },
+        // Where the glider is, no region is kept on the phone: without a
+        // network there is no map.
+        if (!mapIsKept && view.position != null) {
+            CockpitCheck("check-map", R.drawable.venti_map, NO_MAP, CheckTone.Caution, NO_MAP)
+        } else {
+            null
+        },
+    )
+
+    /**
+     * The vario's mark, with the pack's vario sign: plain while connected
+     * (with its battery where it says it), quiet while it is looked for,
+     * and a fault once it is lost or silent. Nothing without an external
+     * vario, and nothing in a replay.
+     */
+    private fun vario(
+        view: CockpitView,
+        isReplay: Boolean,
+        hasRememberedVario: Boolean,
+        state: VarioState,
+        wasConnected: Boolean,
+        name: String?,
+    ): CockpitCheck? {
+        if (!hasRememberedVario || isReplay) return null
+        val icon = R.drawable.venti_vario
+        val tag = "check-vario"
+        val instrument = view.instrument
+        return when {
+            state is VarioState.Connected && instrument?.talking == false -> {
+                // Connected, and nothing understood for a while: the core's words.
+                val words = cockpitSourceWords(view.varioSource, instrument, name, false)
+                CockpitCheck(tag, icon, words.short, CheckTone.Danger, words.words)
+            }
+            state is VarioState.Connected -> CockpitCheck(
+                tag,
+                icon,
+                instrument?.batteryPercent?.let { "$it%" },
+                CheckTone.Plain,
+                cockpitSourceWords(view.varioSource, instrument, name, false).words,
+            )
+            state is VarioState.Unavailable -> CockpitCheck(tag, icon, NO_BLUETOOTH, CheckTone.Danger, state.reason)
+            wasConnected -> CockpitCheck(tag, icon, VARIO_LOST, CheckTone.Danger, VARIO_LOST)
+            else -> CockpitCheck(tag, icon, CONNECTING, CheckTone.Quiet, "Vario: $CONNECTING")
+        }
+    }
+}
+
+/** One check of the top line: its sign, and its word where there is room. One element for a screen reader. */
+@Composable
+private fun CheckMark(check: CockpitCheck, withWord: Boolean, style: TextStyle) {
+    val ink = when (check.tone) {
+        CheckTone.Danger -> Venti.colours.danger
+        CheckTone.Caution -> Venti.colours.caution
+        CheckTone.Quiet -> Venti.colours.textMuted
+        CheckTone.Plain -> MaterialTheme.colorScheme.onSurface
+    }
+    Row(
+        Modifier.testTag(check.tag).clearAndSetSemantics { contentDescription = check.spoken },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(check.icon), contentDescription = null, modifier = Modifier.size(18.dp), tint = ink)
+        val word = check.word
+        if (word != null && withWord) {
+            Spacer(Modifier.width(VentiSpace.s1))
+            Text(
+                word,
+                style = style.numbers,
+                color = ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * The cockpit's one settings button, in the top line beside the dots: what
+ * the Fly tab listed before take-off. As high as the line and as wide as a
+ * gloved finger needs.
+ */
+@Composable
+private fun SettingsButton(onClick: () -> Unit) {
+    Box(
+        Modifier
+            .heightIn(min = VentiSize.touch)
+            .width(VentiSize.touch)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .testTag("cockpit-settings")
+            .semantics { contentDescription = CockpitSettingsWords.TITLE },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(R.drawable.ic_settings), contentDescription = null, modifier = Modifier.size(VentiSize.icon))
     }
 }
 
@@ -903,18 +1136,6 @@ private fun Modifier.turnsPagesBySwipe(onNext: () -> Unit, onPrevious: () -> Uni
             }
         }
     }
-}
-
-/** Under this width, in dp at the text's size, the top bar says where the climb comes from in the short form. */
-private const val NARROW_BAR_DP = 400f
-
-/**
- * Where the climb comes from, in the core's words: in full, or its short
- * form where the top bar is narrow, beside "End".
- */
-private fun varioText(view: CockpitView, mode: FlySession.Mode?, varioName: String?, narrow: Boolean): String {
-    val words = cockpitSourceWords(view.varioSource, view.instrument, varioName, mode is FlySession.Mode.Replay)
-    return if (narrow) words.short else words.words
 }
 
 /**
@@ -1029,17 +1250,12 @@ private fun FlightPage(
     view: CockpitView,
     score: LiveScore?,
     isReplay: Boolean,
-    isMuted: Boolean,
-    onMute: () -> Unit,
     onLock: () -> Unit,
     live: LiveShareView?,
     onLive: () -> Unit,
     /** Opens the readings that have no place on a page. */
     onDetails: () -> Unit,
     onRecordNow: () -> Unit,
-    /** Whether the thermal map shows on the map; `null` where the maps do not offer it. */
-    showsThermals: Boolean? = null,
-    onThermals: () -> Unit = {},
 ) {
     Column(
         Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s3),
@@ -1057,48 +1273,28 @@ private fun FlightPage(
                 modifier = Modifier.weight(1f),
             )
         }
+        // The vario's sound is a switch of the settings, not a button
+        // here (the owner, 2026-11-22).
         Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
-            QuietButton(
-                if (isMuted) "Unmute vario" else "Mute vario",
-                if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
-                Modifier.weight(1f).testTag("cockpit-mute"),
-                onClick = onMute,
-            )
             // Nothing on the screen answers a touch until it is unlocked
             // by holding a finger on the lock.
             QuietButton("Lock screen", R.drawable.ic_lock, Modifier.weight(1f).testTag("cockpit-lock"), onClick = onLock)
+            // Who watches the flight, and whether it is going out. Not in
+            // a replay: what is replayed is not shared, nor recorded.
+            if (!isReplay) LiveButton(live, Modifier.weight(1f), onOpen = onLive)
         }
-        // Who watches the flight, and whether it is going out. Not in a
-        // replay: what is replayed is not shared, nor recorded.
-        if (!isReplay) {
-            Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
-                LiveButton(live, Modifier.weight(1f), onOpen = onLive)
-                // For a pilot who would rather not wait for the take-off to
-                // be noticed.
-                if (view.waitingForTakeoff) {
-                    QuietButton("Record now", R.drawable.ic_record, Modifier.weight(1f).testTag("cockpit-record-now"), onClick = onRecordNow)
-                }
-            }
+        // For a pilot who would rather not wait for the take-off to be noticed.
+        if (!isReplay && view.waitingForTakeoff) {
+            QuietButton("Record now", R.drawable.ic_record, Modifier.fillMaxWidth().testTag("cockpit-record-now"), onClick = onRecordNow)
         }
-        // The thermal map on the cockpit's map, where the maps offer it:
-        // what can be switched is on this page. Beside it the readings
-        // that have no place on a page.
-        Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
-            if (showsThermals != null) {
-                QuietButton(
-                    if (showsThermals) "Hide thermal map" else "Show thermal map",
-                    R.drawable.venti_thermal,
-                    Modifier.weight(1f).testTag("cockpit-thermals"),
-                    onClick = onThermals,
-                )
-            }
-            QuietButton(
-                CockpitDetailsWords.core.title,
-                R.drawable.ic_info,
-                Modifier.weight(1f).testTag("cockpit-details"),
-                onClick = onDetails,
-            )
-        }
+        // The readings that have no place on a page. The thermal map is a
+        // switch of the settings.
+        QuietButton(
+            CockpitDetailsWords.core.title,
+            R.drawable.ic_info,
+            Modifier.fillMaxWidth().testTag("cockpit-details"),
+            onClick = onDetails,
+        )
     }
 }
 

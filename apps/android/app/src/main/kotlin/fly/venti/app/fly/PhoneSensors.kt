@@ -6,8 +6,8 @@ import fly.venti.core.FlightSession
 /**
  * The sensors of a real phone, wired to the core's session: positions from
  * the satellite receiver, pressure from the phone's own sensor, and the
- * bytes of a Bluetooth vario if the pilot has chosen one. While they run,
- * the recording service keeps the app alive with the screen off.
+ * bytes of a Bluetooth vario if the pilot has chosen one. While the cockpit
+ * has them, the recording service keeps the app alive with the screen off.
  */
 class PhoneSensors(private val context: Context, private val vario: VarioLink) : FlightSensors {
     private val location = LocationProvider(context)
@@ -19,15 +19,20 @@ class PhoneSensors(private val context: Context, private val vario: VarioLink) :
         barometer.onPressure = session::onPressure
         vario.onBytes = { bytes -> session.onInstrumentBytes(System.currentTimeMillis() / 1000.0, bytes) }
 
-        // The service first: Android lets it start only while the app is on
-        // screen, and without the position permission it would be refused.
-        if (LocationProvider.isAllowed(context)) {
-            RecordingService.start(context)
-        }
         location.start()
         barometer.start()
         vario.reconnectToRememberedVario()
     }
+
+    // Android lets the service start only while the app is on screen, and
+    // without the position permission it would be refused.
+    override fun keepAlive() {
+        if (LocationProvider.isAllowed(context)) {
+            RecordingService.start(context)
+        }
+    }
+
+    override val mayWatch: Boolean get() = LocationProvider.isAllowed(context)
 
     override fun stop() {
         location.stop()

@@ -344,7 +344,11 @@ class MapStyleTest {
         // Without the app's domain there is nothing to offer, and no chip.
         val withoutDomain = MapStyle.json(MapStyle.Source.Online, template, region, server = null, appDomain = null)
         assertTrue(MapStyle.views(withoutDomain).thermals.isEmpty())
-        assertTrue(MapStyle.views(MapStyle.json(MapStyle.Source.Online, template, region)).thermals.isEmpty())
+        // The app's own domain, the owner's, is named to the author's server.
+        val withTheApps = MapStyle.json(MapStyle.Source.Online, template, region)
+        assertEquals(listOf("thermals"), MapStyle.views(withTheApps).thermals)
+        val asked = Json.parseToJsonElement(withTheApps).jsonObject.getValue("sources").jsonObject.getValue("thermals").jsonObject
+        assertTrue(asked.getValue("tiles").jsonArray.single().jsonPrimitive.content.endsWith("?src=venti.fly"))
     }
 
     @Test
@@ -396,11 +400,16 @@ class MapStyleTest {
         assertFalse(preferences.mapShowsThermals)
         preferences.mapShowsThermals = true
         assertTrue(preferences.mapShowsThermals)
+        // The cockpit's is its own, and on until switched off.
+        assertTrue(preferences.cockpitShowsThermals)
+        preferences.cockpitShowsThermals = false
+        assertFalse(preferences.cockpitShowsThermals)
+        assertTrue(preferences.mapShowsThermals)
     }
 
     @Test
-    fun theAppHasNoDomainYet() {
-        assertEquals(null, MapStyle.APP_DOMAIN)
+    fun theAppsDomainIsTheOwners() {
+        assertEquals("venti.fly", MapStyle.APP_DOMAIN)
     }
 
     @Test

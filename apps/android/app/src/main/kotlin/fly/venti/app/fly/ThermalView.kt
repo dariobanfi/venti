@@ -8,6 +8,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.painterResource
+import app.venti.design.VentiSize
+import app.venti.design.VentiType
+import fly.venti.app.R
+import fly.venti.core.GroundWindStation
+import fly.venti.core.WindSourceKind
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,14 +64,23 @@ import kotlin.math.min
  * through, each where its air is now, in the climb colours and larger where
  * this thermal climbs better, and the circle to fly next, dashed, with a
  * mark at its middle. On the glide it shows the track behind the glider in
- * the climb colours and the thermals left behind with their climb. In its
- * corners the wind, an arrow that points where the air moves with its
- * speed, and a scale. Under it the core's words about the centre.
+ * the climb colours and the thermals left behind with their climb. It is
+ * there always, on the ground too (the owner, 2026-11-22). In its upper
+ * left corner the wind, large: the pack's arrow pointing where the air
+ * moves, the speed, and under it where the wind is from: the flight's own
+ * circles or glide, or before the first of them the nearest wind station's
+ * reading, with its name. A scale in the lower right corner. Under it the
+ * core's words about the centre.
  *
  * What is shown is the core's; [CloseUp] only places it.
  */
 @Composable
-fun ThermalView(view: CockpitView, modifier: Modifier = Modifier) {
+fun ThermalView(
+    view: CockpitView,
+    modifier: Modifier = Modifier,
+    /** The wind station that speaks for the place, as the core picked it: the wind until the flight has one of its own. */
+    ground: GroundWindStation? = null,
+) {
     val colours = Venti.colours
     val measurer = rememberTextMeasurer()
     val label = MaterialTheme.typography.labelLarge.numbers.copy(color = colours.text, fontWeight = FontWeight.SemiBold)
@@ -145,8 +167,10 @@ fun ThermalView(view: CockpitView, modifier: Modifier = Modifier) {
                     }
                 }
                 ownArrow(middle, view.courseDeg)
-                wind(view, measurer, label, colours.text)
                 scaleBar(span, scale, measurer, label, colours.text)
+            }
+            ThermalWind.of(view, ground)?.let { wind ->
+                WindMark(wind, Modifier.align(Alignment.TopStart))
             }
         }
         // The core's words about the centre, while there are any.
@@ -197,22 +221,6 @@ private fun DrawScope.ownArrow(at: Offset, courseDeg: Double?) {
     }
 }
 
-/** The wind in the upper left corner: an arrow that points where the air moves, and its speed. */
-private fun DrawScope.wind(view: CockpitView, measurer: TextMeasurer, style: TextStyle, ink: Color) {
-    val wind = view.wind ?: return
-    val inset = 8.dp.toPx()
-    val length = 22.dp.toPx()
-    val middle = Offset(inset + length / 2, inset + length / 2)
-    rotate((wind.fromDeg + 180).toFloat(), pivot = middle) {
-        val tip = middle - Offset(0f, length / 2)
-        val tail = middle + Offset(0f, length / 2)
-        drawLine(ink, tail, tip, 2.5.dp.toPx(), StrokeCap.Round)
-        drawLine(ink, tip, tip + Offset(-6.dp.toPx(), 7.dp.toPx()), 2.5.dp.toPx(), StrokeCap.Round)
-        drawLine(ink, tip, tip + Offset(6.dp.toPx(), 7.dp.toPx()), 2.5.dp.toPx(), StrokeCap.Round)
-    }
-    drawLabel(measurer, "${Format.kilometresPerHour(wind.speedMs)} km/h", style, Offset(inset * 2 + length, inset))
-}
-
 /** The scale in the lower right corner: a bar of a round length, and its length. */
 private fun DrawScope.scaleBar(span: Double, scale: Float, measurer: TextMeasurer, style: TextStyle, ink: Color) {
     val length = CloseUp.scaleBar(span)
@@ -223,4 +231,106 @@ private fun DrawScope.scaleBar(span: Double, scale: Float, measurer: TextMeasure
     val right = size.width - inset
     drawLine(ink, Offset(right - bar, y), Offset(right, y), 2.5.dp.toPx(), StrokeCap.Round)
     drawText(laid, topLeft = Offset(right - laid.size.width, y - laid.size.height - 4.dp.toPx()))
+}
+
+/**
+ * The wind the thermal view shows: the flight's own, from its circles or a
+ * turn on its glide, or until there is one the wind station the core puts
+ * first, which says so with its name.
+ */
+data class ThermalWind(
+    /** Where the air comes from, degrees. */
+    val fromDeg: Double,
+    val speedMs: Double,
+    /** Where this wind is from, in a few words: "From circling", "From the glide · 12 min", a station's name. */
+    val source: String,
+    /** Whether it is a station's on the ground, not the flight's own. */
+    val isStation: Boolean,
+) {
+    companion object {
+        const val CIRCLING = "From circling"
+        const val GLIDE = "From the glide"
+
+        fun of(view: CockpitView, ground: GroundWindStation?): ThermalWind? {
+            view.wind?.let { wind ->
+                val from = when (view.windSource) {
+                    WindSourceKind.GLIDE -> GLIDE
+                    else -> CIRCLING
+                }
+                val age = WindBadgeWords.age(view.windAgeS)
+                return ThermalWind(wind.fromDeg, wind.speedMs, listOfNotNull(from, age).joinToString(" · "), isStation = false)
+            }
+            val station = ground ?: return null
+            val from = station.fromDeg ?: return null
+            return ThermalWind(from, station.speedMs, station.name, isStation = true)
+        }
+    }
+}
+
+/**
+ * The wind over the thermal view's corner, large enough to read in flight:
+ * the pack's wind arrow, the speed in the instruments' type, and under them
+ * where it is from, a station's with the windsock. One element for a
+ * screen reader.
+ */
+@Composable
+private fun WindMark(wind: ThermalWind, modifier: Modifier = Modifier) {
+    val colours = Venti.colours
+    val speed = Format.kilometresPerHour(wind.speedMs)
+    Column(
+        modifier
+            .padding(1.dp)
+            .background(colours.surface)
+            .padding(horizontal = VentiSpace.s2, vertical = VentiSpace.s1)
+            .testTag("thermal-wind")
+            .clearAndSetSemantics {
+                contentDescription = "Wind"
+                stateDescription = "$speed km/h from ${Format.compassPoint(wind.fromDeg)}, ${wind.source}"
+            },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painterResource(R.drawable.venti_arrow_wind),
+                contentDescription = null,
+                tint = colours.text,
+                // The arrow shows where the wind goes; the view is north-up.
+                modifier = Modifier.size(VentiSize.iconFlight).rotate((wind.fromDeg + 180).toFloat()),
+            )
+            Spacer(Modifier.width(VentiSpace.s1))
+            Text(
+                speed,
+                style = fixed(VentiType.instrumentL).numbers,
+                color = colours.text,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Text(
+                "km/h",
+                style = fixed(VentiType.label).copy(fontWeight = FontWeight.SemiBold),
+                color = colours.textSecondary,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.padding(start = VentiSpace.s1).alignByBaseline(),
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (wind.isStation) {
+                Icon(
+                    painterResource(R.drawable.venti_windsock),
+                    contentDescription = null,
+                    tint = colours.textSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(VentiSpace.s1))
+            }
+            Text(
+                wind.source,
+                style = fixed(VentiType.label).numbers,
+                color = colours.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }

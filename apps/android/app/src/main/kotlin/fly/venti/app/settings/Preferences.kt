@@ -129,6 +129,14 @@ interface Preferences {
     var cockpitShowsClimbs: Boolean
 
     /**
+     * Whether the cockpit's map shows the thermal map of thermal.kk7.ch.
+     * On until the pilot switches it off in the cockpit's settings, as in
+     * the XCTrack layout the owner flies with; a choice of its own, apart
+     * from the map tab's.
+     */
+    var cockpitShowsThermals: Boolean
+
+    /**
      * Whether the cockpit leaves the screen's brightness as it is. By
      * itself it turns it all the way up for as long as it is open, as on
      * the iPhone.
@@ -310,6 +318,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiCockpitShowsClimbs", false)
         set(value) = store.edit { putBoolean("VentiCockpitShowsClimbs", value) }
 
+    override var cockpitShowsThermals: Boolean
+        get() = store.getBoolean("VentiCockpitShowsThermals", true)
+        set(value) = store.edit { putBoolean("VentiCockpitShowsThermals", value) }
+
     override var cockpitKeepsBrightness: Boolean
         get() = store.getBoolean("VentiCockpitKeepsBrightness", false)
         set(value) = store.edit { putBoolean("VentiCockpitKeepsBrightness", value) }
@@ -391,6 +403,7 @@ class MemoryPreferences : Preferences {
     override var mapShowsClimbs = false
     override var mapShowsFlown = false
     override var cockpitShowsClimbs = false
+    override var cockpitShowsThermals = true
     override var cockpitKeepsBrightness = false
     override var mapSitesFilter: String? = null
     override var watchedFolder = ""

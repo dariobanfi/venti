@@ -92,7 +92,7 @@ class ThermalMapModelTest {
         assertEquals("Forecast: Open-Meteo", forecast.creditLine)
         // The key from the best kind of day down, then the day that is not flyable.
         assertEquals(
-            listOf("Big day", "Cross-country day", "Local thermals", "Weak thermals", "Not flyable"),
+            listOf("Big day", "Cross-country day", "Local thermals", "Weak thermals", "No thermals", "Not flyable"),
             state.map.legend.map { it.words },
         )
         assertNull(state.map.legend.last().scaleStep)
@@ -226,8 +226,11 @@ class ThermalMapModelTest {
         // Not the danger colour, which looks like the scale's darkest step.
         assertEquals(VentiLight.textMuted, swatches.last())
         assertEquals(VentiLight.thermal[5], swatches.first())
-        // Never the palest step, which is the colour of the drawn map's land.
-        assertFalse(VentiLight.thermal[0] in swatches)
+        // Never the palest step, which is the colour of the drawn map's land,
+        // except for a day without thermals, which is meant to show as nothing.
+        val drawnKinds = map.legend.filter { it.words != "No thermals" }
+            .map { ThermalMapLayer.colour(it.scaleStep?.toInt() ?: ThermalMapLayer.NOT_FLYABLE) }
+        assertFalse(VentiLight.thermal[0] in drawnKinds)
         // Every line of the key has a colour of its own.
         assertEquals(swatches.size, swatches.toSet().size)
     }

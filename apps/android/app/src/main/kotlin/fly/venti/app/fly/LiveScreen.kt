@@ -11,8 +11,6 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -23,16 +21,11 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,7 +47,6 @@ import fly.venti.app.SharedFiles
 import fly.venti.app.account.AccountModel
 import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Group
-import fly.venti.app.design.Palette
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
@@ -66,13 +58,13 @@ import fly.venti.app.design.Common
 
 /**
  * Whom the pilot shows flights to while they are under way. Kept between
- * flights: the choice is on the Fly tab before every start.
+ * flights: the choice is in the cockpit's settings before every start.
  */
 enum class LiveChoice(
     /** As the settings keep it, on the iPhone too. */
     val key: String,
     val title: String,
-    /** For the row on the Fly tab. */
+    /** For the row of the cockpit's settings. */
     val short: String,
     /** What the choice means, in a sentence. */
     val explanation: String,
@@ -102,7 +94,7 @@ enum class LiveChoice(
         }
 
     /**
-     * Who will watch the next flight, for the row on the Fly tab. A choice
+     * Who will watch the next flight, for the row of the cockpit's settings. A choice
      * that cannot be kept, because this phone is signed in nowhere, is not
      * shown as if it could.
      */
@@ -129,39 +121,7 @@ object LiveWords {
             "Venti. Your recording is not touched."
 }
 
-/**
- * Live tracking as a screen of its own, reached from the Fly tab before
- * take-off: who may watch a flight while it is under way.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun LiveScreen(fly: FlySession, account: AccountModel, preferences: Preferences, onBack: () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Live tracking") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
-                    }
-                },
-            )
-        },
-        contentWindowInsets = WindowInsets(0),
-    ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, bottom = 32.dp),
-        ) {
-            LiveTracking(fly, account, preferences)
-        }
-    }
-}
-
-/** The same page in the cockpit, as a sheet over it: there it also says how this flight is being shared. */
+/** Live tracking, as a sheet over the cockpit, from its settings and its flight's page: who may watch, and how this flight is being shared. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveSheet(fly: FlySession, account: AccountModel, preferences: Preferences, onDismiss: () -> Unit) {

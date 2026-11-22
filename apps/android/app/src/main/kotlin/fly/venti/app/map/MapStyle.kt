@@ -66,11 +66,13 @@ object MapStyle {
     const val DOMAIN_PLACEHOLDER = "__APP_DOMAIN__"
 
     /**
-     * The app's own domain, which a tile address that asks for it is given.
-     * `null`: Venti has no domain yet, and nothing that asks for one is
-     * fetched without it; `docs/data-sources.md` says why for each source.
+     * The app's own domain, which a tile address that asks for it is given:
+     * the owner's, `venti.fly` (2026-11-22). Without one nothing that asks
+     * for it is fetched; `docs/data-sources.md` says why for each source.
+     * A region kept on the phone is never given it, so the thermal map is
+     * only ever fetched tile by tile for the map in view.
      */
-    val APP_DOMAIN: String? = null
+    val APP_DOMAIN: String? = "venti.fly"
 
     /**
      * `server` is Venti's address, the app's, without a slash

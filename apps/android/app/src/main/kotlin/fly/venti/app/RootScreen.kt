@@ -24,6 +24,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -48,7 +49,6 @@ import fly.venti.app.flight.FlightScreen
 import fly.venti.app.flight.PublicFlightScreen
 import fly.venti.app.fly.CockpitScreen
 import fly.venti.app.fly.FlyScreen
-import fly.venti.app.fly.LiveScreen
 import fly.venti.app.logbook.FlightFiles
 import fly.venti.app.logbook.ImportNotice
 import fly.venti.app.logbook.ImportNoticeDialog
@@ -133,11 +133,12 @@ fun RootScreen(
             val isKept = session.tasks.keep(opened[0])
             onImported()
             if (isKept) {
+                // The task's page; its back arrow leads to the cockpit, whose settings list it under Task.
                 navigation.tab = AppTab.Fly
-                navigation.flyRoute = null
+                navigation.flyRoute = FlyRoute.Task
                 notice = ImportNotice(
                     "Task kept",
-                    "It replaces the task you had. The cockpit flies it; look at it on the Fly tab, under Task.",
+                    "It replaces the task you had. The cockpit flies it; it is under Task in the cockpit's settings.",
                 )
             } else {
                 notice = ImportNotice("The task could not be read", session.tasks.problem.orEmpty())
@@ -213,7 +214,30 @@ fun RootScreen(
         }
     }
 
-    if (fly.mode != null) {
+    // While the app is in front, on any tab, the take-off is watched for
+    // (where the position is allowed: nothing is asked from here), and
+    // again whenever a session has ended. A take-off seen brings the
+    // cockpit to the front, recording.
+    LaunchedEffect(lifecycle, fly) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            try {
+                snapshotFlow { fly.mode }.collect { if (it == null) fly.watchForTakeoff() }
+            } finally {
+                fly.stopWatching()
+            }
+        }
+    }
+    var takeoffsShown by rememberSaveable { mutableIntStateOf(fly.takeoffsSeenUnseen) }
+    LaunchedEffect(fly.takeoffsSeenUnseen) {
+        if (fly.takeoffsSeenUnseen > takeoffsShown) {
+            takeoffsShown = fly.takeoffsSeenUnseen
+            navigation.showCockpit()
+        }
+    }
+
+    // The cockpit covers everything while it is open, but for a list its
+    // settings opened, whose back arrow leads back to it.
+    if (fly.isOpen && !(navigation.tab == AppTab.Fly && navigation.flyRoute != null)) {
         // A full-screen cover, not a tab: nothing can be navigated to by
         // accident in the air. In the design pack's flight theme, whatever
         // the phone is set to.
@@ -225,12 +249,28 @@ fun RootScreen(
             tasks = session.tasks,
             account = session.account,
             preferences = session.preferences,
-            varioName = session.vario.connectedName,
+            vario = session.vario,
             showsFaiAreas = session.preferences.showsFaiAreas,
             keptMap = session.maps.flyingMap,
+            offlineMaps = session.maps.inALine,
             cables = session.cables,
+            onOpenAirspace = { navigation.flyRoute = FlyRoute.Airspace },
+            onOpenMaps = { navigation.flyRoute = FlyRoute.OfflineMaps },
+            onOpenTask = { navigation.flyRoute = FlyRoute.Task },
+            onReplay = { speed ->
+                val text = try {
+                    session.files.text(AppFiles.SAMPLE_FLIGHT)
+                } catch (_: java.io.IOException) {
+                    fly.problem = "The sample flight is missing from the app."
+                    null
+                }
+                text?.let { fly.startReplay(it, speed) }
+            },
             onFinish = {
-                // Ends the session, and for a real flight saves it and shows it.
+                // Ends the session, and for a real flight saves it and
+                // shows it. Without one the pilot is back where they were
+                // before the cockpit.
+                navigation.leaveFly()
                 val recording = fly.finish() ?: return@CockpitScreen
                 scope.launch {
                     try {
@@ -299,7 +339,7 @@ private fun Sections(
     // What a site's page leads to: its forecast, a route from it, a flight.
     val siteActions = SiteActions(
         outlook = { site -> session.today.outlook(site) },
-        canStartFlight = { session.fly.mode == null },
+        canStartFlight = { !session.fly.isOpen },
         onPlanRoute = { site -> routeFrom = site.position },
         onStartFlight = { navigation.startFlight() },
     )
@@ -555,31 +595,13 @@ private fun Sections(
                     terrain = session.terrain,
                 )
                 FlyRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
-                FlyRoute.Live -> LiveScreen(
+                null -> FlyScreen(
                     session.fly,
-                    session.account,
-                    session.preferences,
-                    onBack = { navigation.back() },
+                    session.vario,
+                    bars = bars,
+                    wantsCockpit = navigation.wantsCockpit,
+                    onCockpitTaken = { navigation.wantsCockpit = false },
                 )
-                null -> kept.SaveableStateProvider("fly") {
-                    FlyScreen(
-                        session.fly,
-                        session.vario,
-                        session.airspace,
-                        session.tasks,
-                        session.account,
-                        session.preferences,
-                        session.files,
-                        onOpenAirspace = { navigation.flyRoute = FlyRoute.Airspace },
-                        onOpenTask = { navigation.flyRoute = FlyRoute.Task },
-                        onOpenLive = { navigation.flyRoute = FlyRoute.Live },
-                        offlineMaps = session.maps.inALine,
-                        onOpenMaps = { navigation.flyRoute = FlyRoute.OfflineMaps },
-                        bars = bars,
-                        wantsCockpit = navigation.wantsCockpit,
-                        onCockpitTaken = { navigation.wantsCockpit = false },
-                    )
-                }
             }
             AppTab.Logbook -> when (val route = navigation.logbookPath.lastOrNull()) {
                 null -> kept.SaveableStateProvider("logbook") {

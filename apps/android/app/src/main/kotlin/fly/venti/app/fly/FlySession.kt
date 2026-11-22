@@ -4,6 +4,7 @@ import fly.venti.core.DaylightLeft
 import fly.venti.core.SessionOver
 import fly.venti.core.LiveGlider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.HttpAnswer
@@ -71,6 +72,20 @@ interface FlightSensors {
     fun start(session: FlightSession, onProblem: (String) -> Unit)
 
     fun stop()
+
+    /**
+     * Keeps the app alive and awake with the screen off, for as long as the
+     * sensors run: from the moment the cockpit is on screen. A watch for
+     * the take-off from another tab does without it until the take-off.
+     */
+    fun keepAlive() = Unit
+
+    /**
+     * Whether the sensors may be switched on without asking the pilot
+     * anything: the position is allowed. Only then is the take-off watched
+     * for from another tab.
+     */
+    val mayWatch: Boolean get() = false
 }
 
 /** Whatever says a warning aloud. */
@@ -151,6 +166,25 @@ class FlySession(
 
     /** What is running, if anything. */
     var mode: Mode? by mutableStateOf(null)
+        private set
+
+    /**
+     * Whether the session runs unseen: the app is in front on another tab,
+     * and the sensors feed the core's session only so that a take-off is
+     * noticed. Nothing is shown, sounded, sent or asked for while it is;
+     * the core's take-off makes it the cockpit's session, recording.
+     */
+    var isWatching: Boolean by mutableStateOf(false)
+        private set
+
+    /** Whether the cockpit is open: a session runs and is not a watch. */
+    val isOpen: Boolean get() = mode != null && !isWatching
+
+    /**
+     * Counts the take-offs noticed while the session was a watch: the app
+     * then brings the cockpit to the front. Read by the screen.
+     */
+    var takeoffsSeenUnseen: Int by mutableIntStateOf(0)
         private set
 
     /** What the cockpit shows. Present while a session runs. */
@@ -586,21 +620,72 @@ class FlySession(
      */
     @Synchronized
     fun startFlight() {
+        // A watch that runs already is the cockpit's session from now on:
+        // what it has kept of the last half minute stays.
+        if (isWatching) {
+            comeIntoView()
+            refresh(elapsed = 0.0)
+            return
+        }
         if (mode != null) return
+        val session = readySession() ?: return
+        sensors.start(session) { problem = it }
+        sensors.keepAlive()
+        begin(session, Mode.Live)
+        // Shown to others from take-off, if the pilot chose so.
+        share(LiveChoice.stored(preferences).audience)
+    }
+
+    /**
+     * Watches for a take-off while the app is in front on another tab: the
+     * same session as the cockpit's, made ready, unseen. Nothing happens
+     * without the position allowed (nothing is asked from here), while a
+     * session runs, or while the core finds no take-off; once it finds
+     * one, the session records and [takeoffsSeenUnseen] counts up.
+     */
+    @Synchronized
+    fun watchForTakeoff() {
+        if (mode != null || !sensors.mayWatch) return
+        val session = readySession(quietly = true) ?: return
+        isWatching = true
+        // A problem with the position is the cockpit's to say, not a watch's.
+        sensors.start(session) { if (!isWatching) problem = it }
+        begin(session, Mode.Live)
+    }
+
+    /** Ends a watch that found no take-off: the app went to the back. Nothing was written. */
+    @Synchronized
+    fun stopWatching() {
+        if (!isWatching) return
+        finish()
+    }
+
+    /** A new session of the core, ready to record from the take-off, or `null` with the pilot told why. */
+    private fun readySession(quietly: Boolean = false): FlightSession? {
         val session = FlightSession(dataFolder.path)
-        try {
+        return try {
             session.recordFromTakeoff(
                 pilot = preferences.pilot.ifBlank { null },
                 glider = preferences.glider.ifBlank { null },
                 nowUnixS = clock(),
             )
+            session
         } catch (error: Exception) {
-            problem = error.pilotMessage
-            return
+            if (!quietly) problem = error.pilotMessage
+            null
         }
-        sensors.start(session) { problem = it }
-        begin(session, Mode.Live)
-        // Shown to others from take-off, if the pilot chose so.
+    }
+
+    /**
+     * The watch becomes the cockpit's session: the app is kept alive with
+     * the screen off, the vario sounds, and the flight is shown to others
+     * from the take-off if the pilot chose so.
+     */
+    private fun comeIntoView() {
+        isWatching = false
+        sensors.keepAlive()
+        sound.isMuted = isMuted
+        sound.start()
         share(LiveChoice.stored(preferences).audience)
     }
 
@@ -639,6 +724,9 @@ class FlySession(
     /** Plays a recorded flight through the cockpit, to try it on the ground. */
     @Synchronized
     fun startReplay(igcText: String, speed: Double) {
+        // A watch, or a cockpit that waits on the ground with nothing
+        // written, gives way to the replay.
+        if (isWatching || (mode == Mode.Live && view?.recording == false)) finish()
         if (mode != null) return
         replay = try {
             Replay(igcText)
@@ -688,6 +776,7 @@ class FlySession(
         this.session = null
         replay = null
         mode = null
+        isWatching = false
         live = null
         landing = null
         range = null
@@ -757,14 +846,19 @@ class FlySession(
         isAskingForTakeoffs = false
         askedForLiveRequest = 0.0
         sending = null
-        sound.isMuted = isMuted
-        sound.start()
+        // A watch makes no sound: it starts once the cockpit has the session.
+        if (!isWatching) {
+            sound.isMuted = isMuted
+            sound.start()
+        }
         refresh(elapsed = 0.0)
 
         ticker = scope.launch {
             var last = System.nanoTime()
             while (isActive) {
-                delay(refreshMilliseconds)
+                // A watch looks once a second: the core keeps every fix in
+                // any case, and the screen shows nothing of it.
+                delay(if (isWatching) maxOf(refreshMilliseconds, WATCH_MILLISECONDS) else refreshMilliseconds)
                 val now = System.nanoTime()
                 refresh(elapsed = (now - last) / 1e9)
                 last = now
@@ -805,6 +899,25 @@ class FlySession(
             clock()
         }
         val view = session.view(now)
+        if (isWatching) {
+            when {
+                // Two hours on another tab without a take-off: the watch
+                // begins anew, with nothing said.
+                view.over != null -> {
+                    finish()
+                    watchForTakeoff()
+                    return
+                }
+                // The core has seen the take-off and records: the cockpit
+                // takes the session, and the app brings it to the front.
+                view.recording -> {
+                    comeIntoView()
+                    takeoffsSeenUnseen += 1
+                }
+                // Unseen, nothing else is worked out or asked for.
+                else -> return
+            }
+        }
         // A flight that records itself also ends by itself: some minutes
         // after the landing, or when nobody took off.
         val over = view.over
@@ -869,11 +982,15 @@ class FlySession(
             refreshesSinceTerrain = 0
             wantTerrain(position)
         }
-        // The wind on the ground, in flight only: around the glider, and
-        // where the pilot means to land. Every two minutes by the phone's
-        // own clock, also in a replay: stations report every five to ten.
+        // The wind on the ground: around the glider, and where the pilot
+        // means to land. In flight, and in a cockpit that waits at the
+        // take-off, where the thermal view shows it until the first circle
+        // gives a wind of the flight's own. Every two minutes by the
+        // phone's own clock, also in a replay: stations report every five
+        // to ten.
         val wallClock = System.nanoTime() / 1e9
-        if (position != null && view.phase == FlightPhase.FLYING && !isAskingForWindBelow &&
+        val asksWindBelow = view.phase == FlightPhase.FLYING || mode == Mode.Live
+        if (position != null && asksWindBelow && !isAskingForWindBelow &&
             wallClock - askedForWindBelow >= WIND_BELOW_SECONDS
         ) {
             askedForWindBelow = wallClock
@@ -1095,6 +1212,9 @@ class FlySession(
 
         /** How often the screen and the vario tone are refreshed. */
         const val REFRESH_MILLISECONDS = 200L
+
+        /** How often a watch for the take-off from another tab looks at the core's session. */
+        const val WATCH_MILLISECONDS = 1_000L
 
         /**
          * The refresh of a UI test on an emulator. Its software renderer

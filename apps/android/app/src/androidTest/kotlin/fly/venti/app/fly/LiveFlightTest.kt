@@ -156,6 +156,10 @@ class LiveFlightTest {
         screen.onAllNodes(hasContentDescription(instrument)).fetchSemanticsNodes().firstOrNull()
             ?.config?.getOrNull(SemanticsProperties.StateDescription)
 
+    /** Whether a view of the window asks Android to keep the screen on. */
+    private fun keepsTheScreenOn(view: android.view.View): Boolean =
+        view.keepScreenOn || (view is android.view.ViewGroup && (0 until view.childCount).any { keepsTheScreenOn(view.getChildAt(it)) })
+
     private fun recordingNotificationIsShown(): Boolean =
         checkNotNull(context.getSystemService(NotificationManager::class.java)).activeNotifications
             .any { it.notification.extras.getString("android.title") == "Recording your flight" }
@@ -207,10 +211,10 @@ class LiveFlightTest {
             .putExtra(LaunchOptions.UI_TESTING, true)
             .putExtra(LaunchOptions.BUNDLED_MAP, true)
         app = ActivityScenario.launch(intent)
-        // The app opens on Today; the cockpit is on the Fly tab.
+        // The app opens on Today; the Fly tab is the cockpit.
         waitFor(hasText("Fly") and isSelectable())
         tap(hasText("Fly") and isSelectable())
-        waitFor(hasText("Open the cockpit"))
+        waitFor(hasTestTag("cockpit-settings"))
         // Eight seconds at the take-off, forty-four of flight at 10 m/s,
         // 220 m north and back, then standing where it started. On the
         // ground: the core does not end a flight while the terrain the app
@@ -225,7 +229,6 @@ class LiveFlightTest {
             val north = 10.0 * (if (flown <= 22) flown else 44 - flown)
             Triple(north, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, if (second in 9..52) 10f else 0f)
         }
-        tap(hasText("Open the cockpit"))
 
         // Standing at the take-off: ready, and nothing is recorded.
         waitFor(hasTestTag("cockpit-phase") and hasContentDescription("Ready for take-off"))
@@ -260,23 +263,59 @@ class LiveFlightTest {
         waitFor(hasTestTag("logbook-row"))
     }
 
+    /**
+     * A take-off while the app is open on another tab (the owner,
+     * 2026-11-22): the take-off is watched for from any tab while the app
+     * is in front, the cockpit comes to the front by itself and records,
+     * with the screen kept on and the recording's service running.
+     */
+    @Test
+    fun aTakeoffSeenFromAnotherTabOpensTheCockpitAndRecords() {
+        val intent = Intent(context, MainActivity::class.java)
+            .putExtra(LaunchOptions.UI_TESTING, true)
+            .putExtra(LaunchOptions.BUNDLED_MAP, true)
+        app = ActivityScenario.launch(intent)
+        // On Today, the cockpit not opened.
+        waitFor(hasText("Today") and isSelectable())
+        assertTrue(!exists(hasTestTag("cockpit")))
+        // Standing, then moving as a glider does.
+        feed { second ->
+            val flown = (second - 8).coerceIn(0, 120)
+            Triple(10.0 * flown, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, if (second >= 9) 10f else 0f)
+        }
+        // In the air: the cockpit has come to the front, recording.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            exists(hasTestTag("cockpit")) && exists(hasText("Recording"))
+        }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { recordingNotificationIsShown() }
+        // The screen is kept on while the cockpit shows.
+        var keptOn = false
+        checkNotNull(app).onActivity { keptOn = keepsTheScreenOn(it.window.decorView) }
+        assertTrue("the screen is kept on", keptOn)
+        screen.waitForIdle()
+        TestDevice.keepScreenshot("light-self-0-takeoff-seen-from-today")
+
+        // Held for a second, "End" saves what was recorded.
+        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_600) }
+        isFlying = false
+        waitFor(hasContentDescription("Flight details"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !recordingNotificationIsShown() }
+    }
+
     @Test
     fun aFlightIsRecordedFromThePhonesPositionsAndSavedToTheLogbook() {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra(LaunchOptions.UI_TESTING, true)
             .putExtra(LaunchOptions.BUNDLED_MAP, true)
         app = ActivityScenario.launch(intent)
-        // The app opens on Today; the cockpit is on the Fly tab.
+        // The app opens on Today; the Fly tab is the cockpit.
         waitFor(hasText("Fly") and isSelectable())
         tap(hasText("Fly") and isSelectable())
-        waitFor(hasText("Open the cockpit"))
-
-        tap(hasText("Open the cockpit"))
         // The cockpit waits on the ground and records from the take-off.
         waitFor(hasTestTag("cockpit-ready"))
         assertTrue(exists(hasTestTag("cockpit-phase") and hasContentDescription("Ready for take-off")))
         // Nothing has come from the receiver yet, and the cockpit says so.
-        assertTrue(exists(hasText("No GPS")))
+        assertTrue(exists(hasContentDescription("No GPS")))
         screen.waitForIdle()
         TestDevice.keepScreenshot("light-fly-6b-ready")
 
@@ -291,7 +330,7 @@ class LiveFlightTest {
         // Once positions arrive the warning goes and the instruments fill.
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             // The value, then the course under it: "37 km/h, 302° NW".
-            !exists(hasText("No GPS")) && reading("Ground speed")?.substringBefore(",")?.endsWith("km/h") == true
+            !exists(hasContentDescription("No GPS")) && reading("Ground speed")?.substringBefore(",")?.endsWith("km/h") == true
         }
         // Recording carries on with the screen off: the service is running
         // and shows its notification.

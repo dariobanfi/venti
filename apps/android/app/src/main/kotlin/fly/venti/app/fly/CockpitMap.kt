@@ -102,7 +102,7 @@ class CockpitMap : MapContent {
         val style = style ?: return
         val view = mapView ?: return
         MapSetup.showAerial(aerial, style, view)
-        MapSetup.showThermals(thermals, style, view)
+        MapSetup.showThermals(thermals, style, view, MapSetup.COCKPIT_THERMALS_OPACITY)
     }
 
     /** Shows or hides the thermal map; at once if the style is there, else when it comes. */
@@ -111,7 +111,7 @@ class CockpitMap : MapContent {
         thermals = on
         val style = style ?: return
         val view = mapView ?: return
-        MapSetup.showThermals(on, style, view)
+        MapSetup.showThermals(on, style, view, MapSetup.COCKPIT_THERMALS_OPACITY)
     }
 
     /** What the cockpit wants shown, and what the map was last given. */
@@ -227,7 +227,7 @@ class CockpitMap : MapContent {
     }
 
     override fun styleLoaded(map: MapLibreMap, style: Style, view: MapView) {
-        MapSetup.showThermals(thermals, style, view)
+        MapSetup.showThermals(thermals, style, view, MapSetup.COCKPIT_THERMALS_OPACITY)
         this.map = map
         this.style = style
         this.mapView = view

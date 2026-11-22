@@ -226,12 +226,17 @@ object MapSetup {
      * Shows or hides the thermal map's layers. Only what the map in view
      * asks for while they show is fetched; a hidden layer asks for nothing.
      */
-    fun showThermals(on: Boolean, style: Style, view: MapView) {
+    fun showThermals(on: Boolean, style: Style, view: MapView, opacity: Float? = null) {
         val views = views(view.context) ?: return
         for (name in views.thermals) {
-            style.getLayer(name)?.setProperties(PropertyFactory.visibility(if (on) Property.VISIBLE else Property.NONE))
+            val layer = style.getLayer(name) ?: continue
+            layer.setProperties(PropertyFactory.visibility(if (on) Property.VISIBLE else Property.NONE))
+            opacity?.let { layer.setProperties(PropertyFactory.rasterOpacity(it)) }
         }
     }
+
+    /** The thermal map's opacity in the cockpit: 40 %, as in the XCTrack layout the owner flies with. */
+    const val COCKPIT_THERMALS_OPACITY = 0.4f
 
     /** How a layer's name ends that is a casing for the aerial view only. */
     private const val AERIAL_CASING = "-aerial-casing"

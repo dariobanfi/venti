@@ -28,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -46,13 +47,26 @@ class FlySessionTest {
         var session: FlightSession? = null
         var stopped = false
 
+        /** Whether the position is allowed, which a watch for the take-off needs. */
+        var allowsWatching = false
+
+        /** How often the app was to be kept alive with the screen off. */
+        var keptAlive = 0
+
         override fun start(session: FlightSession, onProblem: (String) -> Unit) {
             this.session = session
+            stopped = false
         }
 
         override fun stop() {
             stopped = true
         }
+
+        override fun keepAlive() {
+            keptAlive += 1
+        }
+
+        override val mayWatch: Boolean get() = allowsWatching
     }
 
     /** A tone player that remembers what it was asked to play. */
@@ -265,6 +279,88 @@ class FlySessionTest {
         assertTrue(cockpit.sensors.stopped)
         val recording = saved.single()
         assertTrue(recording.igcText.lines().count { it.startsWith("B") } > 200)
+    }
+
+    /**
+     * The app in front on another tab: the same session watches, unseen,
+     * and the take-off makes it the cockpit's, recording, with the half
+     * minute before it.
+     */
+    @Test
+    fun aTakeoffSeenFromAnotherTabMakesTheWatchTheCockpitsRecording() {
+        val folder = TestSupport.newFolder("fly")
+        val cockpit = SelfRecording(folder, scope)
+        val fly = cockpit.fly
+
+        // Without the position allowed nothing is watched, and nothing asked.
+        fly.watchForTakeoff()
+        assertNull(fly.mode)
+        assertNull(cockpit.sensors.session)
+
+        cockpit.sensors.allowsWatching = true
+        fly.watchForTakeoff()
+        assertTrue(fly.isWatching)
+        assertFalse(fly.isOpen)
+        // Unseen: nothing shown, the app not kept alive, nothing written.
+        cockpit.until(300)
+        assertTrue(fly.isWatching)
+        assertNull(fly.view)
+        assertEquals(0, cockpit.sensors.keptAlive)
+        assertTrue(pendingRecordings(folder.path).isEmpty())
+
+        // In the air: the cockpit's, recording, and the app is told.
+        cockpit.until(330)
+        Thread.sleep(1_200)
+        assertFalse(fly.isWatching)
+        assertTrue(fly.isOpen)
+        assertEquals(1, fly.takeoffsSeenUnseen)
+        assertEquals(1, cockpit.sensors.keptAlive)
+        val view = checkNotNull(fly.view)
+        assertTrue(view.recording)
+        assertEquals(FlightPhase.FLYING, view.phase)
+        val recording = checkNotNull(fly.finish())
+        // From the half minute before the take-off.
+        assertTrue(recording.igcText.lines().count { it.startsWith("B") } >= 30)
+    }
+
+    /** A watch ends with nothing written, and gives way to the cockpit opened and to a replay. */
+    @Test
+    fun aWatchEndsWithNothingWrittenAndGivesWayToTheCockpitAndToAReplay() {
+        val folder = TestSupport.newFolder("fly")
+        val cockpit = SelfRecording(folder, scope)
+        val fly = cockpit.fly
+        cockpit.sensors.allowsWatching = true
+
+        // The app goes to the back: the watch ends, nothing written.
+        fly.watchForTakeoff()
+        cockpit.until(60)
+        fly.stopWatching()
+        assertNull(fly.mode)
+        assertFalse(fly.isWatching)
+        assertTrue(cockpit.sensors.stopped)
+        assertTrue(pendingRecordings(folder.path).isEmpty())
+
+        // The Fly tab chosen: the watch's session is the cockpit's, ready.
+        fly.watchForTakeoff()
+        val watched = cockpit.sensors.session
+        fly.startFlight()
+        assertTrue(fly.isOpen)
+        assertSame(watched, cockpit.sensors.session)
+        assertEquals(1, cockpit.sensors.keptAlive)
+        assertTrue(checkNotNull(fly.view).waitingForTakeoff)
+        // A cockpit that waits with nothing written gives way to a replay.
+        fly.startReplay(TestSupport.sampleFlight, speed = 20.0)
+        assertTrue(fly.mode is FlySession.Mode.Replay)
+        assertTrue(cockpit.sensors.stopped)
+        fly.finish()
+
+        // And so does a watch.
+        fly.watchForTakeoff()
+        assertTrue(fly.isWatching)
+        fly.startReplay(TestSupport.sampleFlight, speed = 20.0)
+        assertTrue(fly.mode is FlySession.Mode.Replay)
+        assertFalse(fly.isWatching)
+        fly.finish()
     }
 
     @Test

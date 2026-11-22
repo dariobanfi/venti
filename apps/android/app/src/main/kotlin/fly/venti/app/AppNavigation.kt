@@ -77,16 +77,13 @@ enum class SettingsRoute {
     Alerts,
 }
 
-/** A screen reached from the Fly tab. */
+/** A screen reached from the cockpit's settings, which leaves the cockpit for it until it is closed. */
 enum class FlyRoute {
     /** The pilot's airspace: what the cockpit will warn from. */
     Airspace,
 
     /** The pilot's task: what the cockpit will lead along. */
     Task,
-
-    /** Live tracking: who may watch a flight while it is under way. */
-    Live,
 
     /** Maps for flying without a network. */
     OfflineMaps,
@@ -111,7 +108,7 @@ class AppNavigation {
     /** The screen opened on top of the settings, if any. */
     var settingsRoute: SettingsRoute? by mutableStateOf(null)
 
-    /** The screen opened on top of the Fly tab, if any. */
+    /** The screen opened from the cockpit's settings, if any. */
     var flyRoute: FlyRoute? by mutableStateOf(null)
 
     /**
@@ -147,20 +144,41 @@ class AppNavigation {
             todayRoute = null
             settingsRoute = null
         }
+        // The Fly tab is the cockpit: chosen, it opens it.
+        if (chosen == AppTab.Fly) {
+            startFlight()
+            return
+        }
         tab = chosen
     }
 
     /**
-     * Set when the cockpit was asked for from another tab, a site's page
-     * for one: the Fly tab opens it and takes this back.
+     * Set when the cockpit was asked for: the Fly tab was chosen, or
+     * "Start flight" on a site's page. The Fly tab opens it and takes this
+     * back.
      */
     var wantsCockpit: Boolean by mutableStateOf(false)
 
-    /** "Start flight" outside the Fly tab: that tab comes to the front and opens the cockpit, which waits for the take-off. */
+    /** The tab the pilot was on before the cockpit, where "End" on the ground leads back to. */
+    private var beforeFly: AppTab = AppTab.Today
+
+    /** The Fly tab comes to the front and opens the cockpit, which waits for the take-off. */
     fun startFlight() {
+        showCockpit()
+        wantsCockpit = true
+    }
+
+    /** The cockpit's tab in front, as when a take-off was seen from another tab: the cockpit covers it. */
+    fun showCockpit() {
+        if (tab != AppTab.Fly) beforeFly = tab
         tab = AppTab.Fly
         flyRoute = null
-        wantsCockpit = true
+    }
+
+    /** Leaves the cockpit's tab for the one the pilot was on before it. */
+    fun leaveFly() {
+        if (tab == AppTab.Fly) tab = beforeFly
+        flyRoute = null
     }
 
     /** Opens the settings, from the Today tab's corner or from a screen that needs one set. */

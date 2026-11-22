@@ -220,6 +220,11 @@ pub enum SessionOver {
 
 /// Where the climb rate comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum VarioSourceKind {
     /// An external instrument's own vario.
     Instrument,
@@ -370,6 +375,11 @@ pub struct ToneView {
 
 /// The state of the external instrument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct InstrumentView {
     /// Whether it has sent something understandable in the last seconds.
     pub talking: bool,
@@ -592,6 +602,11 @@ pub enum WindSourceKind {
 
 /// The class a paraglider is certified in, for a polar to start from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum GliderClassKind {
     /// EN A.
     A,
@@ -726,6 +741,11 @@ const FAI_AREAS_FROM_M: f64 = 3_000.0;
 
 /// A place for the cockpit to navigate to.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct TargetPlace {
     /// Its name.
     pub name: String,

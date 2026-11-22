@@ -357,6 +357,11 @@ pub struct FlownThermals {
     /// server's words.
     #[uniffi(default = "")]
     pub terms: String,
+    /// A short title for a link that opens `terms`: "Terms for these
+    /// flights".
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub terms_title: String,
 }
 
 /// The path and query to `GET` for where thermals have been in a box, in
@@ -446,6 +451,7 @@ pub fn flown_thermals(status: u16, body: Vec<u8>) -> Result<FlownThermals, CoreE
             response.min_pilots
         ),
         terms: response.terms.text,
+        terms_title: crate::takeoffs::TERMS_TITLE.to_owned(),
     })
 }
 
@@ -535,6 +541,7 @@ mod tests {
         assert_eq!(flown.cells[0].weight, 1.0);
         assert!(flown.note.contains("once 3 pilots climbed there"));
         assert!(flown.terms.starts_with("These flights are their pilots'"));
+        assert_eq!(flown.terms_title, "Terms for these flights");
         assert_eq!(flown.cell_deg, 0.005);
     }
 

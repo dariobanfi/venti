@@ -59,6 +59,7 @@ mod report;
 mod route_file;
 mod route_plan;
 mod route_weather;
+mod screen_words;
 mod server;
 mod site_edit;
 mod site_filter;
@@ -115,6 +116,7 @@ pub use report::*;
 pub use route_file::*;
 pub use route_plan::*;
 pub use route_weather::*;
+pub use screen_words::*;
 pub use site_edit::*;
 pub use site_filter::*;
 pub use site_offers::{

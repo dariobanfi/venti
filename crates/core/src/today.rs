@@ -315,6 +315,12 @@ pub struct OutlookDay {
     /// is. A line to show with the day whatever its verdict; it is no part
     /// of the verdict.
     pub nearby: String,
+    /// The same, short, for a card that lists many days or places: "Gusts
+    /// to 55 km/h near by at 14:00", "Wind 40 km/h near by at 14:00".
+    /// Empty when `nearby` is; the full line stays for the site's page.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub nearby_short: String,
     /// Its daylight hours still to come, the earliest first.
     pub hours: Vec<OutlookHour>,
     /// The wind at the middle of the day's best stretch, 10 m above the
@@ -621,8 +627,8 @@ fn outlook_nearby(place: GeoPoint, hour: &ForecastHour, near: &NearbyHour) -> Ou
 
 /// The day's line about the wind near by: the hour in which what is much
 /// stronger is strongest, gusts before a mean wind, the earliest of equal
-/// ones. Empty when no hour's is much stronger.
-fn nearby_of_day(hours: &[Judged<'_>]) -> String {
+/// ones, in full and short. Both empty when no hour's is much stronger.
+fn nearby_of_day(hours: &[Judged<'_>]) -> (String, String) {
     let mut found: Option<(&Judged<'_>, (bool, u32))> = None;
     for judged in hours {
         let Some(near) = judged.nearby.as_ref().filter(|near| near.stronger) else {
@@ -640,15 +646,18 @@ fn nearby_of_day(hours: &[Judged<'_>]) -> String {
         }
     }
     found
-        .and_then(|(judged, _)| {
+        .and_then(|(judged, (gusts, kmh))| {
             let line = &judged.nearby.as_ref()?.line;
             let mut letters = line.chars();
             let first = letters.next()?.to_lowercase();
-            Some(format!(
-                "Much stronger near by at {}: {first}{}",
-                clock(judged.local_hour),
-                letters.as_str()
-            ))
+            let at = clock(judged.local_hour);
+            let full = format!("Much stronger near by at {at}: {first}{}", letters.as_str());
+            let short = if gusts {
+                format!("Gusts to {kmh} km/h near by at {at}")
+            } else {
+                format!("Wind {kmh} km/h near by at {at}")
+            };
+            Some((full, short))
         })
         .unwrap_or_default()
 }
@@ -1064,6 +1073,7 @@ fn day(
         .map(|(from, to)| (from + to) / 2)
         .or_else(|| (!hours.is_empty()).then_some(hours.len() / 2))
         .map(|index| hours[index].hour);
+    let (nearby, nearby_short) = nearby_of_day(hours);
     OutlookDay {
         start_unix_s,
         name,
@@ -1071,7 +1081,8 @@ fn day(
         status: verdict.words().to_owned(),
         headline,
         why,
-        nearby: nearby_of_day(hours),
+        nearby,
+        nearby_short,
         hours: hours
             .iter()
             .map(|judged| OutlookHour {
@@ -1904,6 +1915,8 @@ mod tests {
             "Much stronger near by at 14:00: gusts to 55 km/h 20 km to the south over ground \
              at 2400 m, 18 km/h at the place"
         );
+        assert_eq!(day.nearby_short, "Gusts to 55 km/h near by at 14:00");
+        assert_eq!(without.days[0].nearby_short, "");
         let verdicts = |outlook: &SiteOutlook| -> Vec<(Flyability, String)> {
             outlook.days[0]
                 .hours

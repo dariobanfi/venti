@@ -91,6 +91,29 @@ pub struct FlightScore {
     pub route: Vec<FlightMoment>,
     /// For a triangle, the gap between start and finish, metres.
     pub closing_m: Option<f64>,
+    /// The note under the score: "Worked out by Venti from the World
+    /// XContest's published rules, at 1 point per kilometre for this kind
+    /// of route. …", with the unit agreeing with the number ("1.4 points
+    /// per kilometre").
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub note: String,
+}
+
+/// The note under a score, for `points_per_km` points per kilometre.
+pub(crate) fn score_note(points_per_km: f64) -> String {
+    let rate = if (points_per_km - 1.0).abs() < 1e-9 {
+        "1 point".to_owned()
+    } else if (points_per_km - points_per_km.round()).abs() < 1e-9 {
+        format!("{points_per_km:.0} points")
+    } else {
+        format!("{points_per_km:.1} points")
+    };
+    format!(
+        "Worked out by Venti from the World XContest's published rules, at {rate} per kilometre \
+         for this kind of route. The dashed line on the map is the scored route. A league's own \
+         result can differ a little."
+    )
 }
 
 /// What happened in a flight.
@@ -198,6 +221,7 @@ fn analysis_of(text: &str) -> Result<FlightAnalysis, CoreError> {
                 points_per_km: score.kind.points_per_km(score.closed),
                 route: score.points_on_track.into_iter().map(moment).collect(),
                 closing_m: score.closing_m,
+                note: score_note(score.kind.points_per_km(score.closed)),
             }
         }),
     })
@@ -277,6 +301,14 @@ mod tests {
         let score = analysis.score.unwrap();
         assert!(score.distance_m > 10_000.0);
         assert!((score.points - score.distance_m / 1000.0 * score.points_per_km).abs() < 1e-6);
+        assert!(
+            score
+                .note
+                .contains(" per kilometre for this kind of route.")
+        );
+        assert!(score_note(1.0).contains("at 1 point per kilometre"));
+        assert!(score_note(1.4).contains("at 1.4 points per kilometre"));
+        assert!(score_note(2.0).contains("at 2 points per kilometre"));
         assert!(score.route.len() >= 2);
         // A moment's index points into the flight's track.
         let track = core.flight(id).unwrap().track;

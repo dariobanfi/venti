@@ -918,6 +918,74 @@ pub fn notifications(
     })
 }
 
+// --- Words of the screens --------------------------------------------------
+
+/// The words around following, cheers, comments and notifications that
+/// no answer carries: the same in the three apps.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct SocialWords {
+    /// The feed's choice of everyone's public flights: "Everyone".
+    #[uniffi(default = "")]
+    pub feed_everyone: String,
+    /// Its choice of those of the pilots one follows ([`feed_request`]):
+    /// "Following".
+    #[uniffi(default = "")]
+    pub feed_following: String,
+    /// The row and the title of [`notifications`]: "Notifications".
+    #[uniffi(default = "")]
+    pub notifications_title: String,
+    /// The title of the sheet of comments under a flight: "Comments".
+    #[uniffi(default = "")]
+    pub comments_title: String,
+    /// The comment field's placeholder: "Write a comment".
+    #[uniffi(default = "")]
+    pub comment_placeholder: String,
+    /// The button that posts it ([`comment_request`]): "Send".
+    #[uniffi(default = "")]
+    pub comment_send: String,
+    /// The action on a comment the pilot may remove
+    /// ([`CommentRow::can_remove`], [`comment_remove_request`]): "Remove".
+    #[uniffi(default = "")]
+    pub comment_remove: String,
+    /// The action that reports a comment ([`crate::report_form`]):
+    /// "Report".
+    #[uniffi(default = "")]
+    pub comment_report: String,
+    /// The title of the sheet of who cheered a flight ([`cheer_list`]):
+    /// "Cheers".
+    #[uniffi(default = "")]
+    pub cheers_title: String,
+    /// The title of the sheet of a pilot's followers ([`follow_list`] of
+    /// [`followers_request`]): "Followers".
+    #[uniffi(default = "")]
+    pub followers_title: String,
+    /// The title of the sheet of whom a pilot follows ([`follow_list`] of
+    /// [`following_request`]): "Following".
+    #[uniffi(default = "")]
+    pub following_title: String,
+}
+
+/// The words around following, cheers, comments and notifications that no
+/// answer carries.
+#[uniffi::export]
+pub fn social_words() -> SocialWords {
+    SocialWords {
+        feed_everyone: "Everyone".to_owned(),
+        feed_following: "Following".to_owned(),
+        notifications_title: "Notifications".to_owned(),
+        comments_title: "Comments".to_owned(),
+        comment_placeholder: "Write a comment".to_owned(),
+        comment_send: "Send".to_owned(),
+        comment_remove: "Remove".to_owned(),
+        comment_report: "Report".to_owned(),
+        cheers_title: "Cheers".to_owned(),
+        followers_title: "Followers".to_owned(),
+        following_title: "Following".to_owned(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

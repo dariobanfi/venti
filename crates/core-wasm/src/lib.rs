@@ -64,6 +64,11 @@ use venti_core::{
     CheerList, CheerState, CommentDraft, CommentList, CommentPosted, CommentsSwitch, Feed,
     FollowList, FollowState, Notifications,
 };
+use venti_core::{
+    CockpitDetailsWords, CockpitSourceWords, GliderClassKind, GliderWords, InstrumentView,
+    MapLayersWords, PlannerWords, SiteSheetWords, SocialWords, StationSheetWords, TargetPlace,
+    TodayWords, VarioSourceKind,
+};
 use venti_core::{FlownThermals, LiveClimbs, SitesAir};
 use venti_core::{GoogleSignIn, GoogleWords};
 use venti_core::{PilotStatistics, PilotsFound, PilotsWords, RouteFromFile};
@@ -964,6 +969,27 @@ impl Core {
             .call(|core| core.today_takeoffs(place, near))
             .map_err(thrown)?;
         to_js(&today)
+    }
+
+    /// The landing fields for the cockpit's reading of the nearest one
+    /// within glide, nearest to `glider` first, at most fifty: the
+    /// landings of `near` (what `sitesMap` read of the answer for
+    /// `todayArea` around the glider), the pilot's kept landings and the
+    /// pilot's waypoints of the kind landing.
+    #[wasm_bindgen(js_name = cockpitLandings)]
+    pub fn cockpit_landings(
+        &self,
+        glider: Ts<Coordinate>,
+        near: Option<Ts<SitesMap>>,
+    ) -> Result<Vec<Ts<TargetPlace>>, JsValue> {
+        let glider = from_js(&glider)?;
+        let near = near.as_ref().map(from_js).transpose()?;
+        self.session
+            .call(|core| core.cockpit_landings(glider, near))
+            .map_err(thrown)?
+            .iter()
+            .map(to_js)
+            .collect()
     }
 
     // Groups of pilots and the plans their members make for a flying day,
@@ -2819,6 +2845,84 @@ pub fn pilot_flights_path(
 #[wasm_bindgen(js_name = pilotsWords)]
 pub fn pilots_words() -> Result<Ts<PilotsWords>, JsValue> {
     to_js(&venti_core::pilots_words())
+}
+
+/// Where the cockpit's climb comes from, in full and short for a narrow
+/// top bar: the external instrument first, under `varioName`; in a
+/// replay the recording; else the vario source.
+#[wasm_bindgen(js_name = cockpitSourceWords)]
+pub fn cockpit_source_words(
+    vario_source: Option<Ts<VarioSourceKind>>,
+    instrument: Option<Ts<InstrumentView>>,
+    vario_name: Option<String>,
+    is_replay: bool,
+) -> Result<Ts<CockpitSourceWords>, JsValue> {
+    let vario_source = vario_source.as_ref().map(from_js).transpose()?;
+    let instrument = instrument.as_ref().map(from_js).transpose()?;
+    to_js(&venti_core::cockpit_source_words(
+        vario_source,
+        instrument,
+        vario_name,
+        is_replay,
+    ))
+}
+
+/// The words of the cockpit's details sheet: its title, its rows' names,
+/// the empty line and the note, and the nearest landing's label.
+#[wasm_bindgen(js_name = cockpitDetailsWords)]
+pub fn cockpit_details_words() -> Result<Ts<CockpitDetailsWords>, JsValue> {
+    to_js(&venti_core::cockpit_details_words())
+}
+
+/// The words of the settings' section about the glider.
+#[wasm_bindgen(js_name = gliderWords)]
+pub fn glider_words() -> Result<Ts<GliderWords>, JsValue> {
+    to_js(&venti_core::glider_words())
+}
+
+/// A glider class as the menu names it; "None" without one.
+#[wasm_bindgen(js_name = gliderClassName)]
+pub fn glider_class_name(class: Option<Ts<GliderClassKind>>) -> Result<String, JsValue> {
+    let class = class.as_ref().map(from_js).transpose()?;
+    Ok(venti_core::glider_class_name(class))
+}
+
+/// The words of a site's sheet that no reading carries.
+#[wasm_bindgen(js_name = siteSheetWords)]
+pub fn site_sheet_words() -> Result<Ts<SiteSheetWords>, JsValue> {
+    to_js(&venti_core::site_sheet_words())
+}
+
+/// The words of a station's sheet that no reading carries.
+#[wasm_bindgen(js_name = stationSheetWords)]
+pub fn station_sheet_words() -> Result<Ts<StationSheetWords>, JsValue> {
+    to_js(&venti_core::station_sheet_words())
+}
+
+/// The words of the map's sheet of layers.
+#[wasm_bindgen(js_name = mapLayersWords)]
+pub fn map_layers_words() -> Result<Ts<MapLayersWords>, JsValue> {
+    to_js(&venti_core::map_layers_words())
+}
+
+/// The words of the Today tab that no reading carries: the notes under
+/// the strip of hours.
+#[wasm_bindgen(js_name = todayWords)]
+pub fn today_words() -> Result<Ts<TodayWords>, JsValue> {
+    to_js(&venti_core::today_words())
+}
+
+/// The words of the route planner's menu.
+#[wasm_bindgen(js_name = plannerWords)]
+pub fn planner_words() -> Result<Ts<PlannerWords>, JsValue> {
+    to_js(&venti_core::planner_words())
+}
+
+/// The words around following, cheers, comments and notifications that
+/// no answer carries.
+#[wasm_bindgen(js_name = socialWords)]
+pub fn social_words() -> Result<Ts<SocialWords>, JsValue> {
+    to_js(&venti_core::social_words())
 }
 
 /// Reads the server's answer to `pilotPagePath`.

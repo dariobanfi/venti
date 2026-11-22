@@ -90,7 +90,16 @@ pub struct PublicFlightTerms {
     /// statement is a holding one.
     #[uniffi(default = false)]
     pub decided: bool,
+    /// A short title for a link that opens `text`: "Terms for these
+    /// flights".
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", serde(default))]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub title: String,
 }
+
+/// The title of a link that opens the flights' terms.
+pub(crate) const TERMS_TITLE: &str = "Terms for these flights";
 
 /// One month of the year in a row of twelve.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
@@ -366,6 +375,7 @@ pub(crate) fn terms(terms: &FlightTerms) -> PublicFlightTerms {
         text: terms.text.clone(),
         licence: terms.licence.clone(),
         decided: terms.decided,
+        title: TERMS_TITLE.to_owned(),
     }
 }
 
@@ -894,6 +904,7 @@ mod tests {
                 .starts_with("These flights are their pilots'.")
         );
         assert_eq!(read.terms.licence, None);
+        assert_eq!(read.terms.title, "Terms for these flights");
         assert!(!read.terms.decided);
     }
 

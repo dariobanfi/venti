@@ -45,7 +45,7 @@ use venti_flight::live::navigation::bearing_deg;
 
 use crate::sites::{SiteKind, SiteView, SitesMap, site_credit, site_view, standing_of};
 use crate::today::{Flyability, Thermals};
-use crate::{Bounds, Coordinate, Core, CoreError, Credit};
+use crate::{Bounds, Coordinate, Core, CoreError, Credit, TargetPlace, WaypointKind};
 
 /// The folder the kept sites are stored in, one file for each source.
 const FOLDER: &str = "sites-kept";
@@ -577,7 +577,92 @@ impl Core {
         }
         Ok(CockpitTakeoffs { takeoffs, credits })
     }
+
+    /// The landing fields to hand to [`crate::FlightSession::use_landings`],
+    /// nearest to the glider first, at most fifty: the landings among the
+    /// sites of `near` (the same answer [`Core::cockpit_takeoffs`] is
+    /// given), the pilot's own kept sites that are landings, and the
+    /// pilot's waypoints of the kind landing. All but `near` need no
+    /// network. A site that is both kept and in the answer is listed
+    /// once, as the answer has it; a waypoint of the same name within
+    /// 100 m of a site already listed is left out.
+    ///
+    /// The list changes only when what it is made from changes, so a
+    /// shell compares it with the one it handed over last and hands it
+    /// over again only when it differs: the session begins its reading of
+    /// the nearest landing anew with each.
+    pub fn cockpit_landings(
+        &self,
+        glider: Coordinate,
+        near: Option<SitesMap>,
+    ) -> Result<Vec<TargetPlace>, CoreError> {
+        let Ok(here) = GeoPoint::new(glider.lat, glider.lon) else {
+            return Ok(Vec::new());
+        };
+        let layers = self.kept_layers()?;
+        let answered: Vec<&SiteView> = near
+            .iter()
+            .flat_map(|seen| &seen.sites)
+            .filter(|site| site.uses.contains(&SiteKind::Landing))
+            .collect();
+        let own = layers
+            .iter()
+            .flat_map(|layer| &layer.sites)
+            .filter(|kept| kept.site.is(SiteUse::Landing))
+            .filter(|kept| {
+                !answered
+                    .iter()
+                    .any(|site| site.id == kept.site.id.to_string())
+            })
+            .map(|kept| site_view(&kept.site, kept.standing.as_ref()));
+        let mut places: Vec<TargetPlace> = answered
+            .iter()
+            .map(|site| (*site).clone())
+            .chain(own)
+            .map(|site| TargetPlace {
+                name: site.name,
+                position: site.position,
+                elevation_m: site.elevation_m,
+            })
+            .collect();
+        let waypoints = self.waypoints(None)?;
+        for waypoint in waypoints
+            .into_iter()
+            .filter(|waypoint| waypoint.kind == WaypointKind::Landing)
+        {
+            let Ok(at) = GeoPoint::new(waypoint.position.lat, waypoint.position.lon) else {
+                continue;
+            };
+            let same = places.iter().any(|place| {
+                place.name.eq_ignore_ascii_case(&waypoint.name)
+                    && GeoPoint::new(place.position.lat, place.position.lon)
+                        .is_ok_and(|other| other.distance_m(at) < SAME_PLACE_M)
+            });
+            if !same {
+                places.push(TargetPlace {
+                    name: waypoint.name,
+                    position: waypoint.position,
+                    elevation_m: waypoint.elevation_m,
+                });
+            }
+        }
+        let distance = |place: &TargetPlace| {
+            GeoPoint::new(place.position.lat, place.position.lon)
+                .map_or(f64::INFINITY, |at| here.distance_m(at))
+        };
+        places.retain(|place| distance(place).is_finite());
+        places.sort_by(|a, b| distance(a).total_cmp(&distance(b)));
+        places.truncate(COCKPIT_LANDINGS);
+        Ok(places)
+    }
 }
+
+/// The most landings the cockpit is handed.
+const COCKPIT_LANDINGS: usize = 50;
+
+/// A waypoint this near a listed landing of its name is that landing,
+/// metres.
+const SAME_PLACE_M: f64 = 100.0;
 
 impl Core {
     /// Every source's kept sites. A file that storage has yet to fetch is
@@ -944,6 +1029,63 @@ mod tests {
                 .collect();
             assert_eq!(elevens.len(), 1);
             assert!(elevens[0].is_kept);
+        });
+    }
+
+    #[test]
+    fn the_cockpit_is_handed_the_landings_around_the_glider_nearest_first() {
+        on_every_storage(|backing| {
+            let core = Core::with_storage(backing.open()).unwrap();
+            assert!(core.cockpit_landings(WALLBERG, None).unwrap().is_empty());
+
+            // The answer's landings, not its take-offs; a kept one among
+            // them listed once.
+            let near = recorded();
+            keep(&core, &near, LANDING);
+            keep(&core, &near, RAMP);
+            let landings = core.cockpit_landings(WALLBERG, Some(near.clone())).unwrap();
+            let landing_sites: Vec<&SiteView> = near
+                .sites
+                .iter()
+                .filter(|site| site.uses.contains(&SiteKind::Landing))
+                .collect();
+            assert!(!landing_sites.is_empty());
+            assert_eq!(landings.len(), landing_sites.len());
+            assert!(landing_sites.iter().all(|site| {
+                landings
+                    .iter()
+                    .filter(|place| place.position == site.position)
+                    .count()
+                    == 1
+            }));
+            let from = GeoPoint::new(WALLBERG.lat, WALLBERG.lon).unwrap();
+            let distance = |place: &TargetPlace| {
+                from.distance_m(GeoPoint::new(place.position.lat, place.position.lon).unwrap())
+            };
+            assert!(
+                landings
+                    .windows(2)
+                    .all(|pair| distance(&pair[0]) <= distance(&pair[1]))
+            );
+
+            // Without a network: the kept landing, and the waypoint of the
+            // kind landing; not the take-offs among the waypoints.
+            core.import_waypoints(
+                "name,code,country,lat,lon,elev,style,rwdir,rwlen,rwwidth,freq,desc\n\
+                 \"Wallberg\",WB,DE,4739.800N,01147.600E,1620m,20,,,,,\n\
+                 \"Landeplatz Rottach\",LR,DE,4741.000N,01145.500E,740m,21,,,,,\n"
+                    .to_owned(),
+            )
+            .unwrap();
+            let offline = core.cockpit_landings(WALLBERG, None).unwrap();
+            let names: Vec<&str> = offline.iter().map(|place| place.name.as_str()).collect();
+            assert_eq!(names.len(), 2, "{names:?}");
+            let rottach = offline
+                .iter()
+                .find(|place| place.name == "Landeplatz Rottach")
+                .unwrap();
+            assert_eq!(rottach.elevation_m, Some(740.0));
+            assert!(!names.contains(&"Wallberg"));
         });
     }
 

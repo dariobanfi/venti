@@ -80,6 +80,13 @@
 		live?.phase === 'loaded' ? (live.value.others?.credits ?? []).map((credit) => credit.text) : []
 	);
 
+	/* Following: the newest flights of the pilots this pilot follows, signed in only. */
+	const social = $derived(app.social);
+	const own = $derived(signedIn ? app.account?.account?.handle : undefined);
+	$effect(() => social?.showFeed(own));
+	const feed = $derived(social?.feed);
+	const followed = $derived((feed?.rows ?? []).slice(0, 5));
+
 	const todaysBest = everyoneHref(queryOf({ order: 'best', from: todayDate, to: todayDate }));
 </script>
 
@@ -242,6 +249,75 @@
 				</HomePanel>
 			{/if}
 		</div>
+
+		<!-- For a signed-in pilot: what the pilots they follow flew, with the
+		     core's lines of cheers and comments. -->
+		{#if own && social?.words && feed}
+			<HomePanel
+				id="home-following"
+				title={social.words.feedFollowing}
+				class="span-12"
+				more={{ href: everyoneHref('?feed=following'), words: social.words.feedFollowing }}
+				loading={!feed.known && !feed.problem}
+				problem={feed.problem}
+				again={() => social?.againFeed()}
+			>
+				{#if followed.length === 0}
+					<p class="quiet">{feed.emptyLine}</p>
+				{:else}
+					<div class="scroll">
+						<table class="rows numeric" aria-label={social.words.feedFollowing}>
+							<thead>
+								<tr>
+									<th scope="col">Pilot</th>
+									<th scope="col">Take-off</th>
+									<th scope="col" class="number">Distance</th>
+									<th scope="col" class="number">Points</th>
+									<th scope="col" class="number">Day</th>
+									<th scope="col">{social.words.cheersTitle}</th>
+									<th scope="col">{social.words.commentsTitle}</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each followed as row (row.flight.id)}
+									{@const flight = row.flight}
+									{@const triangle = shape(flight)}
+									<tr>
+										<th scope="row" class="name">
+											<a href={pilotHref(flight.handle)}>{flight.pilot}</a>
+										</th>
+										<td class="words">
+											{#if flight.takeoff}
+												<a class="link" href={placeHref(flight.takeoff, flight.takeoffSiteId ?? '')}
+													>{flight.takeoffName ??
+														text.place(flight.takeoff.lat, flight.takeoff.lon)}</a
+												>
+											{:else if flight.takeoffName}
+												{flight.takeoffName}
+											{/if}
+										</td>
+										<td class="number">
+											{#if triangle}
+												<span class="shape" role="img" aria-label={triangle}
+													><Icon name="triangle" /></span
+												>
+											{/if}
+											<a class="link" href={publicFlightHref(flight.id)}
+												>{distance(flight, text)} km</a
+											>
+										</td>
+										<td class="number">{flight.score ? text.points(flight.score.points) : '–'}</td>
+										<td class="number">{text.day(flight.startUnixS)}</td>
+										<td class="words quiet">{row.cheersLine}</td>
+										<td class="words quiet">{row.commentsLine}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</HomePanel>
+		{/if}
 
 		<!-- The day's best flights, or the newest -->
 		<HomePanel

@@ -8,7 +8,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import type { ListState } from './pages';
 	import PublicFlightRow from './PublicFlightRow.svelte';
-	import PublicFlightTable from './PublicFlightTable.svelte';
+	import PublicFlightTable, { type Said } from './PublicFlightTable.svelte';
 
 	interface Props {
 		/** What the list is called, for a screen reader. */
@@ -23,9 +23,17 @@
 		onmore: () => void;
 		/** Asks again for a list that could not be fetched. */
 		onagain: () => void;
+		/** In a feed: the core's lines of each flight's cheers and comments. */
+		said?: Said;
 	}
 
-	let { label, list, named, nothing, reckoning, onmore, onagain }: Props = $props();
+	let { label, list, named, nothing, reckoning, onmore, onagain, said }: Props = $props();
+
+	/** The two lines under a row of a phone's list. */
+	const under = (id: string) => {
+		const lines = said?.of[id];
+		return lines ? [lines.cheers, lines.comments].filter(Boolean).join(' · ') : '';
+	};
 
 	/** A wide screen has a table whose headings sort; a phone, the list of rows. */
 	const wide = new MediaQuery('min-width: 56rem', false);
@@ -34,11 +42,11 @@
 {#if list.flights.length > 0}
 	<div class="card" class:wide={wide.current}>
 		{#if wide.current}
-			<PublicFlightTable {label} flights={list.flights} {named} />
+			<PublicFlightTable {label} flights={list.flights} {named} {said} />
 		{:else}
 			<ul aria-label={label}>
 				{#each list.flights as flight (flight.id)}
-					<PublicFlightRow {flight} {named} />
+					<PublicFlightRow {flight} {named} under={under(flight.id)} />
 				{/each}
 			</ul>
 		{/if}

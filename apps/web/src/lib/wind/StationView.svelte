@@ -14,6 +14,7 @@
 	} from '#lib/core/index.ts';
 	import { age, compassPoint, format } from '#lib/design/format.ts';
 	import AlertMe from '#lib/alerts/AlertMe.svelte';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { windDraft } from '#lib/alerts/model.svelte.ts';
 	import Metric from '#lib/design/Metric.svelte';
 	import type { WindModel } from './model.svelte';
@@ -27,6 +28,9 @@
 	}
 
 	let { station, wind, onforecast }: Props = $props();
+
+	/** The heading over what else is known of the air here, in the core's words. */
+	const moreAir = $derived(getApp().said?.stationSheet.moreAirTitle ?? '');
 
 	const text = format();
 
@@ -185,8 +189,8 @@
 	{#if air?.cloudBase || air?.temperatureStep}
 		{@const base = air.cloudBase}
 		{@const step = air.temperatureStep}
-		<section aria-label="The air">
-			<h3>The air</h3>
+		<section aria-label={moreAir}>
+			<h3>{moreAir}</h3>
 			<div class="card air">
 				{#if base}
 					<dl class="base">

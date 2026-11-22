@@ -18,9 +18,11 @@
 		flight: PublicFlight;
 		/** Whether the row names the pilot: not in a list of one pilot's flights. */
 		named: boolean;
+		/** A line under the row's words: the core's of its cheers and comments, in a feed. */
+		under?: string;
 	}
 
-	let { flight, named }: Props = $props();
+	let { flight, named, under = '' }: Props = $props();
 
 	const text = format();
 	const triangle = $derived(shape(flight));
@@ -41,6 +43,9 @@
 					<span class="glider">{flight.glider}</span>
 				{/if}
 			</a>
+		{/if}
+		{#if under}
+			<span class="under numeric">{under}</span>
 		{/if}
 	</span>
 	<span class="figures numeric">
@@ -116,6 +121,13 @@
 	.flight {
 		font-size: var(--subheadline);
 		color: var(--text-secondary);
+	}
+
+	.under {
+		max-width: 100%;
+		font-size: var(--footnote);
+		color: var(--text-secondary);
+		overflow-wrap: anywhere;
 	}
 
 	/* Without a name over it, the day is the row's first line and the glider

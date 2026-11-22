@@ -118,3 +118,55 @@ test('a site’s page plans a route from the site, on the map around it', async 
 		.toMatchObject({ places: 1 });
 	expect(problems).toEqual([]);
 });
+
+test('a route is read from a GPX file and written to one, from the card’s menu', async ({
+	page,
+	mapDrawn,
+	problems
+}) => {
+	await page.goto('/map/');
+	await mapTabDrawn(page, mapDrawn);
+	await mapTool(page, 'Plan a route');
+	const card = page.getByRole('region', { name: 'Plan a route' });
+
+	// Nothing of it on the card itself: the two entries are in its menu.
+	await card.getByRole('button', { name: 'More' }).click();
+	await expect(page.getByRole('menuitem', { name: 'Import GPX' })).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	// A made-up route of three places around the Tegernsee.
+	const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="A test" xmlns="http://www.topografix.com/GPX/1/1">
+<rte><name>Made up</name>
+<rtept lat="47.6652" lon="11.7954"><name>1</name></rtept>
+<rtept lat="47.7100" lon="11.8500"><name>2</name></rtept>
+<rtept lat="47.7300" lon="11.7600"><name>3</name></rtept>
+</rte></gpx>`;
+	await card.getByLabel('Import GPX').setInputFiles({
+		name: 'made-up.gpx',
+		mimeType: 'application/gpx+xml',
+		buffer: Buffer.from(gpx)
+	});
+	await expect(card.locator('[data-route-file]')).toHaveText('A route of 3 places.');
+	await expect
+		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
+		.toMatchObject({ places: 3 });
+
+	// The route goes out as the core writes it.
+	await card.getByRole('button', { name: 'More' }).click();
+	const saved = page.waitForEvent('download');
+	await page.getByRole('menuitem', { name: 'Export GPX' }).click();
+	const file = await saved;
+	expect(file.suggestedFilename()).toBe('venti-route.gpx');
+
+	// What is no GPX is refused in the core's words, and the route stays.
+	await card
+		.getByLabel('Import GPX')
+		.setInputFiles({ name: 'not.gpx', mimeType: 'text/plain', buffer: Buffer.from('no route') });
+	await expect(card.locator('[data-route-file]')).not.toHaveText('A route of 3 places.');
+	await expect(card.locator('[data-route-file]')).not.toBeEmpty();
+	await expect
+		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
+		.toMatchObject({ places: 3 });
+	expect(problems).toEqual([]);
+});

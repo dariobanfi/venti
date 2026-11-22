@@ -22,13 +22,18 @@
 	interface Props {
 		open: boolean;
 		/** What is reported. */
-		subject: ReportSubject;
+		subject?: ReportSubject;
+		/**
+		 * A comment under a flight, which is reported with a form and a
+		 * request of its own: given in place of `subject`.
+		 */
+		comment?: { flightId: string; commentId: string };
 		/** What the form is called: "Report this flight". */
 		title: string;
 		onclose: () => void;
 	}
 
-	let { open, subject, title, onclose }: Props = $props();
+	let { open, subject, comment, title, onclose }: Props = $props();
 
 	const app = getApp();
 	const account = $derived(app.account);
@@ -54,7 +59,10 @@
 		problem = undefined;
 		outcome = undefined;
 		form = undefined;
-		void account?.reportForm(subject).then(
+		const asked = comment
+			? app.social?.core.commentReportForm()
+			: subject && account?.reportForm(subject);
+		void asked?.then(
 			(known) => (form = known),
 			(error) => (problem = error instanceof Error ? error.message : String(error))
 		);
@@ -69,7 +77,12 @@
 		sending = true;
 		problem = undefined;
 		try {
-			outcome = await account.report(subject, reason, words);
+			if (comment && app.social) {
+				const { flightId, commentId } = comment;
+				outcome = await app.social.core.reportComment(flightId, commentId, reason, words);
+			} else if (subject) {
+				outcome = await account.report(subject, reason, words);
+			}
 		} catch (error) {
 			problem = error instanceof Error ? error.message : String(error);
 		} finally {

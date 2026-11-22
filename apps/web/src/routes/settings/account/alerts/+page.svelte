@@ -10,6 +10,9 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { browser } from '$app/env';
+	import { asset, resolve } from '$app/paths';
+	import { type PushState, pushOff, pushOn, pushState, thisBrowser } from '#lib/alerts/push.ts';
 	import AlertForm from '#lib/alerts/AlertForm.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { accountHref } from '#lib/app/routes.ts';
@@ -37,6 +40,44 @@
 		void alerts?.words().catch(() => {});
 	});
 	const words = $derived(alerts?.said);
+
+	/*
+	 * "Notify this browser": Web Push, so that the browser is told when an
+	 * alarm fires, also while no Venti page is open. The line beside the
+	 * switch and every refusal are the core's.
+	 */
+	const pushBrowser = browser ? thisBrowser(asset('/push-worker.js'), resolve('/')) : undefined;
+	let push = $state<PushState>();
+	let pushLine = $state('');
+	let pushWorking = $state(false);
+	let pushProblem = $state.raw<string>();
+	$effect(() => {
+		const core = app.social?.core;
+		if (!core) return;
+		void core.pushLine().then(
+			(line) => (pushLine = line),
+			() => {}
+		);
+		void pushState(pushBrowser).then(
+			(state) => (push = state),
+			() => (push = 'off')
+		);
+	});
+
+	async function notify(on: boolean) {
+		const core = app.social?.core;
+		if (!core || !pushBrowser || pushWorking) return;
+		pushWorking = true;
+		pushProblem = undefined;
+		try {
+			push = on ? await pushOn(pushBrowser, core) : await pushOff(pushBrowser, core);
+		} catch (error) {
+			pushProblem = (error as Error).message;
+			push = await pushState(pushBrowser).catch(() => 'off' as const);
+		} finally {
+			pushWorking = false;
+		}
+	}
 
 	let editing = $state.raw<{ id: string; draft: AlertDraft }>();
 	let open = $state(false);
@@ -141,6 +182,36 @@
 			{/if}
 			<p class="group-note">{words.firedNote}</p>
 		</section>
+
+		{#if push && pushLine}
+			<section class="group" aria-label="Notify this browser">
+				<div class="group-card">
+					<label class="group-row toggle">
+						<span>Notify this browser</span>
+						<input
+							type="checkbox"
+							role="switch"
+							checked={push === 'on'}
+							disabled={push === 'unsupported' || push === 'denied' || pushWorking}
+							onchange={(event) => notify(event.currentTarget.checked)}
+						/>
+					</label>
+				</div>
+				<p class="group-note">
+					{#if push === 'unsupported'}
+						This browser has no Web Push, so it cannot be told while Venti is closed.
+					{:else if push === 'denied'}
+						This browser was told not to show Venti’s notifications. Allow them in the browser’s
+						settings for this site.
+					{:else}
+						{pushLine}
+					{/if}
+				</p>
+				{#if pushProblem}
+					<p class="group-note refusal" role="alert">{pushProblem}</p>
+				{/if}
+			</section>
+		{/if}
 	{/if}
 </div>
 

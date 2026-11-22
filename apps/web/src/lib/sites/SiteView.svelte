@@ -322,6 +322,7 @@
 				takeoffM={site.elevationM}
 				nearbyNote={outlook?.nearbyNote}
 				layersNote={outlook?.layersNote}
+				notesTitle={app.said?.siteSheet.howReadTitle}
 			/>
 		</section>
 	{/if}

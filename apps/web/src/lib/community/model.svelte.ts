@@ -18,6 +18,7 @@ import type {
 	CoreClient,
 	OpenedFlight,
 	PilotStatistics,
+	PilotsWords,
 	PublicFlight,
 	PublicFlightsOrder,
 	RankedPilot,
@@ -47,6 +48,15 @@ export interface PilotState {
 	statistics: PilotStatistics | undefined;
 	/** Why the totals are missing, in words. The flights are listed all the same. */
 	statisticsProblem: string | undefined;
+	/** The season the list is narrowed to, by its name; empty for all years. */
+	season: string;
+}
+
+/** A season of a pilot's totals, as the list is narrowed to it. */
+export interface PilotSeason {
+	name: string;
+	fromUnixS: number | undefined;
+	toUnixS: number | undefined;
 }
 
 /** What a screen is shown of the ranking of a season. */
@@ -65,6 +75,8 @@ export interface RankingState {
 	months: RankingMonthChoice[];
 	/** The month the ranking is of, when it is of one. */
 	month: RankingMonthChoice | undefined;
+	/** The whole year as the first choice beside its months, in the core's words: "All of 2026". */
+	wholeName: string;
 	/** What the ranking is of, as the core calls it: "2026", "May 2026". */
 	title: string;
 	/** The period in the core's words: "May 2026: 1 flight". Empty where the server does not say. */
@@ -89,6 +101,7 @@ export const NOT_RANKED: RankingState = {
 	askedMonth: '',
 	months: [],
 	month: undefined,
+	wholeName: '',
 	title: '',
 	words: '',
 	pilots: [],
@@ -184,6 +197,9 @@ export class CommunityModel {
 	/** The pilots found for what is typed into the search field. */
 	search = $state.raw<SearchState>(NOT_SEARCHED);
 
+	/** The core's words around pilots, their totals and the ranking, once asked for. */
+	pilotsWords = $state.raw<PilotsWords>();
+
 	#core: CoreClient;
 	#everyone: PagedFlights | undefined;
 	#ofPilot: PagedFlights | undefined;
@@ -198,6 +214,10 @@ export class CommunityModel {
 
 	constructor(core: CoreClient) {
 		this.#core = core;
+		void core.pilotsWords().then(
+			(said) => (this.pilotsWords = said),
+			() => {}
+		);
 		this.#search = new PilotSearch(
 			(text) => core.pilotsFound(text),
 			(state) => (this.search = state)
@@ -254,7 +274,8 @@ export class CommunityModel {
 				name: undefined,
 				list: NOT_LISTED,
 				statistics: undefined,
-				statisticsProblem: undefined
+				statisticsProblem: undefined,
+				season: ''
 			};
 			void this.#addUp(handle);
 			const list = new PagedFlights(
@@ -272,6 +293,30 @@ export class CommunityModel {
 			this.#ofPilot = list;
 			void list.load();
 		});
+	}
+
+	/**
+	 * Narrows the pilot's list to a season of their totals, by its bounds;
+	 * a season without bounds, all years, is the pilot's page again.
+	 */
+	narrowPilot(season: PilotSeason): void {
+		const pilot = this.pilot;
+		if (!pilot) return;
+		const { handle } = pilot;
+		const whole = season.fromUnixS === undefined && season.toUnixS === undefined;
+		if (pilot.season === (whole ? '' : season.name)) return;
+		this.pilot = { ...pilot, season: whole ? '' : season.name, list: NOT_LISTED };
+		const list = new PagedFlights(
+			(after) =>
+				whole
+					? this.#core.pilotPage(handle, after)
+					: this.#core.pilotFlights(handle, season.fromUnixS, season.toUnixS, after),
+			(state) => {
+				if (list === this.#ofPilot && this.pilot) this.pilot = { ...this.pilot, list: state };
+			}
+		);
+		this.#ofPilot = list;
+		void list.load();
 	}
 
 	/** Asks again for what the pilot's flights add up to. */
@@ -553,7 +598,9 @@ async function rankingOf(
 					season: answer.season.name,
 					months: answer.months,
 					month: answer.month,
-					title: answer.month?.title ?? answer.season.name,
+					wholeName: answer.wholeName,
+					// The ranking's heading is the period's own title.
+					title: answer.ranking.period.title || (answer.month?.title ?? answer.season.name),
 					words: answer.words,
 					pilots: answer.ranking.pilots,
 					rule: answer.ranking.rule,

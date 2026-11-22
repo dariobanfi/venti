@@ -35,6 +35,7 @@
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
+	import { feedAsList, NO_FEED, saidOf } from '#lib/social/model.svelte.ts';
 	import { MediaQuery } from 'svelte/reactivity';
 
 	const app = getApp();
@@ -46,10 +47,31 @@
 	const list = $derived(everyone?.list ?? NOT_LISTED);
 
 	$effect(() => everyone?.show(asked));
+
+	/*
+	 * "Following", beside "Everyone": the flights of the pilots one follows,
+	 * for a signed-in pilot. The address says which (`?feed=following`).
+	 */
+	const social = $derived(app.social);
+	const said = $derived(social?.words);
+	const own = $derived(app.account?.signedIn ? app.account.account?.handle : undefined);
+	const following = $derived(
+		browser && Boolean(own) && page.url.searchParams.get('feed') === 'following'
+	);
+	$effect(() => {
+		if (following) social?.showFeed(own);
+	});
+	const feed = $derived(social?.feed ?? NO_FEED);
+
+	function choose(whose: string) {
+		const query =
+			whose === said?.feedFollowing ? '?feed=following' : queryOf({ ...asked, order: 'newest' });
+		void goto(everyoneHref(query), { replaceState: true, keepFocus: true, noScroll: true });
+	}
 	// The head of the list: the best of today and the top of the year.
 	$effect(() => everyone?.showFront(dayOf(new Date())));
 	/** Whether the list is the plain one, newest first on any day, which the head stands over. */
-	const plain = $derived(asked.order === 'newest' && !asked.from && !asked.to);
+	const plain = $derived(asked.order === 'newest' && !asked.from && !asked.to && !following);
 
 	/**
 	 * Asks for something else: the address changes in place, with the
@@ -123,7 +145,18 @@
 			<FrontHead front={everyone.front} toEveryone={false} />
 		{/if}
 		<div class="asked">
-			<div class="order">
+			{#if own && said}
+				<div class="order">
+					<Segmented
+						label="Whose flights"
+						options={[said.feedEveryone, said.feedFollowing]}
+						bind:value={
+							() => (following ? said.feedFollowing : said.feedEveryone), (chosen) => choose(chosen)
+						}
+					/>
+				</div>
+			{/if}
+			<div class="order" hidden={following}>
 				<Segmented
 					label="Order"
 					options={ORDERS}
@@ -135,7 +168,7 @@
 			</div>
 			<!-- The days are behind one control; the span chosen stands beside
 			     it as a chip, which also lets go of it. -->
-			<div class="filter">
+			<div class="filter" hidden={following}>
 				<button
 					class="button-plain fold"
 					type="button"
@@ -144,15 +177,15 @@
 					onclick={() => (filtering = !filtering)}
 				>
 					<Icon name="filter" />
-					Filter
+					{app.said?.pages.filter ?? ''}
 				</button>
 				{#if span}
 					<span class="span numeric">
 						{span}
 						<button
 							type="button"
-							aria-label="Any day"
-							title="Any day"
+							aria-label={app.said?.pages.anyDay}
+							title={app.said?.pages.anyDay}
 							onclick={() => ask({ ...asked, from: '', to: '' })}
 						>
 							<Icon name="close" />
@@ -160,7 +193,7 @@
 					</span>
 				{/if}
 			</div>
-			{#if filtering}
+			{#if filtering && !following}
 				<!-- A day, or a span of days: choosing the first alone means that day. -->
 				<div class="days" id="{id}-days" role="group" aria-label="Days">
 					<span class="day">
@@ -191,7 +224,7 @@
 					<input
 						id="{id}-who"
 						type="search"
-						placeholder="Name or handle"
+						placeholder={everyone?.pilotsWords?.searchPlaceholder ?? ''}
 						autocomplete="off"
 						aria-controls="{id}-found"
 						bind:value={who}
@@ -221,15 +254,34 @@
 	{#if !app.failure}
 		<div class="columns">
 			<div class={beside ? 'span-9' : 'span-12'}>
-				<PublicFlightList
-					label="Everyone’s flights"
-					{list}
-					named
-					nothing={nothingListed(list, asked)}
-					reckoning={RECKONING}
-					onmore={() => everyone?.more()}
-					onagain={() => everyone?.again()}
-				/>
+				{#if following && said}
+					<PublicFlightList
+						label={said.feedFollowing}
+						list={feedAsList(feed)}
+						named
+						nothing={feed.problem
+							? { title: said.feedFailed, says: feed.problem }
+							: { title: said.feedFollowing, says: feed.emptyLine }}
+						reckoning={RECKONING}
+						said={{
+							cheersTitle: said.cheersTitle,
+							commentsTitle: said.commentsTitle,
+							of: saidOf(feed.rows)
+						}}
+						onmore={() => social?.moreFeed()}
+						onagain={() => social?.againFeed()}
+					/>
+				{:else}
+					<PublicFlightList
+						label="Everyone’s flights"
+						{list}
+						named
+						nothing={nothingListed(list, asked)}
+						reckoning={RECKONING}
+						onmore={() => everyone?.more()}
+						onagain={() => everyone?.again()}
+					/>
+				{/if}
 			</div>
 			{#if beside && everyone?.front}
 				<aside class="span-3" aria-label="Best of today and the top of the season">
@@ -324,6 +376,10 @@
 	.span button :global(svg) {
 		width: 1rem;
 		height: 1rem;
+	}
+
+	[hidden] {
+		display: none;
 	}
 
 	.days {

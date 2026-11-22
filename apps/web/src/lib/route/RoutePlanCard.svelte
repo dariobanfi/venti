@@ -9,8 +9,11 @@
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
+	import { saveFile } from '#lib/logbook/flight-file.ts';
 	import Metric from '#lib/design/Metric.svelte';
 	import type { RoutePlanner } from './planner.svelte';
 
@@ -31,6 +34,53 @@
 	const plan = $derived(planner.plan);
 	const score = $derived(plan?.score);
 
+	/*
+	 * The route as a GPX file, out and in: two entries of the card's menu,
+	 * in the core's words. The core writes the file and reads one
+	 * (`routeToGpx`, `routeFromGpx`); what it read is said once, under the
+	 * title, and a file it cannot read is refused in its words.
+	 */
+	const app = getApp();
+	const said = $derived(app.said);
+	let picker = $state<HTMLInputElement>();
+	/** What the core read from a file, or why it could not, until the route changes again. */
+	let fromFile = $state.raw<{ words: string; refused: boolean; places?: unknown }>();
+	// Said once: it goes when the route is changed by hand.
+	$effect(() => {
+		const places = planner.places;
+		if (fromFile?.places && fromFile.places !== places) fromFile = undefined;
+	});
+
+	async function exportGpx() {
+		const core = app.social?.core;
+		if (!core || planner.places.length === 0) return;
+		const text = await core.routeToGpx(planner.places.flatMap(({ lat, lon }) => [lat, lon]));
+		saveFile('venti-route.gpx', text);
+	}
+
+	async function importGpx(file: File | undefined) {
+		const core = app.social?.core;
+		if (!core || !file) return;
+		try {
+			const route = await core.routeFromGpx(await file.text());
+			planner.replace(route.points.map(({ lat, lon }) => ({ lat, lon })));
+			fromFile = { words: route.words, refused: false, places: planner.places };
+		} catch (error) {
+			fromFile = { words: error instanceof Error ? error.message : String(error), refused: true };
+		}
+	}
+
+	const menu = $derived<MenuItem[]>(
+		said
+			? [
+					...(planner.places.length >= 2
+						? [{ label: said.planner.exportGpx, icon: 'download' as const, onselect: exportGpx }]
+						: []),
+					{ label: said.planner.importGpx, icon: 'route', onselect: () => picker?.click() }
+				]
+			: []
+	);
+
 	/** What a place is called in the list of legs: the site's name, or its number. */
 	function placeName(index: number): string {
 		return planner.places[index]?.name ?? String(index + 1);
@@ -40,10 +90,40 @@
 <section class="route" aria-labelledby="route-title">
 	<header>
 		<h2 id="route-title">Plan a route</h2>
-		<button type="button" aria-label="Close" title="Close" onclick={onclose}>
-			<Icon name="close" />
-		</button>
+		<span class="head-actions">
+			{#if said && menu.length > 0}
+				<Menu label={said.common.more} items={menu} />
+			{/if}
+			<button
+				class="close"
+				type="button"
+				aria-label={said?.common.close ?? 'Close'}
+				title={said?.common.close ?? 'Close'}
+				onclick={onclose}
+			>
+				<Icon name="close" />
+			</button>
+		</span>
 	</header>
+	<input
+		bind:this={picker}
+		class="visually-hidden"
+		type="file"
+		accept=".gpx,application/gpx+xml,application/xml,text/xml"
+		aria-label={said?.planner.importGpx}
+		tabindex="-1"
+		onchange={(event) => {
+			const input = event.currentTarget;
+			void importGpx(input.files?.[0]);
+			// The same file can be chosen again.
+			input.value = '';
+		}}
+	/>
+	{#if fromFile}
+		<p class={fromFile.refused ? 'problem' : 'words'} role="status" data-route-file>
+			{fromFile.words}
+		</p>
+	{/if}
 
 	{#if planner.problem}
 		<p class="problem" role="alert">{planner.problem}</p>
@@ -132,7 +212,13 @@
 		font-weight: 600;
 	}
 
-	header button {
+	.head-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	header button.close {
 		display: grid;
 		place-items: center;
 		width: var(--target);

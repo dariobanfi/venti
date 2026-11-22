@@ -65,6 +65,11 @@ export class RoutePlanner {
 		this.#keep();
 	}
 
+	/** The route read from a file takes the place of the one drawn. */
+	replace(places: RoutePlace[]): void {
+		this.#change(places);
+	}
+
 	/** A new route that begins at a place: a site whose page the pilot came from. */
 	startAt(place: RoutePlace): void {
 		this.open = true;

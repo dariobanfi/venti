@@ -54,10 +54,15 @@ test('a pilot is found by name, and the pilot’s page says what the flights add
 	await expect(totals.getByText('May: 1 flight')).toBeAttached();
 	// What the numbers are made of, and under what the flights are given.
 	await expect(totals.getByText(/^Of the flights this pilot shared with everyone/)).toBeVisible();
+	// The flights' terms stand behind the core's title for them.
+	await expect(totals.getByText(/^These flights are their pilots/)).toBeHidden();
+	await totals.locator('details.terms summary').click();
 	await expect(totals.getByText(/^These flights are their pilots/)).toBeVisible();
 	// One season alone has the same numbers.
 	await totals.getByRole('radio', { name: '2026' }).check();
 	await expect(row('Points, best 3 flights')).toContainText('28.19');
+	// The season narrows the list beside the totals to its flights.
+	await expect(rowsOf(page, 'Flights of Lena Probe')).toHaveCount(3);
 	await totals.getByRole('radio', { name: 'All years' }).check();
 	await keep('64c-pilot-totals');
 
@@ -83,13 +88,20 @@ test('the ranking of a month is chosen beside the years, and is in the address',
 
 	// Only the months that have a ranking are offered, in the core's names.
 	const months = page.getByRole('group', { name: 'Months of 2026' }).getByRole('button');
-	await expect(months.first()).toHaveText('September');
+	// The whole year stands first, in the core's words, and is the one shown.
+	await expect(months.first()).toHaveText('All of 2026');
+	await expect(months.first()).toHaveAttribute('aria-pressed', 'true');
+	await expect(months.nth(1)).toHaveText('September');
+	// The ranking's heading is the period's title.
+	await expect(page.getByRole('heading', { name: '2026', exact: true, level: 2 })).toBeVisible();
 	await expect(months.filter({ hasText: 'January' })).toHaveCount(0);
 
 	await months.filter({ hasText: 'May' }).click();
 	await expect(page).toHaveURL(/\/logbook\/ranking\/\?month=2026-05$/);
 	await expect(page).toHaveTitle('Ranking of May 2026 · Venti');
 	await expect(months.filter({ hasText: 'May' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(months.first()).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByRole('heading', { name: 'May 2026', level: 2 })).toBeVisible();
 	await expect(page.getByText(/^May 2026: \d+ flights?$/)).toBeVisible();
 	await expect(rowsOf(page, 'Ranking of May 2026').first()).toContainText('Lena Probe');
 	await expect(page.getByRole('radio', { name: '2026' })).toBeChecked();

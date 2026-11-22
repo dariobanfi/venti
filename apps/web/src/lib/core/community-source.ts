@@ -27,6 +27,7 @@ import {
 	type FlightView,
 	pilotPage,
 	type PilotPage,
+	pilotFlightsPath,
 	pilotPagePath,
 	pilotsFound,
 	type PilotsFound,
@@ -102,6 +103,8 @@ export interface SeasonRanking {
 	months: RankingMonthChoice[];
 	/** The month this is the ranking of, when it is of one. */
 	month: RankingMonthChoice | undefined;
+	/** The whole year as the first choice beside its months: "All of 2026". Empty for all years. */
+	wholeName: string;
 	/** The period in the core's words: "2026: 10 flights", "May 2026: 4 flights". Empty where the server does not say. */
 	words: string;
 	ranking: Ranking;
@@ -150,6 +153,22 @@ export class CommunitySource {
 		if (!(await this.#present())) return undefined;
 		const answer = await this.#get(pilotPagePath(handle, after));
 		return pilotPage(answer.status, answer.body);
+	}
+
+	/**
+	 * One page of a pilot's public flights of a season: those that began at
+	 * or after the one moment and before the other, as a season of the
+	 * pilot's totals names them. Nothing if this site has no server.
+	 */
+	async pilotFlights(
+		handle: string,
+		fromUnixS?: number,
+		toUnixS?: number,
+		after?: string
+	): Promise<PublicFlights | undefined> {
+		if (!(await this.#present())) return undefined;
+		const answer = await this.#get(pilotFlightsPath(handle, fromUnixS, toUnixS, after));
+		return publicFlights(answer.status, answer.body);
 	}
 
 	/**
@@ -214,6 +233,7 @@ export class CommunitySource {
 			season: chosen,
 			months: year?.months ?? [],
 			month: of,
+			wholeName: year?.wholeName ?? '',
 			words: of?.words ?? year?.words ?? '',
 			ranking: ranked
 		};

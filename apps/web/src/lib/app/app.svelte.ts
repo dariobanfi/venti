@@ -11,7 +11,10 @@
 import { createContext } from 'svelte';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
+import { asset, resolve } from '$app/paths';
 import { AccountModel } from '#lib/account/model.svelte.ts';
+import { pushOff, pushState, thisBrowser } from '#lib/alerts/push.ts';
+import { SocialModel } from '#lib/social/model.svelte.ts';
 import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
 import { ALERTS_EVERY_MS, AlertsModel } from '#lib/alerts/model.svelte.ts';
 import { CommunityModel } from '#lib/community/model.svelte.ts';
@@ -33,6 +36,7 @@ import {
 	type GlideReachSetting,
 	type GroundUnderFlight,
 	type RoutePlan,
+	type ScreenWords,
 	type RouteWeatherAnswer,
 	type RouteWeatherAsked,
 	type SiteOutlook,
@@ -74,6 +78,16 @@ export class App {
 
 	/** Other pilots' public flights. Nothing until the core has started. */
 	everyone = $state.raw<CommunityModel>();
+
+	/**
+	 * The core's words for the screens that no answer carries: "Try again",
+	 * "Cancel", the planner's menu, the sheets' headings. Nothing until the
+	 * core has started.
+	 */
+	said = $state.raw<ScreenWords>();
+
+	/** Pilots among each other: the core's words and the feed of the pilots followed. */
+	social = $state.raw<SocialModel>();
 
 	/** The take-offs around a place, and what the forecast says of each. */
 	today = $state.raw<TodayModel>();
@@ -135,6 +149,11 @@ export class App {
 				this.takeoffs = new TakeoffsModel(core);
 				this.live = new LiveModel(core);
 				this.everyone = new CommunityModel(core);
+				this.social = new SocialModel(core);
+				void core.screenWords().then(
+					(said) => (this.said = said),
+					() => {}
+				);
 				this.today = new TodayModel(core);
 				this.home = new HomeModel(core);
 				const kept = new KeptSitesModel(core);
@@ -162,6 +181,12 @@ export class App {
 					void alerts.reread();
 					void airspace.reload();
 					kept.changedElsewhere();
+				};
+				// Signing out ends this browser's subscription to Web Push, if
+				// it has one: the alarms are the account's.
+				account.beforeSignOut = async () => {
+					const browser = thisBrowser(asset('/push-worker.js'), resolve('/'));
+					if (browser && (await pushState(browser)) === 'on') await pushOff(browser, core);
 				};
 				this.logbook = logbook;
 				this.account = account;

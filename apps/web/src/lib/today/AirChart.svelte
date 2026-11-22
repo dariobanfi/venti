@@ -28,9 +28,11 @@
 		nearbyNote?: string;
 		/** What the layers are and are not, the core's sentence (`SiteOutlook.layersNote`). */
 		layersNote?: string;
+		/** The heading over the notes on how the forecast is read, on a site's page: the core's. */
+		notesTitle?: string;
 	}
 
-	let { day, takeoffM, nearbyNote = '', layersNote = '' }: Props = $props();
+	let { day, takeoffM, nearbyNote = '', layersNote = '', notesTitle = '' }: Props = $props();
 
 	/** Names the hatch of a stable layer for this picture alone. */
 	const uid = $props.id();
@@ -285,6 +287,9 @@
 			</div>
 		{/if}
 		<figcaption>
+			{#if notesTitle}
+				<p class="notes-title">{notesTitle}</p>
+			{/if}
 			<p>{caption}</p>
 			{#if layered && layersNote}
 				<p>{layersNote}</p>
@@ -466,6 +471,10 @@
 
 	.t6 {
 		fill: var(--thermal-6);
+	}
+
+	.notes-title {
+		font-weight: 600;
 	}
 
 	figcaption {

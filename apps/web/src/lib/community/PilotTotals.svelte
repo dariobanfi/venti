@@ -11,17 +11,21 @@
 -->
 <script lang="ts">
 	import { placeHref, publicFlightHref } from '#lib/app/routes.ts';
-	import type { PilotStatistics, PublicFlight } from '#lib/core/index.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
+	import type { PilotStatistics, PilotTotalsView } from '#lib/core/index.ts';
 	import MonthBars from '#lib/design/MonthBars.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
 
 	interface Props {
 		statistics: PilotStatistics;
-		/** The pilot's flights listed so far: where their take-offs are. */
-		flights: readonly PublicFlight[];
+		/** Told the season chosen: the page narrows the pilot's list to it. */
+		onseason?: (season: PilotTotalsView) => void;
 	}
 
-	let { statistics, flights }: Props = $props();
+	let { statistics, onseason }: Props = $props();
+
+	/** The headings and the choice's name are the core's (`pilotsWords`). */
+	const said = $derived(getApp().everyone?.pilotsWords);
 
 	const views = $derived([statistics.overall, ...statistics.seasons]);
 	const names = $derived(views.map((view) => view.name));
@@ -32,9 +36,10 @@
 	/** How many choices a row of segments has room for in a side column. */
 	const SEGMENTS = 4;
 
-	/** Where a take-off is, as one of the flights listed says. */
-	function whereIs(site: string): PublicFlight['takeoff'] | undefined {
-		return flights.find((flight) => flight.takeoffSiteId === site)?.takeoff;
+	function choose(name: string) {
+		chosen = name;
+		const season = views.find((one) => one.name === name);
+		if (season) onseason?.(season);
 	}
 
 	const id = $props.id();
@@ -44,13 +49,13 @@
 	{#if names.length > 1}
 		{#if names.length <= SEGMENTS}
 			<Segmented
-				label="Season of the totals"
+				label={said?.seasonChoice ?? ''}
 				options={names}
-				bind:value={() => view.name, (name) => (chosen = name)}
+				bind:value={() => view.name, choose}
 			/>
 		{:else}
-			<label class="visually-hidden" for="{id}-season">Season of the totals</label>
-			<select id="{id}-season" bind:value={() => view.name, (name) => (chosen = name)}>
+			<label class="visually-hidden" for="{id}-season">{said?.seasonChoice ?? ''}</label>
+			<select id="{id}-season" bind:value={() => view.name, choose}>
 				{#each names as name (name)}
 					<option value={name}>{name}</option>
 				{/each}
@@ -74,12 +79,11 @@
 	</dl>
 
 	{#if view.sites.length > 0}
-		<ul class="card" aria-label="Take-offs flown from most">
+		<ul class="card" aria-label={said?.sitesTitle}>
 			{#each view.sites as site (site.id)}
-				{@const at = whereIs(site.id)}
 				<li>
-					{#if at}
-						<a class="row link" href={placeHref(at, site.id)}>{site.words}</a>
+					{#if site.position}
+						<a class="row link" href={placeHref(site.position, site.id)}>{site.words}</a>
 					{:else}
 						<span class="row">{site.words}</span>
 					{/if}
@@ -88,14 +92,20 @@
 		</ul>
 	{/if}
 
-	<div class="card months" role="group" aria-label="Flights by month">
+	<div class="card months" role="group" aria-label={said?.monthsTitle}>
 		<MonthBars months={view.months} />
 	</div>
 
 	{#if statistics.note}
 		<p class="footnote">{statistics.note}</p>
 	{/if}
-	{#if statistics.terms.text}
+	<!-- Under what the flights are given: behind the core's title for it. -->
+	{#if statistics.terms.text && statistics.terms.title}
+		<details class="footnote terms">
+			<summary>{statistics.terms.title}</summary>
+			<p>{statistics.terms.text}</p>
+		</details>
+	{:else if statistics.terms.text}
 		<p class="footnote">{statistics.terms.text}</p>
 	{/if}
 </section>
@@ -176,6 +186,15 @@
 		font-size: var(--footnote);
 		color: var(--text-secondary);
 		overflow-wrap: anywhere;
+	}
+
+	.terms summary {
+		color: var(--link);
+		cursor: pointer;
+	}
+
+	.terms p {
+		margin-top: var(--space-1);
 	}
 
 	@media (min-width: 56rem) {

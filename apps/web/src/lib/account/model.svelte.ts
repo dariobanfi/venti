@@ -274,11 +274,19 @@ export class AccountModel {
 		}
 	}
 
+	/**
+	 * What is done while the session still holds, before signing out: the
+	 * app ends this browser's subscription to Web Push here.
+	 */
+	beforeSignOut: (() => Promise<unknown>) | undefined;
+
 	/** Signs this browser out. The flights in the logbook stay. */
 	async signOut(): Promise<void> {
 		if (this.working) return;
 		this.working = true;
 		try {
+			// A browser that was told of this account's alarms is told no more.
+			await this.beforeSignOut?.().catch(() => {});
 			await this.#core.signOut();
 			this.#forget();
 		} catch (error) {

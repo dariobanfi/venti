@@ -16,6 +16,7 @@ import type {
 	SyncOutcome
 } from './account-source';
 import type { AlertsHeld, AlertsSource, AlertsSynced } from './alerts-source';
+import type { PushSubscribed, SocialSource } from './social-source';
 import type { AirspaceSource } from './airspace-source';
 import type {
 	CommunitySource,
@@ -117,7 +118,37 @@ import type {
 	TokenForm,
 	TodayOrder,
 	TodayStanding,
-	WindStation
+	WindStation,
+	CheerList,
+	CheerState,
+	CommonWords,
+	PagesWords,
+	CommentDraft,
+	CommentList,
+	CommentPosted,
+	CommentsSwitch,
+	Feed,
+	FollowList,
+	FollowState,
+	Notifications,
+	PilotsWords,
+	PlannerWords,
+	RouteFromFile,
+	SiteSheetWords,
+	SocialWords,
+	StationSheetWords,
+	TodayWords
+} from './pkg/venti_core_wasm.js';
+import {
+	commonWords,
+	pagesWords,
+	pilotsWords,
+	plannerWords,
+	routeFromGpx,
+	routeToGpx,
+	siteSheetWords,
+	stationSheetWords,
+	todayWords
 } from './pkg/venti_core_wasm.js';
 import type { ForecastSource } from './forecast-source';
 import type { GroupsSource } from './groups-source';
@@ -516,6 +547,56 @@ export interface Calls {
 	changeAlert: { given: { id: string; draft: AlertDraft }; answer: AlertView };
 	/** Given an alarm's identifier: removes it. */
 	removeAlert: { given: string; answer: undefined };
+	/** The words around following, cheers, comments and notifications that no answer carries. */
+	socialWords: { given: undefined; answer: SocialWords };
+	/** Given a pilot's handle: the counts of followers and followed in words; signed in, whether the pilot follows them. */
+	follows: { given: string; answer: FollowList };
+	/** Follows a pilot, or follows them no more. */
+	follow: { given: { handle: string; follow: boolean }; answer: FollowState };
+	/** A page of the flights of the pilots followed; given the `next` of the page before. Nothing when signed out. */
+	feed: { given: string | undefined; answer: Feed | undefined };
+	/** Given a public flight's address: who cheered, in a line, and the button's word. */
+	cheers: { given: string; answer: CheerList };
+	cheer: { given: { flightId: string; cheer: boolean }; answer: CheerState };
+	/** The comments under a public flight, the oldest first. */
+	comments: {
+		given: { flightId: string; flightHandle?: string; after?: string };
+		answer: CommentList;
+	};
+	/** A comment while it is written. */
+	commentDraft: { given: string; answer: CommentDraft };
+	comment: { given: { flightId: string; text: string }; answer: CommentPosted };
+	removeComment: { given: { flightId: string; commentId: string }; answer: undefined };
+	commentReportForm: { given: undefined; answer: ReportForm };
+	reportComment: {
+		given: { flightId: string; commentId: string; reason: ReportReason; text: string };
+		answer: string;
+	};
+	/** The switch on the pilot's own flight: whether it takes comments, in words. */
+	commentsSwitch: { given: boolean; answer: CommentsSwitch };
+	setCommentsOpen: { given: { flightId: string; open: boolean }; answer: CommentsSwitch };
+	/** What the pilot was told; given the cursor of the answer before. Nothing when signed out. */
+	notifications: { given: string | undefined; answer: Notifications | undefined };
+	/** The line beside the switch that lets this browser be told of an alarm. */
+	pushLine: { given: undefined; answer: string };
+	/** The server's public key for Web Push, base64url. */
+	pushKey: { given: undefined; answer: string };
+	pushSubscribe: { given: PushSubscribed; answer: undefined };
+	/** Given a subscription's endpoint: tells the server it has ended. */
+	pushUnsubscribe: { given: string; answer: undefined };
+	/** The words around pilots, their totals and the ranking. */
+	pilotsWords: { given: undefined; answer: PilotsWords };
+	/** A page of a pilot's public flights of a season, between two moments. */
+	pilotFlights: {
+		given: { handle: string; fromUnixS?: number; toUnixS?: number; after?: string };
+		answer: PublicFlights | undefined;
+	};
+	/** A route's places as a GPX file's text; given latitudes and longitudes in turn. */
+	routeToGpx: { given: number[]; answer: string };
+	/** A route read from a GPX file's text. Refused in the core's words. */
+	routeFromGpx: { given: string; answer: RouteFromFile };
+	/** The core's words for the screens that no answer carries, asked once when the app starts. */
+	screenWords: { given: undefined; answer: ScreenWords };
 	/** Given a flight's identifier: how it is shared, if the server has it. */
 	flightSharing: { given: string; answer: FlightSharing | undefined };
 	shareFlight: { given: { id: string; visibility: FlightVisibility }; answer: FlightSharing };
@@ -591,6 +672,21 @@ export interface Request<Name extends CallName = CallName> {
 	given: Calls[Name]['given'];
 }
 
+/**
+ * The core's words for the screens that no answer carries: the same in the
+ * three apps (`crates/core/src/screen_words.rs`).
+ */
+export interface ScreenWords {
+	/** "Done", "Back", "More", "OK", "Cancel", "Try again", "Close". */
+	common: CommonWords;
+	pages: PagesWords;
+	/** The route planner's menu: "Export GPX", "Import GPX". */
+	planner: PlannerWords;
+	siteSheet: SiteSheetWords;
+	stationSheet: StationSheetWords;
+	today: TodayWords;
+}
+
 /** What comes back from the core. */
 export type Reply =
 	| { id: number; answer: unknown }
@@ -606,6 +702,7 @@ export interface Answering {
 	account: AccountSource;
 	tokens: TokensSource;
 	alerts: AlertsSource;
+	social: SocialSource;
 	airspace: AirspaceSource;
 	sites: SitesSource;
 	siteEdits: SiteEditSource;
@@ -633,6 +730,7 @@ export async function answer<Name extends CallName>(
 		account,
 		tokens,
 		alerts,
+		social,
 		airspace,
 		sites,
 		siteEdits,
@@ -773,6 +871,39 @@ export async function answer<Name extends CallName>(
 		programs: () => tokens.list(),
 		giveAccess: (wanted) => tokens.give(wanted),
 		withdrawAccess: (id) => tokens.withdraw(id),
+		socialWords: () => social.words(),
+		follows: (handle) => social.follows(handle),
+		follow: ({ handle, follow }) => social.follow(handle, follow),
+		feed: (before) => social.feed(before),
+		cheers: (flightId) => social.cheers(flightId),
+		cheer: ({ flightId, cheer }) => social.cheer(flightId, cheer),
+		comments: ({ flightId, flightHandle, after }) => social.comments(flightId, flightHandle, after),
+		commentDraft: (text) => social.draft(text),
+		comment: ({ flightId, text }) => social.comment(flightId, text),
+		removeComment: ({ flightId, commentId }) => social.removeComment(flightId, commentId),
+		commentReportForm: () => social.commentReportForm(),
+		reportComment: ({ flightId, commentId, reason, text }) =>
+			social.reportComment(flightId, commentId, reason, text),
+		commentsSwitch: (open) => social.commentsSwitch(open),
+		setCommentsOpen: ({ flightId, open }) => social.setCommentsOpen(flightId, open),
+		notifications: (since) => social.notifications(since),
+		pushLine: () => social.pushLine(),
+		pushKey: () => social.pushKey(),
+		pushSubscribe: (subscribed) => social.pushSubscribe(subscribed),
+		pushUnsubscribe: (endpoint) => social.pushUnsubscribe(endpoint),
+		pilotsWords: () => pilotsWords(),
+		pilotFlights: ({ handle, fromUnixS, toUnixS, after }) =>
+			community.pilotFlights(handle, fromUnixS, toUnixS, after),
+		routeToGpx: (latLon) => routeToGpx(new Float64Array(latLon)),
+		routeFromGpx: (text) => routeFromGpx(text),
+		screenWords: () => ({
+			common: commonWords(),
+			pages: pagesWords(),
+			planner: plannerWords(),
+			siteSheet: siteSheetWords(),
+			stationSheet: stationSheetWords(),
+			today: todayWords()
+		}),
 		alertPoints: () => alerts.points(),
 		alertFormWords: () => alerts.formWords(),
 		alertLine: (draft) => alerts.line(draft),

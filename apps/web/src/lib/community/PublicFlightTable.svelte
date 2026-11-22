@@ -12,6 +12,15 @@
 
 	What another pilot wrote, a name or a glider, is set as text.
 -->
+<script lang="ts" module>
+	/** The core's lines of cheers and comments for the flights of a feed, and what the two are called. */
+	export interface Said {
+		cheersTitle: string;
+		commentsTitle: string;
+		of: Record<string, { cheers: string; comments: string } | undefined>;
+	}
+</script>
+
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { pilotHref, placeHref, publicFlightHref } from '#lib/app/routes.ts';
@@ -28,9 +37,15 @@
 		flights: PublicFlight[];
 		/** Whether the table names the pilot: not in a table of one pilot's flights. */
 		named: boolean;
+		/**
+		 * What other pilots said of each flight, by its address: the core's
+		 * lines of its cheers and its comments, in a feed, under the core's
+		 * two headings.
+		 */
+		said?: Said;
 	}
 
-	let { label, flights, named }: Props = $props();
+	let { label, flights, named, said }: Props = $props();
 
 	const text = format();
 
@@ -75,6 +90,10 @@
 			<SortHeading key="airtime" {sort} {onsort} numeric>Airtime</SortHeading>
 			<SortHeading key="highest" {sort} {onsort} numeric>Highest</SortHeading>
 			<SortHeading key="climb" {sort} {onsort} numeric>Best climb</SortHeading>
+			{#if said}
+				<th class="plain" scope="col">{said.cheersTitle}</th>
+				<th class="plain" scope="col">{said.commentsTitle}</th>
+			{/if}
 		</tr>
 	</thead>
 	<tbody>
@@ -108,6 +127,10 @@
 				<td class="number">{text.hoursMinutes(flight.airtimeS)} h</td>
 				<td class="number">{text.metres(flight.maxAltitudeM)} m</td>
 				<td class="number">{text.climb(flight.maxClimbMs)} m/s</td>
+				{#if said}
+					<td class="lesser">{said.of[flight.id]?.cheers ?? ''}</td>
+					<td class="lesser">{said.of[flight.id]?.comments ?? ''}</td>
+				{/if}
 			</tr>
 		{/each}
 	</tbody>

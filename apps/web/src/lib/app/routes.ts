@@ -74,6 +74,11 @@ export function alertsHref(): string {
 	return resolve('/settings/account/alerts');
 }
 
+/** What the pilot was told of follows, cheers and comments, under the account. */
+export function notificationsHref(): string {
+	return resolve('/settings/account/notifications');
+}
+
 export function airspaceHref(): string {
 	return resolve('/settings/airspace');
 }

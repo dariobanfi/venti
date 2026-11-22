@@ -56,6 +56,9 @@ export function nothingRanked(state: {
 	absent: boolean;
 	problem: string | undefined;
 	season: string;
+	/** The month asked for, if one was, and the core's sentence for a month without a ranked flight. */
+	askedMonth?: string;
+	monthEmpty?: string;
 }): { title: string; says: string } {
 	if (state.absent) {
 		return {
@@ -65,6 +68,9 @@ export function nothingRanked(state: {
 	}
 	if (state.problem) {
 		return { title: 'The ranking could not be fetched', says: state.problem };
+	}
+	if (state.askedMonth && state.monthEmpty) {
+		return { title: 'Nobody is ranked', says: state.monthEmpty };
 	}
 	return {
 		title: 'Nobody is ranked',

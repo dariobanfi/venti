@@ -33,7 +33,9 @@
 	/** The month the address asks for, as the ranking's periods write one. */
 	const askedMonth = $derived(browser ? (page.url.searchParams.get('month') ?? '') : '');
 	const ranking = $derived(everyone?.ranking ?? NOT_RANKED);
-	const nothing = $derived(nothingRanked(ranking));
+	/** The core's words around the ranking: the season's choice, the empty month's sentence. */
+	const said = $derived(everyone?.pilotsWords);
+	const nothing = $derived(nothingRanked({ ...ranking, monthEmpty: said?.monthEmpty }));
 
 	$effect(() => everyone?.showRanking(asked, askedMonth));
 
@@ -73,7 +75,7 @@
 		{#if wide.current && !app.failure && ranking.seasons.length > 0}
 			<div class="actions season-head">
 				<Segmented
-					label="Season"
+					label={said?.seasonChoice ?? ''}
 					options={ranking.seasons}
 					bind:value={() => ranking.season, (chosen) => ask(chosen)}
 				/>
@@ -94,7 +96,7 @@
 		{#if ranking.seasons.length > 0 && !wide.current}
 			<div class="season">
 				<Segmented
-					label="Season"
+					label={said?.seasonChoice ?? ''}
 					options={ranking.seasons}
 					bind:value={() => ranking.season, (chosen) => ask(chosen)}
 				/>
@@ -103,6 +105,19 @@
 
 		{#if ranking.months.length > 0}
 			<div class="months" role="group" aria-label="Months of {ranking.season}">
+				<!-- The whole year first, in the core's words: "All of 2026". -->
+				{#if ranking.wholeName}
+					<button
+						class="month"
+						type="button"
+						aria-pressed={ranking.askedMonth === ''}
+						onclick={() => {
+							if (ranking.askedMonth) askMonth(ranking.askedMonth);
+						}}
+					>
+						{ranking.wholeName}
+					</button>
+				{/if}
 				{#each ranking.months as month (month.month)}
 					<button
 						class="month"
@@ -118,6 +133,10 @@
 		{/if}
 
 		{#if ranking.pilots.length > 0}
+			<!-- The ranking's heading is the period's title, as the core has it. -->
+			{#if title}
+				<h2 class="period-title">{title}</h2>
+			{/if}
 			{#if ranking.words}
 				<p class="period">{ranking.words}</p>
 			{/if}
@@ -176,6 +195,13 @@
 	.season {
 		max-width: 28rem;
 		margin-bottom: 1rem;
+	}
+
+	.period-title {
+		margin-bottom: var(--space-1);
+		padding: 0 var(--space-4);
+		font-size: var(--title);
+		font-weight: 600;
 	}
 
 	/* The months of the season that have a ranking: the pack's chips. */

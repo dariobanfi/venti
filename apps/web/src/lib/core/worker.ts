@@ -24,6 +24,7 @@ import { SiteEditSource } from './site-edit-source';
 import { TakeoffsSource } from './takeoffs-source';
 import { SitesSource } from './sites-source';
 import { SlopesSource } from './slopes-source';
+import { SocialSource } from './social-source';
 import { AirSource } from './air-source';
 import { type FileStore, MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
@@ -59,6 +60,7 @@ const starting: Promise<Answering> = (async () => {
 		account: new AccountSource(session),
 		tokens: new TokensSource(session),
 		alerts: new AlertsSource(session),
+		social: new SocialSource(session, () => wind.now()),
 		airspace: new AirspaceSource(session, () => wind.present()),
 		sites,
 		siteEdits: new SiteEditSource(session, () => sites.wrote()),

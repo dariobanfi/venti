@@ -168,11 +168,10 @@
 		<section>
 			<h3>Cross-country</h3>
 			{@render facts(scoreRows(score))}
-			<p class="footnote">
-				Worked out by Venti from the World XContest's published rules, at
-				{text.number(score.pointsPerKm)} points per kilometre for this kind of route. The dashed line
-				on the map is the scored route. A league's own result can differ a little.
-			</p>
+			<!-- Whose reckoning the score is, in the core's sentence. -->
+			{#if score.note}
+				<p class="footnote">{score.note}</p>
+			{/if}
 		</section>
 	{/if}
 

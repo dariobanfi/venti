@@ -127,7 +127,10 @@ test('a strong day puts the take-offs in the order of their thermals, with the c
 	const hours = page.getByRole('list', { name: 'Hour by hour' }).getByRole('listitem');
 	await expect(hours.first()).toContainText(/\d\.\d/);
 	await expect(hours.filter({ hasText: /thermals \d\.\d m\/s to \d+ m/ }).first()).toBeAttached();
-	await expect(best).toContainText('the climb to expect in thermals, in m/s');
+	// What the strip shows, in the core's words.
+	await expect(best).toContainText(
+		'Wind in km/h at 10 m and the climb in m/s. A tall bar is a flyable hour.'
+	);
 
 	// The others: a stronger day before a weaker one, each with its kind.
 	const others = wide
@@ -256,8 +259,10 @@ test('a day on which the wind near by is much stronger says so under what limits
 	await days.getByText('Mon', { exact: true }).click();
 	await expect(days.getByRole('radio', { name: 'Mon' })).toBeChecked();
 	const line = page.getByTestId('nearby-line').first();
+	// In a list of take-offs the core's short form, in the card of the one
+	// chosen its whole line.
 	await expect(line).toHaveText(
-		/^Much stronger near by at \d+:00: .+ \d+ km\/h .+ \d+ km\/h at the place$/,
+		/^(Much stronger near by at \d+:00: .+ \d+ km\/h .+ \d+ km\/h at the place|(Gusts to|Wind) \d+ km\/h near by at \d+:00)$/,
 		{
 			timeout: 30_000
 		}

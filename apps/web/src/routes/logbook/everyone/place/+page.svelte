@@ -166,7 +166,7 @@
 						{#if ranking.seasons.length > 0}
 							<div class="season">
 								<Segmented
-									label="Season"
+									label={everyone?.pilotsWords?.seasonChoice ?? ''}
 									options={ranking.seasons}
 									bind:value={
 										() => ranking.season, (chosen) => ask({ order: asked.order, season: chosen })

@@ -16,7 +16,7 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { alertsHref, programsHref } from '#lib/app/routes.ts';
+	import { alertsHref, notificationsHref, programsHref } from '#lib/app/routes.ts';
 	import type { AccountView } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Dialog from '#lib/design/Dialog.svelte';
@@ -37,6 +37,9 @@
 
 	/** What the alarms fired that no notification told of. */
 	const unseen = $derived(getApp().alerts?.unseen ?? 0);
+
+	/** The core's words around follows, cheers and comments: the row's name. */
+	const said = $derived(getApp().social?.words);
 
 	/** The server as the pilot knows it: its host name. */
 	const host = $derived(hostOf(signedIn.server));
@@ -204,6 +207,13 @@
 				<span class="chevron"><Icon name="forward" /></span>
 			</span>
 		</a>
+		<!-- What the pilot was told of follows, cheers and comments. -->
+		{#if said}
+			<a class="group-row" href={notificationsHref()}>
+				<span>{said.notificationsTitle}</span>
+				<span class="chevron"><Icon name="forward" /></span>
+			</a>
+		{/if}
 		{#await account.programsForm() then programs}
 			<a class="group-row" href={programsHref()}>
 				<span>{programs.title}</span>

@@ -29,11 +29,21 @@ const counted = (page: Page, pilot: string) =>
 test('the pilots are ranked by their best flights, in a year or in all years', async ({
 	page,
 	keep,
+	wide,
 	problems
 }) => {
-	// The logbook has a third side where the site has a Venti server.
+	// The logbook has a third side where the site has a Venti server. On a
+	// wide screen the page of everyone's flights has no switch: the ranking
+	// is in the bar across the top.
 	await page.goto('/logbook/everyone/');
-	await whose(page).getByRole('link', { name: 'Ranking' }).click();
+	if (wide) {
+		await page
+			.getByRole('navigation', { name: 'Sections' })
+			.getByRole('link', { name: 'Ranking' })
+			.click();
+	} else {
+		await whose(page).getByRole('link', { name: 'Ranking' }).click();
+	}
 	await expect(page).toHaveURL(/\/logbook\/ranking\/$/);
 	await expect(page).toHaveTitle('Ranking · Venti');
 	await expect(whose(page).getByRole('link', { name: 'Ranking' })).toHaveAttribute(

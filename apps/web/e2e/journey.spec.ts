@@ -132,7 +132,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await expect(metric(details, 'Distance')).toHaveText(/^\d+\.\d km$/);
 	await expect(metric(details, 'Points')).toHaveText(/^\d+\.\d\d$/);
 	await expect(
-		details.getByText(/World XContest's published rules, at\s+[\d.]+ points per kilometre/)
+		details.getByText(/World XContest's published rules, at\s+[\d.]+ points? per kilometre/)
 	).toBeVisible();
 	await expect(metric(details, 'In thermals')).toHaveText(/^0:\d\d h, \d+%$/);
 	await expect(metric(details, 'On glides')).toHaveText(/^0:\d\d h, \d+%$/);

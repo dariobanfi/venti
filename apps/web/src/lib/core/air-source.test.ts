@@ -98,8 +98,9 @@ describe('what many gliders say together, from the server', () => {
 		expect(await source.siteAir({ ...ramp, name: 'Wallberg' })).toBe(
 			'8 pilots in the air at Wallberg, 2 took off in the last hour'
 		);
+		// A site its source does not name: the core's "here", never a word of the app's.
 		expect(await source.siteAir({ ...ramp, name: '' })).toBe(
-			'8 pilots in the air, 2 took off in the last hour'
+			'8 pilots in the air here, 2 took off in the last hour'
 		);
 		expect(asked[0]).toMatch(/^\/v1\/live\/sites\?bbox=/);
 		expect(await source.siteAir({ ...ramp, id: 'osm-free-flying:way/1', name: 'Elsewhere' })).toBe(

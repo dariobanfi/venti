@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
 import { AlertsSource } from './alerts-source';
+import { SocialSource } from './social-source';
 import { CommunitySource } from './community-source';
 import { type Channel, CoreClient } from './client';
 import { flightFileText } from './flight-text';
@@ -60,6 +61,7 @@ class SameProcess implements Channel {
 						account: account(session),
 						tokens: new TokensSource(session, unreachable),
 						alerts: new AlertsSource(session, unreachable),
+						social: new SocialSource(session, undefined, unreachable),
 						airspace: airspace(session),
 						// Flying sites from a site that has no server.
 						sites: new SitesSource(async () => false),

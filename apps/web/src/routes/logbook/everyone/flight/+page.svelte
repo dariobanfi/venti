@@ -22,6 +22,7 @@
 	import { type Beside, besideIn, besideValue } from '#lib/flight/beside.ts';
 	import CompareChooser from '#lib/flight/CompareChooser.svelte';
 	import FlightScreen from '#lib/flight/FlightScreen.svelte';
+	import FlightSocial from '#lib/social/FlightSocial.svelte';
 	import { goto } from '$app/navigation';
 
 	const app = getApp();
@@ -156,6 +157,9 @@
 		];
 	}
 
+	/** The core's lines of the flight's cheers and comments, for the row that opens them on a phone. */
+	let said = $state.raw<string[]>([]);
+
 	const title = $derived(
 		phase.is === 'loaded'
 			? `${phase.opened.row.pilot} · ${format().day(phase.opened.flight.startUnixS)} · Venti`
@@ -183,7 +187,17 @@
 				: undefined}
 			{beside}
 			onendbeside={() => layBeside(undefined)}
-		/>
+			socialLine={said.filter(Boolean).join(' · ')}
+			socialTitle={app.social?.words?.commentsTitle}
+		>
+			{#snippet social()}
+				<FlightSocial
+					flightId={opened.row.id}
+					flightHandle={opened.row.handle}
+					onlines={(cheers, comments) => (said = [cheers, comments])}
+				/>
+			{/snippet}
+		</FlightScreen>
 		<CompareChooser
 			open={choosing}
 			flight={opened.flight}

@@ -21,6 +21,7 @@
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import { nothingListed, PILOTS_RECKONING } from '#lib/community/words.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import FollowBar from '#lib/social/FollowBar.svelte';
 
 	const app = getApp();
 	const everyone = $derived(app.everyone);
@@ -64,6 +65,10 @@
 			{#if pilot?.name && handle}
 				<p>@{handle}</p>
 			{/if}
+			<!-- Who follows this pilot, and for a signed-in pilot the button. -->
+			{#if pilot?.name && handle}
+				<FollowBar {handle} />
+			{/if}
 		</div>
 		{#if ranked}
 			<dl class="totals numeric">
@@ -95,7 +100,10 @@
 		<div class="columns">
 			{#if pilot?.statistics}
 				<aside class="span-3 side" aria-label="What the flights add up to">
-					<PilotTotals statistics={pilot.statistics} flights={list.flights} />
+					<PilotTotals
+						statistics={pilot.statistics}
+						onseason={(season) => everyone?.narrowPilot(season)}
+					/>
 				</aside>
 			{:else if pilot?.statisticsProblem && list.flights.length > 0}
 				<aside class="span-3 side" aria-label="What the flights add up to">

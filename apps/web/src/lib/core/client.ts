@@ -6,6 +6,7 @@
 
 import type { NewAccount, NewGoogleAccount } from './account-source';
 import type { FlightRef, PublicFlightsAsked } from './community-source';
+import type { PushSubscribed } from './social-source';
 import type { GroundAsked } from './terrain-source';
 import type { RadarColours } from './radar-source';
 import type { RouteWeatherAsked } from './route-weather-source';
@@ -744,6 +745,126 @@ export class CoreClient {
 	/** Changes who may see a flight. */
 	shareFlight(id: string, visibility: FlightVisibility) {
 		return this.#call('shareFlight', { id, visibility });
+	}
+
+	/** The words around following, cheers, comments and notifications that no answer carries. */
+	socialWords() {
+		return this.#call('socialWords', undefined);
+	}
+
+	/** The counts of a pilot's followers and followed in words; signed in, whether the pilot follows them. */
+	follows(handle: string) {
+		return this.#call('follows', handle);
+	}
+
+	/** Follows a pilot, or follows them no more. */
+	follow(handle: string, follow: boolean) {
+		return this.#call('follow', { handle, follow });
+	}
+
+	/** A page of the flights of the pilots followed. Nothing when signed out. */
+	feed(before?: string) {
+		return this.#call('feed', before);
+	}
+
+	/** Who cheered a public flight, in a line, and the button's word. */
+	cheers(flightId: string) {
+		return this.#call('cheers', flightId);
+	}
+
+	/** Cheers a flight, or takes the cheer back. */
+	cheer(flightId: string, cheer: boolean) {
+		return this.#call('cheer', { flightId, cheer });
+	}
+
+	/** The comments under a public flight, the oldest first. */
+	comments(flightId: string, flightHandle?: string, after?: string) {
+		return this.#call('comments', { flightId, flightHandle, after });
+	}
+
+	/** A comment while it is written: the room left, what is wrong, whether it can be sent. */
+	commentDraft(text: string) {
+		return this.#call('commentDraft', text);
+	}
+
+	/** Posts a comment under a public flight. */
+	comment(flightId: string, text: string) {
+		return this.#call('comment', { flightId, text });
+	}
+
+	/** Removes a comment: the pilot's own, or one under a flight of theirs. */
+	removeComment(flightId: string, commentId: string) {
+		return this.#call('removeComment', { flightId, commentId });
+	}
+
+	/** What a report about a comment can say. */
+	commentReportForm() {
+		return this.#call('commentReportForm', undefined);
+	}
+
+	/** Reports a comment; answers in a line what became of it. */
+	reportComment(flightId: string, commentId: string, reason: ReportReason, text: string) {
+		return this.#call('reportComment', { flightId, commentId, reason, text });
+	}
+
+	/** The switch on the pilot's own flight: whether it takes comments, in words. */
+	commentsSwitch(open: boolean) {
+		return this.#call('commentsSwitch', open);
+	}
+
+	/** Says whether a flight of the pilot's own takes comments. */
+	setCommentsOpen(flightId: string, open: boolean) {
+		return this.#call('setCommentsOpen', { flightId, open });
+	}
+
+	/** What the pilot was told: who follows, cheered or wrote. Nothing when signed out. */
+	notifications(since?: string) {
+		return this.#call('notifications', since);
+	}
+
+	/** The line beside the switch that lets this browser be told of an alarm. */
+	pushLine() {
+		return this.#call('pushLine', undefined);
+	}
+
+	/** The server's public key for Web Push, base64url. */
+	pushKey() {
+		return this.#call('pushKey', undefined);
+	}
+
+	/** Tells the server of this browser's subscription to Web Push. */
+	pushSubscribe(subscribed: PushSubscribed) {
+		return this.#call('pushSubscribe', subscribed);
+	}
+
+	/** Tells the server that this browser's subscription has ended. */
+	pushUnsubscribe(endpoint: string) {
+		return this.#call('pushUnsubscribe', endpoint);
+	}
+
+	/** The words around pilots, their totals and the ranking. */
+	pilotsWords() {
+		return this.#call('pilotsWords', undefined);
+	}
+
+	/** A page of a pilot's public flights of a season, between two moments. */
+	pilotFlights(handle: string, fromUnixS?: number, toUnixS?: number, after?: string) {
+		return this.#call('pilotFlights', { handle, fromUnixS, toUnixS, after });
+	}
+
+	/** A route's places as a GPX file's text; latitudes and longitudes in turn. */
+	routeToGpx(latLon: number[]) {
+		return this.#call('routeToGpx', latLon);
+	}
+
+	/** A route read from a GPX file's text. Refused in the core's words. */
+	routeFromGpx(text: string) {
+		return this.#call('routeFromGpx', text);
+	}
+
+	/** The core's words for the screens that no answer carries. */
+	screenWords() {
+		return this.#call('screenWords', undefined);
 	}
 
 	/** What a report can say, and what the pilot is told before sending one. */

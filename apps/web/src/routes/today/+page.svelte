@@ -332,7 +332,7 @@
 												{#if day}
 													<StatusChip verdict={day.verdict} status={day.status} />
 													{#if day.why}<span class="lesser">{day.why}</span>{/if}
-													<NearbyLine words={day.nearby} small />
+													<NearbyLine words={day.nearbyShort || day.nearby} small />
 												{:else}
 													<span class="lesser">
 														{place.problem ??
@@ -459,10 +459,12 @@
 									</li>
 								{/each}
 							</ol>
-							<p class="legend">
-								Wind in km/h at 10 m; the bar is the hour’s status by its height.{#if climbs}{' '}Under
-									it the climb to expect in thermals, in m/s, with a bar that grows with it.{/if}
-							</p>
+							<!-- What the strip shows, in the core's words. -->
+							{#if app.said}
+								<p class="legend">
+									{climbs ? app.said.today.hourStripNoteWithThermals : app.said.today.hourStripNote}
+								</p>
+							{/if}
 						{:else}
 							<p class="why">No daylight hours left on this day.</p>
 						{/if}
@@ -509,7 +511,7 @@
 													{/if}
 												</span>
 												{#if day}
-													<NearbyLine words={day.nearby} small />
+													<NearbyLine words={day.nearbyShort || day.nearby} small />
 												{/if}
 											</span>
 											{#if day}

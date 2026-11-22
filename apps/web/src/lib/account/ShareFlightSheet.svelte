@@ -8,7 +8,7 @@
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { accountHref } from '#lib/app/routes.ts';
-	import type { FlightSharing, FlightVisibility } from '#lib/core/index.ts';
+	import type { CommentsSwitch, FlightSharing, FlightVisibility } from '#lib/core/index.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import { VISIBILITY_CHOICES } from './visibility';
@@ -50,6 +50,48 @@
 			current = false;
 		};
 	});
+
+	/*
+	 * Whether a public flight takes comments: the core's switch, its title
+	 * and its line, for the flight by its address on the server.
+	 */
+	const social = $derived(app.social);
+	const serverId = $derived(sharing?.visibility === 'public' ? sharing.flightId : '');
+	let commenting = $state.raw<CommentsSwitch>();
+	let commentingRefusal = $state.raw<string>();
+	$effect(() => {
+		const core = social?.core;
+		const id = serverId;
+		commenting = undefined;
+		commentingRefusal = undefined;
+		if (!open || !core || !id) return;
+		let current = true;
+		void core
+			.comments(id)
+			.then((list) => core.commentsSwitch(list.open))
+			.then(
+				(known) => {
+					if (current) commenting = known;
+				},
+				// Without the answer there is no switch.
+				() => {}
+			);
+		return () => {
+			current = false;
+		};
+	});
+
+	async function takeComments(on: boolean) {
+		if (!social || !serverId) return;
+		commentingRefusal = undefined;
+		try {
+			commenting = await social.core.setCommentsOpen(serverId, on);
+		} catch (error) {
+			commentingRefusal = error instanceof Error ? error.message : String(error);
+			// The switch goes back to what holds.
+			commenting = commenting && { ...commenting };
+		}
+	}
 
 	let choices = $state<HTMLDivElement>();
 
@@ -122,6 +164,29 @@
 				<p class="group-note refusal" role="alert">{refusal}</p>
 			{/if}
 		</section>
+
+		{#if commenting}
+			{#key commenting}
+				<section class="group" aria-label={commenting.title}>
+					<div class="group-card">
+						<label class="group-row toggle">
+							<span>{commenting.title}</span>
+							<input
+								type="checkbox"
+								role="switch"
+								aria-describedby="share-comments"
+								checked={commenting.open}
+								onchange={(event) => takeComments(event.currentTarget.checked)}
+							/>
+						</label>
+					</div>
+					<p class="group-note" id="share-comments">{commenting.line}</p>
+					{#if commentingRefusal}
+						<p class="group-note refusal" role="alert">{commentingRefusal}</p>
+					{/if}
+				</section>
+			{/key}
+		{/if}
 
 		{#if sharing.visibility !== 'private'}
 			<section class="group" aria-labelledby="share-link">

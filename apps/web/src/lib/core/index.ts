@@ -246,8 +246,32 @@ export type {
 	WindSpan,
 	WindStation,
 	WindSymbol,
-	WindView
+	WindView,
+	CheerList,
+	CheerState,
+	CommonWords,
+	PagesWords,
+	CommentDraft,
+	CommentList,
+	CommentPosted,
+	CommentRow,
+	CommentsSwitch,
+	Feed,
+	FeedRow,
+	FollowList,
+	FollowState,
+	NotificationLine,
+	Notifications,
+	PilotsWords,
+	PlannerWords,
+	RouteFromFile,
+	SiteSheetWords,
+	SocialWords,
+	StationSheetWords,
+	TodayWords
 } from './pkg/venti_core_wasm.js';
+export type { PushSubscribed } from './social-source';
+export type { ScreenWords } from './protocol';
 import type { CoreErrorKind } from './pkg/venti_core_wasm.js';
 import { UNREACHABLE } from './protocol';
 

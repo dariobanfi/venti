@@ -855,7 +855,8 @@ describe('sharing a flight', () => {
 		await account.sync();
 		expect(await account.sharing(id)).toEqual({
 			visibility: 'unlisted',
-			link: `${SERVER}/f/${SAMPLE_THERE.id}`
+			link: `${SERVER}/f/${SAMPLE_THERE.id}`,
+			flightId: SAMPLE_THERE.id
 		});
 		browser.server.asked = [];
 

@@ -10,7 +10,7 @@
 	track into the part that shows.
 -->
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { type Snippet, untrack } from 'svelte';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { placeHref } from '#lib/app/routes.ts';
@@ -62,6 +62,15 @@
 		onendbeside?: () => void;
 		/** Hands the flight to a league: for a flight of the pilot's own. */
 		onleague?: () => void;
+		/**
+		 * What other pilots said of a public flight, its cheers and comments:
+		 * a section of the column beside the flight on a wide screen, a
+		 * sheet on a narrow one, opened by a row of the panel that reads
+		 * `socialLine` and titled `socialTitle`.
+		 */
+		social?: Snippet;
+		socialLine?: string;
+		socialTitle?: string;
 	}
 
 	let {
@@ -75,8 +84,14 @@
 		takeoffSite,
 		beside,
 		onendbeside,
-		onleague
+		onleague,
+		social,
+		socialLine = '',
+		socialTitle = ''
 	}: Props = $props();
+
+	/** Whether the sheet of cheers and comments is open, on a narrow screen. */
+	let showingSocial = $state(false);
 
 	const app = getApp();
 	const text = format();
@@ -337,6 +352,14 @@
 					chart={!wide}
 				/>
 			</div>
+			{#if social && wide}
+				<div class="summary said">{@render social()}</div>
+			{:else if social && socialTitle}
+				<button class="said-row" type="button" onclick={() => (showingSocial = true)}>
+					<span>{socialLine || socialTitle}</span>
+					<Icon name="forward" />
+				</button>
+			{/if}
 			{#if wide}
 				<FlightDetails
 					{flight}
@@ -361,6 +384,12 @@
 			{fromHere}
 			takeoffName={takeoffSite?.name}
 		/>
+	</Sheet>
+{/if}
+
+{#if social && !wide}
+	<Sheet open={showingSocial} title={socialTitle} onclose={() => (showingSocial = false)}>
+		<div class="said-sheet">{@render social()}</div>
 	</Sheet>
 {/if}
 
@@ -474,6 +503,31 @@
 
 	.top {
 		display: none;
+	}
+
+	/* What other pilots said, on a narrow screen: one row under the numbers
+	   that opens the sheet. */
+	.said-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+		width: 100%;
+		min-height: var(--target);
+		margin-top: var(--space-2);
+		color: var(--link);
+		font-size: var(--subheadline);
+		text-align: left;
+	}
+
+	.said-row :global(svg) {
+		flex: none;
+		font-size: 0.75rem;
+		color: var(--icon-quiet);
+	}
+
+	.said-sheet {
+		padding: var(--space-2) var(--space-4) var(--space-5);
 	}
 
 	/* Wide: the map at the left two thirds with the profile under it, the

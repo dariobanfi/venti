@@ -95,7 +95,8 @@ struct CockpitSettingsScreen: View {
                 Text("With full brightness the cockpit turns the screen all the way up while it is open and back afterwards; it costs battery. The cockpit is always drawn for the sun: near-black on white, whatever the iPhone's appearance.")
             }
         }
-        .navigationTitle("Cockpit")
+        // The page is called what the row that opens it says.
+        .navigationTitle(pagesWords().gliderAndCockpit)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

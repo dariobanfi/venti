@@ -123,6 +123,15 @@ final class TaskTests: XCTestCase {
         XCTAssertEqual(triangle.legs.count, 3)
         XCTAssertTrue(triangle.faiAreas.isEmpty)
 
+        // A file's route takes the place of a drawn one only after the
+        // core's question: not of nothing, nor of the take-off the
+        // planner opened at.
+        XCTAssertFalse(RouteMapPlanner.asksBeforeReplacing([], from: nil))
+        XCTAssertFalse(RouteMapPlanner.asksBeforeReplacing([wallberg], from: wallberg))
+        XCTAssertTrue(RouteMapPlanner.asksBeforeReplacing([wallberg], from: nil))
+        XCTAssertTrue(RouteMapPlanner.asksBeforeReplacing([wallberg, east], from: wallberg))
+        XCTAssertEqual(plannerWords().replaceQuestion, "Replace the route you have drawn with the file's?")
+
         // One place is no route. Kept, the places are named in order and
         // the cockpit can fly it like a route of waypoints.
         XCTAssertFalse(tasks.keepDrawnRoute([wallberg]))

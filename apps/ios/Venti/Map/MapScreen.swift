@@ -371,7 +371,9 @@ struct MapScreen: View {
             )
         }
         .sheet(isPresented: $showsCredits) {
-            MapCreditsSheet(data: creditLines, photos: showsAerial ? photos.line : "")
+            MapCreditsSheet(
+                data: creditLines, photos: showsAerial ? photos.line : "", region: maps.browsingCredits(at: nil)
+            )
         }
         .sheet(isPresented: $showsPlans) {
             PlansSheet()

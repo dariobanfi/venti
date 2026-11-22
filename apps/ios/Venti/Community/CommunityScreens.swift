@@ -115,6 +115,9 @@ struct PublicFlightsList: View {
 /// how far.
 struct PublicFlightRow: View {
     let flight: PublicFlight
+    /// A line under the date, in the column of the words: in the feed,
+    /// who cheered and how many wrote. Nothing where empty.
+    var note = ""
 
     var body: some View {
         HStack(spacing: 12) {
@@ -127,6 +130,12 @@ struct PublicFlightRow: View {
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if !note.isEmpty {
+                    Text(note)
+                        .font(.venti(.footnote))
+                        .foregroundStyle(.venti(.textSecondary))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {

@@ -182,7 +182,17 @@ final class OfflineMapsTests: XCTestCase {
         XCTAssertEqual(maps.browsingSource(at: inside).key, "kept-tegernsee-demo-2026-11-18")
         XCTAssertEqual(maps.browsingSource(at: nil).key, "kept-tegernsee-demo-2026-11-18")
         XCTAssertEqual(maps.browsingSource(at: Coordinate(lat: 46.0, lon: 8.0)), .standard)
+        // The map's credits are the region's while it is drawn, and the
+        // network map's where it is not.
+        XCTAssertEqual(maps.browsingCredits(at: nil), ["© OpenStreetMap contributors", "© Mapterhorn"])
+        XCTAssertEqual(
+            MapCreditsSheet.map(drawnFrom: maps.browsingCredits(at: nil)),
+            ["© OpenStreetMap contributors", "© Mapterhorn"]
+        )
+        XCTAssertNil(maps.browsingCredits(at: Coordinate(lat: 46.0, lon: 8.0)))
+        XCTAssertEqual(MapCreditsSheet.map(drawnFrom: nil).first, mapLayersWords().baseMapCredit)
         maps.setOnline(true)
+        XCTAssertNil(maps.browsingCredits(at: nil))
 
         // The app started again finds the region without asking anybody.
         let again = OfflineMapsModel(

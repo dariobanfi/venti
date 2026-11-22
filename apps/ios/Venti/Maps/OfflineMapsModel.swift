@@ -192,14 +192,24 @@ final class OfflineMapsModel {
     /// region that covers the place, or with no place named, the first
     /// kept region.
     func browsingSource(at place: Coordinate?) -> MapStyle.Source {
-        guard !isOnline, !kept.isEmpty else { return .standard }
-        let region: MapRegionView? =
-            if let place {
-                mapRegionCovering(kept: kept, lat: place.lat, lon: place.lon)
-            } else {
-                kept.first
-            }
-        return region.flatMap { self.source(of: $0) } ?? MapStyle.Source.standard
+        browsingRegion(at: place).flatMap { self.source(of: $0) } ?? MapStyle.Source.standard
+    }
+
+    /// The kept region the maps other than the cockpit's are drawn from
+    /// there, or `nil` where they are drawn as before.
+    func browsingRegion(at place: Coordinate?) -> MapRegionView? {
+        guard !isOnline, !kept.isEmpty, folder != nil else { return nil }
+        if let place {
+            return mapRegionCovering(kept: kept, lat: place.lat, lon: place.lon)
+        }
+        return kept.first
+    }
+
+    /// Whose base map and terrain the maps other than the cockpit's draw
+    /// there: a kept region's own credits where it is drawn, else `nil`,
+    /// and the credits of the map from the network stand.
+    func browsingCredits(at place: Coordinate?) -> [String]? {
+        browsingRegion(at: place).map { region in region.credits.map(\.text) }
     }
 
     /// A kept region as a source for the map's style.

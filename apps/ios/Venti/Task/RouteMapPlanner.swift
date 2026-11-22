@@ -38,6 +38,12 @@ struct RouteMapPlanner: View {
     /// What a file just read held, in the core's line: said once, in
     /// place of the route's words, until the route changes.
     @State private var read: String?
+    /// A file's route, while the pilot is asked whether it takes the
+    /// place of the one drawn.
+    @State private var replacing: RouteFromFile?
+    /// The place the route began at when the planner opened: a route of
+    /// that place alone is not one the pilot drew.
+    private let start: Coordinate?
 
     /// How much of the planner's height its card takes at the most, with
     /// the weather open: it scrolls before it covers more of the map.
@@ -47,6 +53,7 @@ struct RouteMapPlanner: View {
     /// take-off whose page the pilot came from.
     init(from start: Coordinate? = nil) {
         _places = State(initialValue: start.map { [$0] } ?? [])
+        self.start = start
     }
 
     var body: some View {
@@ -97,6 +104,26 @@ struct RouteMapPlanner: View {
             .fileImporter(isPresented: $isImporting, allowedContentTypes: [.data]) { result in
                 guard case .success(let url) = result else { return }
                 take(fileAt: url)
+            }
+            // A file's route takes the place of one drawn only after the
+            // core's question.
+            .alert(
+                plannerWords().replaceQuestion,
+                isPresented: Binding(
+                    get: { replacing != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            replacing = nil
+                        }
+                    }
+                ),
+                presenting: replacing
+            ) { route in
+                Button(plannerWords().replace) {
+                    take(route)
+                }
+                .accessibilityIdentifier("route-replace")
+                Button(commonWords().cancel, role: .cancel) {}
             }
             .onAppear {
                 weather.server = { [wind] in wind.server }
@@ -181,13 +208,29 @@ struct RouteMapPlanner: View {
             let data = try Data(contentsOf: url)
             let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: Unicode.ASCII.self)
             let route = try routeFromGpx(text: text)
-            places = route.points
-            problem = nil
-            read = route.words
+            if Self.asksBeforeReplacing(places, from: start) {
+                replacing = route
+            } else {
+                take(route)
+            }
         } catch {
             read = nil
             problem = error is CoreError ? error.words : error.localizedDescription
         }
+    }
+
+    /// Whether a file's route would take the place of one the pilot
+    /// drew: not of nothing, nor of the take-off the planner opened at.
+    static func asksBeforeReplacing(_ places: [Coordinate], from start: Coordinate?) -> Bool {
+        !places.isEmpty && places != [start].compactMap { $0 }
+    }
+
+    /// A file's route becomes the route, and the core's line says what
+    /// was read.
+    private func take(_ route: RouteFromFile) {
+        places = route.points
+        problem = nil
+        read = route.words
     }
 
     private func content(of plan: RoutePlan) -> some View {

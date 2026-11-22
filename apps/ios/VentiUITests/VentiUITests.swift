@@ -1201,9 +1201,9 @@ final class VentiUITests: XCTestCase {
         sleep(4)
 
         // The day's line: on the first of the days that has one for some
-        // take-off. It names the hour, what is stronger and where, and
-        // what the place itself has.
-        let line = labelled(containing: "Much stronger near by at", in: app)
+        // take-off. A card says it short, the core's `nearbyShort`: "Gusts to 55
+        // km/h near by at 14:00"; the take-off's page says it in full.
+        let line = labelled(containing: " near by at ", in: app)
         let days = app.buttons.matching(identifier: "today-days")
         var dayWithLine: Int?
         var said: [String] = []
@@ -1214,7 +1214,7 @@ final class VentiUITests: XCTestCase {
             }
             let takeoffs = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier IN %@", ["today-card", "today-row"]))
-            let lines = takeoffs.matching(NSPredicate(format: "label CONTAINS %@", "Much stronger near by at"))
+            let lines = takeoffs.matching(NSPredicate(format: "label CONTAINS %@", " near by at "))
             said.append("day \(index): \(lines.count) of \(takeoffs.count) take-offs")
             if dayWithLine == nil, line.exists {
                 dayWithLine = index
@@ -1231,7 +1231,7 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(line.waitForExistence(timeout: 10))
         XCTAssertNotNil(
             line.label.range(
-                of: #"Much stronger near by at \d{1,2}:00: (gusts to|wind) \d+ km/h .+, \d+ km/h at the place"#,
+                of: #"(Gusts to|Wind) \d+ km/h near by at \d{1,2}:00"#,
                 options: .regularExpression
             ),
             line.label
@@ -2869,6 +2869,164 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(line.label.contains("in the air here"), line.label)
         sleep(1)
         keepScreenshot("air-7-site-pilots-in-the-air")
+    }
+
+    /// The text size above which the larger-text tests look: the largest
+    /// of the standard ones, as the forecast card's test has it.
+    private static let largerText = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
+
+    /// The map tab's new sheets in the dark and with larger text: the
+    /// layers sheet with the climbs, the map with them, the credits, a
+    /// site's page with the pilots in the air and its fold row, and the
+    /// form of a new alarm for the site with its kinds. Run it alone on
+    /// the narrowest simulator (`--first "iPhone 17e"`).
+    func testTheMapsNewSheetsInTheDarkWithLargerText() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(
+            bundledMap: true, dark: true,
+            extra: ["--server", server, "--all-sites", "--map-at", "47.6652,11.7954,13"] + Self.largerText
+        )
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+        XCTAssertTrue(waitForCredit("Sites", in: app))
+        setLayer("layer-flown", on: false, in: app)
+
+        XCTAssertTrue(openLayers(in: app))
+        let climbs = app.switches["layer-climbs"]
+        XCTAssertTrue(climbs.waitForExistence(timeout: 10))
+        set(climbs, on: true)
+        sleep(2)
+        keepScreenshot("larger-dark-1-layers")
+        app.swipeUp()
+        sleep(1)
+        keepScreenshot("larger-dark-1b-layers-lower")
+        closeLayers(in: app)
+        sleep(2)
+        keepScreenshot("larger-dark-2-map-climbs")
+
+        app.buttons["map-credits"].tap()
+        XCTAssertTrue(app.navigationBars["Credits"].waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("larger-dark-3-credits")
+        app.navigationBars["Credits"].buttons["Done"].tap()
+        usleep(700_000)
+        setLayer("layer-climbs", on: false, in: app)
+
+        layersRow("Flying sites", in: app).tap()
+        let ramp = app.descendants(matching: .any).matching(identifier: "site-row")
+            .matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Take-off", "47.665"))
+            .firstMatch
+        XCTAssertTrue(ramp.waitForExistence(timeout: 30))
+        bringUp(ramp, in: app)
+        ramp.tap()
+        XCTAssertTrue(element("site-air", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("larger-dark-4-site-pilots-in-the-air")
+        let fold = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "How this is read")).firstMatch
+        for _ in 0..<10 where !isOnScreen(fold, in: app) {
+            drawUp(in: app)
+        }
+        XCTAssertTrue(fold.exists)
+        sleep(1)
+        keepScreenshot("larger-dark-5-site-fold-row")
+
+        bring("alert-me", into: app, down: true).tap()
+        XCTAssertTrue(element("alert-kind", in: app).waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("larger-dark-6-alert-kinds")
+    }
+
+    /// What pilots see of each other, in the dark and with larger text:
+    /// the notifications, a flight with its cheers and comments, the
+    /// comments, the feed and a pilot's page with "Follow". It changes
+    /// nothing on the server.
+    func testThePilotsScreensInTheDarkWithLargerText() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, dark: true, extra: ["--server", server] + Self.largerText)
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+
+        openTab("Settings", in: app)
+        bring("account-link", into: app).tap()
+        bring("account-notifications", into: app).tap()
+        XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
+        XCTAssertTrue(element("notification", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("larger-dark-social-1-notifications")
+
+        labelled(containing: "commented on your flight", in: app).tap()
+        let comments = element("flight-comments", in: app)
+        XCTAssertTrue(comments.waitForExistence(timeout: 40))
+        sleep(6)
+        keepScreenshot("larger-dark-social-2-flight-pills")
+        comments.tap()
+        XCTAssertTrue(element("comments-count", in: app).waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("larger-dark-social-3-comments")
+        element("comments-close", in: app).tap()
+        XCTAssertTrue(comments.waitForExistence(timeout: 15))
+        // A flight's page covers the tab bar: back to the notifications.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
+
+        openTab("League", in: app)
+        let following = app.buttons["Following"]
+        XCTAssertTrue(following.waitForExistence(timeout: 15))
+        following.tap()
+        XCTAssertTrue(element("feed-row", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("larger-dark-social-4-feed")
+
+        app.buttons["Everyone"].tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap()
+        field.typeText("timo")
+        let timo = labelled(containing: "Timo Entwurf (@timo)", in: app)
+        XCTAssertTrue(timo.waitForExistence(timeout: 30))
+        timo.tap()
+        XCTAssertTrue(element("pilot-follow", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("larger-dark-social-5-pilot")
+    }
+
+    /// "Glider and cockpit" in the dark with larger text, and the
+    /// cockpit's details sheet with larger text: the cockpit is in the
+    /// flight theme, light whatever the iPhone is set to.
+    func testTheCockpitsSettingsAndDetailsWithLargerText() {
+        let app = launch(bundledMap: true, dark: true, extra: ["--sample-waypoints"] + Self.largerText)
+        openTab("Settings", in: app)
+        let cockpit = element("cockpit-settings-link", in: app)
+        for _ in 0..<4 where !(cockpit.exists && cockpit.isHittable) {
+            app.swipeUp()
+        }
+        cockpit.tap()
+        XCTAssertTrue(element("glider-class", in: app).waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("larger-dark-cockpit-1-glider-and-cockpit")
+        app.swipeUp()
+        sleep(1)
+        keepScreenshot("larger-dark-cockpit-2-glider-and-cockpit-lower")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        openTab("Fly", in: app)
+        let replay = app.buttons["Replay the sample flight"]
+        XCTAssertTrue(replay.waitForExistence(timeout: 30))
+        choose("20 times faster", from: replay, in: app)
+        XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Map"))
+        XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Flight"))
+        element("cockpit-details", in: app).tap()
+        XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element("cockpit-detail", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("larger-cockpit-3-details")
+        app.navigationBars["Details"].buttons["Done"].tap()
+        endTheCockpit(in: app)
     }
 
     /// A route of the pilot's own waypoints: tapped in the order to fly

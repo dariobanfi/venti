@@ -181,15 +181,9 @@ private struct FeedRowView: View {
         [row.cheersLine, row.commentsLine].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
+    /// The line stands in the column of the words, under the date.
     var body: some View {
-        VStack(alignment: .leading, spacing: VentiSpace.s1) {
-            PublicFlightRow(flight: row.flight)
-            if !made.isEmpty {
-                Text(made)
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.venti(.textSecondary))
-            }
-        }
+        PublicFlightRow(flight: row.flight, note: made)
     }
 }
 

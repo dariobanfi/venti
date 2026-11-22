@@ -1159,6 +1159,28 @@ private struct FlightPage: View {
 
     @Environment(FlySession.self) private var fly
 
+    /// The vario's sound and the lock, laid out by the row or column
+    /// around them.
+    @ViewBuilder
+    private var muteAndLock: some View {
+        Button {
+            fly.isMuted.toggle()
+        } label: {
+            Label(fly.isMuted ? "Unmute vario" : "Mute vario", systemImage: fly.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .accessibilityIdentifier("cockpit-mute")
+        // Nothing on the screen answers a touch until it is unlocked by
+        // holding a finger on the lock.
+        Button(action: lock) {
+            Label("Lock screen", systemImage: "lock.fill")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .accessibilityIdentifier("cockpit-lock")
+    }
+
     var body: some View {
         VStack(spacing: VentiSpace.s2) {
             HStack(alignment: .top, spacing: VentiSpace.s3) {
@@ -1176,21 +1198,16 @@ private struct FlightPage: View {
                     note: score.map(ScoreBadge.kind)
                 )
             }
-            HStack(spacing: VentiSpace.s3) {
-                Button {
-                    fly.isMuted.toggle()
-                } label: {
-                    Label(fly.isMuted ? "Unmute vario" : "Mute vario", systemImage: fly.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .frame(maxWidth: .infinity)
+            // Side by side where both labels fit whole, else one under
+            // the other: with larger text "Mute vario" and "Lock screen"
+            // were cut short on the narrowest iPhone.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: VentiSpace.s3) {
+                    muteAndLock
                 }
-                .accessibilityIdentifier("cockpit-mute")
-                // Nothing on the screen answers a touch until it is
-                // unlocked by holding a finger on the lock.
-                Button(action: lock) {
-                    Label("Lock screen", systemImage: "lock.fill")
-                        .frame(maxWidth: .infinity)
+                VStack(spacing: VentiSpace.s3) {
+                    muteAndLock
                 }
-                .accessibilityIdentifier("cockpit-lock")
             }
             HStack(spacing: VentiSpace.s3) {
                 // Who watches the flight, and whether it is going out. Not

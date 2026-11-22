@@ -55,8 +55,13 @@ struct MapLayersSheet: View {
                             Label(words.pilots, image: "icon-live")
                         }
                         .accessibilityIdentifier("layer-pilots")
-                        Toggle(words.cables, isOn: shown($hidesCables))
-                            .accessibilityIdentifier("layer-cables")
+                        // A cable is a hazard on the way: the pack's
+                        // caution sign, so that the row lines up with
+                        // the others.
+                        Toggle(isOn: shown($hidesCables)) {
+                            Label(words.cables, image: "icon-caution")
+                        }
+                        .accessibilityIdentifier("layer-cables")
                     }
                     // The ground under everything: the drawn map, or
                     // photographs from above.
@@ -201,9 +206,17 @@ struct MapCreditsSheet: View {
     let data: [String]
     /// Who made the photographs in view, while the aerial view is on.
     var photos = ""
+    /// Whose the base map and terrain are where a downloaded region is
+    /// drawn in place of the map from the network: the region's own
+    /// credits. `nil` where the map from the network is drawn.
+    var region: [String]?
 
-    /// The base map and the terrain, in the core's words.
-    private static var map: [String] {
+    /// The base map and the terrain drawn: the region's credits, or the
+    /// core's words for the map from the network.
+    static func map(drawnFrom region: [String]?) -> [String] {
+        if let region, !region.isEmpty {
+            return region
+        }
         let words = mapLayersWords()
         return [words.baseMapCredit, words.terrainCredit]
     }
@@ -229,7 +242,7 @@ struct MapCreditsSheet: View {
                     }
                 }
                 Section {
-                    ForEach(Self.map, id: \.self) { line in
+                    ForEach(Self.map(drawnFrom: region), id: \.self) { line in
                         Text(line)
                             .font(.venti(.subheadline))
                             .foregroundStyle(.venti(.textSecondary))

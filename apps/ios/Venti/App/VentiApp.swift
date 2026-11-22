@@ -160,6 +160,7 @@ enum Session {
             fly.airspace = { airspace.set }
             fly.taskFile = { tasks.file }
             fly.landings = { waypoints.all.filter { $0.kind == .landing } }
+            fly.sitesHeld = { sites.sites }
             // Other pilots in the air around the glider, from the same
             // server as the map tab's.
             fly.others = { place in await live.around(place) }

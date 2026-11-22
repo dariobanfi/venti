@@ -18,8 +18,16 @@ enum Preferences {
     static let trimSpeed = "VentiGliderTrimSpeed"
     /// The glider's glide ratio at that speed.
     static let glideRatio = "VentiGliderGlideRatio"
-    /// Whether the cockpit's map leaves out the FAI triangle areas.
-    static let hidesFaiAreas = "VentiCockpitHidesFaiAreas"
+    /// Whether the cockpit's map draws the FAI triangle areas: off until
+    /// the pilot switches them on.
+    static let showsFaiAreas = "VentiCockpitShowsFaiAreas"
+    /// The class the glider is certified in: "a", "b", "c", "d", "ccc",
+    /// or nothing for none, which is how it starts. With one the cockpit
+    /// says what the air itself does on a glide and when to speed up.
+    static let gliderClass = "VentiGliderClass"
+    /// Whether a flight is never taken for landed (hike and fly): the
+    /// pilot ends it.
+    static let neverLand = "VentiFlightNeverLands"
     /// The layers of the map tab the pilot has switched off with its
     /// chips. All are shown until then.
     static let mapHidesWind = "VentiMapHidesWind"

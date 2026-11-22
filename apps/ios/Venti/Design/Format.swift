@@ -64,6 +64,13 @@ enum Format {
         minus(value.formatted(.number.precision(.fractionLength(places)).locale(numbers)))
     }
 
+    /// A number on a chart's axis, with no more decimals than it has, two
+    /// at most: "12", "0.6". A chart's own labels follow the iPhone's
+    /// region and would write "0,6" beside the app's "12.0 km".
+    static func axis(_ value: Double) -> String {
+        minus(value.formatted(.number.precision(.fractionLength(0...2)).grouping(.never).locale(numbers)))
+    }
+
     /// The same with a sign, except for zero: "+2.4", "−1.4".
     private static func signed(_ value: Double, places: Int) -> String {
         minus(

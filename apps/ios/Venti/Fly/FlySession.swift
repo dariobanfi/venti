@@ -108,6 +108,11 @@ final class FlySession {
     /// The pilot's landings, asked for every few seconds in the air. The
     /// app sets this to the waypoints that are places to land.
     @ObservationIgnored var landings: () -> [WaypointView] = { [] }
+    /// The sites the map holds, for the landing fields among them: the
+    /// core keeps a standing reading of the nearest landing within glide.
+    @ObservationIgnored var sitesHeld: () -> [SiteView] = { [] }
+    /// The landings last handed to the core's session.
+    @ObservationIgnored private var handedLandings: [TargetPlace]?
     /// The address of the pilot's Venti server, if this iPhone is signed
     /// in to one. The app sets this.
     @ObservationIgnored var server: () -> String? = { nil }
@@ -549,6 +554,27 @@ final class FlySession {
         }
     }
 
+    /// Hands the core the landing fields it keeps a standing reading of:
+    /// those among the cockpit's take-offs and among the sites the map
+    /// holds, and the pilot's own landings. Again only when they have
+    /// changed, since the core begins its reading anew with each.
+    private func handLandings(to session: FlightSession, among found: CockpitTakeoffs?) {
+        var places: [TargetPlace] = []
+        for site in (found?.takeoffs.map(\.site) ?? []) + sitesHeld() where site.uses.contains(.landing) {
+            let place = TargetPlace(name: site.name, position: site.position, elevationM: site.elevationM)
+            if !places.contains(place) {
+                places.append(place)
+            }
+        }
+        for place in landings().map(\.place) where !places.contains(place) {
+            places.append(place)
+        }
+        if places != handedLandings {
+            handedLandings = places
+            session.useLandings(landings: places)
+        }
+    }
+
     private func begin(_ session: FlightSession, mode: Mode) {
         self.session = session
         self.mode = mode
@@ -572,6 +598,11 @@ final class FlySession {
             trimSpeedMs: defaults.double(forKey: Preferences.trimSpeed) / 3.6,
             glideRatio: defaults.double(forKey: Preferences.glideRatio)
         )
+        // Only for a pilot who set a class: the air's own rise and fall
+        // and a speed to fly. And hike and fly, which never lands.
+        session.setGliderClass(class: GliderChoice.kind(defaults.string(forKey: Preferences.gliderClass)))
+        session.setNeverLand(neverLand: defaults.bool(forKey: Preferences.neverLand))
+        handedLandings = nil
         // The task of the day, on the day of the flight: a replay's day is
         // the day it was flown.
         do {
@@ -706,6 +737,7 @@ final class FlySession {
             if found != takeoffsNear {
                 takeoffsNear = found
             }
+            handLandings(to: session, among: found)
         }
 
         // The wind on the ground, in flight only: around the glider, and

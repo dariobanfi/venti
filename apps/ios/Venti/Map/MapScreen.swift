@@ -40,6 +40,12 @@ struct MapScreen: View {
     @AppStorage(Preferences.glideRatio) private var pilotsGlide = Preferences.defaultGlideRatio
 
     @State private var isFollowing = false
+    /// The layers sheet: the layers without a chip, and the lists.
+    @State private var showsLayers = false
+    /// The list chosen in the layers sheet, to open once it has closed.
+    @State private var fromLayers: MapLayersSheet.Opening?
+    /// Whose data and whose map this is, behind the credits button.
+    @State private var showsCredits = false
     @State private var showsPlans = false
     /// The plan whose mark on the map the pilot tapped.
     @State private var chosenPlan: ChosenPlan?
@@ -220,62 +226,29 @@ struct MapScreen: View {
             .id(maps.browsingSource(at: nil).key)
             .ignoresSafeArea()
             // One element, not the map's hundreds of labels: everything it
-            // shows that can be chosen is in the lists the round buttons
-            // open, and reading the labels made every look at this screen
+            // shows that can be chosen is in the lists the layers sheet
+            // opens, and reading the labels made every look at this screen
             // by VoiceOver or by a test slow enough to time out.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Map")
             .accessibilityIdentifier("overview-map")
-            .accessibilityHint("Wind stations, flying sites, pilots in the air and flying plans are in the lists.")
+            .accessibilityHint("Wind stations, flying sites, pilots in the air and flying plans are in the lists under Layers.")
             // How many plans the map marks: said, since the marks
             // themselves are not read.
             .accessibilityValue(plansOnTheMap)
 
             StatusBarScrim()
 
+            // Two round buttons and no more: every list and every layer
+            // without a chip is in the sheet the first opens.
             VStack(spacing: 12) {
-                if wind.server != nil {
-                    // Everything the arrows say, as a list: for reading the
-                    // numbers side by side, and for pilots who use VoiceOver.
-                    mapButton("Wind stations", icon: Image("icon-wind")) {
-                        showsStations = true
-                    }
+                Button {
+                    showsLayers = true
+                } label: {
+                    Label("Layers", image: "icon-layers")
                 }
-                if !sites.sites.isEmpty {
-                    // The signs on the map, as a list.
-                    mapButton("Flying sites", icon: Image("icon-site")) {
-                        showsSites = true
-                    }
-                }
-                if showsSitesFilterButton {
-                    // Which of the sites the map and the list show.
-                    Button {
-                        showsSitesFilter = true
-                    } label: {
-                        Label("Filter the sites", systemImage: SitesFilterIcon.name)
-                    }
-                    .buttonStyle(.ventiRound(isOn: sites.filtered.isOn))
-                    .accessibilityValue(sites.filtered.isOn ? sites.filtered.filterWords : "")
-                    .accessibilityIdentifier("sites-filter")
-                }
-                if !hidesPilots, !live.layer.countWords.isEmpty {
-                    // Who is in the air on this part of the map, as a list,
-                    // and how many in the core's words.
-                    mapButton("Pilots in the air", icon: Image("icon-live")) {
-                        showsGliders = true
-                    }
-                    .accessibilityValue(live.layer.countWords)
-                }
-                if account.isSignedIn || wind.server != nil {
-                    // Who flies where today and on the days ahead: the
-                    // plans of the pilot's groups.
-                    mapButton("Flying plans", icon: Image(systemName: "calendar")) {
-                        showsPlans = true
-                    }
-                }
-                // The ground under everything: the drawn map, or
-                // photographs from above.
-                AerialButton()
+                .buttonStyle(.ventiRound)
+                .accessibilityIdentifier("map-layers")
                 mapButton("Show my position", icon: Image(systemName: isFollowing ? "location.fill" : "location")) {
                     isFollowing.toggle()
                 }
@@ -303,6 +276,8 @@ struct MapScreen: View {
                 }
                 credits
             }
+            .padding(.leading, VentiSpace.s2)
+            .padding(.bottom, VentiSpace.s2)
             // Under the row of layer chips, however high the card is with
             // its key and notes open and the text large.
             .padding(.top, VentiSize.touch + VentiSpace.s3)
@@ -359,6 +334,20 @@ struct MapScreen: View {
                 StationScreen(station: chosen.station)
             }
             .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showsLayers, onDismiss: openFromLayers) {
+            MapLayersSheet(
+                offers: layersOffers,
+                filterWords: sites.filtered.isOn ? sites.filtered.filterWords : "",
+                pilotsWords: live.layer.countWords,
+                open: { opening in
+                    fromLayers = opening
+                    showsLayers = false
+                }
+            )
+        }
+        .sheet(isPresented: $showsCredits) {
+            MapCreditsSheet(data: creditLines, photos: showsAerial ? photos.line : "")
         }
         .sheet(isPresented: $showsPlans) {
             PlansSheet()
@@ -504,6 +493,9 @@ struct MapScreen: View {
                 showsSitesFilter = false
                 showsGliders = false
                 showsPlans = false
+                showsLayers = false
+                showsCredits = false
+                fromLayers = nil
             }
         }
         .alert(
@@ -521,6 +513,32 @@ struct MapScreen: View {
             Button("OK", role: .cancel) {}
         } message: { problem in
             Text(problem)
+        }
+    }
+
+    /// What the layers sheet has rows for: each only where there is
+    /// something to switch or to list, as the round buttons were.
+    private var layersOffers: MapLayersSheet.Offers {
+        MapLayersSheet.Offers(
+            hasServer: wind.server != nil,
+            sites: !sites.sites.isEmpty,
+            sitesFilter: showsSitesFilterButton,
+            pilots: !hidesPilots && !live.layer.countWords.isEmpty,
+            plans: account.isSignedIn || wind.server != nil
+        )
+    }
+
+    /// Opens the list chosen in the layers sheet once that sheet has
+    /// gone: one sheet at a time.
+    private func openFromLayers() {
+        guard let opening = fromLayers else { return }
+        fromLayers = nil
+        switch opening {
+        case .stations: showsStations = true
+        case .sites: showsSites = true
+        case .sitesFilter: showsSitesFilter = true
+        case .pilots: showsGliders = true
+        case .plans: showsPlans = true
         }
     }
 
@@ -559,6 +577,9 @@ struct MapScreen: View {
     private var layerChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                // Four chips at most: the two that open a card, and the
+                // two layers switched most. The other layers are switches
+                // in the layers sheet.
                 if wind.server != nil {
                     // The kind of day, square by square: off until the
                     // pilot switches it on.
@@ -570,16 +591,8 @@ struct MapScreen: View {
                     // switches it on. The pack has no sign for rain.
                     VentiChip(title: "Radar", isOn: $showsRadar)
                         .accessibilityIdentifier("radar-chip")
-                }
-                VentiChip(title: "Airspace", icon: "icon-airspace", isOn: shown($hidesAirspace))
-                    .accessibilityIdentifier("layer-airspace")
-                if wind.server != nil {
                     VentiChip(title: "Sites", icon: "icon-site", isOn: shown($hidesSites))
                         .accessibilityIdentifier("layer-sites")
-                    VentiChip(title: "Pilots", icon: "icon-live", isOn: shown($hidesPilots))
-                        .accessibilityIdentifier("layer-pilots")
-                    VentiChip(title: "Cables", isOn: shown($hidesCables))
-                        .accessibilityIdentifier("layer-cables")
                 }
             }
             .padding(.horizontal, 16)
@@ -656,10 +669,12 @@ struct MapScreen: View {
         }
     }
 
-    /// Whose wind and airspace are on the map. Their licences ask for the
-    /// credit next to the data; the full wording is on each station's page
-    /// and on the airspace screen.
-    private var creditLine: String {
+    /// Whose wind, airspace, sites and the rest are on the map, a line for
+    /// each. Their licences ask for the credit at the data: it is one tap
+    /// away, behind the map's credits button, in full; the full wording
+    /// of each is on a station's page, the airspace screen and under
+    /// "Data and licences".
+    private var creditLines: [String] {
         var parts: [String] = []
         if !wind.credits.isEmpty, !hidesWind {
             parts.append("Wind: \(wind.credits.map(\.provider).formatted(.list(type: .and)))")
@@ -693,28 +708,34 @@ struct MapScreen: View {
                 parts.append("Radar: \(providers.formatted(.list(type: .and)))")
             }
         }
-        let line = parts.joined(separator: " · ")
-        // Who made the photographs, on a line of its own while they show.
-        guard showsAerial else { return line }
-        guard !photos.line.isEmpty else { return line }
-        return line.isEmpty ? photos.line : line + "\n" + photos.line
+        return parts
     }
 
-    @ViewBuilder private var credits: some View {
-        if !creditLine.isEmpty {
-            Text(creditLine)
-                .font(.venti(.caption2))
-                .foregroundStyle(.venti(.textSecondary))
-                .lineLimit(5)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .ventiFloating(in: .rect(cornerRadius: 10))
-                // Clear of the map's own credits button on the left and of
-                // the round buttons on the right.
-                .padding(.leading, 44)
-                .padding(.trailing, 96)
-                .padding(.bottom, 8)
-                .accessibilityIdentifier("wind-credits")
+    /// The credits button, the only thing of the credits on the map: the
+    /// app's own in place of the map engine's, so that VoiceOver and a
+    /// test reach it, and one tap shows the data's credits and the map's
+    /// together. Beside it, while the photographs show, who made those in
+    /// view, as on every map of the app.
+    private var credits: some View {
+        HStack(spacing: VentiSpace.s2) {
+            Button {
+                showsCredits = true
+            } label: {
+                Label("Credits", systemImage: "info.circle")
+                    .labelStyle(.iconOnly)
+                    .font(.venti(.footnote))
+                    .foregroundStyle(.venti(.textSecondary))
+                    .padding(VentiSpace.s1)
+                    .ventiFloating(in: .circle)
+                    .frame(minWidth: VentiSize.touch, minHeight: VentiSize.touch)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(creditLines.joined(separator: " · "))
+            .accessibilityIdentifier("map-credits")
+            PhotographCredit(credits: photos)
+                // Clear of the round buttons on the right.
+                .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
         }
     }
 
@@ -756,9 +777,8 @@ struct MapScreen: View {
         .padding(.horizontal, VentiSpace.s3)
         .padding(.vertical, VentiSpace.s1)
         .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
-        .padding(.leading, VentiSpace.s4)
+        .padding(.leading, VentiSpace.s2)
         .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
-        .padding(.bottom, creditLine.isEmpty ? VentiSize.touch : 0)
     }
 
     /// The rain radar's card, under the forecast map's where both are on.
@@ -771,9 +791,8 @@ struct MapScreen: View {
                 }
             }
         )
-        .padding(.leading, VentiSpace.s4)
+        .padding(.leading, VentiSpace.s2)
         .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
-        .padding(.bottom, creditLine.isEmpty && !isSitesFilterOn ? VentiSize.touch : 0)
     }
 
     /// The day of the forecast map that is drawn, while the layer is on.
@@ -920,11 +939,8 @@ struct MapScreen: View {
                 }
             }
         )
-        .padding(.leading, VentiSpace.s4)
+        .padding(.leading, VentiSpace.s2)
         .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
-        // Room under it for the map's credits button where there is no
-        // line of credits beside that button.
-        .padding(.bottom, creditLine.isEmpty && !isRadarOn && !isSitesFilterOn ? VentiSize.touch : 0)
     }
 
     /// "2 flying plans marked", or nothing where the map marks none.

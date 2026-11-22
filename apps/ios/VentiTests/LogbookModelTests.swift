@@ -154,6 +154,11 @@ final class LogbookModelTests: XCTestCase {
     }
 
     func testFormattingUsesMetricUnits() {
+        // A chart's axis: no more decimals than the number has, and a
+        // point whatever the iPhone's region.
+        XCTAssertEqual(Format.axis(0.6), "0.6")
+        XCTAssertEqual(Format.axis(12), "12")
+        XCTAssertEqual(Format.axis(1500), "1500")
         // Digit grouping and the decimal mark follow the device's region, so
         // only the parts that do not depend on it are checked.
         XCTAssertEqual(Format.metres(950.4), "950")

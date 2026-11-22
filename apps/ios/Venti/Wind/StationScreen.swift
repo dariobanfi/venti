@@ -24,6 +24,9 @@ struct StationScreen: View {
     @State private var chosenMoment: Date?
     /// The past day chosen, by its date; none for the last 24 hours.
     @State private var date: String?
+    /// Whether what the core reads of the air here and how the chart's
+    /// days are to be read is unfolded: both stand behind a row at the end.
+    @State private var showsMoreAir = false
 
     var body: some View {
         VentiList {
@@ -32,8 +35,6 @@ struct StationScreen: View {
             } footer: {
                 Text(ageText)
             }
-
-            air
 
             Section {
                 dayPicker
@@ -92,6 +93,34 @@ struct StationScreen: View {
                     }
                     .padding(.vertical, 2)
                 }
+            }
+            // What the core reads of the air from the readings, and how
+            // the chart's days are to be read: behind a row at the end.
+            Section {
+                Button {
+                    showsMoreAir.toggle()
+                } label: {
+                    HStack {
+                        Text("More about the air here")
+                        Spacer(minLength: VentiSpace.s2)
+                        Image(systemName: showsMoreAir ? "chevron.up" : "chevron.down")
+                            .font(.venti(.footnote))
+                            .foregroundStyle(.venti(.textMuted))
+                            .accessibilityHidden(true)
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(showsMoreAir ? "Shown" : "Hidden")
+                .accessibilityIdentifier("station-more-air")
+            } footer: {
+                if showsMoreAir {
+                    Text(days.note)
+                        .accessibilityIdentifier("station-days-note")
+                }
+            }
+            if showsMoreAir {
+                air
             }
         }
         .navigationTitle(station.name)
@@ -187,9 +216,6 @@ struct StationScreen: View {
             .datePickerStyle(.compact)
             .font(.venti(.headline))
             .accessibilityIdentifier("station-day")
-            Text(days.note)
-                .font(.venti(.footnote))
-                .foregroundStyle(.secondary)
         }
     }
 

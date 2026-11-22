@@ -99,6 +99,9 @@ struct OverviewMap: UIViewRepresentable {
         let map = MapSetup.makeMapView(from: source)
         map.delegate = context.coordinator
         map.automaticallyAdjustsContentInset = true
+        // The map tab has a credits button of its own in the same corner,
+        // which lists what this one would, and the data's credits with it.
+        map.attributionButton.isHidden = true
         // The northern Alps between Lake Constance and Salzburg, or where
         // a UI test asks for.
         let at = LaunchOptions.mapAt ?? (lat: 47.45, lon: 11.6, zoom: 7.4)

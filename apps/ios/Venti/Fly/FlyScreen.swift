@@ -75,12 +75,6 @@ struct FlyScreen: View {
                         }
                     }
                     .accessibilityIdentifier("map-before-takeoff")
-                } footer: {
-                    Text(
-                        airspace.isEmpty
-                            ? "Without an external vario the phone's own pressure sensor is used. It is slower. Without airspace the cockpit warns of none."
-                            : "Without an external vario the phone's own pressure sensor is used. It is slower."
-                    )
                 }
 
                 Section {
@@ -286,7 +280,7 @@ private struct VarioSheet: View {
                         }
                     }
                 } footer: {
-                    Text("Switch the vario on and choose it here, not in the iPhone's Bluetooth settings. Venti reads LK8EX1, OpenVario, XC Tracer, LXWP0 and BlueFly data.")
+                    Text("Without an external vario the phone's own pressure sensor is used. It is slower. Switch the vario on and choose it here, not in the iPhone's Bluetooth settings. Venti reads LK8EX1, OpenVario, XC Tracer, LXWP0 and BlueFly data.")
                 }
             }
             .navigationTitle("Vario")

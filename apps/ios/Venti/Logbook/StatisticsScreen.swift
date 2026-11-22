@@ -58,6 +58,9 @@ struct StatisticsScreen: View {
                         AxisValueLabel(format: .dateTime.month(.narrow), centered: true)
                     }
                 }
+                .chartYAxis {
+                    Self.numbers
+                }
                 .frame(height: 170)
                 .padding(.vertical, 4)
                 .accessibilityLabel("\(measure.rawValue) by month, in \(measure.unit)")
@@ -97,6 +100,9 @@ struct StatisticsScreen: View {
                         AxisMarks { _ in
                             AxisValueLabel()
                         }
+                    }
+                    .chartYAxis {
+                        Self.numbers
                     }
                     .frame(height: 140)
                     .padding(.vertical, 4)
@@ -289,6 +295,19 @@ struct StatisticsScreen: View {
 
     /// A month of the year as the chart's axis writes it: its place and
     /// its first letter, so that the two Js and the two Ms stay apart.
+    /// A chart's numbers up its side, written by `Format` as every other
+    /// number of the app is, and not by the iPhone's region.
+    private static var numbers: some AxisContent {
+        AxisMarks { value in
+            AxisGridLine()
+            AxisValueLabel {
+                if let number = value.as(Double.self) {
+                    Text(verbatim: Format.axis(number))
+                }
+            }
+        }
+    }
+
     private static func letter(ofMonth month: UInt32) -> String {
         let letters = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
         let index = Int(month) - 1

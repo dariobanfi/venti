@@ -52,14 +52,83 @@ final class VentiUITests: XCTestCase {
         return !frame.isEmpty && app.windows.firstMatch.frame.contains(frame)
     }
 
-    /// Switches one of the map tab's layer chips on or off. The row
-    /// scrolls: a chip off the screen is brought into it first, by
-    /// swiping the row on a chip that is on screen.
+    /// The layers the map tab keeps as switches in its layers sheet; the
+    /// others ("layer-wind", "layer-sites", the forecast and the radar)
+    /// are chips on the map.
+    private static let layersInTheSheet: Set<String> = ["layer-airspace", "layer-pilots", "layer-cables", "map-aerial"]
+
+    /// Opens the map tab's layers sheet, from the first of its two round
+    /// buttons: the layers without a chip are switches in it, and the
+    /// lists of what the map shows are rows. Nothing happens where it is
+    /// open already.
+    @discardableResult
+    private func openLayers(in app: XCUIApplication) -> Bool {
+        if app.navigationBars["Layers"].exists {
+            return true
+        }
+        let layers = app.buttons["map-layers"]
+        guard layers.waitForExistence(timeout: 30) else { return false }
+        layers.tap()
+        return app.navigationBars["Layers"].waitForExistence(timeout: 10)
+    }
+
+    /// Closes the layers sheet, where it is open.
+    private func closeLayers(in app: XCUIApplication) {
+        let done = app.navigationBars["Layers"].buttons["Done"]
+        if done.exists {
+            done.tap()
+            usleep(700_000)
+        }
+    }
+
+    /// A row of the layers sheet, by its name or identifier: "Wind
+    /// stations", "Flying sites", "sites-filter", "Pilots in the air",
+    /// "Flying plans". Opens the sheet first and waits for the row, which
+    /// is there only once the map has what it lists. A tap on it closes
+    /// the sheet and opens the list.
+    private func layersRow(_ name: String, in app: XCUIApplication, timeout: TimeInterval = 60) -> XCUIElement {
+        XCTAssertTrue(openLayers(in: app), "The layers sheet opens from the map.")
+        let row = app.buttons[name]
+        _ = row.waitForExistence(timeout: timeout)
+        return row
+    }
+
+    /// Waits until the map's credits, behind its credits button, name
+    /// something: "Wind", "Sites". The credit comes with the first answer
+    /// from the server, so this is how a test knows the map has it.
+    @discardableResult
+    private func waitForCredit(_ what: String, in app: XCUIApplication, timeout: TimeInterval = 60) -> Bool {
+        let credits = app.buttons["map-credits"]
+        guard credits.waitForExistence(timeout: timeout) else { return false }
+        // A layer's credit is there only while the layer is: the chips'
+        // choices are kept between launches, and a test before this one
+        // may have left one off.
+        if let chip = ["Wind": "layer-wind", "Sites": "layer-sites"][what] {
+            setLayer(chip, on: true, in: app)
+        }
+        let named = NSPredicate(format: "value CONTAINS %@", what)
+        return XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: named, object: credits)], timeout: timeout) == .completed
+    }
+
+    /// Switches one of the map tab's layers on or off: a chip on the map,
+    /// or a switch in the layers sheet, which is opened for it and closed
+    /// again.
     private func setLayer(_ identifier: String, on: Bool, in app: XCUIApplication) {
+        if Self.layersInTheSheet.contains(identifier) {
+            guard openLayers(in: app) else { return }
+            let toggle = app.switches[identifier]
+            if toggle.waitForExistence(timeout: 5) {
+                set(toggle, on: on)
+            }
+            closeLayers(in: app)
+            return
+        }
         let chip = element(identifier, in: app)
         guard chip.waitForExistence(timeout: 10) else { return }
-        for direction in [true, true, false, false, false, false] where !isOnScreen(chip, in: app) {
-            let handle = ["layer-airspace", "layer-wind", "layer-sites", "forecast-chip"]
+        // The row scrolls where the text is large: a chip off the screen
+        // is brought into it first, by swiping the row on one that is on it.
+        for direction in [true, true, false, false] where !isOnScreen(chip, in: app) {
+            let handle = ["layer-wind", "layer-sites", "forecast-chip"]
                 .map { element($0, in: app) }
                 .first { isOnScreen($0, in: app) }
             if direction {
@@ -529,6 +598,9 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(element("Glide", in: app).waitForExistence(timeout: 150))
         XCTAssertTrue(element("Wind", in: app).exists)
         sleep(3)
+        // On a glide the map has the room: the thermal view is there
+        // only while the core says the glider circles.
+        XCTAssertFalse(element("thermal-view", in: app).exists)
         keepScreenshot("fly-3-glide")
 
         // The second page: the map as large as it gets, and under it the
@@ -555,6 +627,9 @@ final class VentiUITests: XCTestCase {
         element("wind-badge", in: app).tap()
         XCTAssertTrue(app.navigationBars["Wind by height"].waitForExistence(timeout: 10))
         XCTAssertTrue(element("wind-by-height-row", in: app).waitForExistence(timeout: 10))
+        // Over the bands, the wind the cockpit shows in the core's
+        // words: how strong, where from, from what and how old.
+        XCTAssertTrue(element("wind-words", in: app).exists)
         sleep(1)
         keepScreenshot("fly-5b-wind-by-height")
         app.buttons["Done"].tap()
@@ -598,6 +673,16 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("fly-5d-flight-page")
 
+        // What the cockpit knows beyond its pages' readings, from the
+        // third page: each a row in the core's words.
+        element("cockpit-details", in: app).tap()
+        XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element("cockpit-detail", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("fly-5d2-details")
+        app.navigationBars["Details"].buttons["Done"].tap()
+        XCTAssertTrue(lock.waitForExistence(timeout: 10))
+
         // Locked, the screen answers no touch: neither a tap on the dots
         // nor a swipe turns the page, and "End" ends nothing. Holding the
         // lock opens it.
@@ -624,6 +709,22 @@ final class VentiUITests: XCTestCase {
         openTab("Settings", in: app)
         XCTAssertTrue(app.staticTexts["Pilot"].waitForExistence(timeout: 15) || element("Vario sound", in: app).exists)
         keepScreenshot("settings-1")
+
+        // The glider, the FAI triangle areas and the brightness, on a
+        // page of their own: no class and no areas until the pilot says.
+        let cockpit = element("cockpit-settings-link", in: app)
+        for _ in 0..<3 where !(cockpit.exists && cockpit.isHittable) {
+            app.swipeUp()
+        }
+        cockpit.tap()
+        XCTAssertTrue(element("glider-class", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(isOn(app.switches["fai-areas"]) == false)
+        sleep(1)
+        keepScreenshot("settings-1b-cockpit")
+        app.navigationBars.buttons.firstMatch.tap()
+        for _ in 0..<3 where !app.buttons["Waypoints"].isHittable {
+            app.swipeDown()
+        }
 
         // The pilot's waypoints.
         app.buttons["Waypoints"].tap()
@@ -905,7 +1006,7 @@ final class VentiUITests: XCTestCase {
         // A take-off's own page: its status again, and the two things to
         // do from here.
         card.tap()
-        XCTAssertTrue(labelled(containing: "Wind it works in", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(element("site-plan-route", in: app).waitForExistence(timeout: 15))
         XCTAssertTrue(element("site-status", in: app).waitForExistence(timeout: 30))
         XCTAssertTrue(app.buttons["Plan route"].exists)
         sleep(1)
@@ -961,7 +1062,7 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 30))
         bringUp(row, in: app)
         row.tap()
-        XCTAssertTrue(labelled(containing: "Wind it works in", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(element("site-plan-route", in: app).waitForExistence(timeout: 15))
 
         // Further down, the button that keeps it.
         let keep = element("site-keep", in: app)
@@ -1041,8 +1142,9 @@ final class VentiUITests: XCTestCase {
         // as a screenshot when it is reached; the test does not depend
         // on it.
         openTab("Map", in: app)
+        guard waitForCredit("Sites", in: app), openLayers(in: app) else { return }
         let sites = app.buttons["Flying sites"]
-        guard sites.waitForExistence(timeout: 60) else { return }
+        guard sites.waitForExistence(timeout: 30) else { return }
         sites.tap()
         let ramp = app.descendants(matching: .any).matching(identifier: "site-row")
             .matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Take-off", "47.665"))
@@ -1100,9 +1202,6 @@ final class VentiUITests: XCTestCase {
         // take-off. It names the hour, what is stronger and where, and
         // what the place itself has.
         let line = labelled(containing: "Much stronger near by at", in: app)
-        // Whether the day Today opens on has it: the first with hours
-        // left, which is the day a take-off's page speaks of.
-        let isOnTheFirstDay = line.exists
         let days = app.buttons.matching(identifier: "today-days")
         var dayWithLine: Int?
         var said: [String] = []
@@ -1145,15 +1244,13 @@ final class VentiUITests: XCTestCase {
 
         // The take-off the line is about: its own page.
         line.tap()
-        XCTAssertTrue(labelled(containing: "Wind it works in", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(element("site-plan-route", in: app).waitForExistence(timeout: 15))
         XCTAssertTrue(element("site-status", in: app).waitForExistence(timeout: 30))
-        // The page speaks of the first day that has hours left; where that
-        // day has the line, it stands under the day's own.
+        // The page speaks of the day chosen on Today: the line stands
+        // under the day's own.
         let onPage = element("site-nearby", in: app)
-        if isOnTheFirstDay {
-            XCTAssertTrue(onPage.waitForExistence(timeout: 10))
-            XCTAssertTrue(onPage.label.contains("Much stronger near by at"), onPage.label)
-        }
+        XCTAssertTrue(onPage.waitForExistence(timeout: 10))
+        XCTAssertTrue(onPage.label.contains("Much stronger near by at"), onPage.label)
         sleep(1)
         keepScreenshot("air-2-site-the-days-line")
 
@@ -1224,8 +1321,9 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("air-4-an-hour-in-words")
 
-        // Under the picture, what the layers and the wind near by are and
-        // are not.
+        // At the page's end, behind "How this is read": what the layers
+        // and the wind near by are and are not.
+        unfoldHowASiteIsRead(in: app)
         let layersNote = labelled(containing: "Layers are read between the model's levels", in: app)
         bringUp(layersNote, in: app)
         XCTAssertTrue(layersNote.waitForExistence(timeout: 10))
@@ -1260,6 +1358,19 @@ final class VentiUITests: XCTestCase {
         bringUp(detail, in: app)
         sleep(1)
         keepScreenshot("air-6-the-picture-in-the-dark")
+    }
+
+    /// Unfolds the row at the end of a site's page that keeps how the page
+    /// is read, what a site on a map is worth, and the source's notice
+    /// and credit.
+    private func unfoldHowASiteIsRead(in app: XCUIApplication) {
+        let row = element("site-how-read", in: app)
+        for _ in 0..<10 where !(row.exists && isOnScreen(row, in: app)) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        usleep(800_000)
     }
 
     /// Draws the page up until an element stands clear of the tab bar.
@@ -1898,11 +2009,9 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(element("radar-play", in: app).exists)
         // The card as it opens: the key and the notes are not on it.
         XCTAssertFalse(element("radar-key", in: app).exists)
-        // Both sources' credits stand at the map while their pictures do.
-        XCTAssertTrue(
-            labelled(containing: "Radar: Deutscher Wetterdienst and GeoSphere Austria", in: app)
-                .waitForExistence(timeout: 30)
-        )
+        // Both sources' credits are behind the map's credits button while
+        // their pictures are drawn.
+        XCTAssertTrue(waitForCredit("Radar: Deutscher Wetterdienst and GeoSphere Austria", in: app, timeout: 30))
         // Time for the pictures to be drawn.
         sleep(4)
         keepScreenshot("map-radar-1-newest")
@@ -2105,12 +2214,13 @@ final class VentiUITests: XCTestCase {
 
             // The count of the Pilots layer, in the core's words, and the
             // network's credit with the map's credits.
-            let pilots = app.buttons["Pilots in the air"]
+            let pilots = layersRow("Pilots in the air", in: app)
             XCTAssertTrue(pilots.waitForExistence(timeout: 60))
             let counted = NSPredicate(format: "value CONTAINS 'others in the air'")
             expectation(for: counted, evaluatedWith: pilots)
             waitForExpectations(timeout: 30)
-            XCTAssertTrue(labelled(containing: "Open Glider Network", in: app).waitForExistence(timeout: 15))
+            closeLayers(in: app)
+            XCTAssertTrue(waitForCredit("Open Glider Network", in: app, timeout: 15))
             sleep(3)
             keepScreenshot(dark ? "others-3-map-dark" : "others-1-map")
 
@@ -2132,7 +2242,7 @@ final class VentiUITests: XCTestCase {
             sleep(1)
             keepScreenshot(dark ? "others-4-sheet-dark" : "others-2-sheet")
             app.buttons["Done"].tap()
-            XCTAssertTrue(pilots.waitForExistence(timeout: 15))
+            XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 15))
             for layer in quiet {
                 setLayer(layer, on: true, in: app)
             }
@@ -2156,33 +2266,31 @@ final class VentiUITests: XCTestCase {
         app.launch()
         openTab("Map", in: app)
 
-        let stations = app.buttons["Wind stations"]
-        XCTAssertTrue(stations.waitForExistence(timeout: 90))
+        XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 90))
+        // Every layer on: the choices are kept between launches, and a
+        // test that stopped half-way may have left one off.
+        for layer in ["layer-airspace", "layer-pilots", "layer-sites"] {
+            setLayer(layer, on: true, in: app)
+        }
         // The credit appears with the first answer from the server.
-        XCTAssertTrue(element("wind-credits", in: app).waitForExistence(timeout: 60))
+        XCTAssertTrue(waitForCredit("Wind", in: app))
         sleep(12)
         keepScreenshot("wind-1-map")
-
-        // Who is in the air, from the same server: its development mode
-        // has two gliders over the Tegernsee, one flying and one landed.
-        let pilots = app.buttons["Pilots in the air"]
-        XCTAssertTrue(pilots.waitForExistence(timeout: 30))
-        pilots.tap()
-        XCTAssertTrue(app.navigationBars["In the air"].waitForExistence(timeout: 15))
-        XCTAssertTrue(labelled(containing: "Demo Pilot", in: app).waitForExistence(timeout: 15))
-        XCTAssertTrue(saying("Landed", in: app).exists)
+        // The layers sheet: the layers without a chip, and the lists.
+        let stations = layersRow("Wind stations", in: app)
+        XCTAssertTrue(stations.exists)
         sleep(1)
-        keepScreenshot("wind-1b-in-the-air")
-        // Choosing one closes the list and opens the glider's page over
-        // the map, which draws the flight so far and moves to show it.
-        element("live-row", in: app).tap()
-        XCTAssertTrue(element("live-age", in: app).waitForExistence(timeout: 20))
-        sleep(5)
-        keepScreenshot("wind-1c-glider")
-        app.buttons["Done"].tap()
-        XCTAssertTrue(stations.waitForExistence(timeout: 15))
+        keepScreenshot("wind-1a-layers")
+        closeLayers(in: app)
+        // The credits in full, one tap from the map.
+        app.buttons["map-credits"].tap()
+        XCTAssertTrue(element("wind-credits", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("wind-1b-credits")
+        app.navigationBars["Credits"].buttons["Done"].tap()
+        usleep(700_000)
 
-        stations.tap()
+        layersRow("Wind stations", in: app).tap()
         XCTAssertTrue(app.navigationBars["Wind stations"].waitForExistence(timeout: 15))
         let summit = labelled(containing: "Zugspitze", in: app)
         XCTAssertTrue(summit.waitForExistence(timeout: 15))
@@ -2193,7 +2301,11 @@ final class VentiUITests: XCTestCase {
 
         summit.tap()
         XCTAssertTrue(element("wind-chart", in: app).waitForExistence(timeout: 30))
-        XCTAssertTrue(labelled(containing: "Deutscher Wetterdienst", in: app).exists)
+        // Whose wind it is: the station's own source stands at the page's
+        // foot, below what the list has built; the map under the sheet
+        // names it behind its credits button.
+        let credited = (app.buttons["map-credits"].value as? String) ?? ""
+        XCTAssertTrue(credited.contains("Deutscher Wetterdienst"), credited)
         sleep(2)
         keepScreenshot("wind-3-station")
 
@@ -2236,9 +2348,33 @@ final class VentiUITests: XCTestCase {
         sleep(2)
         keepScreenshot("station-2-past-day")
 
-        // The assistant looks up the same wind on the same server.
+        // Back to the map.
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 15))
+
+        // After the stations, because a glider's page moves the map to its
+        // flight, and the list of stations is of the part of the map in view.
+        // Who is in the air, from the same server: its development mode
+        // has two gliders over the Tegernsee, one flying and one landed.
+        let pilots = layersRow("Pilots in the air", in: app, timeout: 30)
+        XCTAssertTrue(pilots.exists)
+        pilots.tap()
+        XCTAssertTrue(app.navigationBars["In the air"].waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Demo Pilot", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(saying("Landed", in: app).exists)
+        sleep(1)
+        keepScreenshot("wind-1b-in-the-air")
+        // Choosing one closes the list and opens the glider's page over
+        // the map, which draws the flight so far and moves to show it.
+        element("live-row", in: app).tap()
+        XCTAssertTrue(element("live-age", in: app).waitForExistence(timeout: 20))
+        sleep(5)
+        keepScreenshot("wind-1c-glider")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 15))
+
+        // The assistant looks up the same wind on the same server.
         openTab("Assistant", in: app)
         let question = app.buttons["How is the wind on the Zugspitze right now?"]
         XCTAssertTrue(question.waitForExistence(timeout: 15))
@@ -2268,10 +2404,19 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(allYears.waitForExistence(timeout: 30))
         allYears.tap()
         XCTAssertTrue(element("ranked-pilot", in: app).waitForExistence(timeout: 30))
-        XCTAssertTrue(labelled(containing: "Mara Muster", in: app).exists)
-        XCTAssertTrue(labelled(containing: "best 3 flights shared with everyone", in: app).exists)
+        XCTAssertTrue(labelled(containing: "Mara Muster", in: app).waitForExistence(timeout: 10))
         sleep(1)
         keepScreenshot("community-1b-ranking")
+        // The rule stands under the pilots: with the development server's
+        // Lena Probe among them it is below the screen's end.
+        let rule = labelled(containing: "best 3 flights shared with everyone", in: app)
+        for _ in 0..<4 where !rule.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(rule.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !everyone.isHittable {
+            app.swipeDown()
+        }
         everyone.tap()
         XCTAssertTrue(flight.waitForExistence(timeout: 30))
         // Another pilot's flight opens like one's own.
@@ -2419,7 +2564,7 @@ final class VentiUITests: XCTestCase {
             )
             XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
             setLayer("layer-cables", on: true, in: app)
-            XCTAssertTrue(labelled(containing: "Cables: OpenStreetMap contributors", in: app).waitForExistence(timeout: 60))
+            XCTAssertTrue(waitForCredit("Cables: OpenStreetMap contributors", in: app))
             sleep(2)
             keepScreenshot(dark ? "map-cables-dark-1-drawn" : "map-cables-1-drawn")
             // The line passes through the middle of the map.
@@ -2638,13 +2783,12 @@ final class VentiUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
         openTab("Map", in: app)
-        let sites = app.buttons["Flying sites"]
-        XCTAssertTrue(sites.waitForExistence(timeout: 60))
+        XCTAssertTrue(waitForCredit("Sites", in: app))
         sleep(4)
         keepScreenshot("sites-1-map")
 
         // The signs on the map, as a list, and one of them.
-        sites.tap()
+        layersRow("Flying sites", in: app).tap()
         XCTAssertTrue(app.navigationBars["Flying sites"].waitForExistence(timeout: 15))
         let row = element("site-row", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 15))
@@ -2825,8 +2969,8 @@ final class VentiUITests: XCTestCase {
         // The development mode's demo pilot keeps a made-up group.
         app.navigationBars.buttons.firstMatch.tap()
         openTab("Map", in: app)
-        let plans = app.buttons["Flying plans"]
-        XCTAssertTrue(plans.waitForExistence(timeout: 15))
+        let plans = layersRow("Flying plans", in: app, timeout: 15)
+        XCTAssertTrue(plans.exists)
         plans.tap()
         XCTAssertTrue(element("plans-groups", in: app).waitForExistence(timeout: 30))
 
@@ -2928,7 +3072,7 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(said.contains("marked"), "The map says \"\(said)\"")
         sleep(2)
         keepScreenshot("plans-4-map")
-        plans.tap()
+        layersRow("Flying plans", in: app).tap()
 
         // The groups, and one of them with its members and what its
         // keeper can do.
@@ -3204,17 +3348,29 @@ final class VentiUITests: XCTestCase {
         // Back to the logbook: a flight's page has no tabs.
         app.navigationBars.buttons.firstMatch.tap()
         openTab("Map", in: app)
-        XCTAssertTrue(aerial.waitForExistence(timeout: 30))
-        XCTAssertTrue(aerial.isSelected)
+        // The map tab names them beside its credits button, as every map
+        // does: the makers of the photographs in view. This test names no
+        // Venti server, so the style has no Austrian layer and basemap.at
+        // is not named.
+        let photos = element("photo-credits", in: app)
+        XCTAssertTrue(photos.waitForExistence(timeout: 30))
         sleep(12)
-        // The map tab names them in its own line of credits: the makers
-        // of the photographs in view. This test names no Venti server, so
-        // the style has no Austrian layer and basemap.at is not named.
-        let credits = element("wind-credits", in: app).label
-        XCTAssertTrue(credits.contains("Photos: ") && credits.contains("Bayerische Vermessungsverwaltung · EOX"), credits)
+        XCTAssertTrue(
+            photos.label.contains("Photos: ") && photos.label.contains("Bayerische Vermessungsverwaltung · EOX"),
+            photos.label
+        )
         keepScreenshot("online-4-map-aerial")
-        aerial.tap()
-        XCTAssertFalse(aerial.isSelected)
+        // And in full behind the credits button, with the map's own.
+        app.buttons["map-credits"].tap()
+        let credits = element("wind-credits", in: app)
+        XCTAssertTrue(credits.waitForExistence(timeout: 10))
+        XCTAssertTrue(credits.label.contains("Photos: "), credits.label)
+        app.navigationBars["Credits"].buttons["Done"].tap()
+        usleep(700_000)
+        // The aerial view is a switch in the layers sheet here.
+        XCTAssertTrue(openLayers(in: app))
+        XCTAssertTrue(isOn(app.switches["map-aerial"]))
+        setLayer("map-aerial", on: false, in: app)
     }
 
     /// The filter of the flying sites: take-offs for a wind from the
@@ -3243,9 +3399,10 @@ final class VentiUITests: XCTestCase {
         setLayer("layer-sites", on: true, in: app)
 
         // The filter, from its button under the one that lists the sites.
-        let filter = element("sites-filter", in: app)
-        XCTAssertTrue(filter.waitForExistence(timeout: 60))
+        XCTAssertTrue(waitForCredit("Sites", in: app))
         XCTAssertFalse(element("sites-filter-line", in: app).exists)
+        let filter = layersRow("sites-filter", in: app)
+        XCTAssertTrue(filter.exists)
         filter.tap()
         let uses = element("sites-shown", in: app)
         XCTAssertTrue(uses.waitForExistence(timeout: 15))
@@ -3297,14 +3454,14 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(line.label.contains("Take-offs for a wind from S"))
         XCTAssertTrue(line.label.contains(fits))
         XCTAssertTrue(line.label.contains(unsaid))
-        // The button says that a filter is on, and which.
-        XCTAssertEqual(filter.value as? String, "Take-offs for a wind from S")
         sleep(3)
         keepScreenshot("sites-filter-2-map")
+        // The row in the layers sheet says that a filter is on, and which.
+        XCTAssertEqual(layersRow("sites-filter", in: app).value as? String, "Take-offs for a wind from S")
 
         // The list: the ones that fit under what the filter leaves, then
         // the ones that say nothing under their heading and its sentence.
-        app.buttons["Flying sites"].tap()
+        layersRow("Flying sites", in: app).tap()
         XCTAssertTrue(app.navigationBars["Flying sites"].waitForExistence(timeout: 15))
         XCTAssertTrue(element("site-row", in: app).waitForExistence(timeout: 15))
         XCTAssertTrue(saying(fits, in: app).exists)
@@ -3322,7 +3479,7 @@ final class VentiUITests: XCTestCase {
         let kept = element("sites-filter-line", in: app)
         XCTAssertTrue(kept.waitForExistence(timeout: 90))
         XCTAssertTrue(kept.label.contains("Take-offs for a wind from S"))
-        _ = app.buttons["Flying sites"].waitForExistence(timeout: 60)
+        waitForCredit("Sites", in: app)
         sleep(4)
         keepScreenshot("sites-filter-4-map-dark")
         app.terminate()
@@ -3334,7 +3491,7 @@ final class VentiUITests: XCTestCase {
             ("sites-filter-6-takeoff-field", "47.6791,11.9051,16.5"),
         ] {
             app = launch(bundledMap: true, extra: ["--server", server, "--all-sites", "--map-at", place])
-            XCTAssertTrue(app.buttons["Flying sites"].waitForExistence(timeout: 90))
+            XCTAssertTrue(waitForCredit("Sites", in: app, timeout: 90))
             XCTAssertFalse(element("sites-filter-line", in: app).exists)
             sleep(4)
             keepScreenshot(name)
@@ -3391,9 +3548,9 @@ extension VentiUITests {
 
         // "Alert me" on the Zugspitze's page.
         openTab("Map", in: app)
-        let stations = app.buttons["Wind stations"]
-        XCTAssertTrue(stations.waitForExistence(timeout: 30))
-        XCTAssertTrue(element("wind-credits", in: app).waitForExistence(timeout: 60))
+        XCTAssertTrue(waitForCredit("Wind", in: app))
+        let stations = layersRow("Wind stations", in: app, timeout: 30)
+        XCTAssertTrue(stations.exists)
         stations.tap()
         XCTAssertTrue(app.navigationBars["Wind stations"].waitForExistence(timeout: 15))
         let summit = labelled(containing: "Zugspitze", in: app)
@@ -3669,8 +3826,8 @@ extension VentiUITests {
     /// Opens the filter of the sites from its button on the map, and
     /// brings the switch "Places from pilots" at its foot into view.
     private func openThePilotsSwitch(in app: XCUIApplication) -> XCUIElement {
-        let filter = element("sites-filter", in: app)
-        XCTAssertTrue(filter.waitForExistence(timeout: 60))
+        let filter = layersRow("sites-filter", in: app)
+        XCTAssertTrue(filter.exists)
         filter.tap()
         XCTAssertTrue(element("sites-shown", in: app).waitForExistence(timeout: 15))
         let layer = bringInSheet("sites-from-pilots", in: app)
@@ -3770,7 +3927,7 @@ extension VentiUITests {
 
         // The places from pilots are off: the new place is not in the
         // list of what the map shows, and the partner's take-off is.
-        app.buttons["Flying sites"].tap()
+        layersRow("Flying sites", in: app).tap()
         XCTAssertTrue(labelled(containing: "Musterkogel West", in: app).waitForExistence(timeout: 20))
         XCTAssertFalse(labelled(containing: "Testkogel", in: app).exists)
         app.buttons["Done"].firstMatch.tap()
@@ -3783,7 +3940,7 @@ extension VentiUITests {
         keepScreenshot("site-edit-6-on-the-map")
 
         // And in the list of what the map shows, marked.
-        app.buttons["Flying sites"].tap()
+        layersRow("Flying sites", in: app).tap()
         let row = labelled(containing: "Testkogel", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 20))
         XCTAssertTrue(row.label.contains("From pilots"), row.label)
@@ -3923,7 +4080,7 @@ extension VentiUITests {
         setLayer("layer-sites", on: true, in: app)
 
         // Off: the partner's sites, and no place from pilots.
-        app.buttons["Flying sites"].tap()
+        layersRow("Flying sites", in: app).tap()
         XCTAssertTrue(labelled(containing: "Musterkogel West", in: app).waitForExistence(timeout: 30))
         XCTAssertFalse(labelled(containing: "Beispieljoch", in: app).exists)
         XCTAssertFalse(labelled(containing: "From pilots", in: app).exists)
@@ -3956,7 +4113,7 @@ extension VentiUITests {
         keepScreenshot("site-tiers-3-on-the-map")
 
         // In the list, marked.
-        app.buttons["Flying sites"].tap()
+        layersRow("Flying sites", in: app).tap()
         let row = labelled(containing: "Beispieljoch", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 30))
         XCTAssertTrue(row.label.contains("From pilots"), row.label)
@@ -4068,7 +4225,7 @@ extension VentiUITests {
         sleep(1)
         keepScreenshot("site-tiers-dark-1-filter-switch-on")
         app.buttons["Done"].firstMatch.tap()
-        app.buttons["Flying sites"].tap()
+        layersRow("Flying sites", in: app).tap()
         let row = labelled(containing: "Beispieljoch", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 30))
         row.tap()
@@ -4154,7 +4311,7 @@ extension VentiUITests {
             keepScreenshot("site-tiers-larger-text-\(name)-3-line-over-the-map")
 
             // The list and a place from pilots' page.
-            app.buttons["Flying sites"].tap()
+            layersRow("Flying sites", in: app).tap()
             let row = labelled(containing: "Beispieljoch", in: app)
             XCTAssertTrue(row.waitForExistence(timeout: 30))
             sleep(1)
@@ -4473,8 +4630,8 @@ extension VentiUITests {
         sleep(1)
 
         // The layer's switch beside "Places from pilots", off and on.
-        let filter = element("sites-filter", in: app)
-        XCTAssertTrue(filter.waitForExistence(timeout: 30))
+        let filter = layersRow("sites-filter", in: app, timeout: 30)
+        XCTAssertTrue(filter.exists)
         filter.tap()
         let layer = bringInSheet("sites-candidates", in: app)
         _ = bringInSheet("sites-candidates-about", in: app)
@@ -4529,8 +4686,8 @@ extension VentiUITests {
     /// Opens the made-up take-off "Musterkogel West" from the list of the
     /// sites.
     private func openMusterkogelWest(in app: XCUIApplication) {
-        let list = app.buttons["Flying sites"]
-        XCTAssertTrue(list.waitForExistence(timeout: 60))
+        let list = layersRow("Flying sites", in: app)
+        XCTAssertTrue(list.exists)
         list.tap()
         let row = labelled(containing: "Musterkogel West", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 30))

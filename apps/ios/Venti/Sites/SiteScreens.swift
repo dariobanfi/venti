@@ -289,6 +289,13 @@ struct SiteScreen: View {
     /// keeps them with a site the pilot keeps.
     var credits: [Credit]?
     var asOfUnixS: Int64?
+    /// The day the page speaks of, by its first moment: the day chosen on
+    /// Today. Without one, and where the forecast has no such day, the
+    /// first day with flying hours.
+    var dayStartUnixS: Int64?
+    /// Whether the paragraphs on how the page is read are unfolded: they
+    /// stand behind a row at its end.
+    @State private var showsHowRead = false
 
     /// The site as Venti has it since the page was opened: a site that
     /// pilots made is read again, and written anew when it is corrected
@@ -303,10 +310,14 @@ struct SiteScreen: View {
 
     /// - Parameter said: the core's line about the site, where the page
     ///   opens on a site just added.
-    init(site: SiteView, credits: [Credit]? = nil, asOfUnixS: Int64? = nil, said: String? = nil) {
+    init(
+        site: SiteView, credits: [Credit]? = nil, asOfUnixS: Int64? = nil, said: String? = nil,
+        dayStartUnixS: Int64? = nil
+    ) {
         given = site
         self.credits = credits
         self.asOfUnixS = asOfUnixS
+        self.dayStartUnixS = dayStartUnixS
         _said = State(initialValue: said)
     }
 
@@ -376,10 +387,10 @@ struct SiteScreen: View {
             }
             Section {
                 LabeledContent("Where", value: Format.place(lat: site.position.lat, lon: site.position.lon))
-                LabeledContent("Wind it works in") {
-                    if site.wind.isEmpty {
-                        Text("Not given")
-                    } else {
+                // Only where the source gives one: a row that says
+                // nothing is not shown.
+                if !site.wind.isEmpty {
+                    LabeledContent("Wind it works in") {
                         HStack(spacing: 10) {
                             Text(site.windInWords)
                             WindRose(spans: site.wind)
@@ -450,8 +461,6 @@ struct SiteScreen: View {
                     }
                 } header: {
                     Text("Wind measured nearby")
-                } footer: {
-                    Text("A station near a site is not the site: it may stand on a summit, in the valley or behind a ridge. A direction that fits says nothing about the wind's strength or its gusts.")
                 }
             }
             // The day's air as a picture: the thermals hour by hour and
@@ -466,8 +475,6 @@ struct SiteScreen: View {
                     AirChart(day: day, takeoffM: site.elevationM)
                 } header: {
                     Text("The air · \(day.name)")
-                } footer: {
-                    AirNotes(notes: [outlook?.layersNote, outlook?.nearbyNote])
                 }
             }
             if wind.server != nil {
@@ -478,12 +485,6 @@ struct SiteScreen: View {
                         Label("Forecast for this place", systemImage: "cloud.sun")
                     }
                     .accessibilityIdentifier("site-forecast")
-                } footer: {
-                    // Without the picture, the day's line about the wind
-                    // near by still stands at the head: its note is here.
-                    if !showsAir, let day, !day.nearby.isEmpty {
-                        AirNotes(notes: [outlook?.nearbyNote])
-                    }
                 }
             }
             Section {
@@ -563,12 +564,35 @@ struct SiteScreen: View {
                     }
                 )
             }
-            Section {
-                if let address = site.url, let link = URL(string: address) {
+            if let address = site.url, let link = URL(string: address) {
+                Section {
                     Link("See or correct it at the source", destination: link)
                 }
-            } footer: {
-                Text(footnote)
+            }
+            // How the page is read, what a site on a map is worth, whose
+            // data it is and under which licence: one tap away, behind a
+            // row at the end, in the same words.
+            Section {
+                DisclosureGroup("How this is read", isExpanded: $showsHowRead) {
+                    VStack(alignment: .leading, spacing: VentiSpace.s3) {
+                        // What the layers of the air's picture and the
+                        // wind near by are and are not, in the core's
+                        // words: the first with the picture, the second
+                        // wherever the day has a line about the wind near by.
+                        AirNotes(notes: [
+                            showsAir ? outlook?.layersNote : nil,
+                            showsAir || !(day?.nearby.isEmpty ?? true) ? outlook?.nearbyNote : nil,
+                        ])
+                        if !near.isEmpty {
+                            Text("A station near a site is not the site: it may stand on a summit, in the valley or behind a ridge. A direction that fits says nothing about the wind's strength or its gusts.")
+                        }
+                        Text(footnote)
+                            .accessibilityIdentifier("site-footnote")
+                    }
+                    .font(.venti(.footnote))
+                    .foregroundStyle(.venti(.textSecondary))
+                }
+                .accessibilityIdentifier("site-how-read")
             }
         }
         // The name stands at the head of the page; the bar keeps it for
@@ -691,10 +715,14 @@ struct SiteScreen: View {
         site.uses.contains(.takeoff) && !site.discouraged
     }
 
-    /// The first day the forecast has flying hours for; the first day it
-    /// has at all where none has any.
+    /// The day chosen on Today, where the page was opened from there and
+    /// the forecast has that day; else the first day the forecast has
+    /// flying hours for, and the first day it has at all where none has any.
     private var day: OutlookDay? {
         guard let days = outlook?.days else { return nil }
+        if let dayStartUnixS, let chosen = days.first(where: { $0.startUnixS == dayStartUnixS }) {
+            return chosen
+        }
         return days.first { !$0.hours.isEmpty } ?? days.first
     }
 

@@ -32,7 +32,6 @@ final class PhotoCredits {
     /// "Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX";
     /// empty until the map has its style.
     private(set) var line = ""
-
     /// The line for where the map now rests. The map says so while
     /// SwiftUI may be drawing: the line changes after that.
     func update(from map: MLNMapView) {

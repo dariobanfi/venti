@@ -72,7 +72,9 @@ struct SiteFlightsSection: View {
                     .textCase(nil)
                     .accessibilityIdentifier("site-flights")
             } footer: {
-                if flights.best.isEmpty, !flights.terms.text.isEmpty {
+                // Whose the flights are and what reusing one needs: with
+                // the flights, and not where the site has none.
+                if flights.flights > 0, flights.best.isEmpty, !flights.terms.text.isEmpty {
                     Text(flights.terms.text)
                 }
             }

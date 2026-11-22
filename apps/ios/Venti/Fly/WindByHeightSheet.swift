@@ -43,6 +43,12 @@ extension WindByHeightSheet {
     @ViewBuilder fileprivate var byHeight: some View {
         let bands = fly.view?.windsByHeight ?? []
         Section {
+            // The wind the cockpit shows, in full: how strong, where
+            // from, what it was measured from and how old it is.
+            if let words = fly.view?.windWords {
+                Text(words)
+                    .accessibilityIdentifier("wind-words")
+            }
             if bands.isEmpty {
                 Text("No wind measured yet. It is worked out from your drift while you circle.")
                     .foregroundStyle(.venti(.textSecondary))

@@ -10,10 +10,6 @@ struct SettingsScreen: View {
 
     @AppStorage(Preferences.pilot) private var pilot = ""
     @AppStorage(Preferences.glider) private var glider = ""
-    @AppStorage(Preferences.trimSpeed) private var trimSpeed = Preferences.defaultTrimSpeed
-    @AppStorage(Preferences.glideRatio) private var glideRatio = Preferences.defaultGlideRatio
-    @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
-    @AppStorage(Preferences.cockpitKeepsBrightness) private var keepsBrightness = false
 
     var body: some View {
         Group {
@@ -55,37 +51,14 @@ struct SettingsScreen: View {
                     NavigationLink("Airspace") {
                         AirspaceScreen()
                     }
-                    Stepper(value: $trimSpeed, in: 25...60, step: 1) {
-                        LabeledContent("Trim speed", value: "\(Format.metres(trimSpeed)) km/h")
+                    // The glider, the FAI triangle areas and the
+                    // brightness: on a page of their own.
+                    NavigationLink("Glider and cockpit") {
+                        CockpitSettingsScreen()
                     }
-                    Stepper(value: $glideRatio, in: 4...14, step: 0.5) {
-                        LabeledContent("Glide ratio", value: Format.glideRatio(glideRatio))
-                    }
-                    Toggle(
-                        "FAI triangle areas",
-                        isOn: Binding(
-                            get: { !hidesFaiAreas },
-                            set: { isOn in hidesFaiAreas = !isOn }
-                        )
-                    )
+                    .accessibilityIdentifier("cockpit-settings-link")
                 } header: {
                     Text("Cockpit")
-                } footer: {
-                    Text("Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit predicts how high you arrive at the place you fly to. The prediction assumes air that neither rises nor sinks on the way. The FAI triangle areas are drawn on the cockpit's map once you have flown three kilometres in a straight line: a turnpoint inside either of them makes that line one side of an FAI triangle.")
-                }
-
-                Section {
-                    Toggle(
-                        "Full brightness in the cockpit",
-                        isOn: Binding(
-                            get: { !keepsBrightness },
-                            set: { isOn in keepsBrightness = !isOn }
-                        )
-                    )
-                } header: {
-                    Text("In the sun")
-                } footer: {
-                    Text("With full brightness the cockpit turns the screen all the way up while it is open and back afterwards; it costs battery. The cockpit is always drawn for the sun: near-black on white, whatever the iPhone's appearance.")
                 }
 
                 Section {

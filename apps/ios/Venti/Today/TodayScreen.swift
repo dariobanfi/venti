@@ -72,7 +72,11 @@ struct TodayScreen: View {
                 }
             }
             .navigationDestination(for: SiteView.self) { site in
-                SiteScreen(site: site, credits: today.listed?.credits, asOfUnixS: today.sitesAsOfUnixS)
+                // The page speaks of the day chosen here.
+                SiteScreen(
+                    site: site, credits: today.listed?.credits, asOfUnixS: today.sitesAsOfUnixS,
+                    dayStartUnixS: days.indices.contains(day) ? days[day].startUnixS : nil
+                )
             }
             // The settings and the assistant are pages of this tab: the
             // tab bar stays, and they keep their place while the pilot

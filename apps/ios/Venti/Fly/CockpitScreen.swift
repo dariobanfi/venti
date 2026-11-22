@@ -88,7 +88,8 @@ struct CockpitScreen: View {
     @State private var isLocked = false
     /// Whether the map shows the whole flight instead of following closely.
     @State private var showsWholeFlight = false
-    @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
+    @State private var isShowingDetails = false
+    @AppStorage(Preferences.showsFaiAreas) private var showsFaiAreas = false
     /// The aerial view: one choice for every map of the app.
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     /// Who made the photographs in view on the map.
@@ -137,6 +138,8 @@ struct CockpitScreen: View {
                         isLocked = true
                     } showLive: {
                         isShowingLive = true
+                    } showDetails: {
+                        isShowingDetails = true
                     }
                 }
                 CockpitRule()
@@ -246,6 +249,11 @@ struct CockpitScreen: View {
                     .presentationDetents([.medium, .large])
                     .ventiFlightThemed()
             }
+            .sheet(isPresented: $isShowingDetails) {
+                CockpitDetailsSheet()
+                    .presentationDetents([.medium, .large])
+                    .ventiFlightThemed()
+            }
             .sheet(isPresented: $isShowingAhead) {
                 AirspaceAheadSheet()
                     .presentationDetents([.large])
@@ -298,6 +306,12 @@ struct CockpitScreen: View {
                     fly.acknowledgeCable(cable.id)
                 }
             }
+            // The wind carries the glider backwards on a glide: the core's
+            // words, among the cautions.
+            if let words = view.carriedBack {
+                CautionBand(text: words)
+                    .accessibilityIdentifier("carried-back")
+            }
             if let warning = fly.windWarning {
                 GroundWindBanner(alert: warning) {
                     windsBeginOnTheGround = true
@@ -324,13 +338,15 @@ struct CockpitScreen: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// The room under the readings. On the first page it is shared: the
-    /// thermal view on the left, a little under half the width, and the
-    /// map on the right. On the other pages the map has all of it.
+    /// The room under the readings. On the first page it is shared while
+    /// the core says the glider is circling, and for as long after as the
+    /// core keeps the circles: the thermal view on the left, a little
+    /// under half the width, and the map on the right. On a glide, and on
+    /// the other pages, the map has all of it.
     private func map(_ view: CockpitView) -> some View {
         GeometryReader { proxy in
             HStack(spacing: 0) {
-                if page == .instruments {
+                if page == .instruments, view.circling || view.lift != nil {
                     ThermalCloseUp(view: view)
                         .frame(width: (proxy.size.width * 0.48).rounded())
                     Rectangle()
@@ -350,7 +366,7 @@ struct CockpitScreen: View {
             view: view, way: fly.way, airspace: fly.airspace(),
             airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
             route: fly.score?.route ?? [],
-            fai: hidesFaiAreas ? nil : fly.faiAreas,
+            fai: showsFaiAreas ? fly.faiAreas : nil,
             range: fly.range,
             gliders: fly.gliders,
             cables: cables.lines,
@@ -467,6 +483,11 @@ struct CockpitScreen: View {
                             }
                             .accessibilityAddTraits(.isButton)
                             .accessibilityHint("Lists the places to fly to")
+                    }
+                    // The nearest landing field within glide, or the core's
+                    // caution that none is: one line, on the map page.
+                    if page == .map, let nearest = view.nearestLanding {
+                        MapWords(text: nearest.words, identifier: "nearest-landing", isCaution: !nearest.withinGlide)
                     }
                     // Beside the large map, the distance so far and how it
                     // scores, as the third page has them.
@@ -935,10 +956,24 @@ private struct StatusLine: View {
                     .accessibilityLabel("Map from this iPhone")
                     .accessibilityIdentifier("map-kept")
             }
-            Text(varioText)
-                .foregroundStyle(.venti(varioIsLost ? .danger : .text))
-                // The words of the vario give way first in a narrow line.
-                .layoutPriority(-1)
+            // The words of the vario give way first in a narrow line, and
+            // whole: where they do not fit they are not cut short but left
+            // out, a caution sign standing for a vario that fell silent.
+            ViewThatFits(in: .horizontal) {
+                Text(varioText)
+                    .fixedSize()
+                Group {
+                    if varioIsLost {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                    } else {
+                        Color.clear.frame(width: 1, height: 1)
+                    }
+                }
+                .accessibilityLabel(varioText)
+            }
+            .foregroundStyle(.venti(varioIsLost ? .danger : .text))
+            .layoutPriority(-1)
+            .accessibilityIdentifier("cockpit-vario-source")
             EndControl(action: end)
         }
         .font(.ventiType(.label))
@@ -992,7 +1027,10 @@ private struct Instruments: View {
                     name: "Climb",
                     value: view.climbMs.map(Format.climb(metresPerSecond:)),
                     unit: "m/s",
-                    note: view.averageClimbMs.map { "\(Format.climb(metresPerSecond: $0)) m/s average" },
+                    // On a glide, for a pilot who set a glider class, the
+                    // core's hint to speed up stands here while it holds.
+                    note: view.speedToFly.flatMap { $0.speedUp ? $0.words : nil }
+                        ?? view.averageClimbMs.map { "\(Format.climb(metresPerSecond: $0)) m/s average" },
                     size: .veryLarge
                 )
                 VarioScale(climb: view.climbMs)
@@ -1104,6 +1142,8 @@ private struct FlightPage: View {
     let isReplay: Bool
     let lock: () -> Void
     let showLive: () -> Void
+    /// Opens what the cockpit knows beyond its pages' readings.
+    let showDetails: () -> Void
 
     @Environment(FlySession.self) private var fly
 
@@ -1140,23 +1180,31 @@ private struct FlightPage: View {
                 }
                 .accessibilityIdentifier("cockpit-lock")
             }
-            // Who watches the flight, and whether it is going out. Not in
-            // a replay: what is replayed is not shared, nor recorded.
-            if !isReplay {
-                HStack(spacing: VentiSpace.s3) {
+            HStack(spacing: VentiSpace.s3) {
+                // Who watches the flight, and whether it is going out. Not
+                // in a replay: what is replayed is not shared, nor recorded.
+                if !isReplay {
                     LiveButton(live: fly.live, open: showLive)
-                    // For a pilot who would rather not wait for the
-                    // take-off to be noticed.
-                    if view.waitingForTakeoff {
-                        Button {
-                            fly.recordNow()
-                        } label: {
-                            Text("Record now")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .accessibilityIdentifier("cockpit-record-now")
-                    }
                 }
+                // The readings that have no place on a page: where the
+                // wind is from, the airspeed, the heading, the altitude's
+                // source, the QNH.
+                Button(action: showDetails) {
+                    Label("Details", systemImage: "list.bullet")
+                        .frame(maxWidth: .infinity)
+                }
+                .accessibilityIdentifier("cockpit-details")
+            }
+            // For a pilot who would rather not wait for the take-off to
+            // be noticed.
+            if !isReplay, view.waitingForTakeoff {
+                Button {
+                    fly.recordNow()
+                } label: {
+                    Text("Record now")
+                        .frame(maxWidth: .infinity)
+                }
+                .accessibilityIdentifier("cockpit-record-now")
             }
         }
         .buttonStyle(.venti(.quiet))
@@ -1586,6 +1634,8 @@ private struct StrongWindBadge: View {
 private struct MapWords: View {
     let text: String
     let identifier: String
+    /// Whether the words are a caution, and so on the caution's ground.
+    var isCaution = false
 
     var body: some View {
         Text(text)
@@ -1594,8 +1644,35 @@ private struct MapWords: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, VentiSpace.s3)
             .padding(.vertical, VentiSpace.s2)
-            .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
+            .ventiFloating(in: .rect(cornerRadius: VentiRadius.m), ground: isCaution ? .cautionSoft : .surface)
             .accessibilityIdentifier(identifier)
+    }
+}
+
+/// A caution of the core among the cockpit's notices, in its words: the
+/// caution sign and the sentence, with nothing to tap.
+private struct CautionBand: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: VentiSpace.s3) {
+            Image("icon-caution")
+                .resizable()
+                .frame(width: VentiSize.icon, height: VentiSize.icon)
+                .foregroundStyle(.venti(.caution))
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.ventiType(.heading))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.vertical, VentiSpace.s2)
+        .frame(minHeight: VentiSize.touch)
+        .foregroundStyle(.venti(.text))
+        .background(.venti(.cautionSoft), in: .rect(cornerRadius: VentiRadius.m))
+        .accessibilityElement(children: .combine)
     }
 }
 

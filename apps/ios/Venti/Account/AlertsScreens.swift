@@ -237,7 +237,7 @@ struct AlertForm: View {
                     switch draft.kind {
                     case .wind:
                         LabeledContent(words.station, value: draft.stationName)
-                    case .day:
+                    case .day, .pilots:
                         LabeledContent(words.place, value: draft.placeName)
                     }
                 } header: {
@@ -249,6 +249,8 @@ struct AlertForm: View {
                     windFields
                 case .day:
                     dayFields
+                case .pilots:
+                    pilotsFields
                 }
 
                 Section {
@@ -387,6 +389,35 @@ struct AlertForm: View {
         } header: {
             Text(words.atLeast)
         }
+    }
+
+    /// An alarm about pilots in the air at a place, which the web makes:
+    /// its two numbers under the core's words, the core's own where the
+    /// pilot chose none.
+    @ViewBuilder private var pilotsFields: some View {
+        Section {
+            Stepper(value: number(\.minPilots, else: 3), in: 1...50) {
+                LabeledContent(words.pilotsAtLeast, value: Format.metres(Double(draft.minPilots ?? 3)))
+            }
+            .accessibilityIdentifier("alert-min-pilots")
+            faultLines("rule.min_pilots")
+            Stepper(value: number(\.restHours, else: 6), in: 1...48) {
+                LabeledContent(words.pilotsRest, value: Format.metres(Double(draft.restHours ?? 6)))
+            }
+            .accessibilityIdentifier("alert-rest-hours")
+            faultLines("rule.rest_hours")
+        } footer: {
+            Text(words.pilotsNote)
+        }
+    }
+
+    private func number<N: FixedWidthInteger>(
+        _ field: WritableKeyPath<AlertDraft, N?>, else unset: N
+    ) -> Binding<Int> {
+        Binding(
+            get: { Int(draft[keyPath: field] ?? unset) },
+            set: { draft[keyPath: field] = N(clamping: $0) }
+        )
     }
 
     private func dayAhead(_ day: UInt8) -> Binding<Bool> {

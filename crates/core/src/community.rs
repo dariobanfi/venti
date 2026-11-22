@@ -378,8 +378,19 @@ const SEASONS_OFFERED: i32 = 4;
 ///
 /// A season is a calendar year by UTC. The owner has not decided what a
 /// season is; a year is what needs no explaining.
+///
+/// A `now_unix_s` of zero or less, the clock not known, offers all years
+/// together alone: which year it is is not known.
 #[uniffi::export]
 pub fn ranking_seasons(now_unix_s: i64) -> Vec<RankingSeason> {
+    let all_years = RankingSeason {
+        name: ALL_YEARS.to_owned(),
+        from_unix_s: None,
+        to_unix_s: None,
+    };
+    if now_unix_s <= 0 {
+        return vec![all_years];
+    }
     let this_year = DateTime::from_timestamp(now_unix_s, 0).map_or(1970, |now| now.year());
     let first_second = |year: i32| first_second_of(year).map(|start| start.timestamp());
     let mut seasons: Vec<RankingSeason> = (0..SEASONS_OFFERED)
@@ -392,11 +403,7 @@ pub fn ranking_seasons(now_unix_s: i64) -> Vec<RankingSeason> {
             })
         })
         .collect();
-    seasons.push(RankingSeason {
-        name: ALL_YEARS.to_owned(),
-        from_unix_s: None,
-        to_unix_s: None,
-    });
+    seasons.push(all_years);
     seasons
 }
 
@@ -752,6 +759,14 @@ mod tests {
     fn golden(name: &str) -> Vec<u8> {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../server/tests/golden/");
         std::fs::read(format!("{path}{name}")).unwrap()
+    }
+
+    #[test]
+    fn against_an_unknown_clock_all_years_are_offered_alone() {
+        let seasons = ranking_seasons(0);
+        assert_eq!(seasons.len(), 1);
+        assert_eq!(seasons[0].name, "All years");
+        assert_eq!((seasons[0].from_unix_s, seasons[0].to_unix_s), (None, None));
     }
 
     #[test]

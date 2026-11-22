@@ -190,6 +190,9 @@ pub fn thermal_map_path() -> String {
 /// how far the pilot's clock is ahead of UTC and `now_unix_s` the moment
 /// by Venti's clock: they decide which day is called today, and days
 /// before it are left out.
+///
+/// A `now_unix_s` of zero or less, the clock not known, leaves no day out
+/// and names every day by its weekday, never "Today" or "Tomorrow".
 #[uniffi::export]
 pub fn thermal_map(
     status: u16,
@@ -283,7 +286,8 @@ pub fn thermal_map(
 ///
 /// `status` and `body` are the server's answer to [`thermal_map_path`],
 /// the same that [`thermal_map`] read: the shell keeps it. `utc_offset_s`
-/// and `now_unix_s` are as there. Empty for a place outside the map.
+/// and `now_unix_s` are as there, the unknown clock too. Empty for a place
+/// outside the map.
 #[uniffi::export]
 pub fn thermal_map_strip(
     status: u16,
@@ -361,8 +365,13 @@ pub(crate) fn edges(grid: &v1::ThermalGrid, cell: usize) -> Option<(f64, f64, f6
     ))
 }
 
-/// The day it is by the pilot's clock.
+/// The day it is by the pilot's clock. Against an unknown clock, a
+/// `now_unix_s` of zero or less, the first day there is: every day is
+/// then still to come, and none is today or tomorrow.
 pub(crate) fn today(utc_offset_s: i32, now_unix_s: i64) -> NaiveDate {
+    if now_unix_s <= 0 {
+        return NaiveDate::MIN;
+    }
     (DateTime::from_timestamp(now_unix_s, 0).unwrap_or_default()
         + Duration::seconds(i64::from(utc_offset_s)))
     .date_naive()
@@ -613,6 +622,20 @@ mod tests {
     #[test]
     fn the_path_is_the_servers() {
         assert_eq!(thermal_map_path(), "/v1/thermals");
+    }
+
+    #[test]
+    fn against_an_unknown_clock_every_day_is_named_by_its_weekday() {
+        let map = thermal_map(200, body(), 7200, 0).unwrap();
+        let names: Vec<&str> = map.days.iter().map(|day| day.name.as_str()).collect();
+        assert_eq!(names, ["Sat", "Sun", "Mon", "Tue"]);
+    }
+
+    #[test]
+    fn against_an_unknown_clock_a_squares_strip_has_every_day_by_its_weekday() {
+        let strip = thermal_map_strip(200, body(), 7200, 0, 47.0, 11.0).unwrap();
+        let names: Vec<&str> = strip.iter().map(|day| day.name.as_str()).collect();
+        assert_eq!(names, ["Sat", "Sun", "Mon", "Tue"]);
     }
 
     #[test]

@@ -405,6 +405,9 @@ pub struct SiteOutlook {
 /// empty; `elevation_m` its height, if known. `utc_offset_s` is how far the
 /// clock at the place is ahead of UTC. Hours before `now_unix_s` are left
 /// out: the day in a line is about what is still to come.
+///
+/// A `now_unix_s` of zero or less, the clock not known, leaves no hour
+/// out and names every day by its weekday, never "Today" or "Tomorrow".
 #[uniffi::export]
 pub fn site_outlook(
     status: u16,
@@ -749,8 +752,14 @@ fn days(
     now_unix_s: i64,
 ) -> Vec<OutlookDay> {
     let offset = Duration::seconds(i64::from(utc_offset_s));
+    // Against an unknown clock no hour is gone and no day is today.
+    let known = now_unix_s > 0;
     // The current hour is still to come for as long as it lasts.
-    let from = now_unix_s - now_unix_s.rem_euclid(3600);
+    let from = if known {
+        now_unix_s - now_unix_s.rem_euclid(3600)
+    } else {
+        i64::MIN
+    };
     // The first moment of the day that holds a moment, on the place's
     // clock.
     let start_of = |time: DateTime<Utc>| {
@@ -830,10 +839,14 @@ fn days(
             // A day that is over is not listed, and neither is a day the
             // model has no daylight hours for. Today stays when its hours
             // are gone: that none are left is worth saying.
-            let listed = ahead >= 0 && (!hours.is_empty() || (ahead == 0 && gone));
+            let listed = if known {
+                ahead >= 0 && (!hours.is_empty() || (ahead == 0 && gone))
+            } else {
+                !hours.is_empty()
+            };
             let name = match ahead {
-                0 => "Today".to_owned(),
-                1 => "Tomorrow".to_owned(),
+                0 if known => "Today".to_owned(),
+                1 if known => "Tomorrow".to_owned(),
                 _ => date.format("%a").to_string(),
             };
             listed.then(|| {
@@ -1870,6 +1883,25 @@ mod tests {
         assert_eq!(night.days[0].model, "ICON-EU");
         assert_eq!(night.days[0].hours.len(), 1);
         assert_eq!(night.days[0].verdict, Flyability::NotFlyable);
+    }
+
+    #[test]
+    fn against_an_unknown_clock_a_day_is_named_by_its_weekday_and_keeps_its_hours() {
+        let hours: Vec<(u32, &str)> = (4..=23).map(|hour| (hour, FINE)).collect();
+        let unknown = site_outlook(
+            200,
+            answer_with(&hours),
+            SUMMER_TIME_S,
+            north(),
+            Some(1550.0),
+            0,
+        )
+        .unwrap();
+        // Saturday 4 July, with every daylight hour from 7 to 20.
+        assert_eq!(unknown.days.len(), 1);
+        assert_eq!(unknown.days[0].name, "Sat");
+        assert_eq!(unknown.days[0].hours.len(), 14);
+        assert_eq!(unknown.days[0].hours[0].hour, "7");
     }
 
     /// The answer with the wind around the place added to it.

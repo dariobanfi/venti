@@ -296,9 +296,12 @@ pub fn radar_path() -> String {
 
 /// Reads the server's answer to [`radar_path`]. `utc_offset_s` is how far
 /// the pilot's clock is ahead of UTC, for the times in words;
-/// `now_unix_s` is the moment by the device's clock, against which the
-/// frames' ages are counted. A device whose clock is behind the moment
-/// the server answered at counts from that moment instead.
+/// `now_unix_s` is the moment by Venti's clock as the shell last read it,
+/// against which the frames' ages are counted; a moment before the one
+/// the server answered at counts from that one instead.
+///
+/// Zero or less, the clock not known, counts from the moment in the
+/// answer: it is the server's own clock.
 #[uniffi::export]
 pub fn radar(
     status: u16,
@@ -1077,6 +1080,16 @@ mod tests {
             "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben"
         );
         assert_eq!(credit.licence, "CC BY 4.0");
+    }
+
+    #[test]
+    fn against_an_unknown_clock_ages_count_from_the_servers_answer() {
+        // The answer was given at 11:44 UTC, by the server's clock.
+        let view = read(0);
+        let layer = &view.layers[0];
+        assert_eq!(layer.line, "Rain radar, 12:40, 4 minutes ago");
+        assert!(!layer.stale);
+        assert_eq!(view, read(NOW));
     }
 
     /// The answer of a server with the first region's two sources whose

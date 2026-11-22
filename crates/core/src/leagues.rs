@@ -77,7 +77,10 @@ pub struct LeagueAnswer {
 impl Core {
     /// What to tell the pilot before a flight of the logbook goes to a
     /// league, with the file to hand over. `now_unix_s` is the moment the
-    /// pilot asks at.
+    /// pilot asks at, by Venti's clock.
+    ///
+    /// Zero or less, the clock not known, judges the flight not late and
+    /// says the last day the leagues take it.
     pub fn league_handover(
         &self,
         id: String,
@@ -97,7 +100,7 @@ impl Core {
             .checked_sub_days(Days::new(1))
             .unwrap_or_else(|| ends.date_naive())
             .format("%-d %b %Y");
-        let is_late = now_unix_s >= ends.timestamp();
+        let is_late = now_unix_s > 0 && now_unix_s >= ends.timestamp();
         let deadline = if is_late {
             format!(
                 "The {CLAIM_DAYS} days in which the leagues take a flight for their contests \
@@ -238,6 +241,14 @@ mod tests {
         let mut file = synthetic_flight();
         file.manufacturer = "XCT".to_owned();
         format!("{}G5a1b2c3d4e5f\r\n", igc::write(&file))
+    }
+
+    #[test]
+    fn against_an_unknown_clock_a_flight_is_not_late_and_its_last_day_is_said() {
+        let (_folder, core, id) = core_with(&signed_flight());
+        let handover = core.league_handover(id, 0).unwrap();
+        assert!(!handover.is_late);
+        assert!(handover.deadline.contains("until the end of 18 Jul 2026"));
     }
 
     #[test]

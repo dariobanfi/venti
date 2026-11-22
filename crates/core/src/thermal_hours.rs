@@ -496,6 +496,9 @@ impl ThermalMapHours {
     /// `utc_offset_s` is how far the pilot's clock is ahead of UTC, which
     /// labels the hours, and `now_unix_s` the moment by Venti's clock,
     /// which decides the hour to show first.
+    ///
+    /// A `now_unix_s` of zero or less, the clock not known, shows the hour
+    /// nearest one o'clock in the afternoon first.
     #[uniffi::constructor]
     pub fn read(
         status: u16,
@@ -853,6 +856,8 @@ impl ThermalMapHours {
 /// The hour to show first: today the last hour that has begun, or the
 /// first while none has; on another day the hour nearest one o'clock in
 /// the afternoon by the pilot's clock, when thermals are mostly at work.
+/// Against an unknown clock no day is today, so it is the hour nearest one
+/// o'clock in the afternoon.
 fn first_hour(response: &v1::ThermalHoursResponse, utc_offset_s: i32, now_unix_s: i64) -> u32 {
     let offset = Duration::seconds(i64::from(utc_offset_s));
     let now = DateTime::from_timestamp(now_unix_s, 0).unwrap_or_default();
@@ -1122,6 +1127,15 @@ mod tests {
             view.note
                 .ends_with("an hour that is missing has no squares.")
         );
+    }
+
+    #[test]
+    fn against_an_unknown_clock_the_early_afternoon_is_shown_first() {
+        let hours = ThermalMapHours::read(200, thermals(), ThermalHoursLayer::Thermals, 7200, 0)
+            .unwrap()
+            .view();
+        assert_eq!(hours.first_hour, 1);
+        assert_eq!(hours.hours[1].label, "13:00");
     }
 
     #[test]

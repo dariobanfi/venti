@@ -199,7 +199,8 @@ pub struct WindStation {
     pub elevation_m: Option<f64>,
     /// Its newest reading, if the server holds one.
     pub latest: Option<WindReading>,
-    /// How old that reading is, in minutes.
+    /// How old that reading is, in minutes. None without a reading, and
+    /// when the clock is not known: say the reading's time then.
     pub age_min: Option<i64>,
     /// Whether the reading is too old to stand for the wind now. The shell
     /// draws such a station greyed out.
@@ -356,6 +357,9 @@ pub fn wind_map_path(south: f64, west: f64, north: f64, east: f64) -> Result<Str
 
 /// Reads the server's answer to [`wind_map_path`]. `now_unix_s` is the
 /// current time by the server's clock (see [`ServerStatus`]).
+///
+/// Zero or less means the clock is not known: no station then has an
+/// `age_min`, and a station with a reading is not marked old.
 #[uniffi::export]
 pub fn wind_map(status: u16, body: Vec<u8>, now_unix_s: i64) -> Result<WindMap, CoreError> {
     let response: StationsResponse = answer(status, &body)?;
@@ -383,7 +387,8 @@ pub fn station_history_path(station_id: String) -> Result<String, CoreError> {
     .path_and_query())
 }
 
-/// Reads the server's answer to [`station_history_path`].
+/// Reads the server's answer to [`station_history_path`]. `now_unix_s` is
+/// as for [`wind_map`], and zero or less is the unknown clock there too.
 #[uniffi::export]
 pub fn station_history(
     status: u16,
@@ -576,12 +581,19 @@ fn reading(reading: &Reading) -> WindReading {
 
 fn wind_station(station: &StationWithLatest, now_unix_s: i64) -> WindStation {
     let now: DateTime<Utc> = DateTime::from_timestamp(now_unix_s, 0).unwrap_or_default();
+    // Against an unknown clock a reading has no age: the shell says its
+    // time, and the reading is judged neither old nor fresh.
     let age_min = station
         .latest
         .as_ref()
+        .filter(|_| now_unix_s > 0)
         .map(|latest| (now - latest.time).num_minutes().max(0));
     let latest = station.latest.as_ref().map(reading);
-    let is_old = age_min.is_none_or(|age| age > OLD_AFTER_MIN);
+    let is_old = if now_unix_s > 0 {
+        age_min.is_none_or(|age| age > OLD_AFTER_MIN)
+    } else {
+        latest.is_none()
+    };
     WindStation {
         id: station.station.id.to_string(),
         name: readable_name(&station.station.name),
@@ -703,6 +715,20 @@ mod tests {
         assert_eq!(map.credits.len(), 1);
         assert_eq!(map.credits[0].text, "Quelle: Deutscher Wetterdienst");
         assert!(!map.truncated);
+    }
+
+    #[test]
+    fn against_an_unknown_clock_a_reading_has_no_age_and_is_not_marked_old() {
+        let map = wind_map(200, STATIONS.as_bytes().to_vec(), 0).unwrap();
+        // The readings keep their own times; none has an age.
+        assert!(map.stations.iter().all(|station| station.age_min.is_none()));
+        assert_eq!(
+            map.stations[1].latest.unwrap().time_unix_s,
+            1_795_017_600 // 18 November 2026, 16:00 UTC
+        );
+        // Neither reading is marked old; the station that never reported is.
+        assert!(!map.stations[0].is_old && !map.stations[1].is_old);
+        assert!(map.stations[2].is_old);
     }
 
     #[test]

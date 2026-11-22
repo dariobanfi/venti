@@ -2,7 +2,7 @@ import SwiftUI
 import VentiCore
 
 /// What the Fly tab listed before take-off, behind the cockpit's one
-/// settings button: the vario and its sound, airspace, the task, live
+/// settings button: the vario, airspace, the task, live
 /// tracking, the offline map, the glider; the lock; and the replay of the
 /// sample flight while nothing is recorded. In the flight theme, a row of
 /// a finger in a glove each. What goes wrong among these is said in the
@@ -25,7 +25,7 @@ struct CockpitSettingsSheet: View {
             VentiList {
                 Section {
                     NavigationLink {
-                        VarioChoice(vario: fly.vario)
+                        VarioDeviceList(vario: fly.vario)
                     } label: {
                         LabeledContent {
                             Text(varioSummary)
@@ -34,12 +34,10 @@ struct CockpitSettingsSheet: View {
                         }
                     }
                     .accessibilityIdentifier("vario-before-takeoff")
-                    // The phone's own tone. The rule of when it sounds is
-                    // the core's; this is the pilot's switch.
-                    Toggle(isOn: soundIsOn) {
-                        Label("Vario sound", systemImage: fly.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    }
-                    .accessibilityIdentifier("cockpit-sound")
+                } footer: {
+                    // When the phone sounds is the core's: in flight only,
+                    // and not while a connected vario beeps itself.
+                    Text("The phone beeps in flight, and not while a connected vario beeps itself.")
                 }
                 if MapStyle.appDomain != nil {
                     Section {
@@ -163,10 +161,6 @@ struct CockpitSettingsSheet: View {
         }
     }
 
-    private var soundIsOn: Binding<Bool> {
-        Binding(get: { !fly.isMuted }, set: { isOn in fly.isMuted = !isOn })
-    }
-
     private var varioSummary: String {
         switch fly.vario.state {
         case .connected(let name): name
@@ -202,8 +196,9 @@ struct CockpitSettingsSheet: View {
 }
 
 /// The list of Bluetooth devices to pick a vario from, a page of the
-/// cockpit's settings.
-struct VarioChoice: View {
+/// cockpit's settings: where the pilot chooses between the phone and an
+/// external vario (a vario remembered is the core's `VarioChoice.external`).
+struct VarioDeviceList: View {
     let vario: VarioLink
 
     var body: some View {

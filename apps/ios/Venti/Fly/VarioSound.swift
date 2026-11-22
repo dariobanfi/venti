@@ -8,16 +8,13 @@ import VentiCore
 /// a pitch and a beep rhythm, or silence. The sound itself is made here,
 /// sample by sample, on the audio thread. The app declares the audio
 /// background mode, so the vario keeps sounding with the screen off.
+/// When the phone sounds is the core's (`CockpitView.phoneTone`): there is
+/// no mute here.
 @MainActor
 final class VarioSound {
-    var isMuted = false {
-        didSet { apply() }
-    }
-
     private let engine = AVAudioEngine()
     private let oscillator = ToneOscillator()
     private var source: AVAudioSourceNode?
-    private var tone: ToneView?
 
     func start() {
         guard !engine.isRunning else { return }
@@ -47,12 +44,7 @@ final class VarioSound {
 
     /// Sets what the vario sounds like from now on. `nil` is silence.
     func play(_ tone: ToneView?) {
-        self.tone = tone
-        apply()
-    }
-
-    private func apply() {
-        oscillator.set(isMuted ? nil : tone)
+        oscillator.set(tone)
     }
 
     private nonisolated static let sampleRate = 44_100.0

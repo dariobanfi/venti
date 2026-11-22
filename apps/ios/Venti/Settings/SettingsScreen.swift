@@ -4,7 +4,6 @@ import VentiCore
 /// The pilot's settings, and what the app is made of. A page of the Today
 /// tab's stack, opened from its corner: it brings no stack of its own.
 struct SettingsScreen: View {
-    @Environment(FlySession.self) private var fly
     @Environment(WindModel.self) private var wind
     @Environment(AccountModel.self) private var account
     @Environment(OfflineMapsModel.self) private var maps
@@ -39,13 +38,6 @@ struct SettingsScreen: View {
                 }
 
                 Section {
-                    Toggle(
-                        "Vario sound",
-                        isOn: Binding(
-                            get: { !fly.isMuted },
-                            set: { isOn in fly.isMuted = !isOn }
-                        )
-                    )
                     NavigationLink("Waypoints") {
                         WaypointsScreen()
                     }

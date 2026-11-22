@@ -26,6 +26,9 @@ struct StatisticsRoute: Hashable {}
 final class AppNavigation {
     var tab: AppTab = .today
     var logbookPath = NavigationPath()
+    /// The tab the pilot was on when a take-off seen there opened the
+    /// cockpit: where a take-off taken back returns to.
+    var tabBeforeTakeoff: AppTab?
 
     /// "Start flight" outside the Fly tab: that tab comes to the front,
     /// and a Fly tab in front is the cockpit, which waits for the take-off.
@@ -133,11 +136,20 @@ struct RootScreen: View {
             }
         }
         // A take-off seen on another tab brings the Fly tab to the front,
-        // whose cockpit then opens over it.
+        // whose cockpit then opens over it. A take-off the core takes back
+        // (a cable car, a drive) shuts that cockpit again, and the pilot is
+        // back on the tab they were on.
         .onAppear {
             let navigation = navigation
             fly.onTakeoffSeen = {
+                navigation.tabBeforeTakeoff = navigation.tab
                 navigation.tab = .fly
+            }
+            fly.onTakenBack = {
+                if let tab = navigation.tabBeforeTakeoff {
+                    navigation.tab = tab
+                }
+                navigation.tabBeforeTakeoff = nil
             }
         }
         .onChange(of: logbook.view.totals.flights) {

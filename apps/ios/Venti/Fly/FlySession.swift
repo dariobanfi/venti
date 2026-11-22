@@ -38,6 +38,14 @@ final class FlySession {
     /// Called when a take-off was seen while the session only watched:
     /// the app brings the Fly tab, and with it the cockpit, to the front.
     @ObservationIgnored var onTakeoffSeen: @MainActor () -> Void = {}
+    /// Called when the core took back a take-off that had opened the
+    /// cockpit by itself (a cable car, a drive): the cockpit has shut and
+    /// the session watches again; the app goes back to the tab the pilot
+    /// was on.
+    @ObservationIgnored var onTakenBack: @MainActor () -> Void = {}
+    /// Whether the cockpit was opened by a take-off seen on any tab, and
+    /// not by the pilot: a take-off taken back then shuts it again.
+    @ObservationIgnored private var openedForTakeoff = false
     /// The wind before the glider has measured one, and where it comes
     /// from in a word ("forecast"): for the thermal view, marked as such.
     /// The cockpit sets it; absent until it has one.
@@ -160,13 +168,9 @@ final class FlySession {
     @ObservationIgnored var savedByItself: @MainActor (PendingRecording) -> Void = { _ in }
     /// Something the pilot must be told, such as location being denied.
     var problem: String?
-    /// Whether the vario is silent. Remembered between flights.
-    var isMuted = UserDefaults.standard.bool(forKey: Preferences.varioMuted) {
-        didSet {
-            sound.isMuted = isMuted
-            UserDefaults.standard.set(isMuted, forKey: Preferences.varioMuted)
-        }
-    }
+    /// Something said quietly in the cockpit, put away with a tap: the
+    /// core's words for a take-off it took back.
+    var quietNotice: String?
 
     let vario = VarioLink()
 
@@ -210,8 +214,6 @@ final class FlySession {
     @ObservationIgnored private var warnedOfWindAt: String?
     /// How bright the screen was before the cockpit turned it up.
     @ObservationIgnored private var brightnessBefore: CGFloat?
-    /// The vario's mark at the last refresh, so that its loss is said once.
-    @ObservationIgnored private var varioMarkBefore: VarioLink.Mark?
 
     /// How often the screen and the vario tone are refreshed.
     private static let refreshInterval = Duration.milliseconds(200)
@@ -254,6 +256,7 @@ final class FlySession {
     func startFlight() {
         if mode == .live, isWatching {
             isWatching = false
+            openedForTakeoff = false
             openTheCockpit()
             share(with: LiveChoice.stored.audience)
             return
@@ -307,6 +310,14 @@ final class FlySession {
         vario.onBytes = { bytes in
             session.onInstrumentBytes(timeUnixS: Date().timeIntervalSince1970, bytes: bytes)
         }
+        // The pilot's choice of vario, and what its link does: the core
+        // decides from them whether the phone sounds and what the vario's
+        // mark says. The choice first, then the link as it stands.
+        session.setVarioChoice(choice: vario.choice)
+        vario.onChoice = { choice in session.setVarioChoice(choice: choice) }
+        vario.onLink = { state in
+            session.onVarioLink(timeUnixS: Date().timeIntervalSince1970, state: state)
+        }
         location.start()
         // The pressure sensor asks the pilot first on an iPhone: a watch
         // uses it only where that was answered already.
@@ -338,6 +349,17 @@ final class FlySession {
         }
         if !LaunchOptions.isUnderTest {
             sound.start()
+        }
+    }
+
+    /// Gives the iPhone back what the cockpit took: the screen may dim and
+    /// lock again, at its old brightness, and the vario is silent.
+    private func closeTheCockpit() {
+        sound.stop()
+        UIApplication.shared.isIdleTimerDisabled = false
+        if let before = brightnessBefore {
+            Self.screen?.brightness = before
+            brightnessBefore = nil
         }
     }
 
@@ -567,13 +589,10 @@ final class FlySession {
         location.stop()
         barometer.stop()
         vario.onBytes = nil
-        sound.stop()
+        vario.onLink = nil
+        vario.onChoice = nil
         voice.stop()
-        UIApplication.shared.isIdleTimerDisabled = false
-        if let before = brightnessBefore {
-            Self.screen?.brightness = before
-            brightnessBefore = nil
-        }
+        closeTheCockpit()
 
         var recording: PendingRecording?
         do {
@@ -590,6 +609,8 @@ final class FlySession {
         replay = nil
         mode = nil
         isWatching = false
+        openedForTakeoff = false
+        quietNotice = nil
         windBefore = nil
         live = nil
         landing = nil
@@ -728,7 +749,6 @@ final class FlySession {
         } catch {
             problem = error.words
         }
-        sound.isMuted = isMuted
         // A watch leaves the screen and the sound alone until it has
         // seen the take-off.
         if !isWatching {
@@ -759,6 +779,24 @@ final class FlySession {
             now = Date().timeIntervalSince1970
         }
         let view = session.view(nowUnixS: now)
+        // A take-off the core took back (a cable car, a drive): the session
+        // is on the ground again. What was shared of it is taken off the
+        // server with its recording. A cockpit the take-off opened by
+        // itself shuts quietly and the session watches again; one the
+        // pilot opened says it quietly and waits for the take-off.
+        if mode == .live, let falseStart = session.takeFalseStart() {
+            if falseStart.recordingDropped, live != nil {
+                deleteLiveTrack()
+            }
+            if openedForTakeoff, falseStart.recordingDropped {
+                openedForTakeoff = false
+                isWatching = true
+                closeTheCockpit()
+                onTakenBack()
+            } else {
+                quietNotice = falseStart.words
+            }
+        }
         if isWatching {
             // Nobody took off while the app was in front for two hours:
             // the watch begins anew, without a word.
@@ -772,6 +810,7 @@ final class FlySession {
             // front.
             if view.recording || view.phase == .flying {
                 isWatching = false
+                openedForTakeoff = true
                 openTheCockpit()
                 share(with: LiveChoice.stored.audience)
                 onTakeoffSeen()
@@ -788,6 +827,9 @@ final class FlySession {
             isRecording = view.recording
         }
         way = session.navigation(nowUnixS: now)
+        // The core decides when the phone sounds (`phoneTone`): in flight,
+        // and not while a connected vario beeps itself. Its tone is absent
+        // otherwise; there is no mute of the app's own.
         sound.play(view.tone)
 
         let status = session.taskStatus(nowUnixS: now)
@@ -997,14 +1039,11 @@ final class FlySession {
         if session.takeCableAlert(), !LaunchOptions.isUnderTest, !isWatching, let cable {
             voice.say(cable.words)
         }
-        // A vario that is lost in the air is said aloud once, when it is
-        // lost; the mark on the top line says it for as long as it lasts.
-        let mark = vario.mark(talking: view.instrument?.talking)
-        if mark == .lost, varioMarkBefore != .lost, mode == .live, !isWatching, view.phase == .flying,
-           !LaunchOptions.isUnderTest
-        {
+        // The vario the pilot chose, lost in the air, is said aloud once,
+        // when the core says so; the mark on the top line says it for as
+        // long as it lasts, and the phone sounds meanwhile.
+        if mode == .live, session.takeVarioLost(nowUnixS: now), !isWatching, !LaunchOptions.isUnderTest {
             voice.say("Vario lost.")
         }
-        varioMarkBefore = mark
     }
 }

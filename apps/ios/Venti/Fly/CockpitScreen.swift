@@ -153,7 +153,10 @@ struct CockpitScreen: View {
             VStack(spacing: 0) {
                 StatusLine(
                     view: view, mode: fly.mode, checks: checks(view),
-                    vario: fly.mode == .live ? fly.vario.mark(talking: view.instrument?.talking) : nil,
+                    // The core's mark, live only; Bluetooth that cannot be
+                    // used is the shell's to know.
+                    vario: fly.mode == .live ? view.vario : nil,
+                    noBluetooth: fly.vario.isUnavailable,
                     pages: CockpitPage.all(hasTask: hasTask), page: page,
                     nextPage: { page = page.next(hasTask: hasTask) },
                     previousPage: { page = page.previous(hasTask: hasTask) },
@@ -393,6 +396,13 @@ struct CockpitScreen: View {
                     fly.problem = nil
                 }
             }
+            // A take-off the core took back, said quietly: no caution,
+            // put away with a tap.
+            if let words = fly.quietNotice {
+                QuietNotice(text: words) {
+                    fly.quietNotice = nil
+                }
+            }
         }
         .padding(.horizontal, VentiSpace.s4)
         .padding(.bottom, VentiSpace.s2)
@@ -610,12 +620,29 @@ struct CockpitScreen: View {
                             .padding(VentiSpace.s2)
                             .accessibilityIdentifier("cockpit-airspace-credit")
                     }
-                    // And whose cables, aircraft and take-offs it draws.
                     // On the first page's small map only the thermal map's,
-                    // which is drawn there too.
-                    if let credit = page == .instruments
-                        ? (showsThermalMap ? MapStyle.thermalMapCredit : nil) : otherCredits
-                    {
+                    // which is drawn there too: one short line, the source
+                    // with its licence where that fits, else the source
+                    // alone, as CC BY-NC-SA allows "in any reasonable
+                    // manner". The whole credit is on the other pages and
+                    // under "Data and licences".
+                    if page == .instruments, showsThermalMap {
+                        ViewThatFits(in: .horizontal) {
+                            Text(MapStyle.thermalMapShortCredit)
+                            Text(MapStyle.thermalMapShortestCredit)
+                        }
+                        .font(.ventiType(.label))
+                        .lineLimit(1)
+                        .padding(.horizontal, VentiSpace.s2)
+                        .padding(.vertical, VentiSpace.s1)
+                        .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
+                        .padding([.bottom, .horizontal], VentiSpace.s2)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(MapStyle.thermalMapCredit)
+                        .accessibilityIdentifier("cockpit-map-credits")
+                    }
+                    // And whose cables, aircraft and take-offs it draws.
+                    if page != .instruments, let credit = otherCredits {
                         Text(credit)
                             .font(.ventiType(.label))
                             .multilineTextAlignment(.trailing)
@@ -871,7 +898,8 @@ private struct PhaseNotice: View {
         case .landed:
             icon = "icon-landing"
             title = "Landed"
-            if let left = view.savesInS, !isReplay {
+            // A flight still provisional is not offered as saved.
+            if let left = view.savesInS, !isReplay, !view.flightProvisional {
                 detail = "The flight is saved in \(Format.minutesSeconds(seconds: left))."
             } else {
                 detail = nil
@@ -936,6 +964,37 @@ private struct ProblemNotice: View {
         .buttonStyle(.plain)
         .accessibilityHint("Puts this message away")
         .accessibilityIdentifier("cockpit-problem")
+    }
+}
+
+/// Something said quietly among the cockpit's notices, put away with a
+/// tap: on the raised surface, without a sign of caution.
+private struct QuietNotice: View {
+    let text: String
+    let putAway: () -> Void
+
+    var body: some View {
+        Button(action: putAway) {
+            HStack(alignment: .top, spacing: VentiSpace.s3) {
+                Text(text)
+                    .font(.ventiType(.label))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Image(systemName: "xmark")
+                    .font(.ventiType(.label))
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, VentiSpace.s4)
+            .padding(.vertical, VentiSpace.s3)
+            .frame(minHeight: VentiSize.touch)
+            .foregroundStyle(.venti(.text))
+            .background(.venti(.surfaceRaised), in: .rect(cornerRadius: VentiRadius.m))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Puts this message away")
+        .accessibilityIdentifier("cockpit-quiet-notice")
     }
 }
 
@@ -1047,8 +1106,11 @@ private struct StatusLine: View {
     /// The checks that fail now, the most urgent first: the first is said
     /// in a word, the others are read out with it.
     let checks: [CockpitCheck]
-    /// The external vario's mark; `nil` without one, and in a replay.
-    let vario: VarioLink.Mark?
+    /// The core's mark of the external vario; `nil` in a replay, and
+    /// nothing is shown while the pilot flies with the phone alone.
+    let vario: VarioMark?
+    /// Whether Bluetooth cannot be used: off, not allowed or not there.
+    let noBluetooth: Bool
     /// The cockpit's pages, and the one in front.
     let pages: [CockpitPage]
     let page: CockpitPage
@@ -1101,8 +1163,8 @@ private struct StatusLine: View {
                 .accessibilityLabel(checks.map(\.word).joined(separator: ", "))
                 .accessibilityIdentifier(check.identifier)
             }
-            if let vario {
-                VarioMark(mark: vario)
+            if let vario, vario != .noneSetUp {
+                VarioSign(mark: vario, noBluetooth: noBluetooth)
                     .layoutPriority(-1)
             }
             SettingsControl(action: openSettings)
@@ -1115,27 +1177,27 @@ private struct StatusLine: View {
     }
 }
 
-/// The external vario on the top line: the pack's vario sign alone while
-/// it is connected, with a word while it is not. Lost is in the alert's
-/// colour; the cockpit says it aloud once, in the air.
-private struct VarioMark: View {
-    let mark: VarioLink.Mark
+/// The external vario on the top line, from the core's mark: the pack's
+/// vario sign alone while it is connected, with a word while it is not.
+/// Lost is in the alert's colour; the cockpit says it aloud once, in the
+/// air. "No Bluetooth" is the shell's: the core cannot know it.
+private struct VarioSign: View {
+    let mark: VarioMark
+    let noBluetooth: Bool
 
     private var word: String? {
         switch mark {
-        case .connected: nil
-        case .connecting: "Connecting"
+        case .connected, .noneSetUp: nil
+        case .connecting: noBluetooth ? "No Bluetooth" : "Connecting"
         case .lost: "Vario lost"
-        case .noBluetooth: "No Bluetooth"
         }
     }
 
     private var role: VentiColor.Role {
         switch mark {
-        case .connected: .text
-        case .connecting: .textSecondary
+        case .connected, .noneSetUp: .text
+        case .connecting: noBluetooth ? .caution : .textSecondary
         case .lost: .danger
-        case .noBluetooth: .caution
         }
     }
 
@@ -1227,14 +1289,17 @@ private struct Instruments: View {
                         unit: "m"
                     )
                 } else {
-                    // Under it the course, in the core's words, while the
-                    // glider moves fast enough for one to mean something.
+                    // Under it the direction flown, as a small arrow and
+                    // the core's compass word, while the glider moves fast
+                    // enough for one to mean something.
                     Reading(
                         name: "Ground speed",
                         value: view.groundSpeedMs.map(Format.kilometresPerHour(metresPerSecond:)),
                         unit: "km/h",
-                        note: view.courseWords
+                        note: view.directionFlown?.point,
+                        noteArrowDeg: view.directionFlown?.degrees
                     )
+                    .accessibilityIdentifier("cockpit-ground-speed")
                 }
             }
             HStack(alignment: .top, spacing: VentiSpace.s3) {
@@ -1396,6 +1461,9 @@ private struct Reading: View {
     let unit: String
     /// What is worth knowing beside it, under the name.
     var note: String?
+    /// A direction to draw as a small arrow before the note, degrees
+    /// clockwise from north: the direction flown.
+    var noteArrowDeg: Double?
     var size = Size.large
     /// The number's ink, where its colour says something.
     var ink = VentiColor.Role.text
@@ -1423,11 +1491,20 @@ private struct Reading: View {
             // Its line is kept when there is nothing to say, so that the
             // readings below stay where they are.
             if size != .medium {
-                Text(note ?? " ")
-                    .font(.ventiType(.label))
-                    .monospacedDigit()
-                    .foregroundStyle(.venti(.textMuted))
-                    .lineLimit(1)
+                HStack(spacing: VentiSpace.s1) {
+                    if let noteArrowDeg {
+                        // The pack's arrow points north unturned.
+                        Image("icon-arrow-wind")
+                            .resizable()
+                            .frame(width: VentiSpace.s4, height: VentiSpace.s4)
+                            .rotationEffect(.degrees(noteArrowDeg))
+                    }
+                    Text(note ?? " ")
+                        .font(.ventiType(.label))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.venti(.textMuted))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1455,7 +1532,8 @@ private struct Reading: View {
     private var spokenValue: String {
         guard let value else { return "not available" }
         let number = unit.isEmpty ? value : "\(value) \(unit)"
-        return note.map { "\(number), \($0)" } ?? number
+        let said = noteArrowDeg == nil ? note : note.map { "flying \($0)" }
+        return said.map { "\(number), \($0)" } ?? number
     }
 }
 

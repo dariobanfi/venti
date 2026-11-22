@@ -4,8 +4,6 @@ enum Preferences {
     static let pilot = "VentiPilotName"
     /// The glider, written into recorded flights.
     static let glider = "VentiGliderName"
-    /// Whether the vario is silent.
-    static let varioMuted = "VentiVarioMuted"
     /// The model the assistant uses.
     static let assistantModel = "VentiAssistantModel"
     /// Where the assistant's model runs: "anthropic", or "other" for a

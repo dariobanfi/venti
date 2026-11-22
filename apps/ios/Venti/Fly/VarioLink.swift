@@ -42,27 +42,29 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
         var lines: [String] = []
     }
 
-    /// The vario's state as the cockpit marks it on its top line.
-    enum Mark: Equatable {
-        case connected
-        /// Chosen and looked for, not yet connected.
-        case connecting
-        /// It was connected and is not: the link dropped, or it fell
-        /// silent. It is looked for again all the while.
-        case lost
-        /// Bluetooth cannot be used.
-        case noBluetooth
+    private(set) var state: State = .idle {
+        didSet { tell(link) }
     }
-
-    private(set) var state: State = .idle
-    /// Whether the chosen vario's link dropped since it last connected.
-    private(set) var wasLost = false
     /// Devices found while scanning, likely varios first.
     private(set) var devices: [Device] = []
     private(set) var report = Report()
 
     /// Called with every chunk of bytes the vario sends.
     @ObservationIgnored var onBytes: ((Data) -> Void)?
+    /// Called with what the link does, each time that changes, and at once
+    /// when it is set: for the core's session, which decides from it and
+    /// the pilot's choice whether the phone sounds and what the cockpit's
+    /// vario mark says.
+    @ObservationIgnored var onLink: ((VarioLinkState) -> Void)? {
+        didSet {
+            told = nil
+            tell(link)
+        }
+    }
+    /// Called when the pilot chooses a vario or forgets it.
+    @ObservationIgnored var onChoice: ((VentiCore.VarioChoice) -> Void)?
+    /// What `onLink` was told last.
+    @ObservationIgnored private var told: VarioLinkState?
 
     @ObservationIgnored private var central: CBCentralManager?
     @ObservationIgnored private var found: [UUID: CBPeripheral] = [:]
@@ -100,21 +102,34 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
         UserDefaults.standard.string(forKey: Self.rememberedKey) != nil
     }
 
-    /// The mark for the cockpit's top line, with whether the vario still
-    /// sends anything understandable (the core's `instrument.talking`).
-    /// `nil` while the pilot uses no external vario: nothing is shown.
-    func mark(talking: Bool?) -> Mark? {
+    /// The pilot's choice, as the core's session takes it: a vario
+    /// remembered is the one flown with; none, the phone alone.
+    var choice: VentiCore.VarioChoice {
+        hasRememberedVario ? .external : .phone
+    }
+
+    /// Whether Bluetooth cannot be used at all: off, not allowed, or not
+    /// there. The core's mark has no word for it; the top line has.
+    var isUnavailable: Bool {
+        if case .unavailable = state { true } else { false }
+    }
+
+    /// What the link is doing, in the core's terms: looking for the vario
+    /// (also again after a loss), connected, or lost because Bluetooth
+    /// cannot be used. `nil` while nothing is chosen and nothing happens.
+    private var link: VarioLinkState? {
         switch state {
-        case .connected:
-            return talking == false ? .lost : .connected
-        case .connecting:
-            return wasLost ? .lost : .connecting
-        case .unavailable:
-            return hasRememberedVario ? .noBluetooth : nil
-        case .idle, .scanning:
-            guard hasRememberedVario else { return nil }
-            return wasLost ? .lost : .connecting
+        case .connected: .connected
+        case .connecting: .connecting
+        case .unavailable: .lost
+        case .idle, .scanning: hasRememberedVario ? .connecting : nil
         }
+    }
+
+    private func tell(_ link: VarioLinkState?) {
+        guard let link, link != told else { return }
+        told = link
+        onLink?(link)
     }
 
     /// Starts listing nearby devices.
@@ -138,6 +153,7 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
         guard let central, let peripheral = found[device.id] else { return }
         stopScan()
         UserDefaults.standard.set(device.id.uuidString, forKey: Self.rememberedKey)
+        onChoice?(choice)
         connect(peripheral, named: device.name, with: central)
     }
 
@@ -151,11 +167,11 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
     /// Disconnects and forgets the vario.
     func forget() {
         UserDefaults.standard.removeObject(forKey: Self.rememberedKey)
+        onChoice?(choice)
         if let chosen {
             central?.cancelPeripheralConnection(chosen)
         }
         chosen = nil
-        wasLost = false
         state = .idle
     }
 
@@ -234,7 +250,6 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         state = .connected(peripheral.name ?? "Vario")
-        wasLost = false
         report = Report()
         unfinishedLine = ""
         peripheral.discoverServices(nil)
@@ -250,7 +265,9 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
         _ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: (any Error)?
     ) {
         if peripheral.identifier == chosen?.identifier {
-            wasLost = true
+            // Lost, before it is looked for again: the phone takes the
+            // climb and the tone over at once.
+            tell(.lost)
         }
         retry(peripheral, with: central)
     }

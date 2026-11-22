@@ -315,14 +315,17 @@ final class VentiUITests: XCTestCase {
         return Double(found.1)
     }
 
-    private func put(metresNorth: Double, altitude: Double, speed: Double) {
+    private func put(
+        metresNorth: Double, metresEast: Double = 0, altitude: Double, speed: Double, course: Double = 0
+    ) {
         wander = wander == 0 ? 0.5 : 0
         let north = metresNorth + wander
+        let east = metresEast / (111_195 * cos(47.664 * .pi / 180))
         XCUIDevice.shared.location = XCUILocation(
             location: CLLocation(
-                coordinate: CLLocationCoordinate2D(latitude: 47.664 + north / 111_195, longitude: 11.772),
+                coordinate: CLLocationCoordinate2D(latitude: 47.664 + north / 111_195, longitude: 11.772 + east),
                 altitude: altitude, horizontalAccuracy: 5, verticalAccuracy: 5,
-                course: 0, speed: speed, timestamp: Date()
+                course: course, speed: speed, timestamp: Date()
             )
         )
     }
@@ -699,7 +702,9 @@ final class VentiUITests: XCTestCase {
         // until the pilot says otherwise, and nobody can be chosen
         // without an account to send the positions to.
         openTheCockpitsSettings(in: app)
-        XCTAssertTrue(element("cockpit-sound", in: app).exists)
+        // The phone's tone is the core's to decide: no mute switch.
+        XCTAssertTrue(element("vario-before-takeoff", in: app).exists)
+        XCTAssertFalse(element("cockpit-sound", in: app).exists)
         sleep(1)
         keepScreenshot("fly-1a-settings")
         element("live-before-takeoff", in: app).tap()
@@ -735,6 +740,11 @@ final class VentiUITests: XCTestCase {
         // minutes of track and the wind it worked out.
         XCTAssertTrue(element("thermal-view", in: app).exists)
         XCTAssertTrue(element("thermal-view-wind", in: app).exists)
+        // The direction flown, as an arrow and the core's compass word
+        // under the ground speed.
+        XCTAssertTrue(
+            (element("cockpit-ground-speed", in: app).value as? String)?.contains("flying") == true
+        )
         keepScreenshot("fly-3-glide")
 
         // The second page: the map as large as it gets, and under it the
@@ -843,7 +853,7 @@ final class VentiUITests: XCTestCase {
 
         // Settings, and the credits the map data's licences ask for.
         openTab("Settings", in: app)
-        XCTAssertTrue(app.staticTexts["Pilot"].waitForExistence(timeout: 15) || element("Vario sound", in: app).exists)
+        XCTAssertTrue(app.staticTexts["Pilot"].waitForExistence(timeout: 15))
         keepScreenshot("settings-1")
 
         // The glider, the FAI triangle areas and the brightness, on a
@@ -918,20 +928,35 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("self-2-ready-flight-page")
         nextPage(in: app)
 
-        // Ninety seconds of flight at the take-off's height, 10 m/s over
-        // the ground: 450 m out over the valley, and back to where it
-        // started. The take-off is noticed within seconds.
-        for second in 1...90 {
-            let out = Double(min(second, 90 - second))
-            put(metresNorth: 10 * out, altitude: ground, speed: 10)
+        // A hundred seconds of flight at the take-off's height, 10 m/s
+        // over the ground: 300 m out, two circles of 20 s there, and back
+        // to where it started. The take-off is noticed within seconds; the
+        // circles are what shows the core it is a flight and not a lift or
+        // a drive (since 2026-11-22 a take-off is provisional until then,
+        // and a provisional one that comes to rest is taken back unsaved).
+        let radius = 10 * 20 / (2 * Double.pi)
+        for second in 1...100 {
+            if second <= 30 {
+                put(metresNorth: 10 * Double(second), altitude: ground, speed: 10)
+            } else if second <= 70 {
+                // Clockwise round a middle east of the line, entered going
+                // north: the course is the angle turned.
+                let turned = Double(second - 30) / 20 * 2 * Double.pi
+                put(
+                    metresNorth: 300 + radius * sin(turned), metresEast: radius * (1 - cos(turned)),
+                    altitude: ground, speed: 10, course: (turned * 180 / Double.pi).truncatingRemainder(dividingBy: 360)
+                )
+            } else {
+                put(metresNorth: 300 - 10 * Double(second - 70), altitude: ground, speed: 10, course: 180)
+            }
             sleep(1)
             if second == 20 {
                 XCTAssertTrue(saying("Recording", in: app).waitForExistence(timeout: 10))
                 XCTAssertFalse(saying("Ready for take-off", in: app).exists)
                 keepScreenshot("self-3-in-the-air")
             }
-            if second == 45 {
-                // Where the flight of this test stood still until
+            if second == 50 {
+                // Circling where the flight of this test stood still until
                 // 2026-11-22, at 1555 m: what lies under it here.
                 keepScreenshot("self-3b-over-the-valley")
             }

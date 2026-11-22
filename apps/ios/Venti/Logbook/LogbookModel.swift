@@ -58,7 +58,10 @@ final class LogbookModel {
     }
 
     /// Brings in recordings that were cut short: flights being recorded
-    /// when the app was closed, or when it crashed. Called at launch.
+    /// when the app was closed, or when it crashed. Called at launch. One
+    /// cut short while its take-off was still provisional (`provisional`)
+    /// is brought in too: a drive in the logbook, which the pilot deletes,
+    /// costs less than a flight lost.
     func adoptInterruptedRecordings() async {
         for recording in pendingRecordings(dataFolder: folder.path) {
             _ = try? await adopt(recording)

@@ -1,0 +1,51 @@
+# The southern Alps: the third region.
+#
+# The box lies south of the first region's (regions/alps-de-at) and shares
+# its edge at 46.3° N: the Bergamo Alps and Lake Garda, Trentino, the
+# south of the Dolomites, Veneto, Friuli and Slovenia south of the Karawanks,
+# with the plain of the Po, the north of the Apennines and the north of
+# Croatia south of them. With regions/alps-west it makes the three boxes
+# that tile the whole Alps, 5.0° to 17.2° E and 43.5° to 48.5° N. A source
+# that all three name is collected once, over that whole box
+# (docs/architecture.md, "The whole Alps").
+#
+# Listed here is what the adapters that exist can collect in this box as
+# they are, by the measurements of 2026-11-22. What is not listed, and what
+# has to be built before it can be, is in docs/architecture.md.
+
+id = "alps-south"
+name = "Southern Alps"
+languages = ["it", "sl", "de", "en"]
+
+[bounds]
+south = 43.5
+west = 9.4
+north = 46.3
+east = 17.2
+
+# Stations of wind and weather. South Tyrol's network has one station south
+# of the first region's box, Salurn at 46.24° N; the airfields' reports are
+# 24 here, the wind at an airfield and not at a take-off. The weather
+# services of Lombardy, Trentino, Veneto, Friuli and Slovenia have no
+# adapter yet: docs/data-sources.md, "Catalogue: the rest of the Alps",
+# lists them in the order to write them.
+[observations]
+sources = ["suedtirol-meteo", "awc-metar"]
+priority = ["suedtirol-meteo", "awc-metar"]
+
+# No [airspace] yet: openAIP's adapter fetches the countries its manifest
+# names, and Bosnia and Herzegovina, which this box reaches into, is not
+# among them, nor is France, which the box of all three regions takes in.
+# Both want a line in the manifest and a recorded file first.
+
+# Take-offs and landings from OpenStreetMap, under the ODbL: a layer of its
+# own. 192 sites in this box on 2026-11-22.
+[sites]
+sources = ["osm-free-flying"]
+
+# No [cables], no [forecasts] and no [radar] yet, for the reasons
+# regions/alps-west/region.toml gives.
+
+# Aircraft that the Open Glider Network hears, as in the first region.
+[live]
+sources = ["ogn"]

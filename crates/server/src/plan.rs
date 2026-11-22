@@ -86,9 +86,9 @@ pub fn read(paths: &[PathBuf], registry: &Registry) -> Result<Vec<RegionPack>, P
 /// regions, one after the other.
 ///
 /// A source keeps the place the first region gave it. An order that
-/// differs from region to region is not built: there is one region. A
-/// source that no list names is not in the answer and comes after all that
-/// are.
+/// differs from region to region is not built: the three packs of the Alps
+/// name none that does. A source that no list names is not in the answer
+/// and comes after all that are.
 pub fn station_priority(packs: &[RegionPack]) -> Vec<SourceId> {
     let mut order: Vec<SourceId> = Vec::new();
     for source in packs.iter().flat_map(|pack| &pack.observations.priority) {
@@ -438,5 +438,123 @@ mod tests {
             read(&[missing], &adapters::registry()),
             Err(PlanError::Read { .. })
         ));
+    }
+
+    /// The three packs of the Alps, as a server reads them that is given
+    /// all three.
+    fn the_alps() -> Vec<RegionPack> {
+        let paths: Vec<PathBuf> = ["alps-de-at", "alps-west", "alps-south"]
+            .iter()
+            .map(|id| {
+                PathBuf::from(format!(
+                    "{}/../../regions/{id}/region.toml",
+                    env!("CARGO_MANIFEST_DIR")
+                ))
+            })
+            .collect();
+        read(&paths, &adapters::registry()).unwrap()
+    }
+
+    #[test]
+    fn the_three_regions_tile_the_whole_alps() {
+        let packs = the_alps();
+        let whole = BoundingBox::new(43.5, 5.0, 48.5, 17.2).unwrap();
+        let area = |b: &BoundingBox| (b.north() - b.south()) * (b.east() - b.west());
+
+        // One box around the three is the whole Alps, and the three fill
+        // it without lying over each other: they share edges and no more.
+        let around = packs
+            .iter()
+            .skip(1)
+            .fold(packs[0].bounds, |around, pack| around.cover(&pack.bounds));
+        assert_eq!(around, whole);
+        let filled: f64 = packs.iter().map(|pack| area(&pack.bounds)).sum();
+        assert!((filled - area(&whole)).abs() < 1e-9, "{filled}");
+        for (index, one) in packs.iter().enumerate() {
+            for other in &packs[index + 1..] {
+                let (a, b) = (&one.bounds, &other.bounds);
+                let shared = (a.north().min(b.north()) - a.south().max(b.south())).max(0.0)
+                    * (a.east().min(b.east()) - a.west().max(b.west())).max(0.0);
+                assert!(shared < 1e-9, "{} lies over {}", one.id, other.id);
+            }
+        }
+    }
+
+    #[test]
+    fn what_all_three_regions_name_is_collected_once_over_the_whole_alps() {
+        let packs = the_alps();
+        let whole = BoundingBox::new(43.5, 5.0, 48.5, 17.2).unwrap();
+        let first = packs[0].bounds;
+
+        let jobs = plan(&packs, &adapters::registry()).unwrap();
+        let area_of = |source: &str| {
+            jobs.iter()
+                .find(|job| job.source.as_str() == source)
+                .unwrap_or_else(|| panic!("{source} is not planned"))
+                .area
+        };
+
+        // No source is planned that the first region alone does not have:
+        // the new packs came with no adapter.
+        assert_eq!(jobs.len(), 9);
+
+        // The sites and the airfields' reports are named by all three and
+        // are one job over one box around them. So is DWD, which the
+        // western pack names for the Black Forest: a job's area is one box
+        // around its regions, and Germany's stations end where Germany
+        // does.
+        for source in ["osm-free-flying", "awc-metar", "dwd-10min"] {
+            assert_eq!(area_of(source), whole, "{source}");
+        }
+        // South Tyrol's stations with the southern pack: Salurn at
+        // 46.24° N is inside.
+        assert_eq!(
+            area_of("suedtirol-meteo"),
+            BoundingBox::new(43.5, 9.4, 48.5, 17.2).unwrap()
+        );
+
+        // What only the first region names stays in its box. For airspace
+        // that is the rule to keep: openAIP's manifest has no France, and
+        // a layer that says it is whole over a box that takes in France
+        // would be airspace nobody is warned about. The cables' answer for
+        // the whole Alps is too large for one request, and the radars'
+        // pictures and the thermal map are made over the box of their job.
+        for source in [
+            "openaip",
+            "osm-cables",
+            "dwd-radar-ry",
+            "geosphere-inca-rr",
+            "geosphere-tawes",
+        ] {
+            assert_eq!(area_of(source), first, "{source}");
+        }
+        for pack in &packs[1..] {
+            assert!(pack.airspace.is_empty(), "{}", pack.id);
+            assert!(pack.cables.is_empty(), "{}", pack.id);
+            assert!(pack.forecasts.is_empty(), "{}", pack.id);
+            assert!(pack.radar.is_empty(), "{}", pack.id);
+        }
+
+        // The Open Glider Network is listened to over the whole box.
+        let networks = live(&packs);
+        assert_eq!(networks.len(), 1);
+        assert_eq!(networks[0].0.as_str(), "ogn");
+        assert_eq!(networks[0].1, whole);
+
+        // The order of stations at one place is the first region's, with
+        // nothing new in it.
+        let preferred: Vec<String> = station_priority(&packs)
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(
+            preferred,
+            [
+                "dwd-10min",
+                "geosphere-tawes",
+                "suedtirol-meteo",
+                "awc-metar"
+            ]
+        );
     }
 }

@@ -1,0 +1,67 @@
+# The western Alps: the second region.
+#
+# The box lies west of the first region's (regions/alps-de-at) and shares
+# its edge at 9.4° E: the Alps of France and of Switzerland west of the
+# Rhine valley, Piedmont, the Aosta valley and the west of Lombardy, with
+# the Jura, the Vosges and the Black Forest north of them and Provence and
+# the Ligurian coast south of them. With regions/alps-south it makes the
+# three boxes that tile the whole Alps, 5.0° to 17.2° E and 43.5° to
+# 48.5° N. A source that all three name is collected once, over that whole
+# box (docs/architecture.md, "The whole Alps").
+#
+# Listed here is what the adapters that exist can collect in this box as
+# they are, by the measurements of 2026-11-22. What is not listed, and what
+# has to be built before it can be, is in docs/architecture.md.
+
+id = "alps-west"
+name = "Western Alps"
+languages = ["fr", "de", "it", "en"]
+
+[bounds]
+south = 43.5
+west = 5.0
+north = 48.5
+east = 9.4
+
+# Stations of wind and weather. Two sources reach into the box today: DWD's
+# stations of the Black Forest and of Lake Constance, 30 of them, and the
+# airfields' reports, 27 of them, which are the wind at an airfield and not
+# at a take-off. The weather services of Switzerland, France and the
+# Italian regions have no adapter yet: docs/data-sources.md, "Catalogue:
+# the rest of the Alps", lists them in the order to write them.
+[observations]
+sources = ["dwd-10min", "awc-metar"]
+priority = ["dwd-10min", "awc-metar"]
+
+# No [airspace] yet. openAIP's adapter fetches the countries its manifest
+# names, and France is not among them: a layer over this box would be
+# without France's airspace, 411 of the 2,167 airspaces of the whole Alps.
+# France and Bosnia and Herzegovina want a line in the manifest and a
+# recorded file each first.
+
+# Take-offs and landings from OpenStreetMap, under the ODbL: a layer of its
+# own. 1,480 sites in this box on 2026-11-22, three times the first
+# region's 502.
+[sites]
+sources = ["osm-free-flying"]
+
+# No [cables] yet: the whole Alps hold 157,515 ways of power lines and
+# ropeways, and an Overpass instance took 144 seconds to count them, which
+# is longer than the fetcher gives a request. The query has to be asked in
+# pieces first.
+
+# No [forecasts] yet: the thermal map is made over the box its source is
+# listed for, and the whole Alps are 6,273 cells against the first
+# region's 1,817. That has to run against the forecast service once before
+# it is listed.
+
+# No [radar] yet. DWD's composite sees 150 km around the Feldberg, which is
+# the north of Switzerland and the Vosges, and nothing of the French or
+# Italian Alps; GeoSphere Austria's nowcast is Austria's. Listing DWD's
+# here makes every frame a picture of the box of both regions: cheap for
+# the server, and to be looked at in the apps first.
+
+# Aircraft that the Open Glider Network hears, as in the first region. The
+# network is asked for one box around every region that names it.
+[live]
+sources = ["ogn"]

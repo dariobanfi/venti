@@ -2,8 +2,9 @@ id = "ogn"
 provider = "Open Glider Network"
 kinds = ["live"]
 # The network's feed has the whole world; the server asks it for the
-# regions' box. These are the countries of the first region's box.
-countries = ["AT", "CH", "DE", "HU", "IT", "SI"]
+# regions' box. These are the countries of the box of the three packs of
+# the Alps.
+countries = ["AT", "BA", "CH", "DE", "FR", "HR", "HU", "IT", "LI", "MC", "SI", "SK", "SM"]
 # A device that moves is reported about every five seconds, one that stands
 # about every twenty (the network's wiki, "APRS interaction examples").
 cadence_seconds = 5

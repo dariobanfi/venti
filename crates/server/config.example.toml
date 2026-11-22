@@ -20,7 +20,9 @@ database_url = "postgres://venti:change-me@127.0.0.1:5432/venti"
 
 # Region packs to collect and serve.                      VENTI_REGIONS
 # Paths are relative to the folder the server is started in. As a variable:
-# a comma-separated list.
+# a comma-separated list. The first region alone is named here. The whole
+# Alps are three packs: this one, "regions/alps-west/region.toml" and
+# "regions/alps-south/region.toml" (docs/architecture.md, "The whole Alps").
 regions = ["regions/alps-de-at/region.toml"]
 
 # Folder for raw provider payloads, kept so that a      VENTI_ARCHIVE_DIR

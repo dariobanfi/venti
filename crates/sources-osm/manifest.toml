@@ -2,14 +2,17 @@ id = "osm-free-flying"
 provider = "OpenStreetMap contributors"
 kinds = ["sites"]
 # OpenStreetMap covers the world and the adapter asks for a box, not for
-# countries. These are the countries the first region's box takes in.
-countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
+# countries. These are the countries the box of the three packs of the Alps
+# takes in.
+countries = ["AT", "BA", "CH", "DE", "FR", "HR", "HU", "IT", "LI", "MC", "SI", "SK", "SM"]
 # Sites change rarely, and the public Overpass instances are a shared
 # resource: one request a day.
 cadence_seconds = 86400
 auth = "none"
 # The one answer of a run, every free-flying place of the first region with
-# all its tags and the points of every area, was 276 kB on 2026-11-21.
+# all its tags and the points of every area, was 276 kB on 2026-11-21. For
+# the box of the three packs of the Alps it was 1.87 MB on 2026-11-22, which
+# is what a server with all three asks for.
 max_response_kb = 4096
 
 # The main public instance asks whoever uses it regularly to stay under 100

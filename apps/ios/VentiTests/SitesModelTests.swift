@@ -157,7 +157,12 @@ final class SitesModelTests: XCTestCase {
             withinM: SiteScreen.stationsWithinM, atMost: 3
         )
         XCTAssertNil(StationNearbyRow.fitWords(unjudged[0]))
-        XCTAssertEqual(StationNearbyRow.ageWords(summit, now: 1_000 + 25 * 60), "25 minutes ago")
+        XCTAssertEqual(StationNearbyRow.ageWords(summit), "10 minutes ago")
+        // Against an unknown clock the core gives no age: the reading's
+        // own time stands in its place.
+        var unaged = summit
+        unaged.ageMin = nil
+        XCTAssertEqual(StationNearbyRow.ageWords(unaged), Format.time(unixSeconds: reading.timeUnixS))
     }
 
     /// The places from pilots are asked for only once the pilot switched

@@ -281,8 +281,7 @@ struct MapScreen: View {
                 layerChips
                 notice
                 candidatesNotice
-                othersNotice
-                airNotice
+                zoomInNotice
             }
         }
         // Airspace switched on: asked for at once around the map, which
@@ -692,20 +691,6 @@ struct MapScreen: View {
         }
     }
 
-    /// What the Pilots layer says over the map when the map shows too
-    /// much for the other networks to be asked: the core's words.
-    @ViewBuilder private var othersNotice: some View {
-        if live.othersTooWide, !hidesPilots, wind.server != nil {
-            Text(othersTooWideWords())
-                .font(.venti(.footnote))
-                .padding(.horizontal, VentiSpace.s3)
-                .padding(.vertical, VentiSpace.s2)
-                .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
-                .padding(.horizontal, VentiSpace.s4)
-                .accessibilityIdentifier("others-notice")
-        }
-    }
-
     /// The climbs the map draws: the layer's answer while it is on and
     /// there is a Venti to ask.
     private var climbsOnTheMap: LiveClimbs? {
@@ -739,27 +724,38 @@ struct MapScreen: View {
         return air.flown?.cells.isEmpty == true ? mapLayersWords().flownEmpty : ""
     }
 
-    /// What airspace and the two layers of the air say over the map when
-    /// it shows too much for them to be drawn or asked for: the core's
-    /// words, as the Pilots layer's. Airspace's first, and in place of the
-    /// climbs': the two say the same.
-    @ViewBuilder private var airNotice: some View {
-        let words = [
-            isAirspaceTooWide ? mapLayersWords().airspaceTooWide : "",
-            wind.server != nil && showsFlown && air.flownTooWide ? flownTooWideWords() : "",
-            wind.server != nil && showsClimbs && air.climbsTooWide && !isAirspaceTooWide
-                ? mapLayersWords().climbsTooWide : "",
-        ].filter { !$0.isEmpty }
-        if !words.isEmpty {
-            ForEach(words, id: \.self) { words in
-                Text(words)
-                    .font(.venti(.footnote))
-                    .padding(.horizontal, VentiSpace.s3)
-                    .padding(.vertical, VentiSpace.s2)
-                    .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
-                    .padding(.horizontal, VentiSpace.s4)
-                    .accessibilityIdentifier("air-notice")
-            }
+    /// The one line over the map that asks to zoom in, when the map shows
+    /// too much for a layer that is on to be drawn or asked for: the
+    /// core's words. One at a time, airspace's first, then the climbs',
+    /// the other networks' gliders' and where thermals have been; none
+    /// while the wind's notice says Venti is not reached.
+    private var zoomInWords: String? {
+        guard wind.problem == nil else { return nil }
+        let hasServer = wind.server != nil
+        if isAirspaceTooWide {
+            return mapLayersWords().airspaceTooWide
+        }
+        if hasServer, showsClimbs, air.climbsTooWide {
+            return mapLayersWords().climbsTooWide
+        }
+        if hasServer, !hidesPilots, live.othersTooWide {
+            return othersTooWideWords()
+        }
+        if hasServer, showsFlown, air.flownTooWide {
+            return flownTooWideWords()
+        }
+        return nil
+    }
+
+    @ViewBuilder private var zoomInNotice: some View {
+        if let words = zoomInWords {
+            Text(words)
+                .font(.venti(.footnote))
+                .padding(.horizontal, VentiSpace.s3)
+                .padding(.vertical, VentiSpace.s2)
+                .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
+                .padding(.horizontal, VentiSpace.s4)
+                .accessibilityIdentifier("zoom-in-notice")
         }
     }
 

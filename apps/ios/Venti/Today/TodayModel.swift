@@ -223,7 +223,7 @@ final class TodayModel {
                 try? await Task.sleep(for: forecastPause)
                 continue
             }
-            let offset = TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
+            let offset = TimeZone.current.secondsFromGMT(for: nowUnixS == 0 ? Date() : Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
             return try? siteOutlook(
                 status: UInt16(clamping: status), body: body,
                 utcOffsetS: Int32(offset),

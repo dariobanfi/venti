@@ -182,6 +182,16 @@ enum Format {
         max(0, (later - earlier) / 60)
     }
 
+    /// How old a station's reading is: the core's age where it knows Venti's
+    /// clock, and else the reading's own time ("18:20"), never an age by
+    /// this iPhone's clock.
+    static func readingAge(ageMin: Int64?, timeUnixS: Int64) -> String {
+        if let ageMin {
+            return age(minutes: ageMin)
+        }
+        return time(unixSeconds: timeUnixS)
+    }
+
     /// How long ago something was measured: "just now", "25 minutes ago",
     /// "3 hours ago", "2 days ago".
     static func age(minutes: Int64) -> String {

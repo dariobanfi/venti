@@ -131,7 +131,7 @@ final class WindModel {
             }
             let path = try windMapPath(south: area.south, west: area.west, north: area.north, east: area.east)
             let (status, body) = try await get(path, from: server)
-            let map = try windMap(status: status, body: body, nowUnixS: now)
+            let map = try windMap(status: status, body: body, nowUnixS: nowIfRead)
             // The pilot may have changed the address while this was under way.
             guard server == self.server else { return }
             stations = map.stations
@@ -173,6 +173,13 @@ final class WindModel {
     func serverNowIfRead() async -> Int64 {
         await readClockIfUnread()
         return clock == nil ? 0 : now
+    }
+
+    /// The current time by the server's clock where it has been read, and
+    /// 0 where not: for 0 the core gives a reading no age and marks no
+    /// day as today, which is right by any clock.
+    var nowIfRead: Int64 {
+        clock == nil ? 0 : now
     }
 
     /// Asks the server what time it is, unless it has said so already.
@@ -247,7 +254,7 @@ final class WindModel {
             throw URLError(.badURL)
         }
         let (status, body) = try await get(stationHistoryPath(stationId: station.id), from: server)
-        return try stationHistory(status: status, body: body, nowUnixS: now)
+        return try stationHistory(status: status, body: body, nowUnixS: nowIfRead)
     }
 
     /// The offset of this iPhone's clock from UTC, by which a station's

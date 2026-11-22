@@ -218,12 +218,13 @@ final class LogbookModel {
     }
 
     /// What to tell the pilot before a flight goes to a league, with the
-    /// file to hand over.
-    func leagueHandover(id: String) async throws -> LeagueHandover {
+    /// file to hand over. `nowUnixS` is Venti's clock, or 0 where it is
+    /// not known: the core then names the deadline without calling the
+    /// flight late.
+    func leagueHandover(id: String, nowUnixS: Int64) async throws -> LeagueHandover {
         let core = self.core
-        let now = Int64(Date().timeIntervalSince1970)
         return try await Task.detached(priority: .userInitiated) {
-            try core.leagueHandover(id: id, nowUnixS: now)
+            try core.leagueHandover(id: id, nowUnixS: nowUnixS)
         }.value
     }
 

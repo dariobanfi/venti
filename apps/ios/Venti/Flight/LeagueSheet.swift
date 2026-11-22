@@ -14,6 +14,7 @@ struct LeagueSheet: View {
     let flight: String
 
     @Environment(LogbookModel.self) private var logbook
+    @Environment(WindModel.self) private var wind
     @Environment(\.dismiss) private var dismiss
 
     /// What the core says about the flight and the leagues. `nil` until
@@ -186,7 +187,7 @@ struct LeagueSheet: View {
     private func load() async {
         password = LeagueStore.readDhvxcPassword() ?? ""
         do {
-            handover = try await logbook.leagueHandover(id: flight)
+            handover = try await logbook.leagueHandover(id: flight, nowUnixS: await wind.serverNowIfRead())
             file = try? await logbook.exportFile(id: flight)
         } catch {
             problem = error.words

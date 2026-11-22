@@ -56,7 +56,9 @@ struct RouteWeatherSection: View {
         .task(id: isOpen) {
             guard isOpen else { return }
             if start == nil {
-                let now = await thermals.clock()
+                // A known clock: Venti's, else this iPhone's.
+                let venti = await thermals.clock()
+                let now = venti == 0 ? Int64(Date().timeIntervalSince1970) : venti
                 today = RouteWeatherWords.date(of: now)
                 start = RouteWeatherWords.nextFullHour(after: now)
             }

@@ -76,6 +76,10 @@ final class CommunityModel {
 
     /// The server to ask. The app sets this to the one in the settings.
     @ObservationIgnored var server: () -> URL? = { nil }
+    /// Venti's clock for the years the ranking offers before the server
+    /// names its own, or 0 where it is not known (the core then offers
+    /// all years). The app sets this to the server's time as read.
+    @ObservationIgnored var clock: () async -> Int64 = { 0 }
 
     @ObservationIgnored private let transport: Transport
     /// What to ask the next page with.
@@ -159,22 +163,23 @@ final class CommunityModel {
     /// Fetches the ranking of a season, by the name the core gives it:
     /// the whole season, whichever month of another was shown. Without a
     /// name it is what was last shown, season and month, or the newest.
-    func rank(season: String? = nil, now: Date = Date()) async {
+    func rank(season: String? = nil, now: Date? = nil) async {
         await rank(season: season, month: season == nil ? ranked.month : nil, now: now)
     }
 
     /// Fetches the ranking of a month of the season shown, as the core
     /// writes the month ("2026-05"); `nil` is the whole season again.
-    func rank(month: String?, now: Date = Date()) async {
+    func rank(month: String?, now: Date? = nil) async {
         await rank(season: nil, month: month, now: now)
     }
 
-    private func rank(season: String?, month: String?, now: Date) async {
+    private func rank(season: String?, month: String?, now: Date?) async {
         guard let server = server() else {
             ranked = Ranked()
             return
         }
-        let byTheClock = rankingSeasons(nowUnixS: Int64(now.timeIntervalSince1970))
+        let nowUnixS = if let now { Int64(now.timeIntervalSince1970) } else { await clock() }
+        let byTheClock = rankingSeasons(nowUnixS: nowUnixS)
         let wanted = season ?? ranked.season
         let offered = ranked.seasons.isEmpty ? byTheClock : ranked.seasons
         guard let chosen = offered.first(where: { $0.name == wanted }) ?? byTheClock.first else { return }

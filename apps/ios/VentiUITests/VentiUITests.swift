@@ -1027,8 +1027,9 @@ final class VentiUITests: XCTestCase {
     /// made-up zone lies opens nothing. The round button over the layers
     /// button switches it on with one tap (drawn, and the layers sheet's
     /// switch with it), and off again. Zoomed out too far, the map says
-    /// to zoom in. Light, then dark.
-    func testTheMapOpensWithoutAirspaceAndOneTapShowsIt() {
+    /// to zoom in, in one line at most, and not at all while Venti is not
+    /// reached. Light, then dark.
+    func testTheMapOpensWithoutAirspaceAndOneTapShowsIt() throws {
         for dark in [false, true] {
             // The made-up zone is a circle of one nautical mile around
             // 47.70 N, 11.733 E: at the map's middle.
@@ -1073,16 +1074,39 @@ final class VentiUITests: XCTestCase {
             app.terminate()
         }
 
-        // Too far out to draw: on, the map says to zoom in, in the
-        // core's words; off, it says nothing.
-        let app = launch(bundledMap: true, extra: ["--sample-airspace", "--map-at", "47.7,11.7333,5"])
+        // Too far out to draw, with Venti not reached: the wind's notice
+        // says so, and no line asks to zoom in.
+        let zoomIn = "zoom-in-notice"
+        let away = launch(bundledMap: true, extra: ["--sample-airspace", "--map-at", "47.7,11.7333,5"])
+        setAirspace(on: true, in: away)
+        XCTAssertTrue(element("wind-notice", in: away).waitForExistence(timeout: 30))
+        XCTAssertFalse(element(zoomIn, in: away).waitForExistence(timeout: 3))
+        sleep(1)
+        keepScreenshot("map-airspace-3-too-wide-not-reached")
+        setAirspace(on: false, in: away)
+        away.terminate()
+
+        // With Venti: one line, airspace's while it is on, and another
+        // layer's (the gliders of the other networks) once it is off.
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.7,11.7333,5"])
+        setLayer("layer-pilots", on: true, in: app)
         setAirspace(on: true, in: app)
-        let notice = app.staticTexts["Zoom in to see airspace."]
-        XCTAssertTrue(notice.waitForExistence(timeout: 10))
+        let notice = element(zoomIn, in: app)
+        XCTAssertTrue(notice.waitForExistence(timeout: 30))
+        XCTAssertEqual(notice.label, "Zoom in to see airspace.")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: zoomIn).count, 1)
         sleep(1)
         keepScreenshot("map-airspace-3-too-wide")
         setAirspace(on: false, in: app)
-        XCTAssertFalse(notice.waitForExistence(timeout: 3))
+        let other = NSPredicate(format: "label != %@", "Zoom in to see airspace.")
+        expectation(for: other, evaluatedWith: notice)
+        waitForExpectations(timeout: 15)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: zoomIn).count, 1)
+        sleep(1)
+        keepScreenshot("map-airspace-4-too-wide-off")
     }
 
     /// Today, against a Venti server in development mode: the take-offs

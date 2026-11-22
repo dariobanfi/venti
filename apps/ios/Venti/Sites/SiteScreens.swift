@@ -459,7 +459,7 @@ struct SiteScreen: View {
                         NavigationLink {
                             StationScreen(station: station.station)
                         } label: {
-                            StationNearbyRow(near: station, now: wind.now)
+                            StationNearbyRow(near: station)
                         }
                         .accessibilityIdentifier("site-station")
                     }
@@ -861,8 +861,6 @@ private struct AirNotes: View {
 /// whether its wind comes from a direction the site works in.
 struct StationNearbyRow: View {
     let near: StationNearby
-    /// The current time by the server's clock.
-    let now: Int64
 
     var body: some View {
         let mark = near.station.mark
@@ -886,7 +884,7 @@ struct StationNearbyRow: View {
                 Text("\(Text(mark.label).font(.venti(.body, .semibold)))\(Text(" km/h").font(.venti(.footnote)).foregroundStyle(.secondary))")
                     .monospacedDigit()
             } else {
-                Text(Self.ageWords(near.station, now: now))
+                Text(Self.ageWords(near.station))
                     .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
@@ -915,9 +913,9 @@ struct StationNearbyRow: View {
     }
 
     /// What stands in place of a wind that is not current.
-    static func ageWords(_ station: WindStation, now: Int64) -> String {
+    static func ageWords(_ station: WindStation) -> String {
         guard let reading = station.latest else { return "no reading" }
-        return Format.age(minutes: Format.minutes(from: reading.timeUnixS, to: now))
+        return Format.readingAge(ageMin: station.ageMin, timeUnixS: reading.timeUnixS)
     }
 }
 

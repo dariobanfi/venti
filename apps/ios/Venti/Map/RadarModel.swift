@@ -335,7 +335,7 @@ final class RadarModel {
 
     private func read(status: UInt16, body: Data) async throws -> RadarView {
         let nowUnixS = await clock()
-        let offset = TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
+        let offset = TimeZone.current.secondsFromGMT(for: nowUnixS == 0 ? Date() : Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
         return try radar(status: status, body: body, utcOffsetS: Int32(offset), nowUnixS: nowUnixS)
     }
 

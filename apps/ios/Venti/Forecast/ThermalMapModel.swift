@@ -159,7 +159,7 @@ final class ThermalMapModel {
             }
             let (status, body) = try await transport(url)
             let nowUnixS = await clock()
-            let offset = TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
+            let offset = TimeZone.current.secondsFromGMT(for: nowUnixS == 0 ? Date() : Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
             let read = try thermalMap(
                 status: UInt16(clamping: status), body: body, utcOffsetS: Int32(offset), nowUnixS: nowUnixS
             )
@@ -202,7 +202,7 @@ extension ThermalMapModel {
     /// the days are cut, as the map of the days was read.
     private func clockAndOffset() async -> (now: Int64, offset: Int32) {
         let nowUnixS = await clock()
-        let offset = TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
+        let offset = TimeZone.current.secondsFromGMT(for: nowUnixS == 0 ? Date() : Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
         return (nowUnixS, Int32(offset))
     }
 

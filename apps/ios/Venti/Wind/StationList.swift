@@ -14,7 +14,7 @@ struct StationList: View {
                 Section {
                     ForEach(shown, id: \.id) { station in
                         NavigationLink(value: station) {
-                            StationRow(station: station, now: wind.now)
+                            StationRow(station: station)
                         }
                         .accessibilityIdentifier("station-row")
                     }
@@ -64,8 +64,6 @@ struct StationList: View {
 /// the wind in numbers.
 struct StationRow: View {
     let station: WindStation
-    /// The current time by the server's clock.
-    let now: Int64
 
     var body: some View {
         let mark = station.mark
@@ -98,7 +96,7 @@ struct StationRow: View {
         }
         if let reading = station.latest {
             if station.isOld {
-                parts.append(Format.age(minutes: Format.minutes(from: reading.timeUnixS, to: now)))
+                parts.append(Format.readingAge(ageMin: station.ageMin, timeUnixS: reading.timeUnixS))
             }
         } else {
             parts.append("no reading")

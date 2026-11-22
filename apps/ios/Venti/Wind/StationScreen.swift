@@ -263,7 +263,7 @@ struct StationScreen: View {
         guard let reading = station.latest else {
             return "The server has no reading from this station."
         }
-        let age = Format.age(minutes: Format.minutes(from: reading.timeUnixS, to: wind.now))
+        let age = Format.readingAge(ageMin: station.ageMin, timeUnixS: reading.timeUnixS)
         return station.isOld
             ? "Measured \(age). Too old to say what the wind is doing now."
             : "Measured \(age)."

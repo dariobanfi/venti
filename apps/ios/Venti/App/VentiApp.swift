@@ -122,22 +122,23 @@ enum Session {
                 if let at = LaunchOptions.todayAt {
                     return at
                 }
-                return await wind.serverNow()
+                return await wind.serverNowIfRead()
             }
             // And the forecast map of the map tab.
             let thermals = ThermalMapModel()
             thermals.server = { wind.server }
-            thermals.clock = { await wind.serverNow() }
+            thermals.clock = { await wind.serverNowIfRead() }
             // And the rain radar of the map tab, its ages by the same clock.
             let radar = RadarModel()
             radar.server = { wind.server }
-            radar.clock = { await wind.serverNow() }
+            radar.clock = { await wind.serverNowIfRead() }
             // So do the other pilots in the air.
             let live = LiveModel()
             live.server = { wind.server }
             // And what the pilots there share with everyone.
             let community = CommunityModel()
             community.server = { wind.server }
+            community.clock = { await wind.serverNowIfRead() }
             // The assistant looks up live wind on the same server as the
             // map, and measures ages against the same clock.
             let scripted = LaunchOptions.usesScriptedAssistant

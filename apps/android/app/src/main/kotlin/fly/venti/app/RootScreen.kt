@@ -3,6 +3,17 @@ package fly.venti.app
 import fly.venti.app.maps.OfflineMapsScreen
 import fly.venti.app.flight.CompareSources
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.window.Popup
+import app.venti.design.VentiSpace
+import kotlinx.coroutines.delay
 import fly.venti.app.design.VentiTheme
 import fly.venti.app.design.Venti
 import fly.venti.app.design.Appearance
@@ -227,6 +238,15 @@ fun RootScreen(
             }
         }
     }
+    // A take-off taken back closes the cockpit it opened: back to the tab
+    // the pilot was on, where the core's words say why, quietly.
+    var falseStartsShown by rememberSaveable { mutableIntStateOf(fly.closedByFalseStart) }
+    LaunchedEffect(fly.closedByFalseStart) {
+        if (fly.closedByFalseStart > falseStartsShown) {
+            falseStartsShown = fly.closedByFalseStart
+            navigation.leaveFly()
+        }
+    }
     var takeoffsShown by rememberSaveable { mutableIntStateOf(fly.takeoffsSeenUnseen) }
     LaunchedEffect(fly.takeoffsSeenUnseen) {
         if (fly.takeoffsSeenUnseen > takeoffsShown) {
@@ -295,6 +315,15 @@ fun RootScreen(
     }
 
     ImportNoticeDialog(notice) { notice = null }
+
+    // Said quietly, over the cockpit or a tab, and gone by itself.
+    fly.quietNotice?.let { words ->
+        LaunchedEffect(words) {
+            delay(QUIET_NOTICE_MILLISECONDS)
+            fly.putQuietNoticeAway()
+        }
+        QuietNotice(words, onPutAway = fly::putQuietNoticeAway)
+    }
 
     fly.problem?.let { problem ->
         AlertDialog(
@@ -438,7 +467,6 @@ private fun Sections(
                     null -> kept.SaveableStateProvider("settings") {
                         SettingsScreen(
                             session.preferences,
-                            session.fly,
                             session.wind,
                             session.account,
                             offlineMaps = session.maps.inALine,
@@ -741,3 +769,32 @@ private fun around(site: SiteView): Bounds = Bounds(
     north = site.position.lat + 0.05,
     east = site.position.lon + 0.07,
 )
+
+/** How long words said quietly stay on screen. */
+private const val QUIET_NOTICE_MILLISECONDS = 10_000L
+
+/**
+ * Words said quietly: a pill at the foot of the screen, over the tab bar or
+ * the cockpit's map, which a tap puts away. No dialog, no sound.
+ */
+@Composable
+private fun QuietNotice(words: String, onPutAway: () -> Unit) {
+    Popup(alignment = Alignment.BottomCenter, onDismissRequest = onPutAway) {
+        Surface(
+            modifier = Modifier
+                .navigationBarsPadding()
+                .padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s8)
+                .clickable(onClick = onPutAway)
+                .testTag("quiet-notice"),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.inverseSurface,
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        ) {
+            Text(
+                words,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3),
+            )
+        }
+    }
+}

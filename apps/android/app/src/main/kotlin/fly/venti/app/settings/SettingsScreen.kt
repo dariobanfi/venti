@@ -58,7 +58,6 @@ import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
-import fly.venti.app.fly.FlySession
 import fly.venti.app.wind.WindModel
 import fly.venti.core.mapLayersWords
 import fly.venti.core.GliderClassKind
@@ -69,7 +68,6 @@ import fly.venti.app.design.Common
 @Composable
 fun SettingsScreen(
     preferences: Preferences,
-    fly: FlySession,
     wind: WindModel,
     account: AccountModel,
     /** The maps kept for flying without a network, in a line. */
@@ -134,9 +132,6 @@ fun SettingsScreen(
 
             SectionHeader("Cockpit")
             Group {
-                row {
-                    SwitchRow("Vario sound", isOn = !fly.isMuted) { fly.isMuted = !it }
-                }
                 row {
                     LinkRow(KeptSitesWords.TITLE, R.drawable.ic_chevron_right, Modifier.testTag("kept-sites-link")) {
                         onOpen(SettingsRoute.KeptSites)

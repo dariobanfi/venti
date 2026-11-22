@@ -100,7 +100,12 @@ class LogbookModel(
      */
     fun interruptedRecordings(): List<PendingRecording> = pendingRecordings(folder.path)
 
-    /** Brings interrupted recordings into the logbook. */
+    /**
+     * Brings interrupted recordings into the logbook, a provisional one
+     * (`PendingRecording.provisional`: cut short before it showed itself a
+     * flight) like any other: a drive in the logbook, which the pilot can
+     * delete, is better than a flight lost.
+     */
     suspend fun adopt(recordings: List<PendingRecording>) {
         for (recording in recordings) {
             runCatching { adopt(recording) }

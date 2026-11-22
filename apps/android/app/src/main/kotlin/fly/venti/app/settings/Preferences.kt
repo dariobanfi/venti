@@ -17,9 +17,6 @@ interface Preferences {
     /** The glider, written into recorded flights. */
     var glider: String
 
-    /** Whether the vario is silent. */
-    var varioMuted: Boolean
-
     /** The Bluetooth address of the vario used last, to reconnect to it. */
     var rememberedVario: String?
 
@@ -177,10 +174,6 @@ class StoredPreferences(context: Context) : Preferences {
     override var glider: String
         get() = store.getString(GLIDER, null).orEmpty()
         set(value) = store.edit { putString(GLIDER, value) }
-
-    override var varioMuted: Boolean
-        get() = store.getBoolean(VARIO_MUTED, false)
-        set(value) = store.edit { putBoolean(VARIO_MUTED, value) }
 
     override var rememberedVario: String?
         get() = store.getString(VARIO, null)
@@ -346,7 +339,6 @@ class StoredPreferences(context: Context) : Preferences {
     private companion object {
         const val PILOT = "VentiPilotName"
         const val GLIDER = "VentiGliderName"
-        const val VARIO_MUTED = "VentiVarioMuted"
         const val VARIO = "VentiVarioIdentifier"
         const val ASSISTANT_MODEL = "VentiAssistantModel"
         const val ASSISTANT_SERVICE = "VentiAssistantService"
@@ -370,7 +362,6 @@ class StoredPreferences(context: Context) : Preferences {
 class MemoryPreferences : Preferences {
     override var pilot = ""
     override var glider = ""
-    override var varioMuted = false
     override var rememberedVario: String? = null
     override var assistantModel: String? = null
     override var assistantService: String? = null

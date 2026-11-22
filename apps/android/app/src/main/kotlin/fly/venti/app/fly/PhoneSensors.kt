@@ -18,6 +18,15 @@ class PhoneSensors(private val context: Context, private val vario: VarioLink) :
         location.onProblem = onProblem
         barometer.onPressure = session::onPressure
         vario.onBytes = { bytes -> session.onInstrumentBytes(System.currentTimeMillis() / 1000.0, bytes) }
+        // Which vario the pilot flies with, and what its link does: at the
+        // start and on every change. The core decides the climb's source,
+        // the tone and the mark from it.
+        val tell = {
+            session.setVarioChoice(vario.choice)
+            session.onVarioLink(System.currentTimeMillis() / 1000.0, vario.linkState)
+        }
+        vario.onChange = tell
+        tell()
 
         location.start()
         barometer.start()
@@ -38,6 +47,7 @@ class PhoneSensors(private val context: Context, private val vario: VarioLink) :
         location.stop()
         barometer.stop()
         vario.onBytes = null
+        vario.onChange = null
         RecordingService.stop(context)
     }
 }

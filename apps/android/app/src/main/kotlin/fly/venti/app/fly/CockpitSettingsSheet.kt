@@ -1,6 +1,14 @@
 package fly.venti.app.fly
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -46,7 +54,6 @@ import androidx.compose.runtime.setValue
 object CockpitSettingsWords {
     const val TITLE = "Settings"
     const val VARIO = "Vario"
-    const val SOUND = "Vario sound"
     const val THERMALS = "Thermal map"
     const val AIRSPACE = "Airspace"
     const val TASK = "Task"
@@ -55,13 +62,17 @@ object CockpitSettingsWords {
     const val IN_REAL_TIME = "In real time"
     const val FASTER = "20 times faster"
     const val NONE = "None"
+    const val BATTERY = "Battery optimisation"
+    const val BATTERY_LINE = "Android may stop a recording with the screen off. Allow Venti to run."
 }
 
 /**
  * What the Fly tab listed before the cockpit opened, now behind the one
- * settings button in the cockpit's top line: the vario and its sound, what
+ * settings button in the cockpit's top line: the vario, the thermal map, what
  * the cockpit warns from, the map it draws without a network, the task,
  * who watches the flight, and a replay to try the cockpit on the ground.
+ * Where Android may stop the app with the screen off, a row leads to
+ * Android's own page for it; there is no pop-up.
  * In the flight theme, every row as high as a gloved finger needs. A row
  * that leads to a list of its own leaves the cockpit for it; its back
  * arrow comes back here.
@@ -71,9 +82,6 @@ object CockpitSettingsWords {
 fun CockpitSettingsSheet(
     /** What the vario row says: the vario chosen, and how it stands. */
     vario: String,
-    /** Whether the vario is silent. */
-    isMuted: Boolean,
-    onMute: (Boolean) -> Unit,
     /** Whether the cockpit's map shows the thermal map; `null` where the maps do not offer it. */
     showsThermals: Boolean?,
     onThermals: (Boolean) -> Unit,
@@ -97,6 +105,13 @@ fun CockpitSettingsSheet(
     onDismiss: () -> Unit,
 ) {
     var isChoosingReplay by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    // Asked again whenever the app comes back, from Android's page too.
+    var isOptimised by remember { mutableStateOf(isBatteryOptimised(context)) }
+    LifecycleResumeEffect(Unit) {
+        isOptimised = isBatteryOptimised(context)
+        onPauseOrDispose {}
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -119,15 +134,6 @@ fun CockpitSettingsSheet(
             item {
                 Group {
                     row { SettingRow(R.drawable.venti_vario, CockpitSettingsWords.VARIO, vario, "cockpit-settings-vario", onVario) }
-                    row {
-                        SwitchSettingRow(
-                            if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
-                            CockpitSettingsWords.SOUND,
-                            isOn = !isMuted,
-                            tag = "cockpit-sound",
-                            onChange = { onMute(!it) },
-                        )
-                    }
                     // On the cockpit's map, at 40 %: fetched tile by tile for
                     // the map in view, never kept for flying without a network.
                     if (showsThermals != null) {
@@ -138,6 +144,31 @@ fun CockpitSettingsSheet(
                                 isOn = showsThermals,
                                 tag = "cockpit-thermals",
                                 onChange = onThermals,
+                            )
+                        }
+                    }
+                }
+            }
+            // Android's battery optimisation may stop a recording with the
+            // screen off: its own page, only while Venti is under it.
+            if (isOptimised) {
+                item { Spacer(Modifier.padding(top = VentiSpace.s5)) }
+                item {
+                    Group {
+                        row {
+                            SettingRow(
+                                R.drawable.ic_battery,
+                                CockpitSettingsWords.BATTERY,
+                                "",
+                                "cockpit-battery",
+                                line = CockpitSettingsWords.BATTERY_LINE,
+                                onClick = {
+                                    try {
+                                        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                                    } catch (_: ActivityNotFoundException) {
+                                        // A phone without the page: nothing to open.
+                                    }
+                                },
                             )
                         }
                     }
@@ -230,9 +261,25 @@ private fun SwitchSettingRow(@DrawableRes icon: Int, title: String, isOn: Boolea
     }
 }
 
-/** A row that opens a choice: a sign, what it is, and what is chosen now, as high as a gloved finger needs. */
+/** Whether Android's battery optimisation holds Venti: it may then stop a recording with the screen off. */
+internal fun isBatteryOptimised(context: Context): Boolean {
+    val power = context.getSystemService(PowerManager::class.java) ?: return false
+    return !power.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+/**
+ * A row that opens a choice: a sign, what it is, and what is chosen now, as
+ * high as a gloved finger needs; `line` is one short line under the title.
+ */
 @Composable
-private fun SettingRow(@DrawableRes icon: Int, title: String, value: String, tag: String, onClick: () -> Unit) {
+private fun SettingRow(
+    @DrawableRes icon: Int,
+    title: String,
+    value: String,
+    tag: String,
+    onClick: () -> Unit,
+    line: String? = null,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -249,11 +296,18 @@ private fun SettingRow(@DrawableRes icon: Int, title: String, value: String, tag
             modifier = Modifier.size(VentiSize.icon),
         )
         Spacer(Modifier.width(VentiSpace.s4))
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        if (line == null) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+        } else {
+            Column(Modifier.weight(1f).padding(vertical = VentiSpace.s2)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(line, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         Spacer(Modifier.width(VentiSpace.s3))
         // The value takes the room the title leaves, and is cut short
         // before it pushes the title off the row.
-        Text(
+        if (line == null) Text(
             value,
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyLarge,

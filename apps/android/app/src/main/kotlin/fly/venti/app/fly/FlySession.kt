@@ -106,10 +106,12 @@ class SilentAnnouncer : Announcer {
     override fun stop() = Unit
 }
 
-/** Whatever makes the vario's sound. */
+/**
+ * Whatever makes the vario's sound. It has no mute: the core says when the
+ * phone sounds (`CockpitView.phoneTone`), silent on the ground, after the
+ * landing and while the pilot's own vario beeps (the owner, 2026-11-22).
+ */
 interface TonePlayer {
-    var isMuted: Boolean
-
     fun start()
 
     fun stop()
@@ -437,16 +439,27 @@ class FlySession(
      */
     var savedFlight: String? by mutableStateOf(null)
 
-    private val muted = mutableStateOf(preferences.varioMuted)
+    /**
+     * Words to show quietly for a while, then put away by the screen: a
+     * flight taken back. Kept after the cockpit closed, so that the tab it
+     * returns to says them.
+     */
+    var quietNotice: String? by mutableStateOf(null)
 
-    /** Whether the vario is silent. Remembered between flights. */
-    var isMuted: Boolean
-        get() = muted.value
-        set(value) {
-            muted.value = value
-            sound.isMuted = value
-            preferences.varioMuted = value
-        }
+    /** Puts the quiet notice away. */
+    fun putQuietNoticeAway() {
+        quietNotice = null
+    }
+
+    /**
+     * Counts the cockpits closed because the take-off that opened them was
+     * taken back: the app then returns to the tab the pilot was on.
+     */
+    var closedByFalseStart: Int by mutableIntStateOf(0)
+        private set
+
+    /** Whether the cockpit on screen was opened by the take-off watch, not by the pilot. */
+    private var openedByTakeoff = false
 
     private var session: FlightSession? = null
     private var replay: Replay? = null
@@ -627,6 +640,8 @@ class FlySession(
             refresh(elapsed = 0.0)
             return
         }
+        // The pilot opened it, whatever opened it before.
+        openedByTakeoff = false
         if (mode != null) return
         val session = readySession() ?: return
         sensors.start(session) { problem = it }
@@ -684,7 +699,6 @@ class FlySession(
     private fun comeIntoView() {
         isWatching = false
         sensors.keepAlive()
-        sound.isMuted = isMuted
         sound.start()
         share(LiveChoice.stored(preferences).audience)
     }
@@ -719,6 +733,22 @@ class FlySession(
             SessionOver.LANDED -> recording?.let(savedByItself)
             SessionOver.NO_TAKEOFF -> problem = NO_TAKEOFF
         }
+    }
+
+    /**
+     * Opens the cockpit again after Android ended the app while a cockpit
+     * was open and then started the recording's service again by itself.
+     * The session of before is gone with the process; what it wrote was
+     * listed at this launch as an interrupted recording and goes into the
+     * logbook as a flight of its own. This one waits for the take-off,
+     * which in the air the core notices within seconds, and records from
+     * there into a new file. The core joins no two files: a flight cut by
+     * the system is two flights in the logbook (to do in the core).
+     */
+    @Synchronized
+    fun reopenAfterRestart() {
+        if (isOpen) return
+        startFlight()
     }
 
     /** Plays a recorded flight through the cockpit, to try it on the ground. */
@@ -777,6 +807,7 @@ class FlySession(
         replay = null
         mode = null
         isWatching = false
+        openedByTakeoff = false
         live = null
         landing = null
         range = null
@@ -848,7 +879,6 @@ class FlySession(
         sending = null
         // A watch makes no sound: it starts once the cockpit has the session.
         if (!isWatching) {
-            sound.isMuted = isMuted
             sound.start()
         }
         refresh(elapsed = 0.0)
@@ -899,6 +929,19 @@ class FlySession(
             clock()
         }
         val view = session.view(now)
+        // A take-off taken back: what the rule took for one was a lift or a
+        // drive. The core has removed what it wrote. Said quietly; a
+        // cockpit the take-off opened closes again, and the app returns to
+        // where the pilot was. A watch has shown nothing and says nothing.
+        val falseStart = session.takeFalseStart()
+        if (falseStart != null && !isWatching) {
+            quietNotice = falseStart.words
+            if (openedByTakeoff && mode == Mode.Live) {
+                finish()
+                closedByFalseStart += 1
+                return
+            }
+        }
         if (isWatching) {
             when {
                 // Two hours on another tab without a take-off: the watch
@@ -912,6 +955,7 @@ class FlySession(
                 // takes the session, and the app brings it to the front.
                 view.recording -> {
                     comeIntoView()
+                    openedByTakeoff = true
                     takeoffsSeenUnseen += 1
                 }
                 // Unseen, nothing else is worked out or asked for.
@@ -1111,6 +1155,11 @@ class FlySession(
         if (session.takeCableAlert() && cable != null) {
             if (saidAirspace) voice.sayAfter(cable.words) else voice.say(cable.words)
         }
+        // The pilot's own vario lost in the air: said once, loud; the top
+        // line shows it, and the phone's tone has taken over.
+        if (mode == Mode.Live && session.takeVarioLost(now)) {
+            if (saidAirspace) voice.sayAfter(VARIO_LOST) else voice.say(VARIO_LOST)
+        }
         if (refreshesSinceScore == 0) {
             val near = session.othersNear(now)
             if (near != othersNear) othersNear = near
@@ -1194,6 +1243,9 @@ class FlySession(
     }
 
     companion object {
+        /** Said aloud once when the pilot's own vario is lost in the air, and shown in the top line. */
+        const val VARIO_LOST = "Vario lost"
+
         /** What the pilot is told when the cockpit closed without a take-off. */
         const val NO_TAKEOFF =
             "Nobody took off in two hours, so the cockpit closed to save the battery. Nothing was recorded."

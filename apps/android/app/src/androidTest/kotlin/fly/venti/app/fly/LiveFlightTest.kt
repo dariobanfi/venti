@@ -1,5 +1,8 @@
 package fly.venti.app.fly
 
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.longClick
@@ -65,6 +68,9 @@ class LiveFlightTest {
 
         /** The ground at the made-up take-off above the Tegernsee, above the ellipsoid, as the map's terrain has it. */
         const val TAKEOFF_GROUND_ELLIPSOID_HEIGHT = 1120.0
+
+        /** How long the made-up flight's one circle takes, seconds: within the core's minute for a circle. */
+        const val CIRCLE_SECONDS = 36
     }
 
     @Before
@@ -169,24 +175,36 @@ class LiveFlightTest {
     private var secondsFed = 0
 
     /**
-     * Hands Android a made-up position every second, as `where` says for
-     * that second: metres north of a take-off above the Tegernsee, the
-     * height above the ellipsoid and the speed. A receiver's positions
-     * wander while it stands, by half a metre here.
+     * Where the made-up receiver is in one second: metres north and east of
+     * a take-off above the Tegernsee, the height above the ellipsoid, the
+     * speed and the course.
      */
-    private fun feed(where: (Int) -> Triple<Double, Double, Float>) {
+    private data class Fed(
+        val north: Double,
+        val height: Double,
+        val speed: Float,
+        val east: Double = 0.0,
+        val bearing: Float = 0f,
+    )
+
+    /**
+     * Hands Android a made-up position every second, as `where` says for
+     * that second. A receiver's positions wander while it stands, by half
+     * a metre here.
+     */
+    private fun feed(where: (Int) -> Fed) {
         isFlying = true
         thread(name = "made-up-flight") {
             var second = 0
             while (isFlying) {
-                val (north, height, speed) = where(second)
+                val fed = where(second)
                 val wander = if (second % 2 == 0) 0.5 else 0.0
                 val position = Location(LocationManager.GPS_PROVIDER).apply {
-                    latitude = 47.664 + (north + wander) / 111_195.0
-                    longitude = 11.772
-                    altitude = height
-                    this.speed = speed
-                    bearing = 0f
+                    latitude = 47.664 + (fed.north + wander) / 111_195.0
+                    longitude = 11.772 + fed.east / (111_195.0 * cos(Math.toRadians(47.664)))
+                    altitude = fed.height
+                    speed = fed.speed
+                    bearing = fed.bearing
                     accuracy = 4f
                     time = System.currentTimeMillis()
                     elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
@@ -215,8 +233,10 @@ class LiveFlightTest {
         waitFor(hasText("Fly") and isSelectable())
         tap(hasText("Fly") and isSelectable())
         waitFor(hasTestTag("cockpit-settings"))
-        // Eight seconds at the take-off, forty-four of flight at 10 m/s,
-        // 220 m north and back, then standing where it started. On the
+        // Eight seconds at the take-off, then at 10 m/s: 100 m north, one
+        // full circle in 36 s (what shows the core a glider: a lift or a
+        // car that comes to rest without having flown is taken back), and
+        // 100 m south, then standing where it started. On the
         // ground: the core does not end a flight while the terrain the app
         // knows lies more than 50 m below (it waits five minutes there),
         // and the emulator's barometer holds the height of the first fix,
@@ -224,10 +244,32 @@ class LiveFlightTest {
         // take-off. The map's terrain has it at some 1,070 m above the sea
         // (a recorded flight: 482 m over ground at 1,553 m, 100 m north),
         // which is some 1,120 m above the ellipsoid here.
+        val radius = 10.0 * CIRCLE_SECONDS / (2 * PI)
         feed { second ->
-            val flown = (second - 8).coerceIn(0, 44)
-            val north = 10.0 * (if (flown <= 22) flown else 44 - flown)
-            Triple(north, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, if (second in 9..52) 10f else 0f)
+            val t = second - 8
+            when {
+                t <= 0 -> Fed(0.0, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, 0f)
+                t <= 10 -> Fed(10.0 * t, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, 10f)
+                t <= 10 + CIRCLE_SECONDS -> {
+                    // Clockwise, from its western point, heading north.
+                    val turned = 360.0 * (t - 10) / CIRCLE_SECONDS
+                    val angle = Math.toRadians(turned)
+                    Fed(
+                        north = 100.0 + radius * sin(angle),
+                        height = TAKEOFF_GROUND_ELLIPSOID_HEIGHT,
+                        speed = 10f,
+                        east = radius - radius * cos(angle),
+                        bearing = (turned % 360).toFloat(),
+                    )
+                }
+                t <= 20 + CIRCLE_SECONDS -> Fed(
+                    100.0 - 10.0 * (t - 10 - CIRCLE_SECONDS),
+                    TAKEOFF_GROUND_ELLIPSOID_HEIGHT,
+                    10f,
+                    bearing = 180f,
+                )
+                else -> Fed(0.0, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, 0f)
+            }
         }
 
         // Standing at the take-off: ready, and nothing is recorded.
@@ -281,7 +323,7 @@ class LiveFlightTest {
         // Standing, then moving as a glider does.
         feed { second ->
             val flown = (second - 8).coerceIn(0, 120)
-            Triple(10.0 * flown, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, if (second >= 9) 10f else 0f)
+            Fed(10.0 * flown, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, if (second >= 9) 10f else 0f)
         }
         // In the air: the cockpit has come to the front, recording.
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {

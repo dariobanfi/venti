@@ -27,6 +27,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import fly.venti.app.settings.Preferences
+import fly.venti.core.VarioChoice
+import fly.venti.core.VarioLinkState
 import fly.venti.core.varioSerialServices
 import java.util.UUID
 
@@ -48,8 +50,16 @@ import java.util.UUID
 // Android's own refusal is caught where a call is made.
 @SuppressLint("MissingPermission")
 class VarioLink(private val context: Context, private val preferences: Preferences) {
-    var state: VarioState by mutableStateOf(VarioState.Idle)
-        private set
+    private var stateNow: VarioState by mutableStateOf(VarioState.Idle)
+
+    /** How the link stands. Each change is also told to [onChange]. */
+    var state: VarioState
+        get() = stateNow
+        private set(value) {
+            if (value == stateNow) return
+            stateNow = value
+            onChange?.invoke()
+        }
 
     /** Devices found while scanning, likely varios first. */
     var devices: List<VarioDevice> by mutableStateOf(emptyList())
@@ -63,8 +73,38 @@ class VarioLink(private val context: Context, private val preferences: Preferenc
      * Bluetooth shows a permission prompt, so the app only does it then or
      * when the pilot opens the vario list.
      */
-    var hasRememberedVario: Boolean by mutableStateOf(preferences.rememberedVario != null)
-        private set
+    private var remembered: Boolean by mutableStateOf(preferences.rememberedVario != null)
+
+    var hasRememberedVario: Boolean
+        get() = remembered
+        private set(value) {
+            if (value == remembered) return
+            remembered = value
+            onChange?.invoke()
+        }
+
+    /**
+     * Called on the main thread whenever [state] or [hasRememberedVario]
+     * changes: the flying session tells the core which vario the pilot
+     * flies with and what its link does.
+     */
+    var onChange: (() -> Unit)? = null
+
+    /** The pilot flies with an external vario: one is remembered. */
+    val choice: VarioChoice
+        get() = if (hasRememberedVario) VarioChoice.EXTERNAL else VarioChoice.PHONE
+
+    /**
+     * What the link does, in the core's terms: looking for the vario or
+     * asking it to connect (also again after a loss), connected, or lost
+     * because Bluetooth is off or not allowed.
+     */
+    val linkState: VarioLinkState
+        get() = when (state) {
+            is VarioState.Connected -> VarioLinkState.CONNECTED
+            is VarioState.Unavailable -> VarioLinkState.LOST
+            is VarioState.Connecting, VarioState.Scanning, VarioState.Idle -> VarioLinkState.CONNECTING
+        }
 
     /** Called with every chunk of bytes the vario sends, on a Bluetooth thread. */
     @Volatile

@@ -71,7 +71,6 @@ class FlySessionTest {
 
     /** A tone player that remembers what it was asked to play. */
     private class RecordedTone : TonePlayer {
-        override var isMuted = false
         var isStarted = false
         val played = mutableListOf<ToneView?>()
 
@@ -750,19 +749,6 @@ class FlySessionTest {
 
         assertEquals(1u, logbook.view.totals.flights)
         assertTrue(pendingRecordings(folder.path).isEmpty())
-    }
-
-    @Test
-    fun mutingIsRememberedAndReachesTheSound() {
-        val preferences = MemoryPreferences()
-        val sound = RecordedTone()
-        val fly = makeSession(TestSupport.newFolder("fly"), sound = sound, preferences = preferences)
-
-        fly.isMuted = true
-
-        assertTrue(preferences.varioMuted)
-        assertTrue(sound.isMuted)
-        assertTrue(makeSession(TestSupport.newFolder("fly"), preferences = preferences).isMuted)
     }
 
     @Test

@@ -17,14 +17,7 @@ import kotlin.concurrent.thread
  * on with the screen off.
  */
 class VarioSound : TonePlayer {
-    override var isMuted = false
-        set(value) {
-            field = value
-            apply()
-        }
-
     private val oscillator = ToneOscillator(SAMPLE_RATE.toDouble())
-    private var tone: ToneView? = null
 
     @Volatile
     private var player: Thread? = null
@@ -42,12 +35,7 @@ class VarioSound : TonePlayer {
     }
 
     override fun play(tone: ToneView?) {
-        this.tone = tone
-        apply()
-    }
-
-    private fun apply() {
-        oscillator.tone = if (isMuted) null else tone
+        oscillator.tone = tone
     }
 
     private fun playUntilStopped() {
@@ -103,8 +91,6 @@ class VarioSound : TonePlayer {
 
 /** No sound at all: for tests, which have nobody listening. */
 class SilentTone : TonePlayer {
-    override var isMuted = false
-
     override fun start() = Unit
 
     override fun stop() = Unit

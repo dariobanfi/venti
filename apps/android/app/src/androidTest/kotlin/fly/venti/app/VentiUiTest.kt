@@ -542,12 +542,11 @@ class VentiUiTest {
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-1-ready")
         // What the Fly tab listed before take-off is behind the one
-        // settings button: the vario and its sound, the thermal map, what
+        // settings button: the vario, the thermal map, what
         // the cockpit warns from, the offline map, the task, live tracking.
         openCockpitSettings()
         waitForAll(
             hasTestTag("cockpit-settings-vario"),
-            hasTestTag("cockpit-sound") and isOn(),
             hasTestTag("airspace-before-takeoff"),
             hasTestTag("maps-before-takeoff"),
         )
@@ -736,7 +735,7 @@ class VentiUiTest {
 
         // Settings, and the credits the map data's licences ask for.
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         keepScreenshot("$prefix-settings-1")
         // "Glider and cockpit", a page of its own: the class is none and
         // "Never land" off until the pilot chooses.
@@ -749,21 +748,21 @@ class VentiUiTest {
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("$prefix-settings-1c-cockpit")
         tap(described("Back"))
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
 
         // The pilot's waypoints.
         tap(hasText("Waypoints"))
         waitFor(described("Sample turnpoint"))
         keepScreenshot("$prefix-settings-3-waypoints")
         tap(described("Back"))
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
 
         screen.onNode(hasText("Data and licences")).performScrollTo()
         tap(hasText("Data and licences"))
         waitFor(hasText("Base map"))
         keepScreenshot("$prefix-settings-2-credits")
         tap(described("Back"))
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
     }
 
     /**
@@ -1021,12 +1020,12 @@ class VentiUiTest {
 
         // The files behind the warnings.
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         tap(hasText("Airspace"))
         waitFor(hasText("sample-zones-not-real"))
         keepScreenshot("$prefix-settings-4-airspace")
         tap(described("Back"))
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
 
         // And the zone on the map: with the sample flight in the logbook
         // the map shows the valley the flight ends in, beside the zone.
@@ -1355,7 +1354,7 @@ class VentiUiTest {
     private fun openTheAccount() {
         waitFor(described("Show my position"))
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         assertTrue(exists(hasTestTag("account-link") and hasText("Not signed in")))
         tap(hasTestTag("account-link"))
@@ -1818,7 +1817,7 @@ class VentiUiTest {
     private fun openTheGoogleSignIn() {
         waitFor(described("Show my position"))
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         tap(hasTestTag("account-link"))
         waitFor(hasTestTag("account-google"))
@@ -1855,7 +1854,7 @@ class VentiUiTest {
         // A new account on the server.
         val handle = "l${System.currentTimeMillis() % 1_000_000_000}"
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         tap(hasTestTag("account-link"))
         waitForThePasswordForm()
@@ -2559,7 +2558,7 @@ class VentiUiTest {
 
         // The site that was kept is among the pilot's waypoints.
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         tap(hasText("Waypoints"))
         waitFor(described(takeoff))
     }
@@ -3644,7 +3643,7 @@ class VentiUiTest {
         waitFor(hasTestTag("today-card"))
         screen.onNode(hasTestTag("today-head")).performScrollTo()
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         screen.onNode(hasTestTag("kept-sites-link")).performScrollTo().performClick()
         waitFor(hasTestTag("kept-site") and hasAnyDescendant(described(takeoff)))
         assertTrue(exists(hasText("Kept on this device only", substring = true)))
@@ -3664,7 +3663,7 @@ class VentiUiTest {
 
         // And Today is as it was.
         tap(described("Back"))
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         tap(tab("Today"))
         waitFor(hasTestTag("today-card"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("today-kept-title")) }
@@ -3694,10 +3693,10 @@ class VentiUiTest {
         keepScreenshot("today-0-not-reached")
 
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         openTheCockpit()
         holdToEnd()
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         // Tapped again, the tab goes back to Today itself.
         tap(tab("Today"))
         waitFor(hasText("The forecast could not be read"))
@@ -4036,7 +4035,7 @@ class VentiUiTest {
         openAndCloseTheCockpit(expected = 1f)
 
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         openGliderAndCockpit()
         val switch = hasTestTag("cockpit-brightness")
         screen.onNode(switch).performScrollTo()
@@ -4047,13 +4046,13 @@ class VentiUiTest {
         tap(switch)
         waitFor(switch and isOff())
         tap(described("Back"))
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         // Kept: the page says so when it opens again.
         openGliderAndCockpit()
         screen.onNode(switch).performScrollTo()
         assertTrue(exists(switch and isOff()))
         tap(described("Back"))
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
 
         openAndCloseTheCockpit(expected = -1f)
     }
@@ -5995,7 +5994,7 @@ class VentiUiTest {
     /** From Today to the account's form, by way of the settings. */
     private fun openTheAccountFromToday() {
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo().performClick()
         waitForThePasswordForm()
     }
@@ -6003,7 +6002,7 @@ class VentiUiTest {
     /** Today itself, from another tab: a page left over it is left with a second tap. */
     private fun backToToday() {
         tap(tab("Today"))
-        if (exists(hasText("Vario sound"))) {
+        if (exists(hasTestTag("kept-sites-link"))) {
             tap(tab("Today"))
         }
         waitFor(hasTestTag("today-card"))
@@ -6013,7 +6012,7 @@ class VentiUiTest {
     private fun openThePilotsTakeoffs() {
         screen.onNode(hasTestTag("today-head")).performScrollTo()
         openFromToday("Settings")
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         screen.onNode(hasTestTag("kept-sites-link")).performScrollTo().performClick()
     }
 
@@ -6084,7 +6083,7 @@ class VentiUiTest {
 
         // And Today lists it first again.
         tap(described("Back"))
-        waitFor(hasText("Vario sound"))
+        waitFor(hasTestTag("kept-sites-link"))
         backToToday()
         waitFor(hasTestTag("today-kept-title") and hasText("Your take-offs"))
 
@@ -6637,13 +6636,13 @@ class VentiUiTest {
             holdToEnd()
             waitFor(tab("Map"))
             openFromToday("Settings")
-            waitFor(hasText("Vario sound"))
+            waitFor(hasTestTag("kept-sites-link"))
             openGliderAndCockpit()
             assertTrue(exists(hasTestTag("glider-class")))
             TestDevice.letTheAppRun(screen, 1)
             keepScreenshot("$prefix-sheets-0b-glider")
             tap(described("Back"))
-            waitFor(hasText("Vario sound"))
+            waitFor(hasTestTag("kept-sites-link"))
             tap(tab("Map"))
         }
         signInAsTheDemoPilot()

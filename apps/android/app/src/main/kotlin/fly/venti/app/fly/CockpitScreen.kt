@@ -1,6 +1,7 @@
 package fly.venti.app.fly
 
 import fly.venti.core.cockpitSourceWords
+import fly.venti.core.VarioMark
 import fly.venti.app.map.MapSetup
 import androidx.compose.ui.platform.LocalContext
 import fly.venti.core.LiveShareView
@@ -251,12 +252,6 @@ fun CockpitScreen(
     // What the Fly tab listed before take-off, behind the one settings button.
     var isShowingSettings by remember { mutableStateOf(false) }
     var isChoosingVario by remember { mutableStateOf(false) }
-    // Whether the chosen vario has been connected in this cockpit: once it
-    // has, a link that is not there is a vario lost, not one looked for.
-    var varioWasConnected by remember { mutableStateOf(false) }
-    LaunchedEffect(vario.state) {
-        if (vario.state is VarioState.Connected) varioWasConnected = true
-    }
     // Whether the screen takes no touches: against a glove, a line or rain
     // pressing a button in flight.
     var isLocked by remember { mutableStateOf(false) }
@@ -339,9 +334,7 @@ fun CockpitScreen(
                         view,
                         isReplay = isReplay,
                         airspaceCheck = fly.airspaceCheck,
-                        hasRememberedVario = vario.hasRememberedVario,
                         varioState = vario.state,
-                        varioWasConnected = varioWasConnected,
                         varioName = vario.connectedName,
                         mapIsKept = keptMap != null,
                     ),
@@ -472,10 +465,13 @@ fun CockpitScreen(
                             }
                             // Whose the thermal map is, on every page while it shows.
                             if (thermals && offersThermals && page != CockpitPage.Map) {
+                                // One short line on the map, no box.
                                 Text(
                                     MapSetup.THERMALS_CREDIT,
-                                    style = fixed(VentiType.label).copy(fontWeight = FontWeight.Normal),
+                                    style = fixed(VentiType.caption),
                                     color = Venti.colours.textMuted,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.testTag("cockpit-thermals-credit"),
                                 )
                             }
@@ -660,8 +656,6 @@ fun CockpitScreen(
     if (isShowingSettings) {
         CockpitSettingsSheet(
             vario = varioSummary(vario),
-            isMuted = fly.isMuted,
-            onMute = { fly.isMuted = it },
             // Where the maps offer it: never over a region kept on the phone.
             showsThermals = thermals.takeIf { offersThermals },
             onThermals = { on ->
@@ -787,7 +781,9 @@ object PhaseWords {
             view.recording -> "Recording" to "Waiting for take-off."
             else -> "Waiting for take-off" to null
         }
-        FlightPhase.LANDED -> "Landed" to view.savesInS?.takeIf { !isReplay }?.let {
+        // A provisional flight is not offered as saved: it may yet be
+        // taken back, a lift or a drive.
+        FlightPhase.LANDED -> "Landed" to view.savesInS?.takeIf { !isReplay && !view.flightProvisional }?.let {
             "The flight is saved in ${Format.minutesSeconds(it)}."
         }
     }
@@ -932,18 +928,15 @@ object CockpitChecks {
     const val NO_AIRSPACE = "No airspace"
     const val NO_MAP = "No offline map"
     const val CONNECTING = "Connecting"
-    const val VARIO_LOST = "Vario lost"
+    const val VARIO_LOST = FlySession.VARIO_LOST
     const val NO_BLUETOOTH = "No Bluetooth"
 
     fun of(
         view: CockpitView,
         isReplay: Boolean,
         airspaceCheck: AirspaceCheck,
-        /** Whether the pilot has chosen an external vario. */
-        hasRememberedVario: Boolean,
+        /** The Bluetooth link: only it knows that Bluetooth itself is off or not allowed. */
         varioState: VarioState,
-        /** Whether that vario has been connected in this cockpit. */
-        varioWasConnected: Boolean,
         varioName: String?,
         /** Whether the map is drawn from a region kept on the phone. */
         mapIsKept: Boolean,
@@ -954,7 +947,7 @@ object CockpitChecks {
         } else {
             null
         },
-        vario(view, isReplay, hasRememberedVario, varioState, varioWasConnected, varioName),
+        vario(view, isReplay, varioState, varioName),
         // The cockpit holds no airspace at all: it warns of none.
         if (airspaceCheck == AirspaceCheck.NO_AIRSPACE) {
             CockpitCheck("check-airspace", R.drawable.venti_airspace, NO_AIRSPACE, CheckTone.Caution, NO_AIRSPACE)
@@ -971,39 +964,43 @@ object CockpitChecks {
     )
 
     /**
-     * The vario's mark, with the pack's vario sign: plain while connected
-     * (with its battery where it says it), quiet while it is looked for,
-     * and a fault once it is lost or silent. Nothing without an external
-     * vario, and nothing in a replay.
+     * The vario's mark, with the pack's vario sign, from the core's
+     * `vario`: plain while connected (with its battery where it says it),
+     * quiet while it is looked for, and a fault once it is lost or silent.
+     * Nothing where the pilot flies with the phone alone, and nothing in
+     * a replay. "No Bluetooth" is the shell's: the core hears only that the
+     * link is lost or looked for, not that Bluetooth is off or refused.
      */
     private fun vario(
         view: CockpitView,
         isReplay: Boolean,
-        hasRememberedVario: Boolean,
         state: VarioState,
-        wasConnected: Boolean,
         name: String?,
     ): CockpitCheck? {
-        if (!hasRememberedVario || isReplay) return null
+        if (isReplay) return null
         val icon = R.drawable.venti_vario
         val tag = "check-vario"
         val instrument = view.instrument
-        return when {
-            state is VarioState.Connected && instrument?.talking == false -> {
+        return when (view.vario) {
+            VarioMark.NONE_SET_UP -> null
+            VarioMark.CONNECTED -> if (instrument?.talking == false) {
                 // Connected, and nothing understood for a while: the core's words.
                 val words = cockpitSourceWords(view.varioSource, instrument, name, false)
                 CockpitCheck(tag, icon, words.short, CheckTone.Danger, words.words)
+            } else {
+                CockpitCheck(
+                    tag,
+                    icon,
+                    instrument?.batteryPercent?.let { "$it%" },
+                    CheckTone.Plain,
+                    cockpitSourceWords(view.varioSource, instrument, name, false).words,
+                )
             }
-            state is VarioState.Connected -> CockpitCheck(
-                tag,
-                icon,
-                instrument?.batteryPercent?.let { "$it%" },
-                CheckTone.Plain,
-                cockpitSourceWords(view.varioSource, instrument, name, false).words,
-            )
-            state is VarioState.Unavailable -> CockpitCheck(tag, icon, NO_BLUETOOTH, CheckTone.Danger, state.reason)
-            wasConnected -> CockpitCheck(tag, icon, VARIO_LOST, CheckTone.Danger, VARIO_LOST)
-            else -> CockpitCheck(tag, icon, CONNECTING, CheckTone.Quiet, "Vario: $CONNECTING")
+            VarioMark.CONNECTING, VarioMark.LOST -> when {
+                state is VarioState.Unavailable -> CockpitCheck(tag, icon, NO_BLUETOOTH, CheckTone.Danger, state.reason)
+                view.vario == VarioMark.LOST -> CockpitCheck(tag, icon, VARIO_LOST, CheckTone.Danger, VARIO_LOST)
+                else -> CockpitCheck(tag, icon, CONNECTING, CheckTone.Quiet, "Vario: $CONNECTING")
+            }
         }
     }
 }
@@ -1174,12 +1171,15 @@ private fun InstrumentsPage(view: CockpitView, way: WayToTarget?, onWinds: () ->
             } else {
                 // Under it the course, in the core's words: none while the
                 // glider moves too slowly for a course to mean something.
+                // The direction flown, from 3 m/s over the ground: a small
+                // arrow and the core's compass word, in the note's own line.
                 Reading(
                     "Ground speed",
                     view.groundSpeedMs?.let(Format::kilometresPerHour),
                     "km/h",
-                    note = view.courseWords,
-                    modifier = Modifier.weight(1f),
+                    note = view.directionFlown?.point,
+                    noteArrowDeg = view.directionFlown?.degrees,
+                    modifier = Modifier.weight(1f).testTag("ground-speed"),
                 )
             }
         }
@@ -1448,6 +1448,8 @@ private fun Reading(
     onClick: (() -> Unit)? = null,
     /** The value's colour, where it says something by its colour; the text's otherwise. */
     ink: Color = Color.Unspecified,
+    /** A small arrow before the note, turned this many degrees clockwise from up: the direction flown. */
+    noteArrowDeg: Double? = null,
 ) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
     val pressable = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier
@@ -1505,13 +1507,27 @@ private fun Reading(
         // Its line is kept when there is nothing to say, so that the
         // readings below stay where they are.
         if (size != ReadingSize.Medium) {
-            Text(
-                note ?: " ",
-                style = fixed(VentiType.label).copy(fontWeight = FontWeight.Normal).numbers,
-                color = Venti.colours.textMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (noteArrowDeg != null && note != null) {
+                    Icon(
+                        painterResource(R.drawable.ic_arrow_upward),
+                        contentDescription = null,
+                        tint = Venti.colours.textMuted,
+                        modifier = Modifier
+                            .size(VentiType.label.sizePx.dp)
+                            .rotate(noteArrowDeg.toFloat())
+                            .testTag("direction-flown"),
+                    )
+                    Spacer(Modifier.width(VentiSpace.s1))
+                }
+                Text(
+                    note ?: " ",
+                    style = fixed(VentiType.label).copy(fontWeight = FontWeight.Normal).numbers,
+                    color = Venti.colours.textMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

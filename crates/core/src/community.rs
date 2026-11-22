@@ -135,15 +135,15 @@ pub fn public_flights_path(
 
 /// Which public flights a question means: a part of the map and a span of
 /// time, as the server's requests name them.
-struct Which {
-    bbox: Option<BoundingBox>,
-    from: Option<Timestamp>,
-    to: Option<Timestamp>,
+pub(crate) struct Which {
+    pub(crate) bbox: Option<BoundingBox>,
+    pub(crate) from: Option<Timestamp>,
+    pub(crate) to: Option<Timestamp>,
 }
 
 /// Reads what a screen asks for into the server's terms. What cannot be
 /// asked for is refused in `words`.
-fn which(
+pub(crate) fn which(
     area: Option<Bounds>,
     from_unix_s: Option<i64>,
     to_unix_s: Option<i64>,
@@ -381,11 +381,7 @@ const SEASONS_OFFERED: i32 = 4;
 #[uniffi::export]
 pub fn ranking_seasons(now_unix_s: i64) -> Vec<RankingSeason> {
     let this_year = DateTime::from_timestamp(now_unix_s, 0).map_or(1970, |now| now.year());
-    let first_second = |year: i32| {
-        Utc.with_ymd_and_hms(year, 1, 1, 0, 0, 0)
-            .single()
-            .map(|start| start.timestamp())
-    };
+    let first_second = |year: i32| first_second_of(year).map(|start| start.timestamp());
     let mut seasons: Vec<RankingSeason> = (0..SEASONS_OFFERED)
         .map(|back| this_year - back)
         .filter_map(|year| {
@@ -397,7 +393,7 @@ pub fn ranking_seasons(now_unix_s: i64) -> Vec<RankingSeason> {
         })
         .collect();
     seasons.push(RankingSeason {
-        name: "All years".to_owned(),
+        name: ALL_YEARS.to_owned(),
         from_unix_s: None,
         to_unix_s: None,
     });
@@ -440,6 +436,35 @@ pub struct Ranking {
     /// server that does not say; [`ranking_seasons`] then names years.
     #[uniffi(default = [])]
     pub periods: Vec<RankingYearChoice>,
+    /// Which period the ranking is of, as the server says: what a page
+    /// marks as chosen and puts in its title.
+    pub period: RankingPeriod,
+}
+
+/// The period a ranking is of.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct RankingPeriod {
+    /// The year, for a ranking of a year or of one of its months. 0 for
+    /// all years, and for a span that is neither a year nor a month.
+    #[uniffi(default = 0)]
+    pub year: i32,
+    /// The month as the server writes it, "2026-08", as a
+    /// [`RankingMonthChoice`] names it. Absent but for a month.
+    #[uniffi(default = None)]
+    pub month: Option<String>,
+    /// The period in words, for a title: "August 2026", "2026", "All
+    /// years", "1 Mar 2026 to 31 May 2026".
+    #[uniffi(default = "")]
+    pub title: String,
+    /// Its first second, seconds since 1970-01-01 UTC. Absent when the
+    /// span has no beginning.
+    #[uniffi(default = None)]
+    pub from_unix_s: Option<i64>,
+    /// The first second after it. Absent when the span has no end.
+    #[uniffi(default = None)]
+    pub to_unix_s: Option<i64>,
 }
 
 /// A year a ranking can be asked for, because flights that score were
@@ -464,6 +489,10 @@ pub struct RankingYearChoice {
     /// The year in words, for a reader of the screen: "2026: 10 flights".
     #[uniffi(default = "")]
     pub words: String,
+    /// The whole year as the first choice beside its months: "All of
+    /// 2026".
+    #[uniffi(default = "")]
+    pub whole_name: String,
     /// Its months that have a ranking, the newest first.
     #[uniffi(default = [])]
     pub months: Vec<RankingMonthChoice>,
@@ -492,12 +521,71 @@ pub struct RankingMonthChoice {
     pub words: String,
 }
 
-fn period_choices(periods: &[RankingYear]) -> Vec<RankingYearChoice> {
-    let first_second = |year: i32| {
-        Utc.with_ymd_and_hms(year, 1, 1, 0, 0, 0)
-            .single()
-            .map(|start| start.timestamp())
+/// What all years together are called, beside the years.
+pub(crate) const ALL_YEARS: &str = "All years";
+
+/// The first second of a year by UTC.
+pub(crate) fn first_second_of(year: i32) -> Option<DateTime<Utc>> {
+    Utc.with_ymd_and_hms(year, 1, 1, 0, 0, 0).single()
+}
+
+/// The period a ranking is of, from what the server says it counted.
+fn period_of(response: &RankingResponse) -> RankingPeriod {
+    let span = RankingPeriod {
+        year: 0,
+        month: None,
+        title: String::new(),
+        from_unix_s: response.from.map(|from| from.timestamp()),
+        to_unix_s: response.to.map(|to| to.timestamp()),
     };
+    if let Some(month) = response.month {
+        let name = month
+            .month()
+            .checked_sub(1)
+            .and_then(|index| MONTHS.get(index as usize))
+            .map_or("", |(_, long)| long);
+        return RankingPeriod {
+            year: month.year(),
+            month: Some(month.to_string()),
+            title: format!("{name} {}", month.year()),
+            ..span
+        };
+    }
+    let day = |moment: DateTime<Utc>| moment.format("%-d %b %Y").to_string();
+    // The last day of a span is the day of its last second.
+    let last_day = |end: DateTime<Utc>| day(end - chrono::TimeDelta::seconds(1));
+    match (response.from, response.to) {
+        (None, None) => RankingPeriod {
+            title: ALL_YEARS.to_owned(),
+            ..span
+        },
+        (Some(from), Some(to))
+            if first_second_of(from.year()) == Some(from)
+                && first_second_of(from.year() + 1) == Some(to) =>
+        {
+            RankingPeriod {
+                year: from.year(),
+                title: from.year().to_string(),
+                ..span
+            }
+        }
+        (Some(from), Some(to)) => RankingPeriod {
+            title: format!("{} to {}", day(from), last_day(to)),
+            ..span
+        },
+        (Some(from), None) => RankingPeriod {
+            title: format!("Since {}", day(from)),
+            ..span
+        },
+        (None, Some(to)) => RankingPeriod {
+            title: format!("Until {}", last_day(to)),
+            ..span
+        },
+    }
+}
+
+fn period_choices(periods: &[RankingYear]) -> Vec<RankingYearChoice> {
+    let first_second = |year: i32| first_second_of(year).map(|start| start.timestamp());
     periods
         .iter()
         .filter_map(|year| {
@@ -511,6 +599,7 @@ fn period_choices(periods: &[RankingYear]) -> Vec<RankingYearChoice> {
                     year.year,
                     count(year.flights, "flight", "flights")
                 ),
+                whole_name: format!("All of {}", year.year),
                 months: year
                     .months
                     .iter()
@@ -617,6 +706,7 @@ pub fn ranking(status: u16, body: Vec<u8>) -> Result<Ranking, CoreError> {
         ),
     };
     Ok(Ranking {
+        period: period_of(&response),
         periods: period_choices(&response.periods),
         pilots,
         rule: format!(
@@ -717,6 +807,52 @@ mod tests {
             ]
         );
         assert_eq!(ranking.pilots[0].handle, "mara");
+        // The answer says which period it is of.
+        assert_eq!(
+            ranking.period,
+            RankingPeriod {
+                year: 2026,
+                month: Some("2026-08".to_owned()),
+                title: "August 2026".to_owned(),
+                from_unix_s: Some(1_785_542_400),
+                to_unix_s: Some(1_788_220_800),
+            }
+        );
+        let of = |from: Option<&str>, to: Option<&str>| {
+            let mut answer: Value = serde_json::from_slice(&golden("ranking.json")).unwrap();
+            let fields = answer.as_object_mut().unwrap();
+            fields.remove("month");
+            fields.remove("from");
+            fields.remove("to");
+            if let Some(from) = from {
+                fields.insert("from".to_owned(), json!(from));
+            }
+            if let Some(to) = to {
+                fields.insert("to".to_owned(), json!(to));
+            }
+            super::ranking(200, serde_json::to_vec(&answer).unwrap())
+                .unwrap()
+                .period
+        };
+        let year = of(Some("2026-01-01T00:00:00Z"), Some("2027-01-01T00:00:00Z"));
+        assert_eq!((year.year, year.title.as_str()), (2026, "2026"));
+        assert_eq!(year.month, None);
+        let always = of(None, None);
+        assert_eq!((always.year, always.title.as_str()), (0, "All years"));
+        assert_eq!((always.from_unix_s, always.to_unix_s), (None, None));
+        let span = of(Some("2026-03-01T00:00:00Z"), Some("2026-06-01T00:00:00Z"));
+        assert_eq!(
+            (span.year, span.title.as_str()),
+            (0, "1 Mar 2026 to 31 May 2026")
+        );
+        assert_eq!(
+            of(Some("2026-03-01T00:00:00Z"), None).title,
+            "Since 1 Mar 2026"
+        );
+        assert_eq!(
+            of(None, Some("2026-06-01T00:00:00Z")).title,
+            "Until 31 May 2026"
+        );
         // The periods the server says there are, the newest first.
         let years: Vec<&str> = ranking
             .periods
@@ -725,6 +861,7 @@ mod tests {
             .collect();
         assert_eq!(years, ["2026: 10 flights", "2025: 1 flight"]);
         let this_year = &ranking.periods[0];
+        assert_eq!(this_year.whole_name, "All of 2026");
         assert_eq!(
             ranking_path(None, Some(this_year.from_unix_s), Some(this_year.to_unix_s)).unwrap(),
             "/v1/ranking?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z"

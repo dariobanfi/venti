@@ -4,21 +4,29 @@
 //! As everywhere, the core does not talk to the server: one function says
 //! what to ask for, another reads the answer into lines and rows for a
 //! screen. A pilot's flights themselves are a page of
-//! [`public_flights_path`](crate::public_flights_path) with the pilot's
-//! handle.
+//! [`pilot_page_path`](crate::pilot_page_path), the newest first.
+//!
+//! When the pilot's page has a season chosen ([`PilotTotalsView`] of a
+//! year), the list under the totals is that season's: the shell asks
+//! [`pilot_flights_path`] with the season's `from_unix_s` and `to_unix_s`
+//! and reads the answer with [`public_flights`](crate::public_flights),
+//! page by page with its `next`. For "All years" both are absent and the
+//! list is the pilot's page as before. The words around all of it, the
+//! same in the three apps, are [`pilots_words`].
 //!
 //! A name another pilot chose is cut to one bounded line before it
 //! reaches a screen.
 
 use venti_api_types::v1::{
     self as api, PILOT_SEARCH_MIN_CHARS, PilotStatisticsResponse, PilotTotals, PilotsRequest,
-    PilotsResponse,
+    PilotsResponse, PublicFlightsRequest,
 };
 
+use crate::community::{ALL_YEARS, Which, first_second_of, which};
 use crate::live::one_line;
 use crate::server::answer;
 use crate::takeoffs::{count, months, terms};
-use crate::{CoreError, FlownMonth, PublicFlightTerms};
+use crate::{Coordinate, CoreError, FlownMonth, PublicFlightTerms};
 
 /// A pilot a search found, as a line of a list.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -122,7 +130,7 @@ pub struct PilotTotalRow {
 }
 
 /// A take-off site with how often a pilot flew from it.
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlownSiteLine {
@@ -136,6 +144,10 @@ pub struct FlownSiteLine {
     /// How many of the flights took off from it.
     #[uniffi(default = 0)]
     pub flights: u32,
+    /// Where the site stands, for a map or a link. Absent from a server
+    /// that does not say.
+    #[uniffi(default = None)]
+    pub position: Option<Coordinate>,
     /// The line: "Musterkogel West, 2 flights".
     #[uniffi(default = "")]
     pub words: String,
@@ -154,6 +166,13 @@ pub struct PilotTotalsView {
     /// years.
     #[uniffi(default = 0)]
     pub year: i32,
+    /// The year's first second, seconds since 1970-01-01 UTC, for
+    /// [`pilot_flights_path`]. Absent for all years.
+    #[uniffi(default = None)]
+    pub from_unix_s: Option<i64>,
+    /// The first second after the year. Absent for all years.
+    #[uniffi(default = None)]
+    pub to_unix_s: Option<i64>,
     /// The numbers as rows, in the order a table shows them: flights,
     /// distance scored, points, airtime, the longest flight, the highest
     /// point. A row whose number there is none of is left out.
@@ -204,6 +223,93 @@ pub fn pilot_statistics_path(handle: String) -> Result<String, CoreError> {
     Ok(api::pilot_statistics_path(&handle))
 }
 
+/// The path and query to `GET` from the server for one page of a pilot's
+/// public flights of a season, the newest first: those that began at or
+/// after `from_unix_s` and before `to_unix_s`, as a [`PilotTotalsView`]
+/// names them. `after` is the `next` of the page before. The answer is
+/// read by [`public_flights`](crate::public_flights).
+///
+/// With neither bound it is all of the pilot's public flights; the
+/// pilot's page ([`crate::pilot_page_path`]) lists those with the pilot's
+/// name.
+#[uniffi::export]
+pub fn pilot_flights_path(
+    handle: String,
+    from_unix_s: Option<i64>,
+    to_unix_s: Option<i64>,
+    after: Option<String>,
+) -> Result<String, CoreError> {
+    let handle = handle.parse().map_err(|_| CoreError::Server {
+        message: "This is not the handle of a pilot.".to_owned(),
+    })?;
+    let Which { from, to, .. } = which(
+        None,
+        from_unix_s,
+        to_unix_s,
+        "The app could not ask the server for these flights.",
+    )?;
+    Ok(PublicFlightsRequest {
+        from,
+        to,
+        after: after.filter(|after| !after.is_empty()),
+        ..PublicFlightsRequest::default()
+    }
+    .path_and_query_of(&handle))
+}
+
+/// The words around pilots, their totals and the ranking that are the
+/// same in the three apps.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct PilotsWords {
+    /// The search field's placeholder: "Find a pilot".
+    #[uniffi(default = "")]
+    pub search_placeholder: String,
+    /// The name of the button that empties the field: "Clear the search".
+    #[uniffi(default = "")]
+    pub search_clear: String,
+    /// The line when the server cannot be reached.
+    #[uniffi(default = "")]
+    pub unreachable: String,
+    /// The heading over a pilot's take-off sites: "Take-offs flown from
+    /// most".
+    #[uniffi(default = "")]
+    pub sites_title: String,
+    /// The heading over a pilot's twelve months: "Flights by month".
+    #[uniffi(default = "")]
+    pub months_title: String,
+    /// The name of the choice of a season, on a pilot's page and over the
+    /// ranking: "Season".
+    #[uniffi(default = "")]
+    pub season_choice: String,
+    /// The choice of all years together, beside the years: "All years".
+    #[uniffi(default = "")]
+    pub all_years: String,
+    /// The sentence when a month of the ranking has no ranked flight.
+    #[uniffi(default = "")]
+    pub month_empty: String,
+}
+
+/// The words around pilots, their totals and the ranking. The whole of
+/// one year beside its months is the year's own `whole_name`
+/// ([`crate::RankingYearChoice`]): "All of 2026".
+#[uniffi::export]
+pub fn pilots_words() -> PilotsWords {
+    PilotsWords {
+        search_placeholder: "Find a pilot".to_owned(),
+        search_clear: "Clear the search".to_owned(),
+        unreachable: "The server cannot be reached just now. Pilots and their flights are \
+                      shown again once it answers."
+            .to_owned(),
+        sites_title: "Take-offs flown from most".to_owned(),
+        months_title: "Flights by month".to_owned(),
+        season_choice: "Season".to_owned(),
+        all_years: ALL_YEARS.to_owned(),
+        month_empty: "No flight shared with everyone scored in this month.".to_owned(),
+    }
+}
+
 /// "2 h 14 min", "14 min": airtime added up, in whole minutes.
 fn airtime(seconds: i64) -> String {
     let minutes = (seconds.max(0) + 30) / 60;
@@ -249,9 +355,18 @@ fn totals(name: String, year: i32, counted: u32, totals: &PilotTotals) -> PilotT
     }
     let flights = count(totals.flights, "flight", "flights");
     let in_the_air = airtime(totals.airtime_s);
+    // A season is a calendar year by UTC, as the server counts it.
+    let first_second = |year: i32| first_second_of(year).map(|start| start.timestamp());
+    let (from_unix_s, to_unix_s) = if year == 0 {
+        (None, None)
+    } else {
+        (first_second(year), first_second(year + 1))
+    };
     PilotTotalsView {
         name,
         year,
+        from_unix_s,
+        to_unix_s,
         rows,
         sites: totals
             .sites
@@ -263,6 +378,10 @@ fn totals(name: String, year: i32, counted: u32, totals: &PilotTotals) -> PilotT
                     words: format!("{name}, {}", count(flown.flights, "flight", "flights")),
                     name,
                     flights: flown.flights,
+                    position: flown.position.map(|at| Coordinate {
+                        lat: at.lat(),
+                        lon: at.lon(),
+                    }),
                 }
             })
             .collect(),
@@ -293,7 +412,7 @@ pub fn pilot_statistics(status: u16, body: Vec<u8>) -> Result<PilotStatistics, C
     Ok(PilotStatistics {
         handle: response.pilot.handle.to_string(),
         name: one_line(&response.pilot.display_name, 40),
-        overall: totals("All years".to_owned(), 0, counted, &response.overall),
+        overall: totals(ALL_YEARS.to_owned(), 0, counted, &response.overall),
         seasons: response
             .seasons
             .iter()
@@ -407,6 +526,13 @@ mod tests {
         assert_eq!(said.overall.sites.len(), 1);
         assert_eq!(said.overall.sites[0].words, "Musterkogel West, 2 flights");
         assert_eq!(said.overall.sites[0].id, "venti:0000000000000000000000s001");
+        assert_eq!(
+            said.overall.sites[0].position,
+            Some(Coordinate {
+                lat: 47.3,
+                lon: 10.9
+            })
+        );
         assert_eq!(said.overall.months.len(), 12);
         assert_eq!(said.overall.months[4].words, "May: 1 flight");
         assert_eq!(said.overall.months[4].share, 1.0);
@@ -417,6 +543,32 @@ mod tests {
             .map(|season| (season.name.as_str(), season.year))
             .collect();
         assert_eq!(seasons, [("2026", 2026)]);
+        // A season's list of flights is asked for by its bounds.
+        let season = &said.seasons[0];
+        assert_eq!(
+            (season.from_unix_s, season.to_unix_s),
+            (Some(1_767_225_600), Some(1_798_761_600))
+        );
+        assert_eq!(
+            pilot_flights_path(
+                said.handle.clone(),
+                season.from_unix_s,
+                season.to_unix_s,
+                None
+            )
+            .unwrap(),
+            "/v1/flights/public?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z&pilot=lena"
+        );
+        assert_eq!(
+            (said.overall.from_unix_s, said.overall.to_unix_s),
+            (None, None)
+        );
+        assert_eq!(
+            pilot_flights_path("lena".to_owned(), None, None, Some("c1".to_owned())).unwrap(),
+            "/v1/flights/public?after=c1&pilot=lena"
+        );
+        assert!(pilot_flights_path("No Handle".to_owned(), None, None, None).is_err());
+        assert!(pilot_flights_path("lena".to_owned(), Some(10), Some(10), None).is_err());
         assert_eq!(said.seasons[0].rows, said.overall.rows);
         assert!(!said.terms.decided);
 
@@ -438,8 +590,26 @@ mod tests {
         assert_eq!(labels, ["Flights", "Airtime", "Highest point"]);
         assert_eq!(said.overall.words, "1 flight, 14 min in the air");
 
+        // An older server names no site's position.
+        let mut answer: Value = serde_json::from_slice(&golden("pilot_statistics.json")).unwrap();
+        answer["overall"]["sites"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("position");
+        let said = pilot_statistics(200, serde_json::to_vec(&answer).unwrap()).unwrap();
+        assert_eq!(said.overall.sites[0].position, None);
+
         assert!(pilot_statistics(404, Vec::new()).is_err());
         assert!(pilot_statistics(503, Vec::new()).is_err());
         assert!(pilot_statistics(200, b"{}".to_vec()).is_err());
+    }
+
+    #[test]
+    fn the_words_are_asked_for_once() {
+        let words = pilots_words();
+        assert_eq!(words.search_placeholder, "Find a pilot");
+        assert_eq!(words.all_years, "All years");
+        assert_eq!(words.sites_title, "Take-offs flown from most");
+        assert!(!words.unreachable.contains("  "));
     }
 }

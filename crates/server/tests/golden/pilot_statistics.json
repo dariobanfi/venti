@@ -24,6 +24,10 @@
           "id": "venti:0000000000000000000000s001",
           "name": "Musterkogel West"
         },
+        "position": {
+          "lat": 47.3,
+          "lon": 10.9
+        },
         "flights": 2
       }
     ],
@@ -64,6 +68,10 @@
             "site": {
               "id": "venti:0000000000000000000000s001",
               "name": "Musterkogel West"
+            },
+            "position": {
+              "lat": 47.3,
+              "lon": 10.9
             },
             "flights": 2
           }

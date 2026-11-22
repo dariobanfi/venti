@@ -70,7 +70,8 @@ const BBOX_HELP: &str =
 /// have a name, a partner's (`venti`) before a place from pilots
 /// (`venti-pilots`) before a source's (OpenStreetMap's), and of one
 /// layer the nearest; of two as near, the smaller identifier.
-fn takeoff_site(takeoff: GeoPoint, near: &[Site]) -> Option<FlightSite> {
+/// It comes with where the site stands.
+fn takeoff_site(takeoff: GeoPoint, near: &[Site]) -> Option<(FlightSite, GeoPoint)> {
     let layer = |site: &Site| match Layer::of(&site.id) {
         Some(Layer::Partners) => 0,
         Some(Layer::Pilots) => 1,
@@ -92,9 +93,14 @@ fn takeoff_site(takeoff: GeoPoint, near: &[Site]) -> Option<FlightSite> {
                 )
                 .then_with(|| a.id.cmp(&b.id))
         })
-        .map(|(site, name)| FlightSite {
-            id: site.id.clone(),
-            name: name.to_owned(),
+        .map(|(site, name)| {
+            (
+                FlightSite {
+                    id: site.id.clone(),
+                    name: name.to_owned(),
+                },
+                site.position,
+            )
         })
 }
 
@@ -140,6 +146,19 @@ impl<S: Store> Api<S> {
         &self,
         places: &[GeoPoint],
     ) -> Result<Vec<Option<FlightSite>>, ApiError> {
+        Ok(self
+            .placed_takeoff_sites(places)
+            .await?
+            .into_iter()
+            .map(|placed| placed.map(|(site, _)| site))
+            .collect())
+    }
+
+    /// [`Api::takeoff_sites`], each with where the site stands.
+    pub(crate) async fn placed_takeoff_sites(
+        &self,
+        places: &[GeoPoint],
+    ) -> Result<Vec<Option<(FlightSite, GeoPoint)>>, ApiError> {
         if places.is_empty() {
             return Ok(Vec::new());
         }
@@ -404,7 +423,7 @@ mod tests {
         let partners = site("venti:c", Some("Musterkogel Nord"), 47.004, &["towing"]);
         let landing = site("venti:d", Some("Landeplatz"), 47.0, &["landing"]);
         let nameless = site("venti:e", None, 47.0, &["takeoff"]);
-        let named = |sites: &[Site]| takeoff_site(takeoff, sites).map(|site| site.name);
+        let named = |sites: &[Site]| takeoff_site(takeoff, sites).map(|(site, _)| site.name);
 
         let all = [
             osm.clone(),
@@ -427,7 +446,7 @@ mod tests {
         assert_eq!(named(&[landing, nameless]), None);
         assert_eq!(
             takeoff_site(takeoff, &[osm])
-                .map(|site| site.id.to_string())
+                .map(|(site, _)| site.id.to_string())
                 .as_deref(),
             Some("osm:node/1")
         );

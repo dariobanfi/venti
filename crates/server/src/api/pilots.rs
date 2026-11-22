@@ -163,10 +163,13 @@ fn tenths(distance_m: f64) -> f64 {
     (distance_m * 10.0).round() / 10.0
 }
 
+/// A site a flight took off from, with where the site stands.
+type Placed = (FlightSite, GeoPoint);
+
 /// What some of a pilot's public flights add up to. The flights come
 /// newest first, each with the site it took off from; of two that are as
 /// long or as high, the newer is named.
-fn totals(flights: &[(&Flown, Option<&FlightSite>)]) -> Result<PilotTotals, ApiError> {
+fn totals(flights: &[(&Flown, Option<&Placed>)]) -> Result<PilotTotals, ApiError> {
     let address = |flown: &Flown| flown.id.parse().map_err(|_| ApiError::internal());
     let mut by_month = [0_u32; 12];
     let mut airtime_s = 0_i64;
@@ -174,7 +177,7 @@ fn totals(flights: &[(&Flown, Option<&FlightSite>)]) -> Result<PilotTotals, ApiE
     let mut scores: Vec<(f64, &str)> = Vec::new();
     let mut longest: Option<(&Flown, f64)> = None;
     let mut highest: Option<&Flown> = None;
-    let mut sites: BTreeMap<&SiteId, (&FlightSite, u32)> = BTreeMap::new();
+    let mut sites: BTreeMap<&SiteId, (&Placed, u32)> = BTreeMap::new();
     for &(flown, site) in flights {
         by_month[flown.start.month0() as usize] += 1;
         airtime_s = airtime_s.saturating_add(flown.airtime_s);
@@ -188,8 +191,8 @@ fn totals(flights: &[(&Flown, Option<&FlightSite>)]) -> Result<PilotTotals, ApiE
         if highest.is_none_or(|most| flown.max_altitude_m > most.max_altitude_m) {
             highest = Some(flown);
         }
-        if let Some(site) = site {
-            sites.entry(&site.id).or_insert((site, 0)).1 += 1;
+        if let Some(placed) = site {
+            sites.entry(&placed.0.id).or_insert((placed, 0)).1 += 1;
         }
     }
     // The best count, in the order a ranking sums them: by points, and by
@@ -200,8 +203,8 @@ fn totals(flights: &[(&Flown, Option<&FlightSite>)]) -> Result<PilotTotals, ApiE
         .take(RANKING_COUNTED)
         .map(|&(points, _)| points)
         .sum();
-    let mut sites: Vec<(&FlightSite, u32)> = sites.into_values().collect();
-    sites.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.id.cmp(&b.0.id)));
+    let mut sites: Vec<(&Placed, u32)> = sites.into_values().collect();
+    sites.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.0.id.cmp(&b.0.0.id)));
     Ok(PilotTotals {
         flights: u32::try_from(flights.len()).unwrap_or(u32::MAX),
         scored: u32::try_from(scores.len()).unwrap_or(u32::MAX),
@@ -227,8 +230,9 @@ fn totals(flights: &[(&Flown, Option<&FlightSite>)]) -> Result<PilotTotals, ApiE
         sites: sites
             .into_iter()
             .take(PILOT_TOP_SITES)
-            .map(|(site, flights)| FlownSite {
+            .map(|((site, position), flights)| FlownSite {
                 site: site.clone(),
+                position: Some(*position),
                 flights,
             })
             .collect(),
@@ -248,10 +252,7 @@ impl<S: Store> Api<S> {
     /// The site each of some flights took off from, in their order, as a
     /// flight's `takeoff_site` names one, with the take-off taken on the
     /// grid of [`on_the_grid`].
-    async fn sites_flown_from(
-        &self,
-        flights: &[Flown],
-    ) -> Result<Vec<Option<FlightSite>>, ApiError> {
+    async fn sites_flown_from(&self, flights: &[Flown]) -> Result<Vec<Option<Placed>>, ApiError> {
         let mut cells: BTreeMap<(i64, i64), usize> = BTreeMap::new();
         let mut places: Vec<GeoPoint> = Vec::new();
         for takeoff in flights.iter().filter_map(|flown| flown.takeoff) {
@@ -268,7 +269,7 @@ impl<S: Store> Api<S> {
                 places.push(at);
             }
         }
-        let sites = self.takeoff_sites(&places).await?;
+        let sites = self.placed_takeoff_sites(&places).await?;
         Ok(flights
             .iter()
             .map(|flown| {
@@ -293,12 +294,12 @@ impl<S: Store> Api<S> {
             return Err(no_such_pilot());
         }
         let sites = self.sites_flown_from(&flown).await?;
-        let all: Vec<(&Flown, Option<&FlightSite>)> = flown
+        let all: Vec<(&Flown, Option<&Placed>)> = flown
             .iter()
             .zip(&sites)
             .map(|(flown, site)| (flown, site.as_ref()))
             .collect();
-        let mut years: BTreeMap<i32, Vec<(&Flown, Option<&FlightSite>)>> = BTreeMap::new();
+        let mut years: BTreeMap<i32, Vec<(&Flown, Option<&Placed>)>> = BTreeMap::new();
         for &flight in &all {
             years.entry(flight.0.start.year()).or_default().push(flight);
         }
@@ -359,9 +360,14 @@ mod tests {
 
     #[test]
     fn totals_add_up_and_the_best_three_count() {
-        let site = |id: &str, name: &str| FlightSite {
-            id: id.parse().unwrap(),
-            name: name.to_owned(),
+        let site = |id: &str, name: &str| {
+            (
+                FlightSite {
+                    id: id.parse().unwrap(),
+                    name: name.to_owned(),
+                },
+                GeoPoint::new(47.6, 11.7).unwrap(),
+            )
         };
         let (wallberg, brauneck) = (site("osm:1", "Wallberg"), site("osm:2", "Brauneck"));
         let flights = [
@@ -371,7 +377,7 @@ mod tests {
             flown("b", 5, Some((30_000.1, 30.0)), 3100),
             flown("a", 5, Some((20_000.1, 20.01)), 2000),
         ];
-        let with_sites: Vec<(&Flown, Option<&FlightSite>)> = flights
+        let with_sites: Vec<(&Flown, Option<&Placed>)> = flights
             .iter()
             .zip([
                 Some(&brauneck),

@@ -66,7 +66,7 @@ use venti_core::{
 };
 use venti_core::{FlownThermals, LiveClimbs, SitesAir};
 use venti_core::{GoogleSignIn, GoogleWords};
-use venti_core::{PilotStatistics, PilotsFound};
+use venti_core::{PilotStatistics, PilotsFound, PilotsWords, RouteFromFile};
 use venti_core::{
     SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteCorrecting,
     SiteDraftRebased, SiteHistoryOffers, SiteOffers, SiteRevisionView, SiteWords, SitesRemoved,
@@ -2016,6 +2016,29 @@ pub fn plan_route(lat_lon: Vec<f64>) -> Result<Ts<venti_core::RoutePlan>, JsValu
     to_js(&venti_core::plan_route(points))
 }
 
+/// A drawn route as a GPX 1.1 file: one route with a named point for
+/// each place, Venti as its creator and nothing of the pilot's. The
+/// points come as one flat list, latitude then longitude of each in turn.
+#[wasm_bindgen(js_name = routeToGpx)]
+pub fn route_to_gpx(lat_lon: Vec<f64>) -> String {
+    let points = lat_lon
+        .chunks_exact(2)
+        .map(|pair| Coordinate {
+            lat: pair[0],
+            lon: pair[1],
+        })
+        .collect();
+    venti_core::route_to_gpx(points)
+}
+
+/// Reads a route for the planner from a GPX file's text: its route, else
+/// its waypoints, else its track thinned to the planner's limit. A file
+/// that holds no route is refused in words.
+#[wasm_bindgen(js_name = routeFromGpx)]
+pub fn route_from_gpx(text: String) -> Result<Ts<RouteFromFile>, JsValue> {
+    to_js(&venti_core::route_from_gpx(text).map_err(thrown)?)
+}
+
 /// The path to `GET` for what the public flights that began at a site
 /// say about it. A site of any layer.
 #[wasm_bindgen(js_name = siteFlightsPath)]
@@ -2769,6 +2792,33 @@ pub fn public_flights(status: u16, body: Vec<u8>) -> Result<Ts<PublicFlights>, J
 #[wasm_bindgen(js_name = pilotPagePath)]
 pub fn pilot_page_path(handle: String, after: Option<String>) -> Result<String, JsValue> {
     venti_core::pilot_page_path(handle, after).map_err(thrown)
+}
+
+/// The path and query to `GET` for one page of a pilot's public flights
+/// of a season: those that began at or after the one moment and before
+/// the other, as a season of `pilotStatistics` names them. `after` is
+/// the `next` of the page before. Read the answer with `publicFlights`.
+#[wasm_bindgen(js_name = pilotFlightsPath)]
+pub fn pilot_flights_path(
+    handle: String,
+    from_unix_s: Option<f64>,
+    to_unix_s: Option<f64>,
+    after: Option<String>,
+) -> Result<String, JsValue> {
+    venti_core::pilot_flights_path(
+        handle,
+        from_unix_s.map(whole_seconds),
+        to_unix_s.map(whole_seconds),
+        after,
+    )
+    .map_err(thrown)
+}
+
+/// The words around pilots, their totals and the ranking: the search
+/// field, the headings of the totals, the season's choice.
+#[wasm_bindgen(js_name = pilotsWords)]
+pub fn pilots_words() -> Result<Ts<PilotsWords>, JsValue> {
+    to_js(&venti_core::pilots_words())
 }
 
 /// Reads the server's answer to `pilotPagePath`.

@@ -52,12 +52,14 @@ fn pilot(ranked: &Ranked) -> Result<RankedPilot, ApiError> {
     })
 }
 
-/// The month a request's `month` names.
-fn month_asked_for(text: &str) -> Result<Month, ApiError> {
+/// The month a request's `month` names, as the answer names it and as
+/// the store counts it.
+fn month_asked_for(text: &str) -> Result<(YearMonth, Month), ApiError> {
     let month: YearMonth = text.parse().map_err(|error| {
         ApiError::bad_request(ErrorCode::InvalidTime, format!("month: {error}"))
     })?;
-    Month::new(month.year(), month.month()).ok_or_else(ApiError::internal)
+    let counted = Month::new(month.year(), month.month()).ok_or_else(ApiError::internal)?;
+    Ok((month, counted))
 }
 
 /// The years and months that have a ranking, the newest first, from the
@@ -102,6 +104,7 @@ pub(crate) async fn list<S: Store>(
         params.from.as_deref(),
         params.to.as_deref(),
     )?;
+    let mut asked_month = None;
     if let Some(month) = params.month.as_deref() {
         if which.from.is_some() || which.before.is_some() {
             return Err(ApiError::bad_request(
@@ -109,9 +112,10 @@ pub(crate) async fn list<S: Store>(
                 "month stands for a from and a to: send month, or from and to, and not both",
             ));
         }
-        let month = month_asked_for(month)?;
+        let (named, month) = month_asked_for(month)?;
         which.from = Some(month.start());
         which.before = Some(month.next().start());
+        asked_month = Some(named);
     }
     // The periods are those of the part of the map, whatever span is
     // asked for: they are what else there is to ask for.
@@ -137,6 +141,11 @@ pub(crate) async fn list<S: Store>(
         counted: u32::try_from(RANKING_COUNTED).unwrap_or(u32::MAX),
         pilots: ranked.iter().map(pilot).collect::<Result<_, _>>()?,
         periods: periods(&months),
+        // Which period the ranking is of, so that a page need not work it
+        // out from what it asked.
+        from: which.from,
+        to: which.before,
+        month: asked_month,
         terms: Some(FlightTerms::current()),
     };
     Ok(cache::shared_json(&headers, &answer, Keeper::Anyone))
@@ -189,7 +198,8 @@ mod tests {
 
     #[test]
     fn a_month_is_read_as_a_span_by_utc() {
-        let july = month_asked_for("2026-07").unwrap();
+        let (named, july) = month_asked_for("2026-07").unwrap();
+        assert_eq!(named.to_string(), "2026-07");
         assert_eq!(july.start().to_rfc3339(), "2026-07-01T00:00:00+00:00");
         assert_eq!(
             july.next().start().to_rfc3339(),

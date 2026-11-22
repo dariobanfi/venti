@@ -358,6 +358,17 @@ pub struct RankingResponse {
     /// server that does not say.
     #[serde(default)]
     pub periods: Vec<RankingYear>,
+    /// The first moment of the span the ranking counts, as `from` or
+    /// `month` asked for it. Left out for a ranking of all time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<Timestamp>,
+    /// The first moment after that span, as `to` or `month` asked for it.
+    /// Left out when the span has no end.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to: Option<Timestamp>,
+    /// The month the ranking is of, when `month` asked for one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub month: Option<YearMonth>,
     /// Under what the flights are given.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terms: Option<FlightTerms>,
@@ -564,10 +575,14 @@ pub struct HighestFlight {
 }
 
 /// A take-off site with how often a pilot flew from it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FlownSite {
     /// The site, as a flight names the one it took off from.
     pub site: FlightSite,
+    /// Where the site stands, as its record has it: for a map and a link.
+    /// Left out by a server that does not say.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<GeoPoint>,
     /// How many of the flights took off from it.
     pub flights: u32,
 }

@@ -202,8 +202,25 @@ async fn the_development_mode_ranks_its_six_pilots() {
         by_its_name.path_and_query(),
         "/v1/ranking?month=2026-08&limit=2"
     );
-    assert_eq!(ranking(&router, &by_its_name).await, top);
-    assert_golden(&golden("ranking.json"), &example(top));
+    // The answer says which period it is of: the span either way, and
+    // the month when it was asked for by its name.
+    let named = ranking(&router, &by_its_name).await;
+    assert_eq!(named.month, Some("2026-08".parse().unwrap()));
+    assert_eq!(
+        (top.from, top.to),
+        (Some(midnight(8, 1)), Some(midnight(9, 1)))
+    );
+    assert_eq!(top.month, None);
+    assert_eq!((all.from, all.to, all.month), (None, None, None));
+    assert_eq!(
+        RankingResponse {
+            month: None,
+            ..named.clone()
+        },
+        top
+    );
+    // The example of the documentation is asked for by the month's name.
+    assert_golden(&golden("ranking.json"), &example(named));
 
     // The periods are the same whatever span is asked for: every year and
     // month in which a public flight that scores started, the newest

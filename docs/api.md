@@ -6310,6 +6310,10 @@ curl http://127.0.0.1:8080/v1/pilots/lena/statistics
           "id": "venti:0000000000000000000000s001",
           "name": "Musterkogel West"
         },
+        "position": {
+          "lat": 47.3,
+          "lon": 10.9
+        },
         "flights": 2
       }
     ],
@@ -6351,6 +6355,10 @@ curl http://127.0.0.1:8080/v1/pilots/lena/statistics
               "id": "venti:0000000000000000000000s001",
               "name": "Musterkogel West"
             },
+            "position": {
+              "lat": 47.3,
+              "lon": 10.9
+            },
             "flights": 2
           }
         ],
@@ -6389,7 +6397,7 @@ curl http://127.0.0.1:8080/v1/pilots/lena/statistics
 | `airtime_s` | The airtime of all of them, added up, in seconds |
 | `longest` | The flight with the longest scoring distance: its `id` and `distance_m`. Left out when no flight scores |
 | `highest` | The flight that went highest: its `id` and `max_altitude_m`. Of two as long or as high, the newer is named |
-| `sites` | The take-off sites flown from most: each `site` (`id` and `name`, as a flight's [`takeoff_site`](#get-v1flightsid)) with its `flights`, the most first and by identifier among sites with as many, at most five. A flight that took off where no site with a name stands is in none |
+| `sites` | The take-off sites flown from most: each `site` (`id` and `name`, as a flight's [`takeoff_site`](#get-v1flightsid)) with its `position` (`lat` and `lon`, where the site's record has it, for a map or a link) and its `flights`, the most first and by identifier among sites with as many, at most five. A flight that took off where no site with a name stands is in none |
 | `by_month` | How many of the flights began in each month of the year, January first, all years together: twelve numbers that add up to `flights` |
 
 **A season is a year by UTC**, and the months are those of UTC, as the ranking's `month` and its periods are. (What flights say about [a site](#what-public-flights-say-about-a-site) counts its months by the day at the site; in the Alps the two never differ.)
@@ -7344,6 +7352,9 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
       ]
     }
   ],
+  "from": "2026-08-01T00:00:00Z",
+  "to": "2026-09-01T00:00:00Z",
+  "month": "2026-08",
   "terms": {
     "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
     "decided": false
@@ -7359,6 +7370,8 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
 | `pilots[].points` | The sum of the points of the flights that count, rounded to hundredths as a flight's points are |
 | `pilots[].scored` | How many of the pilot's public flights among those asked for scored at all, the ones that count among them. A client can say "best 3 of 14" |
 | `pilots[].flights[]` | The flights that count, the best first, each as the list of public flights shows it. Flights with the same points follow each other by `id`, the larger first |
+| `from`, `to` | The span the ranking counts, as `from` and `to` or `month` asked for it: its first moment and the first moment after it. Each is left out when the request had none, so a ranking of all time has neither |
+| `month` | The month the ranking is of, written as the parameter takes it, when `month` asked for one. A client names the period from these three and need not keep what it asked |
 
 **Which periods there are.** `periods` names every year in which a public flight that scores started, the newest first, each with how many such flights it has and with its months that have one, the newest first too: `{"year": 2026, "flights": 10, "months": [{"month": "2026-09", "flights": 1}, ...]}`. A `month` is written as the parameter `month` takes it. The periods are those of the `bbox` that was asked for and of no span: they are the same whichever year or month the answer ranks, so a page offers them as the other rankings there are, and offers no empty one. Years and months are those of UTC. An answer of a server that does not say has none.
 

@@ -3361,6 +3361,20 @@
           "$ref": "#/components/schemas/RankingYear"
         }
       },
+      "from": {
+        "type": "string",
+        "format": "date-time",
+        "description": "The first moment of the span the ranking counts, as `from` or `month` asked for it. Left out for a ranking of all time."
+      },
+      "to": {
+        "type": "string",
+        "format": "date-time",
+        "description": "The first moment after that span. Left out when it has no end."
+      },
+      "month": {
+        "type": "string",
+        "description": "The month the ranking is of, written YYYY-MM, when `month` asked for one."
+      },
       "terms": {
         "$ref": "#/components/schemas/FlightTerms"
       }
@@ -5675,6 +5689,9 @@
     "properties": {
       "site": {
         "$ref": "#/components/schemas/FlightSite"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
       },
       "flights": {
         "type": "integer"

@@ -59,7 +59,7 @@ object MapStyle {
      * disk that holds the label fonts and the bundled region. Label fonts
      * always come from there, so place names never wait for the network.
      */
-    /** Where the style names Venti itself, for what it asks of Venti: the photographs of Austria. */
+    /** Where the style names Venti itself, for what it asks of Venti: the photographs of France and Austria. */
     const val SERVER_PLACEHOLDER = "__VENTI_SERVER__"
 
     /** Where the style names the app's own domain, to the servers that ask a client to say who it is. */
@@ -202,7 +202,7 @@ object MapStyle {
      * One layer of photographs of the aerial view, as the short credit line
      * needs it: whose they are (`venti:credit`), where its source has
      * tiles (`bounds`; `null` for everywhere) and from which zoom the layer
-     * shows (`minzoom`; 0 without one).
+     * shows (the higher `minzoom` of the layer and its source; 0 without one).
      */
     data class AerialPhotos(val credit: String, val bounds: Bounds?, val minZoom: Double)
 
@@ -234,10 +234,15 @@ object MapStyle {
             AerialPhotos(
                 credit = credit,
                 bounds = box?.takeIf { it.size == 4 }?.let { (west, south, east, north) -> Bounds(south, west, north, east) },
-                minZoom = (layer["minzoom"] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: 0.0,
+                // A source with a minzoom of its own (France's) has no tiles
+                // below it, whatever the layer's: the higher of the two.
+                minZoom = maxOf(zoomIn(layer), zoomIn(source)),
             )
         }
     }
+
+    private fun zoomIn(described: JsonObject): Double =
+        (described["minzoom"] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: 0.0
 
     /**
      * The short line that names the makers of the photographs in view:

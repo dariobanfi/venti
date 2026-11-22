@@ -313,6 +313,13 @@ class VentiUiTest {
 
     private fun described(text: String) = hasContentDescription(text)
 
+    /** Scrolls the wind stations' list to a station, once the list has it: a lazy list holds only the rows in view. */
+    private fun scrollToStation(name: String) {
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(hasTestTag("station-list")).performScrollToNode(described(name)) }.isSuccess
+        }
+    }
+
     /** Something whose state, as a screen reader says it, contains this text. */
     private fun saying(text: String) = SemanticsMatcher("says \"$text\"") { node ->
         node.config.getOrNull(SemanticsProperties.StateDescription)?.contains(text) == true
@@ -792,7 +799,14 @@ class VentiUiTest {
         // wind. The airspace's has a line of its own in the same box and
         // may be there before it.
         // Every provider whose stations are in view is named.
-        seeInCredits(hasText("Wind: ", substring = true) and hasText("Deutscher Wetterdienst", substring = true) and hasText("GeoSphere Austria", substring = true))
+        // Every provider's name in full, on a phone's width: kept as a picture.
+        tap(hasTestTag("map-credits"))
+        val credits = hasTestTag("wind-credits")
+        waitFor(credits and hasText("Wind: ", substring = true) and hasText("Deutscher Wetterdienst", substring = true) and hasText("GeoSphere Austria", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-wind-0-credits")
+        tap(hasTestTag("credits-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(credits) }
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "wind-stations") ?: 0) > 0 }
         letTheMapDraw()
         keepScreenshot("$prefix-wind-1-map")
@@ -808,15 +822,16 @@ class VentiUiTest {
         tap(hasText("Done"))
         waitFor(hasTestTag("layer-wind"))
 
-        // The same stations as a list, by name.
+        // The same stations as a list, by name: longer than the screen.
         tapInLayers(described("Wind stations"))
-        waitFor(described("Zugspitze"))
-        // A name the provider writes in capitals is shown in ordinary case.
-        assertTrue(exists(described("Patscherkofel")))
+        scrollToStation("Garmisch-Partenkirchen")
         letTheMapDraw(1)
         keepScreenshot("$prefix-wind-3-stations")
+        // A name the provider writes in capitals is shown in ordinary case.
+        scrollToStation("Patscherkofel")
 
         // One station: what it measures, its last day, and whose data it is.
+        scrollToStation("Zugspitze")
         tap(described("Zugspitze"))
         waitFor(hasTestTag("wind-chart"))
         letTheMapDraw(1)
@@ -837,9 +852,20 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(hasTestTag("station-page"))
 
+        // Back to the list. A station that does not say how high it stands
+        // (Pioupiou's): its page has no height, and no unit beside the dash.
+        tap(described("Back"))
+        scrollToStation("Osterfelder Nord -Startplatz")
+        tap(described("Osterfelder Nord -Startplatz"))
+        // The development server has no history for it: no chart.
+        waitFor(described("Height") and sayingLike("^–$"))
+        assertTrue(exists(described("Temperature") and sayingLike("^–$")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-wind-4c-station-without-height")
+
         // Back to the list, and from there to the map.
         tap(described("Back"))
-        waitFor(described("Zugspitze"))
+        scrollToStation("Zugspitze")
         tap(hasText("Done"))
         waitFor(hasTestTag("layer-wind"))
 
@@ -1574,7 +1600,7 @@ class VentiUiTest {
         tap(tab("Map"))
         waitFor(hasTestTag("layer-wind"))
         tapInLayers(described("Wind stations"))
-        waitFor(described("Zugspitze"))
+        scrollToStation("Zugspitze")
         tap(described("Zugspitze"))
         waitFor(hasTestTag("station-page"))
         screen.onNode(hasTestTag("station-page")).performScrollToNode(hasTestTag("station-alert-me"))
@@ -3899,7 +3925,7 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
         waitFor(hasTestTag("layer-wind"))
         tapInLayers(described("Wind stations"))
-        waitFor(described("Innsbruck/Universitaet"))
+        scrollToStation("Innsbruck/Universitaet")
         tap(described("Innsbruck/Universitaet"))
         waitFor(hasTestTag("station-page"))
         val page = screen.onNode(hasTestTag("station-page"))
@@ -3922,7 +3948,7 @@ class VentiUiTest {
         // What a chosen day shows is tested against the core in
         // StationDayWordsTest.
         tapInLayers(described("Wind stations"))
-        waitFor(described("Zugspitze"))
+        scrollToStation("Zugspitze")
         tap(described("Zugspitze"))
         waitFor(hasTestTag("station-page"))
         page.performScrollToNode(hasTestTag("station-day"))
@@ -4546,6 +4572,16 @@ class VentiUiTest {
         seeInCredits(hasText("Photos: EOX"))
         letTheMapDraw(12)
         keepScreenshot("online-1b-map-aerial")
+
+        // Over the Black Forest, close in: Baden-Württemberg's photographs.
+        // France's box reaches over the Rhine, but this app has no Venti
+        // server, so France's, which come through Venti, are left out and
+        // not named.
+        val scenario = checkNotNull(app)
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.90, lon = 8.10, zoom = 13.0))
+        seeInCredits(hasText("Photos: LGL-BW · EOX"))
+        letTheMapDraw(12)
+        keepScreenshot("online-1c-map-aerial-black-forest")
 
         tap(tab("Logbook"))
         waitFor(hasText("No flights yet"))

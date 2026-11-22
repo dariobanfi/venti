@@ -110,10 +110,21 @@ class WindModelTest {
         assertTrue("Zugspitze" in names)
         // A name the provider writes in capitals is shown in ordinary case.
         assertTrue("Patscherkofel" in names)
-        val providers = listOf("Aviation Weather Center", "Deutscher Wetterdienst", "GeoSphere Austria", "Autonome Provinz Bozen - Südtirol")
+        // Every network with a station in the box, in the order of the sources.
+        val providers = listOf(
+            "Slovenian Environment Agency ARSO",
+            "Aviation Weather Center",
+            "Deutscher Wetterdienst",
+            "GeoSphere Austria",
+            "Federal Office of Meteorology and Climatology MeteoSwiss",
+            "Provincia Autonoma di Trento - Meteotrentino",
+            "OpenWindMap (Pioupiou wind network)",
+            "WSL Institute for Snow and Avalanche Research SLF",
+            "Autonome Provinz Bozen - Südtirol",
+        )
         assertEquals(providers, wind.credits.map { it.provider })
         assertEquals(
-            "Wind: Aviation Weather Center, Deutscher Wetterdienst, GeoSphere Austria and Autonome Provinz Bozen - Südtirol",
+            "Wind: " + providers.dropLast(1).joinToString(", ") + " and " + providers.last(),
             wind.creditLine,
         )
 

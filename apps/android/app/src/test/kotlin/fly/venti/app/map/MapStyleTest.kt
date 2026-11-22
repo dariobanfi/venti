@@ -124,7 +124,10 @@ class MapStyleTest {
     fun theShortCreditNamesTheMakersOfThePhotographsInView() {
         val photos = MapStyle.aerialPhotos(MapStyle.json(MapStyle.Source.Online, template, region, server = "https://venti.example"))
         assertEquals(
-            listOf("EOX", "swisstopo", "Autonome Provinz Bozen - Südtirol", "basemap.at", "Bayerische Vermessungsverwaltung"),
+            listOf(
+                "EOX", "swisstopo", "Autonome Provinz Bozen - Südtirol", "IGN", "basemap.at", "LGL-BW",
+                "Bayerische Vermessungsverwaltung",
+            ),
             photos.map { it.credit },
         )
         // Over the Tegernsee: Austria's box takes in the south of Bavaria.
@@ -133,6 +136,13 @@ class MapStyleTest {
             MapStyle.photosCredit(photos, around(47.70, 11.76), 12.0),
         )
         assertEquals("Photos: swisstopo · EOX", MapStyle.photosCredit(photos, around(46.69, 7.86), 12.0))
+        // France's box takes in the west of Switzerland, and its source has
+        // tiles from zoom 13 only, though its layer begins at 12.
+        assertEquals("Photos: swisstopo · IGN · EOX", MapStyle.photosCredit(photos, around(46.69, 7.86), 13.0))
+        // Over the Black Forest: Baden-Württemberg's own, and France's
+        // box, which reaches over the Rhine.
+        assertEquals("Photos: IGN · LGL-BW · EOX", MapStyle.photosCredit(photos, around(47.90, 8.10), 13.0))
+        assertEquals("Photos: LGL-BW · EOX", MapStyle.photosCredit(photos, around(47.90, 8.10), 12.0))
         // Zoomed out, only the world's mosaic is drawn, anywhere.
         assertEquals("Photos: EOX", MapStyle.photosCredit(photos, around(47.70, 11.76), 8.0))
         assertEquals("Photos: EOX", MapStyle.photosCredit(photos, around(46.69, 7.86), 8.0))
@@ -143,9 +153,10 @@ class MapStyleTest {
 
     @Test
     fun anAppWithoutAServerDoesNotNameThePhotographsItCannotShow() {
-        // Without a server the style leaves out Austria's photographs, which go through Venti.
+        // Without a server the style leaves out France's and Austria's photographs, which go through Venti.
         val photos = MapStyle.aerialPhotos(MapStyle.json(MapStyle.Source.Online, template, region, server = null))
-        assertFalse(photos.any { it.credit == "basemap.at" })
+        assertFalse(photos.any { it.credit == "basemap.at" || it.credit == "IGN" })
+        assertEquals("Photos: swisstopo · EOX", MapStyle.photosCredit(photos, around(46.69, 7.86), 13.0))
         assertEquals(
             "Photos: Bayerische Vermessungsverwaltung · EOX",
             MapStyle.photosCredit(photos, around(47.70, 11.76), 12.0),
@@ -160,7 +171,9 @@ class MapStyleTest {
                 "aerial-world",
                 "aerial-switzerland",
                 "aerial-south-tyrol",
+                "aerial-france",
                 "aerial-austria",
+                "aerial-baden-wuerttemberg",
                 "aerial-bavaria",
                 "aerial-road",
                 "aerial-aerialway-casing",
@@ -188,22 +201,27 @@ class MapStyleTest {
     }
 
     @Test
-    fun austriasPhotographsAreAskedOfVentiAndLeftOutWithoutIt() {
+    fun franceAndAustriasPhotographsAreAskedOfVentiAndLeftOutWithoutIt() {
+        val throughVenti = mapOf("aerial-france" to "ign-ortho", "aerial-austria" to "basemap-at")
         for (source in MapStyle.Source.entries) {
             val with = style(source)
-            assertEquals(
-                listOf("https://venti.example/v1/imagery/basemap-at/{z}/{x}/{y}"),
-                with.getValue("sources").jsonObject.getValue("aerial-austria").jsonObject.getValue("tiles").jsonArray
-                    .map { it.jsonPrimitive.content },
-            )
-            assertTrue("aerial-austria" in layerNames(with))
+            for ((name, path) in throughVenti) {
+                assertEquals(
+                    listOf("https://venti.example/v1/imagery/$path/{z}/{x}/{y}"),
+                    with.getValue("sources").jsonObject.getValue(name).jsonObject.getValue("tiles").jsonArray
+                        .map { it.jsonPrimitive.content },
+                )
+                assertTrue(name in layerNames(with))
+            }
 
             val text = MapStyle.json(source, template, region, server = null, appDomain = "venti.example")
             assertFalse(text, text.contains("__"))
             val without = Json.parseToJsonElement(text).jsonObject
-            assertFalse("aerial-austria" in without.getValue("sources").jsonObject)
-            assertFalse("aerial-austria" in layerNames(without))
-            assertEquals(layerNames(with) - "aerial-austria", layerNames(without))
+            for (name in throughVenti.keys) {
+                assertFalse(name in without.getValue("sources").jsonObject)
+                assertFalse(name in layerNames(without))
+            }
+            assertEquals(layerNames(with) - throughVenti.keys, layerNames(without))
         }
     }
 

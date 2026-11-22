@@ -78,8 +78,24 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 row {
                     Credit(
                         "Aerial view",
-                        "EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)",
+                        "EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025), " +
+                            "CC BY-NC-SA 4.0",
                         link = "https://cloudless.eox.at",
+                    )
+                }
+                row {
+                    // IGN words no credit: ours, to verify (docs/data-sources.md).
+                    Credit(
+                        "Aerial view in France",
+                        "IGN – BD ORTHO®, Licence Ouverte 2.0",
+                        link = "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO",
+                    )
+                }
+                row {
+                    // Our own wording, until IGN's own is found: to verify.
+                    Credit(
+                        "France's border, for the aerial view",
+                        "IGN – ADMIN EXPRESS COG 2026, Licence Ouverte 2.0",
                     )
                 }
                 row {
@@ -95,6 +111,13 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                         "Austria's border, for the aerial view",
                         "Datenquelle: Bundesamt für Eich- und Vermessungswesen (BEV), Verwaltungsgrenzen 1:50 000, " +
                             "Stichtag 01.10.2022, CC BY 4.0; zusammengefasst, nach WGS 84 umgerechnet und vereinfacht",
+                    )
+                }
+                row {
+                    Credit(
+                        "Aerial view in Baden-Württemberg",
+                        "LGL-BW (2026) Datenlizenz Deutschland - Namensnennung - Version 2.0",
+                        link = "https://www.lgl-bw.de",
                     )
                 }
                 row {

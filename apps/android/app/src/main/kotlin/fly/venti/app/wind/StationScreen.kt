@@ -388,21 +388,11 @@ private fun Now(station: WindStation) {
         row {
             Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val third = Modifier.weight(1f)
-                Metric(
-                    "Wind",
-                    reading?.speedMs?.let(Format::kilometresPerHour) ?: "–",
-                    third,
-                    unit = "km/h",
-                )
-                Metric(
-                    "Gusts",
-                    reading?.gustMs?.let(Format::kilometresPerHour) ?: "–",
-                    third,
-                    unit = "km/h",
-                )
-                Metric(
+                Measured("Wind", reading?.speedMs?.let(Format::kilometresPerHour), third, unit = "km/h")
+                Measured("Gusts", reading?.gustMs?.let(Format::kilometresPerHour), third, unit = "km/h")
+                Measured(
                     "From",
-                    reading?.directionDeg?.let(Format::compassPoint) ?: "–",
+                    reading?.directionDeg?.let(Format::compassPoint),
                     third,
                     unit = reading?.directionDeg?.let { "${Format.whole(it)}°" }.orEmpty(),
                 )
@@ -411,18 +401,19 @@ private fun Now(station: WindStation) {
         row {
             Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val third = Modifier.weight(1f)
-                Metric(
-                    "Temperature",
-                    reading?.temperatureC?.let(Format::temperature) ?: "–",
-                    third,
-                    unit = "°C",
-                )
-                Metric("Height", station.elevationM?.let(Format::metres) ?: "–", third, unit = "m")
-                Metric("Measured", reading?.let { Format.time(it.timeUnixS) } ?: "–", third)
+                Measured("Temperature", reading?.temperatureC?.let(Format::temperature), third, unit = "°C")
+                // Some stations do not say how high they stand (Pioupiou's).
+                Measured("Height", station.elevationM?.let(Format::metres), third, unit = "m")
+                Measured("Measured", reading?.let { Format.time(it.timeUnixS) }, third)
             }
         }
     }
 }
+
+/** A number the station may not have: a dash alone where it has none, with no unit beside it. */
+@Composable
+private fun Measured(caption: String, value: String?, modifier: Modifier, unit: String = "") =
+    Metric(caption, value ?: "–", modifier, unit = if (value == null) "" else unit)
 
 /** How old the reading is, and what that means if it is old. */
 private fun ageText(station: WindStation, now: Long): String {

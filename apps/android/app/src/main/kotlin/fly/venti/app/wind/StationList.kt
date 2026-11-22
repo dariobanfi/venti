@@ -149,7 +149,7 @@ private fun StationList(wind: WindModel, onOpen: (WindStation) -> Unit, onDone: 
                     "None of the stations on this part of the map is called “$wanted”.",
                 )
             } else {
-                LazyColumn(contentPadding = PaddingValues(bottom = 32.dp)) {
+                LazyColumn(Modifier.testTag("station-list"), contentPadding = PaddingValues(bottom = 32.dp)) {
                     items(shown, key = { it.id }) { station ->
                         StationRow(station, wind.now, onClick = { onOpen(station) })
                         HorizontalDivider(

@@ -256,6 +256,8 @@ Android was planned to follow iOS one phase behind once the shell patterns were 
 
 ## Open questions for the owner
 
+The short list of what waits for the owner, as things to do, to decide and to look at, is [owner-todo.md](owner-todo.md); this section is the full register it points into.
+
 Gathered on 2026-11-22 from what the documents mark as the owner's to decide, to confirm or to ask; each is written in full where it is named.
 
 1. Colours of their own for the kinds of day (blue for a big day), the day that is not flyable, cloud, rain and the radar: [design.md](design.md#thermals), [burnair-parity.md](burnair-parity.md#what-is-blocked-and-on-whom).

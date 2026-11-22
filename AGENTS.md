@@ -82,6 +82,7 @@ Cloud sessions for this repository use the `venti` environment, which has unrest
 - Commits are in the owner's name, `Dario Banfi <hello@dariobanfi.com>` and no other address, with the session as co-author in the message's last lines. Before the first commit of a session: `git config user.name "Dario Banfi"` and `git config user.email "hello@dariobanfi.com"`. Where the owner's git signs commits, never pass `--no-gpg-sign`; if the signing is refused, ask the owner to approve it and try again.
 - Instructions for sessions live in `AGENTS.md` files only: this one, and one in a folder that needs notes of its own. No other file holds rules for sessions. A README is a few lines for people: what the folder is, the fewest commands that build and run it, where to read more; no status, history or feature lists. A long manual, and what a feature does, go in `docs/`.
 - Decisions go in the decision log in `docs/architecture.md`.
+- What waits for the owner (something only they can do, a decision, something to look at) goes on [docs/owner-todo.md](docs/owner-todo.md) the day it comes up, in one line, and comes off when it is done.
 - Mark anything not checked against a primary source as "to verify". Do not present it as fact.
 - Prefer deleting code to adding a second way of doing something.
 - Show the owner what changed. After a change to a screen on any platform, send them the new screenshots, from the test run on the Mac or the workflow's artifact, without waiting to be asked, so that they can direct the work.

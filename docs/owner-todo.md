@@ -13,10 +13,12 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **Google sign-in on Android** needs two things only you can do: an emulator image with Google Play (the one in use, `pixel6-api36`, is plain Android without Google's services, so it cannot add a Google account at all), and Android's OAuth client registered in your Google Cloud project for `fly.venti.app` with the debug build's signing certificate, its client ID passed to the build as `venti.googleClientId`. The iPhone signs in through a web page and needs neither.
 - [ ] **A real phone:** nothing has run on one. The iPhone's widget needs a second bundle identifier and an app group on your developer account.
 - [ ] **GitHub:** delete the stale branch `phase-0/foundations`; sessions cannot.
-- [ ] **The DHV's permission in writing:** its text or a copy (who gave it, when, and whether it covers keeping the sites, handing them out through the API and the connector, and the credit to show), so that the adapter's manifest can record it ([plan.md](plan.md#owner-decisions), 22).
+- [ ] **The DHV's permission in writing:** its text or a copy (who gave it, when, and whether it covers keeping the sites, handing them out through the API and the connector, and the credit to show), so that the adapter's manifest can record it ([plan.md](plan.md#owner-decisions), 22). The DHV's own terms (§ 5) forbid publishing the data unless it allows it in writing (§ 6). Also needed from the DHV: where a server fetches the site files now (the download addresses answer 404 or ask for a sign-in) and which format to take, ideally a sample.
 - [ ] **XContest:** the letter about its upload key may also ask for its live positions (XContest Live); a draft can be written for you, nothing has been sent.
 
 ## Decide, yes or no (what is built stands until you say otherwise)
+
+- [ ] **One place shown once:** where two sources describe the same take-off within 150 m, the map shows one, taken in the order Venti's own > the FFVL > OpenStreetMap > pilots' suggestions (2026-11-23). In the French Alps about 590 of the FFVL's 1,004 places meet an OpenStreetMap one.
 
 - [ ] **A flight's times by the place it was flown at** (13). Seen on the owner's own logbook on 2026-11-22: flights flown in California show a take-off at 23:39 and at 2:56 at night, because the times are in the phone's own zone. The sessions' advice is yes; it needs a way to know a place's time zone without a network.
 - [ ] **Foehn:** do "possible" from 3 hPa and "likely" from 6 hPa match what you know of the Inn valley, also for south foehn? Is Klagenfurt–Salzburg a pair pilots use? Until you say, that pair never speaks on Today (19).
@@ -31,7 +33,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **Your local stack:** the repository's rule says to rebuild it without a database dump first; sessions have been taking one each time. Which do you want?
 - [ ] **"Send to a league"** stays the main button on your own flight, because the design's flight screen has it there. Move it into the "…" menu?
 - [ ] **On the iPhone a station's network** stands as a grey subtitle under the title, in the system's font; on the web it heads the "Source" card. One manner for both?
-- [ ] **Icons the design pack lacks:** Android's two QR icons were drawn from memory of an open icon set, and the iPhone's radar switch uses a system symbol. Supply icons for a QR code, scanning one and the radar, or say that stand-ins are fine.
+- [ ] **Icons the design pack lacks:** Android's two QR icons were drawn from memory of an open icon set, and the iPhone's radar switch uses a system symbol. The web's Community section uses Lucide's "users" for people (2026-11-23). Supply icons for a QR code, scanning one, the radar and people, or say that stand-ins are fine.
 - [ ] **A real phone's camera** has never read a task's QR code on Android: the tests have none. Try it once with a code from XCTrack or from the iPhone.
 
 - [ ] **A chip that is on** is told by its colour alone, and the pack's dark theme makes "on" cream and "off" purple, which you read the other way round (2026-11-22). Add a mark to an "on" chip, make "off" lighter in both themes, or keep it? The pack is yours.

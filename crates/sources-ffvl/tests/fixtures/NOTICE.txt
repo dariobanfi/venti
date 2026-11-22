@@ -1,0 +1,51 @@
+Recorded answers of ffvl-sites, the flying sites of the Fédération
+Française de Vol Libre (FFVL) on data.gouv.fr.
+
+The data is the FFVL's, under the Licence Ouverte / Open Licence 2.0
+(Etalab), https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/.
+Credit: "Fédération Française de Vol Libre (FFVL), terrains de pratique,
+Licence Ouverte 2.0", as in ../../manifest.toml. The FFVL's file was last
+updated 2026-11-22 07:10 UTC.
+
+dataset.json
+    https://www.data.gouv.fr/api/1/datasets/6ab3b9c6d0cf12014567cad0/
+    fetched 2026-11-22 22:51 UTC with curl, as it came (15,653 bytes). It
+    names an organisational contact address of the FFVL and no person.
+
+terrains.json
+    https://static.data.gouv.fr/resources/terrains-de-pratique-de-la-ffvl-federation-francaise-de-vol-libre/20261122-071002/terrains.json
+    fetched 2026-11-22 22:51 UTC with curl (3,613,740 bytes, 2,596
+    places), the address the description above names. Cut down to:
+    - the 87 places inside 45.75° to 46.10° N, 6.05° to 6.95° E (Annecy,
+      the Aravis, Chamonix), every one of them;
+    - seven more inside the western Alps' box that show a reading of
+      their own: suid 431 (closed, "interdit", with an outline), 271 and
+      1026 (descriptions longer than a site record holds; 1026's also
+      has tabs), 2137 (a kite place, directions written with commas),
+      5052 (directions written as a range, "S-SO"), 357 ("interdit sauf
+      autorisation"), 8 (an open place with an outline of 4 points);
+    - suid 10, a place near Albi, outside every region's box;
+    and in each entry to the fields the adapter reads: suid, toponym,
+    latitude, longitude, altitude, status, possible_usages_text,
+    flying_functions_text, wind_orientations_ok, convention_type,
+    description, terrain_polygon, last_modification_datetime. The other
+    fields were removed, among them terrain_coordonnes_referent, which
+    names the people responsible for a place. Entries and values are
+    otherwise as they came: the box's places in the file's order, then
+    the others in the order above.
+
+terrains_damaged.json
+    Made by hand from two sound entries of terrains.json (suid 137 and
+    298), which it holds as they are, and copies of them damaged:
+    - 900001: no latitude;
+    - 900002: latitude 123.4;
+    - "neuf": a number that is no number;
+    - 900004: a status the FFVL does not use, "ferme_pour_travaux";
+    - 900005: a direction "SSW" the FFVL does not write, and a use
+      "parachutisme" it does not have;
+    - 900006: an outline with a point of one coordinate;
+    - 900007: an altitude that is a word, "mille";
+    and a last entry that is a string, not a place.
+
+To record again: fetch the description, take the url of the resource
+titled terrains.json, fetch it, and cut it as above.

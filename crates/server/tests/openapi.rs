@@ -823,6 +823,9 @@ const SCHEMAS_NO_GOLDEN_FILE_REACHES: &[&str] = &[
     "LinkGoogleRequest",
     "OperatingHours",
     "RemoveSiteRequest",
+    // The development mode's region has one source of sites and no place
+    // it shares with Venti's own made-up sites: no answer names one.
+    "SamePlace",
     "SignInRequest",
     "TokenClient",
     "UpdateFlightRequest",

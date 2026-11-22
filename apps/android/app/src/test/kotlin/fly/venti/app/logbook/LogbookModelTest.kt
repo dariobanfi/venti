@@ -10,6 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 
 /** Checks the logbook's model against the real core. */
@@ -363,5 +364,26 @@ class LogbookModelTest {
         assertEquals(1, first.await().added.size)
         assertNull(logbook.importProgress)
         assertEquals(1u, logbook.view.totals.flights)
+    }
+
+    @Test
+    fun theFlightsAreListedByDayWithTheDaysAirtime() = runBlocking {
+        val logbook = makeLogbook()
+        logbook.addSample()
+        val sample = logbook.view.years.first().flights.first()
+        val noon = sample.startUnixS - sample.startUnixS % 86_400 + 43_200
+        // Newest first: two flights in the afternoon of one day, one the day before.
+        val flights = listOf(
+            sample.copy(id = "c", startUnixS = noon + 7_200, durationS = 1_800),
+            sample.copy(id = "b", startUnixS = noon, durationS = 1_680),
+            sample.copy(id = "a", startUnixS = noon - 86_400, durationS = 600),
+        )
+        val days = LogbookDay.days(flights, ZoneOffset.UTC)
+        assertEquals(listOf(listOf("c", "b"), listOf("a")), days.map { day -> day.flights.map { it.id } })
+        assertEquals(noon - 43_200, days.first().startUnixS)
+        assertEquals("0:58", Format.hoursMinutes(days.first().airtimeS))
+        // The take-off's name, else where it is.
+        assertEquals("Wallberg", LogbookWords.place(sample.copy(takeoffName = "Wallberg")))
+        assertTrue(Regex("\\d+\\.\\d{4}° [NS], .*").matches(LogbookWords.place(sample.copy(takeoffName = null))))
     }
 }

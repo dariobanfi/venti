@@ -50,6 +50,7 @@ use venti_store::{
 use super::auth::{May, Signed, WriteSites};
 use super::budget::Reader;
 use super::error::ApiError;
+use super::site_places;
 use super::{Api, body, cache};
 use crate::accounts::secret;
 use crate::accounts::throttle::{Counted, Throttle};
@@ -217,6 +218,7 @@ impl<S: Store> Api<S> {
                 covers: layer.set.covers,
                 sites: layer.sites,
                 standing: Vec::new(),
+                same_place: Vec::new(),
             })
             .collect();
         let mut attributions = self.attributions(layers.iter().map(|layer| &layer.source));
@@ -236,9 +238,12 @@ impl<S: Store> Api<S> {
                 covers: Vec::new(),
                 standing: sites.iter().map(standing).collect::<Result<_, _>>()?,
                 sites: sites.into_iter().map(|site| site.site).collect(),
+                same_place: Vec::new(),
             });
             attributions.push(layer.attribution());
         }
+        // Each place once, where several sources describe it.
+        site_places::resolve(&mut layers, &site_places::order(&self.site_priority));
         layers.sort_by(|a, b| a.source.cmp(&b.source));
         attributions.sort_by(|a, b| a.source.cmp(&b.source));
         Ok(SitesResponse {

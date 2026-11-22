@@ -1,0 +1,49 @@
+id = "ffvl-sites"
+# The publisher of the dataset on data.gouv.fr, as it names itself there.
+provider = "Fédération Française de Vol Libre (FFVL)"
+short_name = "FFVL"
+kinds = ["sites"]
+# The federation's sites lie in France and its overseas departments; the
+# adapter keeps those inside the run's box.
+countries = ["FR"]
+# The dataset's page says the file is updated every day ("mis à jour
+# quotidiennement"; data.gouv.fr's field `frequency` is "daily"). Sites
+# change rarely: one run a day.
+cadence_seconds = 86400
+auth = "none"
+# A run asks two addresses: the dataset's description on data.gouv.fr
+# (15.7 kB on 2026-11-22) and the file it names, every site of France at
+# once (3,613,740 bytes on 2026-11-22 22:51 UTC). Room for the file to grow
+# by half.
+max_response_kb = 6144
+
+# data.gouv.fr publishes no limit for its API or its file host (not found
+# on 2026-11-22, to verify). A run needs two requests a day; the budget
+# allows a retry.
+[rate_limit]
+per_second = 1
+per_hour = 4
+
+[licence]
+name = "Licence Ouverte 2.0 (Etalab)"
+# "de l'exploiter à titre commercial", "de la diffuser, la redistribuer, la
+# publier et la transmettre": the licence's own words.
+commercial = true
+redistribution = true
+share_alike = false
+# The licence asks for the source, at least the licensor's name, and the
+# date of the last update; the date travels with every layer as `as_of`.
+attribution = "Fédération Française de Vol Libre (FFVL), terrains de pratique, Licence Ouverte 2.0"
+link = "https://www.data.gouv.fr/datasets/terrains-de-pratique-de-la-ffvl-federation-francaise-de-vol-libre"
+notice = "Data of the Fédération Française de Vol Libre, published on data.gouv.fr under the Licence Ouverte / Open Licence 2.0 (Etalab), https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/. The date of its last update is the layer's as_of."
+constraints = [
+    "Credit the FFVL as the source (the licence asks at least for the licensor's name, \"a minima le nom du Concédant\") and give the date of the last update of the data reused.",
+    "Do not suggest that the FFVL endorses Venti or what Venti makes of its data (to verify in the licence's full text, https://github.com/etalab/licence-ouverte/blob/master/LO.md).",
+    "The FFVL's list says where its sites are and whether they are open; it is no permission to fly there. The rules of a site are its operator's.",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://www.data.gouv.fr/datasets/terrains-de-pratique-de-la-ffvl-federation-francaise-de-vol-libre",
+    "https://www.data.gouv.fr/api/1/datasets/6ab3b9c6d0cf12014567cad0/",
+    "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/",
+]

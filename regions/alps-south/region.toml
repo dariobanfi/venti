@@ -71,6 +71,9 @@ sources = ["openaip"]
 # own. 192 sites in this box on 2026-11-22.
 [sites]
 sources = ["osm-free-flying"]
+# The order of the sources where two describe one place: the API shows the
+# first's record (docs/architecture.md, the decision log, 2026-11-22).
+priority = ["osm-free-flying"]
 
 # No [cables], no [forecasts] and no [radar] yet, for the reasons
 # regions/alps-west/region.toml gives.

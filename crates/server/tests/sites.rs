@@ -1313,7 +1313,9 @@ mod of_pilots {
         assert_eq!(stands.site.position, elsewhere.site.position);
 
         // The other way round nothing is refused: a partner's site is
-        // put where a place from pilots stands, and both stand.
+        // put where a place from pilots stands, and both stand. An answer
+        // shows the place once, as the partner's, and names the pilots'
+        // (since 2026-11-22, owner decision 22).
         let over: SiteResponse = ask(Method::POST, "/v1/sites")
             .token(partner)
             .json(&AddSiteRequest {
@@ -1330,8 +1332,23 @@ mod of_pilots {
         )
         .await
         .json();
-        let standing: usize = both.layers.iter().map(|layer| layer.sites.len()).sum();
-        assert_eq!(standing, 2);
+        let shown: Vec<&SiteId> = both
+            .layers
+            .iter()
+            .flat_map(|layer| layer.sites.iter().map(|site| &site.id))
+            .collect();
+        assert_eq!(shown, [&over.site.id]);
+        let partners = both
+            .layers
+            .iter()
+            .find(|l| l.source.as_str() == "venti")
+            .unwrap();
+        assert_eq!(partners.same_place.len(), 1);
+        assert_eq!(partners.same_place[0].id, over.site.id);
+        assert_eq!(partners.same_place[0].also, std::slice::from_ref(&place));
+        // Both stand, each at its own address.
+        let theirs: SiteResponse = get(&router, &site_path(&place.to_string())).await.json();
+        assert_eq!(theirs.site.id, place);
     }
 
     #[tokio::test]

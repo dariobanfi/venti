@@ -177,6 +177,7 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let mut api = Api::new(store.clone(), clock.clone(), manifests, settings)
         .with_station_priority(plan::station_priority(&packs))
+        .with_site_priority(plan::site_priority(&packs))
         .with_push_key(&push_key);
     if let Some(radar) = &radar {
         api = api.with_radar(radar.clone());

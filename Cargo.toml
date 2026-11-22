@@ -22,6 +22,7 @@ venti-sources-geosphere = { path = "crates/sources-geosphere" }
 venti-sources-geosphere-radar = { path = "crates/sources-geosphere-radar" }
 venti-sources-openaip = { path = "crates/sources-openaip" }
 venti-sources-ogn = { path = "crates/sources-ogn" }
+venti-sources-ffvl = { path = "crates/sources-ffvl" }
 venti-sources-osm = { path = "crates/sources-osm" }
 venti-outline = { path = "crates/outline" }
 venti-sources-basemapat = { path = "crates/sources-basemapat" }

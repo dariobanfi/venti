@@ -1602,6 +1602,7 @@ pub async fn recorded_with_its_store(
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let api = Api::new(store.clone(), clock.clone(), manifests, settings)
         .with_station_priority(plan::station_priority(&packs))
+        .with_site_priority(plan::site_priority(&packs))
         .with_forecasts(forecasts.clone())
         .with_thermal_map(Arc::new(map))
         .with_radar(radar.clone())

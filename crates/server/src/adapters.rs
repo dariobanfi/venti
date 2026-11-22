@@ -168,6 +168,9 @@ pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
     registry
         .register_sites(Box::new(sites))
         .expect("osm-free-flying registers once");
+    registry
+        .register_sites(Box::new(venti_sources_ffvl::Ffvl::new()))
+        .expect("ffvl-sites registers once");
     let cables = OsmCables::new(&providers.overpass_url)
         .map_err(|problem| format!("the address of the Overpass instance: {problem}"))?;
     registry
@@ -278,6 +281,7 @@ pub fn recorded_payloads() -> FixtureFetch {
         })
         .with_all(venti_sources_openaip::fixtures::recorded())
         .with_all(venti_sources_osm::fixtures::recorded())
+        .with_all(venti_sources_ffvl::fixtures::recorded())
         .with_all(venti_sources_osm::fixtures::cables_recorded())
         .with_all(venti_sources_openmeteo::fixtures::recorded())
 }

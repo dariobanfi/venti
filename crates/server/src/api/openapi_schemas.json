@@ -4640,6 +4640,12 @@
         "items": {
           "$ref": "#/components/schemas/SiteStanding"
         }
+      },
+      "same_place": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SamePlace"
+        }
       }
     },
     "required": [
@@ -4647,6 +4653,24 @@
       "fetched_at",
       "as_of",
       "sites"
+    ]
+  },
+  "SamePlace": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "also": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "also"
     ]
   },
   "SitePilot": {

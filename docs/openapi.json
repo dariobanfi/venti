@@ -4637,6 +4637,24 @@
         ],
         "type": "object"
       },
+      "SamePlace": {
+        "properties": {
+          "also": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "also"
+        ],
+        "type": "object"
+      },
       "Scope": {
         "description": "What a token for another program may do. `x-venti-values` lists the scopes there are today.",
         "type": "string",
@@ -5215,6 +5233,12 @@
           "fetched_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "same_place": {
+            "items": {
+              "$ref": "#/components/schemas/SamePlace"
+            },
+            "type": "array"
           },
           "sites": {
             "items": {

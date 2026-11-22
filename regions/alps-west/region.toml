@@ -59,11 +59,18 @@ priority = [
 [airspace]
 sources = ["openaip"]
 
-# Take-offs and landings from OpenStreetMap, under the ODbL: a layer of its
-# own. 1,480 sites in this box on 2026-11-22, three times the first
-# region's 502.
+# Take-offs and landings of two sources, each a layer of its own: the
+# Fédération Française de Vol Libre's list of its sites, under the Licence
+# Ouverte 2.0 (about 1,000 in this box, all in France, on 2026-11-22), and
+# OpenStreetMap's, under the ODbL (1,480 in this box on 2026-11-22, three
+# times the first region's 502). Where both describe one place, the API shows the
+# record of the source named first in the priority and names the other
+# (docs/architecture.md, the decision log, 2026-11-22); nothing of one
+# record is copied into the other. The DHV's database is not named in any
+# pack until the text of its permission is filed (docs/data-sources.md).
 [sites]
-sources = ["osm-free-flying"]
+sources = ["ffvl-sites", "osm-free-flying"]
+priority = ["ffvl-sites", "osm-free-flying"]
 
 # No [cables] yet: the whole Alps hold 157,515 ways of power lines and
 # ropeways, and an Overpass instance took 144 seconds to count them, which

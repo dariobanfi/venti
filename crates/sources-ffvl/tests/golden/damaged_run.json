@@ -1,0 +1,53 @@
+{
+  "as_of": "2026-11-22T07:10:03.384Z",
+  "report": {
+    "budget_exhausted": false,
+    "duplicates": 0,
+    "failures": [],
+    "rejected": [],
+    "requests": 2,
+    "sites": 5,
+    "skipped": [
+      {
+        "reason": "missing field `latitude`",
+        "what": "suid 900001"
+      },
+      {
+        "reason": "no place: latitude 123.4 is outside -90..=90",
+        "what": "suid 900002"
+      },
+      {
+        "reason": "invalid type: string \"neuf\", expected u64",
+        "what": "suid \"neuf\""
+      },
+      {
+        "reason": "a status the adapter does not know: \"ferme_pour_travaux\"",
+        "what": "suid 900004"
+      },
+      {
+        "reason": "a use the adapter does not know, left out: \"parachutisme\"",
+        "what": "suid 900005"
+      },
+      {
+        "reason": "wind directions \"SSW;O\" name \"SSW\", which is no compass point the FFVL writes; the directions are left out",
+        "what": "suid 900005"
+      },
+      {
+        "reason": "its outline cannot be read: invalid length 1, expected an array of length 2",
+        "what": "suid 900006"
+      },
+      {
+        "reason": "invalid type: string \"not a place\", expected struct Terrain",
+        "what": "a place without a number"
+      }
+    ],
+    "source": "ffvl-sites"
+  },
+  "sites": {
+    "ffvl-sites:137": "takeoff; 45.83290,6.61400; name \"MEGEVE - ROCHEBRUNE\"; 1733 m; wind 0 45 225 270 315; paragliding yes; hang gliding yes; official yes; description of 249 characters",
+    "ffvl-sites:298": "takeoff; 46.08000,6.61890; name \"AGY PLANE\"; 1254 m; wind 225 270 315; paragliding yes; hang gliding no; official yes; description of 56 characters",
+    "ffvl-sites:900005": "takeoff; 46.08000,6.61890; name \"AGY PLANE\"; 1254 m; paragliding yes; hang gliding no; official yes; description of 56 characters",
+    "ffvl-sites:900006": "takeoff; 46.08000,6.61890; name \"AGY PLANE\"; 1254 m; wind 225 270 315; paragliding yes; hang gliding no; official yes; description of 56 characters",
+    "ffvl-sites:900007": "takeoff; 46.08000,6.61890; name \"AGY PLANE\"; wind 225 270 315; paragliding yes; hang gliding no; official yes; description of 56 characters"
+  }
+}

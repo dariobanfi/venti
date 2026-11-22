@@ -3286,6 +3286,7 @@ dependencies = [
  "venti-sources-basemapat",
  "venti-sources-dwd",
  "venti-sources-dwd-radar",
+ "venti-sources-ffvl",
  "venti-sources-geosphere",
  "venti-sources-geosphere-radar",
  "venti-sources-ign",
@@ -3377,6 +3378,17 @@ dependencies = [
  "serde_json",
  "venti-domain",
  "venti-hdf5",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-ffvl"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
  "venti-sources",
 ]
 

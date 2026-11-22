@@ -1,0 +1,141 @@
+[
+ {
+  "suid": 137,
+  "toponym": "MEGEVE - ROCHEBRUNE",
+  "latitude": 45.8329,
+  "longitude": 6.614,
+  "altitude": 1733,
+  "status": "actif",
+  "possible_usages_text": "parapente;delta",
+  "flying_functions_text": "décollage",
+  "wind_orientations_ok": "N;NE;SO;O;NO",
+  "convention_type": "convention_orale_ffvl",
+  "description": "Conditions favorables en vol thermique et brise de vallée. Confluence permettant de longs vols paisibles. Décollage court. En hiver, atterrissage possible à côté de la gare téléphérique en hors-piste.\r\nBalise météo : https://www.openwindmap.org/PP517",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00"
+ },
+ {
+  "suid": 298,
+  "toponym": "AGY PLANE",
+  "latitude": 46.08,
+  "longitude": 6.6189,
+  "altitude": 1254,
+  "status": "actif",
+  "possible_usages_text": "parapente",
+  "flying_functions_text": "décollage",
+  "wind_orientations_ok": "SO;O;NO",
+  "convention_type": "convention_usage",
+  "description": "Balise météo:\r\n\r\nhttps://www.openwindmap.org/windbird-2026",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00"
+ },
+ {
+  "suid": 900001,
+  "toponym": "MEGEVE - ROCHEBRUNE",
+  "longitude": 6.614,
+  "altitude": 1733,
+  "status": "actif",
+  "possible_usages_text": "parapente;delta",
+  "flying_functions_text": "décollage",
+  "wind_orientations_ok": "N;NE;SO;O;NO",
+  "convention_type": "convention_orale_ffvl",
+  "description": "Conditions favorables en vol thermique et brise de vallée. Confluence permettant de longs vols paisibles. Décollage court. En hiver, atterrissage possible à côté de la gare téléphérique en hors-piste.\r\nBalise météo : https://www.openwindmap.org/PP517",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00"
+ },
+ {
+  "suid": 900002,
+  "toponym": "MEGEVE - ROCHEBRUNE",
+  "latitude": 123.4,
+  "longitude": 6.614,
+  "altitude": 1733,
+  "status": "actif",
+  "possible_usages_text": "parapente;delta",
+  "flying_functions_text": "décollage",
+  "wind_orientations_ok": "N;NE;SO;O;NO",
+  "convention_type": "convention_orale_ffvl",
+  "description": "Conditions favorables en vol thermique et brise de vallée. Confluence permettant de longs vols paisibles. Décollage court. En hiver, atterrissage possible à côté de la gare téléphérique en hors-piste.\r\nBalise météo : https://www.openwindmap.org/PP517",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00"
+ },
+ {
+  "suid": "neuf",
+  "toponym": "MEGEVE - ROCHEBRUNE",
+  "latitude": 45.8329,
+  "longitude": 6.614,
+  "altitude": 1733,
+  "status": "actif",
+  "possible_usages_text": "parapente;delta",
+  "flying_functions_text": "décollage",
+  "wind_orientations_ok": "N;NE;SO;O;NO",
+  "convention_type": "convention_orale_ffvl",
+  "description": "Conditions favorables en vol thermique et brise de vallée. Confluence permettant de longs vols paisibles. Décollage court. En hiver, atterrissage possible à côté de la gare téléphérique en hors-piste.\r\nBalise météo : https://www.openwindmap.org/PP517",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00"
+ },
+ {
+  "suid": 900004,
+  "toponym": "AGY PLANE",
+  "latitude": 46.08,
+  "longitude": 6.6189,
+  "altitude": 1254,
+  "status": "ferme_pour_travaux",
+  "possible_usages_text": "parapente",
+  "flying_functions_text": "décollage",
+  "wind_orientations_ok": "SO;O;NO",
+  "convention_type": "convention_usage",
+  "description": "Balise météo:\r\n\r\nhttps://www.openwindmap.org/windbird-2026",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00"
+ },
+ {
+  "suid": 900005,
+  "toponym": "AGY PLANE",
+  "latitude": 46.08,
+  "longitude": 6.6189,
+  "altitude": 1254,
+  "status": "actif",
+  "possible_usages_text": "parapente",
+  "flying_functions_text": "décollage;parachutisme",
+  "wind_orientations_ok": "SSW;O",
+  "convention_type": "convention_usage",
+  "description": "Balise météo:\r\n\r\nhttps://www.openwindmap.org/windbird-2026",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00"
+ },
+ {
+  "suid": 900006,
+  "toponym": "AGY PLANE",
+  "latitude": 46.08,
+  "longitude": 6.6189,
+  "altitude": 1254,
+  "status": "actif",
+  "possible_usages_text": "parapente",
+  "flying_functions_text": "décollage",
+  "wind_orientations_ok": "SO;O;NO",
+  "convention_type": "convention_usage",
+  "description": "Balise météo:\r\n\r\nhttps://www.openwindmap.org/windbird-2026",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00",
+  "terrain_polygon": [
+   [
+    45.9,
+    6.1
+   ],
+   [
+    45.9
+   ],
+   [
+    45.91,
+    6.11
+   ]
+  ]
+ },
+ {
+  "suid": 900007,
+  "toponym": "AGY PLANE",
+  "latitude": 46.08,
+  "longitude": 6.6189,
+  "altitude": "mille",
+  "status": "actif",
+  "possible_usages_text": "parapente",
+  "flying_functions_text": "décollage",
+  "wind_orientations_ok": "SO;O;NO",
+  "convention_type": "convention_usage",
+  "description": "Balise météo:\r\n\r\nhttps://www.openwindmap.org/windbird-2026",
+  "last_modification_datetime": "2026-10-20T18:01:56+02:00"
+ },
+ "not a place"
+]

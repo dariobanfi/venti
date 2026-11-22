@@ -4539,6 +4539,80 @@ class VentiUiTest {
         folder.deleteRecursively()
     }
 
+    /**
+     * The logbook by day, as the owner asked for it: four flights brought
+     * in together, two of them on one day with two gliders, one two days
+     * before and one the year before. Each day is a card under its
+     * heading, the first day of a year has the year's line, and each row
+     * has its little map, the time, the airtime, the place and the glider.
+     */
+    private fun seeTheLogbookByDay(prefix: String, dark: Boolean) {
+        val sample = context.assets.open(AppFiles.SAMPLE_FLIGHT).use { it.readBytes() }.decodeToString()
+        check("HFDTEDATE:040726" in sample) { "the sample flight is no longer of 4 July 2026" }
+        // The sample flight three hours later, on another glider.
+        val afternoon = sample.lines().joinToString("\n") { line ->
+            when {
+                line.startsWith("HFGTY") -> "HFGTYGLIDERTYPE:Made-up Wing Two"
+                !line.startsWith("B") -> line
+                else -> {
+                    val time = line.substring(1, 7)
+                    val total = time.substring(0, 2).toInt() * 3600 + time.substring(2, 4).toInt() * 60 +
+                        time.substring(4, 6).toInt() + 3 * 3600
+                    "B%02d%02d%02d".format(total / 3600, total / 60 % 60, total % 60) + line.substring(7)
+                }
+            }
+        }
+        val folder = File(context.cacheDir, "by-day-${System.nanoTime()}").apply { mkdirs() }
+        val files = listOf(
+            File(folder, "morning.igc").apply { writeText(sample) },
+            File(folder, "afternoon.igc").apply { writeText(afternoon) },
+            File(folder, "two-days-before.igc").apply { writeText(sample.replace("HFDTEDATE:040726", "HFDTEDATE:020726")) },
+            File(folder, "year-before.igc").apply { writeText(sample.replace("HFDTEDATE:040726", "HFDTEDATE:150825")) },
+        )
+        launch(dark = dark) {
+            action = Intent.ACTION_SEND_MULTIPLE
+            type = "application/octet-stream"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(files.map(Uri::fromFile)))
+        }
+        waitFor(hasText("4 flights added"))
+        tap(hasText("OK") and hasClickAction())
+        waitForAll(
+            hasTestTag("logbook-totals"),
+            hasTestTag("logbook-year-2026"),
+            hasTestTag("logbook-day") and hasText("2 flights", substring = true),
+            hasTestTag("logbook-row") and saying("Made-up Wing Two"),
+        )
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-logbook-by-day-1")
+
+        screen.onNode(hasTestTag("logbook-list")).performScrollToNode(hasTestTag("logbook-year-2025"))
+        waitFor(hasTestTag("logbook-year-2025"))
+        assertTrue(screen.onAllNodes(hasTestTag("logbook-day")).fetchSemanticsNodes().size >= 2)
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-logbook-by-day-2-year-before")
+        app?.close()
+        folder.deleteRecursively()
+    }
+
+    /**
+     * The logbook by day in light and dark, then at 360 dp with text at
+     * 130 %, and with the largest text, where each row's drawing stands
+     * above its words.
+     */
+    @Test
+    fun theLogbookListsTheFlightsByDay() {
+        seeTheLogbookByDay("light", dark = false)
+        seeTheLogbookByDay("dark", dark = true)
+        TestDevice.narrowWithLargeText()
+        try {
+            seeTheLogbookByDay("narrow", dark = false)
+            TestDevice.shell("settings put system font_scale 2.0")
+            seeTheLogbookByDay("largest", dark = false)
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
+    }
+
     @Test
     fun howYouFlySaysWhatTheTracksShow() = seeHowYouFly("light", dark = false)
 

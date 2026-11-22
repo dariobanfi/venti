@@ -1047,7 +1047,7 @@ The whole answer is the golden file `crates/server/tests/golden/cables.json`; th
 
 ## `GET /v1/sites?bbox=west,south,east,north`
 
-The flying sites inside a box: take-offs, landings, training slopes and winch sites. They come in layers of two kinds that are never merged: a source's sites as the server last fetched them (today one source, OpenStreetMap), and, since 2026-11-21, the sites that Venti holds itself: the partners' layer `venti`, which is in the answer when it has a site in the box, and the crowdsourced layer `venti-pilots`, which is in the answer only when `layers` names it; see [Sites that pilots make](#sites-that-ventis-partners-and-pilots-add). What follows describes a source's layer.
+The flying sites inside a box: take-offs, landings, training slopes and winch sites. They come in layers of two kinds that are never merged: a source's sites as the server last fetched them (OpenStreetMap's, and since 2026-11-22 in the western Alps the FFVL's list), and, since 2026-11-21, the sites that Venti holds itself: the partners' layer `venti`, which is in the answer when it has a site in the box, and the crowdsourced layer `venti-pilots`, which is in the answer only when `layers` names it; see [Sites that pilots make](#sites-that-ventis-partners-and-pilots-add). What follows describes a source's layer.
 
 `bbox` is required and written as for stations. Sites on the edge are included.
 
@@ -1222,12 +1222,23 @@ The box is the valley of the apps' sample flight, the Tegernsee, with the Spitzi
 | `layers[].as_of` | The date the source's data is of, by the source's own word: for OpenStreetMap, the moment the copy that answered the server was taken. **Show the pilot how old this is**, measured against the server's clock |
 | `layers[].covers` | The boxes inside which the server's set of this source is whole, written as for airspace. Empty, or missing, means the server does not say, and a client takes that as covering nothing |
 | `layers[].sites` | The records of the layer inside the box, sorted by `id`. May be empty |
+| `layers[].same_place` | Since 2026-11-22: the places of `sites` that other sources describe too, each `{"id": …, "also": […]}`, the site shown and the identifiers of the other sources' records of the same place, which the answer leaves out. Left out when there is none. See "One place, shown once" below |
+
+**One place, shown once** (since 2026-11-22, owner decision 22). Several sources describe many of the same take-offs: in the western Alps the FFVL's list and OpenStreetMap. Where they do, the answer shows one record of the place, in its source's layer, and leaves the others out of their layers; the layer of the record shown names them in `same_place`:
+
+```json
+"same_place": [
+  { "id": "ffvl-sites:1044", "also": ["osm-free-flying:node/1234567890"] }
+]
+```
+
+Each record stays its source's: nothing of the records left out is copied into the one shown, each is answered whole at its own address ([`GET /v1/sites/{id}`](#get-v1sitesid)), and each layer keeps its credit. Two records are one place when they are of different sources, stand within 150 m of each other, and are for the same use (they share one of take-off, landing, winch and training, or neither names one); a record stands for at most one record of each other source, the nearest. The record shown is the one whose source comes first in this order: Venti's partners' layer `venti`; the sources in the order the server's regions give them (`priority` in a pack's `[sites]`; the FFVL's list before OpenStreetMap); the crowdsourced layer `venti-pilots`. A source no region orders is resolved with none and all its records go out. A client that knows nothing of `same_place` shows each place once all the same; one that shows "also described by" reads it.
 
 A record is the canonical site of the project, `venti_domain::Site`:
 
 | Field | Meaning |
 |---|---|
-| `id` | `source:local`. For OpenStreetMap the local part names the element: `node/5964676196` |
+| `id` | `source:local`. For OpenStreetMap the local part names the element: `node/5964676196`; for the FFVL's list it is the place's number there, `ffvl-sites:1044` |
 | `name` | As the source gives it. Left out for the many sites that have none |
 | `position` | Latitude and longitude. For a site that the source draws as an area, the middle of the box around the area: a point in or near it, which need not lie inside it |
 | `elevation_m` | Height above mean sea level. Left out if the source gives none |

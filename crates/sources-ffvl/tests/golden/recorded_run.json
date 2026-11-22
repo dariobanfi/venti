@@ -1,0 +1,128 @@
+{
+  "as_of": "2026-11-22T07:10:03.384Z",
+  "report": {
+    "budget_exhausted": false,
+    "duplicates": 0,
+    "failures": [],
+    "rejected": [],
+    "requests": 2,
+    "sites": 80,
+    "skipped": [
+      {
+        "reason": "the FFVL marks it closed (interdit)",
+        "what": "suid 299"
+      },
+      {
+        "reason": "the FFVL marks it closed (interdit)",
+        "what": "suid 1176"
+      },
+      {
+        "reason": "the FFVL marks it closed (interdit)",
+        "what": "suid 13496"
+      },
+      {
+        "reason": "the FFVL marks it closed (interdit)",
+        "what": "suid 13698"
+      },
+      {
+        "reason": "the FFVL marks it closed (interdit)",
+        "what": "suid 431"
+      },
+      {
+        "reason": "its description of 1338 characters is longer than a site's 1000 or has a character that does not print, and is left out",
+        "what": "suid 271"
+      },
+      {
+        "reason": "wind directions \"S-SO\" name \"S-SO\", which is no compass point the FFVL writes; the directions are left out",
+        "what": "suid 5052"
+      },
+      {
+        "reason": "its description of 1649 characters is longer than a site's 1000 or has a character that does not print, and is left out",
+        "what": "suid 1026"
+      }
+    ],
+    "source": "ffvl-sites"
+  },
+  "sites": {
+    "ffvl-sites:1026": "landing; 45.14790,5.83310; name \"CHAMROUSSE - LA RICHARDIERE\"; 534 m; wind 270; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:1044": "takeoff; 46.03140,6.67060; name \"LES CARROZ D'ARACHES - LA KEDEUSAZ\"; 1800 m; wind 0 270 315; paragliding yes; hang gliding yes; official yes; description of 393 characters",
+    "ffvl-sites:1045": "landing; 46.03890,6.63060; name \"LES CARROZ D'ARACHES - ARACHES\"; 960 m; wind 0 45 90 135 180 225 270 315; paragliding yes; hang gliding yes; official yes; description of 269 characters",
+    "ffvl-sites:1087": "landing; 45.92840,6.72490; name \"PASSY - CHEDDE\"; 608 m; wind 0 45 90 135 180 225 270 315; paragliding yes; hang gliding no; official yes; description of 675 characters",
+    "ffvl-sites:1090": "takeoff; 46.00750,6.66420; name \"LES CARROZ D'ARACHES - L'ARBARON\"; 1932 m; wind 225 270 315; paragliding yes; hang gliding no; official yes; description of 292 characters",
+    "ffvl-sites:1091": "landing; 46.02190,6.64080; name \"LES CARROZ D'ARACHES - FLOCON VERT\"; 1144 m; wind 0 270; paragliding yes; hang gliding yes; official yes; description of 280 characters",
+    "ffvl-sites:1110": "takeoff; 45.93790,6.84900; name \"CHAMONIX - PLAN PRAZ - BREVENT\"; 1917 m; wind 45 180; paragliding yes; hang gliding no; official yes; description of 560 characters",
+    "ffvl-sites:1111": "landing; 45.92970,6.87640; name \"CHAMONIX - LE BOIS DU BOUCHET\"; 1042 m; wind 0 45 90 135 180 225 270 315; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:1112": "takeoff; 45.90190,6.82890; name \"CHAMONIX - PLAN DE L'AIGUILLE\"; 2237 m; wind 45 270; paragliding yes; hang gliding no; official yes; description of 273 characters",
+    "ffvl-sites:1115": "takeoff; 45.90650,6.81240; name \"LES HOUCHES - AIGUILLETTE - MERLET\"; 1691 m; wind 180 225; paragliding yes; hang gliding no; official yes; description of 275 characters",
+    "ffvl-sites:1116": "takeoff; 45.92060,6.80222; name \"LES HOUCHES - AIGUILLETTE - L'AIGUILLETTE\"; 2179 m; wind 180; paragliding yes; hang gliding no; official yes; description of 257 characters",
+    "ffvl-sites:1117": "landing; 45.90000,6.82333; name \"LES HOUCHES - AIGUILLETTE\"; 993 m; wind 45 225; paragliding yes; hang gliding no; official yes; description of 260 characters",
+    "ffvl-sites:1118": "takeoff; 45.89420,6.75060; name \"LES HOUCHES - PRARION\"; 1923 m; wind 45 270; paragliding yes; hang gliding no; description of 663 characters",
+    "ffvl-sites:1119": "landing; 45.89970,6.82639; name \"LES HOUCHES - PRARION\"; 1000 m; paragliding yes; hang gliding no",
+    "ffvl-sites:1144": "landing; 46.06500,6.38389; name \"ANDEY\"; 466 m; wind 0 45 90 135 180 225 270 315; paragliding no; hang gliding yes; description of 35 characters",
+    "ffvl-sites:1147": "takeoff; 46.05190,6.40583; name \"ANDEY NORD\"; 1115 m; wind 315; paragliding no; hang gliding yes; description of 41 characters",
+    "ffvl-sites:1154": "landing; 45.93570,6.46240; name \"LE GRAND BORNAND - LES POTAIS\"; 1014 m; wind 90 270; paragliding yes; hang gliding no; official yes; description of 447 characters",
+    "ffvl-sites:1157": "landing; 45.84870,6.21420; name \"PLANFAIT - PERROIX\"; 553 m; wind 0 180; paragliding yes; hang gliding no; official yes; description of 48 characters",
+    "ffvl-sites:1167": "takeoff; 45.86810,6.79620; name \"LES HOUCHES - MONT LACHAT\"; 2073 m; paragliding yes; hang gliding yes; official yes; description of 43 characters",
+    "ffvl-sites:1168": "landing; 45.89870,6.77810; name \"LES HOUCHES - LES CHAVANTS\"; 1011 m; paragliding yes; hang gliding yes; official yes; description of 43 characters",
+    "ffvl-sites:1172": "landing; 46.08060,6.71530; name \"SAMOENS\"; 689 m; wind 90 135 270 315; paragliding yes; hang gliding yes; official yes; description of 165 characters",
+    "ffvl-sites:1174": "landing; 45.91750,6.66400; name \"LAC DE PASSY\"; 555 m; wind 0 90 180 270; paragliding yes; hang gliding no; official yes; description of 174 characters",
+    "ffvl-sites:1175": "takeoff; 45.85320,6.22300; name \"PLANFAIT\"; 916 m; wind 270; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:1186": "takeoff; 45.95860,6.47650; name \"LE GRAND BORNAND - MONT-LACHAT\"; 2020 m; wind 45 225; paragliding yes; hang gliding no; official yes; description of 222 characters",
+    "ffvl-sites:1197": "takeoff; 46.05380,6.69760; name \"SAMOENS - LES SAIX\"; 1588 m; wind 0 315; paragliding yes; hang gliding yes; official yes; discouraged; description of 151 characters",
+    "ffvl-sites:1200": "takeoff; 45.94480,6.68220; name \"VARAN\"; 1612 m; wind 90 135 180 225; paragliding yes; hang gliding yes; official yes; description of 506 characters",
+    "ffvl-sites:1201": "takeoff; 45.94740,6.68222; name \"VARAN - VERDUN\"; 1697 m; wind 180; paragliding yes; hang gliding yes; official yes; description of 316 characters",
+    "ffvl-sites:1204": "takeoff; 45.91560,6.81389; name \"LES HOUCHES - AIGUILLETTE - CHAILLOUD\"; 2031 m; paragliding yes; hang gliding no; official yes; description of 36 characters",
+    "ffvl-sites:124": "takeoff+training; 45.94960,6.73980; name \"PASSY - PLAINE JOUX\"; 1335 m; wind 135 180 225; paragliding yes; hang gliding yes; official yes; description of 245 characters",
+    "ffvl-sites:125": "landing; 45.91610,6.70610; name \"PASSY - MARLIOZ\"; 581 m; wind 270; paragliding yes; hang gliding yes; official yes; description of 64 characters",
+    "ffvl-sites:1259": "takeoff; 45.81800,6.24600; name \"COL DE LA FORCLAZ - MONTMIN - COCHE CABANNE\"; 1198 m; wind 225 270 315; paragliding yes; hang gliding no; description of 241 characters",
+    "ffvl-sites:1260": "landing; 45.78100,6.22220; name \"DOUSSARD\"; 468 m; wind 0 180; paragliding yes; hang gliding yes; description of 22 characters",
+    "ffvl-sites:1329": "landing; 45.88440,6.71390; name \"SAINT GERVAIS MONT BLANC - PISCINE\"; 827 m; wind 45; paragliding yes; hang gliding no; official yes; description of 133 characters",
+    "ffvl-sites:1330": "takeoff; 45.84220,6.70000; name \"SAINT GERVAIS MONT - LA TETE DU MOTTEY\"; 1889 m; wind 45 90; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:1331": "takeoff; 45.89530,6.72780; name \"SAINT GERVAIS - MONT PACCARD\"; 1256 m; wind 45; paragliding yes; hang gliding no; official yes; description of 105 characters",
+    "ffvl-sites:1332": "takeoff; 45.85490,6.66940; name \"SAINT GERVAIS MONT BLANC - MONT D'ARBOIS\"; 1830 m; wind 45; paragliding yes; hang gliding no; official yes; description of 69 characters",
+    "ffvl-sites:13521": "takeoff; 45.91300,6.57090; name \"CORDON - TETE DU PLANET\"; 1788 m; wind 45 90 135 180; paragliding yes; hang gliding yes; official yes; description of 400 characters",
+    "ffvl-sites:13643": "takeoff; 45.78330,6.67370; name \"COL DU JOLY\"; 2050 m; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:13645": "takeoff; 45.78740,6.67060; name \"LES CONTAMINES MONTJOIE - COL DU JOLY\"; 2017 m; wind 180 225 270; paragliding yes; hang gliding no; official yes; description of 81 characters",
+    "ffvl-sites:137": "takeoff; 45.83290,6.61400; name \"MEGEVE - ROCHEBRUNE\"; 1733 m; wind 0 45 225 270 315; paragliding yes; hang gliding yes; official yes; description of 249 characters",
+    "ffvl-sites:138": "landing; 45.83660,6.58200; name \"MEGEVE - PRAZ-SUR-ARLY\"; 1030 m; wind 0 45 225 270 315; paragliding yes; hang gliding yes; official yes",
+    "ffvl-sites:14080": "landing+training; 45.92080,6.61030; name \"CORDON - CENTRE VILLAGE\"; 850 m; paragliding yes; hang gliding no",
+    "ffvl-sites:14081": "takeoff; 45.91900,6.57340; name \"CORDON - PLATEAU DES BENES\"; 1700 m; wind 45 90 135 180; paragliding yes; hang gliding yes",
+    "ffvl-sites:14105": "takeoff; 45.91990,6.88550; name \"BEAUX MOLLETS\"; 1435 m; wind 0 180 225 270 315; paragliding yes; hang gliding no; official yes; description of 356 characters",
+    "ffvl-sites:14191": "takeoff; 45.87880,6.74350; name \"SAINT GERVAIS MONT BLANC – LA CHARME\"; 1850 m; wind 270; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:14201": "landing; 46.02970,6.31440; name \"ORANGE-SURCOU\"; 1100 m; wind 0 45 90 270 315; paragliding yes; hang gliding no; official yes; description of 90 characters",
+    "ffvl-sites:14285": "landing; 45.92380,6.61560; name \"CORDON - ROCHEFORT\"; 850 m; paragliding yes; hang gliding no; official yes; description of 121 characters",
+    "ffvl-sites:14286": "landing; 45.91860,6.64820; name \"LEPIGNY\"; 550 m; paragliding yes; hang gliding yes; official yes; description of 175 characters",
+    "ffvl-sites:14296": "takeoff; 46.05190,6.40170; name \"ANDEY DELTA\"; 1060 m; wind 0 225 270 315; paragliding no; hang gliding yes; official yes; description of 68 characters",
+    "ffvl-sites:14307": "takeoff; 45.95436,6.66840; name \"LACHAT D'EN HAUT\"; 1680 m; wind 225; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:1447": "takeoff; 45.81420,6.24690; name \"COL DE LA FORCLAZ - MONTMIN\"; 1257 m; wind 0 270 315; paragliding yes; hang gliding yes; official yes; description of 201 characters",
+    "ffvl-sites:1730": "takeoff; 45.77740,6.33950; name \"MARLENS\"; 979 m; wind 135; paragliding yes; hang gliding yes; official yes",
+    "ffvl-sites:1731": "landing; 45.76250,6.34100; name \"MARLENS\"; 465 m; paragliding yes; hang gliding yes; official yes",
+    "ffvl-sites:1773": "landing+training; 45.92780,6.86800; name \"CHAMONIX - LE SAVOY\"; 1049 m; wind 0 45 90 135 180 225 270 315; paragliding yes; hang gliding no; official yes; description of 64 characters",
+    "ffvl-sites:1780": "takeoff; 46.01920,6.70889; name \"LES CARROZ D'ARACHES - LES GRANDS VANS\"; 2181 m; wind 180 225 315; paragliding yes; hang gliding no; official yes; description of 189 characters",
+    "ffvl-sites:1887": "takeoff; 45.93400,6.21500; name \"NAVES-VILLAZ - LACHAT DE NAVES\"; 1260 m; wind 225 270 315; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:1888": "landing; 45.94760,6.21040; name \"NAVES-VILLAZ\"; 882 m; wind 0; paragliding yes; hang gliding no; official yes; description of 180 characters",
+    "ffvl-sites:1889": "takeoff; 45.78720,6.69620; name \"LES CONTAMINES MONTJOIE - LA KOUZNA\"; 1859 m; wind 45 90 135; paragliding yes; hang gliding no; official yes; description of 43 characters",
+    "ffvl-sites:1890": "landing; 45.80030,6.71940; name \"LES CONTAMINES MONTJOIE - LE PONTET\"; 1185 m; wind 0 45 90; paragliding yes; hang gliding no; official yes; description of 117 characters",
+    "ffvl-sites:1891": "landing; 45.79870,6.72180; name \"LES CONTAMINES MONTJOIE - PRACTICE DE GOLF\"; 1185 m; wind 0 45 90; paragliding yes; hang gliding no; official yes; description of 60 characters",
+    "ffvl-sites:1950": "takeoff; 45.96030,6.24170; name \"NAVES - VILLAZ - ANGLETTAZ\"; 1579 m; wind 225; paragliding yes; hang gliding no; official yes; description of 404 characters",
+    "ffvl-sites:271": "takeoff; 48.15020,7.13080; name \"SURCENORD\"; 1082 m; wind 45 90 135; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:298": "takeoff; 46.08000,6.61890; name \"AGY PLANE\"; 1254 m; wind 225 270 315; paragliding yes; hang gliding no; official yes; description of 56 characters",
+    "ffvl-sites:357": "landing; 47.25120,6.07590; name \"MONTFAUCON\"; 465 m; wind 0 225 270 315; paragliding yes; hang gliding no; official yes; discouraged",
+    "ffvl-sites:5018": "takeoff; 45.96820,6.87570; name \"L'INDEX\"; 1030 m; wind 90 135 180 225; paragliding yes; hang gliding no",
+    "ffvl-sites:5052": "takeoff; 43.72910,6.97528; name \"CAVILLORE\"; 1024 m; paragliding yes; hang gliding no; description of 291 characters",
+    "ffvl-sites:5078": "takeoff; 45.80480,6.09520; name \"SEMNOZ OUEST\"; 1437 m; wind 225 270 315; paragliding yes; hang gliding no; official yes; description of 132 characters",
+    "ffvl-sites:5079": "landing; 45.81090,6.05140; name \"VIUZ\"; 589 m; paragliding yes; hang gliding no; official yes; description of 387 characters",
+    "ffvl-sites:5109": "takeoff; 45.95000,6.70190; name \"FRIOLAND\"; 1750 m; wind 135 180 225; paragliding yes; hang gliding no; official yes",
+    "ffvl-sites:5115": "takeoff; 45.95790,6.80000; name \"POINTE NOIRE DE PORMENAZ\"; 2290 m; wind 225 270 315; paragliding yes; hang gliding no; description of 124 characters",
+    "ffvl-sites:5228": "takeoff; 45.88540,6.75280; name \"LES HOUCHES TELECABINE\"; 1842 m; wind 90; paragliding yes; hang gliding no; description of 304 characters",
+    "ffvl-sites:5304": "takeoff+landing; 45.83270,6.86520; name \"MONT BLANC\"; 4800 m; paragliding yes; hang gliding no; official yes; description of 124 characters",
+    "ffvl-sites:5323": "takeoff; 45.78530,6.41518; name \"MERUZ\"; 1300 m; wind 0 45 90 135 180 225 270 315; paragliding yes; hang gliding no; description of 291 characters",
+    "ffvl-sites:8": "takeoff; 47.60050,6.12830; name \"ECHENOZ-LA-MELINE - BOIS DE BREULEUX\"; 363 m; wind 90; paragliding yes; hang gliding yes; official yes; outline of 5 points",
+    "ffvl-sites:951": "takeoff; 45.78720,6.09389; name \"SEMNOZ-DELTA\"; 1608 m; wind 270; paragliding no; hang gliding yes; official yes; description of 267 characters",
+    "ffvl-sites:982": "takeoff; 45.90030,6.49670; name \"LA CLUSAZ - BALME (HIVERS: 20 DECEMBRE AU 30 AVRIL)\"; 2296 m; wind 0 270 315; paragliding yes; hang gliding no; official yes; description of 107 characters",
+    "ffvl-sites:983": "takeoff; 45.89660,6.44060; name \"CRET-DU-MERLE - OUVERT DU 1/5 AU 31/10\"; 1473 m; wind 0 270 315; paragliding yes; hang gliding no; official yes; description of 81 characters",
+    "ffvl-sites:984": "takeoff; 45.89020,6.46340; name \"LA CLUSAZ - AIGUILLE DES CALVAIRES (ETE)\"; 2035 m; wind 0 270 315; paragliding yes; hang gliding no; official yes; description of 118 characters",
+    "ffvl-sites:985": "takeoff; 45.89120,6.45220; name \"LA CLUSAZ - CRET DU LOUP (ETE 1ER MAI AU 31 OCTOBRE)\"; 1831 m; wind 0 270 315; paragliding yes; hang gliding no; official yes; description of 57 characters",
+    "ffvl-sites:987": "landing; 45.90580,6.44080; name \"LA CLUSAZ - CORTIBOT (ETE ET HIVERS)\"; 1122 m; wind 0 270 315; paragliding yes; hang gliding no; official yes; description of 97 characters"
+  }
+}

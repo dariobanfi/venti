@@ -105,7 +105,42 @@ pub struct SiteLayer {
     /// set, whose records have no author and no history here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub standing: Vec<SiteStanding>,
+    /// The places of `sites` that other sources describe too, each once,
+    /// sorted by identifier. The answer shows such a place once, as this
+    /// layer's site, and leaves the other sources' records of it out of
+    /// their layers; it names them here by identifier, so that a client
+    /// can say which sources know the place and ask for a record by its
+    /// address. Nothing of the other records is copied into this one:
+    /// each record stays its source's, under its source's licence. Empty
+    /// when no other source describes a place of this layer, and in an
+    /// answer of a server from before 2026-11-22.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub same_place: Vec<SamePlace>,
 }
+
+/// One place that several sources describe: the site an answer shows for
+/// it, and the records of other sources that it left out for it.
+///
+/// Two records are one place when they are of different sources, stand
+/// within [`SAME_PLACE_M`] of each other and are for the same use (both
+/// take-offs, both landings, or both naming no use). Which record is shown
+/// follows the server's order of its sources: Venti's partners' layer
+/// first, then the sources in the order its regions name them, the
+/// crowdsourced layer last.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SamePlace {
+    /// The site that is shown, a site of the layer.
+    pub id: SiteId,
+    /// The records of other sources at the same place, which the answer
+    /// leaves out, sorted by identifier. Each is answered at its own
+    /// address, `GET /v1/sites/{id}`.
+    pub also: Vec<SiteId>,
+}
+
+/// How far apart two records of flying sites of different sources may
+/// stand and be one place, in metres. See [`SamePlace`]; why this
+/// distance is in `docs/architecture.md`, the decision log, 2026-11-22.
+pub const SAME_PLACE_M: f64 = 150.0;
 
 /// A pilot as a site's history names them: by handle and by the name they
 /// are shown by.

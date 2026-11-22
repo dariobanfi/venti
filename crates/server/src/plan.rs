@@ -99,6 +99,34 @@ pub fn station_priority(packs: &[RegionPack]) -> Vec<SourceId> {
     order
 }
 
+/// The order in which the sources of flying sites are shown where they
+/// describe the same place: the `priority` lists of the regions' `[sites]`,
+/// merged so that each region's order holds. A source a region names
+/// before another that is placed already goes before it: the first
+/// region's `["osm-free-flying"]` and the second's `["ffvl-sites",
+/// "osm-free-flying"]` make the FFVL's list first, whichever region is
+/// named first. Two regions that order two sources both ways keep the
+/// first's order.
+pub fn site_priority(packs: &[RegionPack]) -> Vec<SourceId> {
+    let mut order: Vec<SourceId> = Vec::new();
+    for list in packs.iter().map(|pack| &pack.sites.priority) {
+        for (index, source) in list.iter().enumerate() {
+            if order.contains(source) {
+                continue;
+            }
+            let before = list[index + 1..]
+                .iter()
+                .filter_map(|later| order.iter().position(|placed| placed == later))
+                .min();
+            match before {
+                Some(at) => order.insert(at, source.clone()),
+                None => order.push(source.clone()),
+            }
+        }
+    }
+    order
+}
+
 fn read_pack(path: &Path, registry: &Registry) -> Result<RegionPack, PlanError> {
     let text = std::fs::read_to_string(path).map_err(|error| PlanError::Read {
         path: path.to_owned(),
@@ -595,12 +623,29 @@ mod tests {
                 .area
         };
 
-        // No source is planned that the first region alone does not have,
-        // and each is planned once however many packs name it.
+        // Each source is planned once however many packs name it, and the
+        // only one the first region alone does not have is the FFVL's
+        // sites, which the western pack names and is collected over its
+        // box.
         let first_alone = plan(&packs[..1], &adapters::registry()).unwrap();
         let sources =
             |jobs: &[Job]| -> Vec<SourceId> { jobs.iter().map(|job| job.source.clone()).collect() };
-        assert_eq!(sources(&jobs), sources(&first_alone));
+        let mut expected = sources(&first_alone);
+        expected.push(SourceId::new("ffvl-sites").unwrap());
+        expected.sort();
+        assert_eq!(sources(&jobs), expected);
+        assert_eq!(area_of("ffvl-sites"), packs[1].bounds);
+        // Where the FFVL's list and OpenStreetMap describe one place, the
+        // FFVL's record is shown, whichever region is named first.
+        let order = |packs: &[RegionPack]| -> Vec<String> {
+            site_priority(packs)
+                .iter()
+                .map(ToString::to_string)
+                .collect()
+        };
+        assert_eq!(order(&packs), ["ffvl-sites", "osm-free-flying"]);
+        let reversed: Vec<RegionPack> = packs.iter().rev().cloned().collect();
+        assert_eq!(order(&reversed), ["ffvl-sites", "osm-free-flying"]);
 
         // The sites, the airfields' reports, the SLF's stations and the
         // pilots' sensors are named by all three and are one job over one

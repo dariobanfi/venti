@@ -102,6 +102,7 @@ mod reports;
 mod same_place;
 mod shape;
 mod share;
+mod site_places;
 mod sites;
 mod social;
 mod stations;
@@ -352,6 +353,10 @@ pub struct Api<S> {
     /// The sources of observations in the order they are preferred where
     /// two of them have a station at the same place.
     station_priority: Vec<SourceId>,
+    /// The sources of flying sites in the order the regions name them,
+    /// for the one record shown where several describe a place
+    /// ([`site_places`]).
+    site_priority: Vec<SourceId>,
     /// The public half of the server's key for Web Push, base64url, for
     /// `GET /v1/push/key`.
     push_key: Option<String>,
@@ -480,6 +485,7 @@ impl<S: Store> Api<S> {
             live_air: Arc::new(Trails::default()),
             flown: Arc::new(FlownThermals::default()),
             station_priority: Vec::new(),
+            site_priority: Vec::new(),
             // A key of this process's own, until the server names the
             // one it keeps: a browser can subscribe in the development
             // mode and in tests, where nothing is sent.
@@ -594,6 +600,19 @@ impl<S: Store> Api<S> {
     #[must_use]
     pub fn with_station_priority(mut self, priority: Vec<SourceId>) -> Self {
         self.station_priority = priority;
+        self
+    }
+
+    /// Where several sources describe one flying site, the record shown
+    /// is the one of the source first in Venti's partners' layer, then
+    /// this order, the regions' order of their sources of sites
+    /// ([`site_priority`](crate::plan::site_priority)), then the
+    /// crowdsourced layer.
+    ///
+    /// Without this only Venti's two layers are resolved with each other.
+    #[must_use]
+    pub fn with_site_priority(mut self, priority: Vec<SourceId>) -> Self {
+        self.site_priority = priority;
         self
     }
 

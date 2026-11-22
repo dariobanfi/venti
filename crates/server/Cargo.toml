@@ -19,6 +19,7 @@ venti-sources-dwd-radar.workspace = true
 venti-sources-geosphere-radar.workspace = true
 venti-sources-geosphere.workspace = true
 venti-sources-openaip.workspace = true
+venti-sources-ffvl.workspace = true
 venti-sources-osm.workspace = true
 venti-sources-basemapat.workspace = true
 venti-sources-ign.workspace = true

@@ -133,9 +133,11 @@ struct CreditsScreen: View {
                     "Noto Sans, under the SIL Open Font License.",
                     link: "https://openfontlicense.org"
                 )
+                // The licence's own copyright lines, as the package's
+                // LICENSE.md has them (maplibre-gl-native-distribution 7.0.0).
                 credit(
                     "Map engine",
-                    "MapLibre Native, under the BSD 2-Clause License.",
+                    "MapLibre Native, under the BSD 2-Clause License. Copyright © 2021 MapLibre contributors, © 2018–2021 MapTiler.com, © 2014–2020 Mapbox.",
                     link: "https://maplibre.org"
                 )
             }
@@ -171,6 +173,40 @@ struct CreditsScreen: View {
                     "Free software under the GNU Affero General Public License, version 3 or later. You may use, study, share and change it.",
                     link: "https://www.gnu.org/licenses/agpl-3.0.html"
                 )
+            }
+            // What the app is built with, as Android's page lists its
+            // own. The iPhone app links two packages (`project.yml`): the
+            // map engine, named under "Map", and the core with its bridge.
+            Section("Libraries") {
+                // Nothing of Apple's is carried in the app: no licence
+                // to name.
+                credit(
+                    "Interface",
+                    "SwiftUI, Swift Charts and the other frameworks of iOS, which are Apple's and part of the iPhone's system. The app carries no interface library of its own.",
+                    links: []
+                )
+                .accessibilityIdentifier("credit-interface")
+                credit(
+                    "Icons",
+                    "Venti's own flying icons, beside the system's symbols, which are Apple's and part of the iPhone's system.",
+                    links: []
+                )
+                .accessibilityIdentifier("credit-icons")
+                // The licence's text is in the app, beside the fonts
+                // (`OFL.txt`), as it asks.
+                credit(
+                    "Typeface",
+                    "Fira Sans, by the Mozilla Foundation and Telefonica, under the SIL Open Font License 1.1, which comes with the app.",
+                    link: "https://openfontlicense.org"
+                )
+                .accessibilityIdentifier("credit-typeface")
+                // By the crate's own manifest (uniffi 0.32.2).
+                credit(
+                    "Bridge to the core",
+                    "UniFFI, under the Mozilla Public License 2.0.",
+                    link: "https://www.mozilla.org/MPL/2.0/"
+                )
+                .accessibilityIdentifier("credit-bridge")
             }
         }
         .navigationTitle("Data and licences")

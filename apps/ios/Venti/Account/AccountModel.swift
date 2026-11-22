@@ -21,6 +21,12 @@ final class AccountModel {
     private(set) var isWorking = false
     /// What the last sync did, for the account screen.
     private(set) var lastSync: SyncSummary?
+    /// What the last sync did in the core's words ("1 sent, 0 fetched"),
+    /// for the account screen's "Last sync"; none until one has run.
+    var lastSyncWords: String? {
+        lastSync.map { syncSummaryInWords(summary: $0) }
+    }
+
     /// Something the pilot must be told.
     var problem: String?
 

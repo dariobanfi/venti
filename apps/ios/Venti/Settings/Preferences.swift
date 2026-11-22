@@ -90,6 +90,13 @@ enum Preferences {
     /// itself it turns it all the way up for as long as it is open.
     static let cockpitKeepsBrightness = "VentiCockpitKeepsBrightness"
 
+    /// The folder new flights are brought in from by themselves
+    /// (`WatchedFolder`): its bookmark, its name as the pilot knows it,
+    /// and the files of it that were tried already.
+    static let watchedFolder = "VentiWatchedFolder"
+    static let watchedFolderName = "VentiWatchedFolderName"
+    static let watchedSeen = "VentiWatchedSeen"
+
     /// What the core assumes of a glider until the pilot says otherwise.
     static let defaultTrimSpeed = 38.0
     static let defaultGlideRatio = 8.0

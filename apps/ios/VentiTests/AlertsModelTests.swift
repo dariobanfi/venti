@@ -1,3 +1,4 @@
+import UserNotifications
 import VentiCore
 import XCTest
 
@@ -126,6 +127,32 @@ final class AlertsModelTests: XCTestCase {
         XCTAssertEqual(draft.daysAhead, Data([0, 1]))
         XCTAssertTrue(alertCheck(draft: draft).isEmpty)
         XCTAssertEqual(alertLine(draft: draft), "A cross-country day or better at \(site.name), today or tomorrow")
+    }
+
+    func testATapOnAnAlarmsNotificationOpensAlerts() {
+        AlertNotices.taps.opensAlerts = false
+        let ofAnAlarm = AlertNotices.identifier(alertId: "a1", firedAtUnixS: Self.now)
+
+        // Another notification's tap, and an alarm's that was swiped away,
+        // open nothing.
+        AlertNotices.tapped(identifier: "widget-refresh", action: UNNotificationDefaultActionIdentifier)
+        XCTAssertFalse(AlertNotices.taps.opensAlerts)
+        AlertNotices.tapped(identifier: ofAnAlarm, action: UNNotificationDismissActionIdentifier)
+        XCTAssertFalse(AlertNotices.taps.opensAlerts)
+
+        // A tap on what an alarm fired asks for the alarms' page, and the
+        // request is kept until a screen takes it: the tap that starts
+        // the app comes before there is one.
+        AlertNotices.tapped(identifier: ofAnAlarm, action: UNNotificationDefaultActionIdentifier)
+        XCTAssertTrue(AlertNotices.taps.opensAlerts)
+        AlertNotices.taps.opensAlerts = false
+
+        // Which is a page of the Today tab, wherever the pilot was.
+        let navigation = AppNavigation()
+        navigation.tab = .logbook
+        navigation.showAlerts()
+        XCTAssertEqual(navigation.tab, .today)
+        XCTAssertTrue(navigation.wantsAlerts)
     }
 
     func testSignedOutNothingIsAskedAndNothingHeld() async throws {

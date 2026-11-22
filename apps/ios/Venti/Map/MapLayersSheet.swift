@@ -1,8 +1,9 @@
 import SwiftUI
 import VentiCore
 
-/// What the map tab keeps off the map: the layers without a chip as
-/// switches, and the lists of what the map shows as rows. The map itself
+/// What the map tab keeps off the map: every layer as a switch, the
+/// chips' four among them in the chips' state, and the lists of what the
+/// map shows as rows. The map itself
 /// has four chips and three round buttons (airspace, this sheet and the
 /// position), and this sheet behind the second of those.
 struct MapLayersSheet: View {
@@ -34,6 +35,12 @@ struct MapLayersSheet: View {
     let open: (Opening) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    /// The four the map's chips switch, here in the same state: they are
+    /// the same four preferences.
+    @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
+    @AppStorage(Preferences.mapShowsRadar) private var showsRadar = false
+    @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
+    @AppStorage(Preferences.mapHidesSites) private var hidesSites = false
     @AppStorage(Preferences.mapShowsAirspace) private var showsAirspace = false
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
     @AppStorage(Preferences.mapHidesCables) private var hidesCables = false
@@ -46,11 +53,34 @@ struct MapLayersSheet: View {
         NavigationStack {
             VentiList {
                 Section {
+                    // Every layer is a switch here, the chips' four among
+                    // them, each only where its chip is: the kind of day,
+                    // the rain, the wind and the sites, in the order the
+                    // three apps have them.
+                    if offers.hasServer {
+                        Toggle(isOn: $showsForecast) {
+                            Label(words.forecast, image: "icon-forecast")
+                        }
+                        .accessibilityIdentifier("layers-forecast")
+                        // The pack has no sign for rain: the system's.
+                        Toggle(isOn: $showsRadar) {
+                            Label(words.radar, systemImage: "cloud.rain")
+                        }
+                        .accessibilityIdentifier("layers-radar")
+                        Toggle(isOn: shown($hidesWind)) {
+                            Label(words.wind, image: "icon-wind")
+                        }
+                        .accessibilityIdentifier("layers-wind")
+                    }
                     Toggle(isOn: $showsAirspace) {
                         Label(words.airspace, image: "icon-airspace")
                     }
                     .accessibilityIdentifier("layer-airspace")
                     if offers.hasServer {
+                        Toggle(isOn: shown($hidesSites)) {
+                            Label(words.sites, image: "icon-site")
+                        }
+                        .accessibilityIdentifier("layers-sites")
                         Toggle(isOn: shown($hidesPilots)) {
                             Label(words.pilots, image: "icon-live")
                         }

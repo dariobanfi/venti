@@ -124,6 +124,8 @@ final class AccountModelTests: XCTestCase {
             readToken: { box.token }, saveToken: { box.token = $0 }
         )
         XCTAssertFalse(account.isSignedIn)
+        // No sync has run: the screen has no "Last sync" line.
+        XCTAssertNil(account.lastSyncWords)
 
         let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
         await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
@@ -134,6 +136,9 @@ final class AccountModelTests: XCTestCase {
         XCTAssertEqual(box.token, "venti_test_token")
         // Signing in is followed by a sync, which sent the one flight.
         XCTAssertEqual(account.lastSync?.sent, 1)
+        // And the account screen's "Last sync" says so in the core's words.
+        XCTAssertEqual(account.lastSyncWords, "1 sent")
+        XCTAssertEqual(account.lastSyncWords, account.lastSync.map { syncSummaryInWords(summary: $0) })
         XCTAssertEqual(account.account?.flightsToSend, 0)
 
         let requests = await sent.requests

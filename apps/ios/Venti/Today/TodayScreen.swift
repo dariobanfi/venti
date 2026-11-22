@@ -17,6 +17,7 @@ struct TodayScreen: View {
     @Environment(WindModel.self) private var wind
     @Environment(KeptSitesModel.self) private var kept
     @Environment(AccountModel.self) private var account
+    @Environment(AppNavigation.self) private var navigation
 
     /// Which of the forecast's days is shown: 0 is today.
     @State private var day = 0
@@ -26,6 +27,8 @@ struct TodayScreen: View {
     @State private var position = PilotPosition()
     @State private var isShowingSettings = false
     @State private var isShowingAssistant = false
+    /// The alarms' page, opened by a tap on a notification of what fired.
+    @State private var isShowingAlerts = false
     /// The core's offer to add a place the pilot took off at and no site
     /// names, among the places around the take-offs listed: one at most.
     @State private var offer: CandidateOffer?
@@ -93,6 +96,21 @@ struct TodayScreen: View {
             .navigationDestination(isPresented: $isShowingAssistant) {
                 AssistantScreen()
             }
+            // The alarms and what they fired: the page the account's row
+            // "Alerts" opens, here straight from a notification's tap.
+            .navigationDestination(isPresented: $isShowingAlerts) {
+                AlertsScreen()
+            }
+        }
+        // Asked for from outside the tab (`AppNavigation.showAlerts`): the
+        // page comes to the front in place of whatever page of this tab
+        // was open.
+        .onChange(of: navigation.wantsAlerts, initial: true) { _, wants in
+            guard wants else { return }
+            navigation.wantsAlerts = false
+            isShowingSettings = false
+            isShowingAssistant = false
+            isShowingAlerts = true
         }
         // Asked when the tab is first shown, when the pilot's position
         // arrives, when the server's address changes, when the pilot has

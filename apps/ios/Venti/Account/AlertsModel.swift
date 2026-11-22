@@ -263,8 +263,16 @@ final class AlertsModel {
 
 /// The local notifications of what fired: no push, the app posts them
 /// itself. They show also while the app is in front, since that is when
-/// it fetches.
+/// it fetches, and a tap on one opens "Alerts".
 enum AlertNotices {
+    /// The identifier of the notification of one thing that fired: by the
+    /// alarm and the moment. A tap is known as an alarm's by its start.
+    static func identifier(alertId: String, firedAtUnixS: Int64) -> String {
+        "\(prefix)\(alertId)-\(firedAtUnixS)"
+    }
+
+    private static let prefix = "alert-"
+
     /// Posts one notification a line: the alarm's name and the core's line.
     @MainActor
     static func post(_ lines: [FiredLine]) async {
@@ -275,7 +283,8 @@ enum AlertNotices {
             content.body = line.line
             content.sound = .default
             let request = UNNotificationRequest(
-                identifier: "alert-\(line.alertId)-\(line.firedAtUnixS)", content: content, trigger: nil
+                identifier: identifier(alertId: line.alertId, firedAtUnixS: line.firedAtUnixS),
+                content: content, trigger: nil
             )
             try? await centre.add(request)
         }
@@ -289,15 +298,48 @@ enum AlertNotices {
         _ = try? await centre.requestAuthorization(options: [.alert, .sound])
     }
 
-    /// Shows the notifications while the app is in front too. Set once,
-    /// at the start; the centre holds its delegate weakly.
-    static let showsInFront = InFront()
+    /// What a tap on a notification asks of the screens, until they have
+    /// answered it. Kept apart from the screens, because the system hands
+    /// a tap over before there are any when the tap started the app.
+    @MainActor
+    @Observable
+    final class Taps {
+        /// A notification of what an alarm fired was tapped: the alarms'
+        /// page is to come to the front (`RootScreen`, which takes this
+        /// back).
+        var opensAlerts = false
+    }
 
-    final class InFront: NSObject, UNUserNotificationCenterDelegate, Sendable {
+    @MainActor static let taps = Taps()
+
+    /// A tap the system handed over: on the notification itself (not its
+    /// dismissal), and on one of an alarm's.
+    @MainActor
+    static func tapped(identifier: String, action: String) {
+        guard action == UNNotificationDefaultActionIdentifier, identifier.hasPrefix(prefix) else { return }
+        taps.opensAlerts = true
+    }
+
+    /// The app's delegate at the notification centre: shows the
+    /// notifications while the app is in front too, and takes the taps.
+    /// Set once, at the start, before the app has finished launching, so
+    /// that a tap that started the app arrives; the centre holds its
+    /// delegate weakly.
+    static let centre = Centre()
+
+    final class Centre: NSObject, UNUserNotificationCenterDelegate, Sendable {
         func userNotificationCenter(
             _ center: UNUserNotificationCenter, willPresent notification: UNNotification
         ) async -> UNNotificationPresentationOptions {
             [.banner, .list, .sound]
+        }
+
+        func userNotificationCenter(
+            _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
+        ) async {
+            let identifier = response.notification.request.identifier
+            let action = response.actionIdentifier
+            await AlertNotices.tapped(identifier: identifier, action: action)
         }
     }
 }

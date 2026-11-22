@@ -37,6 +37,17 @@ final class AppNavigation {
         wantsCockpit = true
     }
 
+    /// Set when the alarms' page was asked for: the Today tab, whose
+    /// stack the page belongs to, opens it and takes this back.
+    var wantsAlerts = false
+
+    /// Opens the pilot's alarms and what they fired: from a tap on a
+    /// notification of what fired.
+    func showAlerts() {
+        tab = .today
+        wantsAlerts = true
+    }
+
     func show(flight id: String) {
         tab = .logbook
         logbookPath = NavigationPath([FlightRoute(id: id)])
@@ -48,6 +59,7 @@ struct RootScreen: View {
     @Environment(AccountModel.self) private var account
     @Environment(AlertsModel.self) private var alerts
     @Environment(TaskModel.self) private var tasks
+    @Environment(WatchedFolder.self) private var watched
     @Environment(\.scenePhase) private var scenePhase
     @State private var navigation = AppNavigation()
     @State private var notice: ImportNotice?
@@ -90,10 +102,22 @@ struct RootScreen: View {
                 // And what the alarms fired since, each new line a
                 // notification: Venti sends nothing by itself.
                 Task { await alerts.sync(notifies: true) }
+                // And the flight files that are new in the folder the
+                // pilot has Venti watch: without a word, the flights are
+                // in the logbook.
+                Task { await watched.bringInNew() }
             } else if phase == .background {
                 alerts.scheduleRefresh()
                 // The home-screen widget, which the pilot may look at next.
                 TakeoffWidgetWriter.running?.leftTheScreen()
+            }
+        }
+        // A tap on a notification of what an alarm fired: "Alerts". Also
+        // the tap that started the app, which was there before this screen.
+        .onChange(of: AlertNotices.taps.opensAlerts, initial: true) { _, opens in
+            if opens {
+                AlertNotices.taps.opensAlerts = false
+                navigation.showAlerts()
             }
         }
         .onChange(of: logbook.view.totals.flights) {

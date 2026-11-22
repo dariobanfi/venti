@@ -108,8 +108,32 @@ final class VentiUITests: XCTestCase {
     private func layersRow(_ name: String, in app: XCUIApplication, timeout: TimeInterval = 60) -> XCUIElement {
         XCTAssertTrue(openLayers(in: app), "The layers sheet opens from the map.")
         let row = app.buttons[name]
+        // The sheet has every layer as a switch and is longer than the
+        // screen: the rows are under the switches, and a list makes a row
+        // only once it is scrolled to.
+        usleep(600_000)
+        for _ in 0..<2 where !isOnScreen(row, in: app) {
+            app.swipeUp()
+            usleep(700_000)
+        }
         _ = row.waitForExistence(timeout: timeout)
+        if !isOnScreen(row, in: app) {
+            app.swipeUp()
+            usleep(700_000)
+        }
         return row
+    }
+
+    /// A switch of the layers sheet, which is open: brought into the
+    /// screen by swiping where it lies under the screen's lower edge.
+    private func layersSwitch(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        let toggle = app.switches[identifier]
+        _ = toggle.waitForExistence(timeout: 3)
+        for _ in 0..<2 where !isOnScreen(toggle, in: app) {
+            app.swipeUp()
+            usleep(700_000)
+        }
+        return toggle
     }
 
     /// Waits until the map's credits, behind its credits button, name
@@ -139,7 +163,7 @@ final class VentiUITests: XCTestCase {
         }
         if Self.layersInTheSheet.contains(identifier) {
             guard openLayers(in: app) else { return }
-            let toggle = app.switches[identifier]
+            let toggle = layersSwitch(identifier, in: app)
             if toggle.waitForExistence(timeout: 5) {
                 set(toggle, on: on)
             }
@@ -3153,9 +3177,9 @@ final class VentiUITests: XCTestCase {
         setLayer("layer-flown", on: false, in: app)
 
         XCTAssertTrue(openLayers(in: app))
-        let climbs = app.switches["layer-climbs"]
+        let climbs = layersSwitch("layer-climbs", in: app)
         XCTAssertTrue(climbs.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.switches["layer-flown"].exists)
+        XCTAssertTrue(layersSwitch("layer-flown", in: app).exists)
         XCTAssertTrue(labelled(containing: "Climbs now", in: app).exists)
         XCTAssertTrue(labelled(containing: "Where thermals have been", in: app).exists)
         sleep(1)
@@ -3198,7 +3222,7 @@ final class VentiUITests: XCTestCase {
         // line where the tap finds the one up and left of the middle.
         setLayer("layer-climbs", on: false, in: app)
         XCTAssertTrue(openLayers(in: app))
-        let flown = app.switches["layer-flown"]
+        let flown = layersSwitch("layer-flown", in: app)
         XCTAssertTrue(flown.waitForExistence(timeout: 10))
         set(flown, on: true)
         closeLayers(in: app)
@@ -3274,7 +3298,7 @@ final class VentiUITests: XCTestCase {
         setLayer("layer-flown", on: false, in: app)
 
         XCTAssertTrue(openLayers(in: app))
-        let climbs = app.switches["layer-climbs"]
+        let climbs = layersSwitch("layer-climbs", in: app)
         XCTAssertTrue(climbs.waitForExistence(timeout: 10))
         set(climbs, on: true)
         sleep(2)
@@ -4283,7 +4307,7 @@ final class VentiUITests: XCTestCase {
         usleep(700_000)
         // The aerial view is a switch in the layers sheet here.
         XCTAssertTrue(openLayers(in: app))
-        XCTAssertTrue(isOn(app.switches["map-aerial"]))
+        XCTAssertTrue(isOn(layersSwitch("map-aerial", in: app)))
         setLayer("map-aerial", on: false, in: app)
     }
 
@@ -5641,5 +5665,196 @@ extension VentiUITests {
         XCTAssertTrue(row.waitForExistence(timeout: 30))
         row.tap()
         XCTAssertTrue(element("site-plan-route", in: app).waitForExistence(timeout: 20))
+    }
+
+    // MARK: The parity of 2026-11-22
+
+    /// The logbook brings in from a watched folder by itself. A test
+    /// cannot drive the system's folder picker, so the app starts with a
+    /// folder of its own named (`--watched-folder`: "Tracklogs", with the
+    /// sample flight in it), through the same `watch` the picker ends in:
+    /// the flight is in the logbook without a tap, the menu names the
+    /// folder and stops watching it.
+    func testTheLogbookBringsInFromAWatchedFolder() {
+        let app = launch(bundledMap: true, extra: ["--watched-folder"])
+        openTab("Logbook", in: app)
+        // The flight came in by itself.
+        XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 30))
+
+        let menu = app.buttons["logbook-import"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        menu.tap()
+        let stop = app.buttons["Stop bringing in from Tracklogs"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Bring in from another folder than Tracklogs"].exists)
+        XCTAssertTrue(app.buttons["Flight files or a folder"].exists)
+        sleep(1)
+        keepScreenshot("watched-1-menu")
+
+        // Stopped: the flight stays, and the menu offers a folder again.
+        stop.tap()
+        usleep(800_000)
+        XCTAssertTrue(element("logbook-row", in: app).exists)
+        menu.tap()
+        XCTAssertTrue(app.buttons["Bring in new flights from a folder"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Stop bringing in from Tracklogs"].exists)
+        sleep(1)
+        keepScreenshot("watched-2-menu-stopped")
+    }
+
+    /// A watched folder that is gone: the app starts with the folder of
+    /// `--watched-folder-gone`, which is deleted once its flight is in,
+    /// so that the system's own bookmark leads nowhere. The logbook says
+    /// so over the flights, offers to choose the folder again, and stops
+    /// when told to.
+    func testTheLogbookSaysWhenTheWatchedFolderIsGone() {
+        let app = launch(bundledMap: true, extra: ["--watched-folder-gone"])
+        openTab("Logbook", in: app)
+        XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 30))
+        let lost = element("watched-folder-lost", in: app)
+        XCTAssertTrue(lost.waitForExistence(timeout: 15))
+        XCTAssertTrue(lost.label.contains("Tracklogs"), lost.label)
+        XCTAssertTrue(app.buttons["Choose the folder again"].exists)
+        sleep(1)
+        keepScreenshot("watched-3-folder-gone")
+
+        // Given up: the notice goes, the flight stays, and the menu
+        // offers a folder as if none had been named.
+        app.buttons["watched-folder-stop"].tap()
+        usleep(800_000)
+        XCTAssertFalse(lost.exists)
+        XCTAssertTrue(element("logbook-row", in: app).exists)
+        app.buttons["logbook-import"].tap()
+        XCTAssertTrue(app.buttons["Bring in new flights from a folder"].waitForExistence(timeout: 10))
+    }
+
+    /// The account's page says what the last sync did, in the core's
+    /// words: the demo pilot's three flights fetched after signing in.
+    func testTheAccountSaysWhatTheLastSyncDid() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+
+        openTab("Settings", in: app)
+        bring("account-link", into: app).tap()
+        XCTAssertTrue(app.buttons["Sync now"].waitForExistence(timeout: 60))
+        _ = bring("account-last-sync", into: app)
+        // The row's name, and beside it the core's words for what the
+        // last run did: the three flights fetched after signing in, or,
+        // once the run that follows a changed logbook is through, that
+        // there was nothing to do.
+        func says(_ words: String) -> XCUIElement {
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", words, words))
+                .firstMatch
+        }
+        XCTAssertTrue(says("Last sync").waitForExistence(timeout: 10))
+        XCTAssertTrue(says("3 fetched").exists || says("Nothing to send or fetch").exists)
+        sleep(1)
+        keepScreenshot("account-last-sync")
+
+        // A sync with nothing to do says so.
+        app.buttons["Sync now"].tap()
+        XCTAssertTrue(says("Nothing to send or fetch").waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("account-last-sync-nothing")
+    }
+
+    /// A tap on a notification of what an alarm fired opens "Alerts",
+    /// also when the tap started the app. A test cannot post and tap a
+    /// notification reliably, so the app starts as if by such a tap
+    /// (`--tapped-alert`), through the tap's own handler.
+    func testATapOnAnAlarmsNotificationOpensAlerts() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = Self.naming(["--ui-testing", "--bundled-map", "--tapped-alert"])
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Alerts"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.tabBars.buttons["Today"].isSelected)
+        sleep(1)
+        keepScreenshot("alerts-from-a-notification")
+        // And back from it is Today.
+        app.navigationBars["Alerts"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars.buttons["Settings"].waitForExistence(timeout: 15))
+    }
+
+    /// The layers sheet has the chips' four as switches, in the chips'
+    /// state: a switch moves its chip, and a chip its switch. Whatever
+    /// way each stood, it stands so again at the end.
+    func testTheLayersSheetHasTheChipsFour() {
+        let app = launch(bundledMap: true)
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        let four = [
+            ("forecast-chip", "layers-forecast"), ("radar-chip", "layers-radar"),
+            ("layer-wind", "layers-wind"), ("layer-sites", "layers-sites"),
+        ]
+        XCTAssertTrue(openLayers(in: app))
+        for (_, name) in four {
+            XCTAssertTrue(app.switches[name].waitForExistence(timeout: 10), name)
+        }
+        sleep(1)
+        keepScreenshot("layers-four-1-sheet")
+        closeLayers(in: app)
+
+        for (chipName, switchName) in four {
+            let chip = element(chipName, in: app)
+            XCTAssertTrue(chip.waitForExistence(timeout: 10), chipName)
+            let before = chip.isSelected
+
+            // The switch stands as the chip does, and moves it.
+            XCTAssertTrue(openLayers(in: app))
+            let toggle = app.switches[switchName]
+            XCTAssertTrue(toggle.waitForExistence(timeout: 10), switchName)
+            XCTAssertEqual(isOn(toggle), before, switchName)
+            set(toggle, on: !before)
+            if switchName == "layers-wind" {
+                sleep(1)
+                keepScreenshot("layers-four-2-sheet-wind-switched")
+            }
+            closeLayers(in: app)
+            XCTAssertEqual(chip.isSelected, !before, "The switch did not move the chip \(chipName).")
+            if switchName == "layers-wind" {
+                sleep(1)
+                keepScreenshot("layers-four-3-map-wind-switched")
+            }
+
+            // And the chip moves the switch, back to where both stood.
+            setLayer(chipName, on: before, in: app)
+            XCTAssertEqual(chip.isSelected, before, chipName)
+            XCTAssertTrue(openLayers(in: app))
+            XCTAssertEqual(isOn(toggle), before, "The chip did not move the switch \(switchName).")
+            closeLayers(in: app)
+        }
+    }
+
+    /// "Data and licences" names the typeface, the icons, what the app is
+    /// built with and the bridge to the core, each with its licence,
+    /// under the map's, the photographs', the wind's and Venti's own.
+    func testDataAndLicencesNameTheTypefaceAndTheLibraries() {
+        let app = launch(bundledMap: true)
+        openTab("Settings", in: app)
+        let licences = app.buttons["Data and licences"]
+        for _ in 0..<4 where !(licences.exists && licences.isHittable) {
+            app.swipeUp()
+        }
+        licences.tap()
+        XCTAssertTrue(app.navigationBars["Data and licences"].waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "OpenStreetMap", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("licences-1-map")
+
+        // The libraries are the page's last section.
+        let bridge = bring("credit-bridge", into: app)
+        XCTAssertTrue(bridge.exists)
+        XCTAssertTrue(labelled(containing: "UniFFI, under the Mozilla Public License 2.0", in: app).exists)
+        XCTAssertTrue(labelled(containing: "Fira Sans", in: app).exists)
+        XCTAssertTrue(labelled(containing: "SIL Open Font License 1.1", in: app).exists)
+        XCTAssertTrue(labelled(containing: "Venti's own flying icons", in: app).exists)
+        XCTAssertTrue(labelled(containing: "SwiftUI", in: app).exists)
+        sleep(1)
+        keepScreenshot("licences-2-libraries")
     }
 }

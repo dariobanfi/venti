@@ -331,6 +331,12 @@ private struct SignedInView: View {
                         value: "\(Format.dayInYear(unixSeconds: last)), \(Format.time(unixSeconds: last))"
                     )
                 }
+                // What the last sync did, in the core's words, as on
+                // Android and the web.
+                if let words = account.lastSyncWords {
+                    LabeledContent("Last sync", value: words)
+                        .accessibilityIdentifier("account-last-sync")
+                }
                 Button {
                     Task { await account.sync(force: true, quietly: false) }
                 } label: {

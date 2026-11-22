@@ -18,7 +18,7 @@ struct VentiApp: App {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
                 let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar,
-                let candidates, let alerts, let cables, let air
+                let candidates, let alerts, let cables, let air, let watched
             ):
                 RootScreen()
                     .environment(logbook)
@@ -43,6 +43,7 @@ struct VentiApp: App {
                     .environment(alerts)
                     .environment(cables)
                     .environment(air)
+                    .environment(watched)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -71,7 +72,8 @@ enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
         TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
-        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel, CablesModel, AirModel
+        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel, CablesModel, AirModel,
+        WatchedFolder
     )
     case failed(String)
 
@@ -88,6 +90,26 @@ enum Session {
                 _ = try? core.importFlight(igcText: text)
             }
             let logbook = LogbookModel(core: core, folder: folder)
+            // The folder new flights come in from by themselves, looked
+            // into whenever the app comes to the front (`RootScreen`). A
+            // UI test starts with none, whatever an earlier one left, and
+            // names a made-up one with `--watched-folder`.
+            if LaunchOptions.isUITesting {
+                WatchedFolder.forget(in: .standard)
+            }
+            let watched = WatchedFolder(logbook: logbook)
+            if let tracklogs = LaunchOptions.watchedFolder() {
+                Task {
+                    try? await watched.watch(tracklogs)
+                    // And with `--watched-folder-gone` the folder is
+                    // deleted once its flight is in: the system's own
+                    // bookmark then leads nowhere.
+                    if LaunchOptions.watchedFolderGoes {
+                        try? FileManager.default.removeItem(at: tracklogs.deletingLastPathComponent())
+                        await watched.bringInNew()
+                    }
+                }
+            }
             if LaunchOptions.usesSampleWaypoints {
                 _ = try? core.importWaypoints(text: LaunchOptions.sampleWaypoints)
             }
@@ -255,10 +277,16 @@ enum Session {
             let alerts = AlertsModel(core: core, account: account)
             account.onAccountChanged = { Task { await alerts.sync() } }
             AlertsModel.running = alerts
-            UNUserNotificationCenter.current().delegate = AlertNotices.showsInFront
+            UNUserNotificationCenter.current().delegate = AlertNotices.centre
+            if LaunchOptions.wasOpenedByAnAlert {
+                AlertNotices.tapped(
+                    identifier: AlertNotices.identifier(alertId: "ui-test", firedAtUnixS: 0),
+                    action: UNNotificationDefaultActionIdentifier
+                )
+            }
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps, today, thermals, own, radar, candidates, alerts, cables, air
+                groups, maps, today, thermals, own, radar, candidates, alerts, cables, air, watched
             )
         } catch {
             return .failed(error.words)
@@ -477,6 +505,36 @@ enum LaunchOptions {
     /// keeps that: a UI test of the filter leaves it so for the tests
     /// after it, whatever became of it. Preferences outlive a test.
     static let showsAllSites = arguments.contains("--all-sites")
+
+    /// `--tapped-alert`: the app starts as if by a tap on a notification
+    /// of what an alarm fired, which a UI test cannot post and tap
+    /// reliably: the tap's own handler is called with such a notification.
+    static let wasOpenedByAnAlert = isUITesting && arguments.contains("--tapped-alert")
+
+    /// `--watched-folder-gone`: the same folder, deleted once the logbook
+    /// has its flight, for the notice of a watched folder that is lost.
+    static let watchedFolderGoes = arguments.contains("--watched-folder-gone")
+
+    /// `--watched-folder`: a folder "Tracklogs" with the sample flight in
+    /// it, made in the app's own temporary folder, for the logbook to
+    /// watch. A UI test cannot drive the system's folder picker, so it
+    /// starts with this folder named, through the same `watch` the picker
+    /// ends in. `nil` without the argument.
+    static func watchedFolder() -> URL? {
+        guard arguments.contains("--watched-folder") || watchedFolderGoes,
+            let sample = Bundle.main.url(forResource: "sample", withExtension: "igc")
+        else { return nil }
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("venti-ui-test-watched-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Tracklogs", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: sample, to: folder.appendingPathComponent("2026-07-04-sample.igc"))
+        } catch {
+            return nil
+        }
+        return folder
+    }
 
     /// Dark appearance whatever the device is set to, for screenshots.
     /// Normally the app follows the device.

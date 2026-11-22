@@ -8,8 +8,11 @@ struct LogbookScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(AccountModel.self) private var account
     @Environment(AppNavigation.self) private var navigation
+    @Environment(WatchedFolder.self) private var watched
 
     @State private var isChoosingFiles = false
+    /// The picker for the folder new flights come in from by themselves.
+    @State private var isChoosingWatched = false
     @State private var notice: ImportNotice?
     @State private var flightToDelete: LogbookEntry?
 
@@ -26,10 +29,29 @@ struct LogbookScreen: View {
             .navigationTitle("Logbook")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Import flights", systemImage: "plus") {
-                        isChoosingFiles = true
+                    importMenu
+                }
+            }
+            // A watched folder that is lost: said over the flights, with
+            // the two things to do about it.
+            .safeAreaInset(edge: .top) {
+                if watched.isLost, let name = watched.name {
+                    lostFolder(name)
+                }
+            }
+            // The folder to look into again whenever the app comes to the
+            // front: what is in it now comes in at once. On a view of its
+            // own, since two file pickers on one view do not both open.
+            .fileImporter(isPresented: $isChoosingWatched, allowedContentTypes: [.folder]) { result in
+                guard case .success(let folder) = result else { return }
+                Task {
+                    do {
+                        if let report = try await watched.watch(folder) {
+                            finish(report)
+                        }
+                    } catch {
+                        notice = ImportNotice(title: WatchedFolder.Words.cannotBeKept, text: error.words)
                     }
-                    .disabled(logbook.importProgress != nil)
                 }
             }
             .navigationDestination(for: FlightRoute.self) { route in
@@ -77,6 +99,69 @@ struct LogbookScreen: View {
         } message: { _ in
             Text(account.deletionWarning)
         }
+    }
+
+    /// What the plus in the bar offers: files or a folder to bring in
+    /// once, a folder to bring in from by itself from now on, and, while
+    /// one is watched, which it is and the way to stop.
+    private var importMenu: some View {
+        Menu {
+            Button("Flight files or a folder", systemImage: "doc") {
+                isChoosingFiles = true
+            }
+            .accessibilityIdentifier("import-files")
+            Button(
+                watched.name.map(WatchedFolder.Words.watchAnother) ?? WatchedFolder.Words.watch,
+                systemImage: "arrow.clockwise"
+            ) {
+                isChoosingWatched = true
+            }
+            .accessibilityIdentifier("watch-folder")
+            if let name = watched.name {
+                Button(WatchedFolder.Words.stopWatching(name), systemImage: "xmark") {
+                    watched.stop()
+                }
+                .accessibilityIdentifier("watch-folder-stop")
+            }
+        } label: {
+            // A menu's sign in a bar is drawn in the symbol's own colours
+            // (the plus green) unless it is told otherwise: one colour,
+            // the ink, as the button it was.
+            Label("Import flights", systemImage: "plus")
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(Color.venti(.text))
+        }
+        .disabled(logbook.importProgress != nil)
+        .accessibilityIdentifier("logbook-import")
+    }
+
+    /// The watched folder can no longer be found: the caution's words,
+    /// and under them naming it again or giving it up.
+    private func lostFolder(_ name: String) -> some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            CardCaution(words: WatchedFolder.Words.lost(name))
+                .accessibilityIdentifier("watched-folder-lost")
+            Button {
+                isChoosingWatched = true
+            } label: {
+                Text(WatchedFolder.Words.chooseAgain)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.venti(.primary))
+            .accessibilityIdentifier("watched-folder-again")
+            Button {
+                watched.stop()
+            } label: {
+                Text(WatchedFolder.Words.stopWatching(name))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.venti(.quiet))
+            .accessibilityIdentifier("watched-folder-stop")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ventiCard()
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.bottom, VentiSpace.s2)
     }
 
     private var emptyState: some View {

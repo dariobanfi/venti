@@ -5528,7 +5528,7 @@ The page says which program asks, by the name it gave itself and marked as its o
 
 ### Agreeing in the web app
 
-The web app is served at the server's own address and holds the pilot's session, however the pilot signed in. So a pilot agrees there, with the session they have: no password is typed a second time, an account that signs in with Google agrees like any other, and the server sends nobody to Google for it. Built on the server on 2026-11-22; the web app's page `/connect/` is not built yet.
+The web app is served at the server's own address and holds the pilot's session, however the pilot signed in. So a pilot agrees there, with the session they have: no password is typed a second time, an account that signs in with Google agrees like any other, and the server sends nobody to Google for it. Built on the server on 2026-11-22, and the web app's page `/connect/` the same day (`837c590e`; what it shows in each state is in [design.md](design.md#account-and-sharing)).
 
 - **The page of [`GET /oauth/authorize`](#get-oauthauthorize) links to `/connect/?request=<identifier>`** once the program's request has passed every check. The server redirects nobody there: the pilot presses the link.
 - **Whoever holds the identifier reads the request**; it names no account. **Only a pilot's own session answers it.** A token that a pilot gave to a program gets `403` `session_required` whatever its scopes, and a token the authorization server gave out is no token at `/v1` at all (`401`): a program can never give itself or another program access.

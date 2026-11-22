@@ -206,6 +206,16 @@ Each step's state is what the repository showed on 2026-11-22, with the commits 
 
 **Waiting for the owner**: gathered under [Open questions for the owner](#open-questions-for-the-owner). Since this paragraph was first written the domain was bought (`venti.fly`, 2026-11-21) and Sign in with Google was built (`7b0c233`); sign-in with Apple stays.
 
+**Left open by the sessions on 2026-11-22**, found that day and not yet built; none waits for the owner:
+
+- Neither phone's "Data and licences" names the Rust crates compiled into the core, and neither carries the full text of MapLibre's BSD licence, which it asks a binary to reproduce.
+- On Android the layers sheet offers "Wind stations" only while the wind layer is shown, and its Forecast and Radar chips only where their models are; the iPhone shows them whenever there is a server. Android's credits for the aerial photographs are written by hand where the iPhone reads them from the shared style.
+- With no airspace reading the iPhone's large strip in the cockpit stays and shows "– –", and Android hides it.
+- The words of the watched folder, of "Last sync" and "In step since", of the widgets and of the credits pages are each shell's own and belong in the core.
+- The trail of smaller ones: the wording of a reading's own time ("Measured at 14:05."), a station's history picker over "no history yet", Pioupiou's credit with a raw address, Trentino's and Slovenia's "to verify" notes in their manifests.
+- No whole UI suite has run on either phone since the afternoon's changes; the unit suites pass on all three apps.
+- Cables, radar, the thermal map and forecasts for a place cover the first region only; sites for the two new regions come with the next daily run.
+
 ## Roadmap
 
 Phases are ordered so that each one is useful to a single pilot before the community exists. Code is written by AI sessions, so calendar time is driven by what cannot be automated: flight testing on flyable days, App Store review, and permission emails to data owners.

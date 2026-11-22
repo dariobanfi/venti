@@ -28,6 +28,8 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **Your local stack:** the repository's rule says to rebuild it without a database dump first; sessions have been taking one each time. Which do you want?
 - [ ] **"Send to a league"** stays the main button on your own flight, because the design's flight screen has it there. Move it into the "…" menu?
 - [ ] **On the iPhone a station's network** stands as a grey subtitle under the title, in the system's font; on the web it heads the "Source" card. One manner for both?
+- [ ] **Icons the design pack lacks:** Android's two QR icons were drawn from memory of an open icon set, and the iPhone's radar switch uses a system symbol. Supply icons for a QR code, scanning one and the radar, or say that stand-ins are fine.
+- [ ] **A real phone's camera** has never read a task's QR code on Android: the tests have none. Try it once with a code from XCTrack or from the iPhone.
 
 ## Look at, and say what is wrong
 
@@ -37,7 +39,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] The aerial view in France (from zoom 13) and Baden-Württemberg.
 - [ ] The home-screen widget on both phones.
 - [ ] "Follow on the map" on a pilot in the air.
-- [ ] The parity work on both phones, when it has landed: a task as a QR code, full brightness in the cockpit and the airspace strip's tap on Android; the watched folder, the last-sync line and an alarm's tap on the iPhone.
+- [ ] The parity work on both phones (2026-11-22): a task as a QR code, full brightness in the cockpit (on by default, as the design says) and the airspace strip's tap on Android; the watched folder, the last-sync line and an alarm's tap on the iPhone.
 
 ## Older questions, still open
 

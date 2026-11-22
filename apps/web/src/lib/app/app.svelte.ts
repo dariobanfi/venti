@@ -18,6 +18,7 @@ import { SocialModel } from '#lib/social/model.svelte.ts';
 import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
 import { ALERTS_EVERY_MS, AlertsModel } from '#lib/alerts/model.svelte.ts';
 import { CommunityModel } from '#lib/community/model.svelte.ts';
+import { ConnectModel } from '#lib/connect/model.svelte.ts';
 import {
 	askToKeepStorage,
 	type Coordinate,
@@ -197,6 +198,20 @@ export class App {
 				this.failure = error instanceof Error ? error.message : String(error);
 			});
 		return this.#started;
+	}
+
+	/**
+	 * The page `/connect/` for the request its address names: what a program
+	 * asks to read, and the pilot's answer. Nothing if the core could not
+	 * start. The identifier is handed to the page's model and kept nowhere
+	 * else.
+	 */
+	async agreement(id: string): Promise<ConnectModel | undefined> {
+		if (!browser) return undefined;
+		await this.start();
+		if (!this.#core) return undefined;
+		// A session the server no longer takes: the account's screens say so.
+		return new ConnectModel(this.#core, id, () => void this.account?.ask());
 	}
 
 	/**

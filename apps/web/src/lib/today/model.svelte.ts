@@ -15,6 +15,7 @@ import type {
 	Coordinate,
 	CoreClient,
 	Credit,
+	FoehnView,
 	SiteOutlook,
 	TodayOrder,
 	TodayTakeoff
@@ -76,8 +77,26 @@ export const NOTHING_YET: TodayState = {
 	nowUnixS: 0
 };
 
+/**
+ * Foehn, as Today sees it: the core's view once the server has answered,
+ * with the one line for Today in it where there is one. No answer is no
+ * line; it is never "no foehn".
+ */
+export interface FoehnState {
+	phase: 'idle' | 'loading' | 'loaded' | 'failed';
+	/** The foehn view. Kept while it is asked for again from the view. */
+	view: FoehnView | undefined;
+	/** Why there is none, in words. */
+	problem: string | undefined;
+}
+
+export const NO_FOEHN: FoehnState = { phase: 'idle', view: undefined, problem: undefined };
+
 export class TodayModel {
 	state = $state.raw<TodayState>(NOTHING_YET);
+
+	/** Foehn for the take-offs listed: asked for with them, and again from its view. */
+	foehn = $state.raw<FoehnState>(NO_FOEHN);
 
 	#core: CoreClient;
 	/** The question last asked: an answer to an older one is let go. */
@@ -110,9 +129,39 @@ export class TodayModel {
 		void this.#load(this.state.place, this.state.nearYou);
 	}
 
+	/** Asks for foehn again: "Try again" in its view. */
+	foehnAgain(): void {
+		void this.#readFoehn(this.#asked);
+	}
+
+	/**
+	 * Asks the server for foehn and the core for what it says about the
+	 * take-offs listed. Today waits for none of it: the line appears when
+	 * the answer has one. A site without a server has no foehn to show.
+	 */
+	async #readFoehn(asked: number): Promise<void> {
+		const places = this.state.places.map((place) => place.site.position);
+		// What is shown stays until the new answer is there.
+		this.foehn = { ...this.foehn, phase: 'loading' };
+		try {
+			const view = await this.#core.foehn(places);
+			if (asked !== this.#asked) return;
+			this.foehn = view ? { phase: 'loaded', view, problem: undefined } : NO_FOEHN;
+		} catch (error) {
+			if (asked !== this.#asked) return;
+			this.foehn = {
+				phase: 'failed',
+				view: undefined,
+				problem: error instanceof Error ? error.message : String(error)
+			};
+		}
+	}
+
 	async #load(place: Coordinate, nearYou: boolean): Promise<void> {
 		const asked = ++this.#asked;
 		this.state = { ...NOTHING_YET, place, nearYou, phase: 'loading' };
+		// A line about other take-offs is not kept over these.
+		this.foehn = NO_FOEHN;
 		try {
 			const found = await this.#core.todayTakeoffs(place);
 			if (asked !== this.#asked) return;
@@ -137,6 +186,7 @@ export class TodayModel {
 				}))
 			};
 			void this.#order(asked);
+			void this.#readFoehn(asked);
 			await Promise.all(
 				listed.takeoffs.map(async ({ site }) => {
 					let outlook: SiteOutlook | undefined;

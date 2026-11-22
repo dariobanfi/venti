@@ -22,6 +22,10 @@
  *   and keeps the logbook and the pilot's own sites in step with it, also
  *   from the worker.
  * - `tokens-source.ts` talks to it about the programs a pilot gave access.
+ * - `agreement-source.ts` reads a program's request to read the pilot's
+ *   flights and answers it with the session, for the page `/connect/`.
+ * - `foehn-source.ts` asks it for the pressure across the Alps, for Today's
+ *   line about foehn and the view behind it.
  * - `alerts-source.ts` talks to it about the pilot's alarms and what they fired.
  * - `airspace-source.ts` fetches the airspace around a place from the Venti
  *   server when the core says it is time, for the core to keep.
@@ -39,6 +43,17 @@
 
 export type {
 	AccountView,
+	AgreementOutcome,
+	AgreementPage,
+	AgreementRow,
+	AgreementState,
+	AgreementWords,
+	FoehnLevel,
+	FoehnLimit,
+	FoehnLine,
+	FoehnPoint,
+	FoehnRow,
+	FoehnView,
 	AlertDayKind,
 	AlertDraft,
 	AlertDayKindChoice,
@@ -277,6 +292,7 @@ import { UNREACHABLE } from './protocol';
 
 export type { GoogleEntered, NewAccount, NewGoogleAccount, SyncOutcome } from './account-source';
 export type { AccessWanted, ProgramView } from './tokens-source';
+export type { AgreementRead, AgreementSaid } from './agreement-source';
 export type { AlertsHeld, AlertsSynced } from './alerts-source';
 export { CoreClient } from './client';
 export type { TodayAnswer } from './today-source';

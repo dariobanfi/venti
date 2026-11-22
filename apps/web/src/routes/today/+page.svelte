@@ -23,6 +23,9 @@
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
+	import Sheet from '#lib/design/Sheet.svelte';
+	import FoehnLine from '#lib/foehn/FoehnLine.svelte';
+	import FoehnView from '#lib/foehn/FoehnView.svelte';
 	import { type Fix, problemText, watchPosition } from '#lib/map/position.ts';
 	import NearbyLine from '#lib/today/NearbyLine.svelte';
 	import StatusChip from '#lib/today/StatusChip.svelte';
@@ -41,6 +44,21 @@
 
 	const today = $derived(app.today);
 	const shown = $derived(today?.state ?? NOTHING_YET);
+
+	/**
+	 * Foehn: the core's line over the take-offs where it has one, and the
+	 * view behind it, which the row at the page's foot opens too.
+	 */
+	const foehn = $derived(today?.foehn);
+	let foehnOpen = $state(false);
+	/**
+	 * The view's title while the core's own is not there, because the server
+	 * gave no answer to take it from: the one word here that is not the
+	 * core's, and the same as its `FoehnView.title`.
+	 */
+	const FOEHN = 'Foehn';
+	/** The core's title; the view keeps it while it closes. */
+	const foehnTitle = $derived(foehn?.view?.title ?? FOEHN);
 
 	/** The pilot's own position, once asked for and given. */
 	let position = $state.raw<Fix>();
@@ -280,6 +298,12 @@
 		{:else if shown.phase !== 'loaded'}
 			<p class="waiting" role="status">Looking for the take-offs around…</p>
 		{:else}
+			{#if foehn?.view?.todayLine}
+				<!-- Foehn near these take-offs: one line, only when the core has one. -->
+				<div class="foehn-line">
+					<FoehnLine line={foehn.view.todayLine} onopen={() => (foehnOpen = true)} />
+				</div>
+			{/if}
 			{#if dayNames.length > 1}
 				<div class="days">
 					<Segmented
@@ -581,6 +605,14 @@
 						<p><a href={credit.url} target="_blank" rel="noopener noreferrer">{credit.text}</a></p>
 					{/each}
 				{/if}
+				{#if foehn?.view || foehn?.problem}
+					<!-- The foehn view, for whoever asks: there is no line above when the pressure has nothing to say. -->
+					<p>
+						<button class="foehn-row" type="button" onclick={() => (foehnOpen = true)}>
+							{foehnTitle}
+						</button>
+					</p>
+				{/if}
 				<!-- Whose the take-offs are, as their licences ask wherever they are shown. -->
 				{#each shown.credits as credit (credit.source)}
 					<p><a href={credit.url} target="_blank" rel="noopener noreferrer">{credit.text}</a></p>
@@ -595,6 +627,25 @@
 		{/if}
 	</div>
 </div>
+
+<Sheet open={foehnOpen} title={foehnTitle} onclose={() => (foehnOpen = false)}>
+	{#if foehn?.view}
+		<FoehnView view={foehn.view} />
+	{:else if foehn?.problem}
+		<!-- Venti gave no answer: why, and asking again. Today shows no line meanwhile. -->
+		<div class="foehn-failed">
+			<p role="alert">{foehn.problem}</p>
+			<button
+				class="button-plain"
+				type="button"
+				disabled={foehn.phase === 'loading'}
+				onclick={() => today?.foehnAgain()}
+			>
+				{app.said?.common.tryAgain}
+			</button>
+		</div>
+	{/if}
+</Sheet>
 
 <style>
 	.page {
@@ -638,6 +689,25 @@
 		margin: 0 auto;
 		padding: var(--space-5) calc(var(--gutter) + var(--safe-right)) 0
 			calc(var(--gutter) + var(--safe-left));
+	}
+
+	/* As wide as the day's choice under it, in the page's middle. */
+	.foehn-line {
+		max-width: 40rem;
+		margin: 0 auto;
+	}
+
+	.foehn-row {
+		color: var(--link);
+		font: inherit;
+	}
+
+	.foehn-failed {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-2);
+		color: var(--text-secondary);
 	}
 
 	.days {
@@ -793,6 +863,9 @@
 
 	.title {
 		display: flex;
+		/* A long name on a narrow phone with large text: the status goes
+		   under it, and the card stays as wide as the screen. */
+		flex-wrap: wrap;
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: var(--space-3);

@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { AccountSource } from './account-source';
+import { AgreementSource } from './agreement-source';
+import { FoehnSource } from './foehn-source';
 import { AirspaceSource } from './airspace-source';
 import { AlertsSource } from './alerts-source';
 import { SocialSource } from './social-source';
@@ -60,6 +62,8 @@ class SameProcess implements Channel {
 						wind: this.#wind,
 						account: account(session),
 						tokens: new TokensSource(session, unreachable),
+						agreement: new AgreementSource(session, async () => 0, unreachable),
+						foehn: new FoehnSource(async () => false),
 						alerts: new AlertsSource(session, unreachable),
 						social: new SocialSource(session, undefined, unreachable),
 						airspace: airspace(session),

@@ -6,11 +6,16 @@
 	Google comes back here after a pilot went there to sign in, to link the
 	account or to delete it (`#lib/account/google.ts`): the answer is taken
 	out of the address at once and handed to the account.
+
+	A pilot whom `/connect/` sent here to sign in goes back there once they
+	are signed in (`#lib/account/way-back.ts`).
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { browser } from '$app/env';
+	import { beforeNavigate } from '$app/navigation';
 	import { type GoogleReturn, takeGoogleReturn } from '#lib/account/google.ts';
+	import { forgetWayBack, takeWayBack } from '#lib/account/way-back.ts';
 	import SignedIn from '#lib/account/SignedIn.svelte';
 	import SignInForm from '#lib/account/SignInForm.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
@@ -36,6 +41,20 @@
 		const returned = fromGoogle;
 		fromGoogle = undefined;
 		untrack(() => void model.finishGoogle(returned));
+	});
+
+	// A page that can only be answered signed in sent the pilot here
+	// (`#lib/account/way-back.ts`): once signed in, back to it, through the
+	// tab's history, where its address is.
+	$effect(() => {
+		if (!account?.signedIn) return;
+		const steps = untrack(() => takeWayBack());
+		if (steps !== undefined) history.go(steps);
+	});
+	// Left for another page of the app without signing in: the way back is
+	// forgotten. Leaving for Google's page keeps it.
+	beforeNavigate((navigation) => {
+		if (!navigation.willUnload) forgetWayBack();
 	});
 
 	/** The server is the one this site is served from. */

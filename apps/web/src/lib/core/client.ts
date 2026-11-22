@@ -695,6 +695,37 @@ export class CoreClient {
 		return this.#call('withdrawAccess', id);
 	}
 
+	/** The page `/connect/`: its buttons' words and the page of a request that has ended. */
+	agreementSaid() {
+		return this.#call('agreementSaid', undefined);
+	}
+
+	/**
+	 * The request a program made, by the identifier in the page's address,
+	 * as a page for the account this browser is signed in to. It never
+	 * fails; for text that is no identifier nothing is sent.
+	 */
+	agreementRead(id: string) {
+		return this.#call('agreementRead', id);
+	}
+
+	/**
+	 * Answers a program's request with the session. The answer may hold the
+	 * address the browser goes to, a secret for two minutes: go there at
+	 * once and keep it nowhere.
+	 */
+	agreementAnswer(id: string, agree: boolean) {
+		return this.#call('agreementAnswer', { id, agree });
+	}
+
+	/**
+	 * The foehn view and the line for Today, for the places of the take-offs
+	 * Today shows. Nothing if this site has no server.
+	 */
+	foehn(places: Coordinate[]) {
+		return this.#call('foehn', places);
+	}
+
 	/** The sixteen points of the compass an alarm's directions are chosen from. */
 	alertPoints() {
 		return this.#call('alertPoints', undefined);

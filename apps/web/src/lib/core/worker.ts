@@ -5,10 +5,12 @@
  */
 
 import { AccountSource } from './account-source';
+import { AgreementSource } from './agreement-source';
 import { AirspaceSource } from './airspace-source';
 import { AlertsSource } from './alerts-source';
 import { CablesSource } from './cables-source';
 import { CommunitySource } from './community-source';
+import { FoehnSource } from './foehn-source';
 import { ForecastSource } from './forecast-source';
 import { GroupsSource } from './groups-source';
 import { GlideReachSource } from './glide-reach-source';
@@ -59,6 +61,11 @@ const starting: Promise<Answering> = (async () => {
 		wind,
 		account: new AccountSource(session),
 		tokens: new TokensSource(session),
+		agreement: new AgreementSource(session, () => wind.serverNow()),
+		foehn: new FoehnSource(
+			() => wind.present(),
+			() => wind.serverNow()
+		),
 		alerts: new AlertsSource(session),
 		social: new SocialSource(session, () => wind.serverNow()),
 		airspace: new AirspaceSource(session, () => wind.present()),

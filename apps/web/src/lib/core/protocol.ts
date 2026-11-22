@@ -29,6 +29,8 @@ import type {
 import { flightFileText } from './flight-text';
 import type {
 	AccountView,
+	AgreementOutcome,
+	FoehnView,
 	GoogleWords,
 	AlertDraft,
 	AlertFormWords,
@@ -162,6 +164,8 @@ import type { Box, TakeoffsSource } from './takeoffs-source';
 import type { RadarColours, RadarSource } from './radar-source';
 import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
 import type { AccessWanted, ProgramView, TokensSource } from './tokens-source';
+import type { AgreementRead, AgreementSaid, AgreementSource } from './agreement-source';
+import type { FoehnSource } from './foehn-source';
 import { routePlan } from './route-plan';
 import type {
 	RouteWeatherAnswer,
@@ -530,6 +534,25 @@ export interface Calls {
 	giveAccess: { given: AccessWanted; answer: TokenCreated };
 	/** Given a token's identifier: withdraws that program's access. */
 	withdrawAccess: { given: string; answer: undefined };
+	/** The page `/connect/`: its buttons' words and the page of a request that has ended. */
+	agreementSaid: { given: undefined; answer: AgreementSaid };
+	/**
+	 * Given the identifier in the page's address: the request a program
+	 * made, as a page, for the account this browser is signed in to. It
+	 * never fails, and for text that is no identifier nothing is sent.
+	 */
+	agreementRead: { given: string; answer: AgreementRead };
+	/**
+	 * Answers a program's request with the session. The answer may hold the
+	 * address the browser goes to, a secret for two minutes: go there and
+	 * keep it nowhere.
+	 */
+	agreementAnswer: { given: { id: string; agree: boolean }; answer: AgreementOutcome };
+	/**
+	 * Given where Today's take-offs are: the foehn view and Today's line,
+	 * by the server's clock. Nothing if this site has no server.
+	 */
+	foehn: { given: Coordinate[]; answer: FoehnView | undefined };
 	/** The sixteen points of the compass an alarm's directions are chosen from. */
 	alertPoints: { given: undefined; answer: string[] };
 	/** Every word of the alarms' screens. */
@@ -705,6 +728,8 @@ export interface Answering {
 	wind: WindSource;
 	account: AccountSource;
 	tokens: TokensSource;
+	agreement: AgreementSource;
+	foehn: FoehnSource;
 	alerts: AlertsSource;
 	social: SocialSource;
 	airspace: AirspaceSource;
@@ -733,6 +758,8 @@ export async function answer<Name extends CallName>(
 		wind,
 		account,
 		tokens,
+		agreement,
+		foehn,
 		alerts,
 		social,
 		airspace,
@@ -875,6 +902,10 @@ export async function answer<Name extends CallName>(
 		programs: () => tokens.list(),
 		giveAccess: (wanted) => tokens.give(wanted),
 		withdrawAccess: (id) => tokens.withdraw(id),
+		agreementSaid: () => agreement.said(),
+		agreementRead: (id) => agreement.read(id),
+		agreementAnswer: ({ id, agree }) => agreement.answer(id, agree),
+		foehn: (places) => foehn.read(places),
 		socialWords: () => social.words(),
 		follows: (handle) => social.follows(handle),
 		follow: ({ handle, follow }) => social.follow(handle, follow),

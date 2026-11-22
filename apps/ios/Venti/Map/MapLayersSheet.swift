@@ -3,8 +3,8 @@ import VentiCore
 
 /// What the map tab keeps off the map: the layers without a chip as
 /// switches, and the lists of what the map shows as rows. The map itself
-/// has four chips and two round buttons, and this sheet behind the first
-/// of those.
+/// has four chips and three round buttons (airspace, this sheet and the
+/// position), and this sheet behind the second of those.
 struct MapLayersSheet: View {
     /// A list or a form the sheet's rows open, once the sheet has closed.
     enum Opening {
@@ -34,7 +34,7 @@ struct MapLayersSheet: View {
     let open: (Opening) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(Preferences.mapHidesAirspace) private var hidesAirspace = false
+    @AppStorage(Preferences.mapShowsAirspace) private var showsAirspace = false
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
     @AppStorage(Preferences.mapHidesCables) private var hidesCables = false
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
@@ -46,7 +46,7 @@ struct MapLayersSheet: View {
         NavigationStack {
             VentiList {
                 Section {
-                    Toggle(isOn: shown($hidesAirspace)) {
+                    Toggle(isOn: $showsAirspace) {
                         Label(words.airspace, image: "icon-airspace")
                     }
                     .accessibilityIdentifier("layer-airspace")

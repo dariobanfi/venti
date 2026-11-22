@@ -27,7 +27,9 @@ struct MapScreen: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
-    @AppStorage(Preferences.mapHidesAirspace) private var hidesAirspace = false
+    /// Airspace on the map tab: off until the pilot switches it on, with
+    /// the round button or in the layers sheet.
+    @AppStorage(Preferences.mapShowsAirspace) private var showsAirspace = false
     @AppStorage(Preferences.mapHidesSites) private var hidesSites = false
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
     @AppStorage(Preferences.mapHidesCables) private var hidesCables = false
@@ -117,7 +119,7 @@ struct MapScreen: View {
             OverviewMap(
                 outlines: outlines,
                 stations: hidesWind ? [] : wind.stations,
-                airspace: hidesAirspace ? [] : airspaceInView,
+                airspace: airspaceInView,
                 sites: hidesSites ? [] : sites.filtered.fitting,
                 unsaidSites: hidesSites ? [] : sites.filtered.unsaid,
                 candidates: hidesSites ? [] : candidates.candidates,
@@ -134,16 +136,7 @@ struct MapScreen: View {
                     sites.show(region)
                     candidates.show(region)
                     live.show(region)
-                    // The airspace around what the pilot is looking at,
-                    // unless it is the whole continent.
-                    if region.north - region.south < 4 {
-                        let centre = Coordinate(
-                            lat: (region.south + region.north) / 2, lon: (region.west + region.east) / 2
-                        )
-                        Task {
-                            await airspace.refresh(around: centre)
-                        }
-                    }
+                    refreshAirspace(in: region)
                     // The cables around it, close enough in for them to
                     // be drawn.
                     if !hidesCables, region.north - region.south < 0.5 {
@@ -207,7 +200,7 @@ struct MapScreen: View {
                 // A tap where airspace is drawn and nothing else of the
                 // app's lies: what is over the place.
                 onAirspace: { place in
-                    guard !hidesAirspace, let over = airspace.over(place),
+                    guard showsAirspace, let over = airspace.over(place),
                           Self.isDrawn(over, among: airspaceInView)
                     else { return }
                     chosenAirspace = ChosenAirspacePlace(over: over)
@@ -258,9 +251,18 @@ struct MapScreen: View {
 
             StatusBarScrim()
 
-            // Two round buttons and no more: every list and every layer
-            // without a chip is in the sheet the first opens.
+            // Three round buttons and no more: airspace, switched on and
+            // off with one tap, and every other list and layer without a
+            // chip in the sheet the second opens.
             VStack(spacing: 12) {
+                Button {
+                    showsAirspace.toggle()
+                } label: {
+                    Label(mapLayersWords().airspace, image: "icon-airspace")
+                }
+                .buttonStyle(.ventiRound(isOn: showsAirspace))
+                .accessibilityIdentifier("map-airspace")
+                .accessibilityAddTraits(showsAirspace ? .isSelected : [])
                 Button {
                     showsLayers = true
                 } label: {
@@ -281,6 +283,13 @@ struct MapScreen: View {
                 candidatesNotice
                 othersNotice
                 airNotice
+            }
+        }
+        // Airspace switched on: asked for at once around the map, which
+        // has not moved.
+        .onChange(of: showsAirspace) { _, isOn in
+            if isOn, let region {
+                refreshAirspace(in: region)
             }
         }
         // What others found in the air: asked for while its layers are on.
@@ -730,15 +739,18 @@ struct MapScreen: View {
         return air.flown?.cells.isEmpty == true ? mapLayersWords().flownEmpty : ""
     }
 
-    /// What the two layers of the air say over the map when it shows too
-    /// much for them to be asked for: the core's words, as the Pilots
-    /// layer's.
+    /// What airspace and the two layers of the air say over the map when
+    /// it shows too much for them to be drawn or asked for: the core's
+    /// words, as the Pilots layer's. Airspace's first, and in place of the
+    /// climbs': the two say the same.
     @ViewBuilder private var airNotice: some View {
-        if wind.server != nil {
-            let words = [
-                showsFlown && air.flownTooWide ? flownTooWideWords() : "",
-                showsClimbs && air.climbsTooWide ? mapLayersWords().climbsTooWide : "",
-            ].filter { !$0.isEmpty }
+        let words = [
+            isAirspaceTooWide ? mapLayersWords().airspaceTooWide : "",
+            wind.server != nil && showsFlown && air.flownTooWide ? flownTooWideWords() : "",
+            wind.server != nil && showsClimbs && air.climbsTooWide && !isAirspaceTooWide
+                ? mapLayersWords().climbsTooWide : "",
+        ].filter { !$0.isEmpty }
+        if !words.isEmpty {
             ForEach(words, id: \.self) { words in
                 Text(words)
                     .font(.venti(.footnote))
@@ -761,7 +773,7 @@ struct MapScreen: View {
         if !wind.credits.isEmpty, !hidesWind {
             parts.append("Wind: \(wind.credits.map(\.provider).formatted(.list(type: .and)))")
         }
-        if !airspace.credits.isEmpty, !hidesAirspace, let region, region.east - region.west < 6 {
+        if !airspace.credits.isEmpty, showsAirspace, let region, region.east - region.west < Self.widestAirspace {
             // What the providers of airspace ask to be said is said here
             // in two words and in full on the airspace screen.
             let certified = airspace.credits.contains { $0.notice != nil } ? ", not certified" : ""
@@ -1039,12 +1051,33 @@ struct MapScreen: View {
         }
     }
 
-    /// The airspace in the part of the map in view. Zoomed far out, a
-    /// country's airspace is a tangle and is not drawn, so it is not
-    /// asked for either.
+    /// The airspace in the part of the map in view, while the pilot has
+    /// it switched on. Zoomed far out, a country's airspace is a tangle
+    /// and is not drawn.
     private var airspaceInView: [AirspaceShape] {
-        guard let region, region.east - region.west < 6 else { return [] }
+        guard showsAirspace, let region, region.east - region.west < Self.widestAirspace else { return [] }
         return airspace.shapes(in: region, below: airspaceCeilingM)
+    }
+
+    /// The widest part of the map, in degrees of longitude, that airspace
+    /// is drawn in.
+    private static let widestAirspace = 6.0
+
+    /// Whether airspace is switched on and the map shows too wide a part
+    /// for it to be drawn.
+    private var isAirspaceTooWide: Bool {
+        guard showsAirspace, let region else { return false }
+        return region.east - region.west >= Self.widestAirspace
+    }
+
+    /// Asks for the airspace around what the pilot is looking at, while
+    /// it is switched on and the map shows less than the whole continent.
+    private func refreshAirspace(in region: Bounds) {
+        guard showsAirspace, region.north - region.south < 4 else { return }
+        let centre = Coordinate(lat: (region.south + region.north) / 2, lon: (region.west + region.east) / 2)
+        Task {
+            await airspace.refresh(around: centre)
+        }
     }
 
     /// Whether an airspace over the place is one the map draws: one the

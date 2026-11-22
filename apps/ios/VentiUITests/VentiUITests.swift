@@ -54,10 +54,27 @@ final class VentiUITests: XCTestCase {
 
     /// The layers the map tab keeps as switches in its layers sheet; the
     /// others ("layer-wind", "layer-sites", the forecast and the radar)
-    /// are chips on the map.
+    /// are chips on the map, and airspace ("layer-airspace") is its own
+    /// round button too, which `setLayer` taps (`setAirspace`).
     private static let layersInTheSheet: Set<String> = [
-        "layer-airspace", "layer-pilots", "layer-cables", "map-aerial", "layer-climbs", "layer-flown",
+        "layer-pilots", "layer-cables", "map-aerial", "layer-climbs", "layer-flown",
     ]
+
+    /// Switches airspace on the map tab on or off with its round button,
+    /// one tap: off until the pilot switches it on, and the choice is kept
+    /// between launches, so a test looks which way it stands first.
+    private func setAirspace(on: Bool, in app: XCUIApplication) {
+        let button = app.buttons["map-airspace"]
+        guard button.waitForExistence(timeout: 30) else {
+            XCTFail("The map has no airspace button.")
+            return
+        }
+        if button.isSelected != on {
+            button.tap()
+            usleep(700_000)
+        }
+        XCTAssertEqual(button.isSelected, on)
+    }
 
     /// Opens the map tab's layers sheet, from the first of its two round
     /// buttons: the layers without a chip are switches in it, and the
@@ -116,6 +133,10 @@ final class VentiUITests: XCTestCase {
     /// or a switch in the layers sheet, which is opened for it and closed
     /// again.
     private func setLayer(_ identifier: String, on: Bool, in app: XCUIApplication) {
+        if identifier == "layer-airspace" {
+            setAirspace(on: on, in: app)
+            return
+        }
         if Self.layersInTheSheet.contains(identifier) {
             guard openLayers(in: app) else { return }
             let toggle = app.switches[identifier]
@@ -959,6 +980,8 @@ final class VentiUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
         openTab("Map", in: app)
+        // Airspace is off on the map tab until the pilot switches it on.
+        setAirspace(on: true, in: app)
         sleep(5)
         keepScreenshot("map-airspace")
 
@@ -996,6 +1019,70 @@ final class VentiUITests: XCTestCase {
         filter.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(filter.buttons.element(boundBy: 0).isSelected)
         app.buttons["Done"].tap()
+        // Off again, as the map tab opens.
+        setAirspace(on: false, in: app)
+    }
+
+    /// The map tab opens without airspace: not drawn, and a tap where the
+    /// made-up zone lies opens nothing. The round button over the layers
+    /// button switches it on with one tap (drawn, and the layers sheet's
+    /// switch with it), and off again. Zoomed out too far, the map says
+    /// to zoom in. Light, then dark.
+    func testTheMapOpensWithoutAirspaceAndOneTapShowsIt() {
+        for dark in [false, true] {
+            // The made-up zone is a circle of one nautical mile around
+            // 47.70 N, 11.733 E: at the map's middle.
+            let app = launch(bundledMap: true, dark: dark, extra: ["--sample-airspace", "--map-at", "47.7,11.7333,12"])
+            let button = app.buttons["map-airspace"]
+            XCTAssertTrue(button.waitForExistence(timeout: 90))
+            // The choice is kept between launches: an earlier run that
+            // stopped half-way may have left it on.
+            setAirspace(on: false, in: app)
+            XCTAssertEqual(button.label, "Airspace")
+            sleep(3)
+            keepScreenshot(dark ? "map-airspace-1-off-dark" : "map-airspace-1-off")
+
+            // Off: a tap on the zone opens no sheet.
+            let over = element("airspace-over-words", in: app)
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            XCTAssertFalse(over.waitForExistence(timeout: 3), "Airspace switched off opened a sheet.")
+
+            // On with one tap: drawn, and a tap on it says what is over
+            // the place.
+            button.tap()
+            usleep(700_000)
+            XCTAssertTrue(button.isSelected)
+            sleep(3)
+            keepScreenshot(dark ? "map-airspace-2-on-dark" : "map-airspace-2-on")
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            XCTAssertTrue(over.waitForExistence(timeout: 10), "The zone at the map's middle is not drawn.")
+            XCTAssertTrue(labelled(containing: "SAMPLE ZONE (NOT REAL)", in: app).exists)
+            app.buttons["Done"].tap()
+            usleep(700_000)
+
+            // The layers sheet's switch is the same choice.
+            XCTAssertTrue(openLayers(in: app))
+            let toggle = app.switches["layer-airspace"]
+            XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+            XCTAssertTrue(isOn(toggle))
+            set(toggle, on: false)
+            closeLayers(in: app)
+            XCTAssertFalse(button.isSelected, "The sheet's switch did not move the button.")
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            XCTAssertFalse(over.waitForExistence(timeout: 3))
+            app.terminate()
+        }
+
+        // Too far out to draw: on, the map says to zoom in, in the
+        // core's words; off, it says nothing.
+        let app = launch(bundledMap: true, extra: ["--sample-airspace", "--map-at", "47.7,11.7333,5"])
+        setAirspace(on: true, in: app)
+        let notice = app.staticTexts["Zoom in to see airspace."]
+        XCTAssertTrue(notice.waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("map-airspace-3-too-wide")
+        setAirspace(on: false, in: app)
+        XCTAssertFalse(notice.waitForExistence(timeout: 3))
     }
 
     /// Today, against a Venti server in development mode: the take-offs
@@ -1541,9 +1628,10 @@ final class VentiUITests: XCTestCase {
 
         // The choices are kept between launches: an earlier run that
         // stopped half-way may have left the other layers off.
-        for layer in ["layer-wind", "layer-airspace", "layer-sites", "layer-pilots"] {
+        for layer in ["layer-wind", "layer-sites", "layer-pilots"] {
             setLayer(layer, on: true, in: app)
         }
+        setLayer("layer-airspace", on: false, in: app)
         setLayer("forecast-chip", on: false, in: app)
 
         // And it may have left this layer on.
@@ -1752,10 +1840,11 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
         // Nothing over the squares: the wind, the airspace, the sites and
         // the pilots off.
-        let others = ["layer-wind", "layer-airspace", "layer-sites", "layer-pilots"]
+        let others = ["layer-wind", "layer-sites", "layer-pilots"]
         for layer in others {
             setLayer(layer, on: false, in: app)
         }
+        setLayer("layer-airspace", on: false, in: app)
         setLayer("forecast-chip", on: true, in: app)
         XCTAssertTrue(element("forecast-chip", in: app).isSelected)
         chooseForecastLayer("thermals", in: app)
@@ -2235,7 +2324,7 @@ final class VentiUITests: XCTestCase {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")
         }
-        let quiet = ["layer-wind", "layer-airspace", "layer-sites"]
+        let quiet = ["layer-wind", "layer-sites"]
         for dark in [false, true] {
             let app = launch(
                 bundledMap: true, dark: dark, extra: ["--server", server, "--map-at", "47.6642,11.7967,11"]
@@ -2244,6 +2333,7 @@ final class VentiUITests: XCTestCase {
             for layer in quiet {
                 setLayer(layer, on: false, in: app)
             }
+            setLayer("layer-airspace", on: false, in: app)
             setLayer("layer-pilots", on: true, in: app)
 
             // The count of the Pilots layer, in the core's words, and the
@@ -2303,9 +2393,10 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 90))
         // Every layer on: the choices are kept between launches, and a
         // test that stopped half-way may have left one off.
-        for layer in ["layer-airspace", "layer-pilots", "layer-sites"] {
+        for layer in ["layer-pilots", "layer-sites"] {
             setLayer(layer, on: true, in: app)
         }
+        setLayer("layer-airspace", on: false, in: app)
         // The credit appears with the first answer from the server.
         XCTAssertTrue(waitForCredit("Wind", in: app))
         sleep(12)

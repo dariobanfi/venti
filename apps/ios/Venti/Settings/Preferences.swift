@@ -31,10 +31,13 @@ enum Preferences {
     /// The layers of the map tab the pilot has switched off with its
     /// chips. All are shown until then.
     static let mapHidesWind = "VentiMapHidesWind"
-    static let mapHidesAirspace = "VentiMapHidesAirspace"
     static let mapHidesSites = "VentiMapHidesSites"
     static let mapHidesPilots = "VentiMapHidesPilots"
     static let mapHidesCables = "VentiMapHidesCables"
+    /// Whether the map tab draws airspace: off until the pilot switches it
+    /// on, with the round button over the map or in the layers sheet. The
+    /// cockpit draws all of it whatever this says.
+    static let mapShowsAirspace = "VentiMapShowsAirspace"
     /// Whether the maps show the aerial view, photographs from above, in
     /// place of the drawn ground. One choice for every map of the app.
     static let mapShowsAerial = "VentiMapShowsAerial"

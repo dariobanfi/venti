@@ -404,6 +404,32 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn create_authorization_request(
+        &self,
+        _: &SecretHash,
+        _: &crate::AuthorizationRequest,
+        _: Timestamp,
+        _: usize,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn authorization_request(
+        &self,
+        _: &SecretHash,
+        _: Timestamp,
+    ) -> Result<crate::RequestState, StoreError> {
+        self.fail().await
+    }
+
+    async fn answer_authorization_request(
+        &self,
+        _: &SecretHash,
+        _: Timestamp,
+    ) -> Result<crate::RequestState, StoreError> {
+        self.fail().await
+    }
+
     async fn create_authorization_code(
         &self,
         _: &SecretHash,

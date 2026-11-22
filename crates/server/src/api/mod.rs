@@ -64,6 +64,7 @@
 //! ([`oauth`], the authorization server). Neither is part of `/v1`.
 
 mod account;
+mod agreement;
 mod air;
 mod airspace;
 mod alerts;
@@ -156,7 +157,7 @@ use crate::thermals::ThermalMap;
 
 pub use mcp::MCP_PATH;
 pub use oauth::{
-    AUTHORIZATION_SERVER_PATH, AUTHORIZE_PATH, PROTECTED_RESOURCE_MCP_PATH,
+    AUTHORIZATION_SERVER_PATH, AUTHORIZE_PATH, CONNECT_PATH, PROTECTED_RESOURCE_MCP_PATH,
     PROTECTED_RESOURCE_PATH, REGISTER_PATH, REVOKE_PATH, TOKEN_PATH,
 };
 pub use openapi::OPENAPI_PATH;
@@ -697,6 +698,10 @@ impl<S: Store> Api<S> {
             .route(
                 ACCOUNT_TOKENS_PATH,
                 post(account::create_token::<S>).get(account::tokens::<S>),
+            )
+            .route(
+                agreement::ROUTE,
+                get(agreement::show::<S>).post(agreement::answer::<S>),
             )
             .route(
                 "/v1/account/tokens/{id}",

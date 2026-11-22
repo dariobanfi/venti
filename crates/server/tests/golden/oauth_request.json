@@ -1,0 +1,14 @@
+{
+  "program": "Assistant",
+  "returns_to": "assistant.example",
+  "on_this_device": false,
+  "scopes": [
+    "flights:read"
+  ],
+  "may_read": [
+    "Your flights, the private ones and those you share by link too: when and where you flew, how long, how far and how high, the score and your glider."
+  ],
+  "may_not": "Change, delete or upload anything, or see anything else of your account.",
+  "lasts": "Until you withdraw it: it is listed in your Venti account among the programs with access. It also ends by itself when the program has not used it for 180 days.",
+  "expires_at": "2026-11-18T19:20:00Z"
+}

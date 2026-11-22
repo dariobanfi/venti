@@ -10,7 +10,7 @@
 use std::fmt;
 
 use sha2::{Digest, Sha256};
-use venti_api_types::v1::ACCESS_TOKEN_PREFIX;
+use venti_api_types::v1::{ACCESS_TOKEN_PREFIX, AUTHORIZATION_REQUEST_PREFIX};
 use venti_store::SecretHash;
 
 /// The characters identifiers and tokens are written in: the digits and the
@@ -183,6 +183,9 @@ impl fmt::Debug for AccessSecret {
 /// Which secret of the authorization server a text is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OauthKind {
+    /// The identifier of a request that waits for a pilot's answer: what
+    /// the web app reads the request by and answers it under, once.
+    Request,
     /// The code a pilot's agreement is turned into, exchanged once.
     Code,
     /// The access token a program sends to the connector.
@@ -195,6 +198,7 @@ impl OauthKind {
     /// What a secret of this kind starts with.
     pub const fn prefix(self) -> &'static str {
         match self {
+            Self::Request => AUTHORIZATION_REQUEST_PREFIX,
             Self::Code => "venti_oac_",
             Self::Access => "venti_oat_",
             Self::Refresh => "venti_ort_",
@@ -203,6 +207,7 @@ impl OauthKind {
 
     fn domain(self) -> &'static [u8] {
         match self {
+            Self::Request => b"venti oauth request 1\0",
             Self::Code => b"venti oauth code 1\0",
             Self::Access => b"venti oauth access token 1\0",
             Self::Refresh => b"venti oauth refresh token 1\0",
@@ -210,8 +215,10 @@ impl OauthKind {
     }
 }
 
-/// A secret the authorization server gives a program: a code, an access
-/// token or a refresh token.
+/// A secret the authorization server gives out: the identifier of a
+/// request that waits for a pilot's answer, which goes to the pilot's
+/// browser, and what a program gets, a code, an access token or a refresh
+/// token.
 ///
 /// Each is written as a session's token is, 256 random bits after a
 /// prefix, with a prefix of its own, and hashed apart from every other
@@ -433,7 +440,12 @@ mod tests {
 
     #[test]
     fn the_authorization_servers_secrets_are_told_apart_by_their_form() {
-        let kinds = [OauthKind::Code, OauthKind::Access, OauthKind::Refresh];
+        let kinds = [
+            OauthKind::Request,
+            OauthKind::Code,
+            OauthKind::Access,
+            OauthKind::Refresh,
+        ];
         for kind in kinds {
             let secret = OauthSecret::new(kind).unwrap();
             let text = secret.expose().to_owned();

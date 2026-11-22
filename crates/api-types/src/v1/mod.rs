@@ -25,6 +25,8 @@
 //! | [`ACCOUNT_TOKENS_PATH`] | POST | [`CreateAccessTokenRequest`] | [`CreateAccessTokenResponse`] |
 //! | [`ACCOUNT_TOKENS_PATH`] | GET | | [`AccessTokensResponse`] |
 //! | [`account_token_path`] | DELETE | | nothing |
+//! | [`oauth_request_path`] | GET | | [`AuthorizationRequestResponse`] |
+//! | [`oauth_request_path`] | POST | [`AnswerAuthorizationRequest`] | [`AuthorizationAnswerResponse`] |
 //! | [`KEPT_SITE_CHANGES_PATH`] | GET | [`KeptSiteChangesRequest`] | [`KeptSiteChangesResponse`] |
 //! | [`kept_site_path`] | PUT | [`KeepSiteRequest`] | [`KeptSiteResponse`] |
 //! | [`kept_site_path`] | DELETE | | nothing |
@@ -95,6 +97,7 @@ mod airspace;
 mod alerts;
 mod archive;
 mod attribution;
+mod authorization;
 mod cables;
 mod dumps;
 mod error;
@@ -151,6 +154,11 @@ pub use archive::{
     ArchiveSiteConfirmation, ArchiveSites, MAX_ARCHIVE_FILE_BYTES,
 };
 pub use attribution::Attribution;
+pub use authorization::{
+    AUTHORIZATION_REQUEST_PREFIX, AnswerAuthorizationRequest, AuthorizationAnswerResponse,
+    AuthorizationRequestResponse, OAUTH_REQUESTS_PATH, is_authorization_request_id,
+    oauth_request_path,
+};
 pub use cables::{CABLES_PATH, CableLayer, CablesRequest, CablesResponse, MAX_CABLES};
 pub use dumps::{
     CSV_MEDIA_TYPE, DUMPS_PATH, DumpContent, DumpFile, DumpFormat, DumpLayer, DumpStamp,

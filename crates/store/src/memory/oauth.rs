@@ -6,13 +6,17 @@ use venti_domain::Timestamp;
 
 use super::accounts::Accounts;
 use crate::{
-    AuthorizationCode, NewGrant, OauthClient, Redeemed, Refreshed, Rotation, SecretHash, StoredCode,
+    AuthorizationCode, AuthorizationRequest, NewGrant, OauthClient, Redeemed, Refreshed,
+    RequestState, Rotation, SecretHash, StoredCode,
 };
 
 #[derive(Debug, Default)]
 pub(super) struct Oauth {
     /// The registered programs, by identifier.
     clients: BTreeMap<String, OauthClient>,
+    /// The requests that wait for a pilot's answer or got one, by the
+    /// hash of their identifier.
+    requests: BTreeMap<SecretHash, RequestEntry>,
     /// The codes, by their hash.
     pub(super) codes: BTreeMap<SecretHash, CodeEntry>,
     /// The refresh tokens, used up or not, by their hash.
@@ -25,6 +29,12 @@ pub(super) struct CodeEntry {
     used: bool,
     /// The token that came of its exchange.
     token_id: Option<String>,
+}
+
+#[derive(Debug)]
+struct RequestEntry {
+    request: AuthorizationRequest,
+    answered: bool,
 }
 
 #[derive(Debug)]
@@ -55,6 +65,9 @@ impl Accounts {
 
     fn remove_client(&mut self, client_id: &str) {
         self.oauth.clients.remove(client_id);
+        self.oauth
+            .requests
+            .retain(|_, entry| entry.request.client_id != client_id);
         self.oauth
             .codes
             .retain(|_, entry| entry.code.client_id != client_id);
@@ -90,6 +103,59 @@ impl Accounts {
 
     pub(super) fn oauth_client(&self, client_id: &str) -> Option<OauthClient> {
         self.oauth.clients.get(client_id).cloned()
+    }
+
+    pub(super) fn create_authorization_request(
+        &mut self,
+        request: &SecretHash,
+        record: &AuthorizationRequest,
+        now: Timestamp,
+        most: usize,
+    ) -> bool {
+        self.oauth
+            .requests
+            .retain(|_, entry| entry.request.expires_at > now);
+        if self.oauth.requests.len() >= most
+            || self.oauth.requests.contains_key(request)
+            || !self.oauth.clients.contains_key(&record.client_id)
+        {
+            return false;
+        }
+        let entry = RequestEntry {
+            request: record.clone(),
+            answered: false,
+        };
+        self.oauth.requests.insert(*request, entry);
+        true
+    }
+
+    pub(super) fn authorization_request(
+        &self,
+        request: &SecretHash,
+        now: Timestamp,
+    ) -> RequestState {
+        match self.oauth.requests.get(request) {
+            Some(entry) if entry.request.expires_at <= now => RequestState::Unknown,
+            Some(entry) if entry.answered => RequestState::Answered,
+            Some(entry) => RequestState::Waiting(entry.request.clone()),
+            None => RequestState::Unknown,
+        }
+    }
+
+    pub(super) fn answer_authorization_request(
+        &mut self,
+        request: &SecretHash,
+        now: Timestamp,
+    ) -> RequestState {
+        match self.oauth.requests.get_mut(request) {
+            Some(entry) if entry.request.expires_at <= now => RequestState::Unknown,
+            Some(entry) if entry.answered => RequestState::Answered,
+            Some(entry) => {
+                entry.answered = true;
+                RequestState::Waiting(entry.request.clone())
+            }
+            None => RequestState::Unknown,
+        }
     }
 
     pub(super) fn create_authorization_code(
@@ -268,6 +334,9 @@ impl Accounts {
     }
 
     pub(super) fn prune_oauth(&mut self, now: Timestamp, unused_since: Timestamp) -> u64 {
+        self.oauth
+            .requests
+            .retain(|_, entry| entry.request.expires_at > now);
         self.oauth
             .codes
             .retain(|_, entry| entry.code.expires_at > now);

@@ -511,6 +511,18 @@ fn operations() -> Vec<Op> {
             .session()
             .nothing(),
         get(
+            "/v1/oauth/requests/{id}",
+            "A request for the pilot's agreement that a program may read for them",
+        )
+        .json("AuthorizationRequestResponse"),
+        post(
+            "/v1/oauth/requests/{id}",
+            "Answer such a request: agree or refuse; the answer is where the browser goes",
+        )
+        .session()
+        .takes("AnswerAuthorizationRequest")
+        .json("AuthorizationAnswerResponse"),
+        get(
             KEPT_SITE_CHANGES_PATH,
             "What changed among the sites the pilot keeps as their own",
         )

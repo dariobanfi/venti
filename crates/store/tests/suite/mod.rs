@@ -135,6 +135,7 @@ macro_rules! store_suite {
             tokens_for_programs_are_withdrawn_one_by_one,
             an_account_holds_only_so_many_tokens_for_programs,
             the_oldest_unused_program_makes_room_for_a_new_one,
+            a_request_for_agreement_is_answered_once,
             a_code_is_exchanged_once_and_no_second_time,
             a_refresh_token_is_used_once_and_no_second_time,
             a_refresh_token_is_good_until_its_end,

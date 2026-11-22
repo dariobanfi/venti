@@ -859,6 +859,33 @@ impl Store for PgStore {
         oauth::oauth_client(&self.client().await?, client_id).await
     }
 
+    async fn create_authorization_request(
+        &self,
+        request: &SecretHash,
+        record: &crate::AuthorizationRequest,
+        now: Timestamp,
+        most: usize,
+    ) -> Result<bool, StoreError> {
+        oauth::create_authorization_request(&mut self.client().await?, request, record, now, most)
+            .await
+    }
+
+    async fn authorization_request(
+        &self,
+        request: &SecretHash,
+        now: Timestamp,
+    ) -> Result<crate::RequestState, StoreError> {
+        oauth::authorization_request(&self.client().await?, request, now).await
+    }
+
+    async fn answer_authorization_request(
+        &self,
+        request: &SecretHash,
+        now: Timestamp,
+    ) -> Result<crate::RequestState, StoreError> {
+        oauth::answer_authorization_request(&self.client().await?, request, now).await
+    }
+
     async fn create_authorization_code(
         &self,
         code: &SecretHash,

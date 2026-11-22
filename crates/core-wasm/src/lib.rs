@@ -58,6 +58,7 @@ use venti_core::{
     ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
     TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
+use venti_core::{AgreementOutcome, AgreementPage, AgreementWords};
 use venti_core::{
     AlertDraft, AlertFaultView, AlertFormWords, AlertView, FiredLine, FiredPage, PilotsAlarmNumbers,
 };
@@ -1522,6 +1523,60 @@ pub fn token_created(
     now_unix_s: f64,
 ) -> Result<Ts<TokenCreated>, JsValue> {
     to_js(&venti_core::token_created(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+// Letting a program read the pilot's flights, for the page `/connect/`:
+// the server's page links to it with `?request=` and an identifier, the
+// page reads the request and answers it with the session token, and the
+// answer is the address the browser goes to. The core has every word.
+// Nothing of it is kept, the identifier and that address least of all.
+
+/// The words of the page that do not depend on the request: the buttons
+/// "Allow" and "Don't allow", "Sign in", and what it says while it waits.
+#[wasm_bindgen(js_name = agreementWords)]
+pub fn agreement_words() -> Result<Ts<AgreementWords>, JsValue> {
+    to_js(&venti_core::agreement_words())
+}
+
+/// The page for a request that has ended: for a link with no identifier
+/// or one that is none, and when an open page reaches the request's end.
+#[wasm_bindgen(js_name = agreementEnded)]
+pub fn agreement_ended() -> Result<Ts<AgreementPage>, JsValue> {
+    to_js(&venti_core::agreement_ended())
+}
+
+/// The request that reads a request for agreement, by the identifier in
+/// the page's address. It needs no token. Throws for text that is no
+/// identifier: show `agreementEnded` then.
+#[wasm_bindgen(js_name = agreementRequest)]
+pub fn agreement_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::agreement_request(id).map_err(thrown)?)
+}
+
+/// Reads the answer to `agreementRequest` into the page. `handle` is the
+/// handle of the account this browser is signed in to, if it is signed in
+/// to one. It does not throw for a refusal: that is a page too.
+#[wasm_bindgen(js_name = agreementPage)]
+pub fn agreement_page(
+    status: u16,
+    body: Vec<u8>,
+    handle: Option<String>,
+) -> Result<Ts<AgreementPage>, JsValue> {
+    to_js(&venti_core::agreement_page(status, body, handle))
+}
+
+/// The request that answers: `agree` is `true` for "Allow" and `false`
+/// for "Don't allow". It goes with the session token.
+#[wasm_bindgen(js_name = agreementAnswerRequest)]
+pub fn agreement_answer_request(id: String, agree: bool) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::agreement_answer_request(id, agree).map_err(thrown)?)
+}
+
+/// Reads the answer to `agreementAnswerRequest`: where the browser goes,
+/// or what the page shows in its place.
+#[wasm_bindgen(js_name = agreementAnswered)]
+pub fn agreement_answered(status: u16, body: Vec<u8>) -> Result<Ts<AgreementOutcome>, JsValue> {
+    to_js(&venti_core::agreement_answered(status, body))
 }
 
 /// The request for the cables around a place: power lines and ropeways

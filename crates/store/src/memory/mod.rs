@@ -828,6 +828,38 @@ impl Store for MemoryStore {
         Ok(self.lock().accounts.oauth_client(client_id))
     }
 
+    async fn create_authorization_request(
+        &self,
+        request: &SecretHash,
+        record: &crate::AuthorizationRequest,
+        now: Timestamp,
+        most: usize,
+    ) -> Result<bool, StoreError> {
+        Ok(self
+            .lock()
+            .accounts
+            .create_authorization_request(request, record, now, most))
+    }
+
+    async fn authorization_request(
+        &self,
+        request: &SecretHash,
+        now: Timestamp,
+    ) -> Result<crate::RequestState, StoreError> {
+        Ok(self.lock().accounts.authorization_request(request, now))
+    }
+
+    async fn answer_authorization_request(
+        &self,
+        request: &SecretHash,
+        now: Timestamp,
+    ) -> Result<crate::RequestState, StoreError> {
+        Ok(self
+            .lock()
+            .accounts
+            .answer_authorization_request(request, now))
+    }
+
     async fn create_authorization_code(
         &self,
         code: &SecretHash,

@@ -140,6 +140,12 @@ pub enum ErrorCode {
     TooManyTokens,
     /// The account has no token with this identifier.
     TokenNotFound,
+    /// No request for a pilot's agreement has this identifier, or its end
+    /// has come. The pilot starts again in the program that asked.
+    AuthorizationRequestNotFound,
+    /// The request for a pilot's agreement was answered already. A request
+    /// is answered once.
+    AuthorizationRequestAnswered,
     /// What a request says about a site to keep cannot be kept: a record
     /// that is no site's, an identifier that is not the one in the path,
     /// or a credit that is another source's or too long. The message

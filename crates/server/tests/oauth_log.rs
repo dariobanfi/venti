@@ -17,8 +17,9 @@ use venti_server::api::{AUTHORIZE_PATH, Settings};
 mod common;
 
 use common::oauth::{
-    CHALLENGE, REDIRECT, STATE, VERIFIER, call, carried, decide, exchange_of, form, page,
-    refresh_of, register, request, revoke, sent_back, shown, token_request, tokens_of, with,
+    CHALLENGE, REDIRECT, STATE, VERIFIER, answer_request, call, carried, decide, exchange_of, form,
+    page, read_request, redirected, refresh_of, register, request, revoke, sent_back, shown,
+    token_request, tokens_of, waiting, way_on, with,
 };
 use common::{PASSWORD, TestClock, ask, sample_file, server, settings, sign_up, upload};
 
@@ -162,6 +163,31 @@ async fn no_code_token_verifier_or_password_reaches_the_log() {
     .send(&router)
     .await;
 
+    // The other way to agree: in the web app, with the session. The
+    // request is read, answered by nobody and by a token that is none,
+    // refused once and agreed to once, answered a second time, read
+    // after it was answered, and asked for when it has ended; and an
+    // identifier is sent where it does not belong, in a query.
+    let first_request = way_on(looked.text()).unwrap();
+    read_request(&router, &first_request).await;
+    answer_request(&router, &first_request, None, true).await;
+    answer_request(&router, &first_request, Some(never_good), true).await;
+    let refused_request = waiting(&router, &asked).await;
+    redirected(&answer_request(&router, &refused_request, Some(&session), false).await);
+    let (_, back) =
+        redirected(&answer_request(&router, &first_request, Some(&session), true).await);
+    let web_code = carried(&back, "code").unwrap().to_owned();
+    answer_request(&router, &first_request, Some(&session), true).await;
+    read_request(&router, &first_request).await;
+    let fourth = tokens_of(&token_request(&router, &exchange_of(&client_id, &web_code)).await);
+    let ended_request = waiting(&router, &asked).await;
+    ask(Method::GET, &format!("/connect/?request={ended_request}"))
+        .send(&router)
+        .await;
+    clock.advance(chrono::Duration::minutes(16));
+    read_request(&router, &ended_request).await;
+    answer_request(&router, &ended_request, Some(&session), true).await;
+
     drop(_guard);
     let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
     // The log was listened to: it has what it should have.
@@ -175,10 +201,27 @@ async fn no_code_token_verifier_or_password_reaches_the_log() {
         "{log}"
     );
     assert!(log.contains(&client_id), "{log}");
+    // Both ways of agreeing wrote their line, and the requests of the
+    // web app were seen with what their paths name left out.
+    assert_eq!(
+        log.matches("a pilot agreed that a program may read their flights")
+            .count(),
+        3,
+        "{log}"
+    );
+    assert!(log.contains("/v1/oauth/requests/…"), "{log}");
 
     let never = [
         ("a code", code.as_str()),
         ("a code", second_code.as_str()),
+        ("a code", web_code.as_str()),
+        ("the identifier of a request", first_request.as_str()),
+        ("the identifier of a request", refused_request.as_str()),
+        ("the identifier of a request", ended_request.as_str()),
+        ("the identifier of a request", "venti_oar_"),
+        ("a query", "request="),
+        ("an access token", fourth.access.as_str()),
+        ("a refresh token", fourth.refresh.as_str()),
         ("an access token", first.access.as_str()),
         ("an access token", second.access.as_str()),
         ("an access token", third.access.as_str()),

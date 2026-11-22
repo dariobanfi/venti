@@ -24,6 +24,18 @@ pub const SCOPES: [Scope; 1] = [Scope::FlightsRead];
 /// at most (section 4.1.2).
 pub const CODE_LIFE: Duration = Duration::minutes(2);
 
+/// How long a request waits for the pilot's answer in the web app: the
+/// quarter of an hour the server's own page gives.
+pub const REQUEST_LIFE: Duration = Duration::minutes(15);
+
+/// The most requests that wait for an answer at once. Each is a row that
+/// a request without an account made, so there are only so many; one
+/// address makes 60 a minute at most, and each ends by itself after
+/// [`REQUEST_LIFE`]. When the table is full the server's page offers no
+/// way on into the web app until some have ended. An estimate, and the
+/// owner's to set.
+pub const MAX_WAITING_REQUESTS: usize = 20_000;
+
 /// How long an access token is good for before the program has to use its
 /// refresh token.
 pub const ACCESS_LIFE: Duration = Duration::hours(1);

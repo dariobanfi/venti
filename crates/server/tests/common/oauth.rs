@@ -5,7 +5,12 @@
 use axum::Router;
 use axum::http::{HeaderName, Method, StatusCode, header};
 use serde_json::{Value, json};
-use venti_server::api::{AUTHORIZE_PATH, MCP_PATH, REGISTER_PATH, REVOKE_PATH, TOKEN_PATH};
+use venti_api_types::v1::{
+    AnswerAuthorizationRequest, AuthorizationAnswerResponse, oauth_request_path,
+};
+use venti_server::api::{
+    AUTHORIZE_PATH, CONNECT_PATH, MCP_PATH, REGISTER_PATH, REVOKE_PATH, TOKEN_PATH,
+};
 
 use super::{Answer, PASSWORD, PUBLIC_URL, ask};
 
@@ -215,6 +220,68 @@ pub fn carried<'a>(back: &'a [(String, String)], name: &str) -> Option<&'a str> 
 pub async fn agree(router: &Router, client_id: &str, handle: &str) -> String {
     let answer = decide(router, &request(client_id), handle, PASSWORD, "agree").await;
     let (address, back) = sent_back(&answer);
+    assert_eq!(address, REDIRECT);
+    assert_eq!(carried(&back, "state"), Some(STATE));
+    assert_eq!(carried(&back, "iss"), Some(PUBLIC_URL));
+    carried(&back, "code").expect("a code").to_owned()
+}
+
+// --- Agreeing in the web app ---------------------------------------------------
+
+/// The identifier of the request that a page of the server's links into
+/// the web app with, if the page offers that way on.
+pub fn way_on(html: &str) -> Option<String> {
+    let start = format!("href=\"{PUBLIC_URL}{CONNECT_PATH}?request=");
+    let rest = &html[html.find(&start)? + start.len()..];
+    Some(rest[..rest.find('"')?].to_owned())
+}
+
+/// The program's request passes the authorization endpoint's checks;
+/// returns the identifier the web app is handed.
+pub async fn waiting(router: &Router, request: &Request) -> String {
+    let page = page(router, request).await;
+    assert_eq!(page.status, StatusCode::OK, "{}", page.text());
+    way_on(page.text()).expect("the page links into the web app")
+}
+
+/// The web app reads a request, as anybody may who holds its identifier.
+pub async fn read_request(router: &Router, id: &str) -> Answer {
+    ask(Method::GET, &oauth_request_path(id)).send(router).await
+}
+
+/// The web app answers a request with whatever token it has, or none.
+pub async fn answer_request(router: &Router, id: &str, token: Option<&str>, agree: bool) -> Answer {
+    let mut request = ask(Method::POST, &oauth_request_path(id));
+    if let Some(token) = token {
+        request = request.token(token);
+    }
+    request
+        .json(&AnswerAuthorizationRequest { agree })
+        .send(router)
+        .await
+}
+
+/// Where an answer of the web app's call sends the browser: the address,
+/// and what the server added to it.
+pub fn redirected(answer: &Answer) -> (String, Vec<(String, String)>) {
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text());
+    answer.is_private();
+    let to = answer.json::<AuthorizationAnswerResponse>().redirect_to;
+    let (address, query) = to.split_once('?').expect("a query");
+    let carried = query
+        .split('&')
+        .map(|pair| {
+            let (name, value) = pair.split_once('=').unwrap();
+            (name.to_owned(), decoded(value))
+        })
+        .collect();
+    (address.to_owned(), carried)
+}
+
+/// The pilot with this session agrees in the web app to a request that
+/// waits; returns the code the program is sent.
+pub async fn agree_in_the_web_app(router: &Router, id: &str, session: &str) -> String {
+    let (address, back) = redirected(&answer_request(router, id, Some(session), true).await);
     assert_eq!(address, REDIRECT);
     assert_eq!(carried(&back, "state"), Some(STATE));
     assert_eq!(carried(&back, "iss"), Some(PUBLIC_URL));

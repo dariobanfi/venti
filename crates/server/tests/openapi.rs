@@ -557,6 +557,24 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         "/v1/account/tokens",
         Answer(201),
     ),
+    (
+        "oauth_request.json",
+        "get",
+        "/v1/oauth/requests/{id}",
+        Answer(200),
+    ),
+    (
+        "oauth_request_answer.json",
+        "post",
+        "/v1/oauth/requests/{id}",
+        Request,
+    ),
+    (
+        "oauth_request_answered.json",
+        "post",
+        "/v1/oauth/requests/{id}",
+        Answer(200),
+    ),
     ("error_insufficient_scope.json", "get", "/v1/groups", Error),
     ("error_missing_bbox.json", "get", "/v1/stations", Error),
     (

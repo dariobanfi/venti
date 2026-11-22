@@ -90,8 +90,8 @@ pub use live::{
 pub use memory::MemoryStore;
 pub use month::Month;
 pub use oauth::{
-    AuthorizationCode, NewGrant, OauthClient, Redeemed, Refreshed, Rotation, StoredCode,
-    TokenClient,
+    AuthorizationCode, AuthorizationRequest, NewGrant, OauthClient, Redeemed, Refreshed,
+    RequestState, Rotation, StoredCode, TokenClient,
 };
 pub use pilot_site::{
     Given, NewPilotSite, NewSiteConfirmation, PARTNERS_LAYER, PilotSite, PilotSiteChanges,
@@ -864,6 +864,38 @@ pub trait Store: Send + Sync + 'static {
         client_id: &str,
     ) -> impl Future<Output = Result<Option<OauthClient>, StoreError>> + Send;
 
+    /// Keeps a request that waits for a pilot's answer, under the hash of
+    /// its identifier, after removing those whose end is at `now` or
+    /// before it. Returns `false`, and keeps nothing, if the program is
+    /// gone or `most` requests wait already: none makes room for a new
+    /// one, they end by themselves within minutes.
+    fn create_authorization_request(
+        &self,
+        request: &SecretHash,
+        record: &AuthorizationRequest,
+        now: Timestamp,
+        most: usize,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// What is held under the hash of a request's identifier at `now`.
+    /// Looking changes nothing.
+    fn authorization_request(
+        &self,
+        request: &SecretHash,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<RequestState, StoreError>> + Send;
+
+    /// Takes a request for answering it: it is marked as answered and
+    /// handed out, once. Of two callers that race, one gets
+    /// [`RequestState::Waiting`] with the request and the other
+    /// [`RequestState::Answered`], as does every later caller until the
+    /// request's end.
+    fn answer_authorization_request(
+        &self,
+        request: &SecretHash,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<RequestState, StoreError>> + Send;
+
     /// Stores the code a pilot's agreement was turned into, under its
     /// hash, and notes the agreement as the program's latest use. Returns
     /// `false`, and stores nothing, if the program or the account is gone.
@@ -921,8 +953,8 @@ pub trait Store: Send + Sync + 'static {
         client_id: &str,
     ) -> impl Future<Output = Result<bool, StoreError>> + Send;
 
-    /// Removes what the authorization server no longer needs: codes and
-    /// refresh tokens whose end is at `now` or before it, agreements whose
+    /// Removes what the authorization server no longer needs: requests,
+    /// codes and refresh tokens whose end is at `now` or before it, agreements whose
     /// end has come, and registered programs that hold no agreement and
     /// showed no sign of life since `unused_since`. Returns how many
     /// agreements and programs were removed.

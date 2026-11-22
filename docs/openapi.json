@@ -465,6 +465,18 @@
         ],
         "type": "object"
       },
+      "AnswerAuthorizationRequest": {
+        "properties": {
+          "agree": {
+            "description": "true to agree, false to refuse.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agree"
+        ],
+        "type": "object"
+      },
       "Attribution": {
         "description": "The credit of one data source an answer draws on. Whoever shows the data shows `text`, linked to `url`, next to it, and `notice` if there is one: the sources' licences require it. An answer's `attributions` has one entry per source it draws on, and only those.",
         "properties": {
@@ -493,6 +505,70 @@
           "licence",
           "text",
           "url"
+        ],
+        "type": "object"
+      },
+      "AuthorizationAnswerResponse": {
+        "properties": {
+          "redirect_to": {
+            "description": "The program's own address, as it registered it, with the code or the refusal, the program's state, and iss. The browser is sent there.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "redirect_to"
+        ],
+        "type": "object"
+      },
+      "AuthorizationRequestResponse": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lasts": {
+            "description": "For how long the agreement holds, in the server's words.",
+            "type": "string"
+          },
+          "may_not": {
+            "description": "What it may not do, in the server's words.",
+            "type": "string"
+          },
+          "may_read": {
+            "description": "What the program may read once the pilot agrees, in the server's words: one sentence for each thing.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "on_this_device": {
+            "description": "Whether that address is a program on the device the browser runs on.",
+            "type": "boolean"
+          },
+          "program": {
+            "description": "What the program calls itself: its own claim, which nobody checked.",
+            "type": "string"
+          },
+          "returns_to": {
+            "description": "The host the pilot's browser is sent back to with the answer.",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "program",
+          "returns_to",
+          "on_this_device",
+          "scopes",
+          "may_read",
+          "may_not",
+          "lasts",
+          "expires_at"
         ],
         "type": "object"
       },
@@ -1222,6 +1298,8 @@
           "invalid_expiry",
           "too_many_tokens",
           "token_not_found",
+          "authorization_request_not_found",
+          "authorization_request_answered",
           "invalid_kept_site",
           "too_many_kept_sites",
           "invalid_alert",
@@ -9878,6 +9956,94 @@
         "security": [],
         "summary": "A file of a map region, or the range asked for",
         "x-venti-docs": "GET and HEAD /v1/maps/{region}/{version}/{name}"
+      }
+    },
+    "/v1/oauth/requests/{id}": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_oauth_requests_id",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationRequestResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "A request for the pilot's agreement that a program may read for them",
+        "x-venti-docs": "GET /v1/oauth/requests/{id}"
+      },
+      "post": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "post_oauth_requests_id",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerAuthorizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationAnswerResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Answer such a request: agree or refuse; the answer is where the browser goes",
+        "x-venti-docs": "POST /v1/oauth/requests/{id}"
       }
     },
     "/v1/openapi.json": {

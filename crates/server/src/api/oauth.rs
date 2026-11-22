@@ -10,9 +10,11 @@
 //!
 //! - `POST /oauth/register`: a program registers itself (RFC 7591). It
 //!   gets an identifier and no secret: every program is a public client.
-//! - `GET /oauth/authorize`: the page on which the pilot signs in, sees
-//!   which program asks and what it may read, and agrees or refuses;
-//!   `POST` is the pilot's answer.
+//! - `GET /oauth/authorize`: the page on which the pilot sees which
+//!   program asks and what it may read. From it the pilot goes on into
+//!   the web app, where they are signed in already, and answers there
+//!   ([`super::agreement`]); or signs in on the page itself with handle
+//!   and password and agrees or refuses, which is the `POST`.
 //! - `POST /oauth/token`: the program exchanges the code for an access
 //!   token and a refresh token, and later a refresh token for new ones.
 //! - `POST /oauth/revoke`: the program gives its tokens up (RFC 7009).
@@ -38,7 +40,8 @@
 //! The password is checked with the limits the sign-in has.
 //!
 //! **Nothing of a request reaches the log**: no code, no token, no
-//! verifier, no `state`, no name a program gave itself.
+//! verifier, no `state`, no name a program gave itself, and no identifier
+//! of a request that waits for its answer.
 
 use std::net::IpAddr;
 use std::sync::{Arc, LazyLock};
@@ -53,8 +56,8 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use venti_api_types::v1::{Handle, Password, Scope, parse_token_name};
 use venti_store::{
-    AccessToken, AuthorizationCode, NewGrant, OauthClient, Redeemed, Refreshed, Rotation, Store,
-    TokenClient,
+    AccessToken, AuthorizationCode, AuthorizationRequest, NewGrant, OauthClient, Redeemed,
+    Refreshed, Rotation, Store, TokenClient,
 };
 
 use super::auth::Client;
@@ -63,8 +66,9 @@ use super::mcp::MCP_PATH;
 use super::{Api, cache};
 use crate::accounts::client::counting_keys;
 use crate::accounts::oauth::{
-    ACCESS_LIFE, CODE_LIFE, MAX_REDIRECT_URIS, MAX_STATE_BYTES, REFRESH_LIFE, RedirectUri, SCOPES,
-    ScopeRefusal, answers, is_challenge, is_resource, same, scope_text, scopes,
+    ACCESS_LIFE, CODE_LIFE, MAX_REDIRECT_URIS, MAX_STATE_BYTES, MAX_WAITING_REQUESTS, REFRESH_LIFE,
+    REQUEST_LIFE, RedirectUri, SCOPES, ScopeRefusal, answers, is_challenge, is_resource, same,
+    scope_text, scopes,
 };
 use crate::accounts::secret::{OauthKind, OauthSecret, is_id, random_id};
 use crate::accounts::throttle::Refused;
@@ -82,6 +86,11 @@ pub const AUTHORIZATION_SERVER_PATH: &str = "/.well-known/oauth-authorization-se
 pub const REGISTER_PATH: &str = "/oauth/register";
 /// The page on which a pilot agrees or refuses.
 pub const AUTHORIZE_PATH: &str = "/oauth/authorize";
+/// The web app's page on which a pilot who is signed in there answers a
+/// request: the server's page links to it with `?request=` and the
+/// request's identifier. The web app is served at the server's own public
+/// address.
+pub const CONNECT_PATH: &str = "/connect/";
 /// Where a program exchanges a code or a refresh token.
 pub const TOKEN_PATH: &str = "/oauth/token";
 /// Where a program gives its tokens up.
@@ -94,6 +103,25 @@ const CONSENT_SECONDS: u32 = 900;
 
 /// What a program is called that gave itself no name.
 const UNNAMED: &str = "A program without a name";
+
+/// What a program may read once a pilot agrees, in words for the pilot:
+/// the server's page says it, and the web app's page says it after the
+/// server.
+pub(super) const MAY_READ: &str = "Your flights, the private ones and those you share by link \
+     too: when and where you flew, how long, how far and how high, the score and your glider.";
+
+/// What it may not do.
+pub(super) const MAY_NOT: &str =
+    "Change, delete or upload anything, or see anything else of your account.";
+
+/// For how long an agreement holds.
+pub(super) fn lasts() -> String {
+    format!(
+        "Until you withdraw it: it is listed in your Venti account among the programs with \
+         access. It also ends by itself when the program has not used it for {} days.",
+        REFRESH_LIFE.num_days()
+    )
+}
 
 impl<S: Store> Api<S> {
     /// The connector's address, which is what tokens are given out for
@@ -115,12 +143,12 @@ impl<S: Store> Api<S> {
         !self.public_url.is_plain_http_to_elsewhere()
     }
 
-    fn at(&self, path: &str) -> String {
+    pub(super) fn at(&self, path: &str) -> String {
         format!("{}{path}", self.public_url.as_str())
     }
 
     /// Counts a request to the authorization server for its address.
-    fn count_oauth_request(&self, client: IpAddr) -> Result<(), Refused> {
+    pub(super) fn count_oauth_request(&self, client: IpAddr) -> Result<(), Refused> {
         let address = counting_keys(client);
         let by_address = address.counted(
             self.limits.oauth_requests_per_address,
@@ -652,7 +680,12 @@ impl<S: Store> Api<S> {
     /// The address the pilot's browser goes back to, with `answer` and
     /// what OAuth adds to every answer: the program's `state`, and who
     /// answers (`iss`, RFC 9207).
-    fn way_back(&self, redirect_uri: &str, state: Option<&str>, answer: &[(&str, &str)]) -> String {
+    pub(super) fn way_back(
+        &self,
+        redirect_uri: &str,
+        state: Option<&str>,
+        answer: &[(&str, &str)],
+    ) -> String {
         let mut url = redirect_uri.to_owned();
         let mut separator = if redirect_uri.contains('?') { '&' } else { '?' };
         let state = state.map(|state| ("state", state));
@@ -824,9 +857,41 @@ impl<S: Store> Api<S> {
         }
     }
 
+    /// Keeps a request that passed every check, to be answered in the web
+    /// app, and returns the address of the web app's page for it. `None`
+    /// when it could not be kept: as many wait as may, or the program is
+    /// gone. The page then has the form alone.
+    async fn way_on(&self, asked: &Asked) -> Result<Option<String>, ApiError> {
+        let now = self.clock.now();
+        let id = OauthSecret::new(OauthKind::Request)?;
+        let record = AuthorizationRequest {
+            client_id: asked.client.id.clone(),
+            redirect_uri: asked.redirect_uri.clone(),
+            scopes: asked
+                .scopes
+                .iter()
+                .map(|scope| scope.as_str().to_owned())
+                .collect(),
+            resource: self.connector_resource(),
+            challenge: asked.challenge.clone(),
+            state: asked.state.clone(),
+            created_at: now,
+            expires_at: now + REQUEST_LIFE,
+        };
+        // A store that cannot keep it now is no reason to show no page.
+        let kept = self
+            .store
+            .create_authorization_request(&id.hash(), &record, now, MAX_WAITING_REQUESTS)
+            .await
+            .unwrap_or(false);
+        Ok(kept.then(|| format!("{}?request={}", self.at(CONNECT_PATH), id.expose())))
+    }
+
     /// The page on which the pilot agrees or refuses, with a fresh value
-    /// against forged answers in the form and in the cookie.
-    fn consent_page(
+    /// against forged answers in the form and in the cookie, and with the
+    /// way on into the web app, where a pilot who is signed in there
+    /// answers without typing a password.
+    async fn consent_page(
         &self,
         status: StatusCode,
         asked: &Asked,
@@ -834,6 +899,7 @@ impl<S: Store> Api<S> {
         message: Option<&str>,
     ) -> Result<Response, ApiError> {
         let csrf = random_id()?;
+        let way_on = self.way_on(asked).await?;
         let mut body = String::new();
         body.push_str("<h1>Let this program read your flights?</h1>\n");
         body.push_str(&format!(
@@ -844,18 +910,15 @@ impl<S: Store> Api<S> {
         ));
         body.push_str(&format!(
             "<dl class=\"asks\">\n\
-             <div><dt>It may read</dt><dd>Your flights, the private ones and those you share \
-             by link too: when and where you flew, how long, how far and how high, the score \
-             and your glider.</dd></div>\n\
-             <div><dt>It may not</dt><dd>Change, delete or upload anything, or see anything \
-             else of your account.</dd></div>\n\
+             <div><dt>It may read</dt><dd>{}</dd></div>\n\
+             <div><dt>It may not</dt><dd>{}</dd></div>\n\
              <div><dt>You are sent back to</dt><dd>{}</dd></div>\n\
-             <div><dt>For how long</dt><dd>Until you withdraw it: it is listed in your Venti \
-             account among the programs with access. It also ends by itself when the program \
-             has not used it for {} days.</dd></div>\n\
+             <div><dt>For how long</dt><dd>{}</dd></div>\n\
              </dl>\n",
+            Esc(MAY_READ),
+            Esc(MAY_NOT),
             Esc(&asked.redirect_uri),
-            REFRESH_LIFE.num_days(),
+            Esc(&lasts()),
         ));
         if asked.loopback {
             body.push_str(
@@ -868,6 +931,20 @@ impl<S: Store> Api<S> {
             body.push_str(&format!(
                 "<p class=\"alert\" role=\"alert\">{}</p>\n",
                 Esc(message)
+            ));
+        }
+        // The way on is a plain link, pressed by the pilot: the server
+        // sends nobody there by itself. It carries the identifier of the
+        // request and nothing the program sent.
+        if let Some(way_on) = &way_on {
+            body.push_str(&format!(
+                "<p><a class=\"button\" href=\"{}\" rel=\"noreferrer\">Continue in \
+                 Venti</a></p>\n\
+                 <p class=\"byline\">That is the Venti app in this browser. You answer there \
+                 with the account you are signed in to, however you sign in, with Google \
+                 too, and type no password. Or sign in here with a handle and a \
+                 password:</p>\n",
+                Esc(way_on)
             ));
         }
         body.push_str(&format!(
@@ -906,10 +983,11 @@ impl<S: Store> Api<S> {
              formnovalidate>Refuse</button></p>\n\
              </form>\n",
         );
-        if self.google.is_some() {
+        if self.google.is_some() && way_on.is_none() {
             body.push_str(
-                "<p class=\"byline\">An account that signs in with Google and has no \
-                 password cannot agree on this page yet.</p>\n",
+                "<p class=\"byline\">An account that signs in with Google has no password \
+                 and cannot agree in this form. Go back to the program and start again in \
+                 a few minutes.</p>\n",
             );
         }
         let html = page("Let a program read your flights?", &body);
@@ -940,7 +1018,10 @@ pub(crate) async fn authorize<S: Store>(
         ));
     };
     match api.asked(&params).await? {
-        Ok(asked) => api.consent_page(StatusCode::OK, &asked, &params, None),
+        Ok(asked) => {
+            api.consent_page(StatusCode::OK, &asked, &params, None)
+                .await
+        }
         Err(unusable) => Ok(api.unusable(unusable)),
     }
 }
@@ -1030,31 +1111,37 @@ pub(crate) async fn decide<S: Store>(
     let account = match api.check_password(handle.as_ref(), &password, client).await {
         Ok(Some(account)) => account,
         Ok(None) => {
-            return api.consent_page(
-                StatusCode::UNAUTHORIZED,
-                &asked,
-                &params,
-                Some("The handle or the password is not correct. Nothing was agreed to."),
-            );
+            return api
+                .consent_page(
+                    StatusCode::UNAUTHORIZED,
+                    &asked,
+                    &params,
+                    Some("The handle or the password is not correct. Nothing was agreed to."),
+                )
+                .await;
         }
         Err(error) if error.status() == StatusCode::TOO_MANY_REQUESTS => {
-            return api.consent_page(
-                StatusCode::TOO_MANY_REQUESTS,
-                &asked,
-                &params,
-                Some(
-                    "Too many wrong passwords were sent for this handle or from your \
+            return api
+                .consent_page(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    &asked,
+                    &params,
+                    Some(
+                        "Too many wrong passwords were sent for this handle or from your \
                      address. Nothing was agreed to. Try again in an hour.",
-                ),
-            );
+                    ),
+                )
+                .await;
         }
         Err(error) if error.status() == StatusCode::SERVICE_UNAVAILABLE => {
-            return api.consent_page(
-                StatusCode::SERVICE_UNAVAILABLE,
-                &asked,
-                &params,
-                Some("Venti is busy right now. Nothing was agreed to. Try again in a moment."),
-            );
+            return api
+                .consent_page(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    &asked,
+                    &params,
+                    Some("Venti is busy right now. Nothing was agreed to. Try again in a moment."),
+                )
+                .await;
         }
         Err(error) => return Err(error),
     };
@@ -1073,15 +1160,17 @@ pub(crate) async fn decide<S: Store>(
         })
         .count();
     if others >= api.limits.tokens_per_account {
-        return api.consent_page(
-            StatusCode::CONFLICT,
-            &asked,
-            &params,
-            Some(
-                "Your account already has as many programs with access as it may have. \
+        return api
+            .consent_page(
+                StatusCode::CONFLICT,
+                &asked,
+                &params,
+                Some(
+                    "Your account already has as many programs with access as it may have. \
                  Withdraw one in your Venti account first. Nothing was agreed to.",
-            ),
-        );
+                ),
+            )
+            .await;
     }
 
     let now = api.clock.now();

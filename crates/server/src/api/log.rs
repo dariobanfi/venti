@@ -111,10 +111,11 @@ const LEFT_OUT: &str = "…";
 
 /// The beginnings of paths that go on to name something the log must not
 /// hold, each with the paths under it that name nothing.
-const NAMING: [(&str, &[&str]); 3] = [
+const NAMING: [(&str, &[&str]); 4] = [
     ("/v1/live/", &["positions"]),
     ("/live/", &[]),
     ("/v1/groups/", &["join", "plans"]),
+    ("/v1/oauth/requests/", &[]),
 ];
 
 /// A request's path as the log may hold it.
@@ -128,6 +129,10 @@ const NAMING: [(&str, &[&str]); 3] = [
 /// `/v1/groups/` names a group, and after it a plan or a member by their
 /// handle, or is something a client sent in their place, an invite code
 /// perhaps: it is left out as well.
+///
+/// A request for a pilot's agreement is answered by whoever holds its
+/// identifier and a session. What follows `/v1/oauth/requests/` is that
+/// identifier, or something a client sent in its place: it is left out.
 ///
 /// The paths under these that name nothing stay as they are.
 pub(crate) fn logged_path(path: &str) -> std::borrow::Cow<'_, str> {

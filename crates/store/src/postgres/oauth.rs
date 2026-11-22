@@ -7,8 +7,8 @@ use venti_domain::Timestamp;
 use super::accounts::{access_token_from, account_of};
 use super::db_error;
 use crate::{
-    AuthorizationCode, NewGrant, OauthClient, Redeemed, Refreshed, Rotation, SecretHash,
-    StoreError, StoredCode,
+    AuthorizationCode, AuthorizationRequest, NewGrant, OauthClient, Redeemed, Refreshed,
+    RequestState, Rotation, SecretHash, StoreError, StoredCode,
 };
 
 fn client_from(row: &Row) -> OauthClient {
@@ -94,6 +94,143 @@ pub(super) async fn oauth_client(
         .await
         .map_err(db_error)?;
     Ok(row.as_ref().map(client_from))
+}
+
+pub(super) async fn create_authorization_request(
+    client: &mut Client,
+    request: &SecretHash,
+    record: &AuthorizationRequest,
+    now: Timestamp,
+    most: usize,
+) -> Result<bool, StoreError> {
+    // The program's own value is text the database must be able to hold.
+    // One with a zero byte in it is not kept, and so not answered here.
+    if record
+        .state
+        .as_deref()
+        .is_some_and(|state| state.contains('\0'))
+    {
+        return Ok(false);
+    }
+    let most = i64::try_from(most).unwrap_or(i64::MAX);
+    let tx = client.transaction().await.map_err(db_error)?;
+    // One at a time counts the table, so that two requests that race for
+    // the last place do not both take it.
+    tx.execute(
+        "SELECT pg_advisory_xact_lock(hashtext('venti oauth requests')::bigint)",
+        &[],
+    )
+    .await
+    .map_err(db_error)?;
+    tx.execute("DELETE FROM oauth_requests WHERE expires_at <= $1", &[&now])
+        .await
+        .map_err(db_error)?;
+    let held: i64 = tx
+        .query_one("SELECT count(*) FROM oauth_requests", &[])
+        .await
+        .map_err(db_error)?
+        .get(0);
+    let stored = if held >= most {
+        0
+    } else {
+        tx.execute(
+            "INSERT INTO oauth_requests
+                 (request_hash, client_id, redirect_uri, scopes, resource, challenge, state,
+                  created_at, expires_at)
+             SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9
+             WHERE EXISTS (SELECT 1 FROM oauth_clients WHERE id = $2)
+             ON CONFLICT (request_hash) DO NOTHING",
+            &[
+                &request.0.as_slice(),
+                &record.client_id,
+                &record.redirect_uri,
+                &record.scopes,
+                &record.resource,
+                &record.challenge,
+                &record.state,
+                &record.created_at,
+                &record.expires_at,
+            ],
+        )
+        .await
+        .map_err(db_error)?
+    };
+    // Also when nothing was stored: the ended ones stay removed.
+    tx.commit().await.map_err(db_error)?;
+    Ok(stored > 0)
+}
+
+const REQUEST_COLUMNS: &str =
+    "client_id, redirect_uri, scopes, resource, challenge, state, created_at, expires_at";
+
+fn request_from(row: &Row) -> AuthorizationRequest {
+    AuthorizationRequest {
+        client_id: row.get("client_id"),
+        redirect_uri: row.get("redirect_uri"),
+        scopes: row.get("scopes"),
+        resource: row.get("resource"),
+        challenge: row.get("challenge"),
+        state: row.get("state"),
+        created_at: row.get("created_at"),
+        expires_at: row.get("expires_at"),
+    }
+}
+
+pub(super) async fn authorization_request(
+    client: &Client,
+    request: &SecretHash,
+    now: Timestamp,
+) -> Result<RequestState, StoreError> {
+    let statement = client
+        .prepare_cached(&format!(
+            "SELECT {REQUEST_COLUMNS}, answered_at IS NOT NULL AS answered
+             FROM oauth_requests WHERE request_hash = $1 AND expires_at > $2"
+        ))
+        .await
+        .map_err(db_error)?;
+    let row = client
+        .query_opt(&statement, &[&request.0.as_slice(), &now])
+        .await
+        .map_err(db_error)?;
+    Ok(match row {
+        None => RequestState::Unknown,
+        Some(row) if row.get::<_, bool>("answered") => RequestState::Answered,
+        Some(row) => RequestState::Waiting(request_from(&row)),
+    })
+}
+
+pub(super) async fn answer_authorization_request(
+    client: &Client,
+    request: &SecretHash,
+    now: Timestamp,
+) -> Result<RequestState, StoreError> {
+    // One statement: of two answers that race, the second waits for the
+    // first's row, finds it answered and changes nothing.
+    let taken = client
+        .query_opt(
+            &format!(
+                "UPDATE oauth_requests SET answered_at = $2
+                 WHERE request_hash = $1 AND expires_at > $2 AND answered_at IS NULL
+                 RETURNING {REQUEST_COLUMNS}"
+            ),
+            &[&request.0.as_slice(), &now],
+        )
+        .await
+        .map_err(db_error)?;
+    if let Some(row) = taken {
+        return Ok(RequestState::Waiting(request_from(&row)));
+    }
+    let there = client
+        .query_opt(
+            "SELECT 1 FROM oauth_requests WHERE request_hash = $1 AND expires_at > $2",
+            &[&request.0.as_slice(), &now],
+        )
+        .await
+        .map_err(db_error)?;
+    Ok(match there {
+        Some(_) => RequestState::Answered,
+        None => RequestState::Unknown,
+    })
 }
 
 pub(super) async fn create_authorization_code(
@@ -408,6 +545,9 @@ pub(super) async fn prune_oauth(
     unused_since: Timestamp,
 ) -> Result<u64, StoreError> {
     let tx = client.transaction().await.map_err(db_error)?;
+    tx.execute("DELETE FROM oauth_requests WHERE expires_at <= $1", &[&now])
+        .await
+        .map_err(db_error)?;
     tx.execute("DELETE FROM oauth_codes WHERE expires_at <= $1", &[&now])
         .await
         .map_err(db_error)?;

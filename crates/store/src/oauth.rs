@@ -1,6 +1,7 @@
 //! What the authorization server keeps: the programs that registered to
-//! ask pilots for access, the codes a pilot's agreement turns into, and
-//! what a token that came of such an agreement is bound to.
+//! ask pilots for access, the requests that wait for a pilot's answer, the
+//! codes a pilot's agreement turns into, and what a token that came of
+//! such an agreement is bound to.
 //!
 //! A pilot's agreement is one [`AccessToken`] with a
 //! [`TokenClient`]: it is listed among the pilot's tokens and withdrawn as
@@ -45,6 +46,44 @@ pub struct TokenClient {
     /// The agreement itself lasts until [`AccessToken::expires_at`], and
     /// longer each time the program uses its refresh token.
     pub access_until: Timestamp,
+}
+
+/// A request for a pilot's agreement that passed the authorization
+/// endpoint's checks and waits for the pilot's answer.
+///
+/// It is kept under the hash of an identifier nobody can guess, and names
+/// no account: whoever answers it does so with a session of their own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorizationRequest {
+    /// The program that asks.
+    pub client_id: String,
+    /// The address the pilot is sent back to with the answer: one the
+    /// program registered.
+    pub redirect_uri: String,
+    /// What the program asks for, as the names of scopes.
+    pub scopes: Vec<String>,
+    /// The address of what the tokens would be for.
+    pub resource: String,
+    /// The program's challenge, which goes on into the code.
+    pub challenge: String,
+    /// The program's own value, handed back with the answer as it came.
+    pub state: Option<String>,
+    /// When the program sent the pilot's browser.
+    pub created_at: Timestamp,
+    /// The moment from which the request can no longer be answered.
+    pub expires_at: Timestamp,
+}
+
+/// What the store holds under the identifier of a request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequestState {
+    /// The request waits for its answer.
+    Waiting(AuthorizationRequest),
+    /// The request was answered, and its end has not come yet. Nothing of
+    /// it is handed out again.
+    Answered,
+    /// There is no such request, or its end has come.
+    Unknown,
 }
 
 /// A code a pilot's agreement was turned into, which the program exchanges

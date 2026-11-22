@@ -5,8 +5,8 @@
 use chrono::Duration;
 use venti_domain::Timestamp;
 use venti_store::{
-    AccessToken, Account, AuthorizationCode, NewGrant, OauthClient, Redeemed, Refreshed, Rotation,
-    Store, TokenClient,
+    AccessToken, Account, AuthorizationCode, AuthorizationRequest, NewGrant, OauthClient, Redeemed,
+    Refreshed, RequestState, Rotation, Store, TokenClient,
 };
 
 use super::accounts::{create, id, secret};
@@ -144,6 +144,118 @@ pub(crate) async fn the_oldest_unused_program_makes_room_for_a_new_one(store: &i
     assert!(!store.create_oauth_client(&fourth, 2).await.unwrap());
     assert!(store.oauth_client(&first.id).await.unwrap().is_some());
     assert!(store.oauth_client(&third.id).await.unwrap().is_some());
+}
+
+fn request_of(client: &OauthClient, made: Timestamp) -> AuthorizationRequest {
+    AuthorizationRequest {
+        client_id: client.id.clone(),
+        redirect_uri: client.redirect_uris[0].clone(),
+        scopes: vec!["flights:read".to_owned()],
+        resource: CONNECTOR.to_owned(),
+        challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM".to_owned(),
+        state: Some("state-7f3a/+=&?".to_owned()),
+        created_at: made,
+        expires_at: made + Duration::minutes(15),
+    }
+}
+
+pub(crate) async fn a_request_for_agreement_is_answered_once(store: &impl Store) {
+    let client = register(store, "claude", at(9, 0)).await;
+    let asked = request_of(&client, at(10, 0));
+    let keep = |hash: u8, record: AuthorizationRequest, now: Timestamp, most: usize| async move {
+        store
+            .create_authorization_request(&secret(hash), &record, now, most)
+            .await
+            .unwrap()
+    };
+    assert!(keep(1, asked.clone(), at(10, 0), 10).await);
+    // The same identifier is not kept twice, and a request of a program
+    // that is not there is not kept at all.
+    assert!(!keep(1, asked.clone(), at(10, 0), 10).await);
+    let of_no_program = AuthorizationRequest {
+        client_id: id("nothing"),
+        ..asked.clone()
+    };
+    assert!(!keep(2, of_no_program, at(10, 0), 10).await);
+    // One without a value of the program's own, and one whose value the
+    // database could not hold, which is not kept and breaks nothing.
+    let bare = AuthorizationRequest {
+        state: None,
+        ..asked.clone()
+    };
+    assert!(keep(3, bare.clone(), at(10, 1), 10).await);
+    let zero = AuthorizationRequest {
+        state: Some("a\0b".to_owned()),
+        ..asked.clone()
+    };
+    let kept = keep(4, zero.clone(), at(10, 1), 10).await;
+    let found = store
+        .authorization_request(&secret(4), at(10, 1))
+        .await
+        .unwrap();
+    assert_eq!(found == RequestState::Waiting(zero), kept);
+
+    // Looking changes nothing, however often.
+    let look = |hash: u8, now: Timestamp| async move {
+        store
+            .authorization_request(&secret(hash), now)
+            .await
+            .unwrap()
+    };
+    assert_eq!(
+        look(1, at(10, 5)).await,
+        RequestState::Waiting(asked.clone())
+    );
+    assert_eq!(
+        look(1, at(10, 5)).await,
+        RequestState::Waiting(asked.clone())
+    );
+    assert_eq!(
+        look(3, at(10, 5)).await,
+        RequestState::Waiting(bare.clone())
+    );
+    assert_eq!(look(9, at(10, 5)).await, RequestState::Unknown);
+
+    // It is answered once: the first answer gets the request, and every
+    // later one, and every look, is told that it was answered.
+    let answer = |hash: u8, now: Timestamp| async move {
+        store
+            .answer_authorization_request(&secret(hash), now)
+            .await
+            .unwrap()
+    };
+    assert_eq!(answer(9, at(10, 5)).await, RequestState::Unknown);
+    assert_eq!(
+        answer(1, at(10, 5)).await,
+        RequestState::Waiting(asked.clone())
+    );
+    assert_eq!(answer(1, at(10, 5)).await, RequestState::Answered);
+    assert_eq!(look(1, at(10, 6)).await, RequestState::Answered);
+
+    // At its end it is gone, answered or not, also before anything
+    // removed it.
+    assert_eq!(look(1, at(10, 15)).await, RequestState::Unknown);
+    assert_eq!(answer(1, at(10, 15)).await, RequestState::Unknown);
+    assert_eq!(look(3, at(10, 14)).await, RequestState::Waiting(bare));
+    assert_eq!(look(3, at(10, 15)).await, RequestState::Unknown);
+    assert_eq!(answer(3, at(10, 15)).await, RequestState::Unknown);
+
+    // Only so many wait at once; those that ended make room.
+    let later = request_of(&client, at(11, 0));
+    assert!(keep(5, later.clone(), at(11, 0), 2).await);
+    assert!(keep(6, later.clone(), at(11, 0), 2).await);
+    assert!(!keep(7, later.clone(), at(11, 0), 2).await);
+    assert_eq!(look(7, at(11, 0)).await, RequestState::Unknown);
+    let much_later = request_of(&client, at(11, 15));
+    assert!(keep(7, much_later.clone(), at(11, 15), 2).await);
+
+    // The maintenance removes what ended, and a program that goes takes
+    // its requests along.
+    store.prune_oauth(at(11, 20), at(8, 0)).await.unwrap();
+    assert_eq!(look(7, at(11, 20)).await, RequestState::Waiting(much_later));
+    store.prune_oauth(at(11, 40), at(11, 39)).await.unwrap();
+    assert_eq!(store.oauth_client(&client.id).await.unwrap(), None);
+    assert_eq!(look(7, at(11, 20)).await, RequestState::Unknown);
 }
 
 pub(crate) async fn a_code_is_exchanged_once_and_no_second_time(store: &impl Store) {

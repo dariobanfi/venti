@@ -250,10 +250,30 @@ pub struct MapLayersWords {
     /// The layer of [`crate::flown_thermals`]: "Where thermals have been".
     #[uniffi(default = "")]
     pub flown_thermals: String,
-    /// Its line: "From flights their pilots shared, this month." The layer
-    /// asks for the month it is.
+    /// Its line: "From flights their pilots shared, in every month of the
+    /// year." The layer asks for no month, so that it is not empty in
+    /// winter.
     #[uniffi(default = "")]
     pub flown_thermals_note: String,
+    /// When the map shows too wide a part for the climbs: "Zoom in to see
+    /// where pilots climb now."
+    #[uniffi(default = "")]
+    pub climbs_too_wide: String,
+    /// When no cell of flown thermals lies in the part shown: "No climbs
+    /// from shared flights here yet."
+    #[uniffi(default = "")]
+    pub flown_empty: String,
+    /// The heading over the layers' switches: "On the map".
+    #[uniffi(default = "")]
+    pub on_the_map: String,
+    /// The heading over the rows that open a list or the plans: "Lists and
+    /// plans".
+    #[uniffi(default = "")]
+    pub lists_title: String,
+    /// The day alarm's kind beside the alarm for pilots in the air:
+    /// "Flying day".
+    #[uniffi(default = "")]
+    pub alarm_day_kind: String,
     /// The setting that draws others' climbs on the cockpit's map:
     /// "Climbs of others in the cockpit".
     #[uniffi(default = "")]
@@ -276,7 +296,13 @@ pub fn map_layers_words() -> MapLayersWords {
             "Where gliders circled and climbed in the last {LIVE_CLIMB_MINUTES} minutes."
         ),
         flown_thermals: "Where thermals have been".to_owned(),
-        flown_thermals_note: "From flights their pilots shared, this month.".to_owned(),
+        flown_thermals_note: "From flights their pilots shared, in every month of the year."
+            .to_owned(),
+        climbs_too_wide: "Zoom in to see where pilots climb now.".to_owned(),
+        flown_empty: "No climbs from shared flights here yet.".to_owned(),
+        on_the_map: "On the map".to_owned(),
+        lists_title: "Lists and plans".to_owned(),
+        alarm_day_kind: "Flying day".to_owned(),
         cockpit_climbs: "Climbs of others in the cockpit".to_owned(),
         cockpit_climbs_note: format!(
             "Where others climbed near you in the last {LIVE_CLIMB_MINUTES} minutes, on the \

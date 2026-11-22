@@ -801,7 +801,9 @@ pub fn alert_form_words() -> AlertFormWords {
         pilots_at_least: text("Pilots in the air, at least"),
         pilots_rest: text("Then quiet for, hours"),
         pilots_note: format!(
-            "Counts paragliders and hang gliders flying within {} km of the place: those the              Open Glider Network hears and Venti’s pilots who show their flight to              everyone. Venti looks once a minute.",
+            "Counts paragliders and hang gliders flying within {} km of the place: those the \
+             Open Glider Network hears and Venti’s pilots who show their flight to \
+             everyone. Venti looks once a minute.",
             venti_api_types::v1::SITE_AIR_WITHIN_M / 1000.0
         ),
         save: text("Save"),

@@ -1,5 +1,6 @@
 package fly.venti.app.sites
 
+import fly.venti.core.TargetPlace
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +69,16 @@ class KeptSitesModel(
      */
     suspend fun cockpitTakeoffs(glider: Coordinate, near: SitesMap?): CockpitTakeoffs? = withContext(background) {
         runCatching { core.cockpitTakeoffs(glider, near) }.getOrNull()
+    }
+
+    /**
+     * The landings the cockpit keeps a standing reading of, nearest first,
+     * as the core picks them: among the sites of `near`, the pilot's own
+     * kept sites and the pilot's landing waypoints. None when the core
+     * could not read its files.
+     */
+    suspend fun cockpitLandings(glider: Coordinate, near: SitesMap?): List<TargetPlace> = withContext(background) {
+        runCatching { core.cockpitLandings(glider, near) }.getOrDefault(emptyList())
     }
 
     /** Whether a site is one of the pilot's own. */

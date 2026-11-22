@@ -67,6 +67,7 @@ import fly.venti.app.logbook.groupedShape
 import fly.venti.core.PublicFlight
 import fly.venti.core.RankedPilot
 import fly.venti.core.RouteKind
+import fly.venti.core.pilotsWords
 import kotlinx.coroutines.launch
 
 /**
@@ -80,6 +81,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun LeagueScreen(
     community: CommunityModel,
+    /** Pilots among each other: the feed of the pilots one follows, for a signed-in pilot. */
+    social: SocialModel,
     /** Whether Venti's address is set. */
     hasServer: Boolean,
     onOpenFlight: (PublicFlight) -> Unit,
@@ -87,26 +90,35 @@ fun LeagueScreen(
     onOpenPilot: (String, String) -> Unit,
     bars: PaddingValues,
 ) {
-    var showsRanking by rememberSaveable { mutableStateOf(false) }
+    // Which list shows: everyone's flights, those of the pilots one follows, or the ranking.
+    var showing by rememberSaveable { mutableStateOf(LeagueList.Everyone) }
+    // The feed is a signed-in pilot's: signed out there is no such choice.
+    val lists = LeagueList.entries.filter { it != LeagueList.Following || social.isSignedIn }
+    val shown = showing.takeIf { it in lists } ?: LeagueList.Everyone
     Scaffold(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
         topBar = {
             Column {
                 TopAppBar(title = { Text("League") })
                 if (hasServer) {
-                    PrimaryTabRow(selectedTabIndex = if (showsRanking) 1 else 0, containerColor = MaterialTheme.colorScheme.surface) {
-                        Tab(
-                            selected = !showsRanking,
-                            onClick = { showsRanking = false },
-                            text = { Text("Everyone") },
-                            modifier = Modifier.testTag("league-everyone"),
-                        )
-                        Tab(
-                            selected = showsRanking,
-                            onClick = { showsRanking = true },
-                            text = { Text("Ranking") },
-                            modifier = Modifier.testTag("league-ranking"),
-                        )
+                    PrimaryTabRow(selectedTabIndex = lists.indexOf(shown), containerColor = MaterialTheme.colorScheme.surface) {
+                        for (list in lists) {
+                            Tab(
+                                selected = list == shown,
+                                onClick = { showing = list },
+                                text = {
+                                    Text(
+                                        when (list) {
+                                            LeagueList.Everyone -> social.words.feedEveryone
+                                            LeagueList.Following -> social.words.feedFollowing
+                                            LeagueList.Ranking -> "Ranking"
+                                        },
+                                        maxLines = 1,
+                                    )
+                                },
+                                modifier = Modifier.testTag("league-${list.name.lowercase()}"),
+                            )
+                        }
                     }
                 }
             }
@@ -116,12 +128,16 @@ fun LeagueScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 !hasServer -> Unconnected()
-                showsRanking -> RankingList(community, onOpenFlight, onOpenPilot)
+                shown == LeagueList.Ranking -> RankingList(community, onOpenFlight, onOpenPilot)
+                shown == LeagueList.Following -> FollowingFeed(social, community, onOpen = onOpenFlight)
                 else -> PublicFlightsList(community, onOpen = onOpenFlight, onOpenPilot = onOpenPilot)
             }
         }
     }
 }
+
+/** The lists of the League tab, in the order of its switch. */
+private enum class LeagueList { Everyone, Following, Ranking }
 
 /** Without Venti's address there is nothing to list, and the screen says where it is set. */
 @Composable
@@ -199,6 +215,15 @@ private fun RankingList(
                         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("ranking-months"),
                         horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                     ) {
+                        // The whole year first, in the core's name for it: "All of 2026".
+                        ranked.periods.firstOrNull { it.name == ranked.season }?.wholeName?.takeIf { it.isNotEmpty() }?.let { whole ->
+                            FilterChip(
+                                selected = ranked.month == null,
+                                onClick = { scope.launch { community.rank(ranked.season, null) } },
+                                label = { Text(whole, maxLines = 1) },
+                                modifier = Modifier.testTag("ranking-whole-year"),
+                            )
+                        }
                         for (month in ranked.months) {
                             val isChosen = month.month == ranked.month
                             FilterChip(
@@ -246,7 +271,8 @@ private fun RankingList(
                             textAlign = TextAlign.Center,
                         )
                         Text(
-                            ranked.problem ?: RankingWords.nobody(ranked.season),
+                            // A month without a ranked flight has the core's sentence.
+                            ranked.problem ?: if (ranked.month != null) pilotsWords().monthEmpty else RankingWords.nobody(ranked.season),
                             color = Venti.colours.textSecondary,
                             textAlign = TextAlign.Center,
                         )

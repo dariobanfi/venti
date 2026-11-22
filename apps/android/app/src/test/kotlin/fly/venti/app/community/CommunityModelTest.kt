@@ -3,6 +3,7 @@ package fly.venti.app.community
 import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
 import fly.venti.app.design.Format
+import fly.venti.core.pilotsWords
 import fly.venti.core.Bounds
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.RouteKind
@@ -136,7 +137,7 @@ class CommunityModelTest {
         // A server that cannot be reached is said in words.
         server.isReachable = false
         community.findPilots("len")
-        assertTrue(community.search.words, community.search.words.startsWith("Venti could not be reached to look for pilots."))
+        assertEquals(pilotsWords().unreachable, community.search.words)
         server.isReachable = true
 
         // The field emptied: no search, and nothing asked.
@@ -162,12 +163,15 @@ class CommunityModelTest {
         // 20 November 2026.
         val now = 1_795_132_800L
         community.rank(nowUnixS = now)
+        // The heading is the period the answer names (`Ranking.period.title`), and the
+        // recorded answer is of August 2026 whatever is asked for.
+        val RECORDED_PERIOD = "August 2026"
 
         // The years are those the server says have a ranking, then all
         // years; under the year shown are its months with flights, the
         // newest first, in the core's names.
         assertEquals(listOf("2026", "2025", "All years"), community.ranked.seasons.map { it.name })
-        assertEquals("2026", community.ranked.title)
+        assertEquals(RECORDED_PERIOD, community.ranked.title)
         assertNull(community.ranked.month)
         assertEquals(
             listOf("September", "August", "July", "June", "May", "April"),
@@ -179,7 +183,7 @@ class CommunityModelTest {
         community.rank("2026", may.month, nowUnixS = now)
         assertEquals("$BASE/v1/ranking?month=2026-05", server.asked.last())
         assertEquals("2026-05", community.ranked.month)
-        assertEquals("May 2026", community.ranked.title)
+        assertEquals(RECORDED_PERIOD, community.ranked.title)
         assertEquals("2026", community.ranked.season)
         assertTrue(community.ranked.pilots.isNotEmpty())
         assertFalse(community.ranked.isLoading)
@@ -187,22 +191,22 @@ class CommunityModelTest {
         // Asked again as it stands, it is the month again.
         community.rank(nowUnixS = now)
         assertEquals(2, server.asked.count { it.endsWith("month=2026-05") })
-        assertEquals("May 2026", community.ranked.title)
+        assertEquals(RECORDED_PERIOD, community.ranked.title)
 
         // The season alone is the whole year again; another year has its own months.
         community.rank("2026", nowUnixS = now)
         assertNull(community.ranked.month)
-        assertEquals("2026", community.ranked.title)
+        assertEquals(RECORDED_PERIOD, community.ranked.title)
         assertTrue(server.asked.last(), server.asked.last().startsWith("$BASE/v1/ranking?from="))
         community.rank("2025", nowUnixS = now)
         assertEquals(listOf("July"), community.ranked.months.map { it.name })
-        assertEquals("2025", community.ranked.title)
+        assertEquals(RECORDED_PERIOD, community.ranked.title)
 
         // All years have no months to choose from.
         community.rank("All years", nowUnixS = now)
         assertEquals("$BASE/v1/ranking", server.asked.last())
         assertTrue(community.ranked.months.isEmpty())
-        assertEquals("All years", community.ranked.title)
+        assertEquals(RECORDED_PERIOD, community.ranked.title)
 
         // A month the server cannot be asked for is said in the core's words.
         community.rank("2026", "May", nowUnixS = now)
@@ -249,7 +253,7 @@ class CommunityModelTest {
         // No route to the server.
         server.isReachable = false
         community.showPilotTotals("lena")
-        assertTrue(checkNotNull(community.pilotTotals?.problem).startsWith("Venti could not be reached."))
+        assertEquals(pilotsWords().unreachable, community.pilotTotals?.problem)
 
         // Without a server nothing is asked.
         address = null
@@ -289,7 +293,7 @@ class CommunityModelTest {
         // A server that cannot be reached is said in words.
         server.isReachable = false
         community.rank(nowUnixS = now)
-        assertTrue(community.ranked.problem.orEmpty().startsWith("Venti could not be reached for the ranking."))
+        assertEquals(pilotsWords().unreachable, community.ranked.problem)
     }
 
     @Test
@@ -515,7 +519,7 @@ class CommunityModelTest {
         // No network: said, and asked again the next time the page is looked at.
         server.isReachable = false
         community.showPilot("demo")
-        assertTrue(checkNotNull(community.pilot?.problem).startsWith("Venti could not be reached."))
+        assertEquals(pilotsWords().unreachable, community.pilot?.problem)
         server.isReachable = true
         community.showPilot("demo")
         assertNull(community.pilot?.problem)

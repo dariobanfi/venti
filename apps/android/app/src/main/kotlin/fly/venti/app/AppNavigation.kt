@@ -206,6 +206,13 @@ class AppNavigation {
         leaguePath += LeagueRoute.PublicFlight(flight)
     }
 
+    /** A pilot's page, on the League tab, from wherever the pilot was named: by the handle until the server says the name. */
+    fun showPilot(handle: String) {
+        tab = AppTab.League
+        leaguePath.clear()
+        leaguePath += LeagueRoute.Pilot(handle, "@$handle")
+    }
+
     /** One step back. Returns false if there is nowhere to go back to. */
     fun back(): Boolean = when {
         tab == AppTab.Logbook && logbookPath.isNotEmpty() -> {

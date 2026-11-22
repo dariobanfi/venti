@@ -1,5 +1,6 @@
 package fly.venti.app.sites
 
+import fly.venti.core.siteSheetWords
 import kotlinx.coroutines.CancellationException
 import fly.venti.core.SiteKind
 import fly.venti.core.PublicFlight
@@ -971,7 +972,7 @@ private fun SitePage(
                 Group {
                     row {
                         DisclosureRow(
-                            SiteWords.HOW_READ,
+                            siteSheetWords().howReadTitle,
                             isOpen = showsHowRead,
                             modifier = Modifier.testTag("site-how-read"),
                             onChange = { showsHowRead = it },
@@ -1218,9 +1219,6 @@ object SiteWords {
     /** The day that begins at the moment asked for, where the forecast has it; else the first with flying hours. */
     fun day(outlook: SiteOutlook, startUnixS: Long?): OutlookDay? =
         startUnixS?.let { wanted -> outlook.days.firstOrNull { it.startUnixS == wanted } } ?: firstFlyingDay(outlook)
-
-    /** The row at the end of a site's page that unfolds how it is read, whose data it is and under which licence. */
-    const val HOW_READ = "How this is read"
 
     /** "Today: Good from noon. Gusts to 26 km/h after 15:00", with the day as the core names it. */
     fun outlook(day: OutlookDay): String =

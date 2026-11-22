@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.community.SocialModel
 import fly.venti.app.SharedFiles
 import fly.venti.app.fly.FlySession
 import fly.venti.app.logbook.DeleteFlightDialog
@@ -102,6 +103,8 @@ fun FlightScreen(
     preferences: Preferences? = null,
     /** Where the ground under the flight comes from, for its profile. */
     terrain: TerrainModel? = null,
+    /** Pilots among each other: whether the flight, once public, takes comments. */
+    social: SocialModel? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -195,7 +198,7 @@ fun FlightScreen(
     }
 
     if (isSharing) {
-        ShareFlightSheet(id, account, requests, onDismiss = { isSharing = false })
+        ShareFlightSheet(id, account, requests, onDismiss = { isSharing = false }, social = social)
     }
 
     if (isSendingToALeague) {

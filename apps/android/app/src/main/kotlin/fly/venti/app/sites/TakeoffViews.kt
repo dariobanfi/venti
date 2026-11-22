@@ -1,5 +1,6 @@
 package fly.venti.app.sites
 
+import fly.venti.app.community.FlightTermsLink
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +43,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import fly.venti.app.R
 import fly.venti.app.design.Group
-import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.Venti
 import app.venti.design.VentiRadius
@@ -138,9 +138,7 @@ fun SiteFlightsSection(flights: SiteFlights, words: SiteFlightsWords, onOpen: (S
                 }
             }
         }
-        if (flights.terms.text.isNotEmpty()) {
-            SectionFooter(flights.terms.text, Modifier.testTag("site-flights-terms"))
-        }
+        FlightTermsLink(flights.terms, Modifier.testTag("site-flights-terms"))
     }
 }
 

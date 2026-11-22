@@ -2073,7 +2073,7 @@ class VentiUiTest {
         // Back to the search as it was left; emptied, the list is everyone's flights again.
         tap(described("Back"))
         waitFor(lena)
-        tap(described("Clear"))
+        tap(described("Clear the search"))
         waitFor(hasTestTag("public-flight-row"))
 
         // The ranking: the year's months that have flights, the newest
@@ -3141,8 +3141,10 @@ class VentiUiTest {
             // The day's line, on the card or a row of the first day of the
             // switch that has it: the hour, what is much stronger and
             // where, and what the take-off itself has.
+            // Today's cards and rows have the core's short form; the take-off's page the whole line.
             val words = """Much stronger near by at \d{1,2}:00: (gusts to|wind) \d+ km/h .+, \d+ km/h at the place"""
-            val line = (hasTestTag("today-card") or hasTestTag("today-row")) and worded(words)
+            val short = """(Gusts to|Wind) \d+ km/h near by at \d{1,2}:00"""
+            val line = (hasTestTag("today-card") or hasTestTag("today-row")) and worded(short)
             val days = hasAnyAncestor(hasTestTag("today-days")) and isSelectable()
             fun hasTheLine() = runCatching { waitFor(line, seconds = 10) }.isSuccess
             var found = hasTheLine()
@@ -3160,7 +3162,7 @@ class VentiUiTest {
             TestDevice.letTheAppRun(screen, 1)
             keepScreenshot("$prefix-air-around-1-day-with-the-line")
             // Another take-off as a row has it under what limits its day.
-            val row = hasTestTag("today-row") and worded(words)
+            val row = hasTestTag("today-row") and worded(short)
             if (runCatching { waitFor(row, seconds = 10) }.isSuccess) {
                 screen.onAllNodes(row).onFirst().performScrollTo()
                 TestDevice.letTheAppRun(screen, 1)
@@ -5603,11 +5605,7 @@ class VentiUiTest {
     fun theLayersSheetShowsWhereOthersClimbNow() {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
-        launch {
-            putExtra(LaunchOptions.SERVER, server)
-            // The development server's made-up flights are of August.
-            putExtra(LaunchOptions.FLOWN_MONTH, 8)
-        }
+        launch { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
         waitFor(described("Show my position"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.655, lon = 11.775, zoom = 11.0))
@@ -5835,6 +5833,134 @@ class VentiUiTest {
 
     @Test
     fun theCockpitsTaskPageInDarkAppearance() = lookAtTheTaskPage("dark", dark = true)
+
+    /**
+     * Pilots among each other, as the development server's demo pilot: what
+     * the pilot was told, under the account; the demo pilot's own flight
+     * from one of those lines, with who cheered and the two made-up
+     * comments, and no cheer button on one's own flight; Timo Entwurf's
+     * page with its counts and the button that follows him; the feed of
+     * the pilots the demo pilot follows, with the core's line of cheers
+     * and comments under a flight; and one of Lena Probe's flights
+     * cheered and written under. Skipped without a server.
+     */
+    @Test
+    fun pilotsFollowCheerAndWriteUnderAFlight() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        signInAsTheDemoPilot()
+
+        // What the pilot was told: a row of the account, the newest line on top.
+        screen.onNode(hasTestTag("account-notifications")).performScrollTo()
+        assertTrue(exists(hasTestTag("account-notifications") and hasText("Notifications")))
+        tap(hasTestTag("account-notifications"))
+        waitFor(hasTestTag("notification"))
+        assertTrue(exists(hasText("Lena Probe (@lena) follows you")))
+        val commented = hasText("Mara Muster (@mara) commented on your flight", substring = true)
+        assertTrue(exists(commented))
+        assertTrue(exists(hasText("Lena Probe (@lena) cheered your flight", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("light-social-1-notifications")
+
+        // A line about a flight opens that flight: the pilot's own, so without a cheer button.
+        tap(commented)
+        waitFor(hasTestTag("public-flight-pilot") and hasText("Demo Pilot"))
+        waitFor(hasText("2 pilots cheered"))
+        waitFor(hasTestTag("flight-comments") and hasText("2 comments"))
+        assertFalse(exists(hasTestTag("flight-cheer")))
+        letTheMapDraw()
+        keepScreenshot("light-social-2-own-flight")
+        tap(hasTestTag("flight-comments"))
+        waitFor(hasTestTag("comments-count") and hasText("2 comments"))
+        assertTrue(exists(hasText("Well flown. How was the air above the ridge?")))
+        assertTrue(exists(hasText("Mara Muster · ", substring = true)))
+        // Under one's own flight every comment can be removed, and another pilot's reported.
+        assertEquals(2, screen.onAllNodes(hasTestTag("comment-remove")).fetchSemanticsNodes().size)
+        assertEquals(1, screen.onAllNodes(hasTestTag("comment-report")).fetchSemanticsNodes().size)
+        assertTrue(exists(hasTestTag("comment-text")))
+        letTheMapDraw(1)
+        keepScreenshot("light-social-3-comments")
+        tap(hasTestTag("comments-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("comments")) }
+        tap(described("Back"))
+
+        // A pilot's page: the counts, and the button that follows them.
+        waitFor(hasTestTag("league-following"))
+        val field = hasTestTag("pilot-search")
+        waitFor(field)
+        screen.onNode(field).performTextInput("timo")
+        val timo = hasText("Timo Entwurf (@timo)", substring = true)
+        waitFor(timo)
+        tap(timo)
+        waitFor(hasTestTag("pilot-follow"))
+        waitFor(hasTestTag("pilot-follows") and hasText("Follows", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("light-social-4-pilot")
+        // A server that an earlier run left him followed on is left so.
+        if (exists(hasTestTag("pilot-follow") and hasText("Follow"))) tap(hasTestTag("pilot-follow"))
+        waitFor(hasTestTag("pilot-follow") and hasText("Following"))
+        waitFor(hasTestTag("pilot-follows") and hasText("1 follower", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("light-social-5-following")
+        tap(described("Back"))
+        waitFor(timo)
+        tap(described("Clear the search"))
+
+        // The feed: the flights of the pilots followed, each with what pilots made of it.
+        tap(hasTestTag("league-following"))
+        waitFor(hasTestTag("league-following") and isSelected())
+        waitFor(hasTestTag("feed-row"))
+        val feed = screen.onNode(hasTestTag("feed"))
+        val maras = hasTestTag("feed-row") and described("Mara Muster") and saying("You and 1 other cheered")
+        feed.performScrollToNode(maras)
+        assertTrue(exists(maras and saying("1 comment")))
+        letTheMapDraw(1)
+        keepScreenshot("light-social-6-feed")
+
+        // Another pilot's flight: cheered, and written under.
+        val lenas = hasTestTag("feed-row") and described("Lena Probe")
+        feed.performScrollToNode(lenas)
+        tap(lenas)
+        waitFor(hasTestTag("public-flight-pilot") and hasText("Lena Probe"))
+        waitFor(hasTestTag("flight-cheer"))
+        if (!exists(hasText("You cheered"))) tap(hasTestTag("flight-cheer"))
+        waitFor(hasText("You cheered"))
+        assertTrue(exists(hasTestTag("flight-cheer") and hasText("Cheered")))
+        tap(hasTestTag("flight-comments"))
+        waitFor(hasTestTag("comment-text"))
+        screen.onNode(hasTestTag("comment-text")).performTextInput("Nice line along the ridge.")
+        waitFor(hasText("26 of 500"))
+        assertTrue(exists(hasTestTag("comment-notice")))
+        tap(hasTestTag("comment-send"))
+        waitFor(hasText("Demo Pilot · just now"))
+        assertTrue(exists(hasTestTag("comment-remove")))
+        assertFalse(exists(hasTestTag("comment-report")))
+        letTheMapDraw(1)
+        keepScreenshot("light-social-7-written")
+        tap(hasTestTag("comments-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("comments")) }
+        waitFor(hasTestTag("flight-comments") and hasText("comment", substring = true))
+        letTheMapDraw()
+        keepScreenshot("light-social-8-cheered")
+    }
+
+    /** The feed of the pilots the demo pilot follows, in the dark appearance. Skipped without a server. */
+    @Test
+    fun theFeedInDarkAppearance() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
+        signInAsTheDemoPilot()
+        tap(described("Back"))
+        waitFor(tab("League"))
+        tap(tab("League"))
+        waitFor(hasTestTag("league-following"))
+        tap(hasTestTag("league-following"))
+        waitFor(hasTestTag("feed-row"))
+        letTheMapDraw(1)
+        keepScreenshot("dark-social-feed")
+    }
 }
 
 /** The made-up Google account of the sign-in test; the development server makes its token. */

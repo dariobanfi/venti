@@ -1,5 +1,13 @@
 package fly.venti.app.community
 
+import fly.venti.core.PublicFlightTerms
+import app.venti.design.VentiSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,18 +18,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import app.venti.design.VentiSpace
 import fly.venti.app.R
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
+import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
 import fly.venti.app.sites.MonthBars
 import fly.venti.core.FlownSiteLine
 import fly.venti.core.PilotStatistics
 import fly.venti.core.PilotTotalsView
+import fly.venti.core.pilotsWords
 
 /**
  * What a pilot's public flights add up to, over the list of them: the
@@ -45,10 +58,15 @@ fun PilotTotalsSection(
 ) {
     val choices: List<PilotTotalsView> = listOf(statistics.overall) + statistics.seasons
     val shown = choices.firstOrNull { it.year == year } ?: statistics.overall
+    val words = remember { pilotsWords() }
     Column(modifier.testTag("pilot-totals"), verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
         if (statistics.seasons.isNotEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("pilot-seasons"),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .testTag("pilot-seasons")
+                    .semantics { contentDescription = words.seasonChoice },
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
                 for (choice in choices) {
@@ -78,6 +96,8 @@ fun PilotTotalsSection(
             }
         }
         if (shown.sites.isNotEmpty()) {
+            Column {
+            SectionHeader(words.sitesTitle)
             Group {
                 for (site in shown.sites) {
                     row {
@@ -95,14 +115,18 @@ fun PilotTotalsSection(
                     }
                 }
             }
+            }
         }
         if (shown.months.isNotEmpty()) {
-            Group {
-                row {
-                    MonthBars(
-                        shown.months,
-                        Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3).testTag("pilot-months"),
-                    )
+            Column {
+                SectionHeader(words.monthsTitle)
+                Group {
+                    row {
+                        MonthBars(
+                            shown.months,
+                            Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3).testTag("pilot-months"),
+                        )
+                    }
                 }
             }
         }
@@ -110,9 +134,33 @@ fun PilotTotalsSection(
             if (statistics.note.isNotEmpty()) {
                 SectionFooter(statistics.note, Modifier.testTag("pilot-totals-note"))
             }
-            if (statistics.terms.text.isNotEmpty()) {
-                SectionFooter(statistics.terms.text, Modifier.testTag("pilot-totals-terms"))
-            }
+            FlightTermsLink(statistics.terms, Modifier.testTag("pilot-totals-terms"))
         }
+    }
+}
+
+/**
+ * The terms public flights are given under: the core's short title as a
+ * link that opens its statement. Where the core has no title the statement
+ * stands there itself, and nothing where it has neither.
+ */
+@Composable
+fun FlightTermsLink(terms: PublicFlightTerms, modifier: Modifier = Modifier) {
+    if (terms.text.isEmpty()) return
+    if (terms.title.isEmpty()) {
+        SectionFooter(terms.text, modifier)
+        return
+    }
+    var isOpen by remember { mutableStateOf(false) }
+    TextButton(onClick = { isOpen = true }, modifier = modifier.heightIn(min = VentiSize.touch)) {
+        Text(terms.title)
+    }
+    if (isOpen) {
+        AlertDialog(
+            onDismissRequest = { isOpen = false },
+            title = { Text(terms.title) },
+            text = { Text(terms.text, Modifier.testTag("flight-terms-text")) },
+            confirmButton = { TextButton(onClick = { isOpen = false }) { Text("OK") } },
+        )
     }
 }

@@ -32,6 +32,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.community.CommentsSwitchRow
+import fly.venti.app.community.SocialModel
 import fly.venti.app.SharedFiles
 import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Group
@@ -54,6 +56,8 @@ fun ShareFlightSheet(
     /** Where requests run, so that one carries on when the sheet is closed. */
     scope: CoroutineScope,
     onDismiss: () -> Unit,
+    /** Pilots among each other: whether a public flight takes comments. `null` for no such switch. */
+    social: SocialModel? = null,
 ) {
     val context = LocalContext.current
     var sharing by remember(flight) { mutableStateOf(account.sharing(flight)) }
@@ -98,6 +102,11 @@ fun ShareFlightSheet(
                                 }
                             }
                         }
+                    }
+                    // Whether others can write under it: for a flight everyone can see.
+                    if (social != null && current.visibility == FlightVisibility.PUBLIC) {
+                        // The flight's address on Venti is the end of its link.
+                        CommentsSwitchRow(current.link.substringAfterLast('/'), social, scope)
                     }
                     if (current.visibility != FlightVisibility.PRIVATE) {
                         SectionHeader("Link")

@@ -356,6 +356,22 @@ private fun Sections(
                             session.scope,
                             onAlerts = { navigation.settingsRoute = SettingsRoute.Alerts },
                             onBack = { navigation.back() },
+                            social = session.social,
+                            // What a notification is about opens on the League tab.
+                            onOpenFlight = { id ->
+                                session.scope.launch {
+                                    try {
+                                        session.community.publicFlightById(id)
+                                    } catch (error: CancellationException) {
+                                        throw error
+                                    } catch (_: Exception) {
+                                        // No longer public: nothing opens.
+                                        return@launch
+                                    }
+                                    navigation.showPublic(id)
+                                }
+                            },
+                            onOpenPilot = { handle -> navigation.showPilot(handle) },
                         )
                     }
                     SettingsRoute.Alerts -> AlertsScreen(
@@ -574,6 +590,7 @@ private fun Sections(
                         onBack = { navigation.back() },
                         preferences = session.preferences,
                         terrain = session.terrain,
+                        social = session.social,
                     )
                 }
                 LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
@@ -596,6 +613,7 @@ private fun Sections(
                 null -> kept.SaveableStateProvider("league") {
                     LeagueScreen(
                         session.community,
+                        session.social,
                         hasServer = hasServer,
                         onOpenFlight = { navigation.open(LeagueRoute.PublicFlight(it.id)) },
                         onOpenPilot = { handle, name -> navigation.open(LeagueRoute.Pilot(handle, name)) },
@@ -614,6 +632,7 @@ private fun Sections(
                                 flight,
                                 session.community,
                                 session.airspace,
+                                session.social,
                                 session.account,
                                 server = (session.wind.server as? WindServer.Usable)?.url,
                                 requests = session.scope,
@@ -632,6 +651,7 @@ private fun Sections(
                         route.handle,
                         route.name,
                         session.community,
+                        session.social,
                         session.account,
                         server = (session.wind.server as? WindServer.Usable)?.url,
                         requests = session.scope,

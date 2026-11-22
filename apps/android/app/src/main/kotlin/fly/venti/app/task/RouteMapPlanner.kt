@@ -1,11 +1,25 @@
 package fly.venti.app.task
 
+import androidx.compose.runtime.LaunchedEffect
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.camera.CameraUpdateFactory
+import fly.venti.core.routeToGpx
+import fly.venti.core.routeFromGpx
+import fly.venti.core.plannerWords
+import fly.venti.app.pilotMessage
+import fly.venti.app.SharedFiles
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import app.venti.design.VentiSpace
 import fly.venti.app.settings.Preferences
 import fly.venti.app.design.PhotosCredit
 import fly.venti.app.design.AerialButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
@@ -69,6 +83,9 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
+/** How much of a file is read for a route: more than any route, and little enough to hold. */
+private const val GPX_BYTES_READ = 4 * 1024 * 1024
+
 /** How much of the planner's height its card takes at the most, with the weather open. */
 private const val CARD_SHARE = 0.6f
 
@@ -124,8 +141,40 @@ fun RouteMapPlanner(
     var places by remember { mutableStateOf(listOfNotNull(from)) }
     var problem by remember { mutableStateOf<String?>(null) }
     val plan = remember(places) { planRoute(places) }
+    val context = LocalContext.current
+    val words = remember { plannerWords() }
+    var isShowingMenu by remember { mutableStateOf(false) }
+    // What a file brought in was read as, in the core's line: said until the route is changed by hand.
+    var imported by remember { mutableStateOf<String?>(null) }
+    // The places of a file just brought in, for the map to frame once.
+    var toFrame by remember { mutableStateOf<List<Coordinate>?>(null) }
+    val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        try {
+            val text = context.contentResolver.openInputStream(uri)?.use { stream ->
+                // No route is larger; what is, the core refuses in its words.
+                val read = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(64 * 1024)
+                while (read.size() < GPX_BYTES_READ) {
+                    val count = stream.read(buffer)
+                    if (count < 0) break
+                    read.write(buffer, 0, count)
+                }
+                String(read.toByteArray(), Charsets.UTF_8)
+            }.orEmpty()
+            val route = routeFromGpx(text)
+            places = route.points
+            imported = route.words
+            toFrame = route.points
+            problem = null
+        } catch (error: Exception) {
+            imported = null
+            problem = error.pilotMessage
+        }
+    }
     val map = remember { RouteDrawingMap(from) { place ->
         problem = null
+        imported = null
         places = RouteDrawing.add(places, place)
     } }
     val weather = remember(thermalMap, terrain) {
@@ -136,6 +185,12 @@ fun RouteMapPlanner(
     }
     DisposableEffect(weather) { onDispose { weather?.close() } }
     BackHandler(onBack = onDismiss)
+    LaunchedEffect(toFrame) {
+        toFrame?.let { route ->
+            map.frame(route)
+            toFrame = null
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -153,6 +208,36 @@ fun RouteMapPlanner(
                         },
                         enabled = places.size >= 2,
                     ) { Text("Keep") }
+                    // The route as a GPX file, out and in: behind the menu, in the core's words.
+                    Box {
+                        IconButton(onClick = { isShowingMenu = true }, modifier = Modifier.testTag("route-menu")) {
+                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                        }
+                        DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(words.exportGpx) },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_share), contentDescription = null) },
+                                enabled = places.size >= 2,
+                                onClick = {
+                                    isShowingMenu = false
+                                    val file = SharedFiles.folder(context).apply { mkdirs() }.resolve("route.gpx")
+                                    file.writeText(routeToGpx(places))
+                                    SharedFiles.share(context, file, words.exportGpx)
+                                },
+                                modifier = Modifier.testTag("route-export-gpx"),
+                            )
+                            DropdownMenuItem(
+                                text = { Text(words.importGpx) },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_file_open), contentDescription = null) },
+                                onClick = {
+                                    isShowingMenu = false
+                                    // A GPX file has no type every file manager agrees on.
+                                    pickGpx.launch(arrayOf("*/*"))
+                                },
+                                modifier = Modifier.testTag("route-import-gpx"),
+                            )
+                        }
+                    }
                 },
             )
         },
@@ -199,6 +284,15 @@ fun RouteMapPlanner(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    // A file just brought in: what it was read as, once.
+                    imported?.takeIf { problem == null }?.let { read ->
+                        Text(
+                            read,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("route-imported"),
+                        )
+                    }
                     Text(
                         problem ?: plan.words,
                         style = MaterialTheme.typography.bodyMedium,
@@ -293,7 +387,19 @@ private class RouteDrawingMap(private val start: Coordinate?, private val onTap:
         MapSetup.showAerial(aerial, style, view)
     }
 
+    private var map: MapLibreMap? = null
+
+    /** Brings a route that came from a file into view, whole. */
+    fun frame(places: List<Coordinate>) {
+        val map = map ?: return
+        val view = view ?: return
+        if (places.size < 2) return
+        val bounds = LatLngBounds.Builder().includes(places.map { LatLng(it.lat, it.lon) }).build()
+        map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, view.width / 6))
+    }
+
     override fun prepare(map: MapLibreMap, view: MapView) {
+        this.map = map
         map.cameraPosition = if (start != null) {
             // A route that begins at a place: the country around it.
             CameraPosition.Builder().target(LatLng(start.lat, start.lon)).zoom(9.5).build()

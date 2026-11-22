@@ -1,5 +1,6 @@
 package fly.venti.app.wind
 
+import fly.venti.core.stationSheetWords
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -220,7 +221,7 @@ fun StationPage(
                 Group(Modifier.padding(top = 24.dp)) {
                     row {
                         DisclosureRow(
-                            StationPageWords.MORE_AIR,
+                            stationSheetWords().moreAirTitle,
                             isOpen = showsMoreAir,
                             modifier = Modifier.testTag("station-more-air"),
                             onChange = { showsMoreAir = it },
@@ -318,11 +319,6 @@ private fun DayChoice(days: StationDays, shown: String, onChoose: (String) -> Un
     }
 }
 
-/** A station's page's own words. */
-object StationPageWords {
-    /** The row at the end that unfolds the air's card and how the chart is read. */
-    const val MORE_AIR = "More about the air here"
-}
 
 /** A date picker's moments and the core's dates, one into the other. */
 object StationDayWords {

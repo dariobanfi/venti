@@ -682,7 +682,7 @@ fun MapScreen(
             // Three at most: the layers and lists, what the pilot asks of
             // the sites, and the pilot's own position. Everything else the
             // map can show or lead to is a row of the layers sheet.
-            RoundButton(R.drawable.venti_layers, MapWords.LAYERS, Modifier.testTag("map-layers")) { showsLayers = true }
+            RoundButton(R.drawable.venti_layers, MapWords.core.title, Modifier.testTag("map-layers")) { showsLayers = true }
             if (hasSites) {
                 // Drawn as a selected chip while a filter is on; it stays
                 // when a filter leaves no site.
@@ -758,14 +758,14 @@ fun MapScreen(
             if (hasServer && air != null) {
                 add(
                     MapLayer(
-                        MapWords.CLIMBS_NOW,
+                        MapWords.core.climbsNow,
                         R.drawable.venti_thermal,
                         "layer-climbs",
                         air.climbsOn,
                         // How many, in the core's words; or why none.
                         notes = when {
                             !air.climbsOn -> emptyList()
-                            air.climbsTooWide -> listOf(MapWords.CLIMBS_TOO_WIDE)
+                            air.climbsTooWide -> listOf(MapWords.core.climbsTooWide)
                             else -> listOfNotNull(
                                 air.climbs?.let { if (it.climbs.isEmpty()) liveClimbsEmptyWords() else it.countWords },
                             )
@@ -777,7 +777,7 @@ fun MapScreen(
                 )
                 add(
                     MapLayer(
-                        MapWords.FLOWN_THERMALS,
+                        MapWords.core.flownThermals,
                         R.drawable.venti_track,
                         "layer-flown",
                         air.flownOn,
@@ -787,7 +787,7 @@ fun MapScreen(
                             air.flownTooWide -> listOf(flownTooWideWords())
                             else -> listOfNotNull(
                                 air.flown?.note?.takeIf { it.isNotBlank() },
-                                MapWords.FLOWN_NONE.takeIf { air.flown?.cells?.isEmpty() == true },
+                                MapWords.core.flownEmpty.takeIf { air.flown?.cells?.isEmpty() == true },
                                 air.flown?.terms?.takeIf { it.isNotBlank() && air.flown?.cells?.isNotEmpty() == true },
                             )
                         },
@@ -824,7 +824,7 @@ fun MapScreen(
 
     chosenClimb?.let { climb ->
         AirLineSheet(
-            title = MapWords.CLIMBS_NOW,
+            title = MapWords.core.climbsNow,
             line = climb.line,
             notes = climbs?.credits?.filter { it.source == climb.source }?.map { it.text }.orEmpty(),
             tag = "climb-line",
@@ -834,7 +834,7 @@ fun MapScreen(
 
     chosenFlown?.let { cell ->
         AirLineSheet(
-            title = MapWords.FLOWN_THERMALS,
+            title = MapWords.core.flownThermals,
             line = cell.line,
             notes = listOfNotNull(flown?.note?.takeIf { it.isNotBlank() }, flown?.terms?.takeIf { it.isNotBlank() }),
             tag = "flown-line",

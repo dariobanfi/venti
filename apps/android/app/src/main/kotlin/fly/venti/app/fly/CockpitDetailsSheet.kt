@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import fly.venti.core.cockpitDetailsWords
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,21 +28,10 @@ import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.numbers
 import fly.venti.core.CockpitView
 
-/** The words of the cockpit's details sheet that are not the core's: its title and the names of its rows. */
+/** The cockpit's details sheet in words, all of them the core's: its title, the names of its rows, its note. */
 object CockpitDetailsWords {
-    const val TITLE = "Details"
-    const val AIRSPEED = "Airspeed"
-    const val HEADING = "Heading"
-    const val ALTITUDE = "Altitude"
-    const val QNH = "QNH"
-    const val AIR = "Air"
-    const val SPEED_TO_FLY = "Speed to fly"
-
-    /** While the core has none of the readings. */
-    const val NONE_YET = "Nothing to show yet."
-
-    /** Under the rows: what the estimates are made from. */
-    const val FOOTER = "Airspeed and heading are estimates: your way over the ground less the wind last measured."
+    /** The core's words, read once. */
+    val core: fly.venti.core.CockpitDetailsWords by lazy { cockpitDetailsWords() }
 
     /**
      * The rows there are now, each a name and the core's words, in the
@@ -50,12 +40,12 @@ object CockpitDetailsWords {
      * a pilot who set a glider class.
      */
     fun rows(view: CockpitView): List<Pair<String, String>> = listOfNotNull(
-        view.airspeedWords?.let { AIRSPEED to it },
-        view.headingWords?.let { HEADING to it },
-        view.altitudeSourceWords?.let { ALTITUDE to it },
-        view.qnhWords?.let { QNH to it },
-        view.nettoWords?.let { AIR to it },
-        view.speedToFly?.let { SPEED_TO_FLY to it.words },
+        view.airspeedWords?.let { core.airspeed to it },
+        view.headingWords?.let { core.heading to it },
+        view.altitudeSourceWords?.let { core.altitude to it },
+        view.qnhWords?.let { core.qnh to it },
+        view.nettoWords?.let { core.air to it },
+        view.speedToFly?.let { core.speedToFly to it.words },
     )
 }
 
@@ -77,7 +67,7 @@ fun CockpitDetailsSheet(view: CockpitView, onDismiss: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(start = VentiSpace.s5, end = VentiSpace.s2),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(CockpitDetailsWords.TITLE, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(CockpitDetailsWords.core.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextButton(onClick = onDismiss, modifier = Modifier.testTag("cockpit-details-close")) { Text("Done") }
         }
         val rows = CockpitDetailsWords.rows(view)
@@ -88,7 +78,7 @@ fun CockpitDetailsSheet(view: CockpitView, onDismiss: () -> Unit) {
             item {
                 if (rows.isEmpty()) {
                     Text(
-                        CockpitDetailsWords.NONE_YET,
+                        CockpitDetailsWords.core.noneYet,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = VentiSpace.s1, vertical = VentiSpace.s4),
                     )
@@ -100,7 +90,7 @@ fun CockpitDetailsSheet(view: CockpitView, onDismiss: () -> Unit) {
                     }
                 }
             }
-            item { SectionFooter(CockpitDetailsWords.FOOTER) }
+            item { SectionFooter(CockpitDetailsWords.core.note) }
         }
     }
 }

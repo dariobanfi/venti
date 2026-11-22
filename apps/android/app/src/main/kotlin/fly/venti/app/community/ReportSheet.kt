@@ -37,6 +37,7 @@ import fly.venti.app.account.AccountModel
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
+import fly.venti.core.ReportForm
 import fly.venti.core.ReportReason
 import fly.venti.core.ReportReasonChoice
 import fly.venti.core.ReportSubject
@@ -116,7 +117,6 @@ object ReportWords {
  * account it comes from: the form says so before anything is sent. The
  * reasons, the notice and the answer's words are the core's.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportSheet(
     reported: Reported,
@@ -127,8 +127,34 @@ fun ReportSheet(
     requests: CoroutineScope,
     onDismiss: () -> Unit,
 ) {
-    // The reasons and the notice for this kind of thing: a group's and a plan's are their own.
-    val form = remember(reported.subject) { reportFormFor(reported.subject) }
+    ReportSheet(
+        title = reported.title,
+        // The reasons and the notice for this kind of thing: a group's and a plan's are their own.
+        form = remember(reported.subject) { reportFormFor(reported.subject) },
+        account = account,
+        server = server,
+        requests = requests,
+        send = { reason, text -> account.report(reported.subject, reason, text) },
+        onDismiss = onDismiss,
+    )
+}
+
+/**
+ * The same form for anything a report can be about: `form` is the core's
+ * for that kind of thing, and `send` its request. A comment under a flight
+ * is reported this way, with a form and a request of its own.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReportSheet(
+    title: String,
+    form: ReportForm,
+    account: AccountModel,
+    server: String?,
+    requests: CoroutineScope,
+    send: suspend (ReportReason, String) -> AccountModel.ReportOutcome,
+    onDismiss: () -> Unit,
+) {
     var reason by remember { mutableStateOf<ReportReason?>(null) }
     var text by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
@@ -147,7 +173,7 @@ fun ReportSheet(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(reported.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextButton(onClick = onDismiss, modifier = Modifier.testTag("report-close")) {
                 Text(if (sent == null && obstacle == null) "Cancel" else "Done")
             }
@@ -224,7 +250,7 @@ fun ReportSheet(
                             problem = null
                             requests.launch {
                                 try {
-                                    val result = account.report(reported.subject, chosen, text)
+                                    val result = send(chosen, text)
                                     outcome = result.sent
                                     problem = result.problem
                                 } finally {

@@ -65,6 +65,7 @@ import fly.venti.app.design.SegmentedPills
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
 import fly.venti.app.sites.Choice
+import fly.venti.core.mapLayersWords
 import fly.venti.core.AlertDraft
 import fly.venti.core.AlertFaultView
 import fly.venti.core.AlertKind
@@ -343,7 +344,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                     if (id == null && draft.kind != AlertKind.WIND) {
                         Spacer(Modifier.height(VentiSpace.s4))
                         SegmentedPills(
-                            listOf(AlertWords.DAY_KIND, AlertWords.core.pilotsKind),
+                            listOf(mapLayersWords().alarmDayKind, AlertWords.core.pilotsKind),
                             if (draft.kind == AlertKind.PILOTS) 1 else 0,
                             Modifier.testTag("alert-kind"),
                             fitToWords = true,
@@ -561,8 +562,7 @@ private fun PilotsChoices(draft: AlertDraft, faults: List<AlertFaultView>, onCha
             )
         }
     }
-    // The core's note has runs of spaces inside it (a line break in its source): written with one.
-    SectionFooter(AlertWords.core.pilotsNote.replace(Regex(" {2,}"), " "), Modifier.testTag("alert-pilots-note"))
+    SectionFooter(AlertWords.core.pilotsNote, Modifier.testTag("alert-pilots-note"))
 }
 
 /** A row of choices that scrolls sideways, as the sites' filter shows the winds. */

@@ -27,6 +27,7 @@ import fly.venti.app.assistant.EncryptedKeyStore
 import fly.venti.app.assistant.FixedKey
 import fly.venti.app.assistant.ScriptedProvider
 import fly.venti.app.community.CommunityModel
+import fly.venti.app.community.SocialModel
 import fly.venti.app.design.Format
 import fly.venti.app.fly.FlySession
 import fly.venti.app.fly.PhoneSensors
@@ -56,8 +57,6 @@ import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.app.cables.CablesModel
 import fly.venti.core.todayArea
-import fly.venti.core.SiteKind
-import fly.venti.core.TargetPlace
 import fly.venti.core.WaypointKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
@@ -89,6 +88,8 @@ sealed interface Session {
         /** Where pilots climb now, where thermals have been, and who is in the air at a site. */
         val air: AirModel,
         val community: CommunityModel,
+        /** Pilots among each other: following, the feed, cheers, comments and what the pilot was told. */
+        val social: SocialModel,
         val account: AccountModel,
         val groups: GroupsModel,
         /** The pilot's alarms and what they fired. */
@@ -153,8 +154,6 @@ sealed interface Session {
             slowGlider: Boolean = false,
             /** A UI test's Google account, for the development server's made-up Google; `null` for Google itself. */
             googleTestAccount: String? = null,
-            /** A UI test's month of the year for where thermals have been; `null` for this month. */
-            flownMonth: Int? = null,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -269,13 +268,10 @@ sealed interface Session {
                 }
                 keptSites.cockpitTakeoffs(place, sites.heldAround(place))
             }
-            // The landing fields among those sites, for the cockpit's
-            // standing reading of the nearest one within glide.
-            fly.landingsAround = { place ->
-                sites.heldAround(place)?.sites.orEmpty()
-                    .filter { SiteKind.LANDING in it.uses }
-                    .map { TargetPlace(it.name, it.position, it.elevationM) }
-            }
+            // The landings for the cockpit's standing reading of the nearest
+            // one within glide: the core picks them, from those sites, the
+            // pilot's own and the pilot's landing waypoints.
+            fly.landingsAround = { place -> keptSites.cockpitLandings(place, sites.heldAround(place)) }
             val today = TodayModel(keptSites)
             today.server = { (wind.server as? WindServer.Usable)?.url }
             today.clock = { wind.serverNow() }
@@ -296,7 +292,7 @@ sealed interface Session {
             // What only a server that sees many gliders can say: two layers
             // of the map and a line of a site's page, and in the cockpit
             // the climbs around the glider once the pilot switches them on.
-            val air = if (flownMonth != null) AirModel(month = { flownMonth }) else AirModel()
+            val air = AirModel()
             air.server = { (wind.server as? WindServer.Usable)?.url }
             fly.wantsClimbs = { preferences.cockpitShowsClimbs }
             // And everyone's public flights, on the Logbook tab.
@@ -312,6 +308,10 @@ sealed interface Session {
             // client ID; a UI test asks the development server instead.
             account.google = googleTestAccount?.let { DevelopmentGoogle(it, name = LaunchOptions.GOOGLE_TEST_NAME) }
                 ?: CredentialManagerGoogle(BuildConfig.GOOGLE_CLIENT_ID)
+            // Pilots among each other, asked of the same Venti: with the
+            // account's token where a request needs one.
+            val social = SocialModel(account, now = { wind.serverNow() })
+            social.server = { (wind.server as? WindServer.Usable)?.url }
             // The pilot's own take-offs are on the account too, once signed in.
             logbook.follow(account, keptSites, scope)
             // The pilot's groups and their plans for a flying day, asked
@@ -397,7 +397,7 @@ sealed interface Session {
                 if (isUnderTest) MemoryUploadPasswordStore() else KeystoreUploadPasswordStore(app),
             )
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, account, groups, alerts, siteEdit, tasks,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, social, account, groups, alerts, siteEdit, tasks,
                 leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(app, preferences, logbook), preferences, files, scope,
             )
         }
@@ -433,7 +433,6 @@ class VentiApplication : Application() {
             sampleTask = options.usesSampleTask,
             slowGlider = options.usesSlowGlider,
             googleTestAccount = options.googleTestAccount,
-            flownMonth = options.flownMonth,
         ).also { testSession = it }
     }
 }
@@ -487,12 +486,6 @@ data class LaunchOptions(
      * sheet, so that the sign-in can be tested without a Google account.
      */
     val googleTestAccount: String? = null,
-    /**
-     * The month of the year, 1 to 12, that "Where thermals have been" is
-     * asked for instead of this month: the development server's made-up
-     * flights are of August, and a test runs in any month.
-     */
-    val flownMonth: Int? = null,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
@@ -505,7 +498,6 @@ data class LaunchOptions(
         const val SAMPLE_TASK = "sample-task"
         const val SLOW_GLIDER = "slow-glider"
         const val GOOGLE_TEST_ACCOUNT = "google-test-account"
-        const val FLOWN_MONTH = "flown-month"
 
         /** The name the made-up Google gives the test's account. */
         const val GOOGLE_TEST_NAME = "UI Test"
@@ -571,7 +563,6 @@ data class LaunchOptions(
                 usesSampleTask = intent.getBooleanExtra(SAMPLE_TASK, false),
                 usesSlowGlider = intent.getBooleanExtra(SLOW_GLIDER, false),
                 googleTestAccount = intent.getStringExtra(GOOGLE_TEST_ACCOUNT),
-                flownMonth = intent.getIntExtra(FLOWN_MONTH, 0).takeIf { it in 1..12 },
             )
         }
     }

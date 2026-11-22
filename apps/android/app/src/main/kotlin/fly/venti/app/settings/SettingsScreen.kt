@@ -1,5 +1,7 @@
 package fly.venti.app.settings
 
+import fly.venti.core.gliderClassName
+import fly.venti.core.gliderWords
 import fly.venti.app.maps.OfflineMapsWords
 import fly.venti.app.sites.KeptSitesWords
 import androidx.compose.foundation.clickable
@@ -58,6 +60,7 @@ import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
 import fly.venti.app.fly.FlySession
 import fly.venti.app.wind.WindModel
+import fly.venti.core.mapLayersWords
 import fly.venti.core.GliderClassKind
 
 /** The pilot's settings, and what the app is made of. */
@@ -157,7 +160,7 @@ fun SettingsScreen(
                     }
                 }
                 row {
-                    SwitchRow(CockpitClimbsWords.SETTING, isOn = showsClimbs, modifier = Modifier.testTag("cockpit-climbs")) { isOn ->
+                    SwitchRow(mapLayersWords().cockpitClimbs, isOn = showsClimbs, modifier = Modifier.testTag("cockpit-climbs")) { isOn ->
                         showsClimbs = isOn
                         preferences.cockpitShowsClimbs = isOn
                     }
@@ -168,9 +171,9 @@ fun SettingsScreen(
                     "in a straight line: a turnpoint inside either of them makes that line one side of an " +
                     "FAI triangle.",
             )
-            SectionFooter(CockpitClimbsWords.ABOUT)
+            SectionFooter(mapLayersWords().cockpitClimbsNote)
 
-            SectionHeader(GliderWords.TITLE)
+            SectionHeader(GliderWords.core.title)
             Group {
                 row {
                     StepperRow(
@@ -197,13 +200,13 @@ fun SettingsScreen(
                     }
                 }
                 row {
-                    SwitchRow(GliderWords.NEVER_LAND, isOn = neverLand, modifier = Modifier.testTag("never-land")) { isOn ->
+                    SwitchRow(GliderWords.core.neverLand, isOn = neverLand, modifier = Modifier.testTag("never-land")) { isOn ->
                         neverLand = isOn
                         preferences.neverLand = isOn
                     }
                 }
             }
-            SectionFooter(GliderWords.FOOTER)
+            SectionFooter("${GliderWords.SPEED_AND_GLIDE} ${GliderWords.core.footer}")
 
             SectionHeader("Venti")
             Group {
@@ -263,32 +266,20 @@ private fun SwitchRow(title: String, isOn: Boolean, modifier: Modifier = Modifie
 
 /** The words of the settings' "Glider" section, and how the glider's class is kept. */
 object GliderWords {
-    const val TITLE = "Glider"
-    const val CLASS = "Glider class"
-    const val NONE = "None"
-    const val NEVER_LAND = "Never land (hike and fly)"
+    /** The core's words of the section: its heading, the class's row, "Never land" and what the two do. */
+    val core: fly.venti.core.GliderWords by lazy { gliderWords() }
 
-    /** Under the section: what each of its rows is for. */
-    const val FOOTER =
+    /** Under the section, before the core's lines: what the speed and the glide ratio, the app's own two rows, are for. */
+    const val SPEED_AND_GLIDE =
         "Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit " +
             "predicts how high you arrive at the place you fly to. The prediction assumes air that neither " +
-            "rises nor sinks on the way. With a glider class the cockpit also says what the air itself does " +
-            "on a glide and when to speed up; its numbers are typical of the class, not your glider's. " +
-            "With \"Never land\" a flight is not ended by itself: landing, walking on and taking off " +
-            "again stay one recording, which you end by hand."
+            "rises nor sinks on the way."
 
     /** The classes the menu offers, `null` first for none. */
     val CLASSES: List<GliderClassKind?> = listOf(null) + GliderClassKind.entries
 
-    /** A class as the menu names it: "None", "EN A", "CCC". */
-    fun name(kind: GliderClassKind?): String = when (kind) {
-        null -> NONE
-        GliderClassKind.A -> "EN A"
-        GliderClassKind.B -> "EN B"
-        GliderClassKind.C -> "EN C"
-        GliderClassKind.D -> "EN D"
-        GliderClassKind.CCC -> "CCC"
-    }
+    /** A class as the menu names it, in the core's words: "None", "EN A", "CCC". */
+    fun name(kind: GliderClassKind?): String = gliderClassName(kind)
 
     /** The class as the preferences keep it, or `null` for none. */
     fun kept(kind: GliderClassKind?): String? = kind?.name
@@ -303,7 +294,7 @@ private fun GliderClassRow(chosen: GliderClassKind?, onChoose: (GliderClassKind?
     var isOpen by remember { mutableStateOf(false) }
     Box {
         LinkRow(
-            GliderWords.CLASS,
+            GliderWords.core.classTitle,
             R.drawable.ic_arrow_drop_down,
             Modifier.testTag("glider-class"),
             value = GliderWords.name(chosen),
@@ -372,13 +363,3 @@ object SettingsWords {
             "With an account your flights are kept there and can be shared; without one, your flights stay on this phone."
 }
 
-/** The words of the cockpit's setting for the climbs of others, which are the app's own. */
-object CockpitClimbsWords {
-    const val SETTING = "Climbs of others in the cockpit"
-
-    /** Under the cockpit's switches: what the setting draws, and that it is a hint. */
-    const val ABOUT =
-        "With the climbs of others on, the cockpit's map marks where pilots near you circled and climbed in " +
-            "the last minutes, and names the nearest. A hint, not an instrument: a climb found minutes ago " +
-            "may be gone."
-}

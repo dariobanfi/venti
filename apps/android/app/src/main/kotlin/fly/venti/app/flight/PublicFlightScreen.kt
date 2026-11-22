@@ -41,7 +41,11 @@ import fly.venti.app.R
 import fly.venti.app.SharedFiles
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
+import app.venti.design.VentiSize
+import app.venti.design.VentiSpace
 import fly.venti.app.community.CommunityModel
+import fly.venti.app.community.FlightSocialBar
+import fly.venti.app.community.SocialModel
 import fly.venti.app.community.ReportSheet
 import fly.venti.app.community.Reported
 import fly.venti.app.wind.grown
@@ -65,6 +69,8 @@ fun PublicFlightScreen(
     flight: PublicFlight,
     community: CommunityModel,
     airspace: AirspaceModel,
+    /** Pilots among each other: the flight's cheers and comments. */
+    social: SocialModel,
     /** The pilot's own account, which a report is sent from. */
     account: AccountModel,
     /** The address of the server the flight is on, for the link to its page. */
@@ -125,81 +131,93 @@ fun PublicFlightScreen(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = MaterialTheme.colorScheme.onSurface,
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilledTonalIconButton(onClick = onBack, colors = colours) {
-                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
-            }
-            Spacer(Modifier.width(8.dp))
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerLow, shadowElevation = 2.dp) {
-                    Column(
-                        Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            flight.pilot,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .testTag("public-flight-pilot")
-                                .semantics { heading() },
-                        )
-                        // The site it took off from, where the server names one.
-                        flight.takeoffName?.let { takeoff ->
+        Column(Modifier.fillMaxWidth().statusBarsPadding()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilledTonalIconButton(onClick = onBack, colors = colours) {
+                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerLow, shadowElevation = 2.dp) {
+                        Column(
+                            Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
                             Text(
-                                takeoff,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                flight.pilot,
+                                style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.testTag("public-flight-takeoff"),
+                                modifier = Modifier
+                                    .testTag("public-flight-pilot")
+                                    .semantics { heading() },
                             )
+                            // The site it took off from, where the server names one.
+                            flight.takeoffName?.let { takeoff ->
+                                Text(
+                                    takeoff,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.testTag("public-flight-takeoff"),
+                                )
+                            }
                         }
                     }
                 }
-            }
-            Spacer(Modifier.width(8.dp))
-            Box {
-                FilledTonalIconButton(onClick = { isShowingMenu = true }, colors = colours) {
-                    Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
-                }
-                DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Flights of ${flight.pilot}") },
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_person), contentDescription = null) },
-                        onClick = {
-                            isShowingMenu = false
-                            onPilot()
-                        },
-                        modifier = Modifier.testTag("public-flight-pilot-flights"),
-                    )
-                    if (server != null) {
+                Spacer(Modifier.width(8.dp))
+                Box {
+                    FilledTonalIconButton(onClick = { isShowingMenu = true }, colors = colours) {
+                        Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                    }
+                    DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
                         DropdownMenuItem(
-                            text = { Text("Share the flight's page") },
-                            leadingIcon = { Icon(painterResource(R.drawable.ic_share), contentDescription = null) },
+                            text = { Text("Flights of ${flight.pilot}") },
+                            leadingIcon = { Icon(painterResource(R.drawable.ic_person), contentDescription = null) },
                             onClick = {
                                 isShowingMenu = false
-                                SharedFiles.shareText(context, server + flight.pagePath, "Share the flight's page")
+                                onPilot()
+                            },
+                            modifier = Modifier.testTag("public-flight-pilot-flights"),
+                        )
+                        if (server != null) {
+                            DropdownMenuItem(
+                                text = { Text("Share the flight's page") },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_share), contentDescription = null) },
+                                onClick = {
+                                    isShowingMenu = false
+                                    SharedFiles.shareText(context, server + flight.pagePath, "Share the flight's page")
+                                },
+                            )
+                        }
+                        // For what should not be here: to whoever runs the
+                        // server, and to nobody else.
+                        val report = Reported.flight(flight.id)
+                        DropdownMenuItem(
+                            text = { Text(report.title) },
+                            leadingIcon = { Icon(painterResource(R.drawable.ic_flag), contentDescription = null) },
+                            onClick = {
+                                isShowingMenu = false
+                                reporting = report
                             },
                         )
                     }
-                    // For what should not be here: to whoever runs the
-                    // server, and to nobody else.
-                    val report = Reported.flight(flight.id)
-                    DropdownMenuItem(
-                        text = { Text(report.title) },
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_flag), contentDescription = null) },
-                        onClick = {
-                            isShowingMenu = false
-                            reporting = report
-                        },
-                    )
                 }
             }
+            // Under the head: who cheered, the cheer, and the way to the comments.
+            FlightSocialBar(
+                flight,
+                social,
+                account,
+                server,
+                requests,
+                // Between the round buttons at the map's two upper corners.
+                Modifier.fillMaxWidth().padding(horizontal = VentiSize.touch + VentiSpace.s5),
+            )
         }
     }
 

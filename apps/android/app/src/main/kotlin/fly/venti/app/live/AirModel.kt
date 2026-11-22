@@ -21,7 +21,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Calendar
 
 /**
  * What only a server that sees many gliders can say: where pilots climb at
@@ -38,8 +37,6 @@ class AirModel(
     private val transport: WindTransport = { url -> Http.get(url, ANSWER_WITHIN_MILLISECONDS) },
     /** Where the core reads an answer, so the screen stays responsive. */
     private val background: CoroutineDispatcher = Dispatchers.Default,
-    /** The month of the year, 1 to 12, the thermals of which are asked for: this one. */
-    private val month: () -> Int = { Calendar.getInstance().get(Calendar.MONTH) + 1 },
 ) {
     /** The server to ask, without a slash at its end; `null` for none. */
     var server: () -> String? = { null }
@@ -82,11 +79,15 @@ class AirModel(
         climbs = ask(server + path) { status, body -> liveClimbs(status, body) }
     }
 
-    /** Asks where thermals have been in the part of the map in view, in this month, at any hour. */
+    /**
+     * Asks where thermals have been in the part of the map in view, in
+     * every month of the year and at any hour: the layer is not empty in
+     * winter, and the core's note says so.
+     */
     suspend fun loadFlown(region: Bounds?) {
         val server = server()
         val path = region?.let {
-            flownThermalsPath(it.south, it.west, it.north, it.east, month().toUByte(), null, null)
+            flownThermalsPath(it.south, it.west, it.north, it.east, null, null, null)
         }
         flownTooWide = region != null && path == null
         if (!flownOn || server == null || path == null) {

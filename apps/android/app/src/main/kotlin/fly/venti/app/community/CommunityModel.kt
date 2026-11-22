@@ -19,7 +19,9 @@ import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.flightAnalysisFromFile
 import fly.venti.core.flightFromFile
 import fly.venti.core.pilotPage
+import fly.venti.core.pilotFlightsPath
 import fly.venti.core.pilotPagePath
+import fly.venti.core.pilotsWords
 import fly.venti.core.pilotStatistics
 import fly.venti.core.pilotStatisticsPath
 import fly.venti.core.pilotsFound
@@ -95,6 +97,9 @@ class CommunityModel(
      */
     data class PilotFlights(
         val handle: String,
+        /** The season the list is narrowed to: its first second and the first after it. Neither for all years. */
+        val fromUnixS: Long? = null,
+        val toUnixS: Long? = null,
         val flights: List<PublicFlight> = emptyList(),
         /** What to ask the next page with. Absent when there is none. */
         val next: String? = null,
@@ -303,7 +308,7 @@ class CommunityModel(
             ranked = ranked.copy(
                 seasons = seasons(periods, chosen.name, nowUnixS),
                 months = named,
-                title = named.firstOrNull { it.month == month }?.title ?: chosen.name,
+                title = ranking.period.title,
                 pilots = ranking.pilots,
                 rule = ranking.rule,
                 isLoading = false,
@@ -318,7 +323,7 @@ class CommunityModel(
                 isLoading = false,
                 problem = when (error) {
                     is CoreException -> error.pilotMessage
-                    else -> "Venti could not be reached for the ranking. ${error.pilotMessage}"
+                    else -> pilotsWords().unreachable
                 },
             )
         }
@@ -378,7 +383,7 @@ class CommunityModel(
                 text,
                 words = when (error) {
                     is CoreException -> error.pilotMessage
-                    else -> "Venti could not be reached to look for pilots. ${error.pilotMessage}"
+                    else -> pilotsWords().unreachable
                 },
             )
         }
@@ -406,7 +411,7 @@ class CommunityModel(
                 problem = when (error) {
                     is CoreException -> error.pilotMessage
                     is NoLongerPublic -> "Venti is not connected."
-                    else -> "Venti could not be reached. ${error.pilotMessage}"
+                    else -> pilotsWords().unreachable
                 },
             )
         }
@@ -426,6 +431,11 @@ class CommunityModel(
         val page = withContext(background) { publicFlights(answer.status16, answer.body) }
         known += page.flights.associateBy { it.id }
         return page.flights
+    }
+
+    /** Flights another list has shown, the feed's for one: kept so that their pages can open. */
+    fun know(shown: List<PublicFlight>) {
+        known += shown.associateBy { it.id }
     }
 
     /** A flight one of the lists has shown, by its address on the server. */
@@ -448,12 +458,14 @@ class CommunityModel(
 
     /**
      * Shows a pilot's public flights from their top, unless they are there
-     * already.
+     * already: all of them, or those of one season, by the bounds the
+     * core's totals give it.
      */
-    suspend fun showPilot(handle: String) {
+    suspend fun showPilot(handle: String, fromUnixS: Long? = null, toUnixS: Long? = null) {
         val shown = pilot
-        if (shown != null && shown.handle == handle && shown.isLoaded && shown.problem == null) return
-        pilot = PilotFlights(handle)
+        val isSame = shown != null && shown.handle == handle && shown.fromUnixS == fromUnixS && shown.toUnixS == toUnixS
+        if (isSame && shown.isLoaded && shown.problem == null) return
+        pilot = PilotFlights(handle, fromUnixS, toUnixS)
         loadPilot()
     }
 
@@ -472,10 +484,17 @@ class CommunityModel(
         pilot = shown.copy(isLoading = true)
         val result = try {
             val server = server() ?: throw NoLongerPublic()
-            val answer = transport(server + pilotPagePath(shown.handle, shown.next))
-            val page = withContext(background) { pilotPage(answer.status16, answer.body) }
-            known += page.flights.associateBy { it.id }
-            shown.copy(flights = shown.flights + page.flights, next = page.next, isLoaded = true, problem = null)
+            // All years are the pilot's page; a season is the public flights' list, narrowed.
+            val (flights, next) = if (shown.fromUnixS == null && shown.toUnixS == null) {
+                val answer = transport(server + pilotPagePath(shown.handle, shown.next))
+                withContext(background) { pilotPage(answer.status16, answer.body) }.let { it.flights to it.next }
+            } else {
+                val path = withContext(background) { pilotFlightsPath(shown.handle, shown.fromUnixS, shown.toUnixS, shown.next) }
+                val answer = transport(server + path)
+                withContext(background) { publicFlights(answer.status16, answer.body) }.let { it.flights to it.next }
+            }
+            known += flights.associateBy { it.id }
+            shown.copy(flights = shown.flights + flights, next = next, isLoaded = true, problem = null)
         } catch (error: CancellationException) {
             // Whoever asked has left the page. The next to look at it asks again.
             if (round == pilotRound) {
@@ -487,7 +506,7 @@ class CommunityModel(
                 problem = when (error) {
                     is CoreException -> error.pilotMessage
                     is NoLongerPublic -> "Venti is not connected."
-                    else -> "Venti could not be reached. ${error.pilotMessage}"
+                    else -> pilotsWords().unreachable
                 },
             )
         }

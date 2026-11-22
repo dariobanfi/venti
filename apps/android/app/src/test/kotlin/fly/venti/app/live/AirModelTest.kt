@@ -41,8 +41,8 @@ class AirModelTest {
         }
     }
 
-    private fun model(server: Server, month: Int = 7) =
-        AirModel(transport = server::answer, month = { month }).also { it.server = { SERVER } }
+    private fun model(server: Server) =
+        AirModel(transport = server::answer).also { it.server = { SERVER } }
 
     @Test
     fun nothingIsAskedWhileTheLayersAreOff() = runBlocking {
@@ -94,12 +94,12 @@ class AirModelTest {
     }
 
     @Test
-    fun whereThermalsHaveBeenIsAskedForThisMonthAtAnyHour() = runBlocking {
+    fun whereThermalsHaveBeenIsAskedForEveryMonthAtAnyHour() = runBlocking {
         val server = Server()
-        val air = model(server, month = 7)
+        val air = model(server)
         air.flownOn = true
         air.loadFlown(TEGERNSEE)
-        assertTrue(server.asked.single().contains("month=7"))
+        assertFalse(server.asked.single().contains("month"))
         assertFalse(server.asked.single().contains("hours"))
         val flown = checkNotNull(air.flown)
         assertEquals(2, flown.cells.size)

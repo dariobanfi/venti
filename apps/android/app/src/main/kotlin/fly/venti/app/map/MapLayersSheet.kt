@@ -36,6 +36,8 @@ import androidx.compose.ui.semantics.semantics
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import fly.venti.app.R
+import fly.venti.core.MapLayersWords
+import fly.venti.core.mapLayersWords
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionHeader
@@ -58,11 +60,10 @@ import org.maplibre.android.style.layers.SymbolLayer
  * around them.
  */
 object MapWords {
-    const val LAYERS = "Layers"
+    /** The core's words of the sheet: its title and headings, the two layers of the air, what they say when empty. */
+    val core: MapLayersWords by lazy { mapLayersWords() }
+
     const val DONE = "Done"
-    const val ON_THE_MAP = "On the map"
-    const val LISTS = "Lists and plans"
-    const val CREDITS = "Credits"
 
     const val FORECAST = "Forecast"
     const val THERMALS = "Thermals"
@@ -72,16 +73,6 @@ object MapWords {
     const val SITES = "Sites"
     const val PILOTS = "Pilots"
     const val AERIAL = "Aerial view"
-
-    /** The two layers of what others found in the air: off until switched on. */
-    const val CLIMBS_NOW = "Climbs now"
-    const val FLOWN_THERMALS = "Where thermals have been"
-
-    /** Under "Where thermals have been" where the answer has no place: the core has no sentence for it. */
-    const val FLOWN_NONE = "Nothing here for this month of the year."
-
-    /** Under "Climbs now" while the map shows too much for them: the core has the sentence for the thermals only. */
-    const val CLIMBS_TOO_WIDE = "Zoom in to see where pilots climb now."
 
     const val WIND_STATIONS = "Wind stations"
     const val FLYING_SITES = "Flying sites"
@@ -125,7 +116,7 @@ fun MapLayersSheet(layers: List<MapLayer>, views: List<MapList>, onDismiss: () -
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    MapWords.LAYERS,
+                    MapWords.core.title,
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
@@ -133,14 +124,14 @@ fun MapLayersSheet(layers: List<MapLayer>, views: List<MapList>, onDismiss: () -
                     Text(MapWords.DONE)
                 }
             }
-            SectionHeader(MapWords.ON_THE_MAP)
+            SectionHeader(MapWords.core.onTheMap)
             Group {
                 for (layer in layers) {
                     row { LayerRow(layer) }
                 }
             }
             if (views.isNotEmpty()) {
-                SectionHeader(MapWords.LISTS)
+                SectionHeader(MapWords.core.listsTitle)
                 Group {
                     for (view in views) {
                         row {
@@ -201,7 +192,7 @@ private fun LayerRow(layer: MapLayer) {
 @Composable
 fun MapCreditsButton(tint: Color, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     IconButton(onClick = onOpen, modifier = modifier.size(VentiSize.touch).testTag("map-credits")) {
-        Icon(painterResource(R.drawable.ic_info), contentDescription = MapWords.CREDITS, tint = tint)
+        Icon(painterResource(R.drawable.ic_info), contentDescription = MapWords.core.creditsTitle, tint = tint)
     }
 }
 
@@ -226,7 +217,7 @@ fun MapCreditsSheet(lines: List<String>, onDismiss: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    MapWords.CREDITS,
+                    MapWords.core.creditsTitle,
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )

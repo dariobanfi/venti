@@ -1,5 +1,6 @@
 package fly.venti.app.today
 
+import fly.venti.core.todayWords
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -500,7 +501,8 @@ private fun TakeoffCard(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit
             }
             // The wind near by where it is much stronger: a note under the
             // day's own reason, and no part of the status.
-            NearbyLine(day.nearby, style = MaterialTheme.typography.bodyMedium)
+            // On a card the core's short form; the full line stays for the site's page.
+            NearbyLine(day.nearbyShort, style = MaterialTheme.typography.bodyMedium)
             ThermalLine(day)
             Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
                 Metric(
@@ -554,7 +556,7 @@ private fun TakeoffRow(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit)
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            NearbyLine(day?.nearby.orEmpty())
+            NearbyLine(day?.nearbyShort.orEmpty())
             if (day != null && day.thermalWords.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
                     ThermalMark(day.climbMs)
@@ -712,9 +714,5 @@ private fun Foot(
 object TodayWords {
     /** Under a day's hours, in a line: what the numbers and the bars are. */
     fun hours(withThermals: Boolean): String =
-        if (withThermals) {
-            "Wind in km/h at 10 m and the climb in m/s. A tall bar is a flyable hour."
-        } else {
-            "Wind in km/h at 10 m. A tall bar is a flyable hour."
-        }
+        todayWords().let { if (withThermals) it.hourStripNoteWithThermals else it.hourStripNote }
 }

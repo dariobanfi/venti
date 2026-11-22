@@ -71,6 +71,7 @@ import fly.venti.core.FoundPilotLine
 import fly.venti.core.PublicFlight
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.RouteKind
+import fly.venti.core.pilotsWords
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -82,9 +83,6 @@ object CommunityWords {
             "Venti's own reckoning by the World XContest's rules, not a league's."
 
     const val NONE_YET = "Flights that pilots share with everyone on Venti are listed here."
-
-    /** What the field over the list is for, said in it while it is empty. */
-    const val FIND_A_PILOT = "Find a pilot"
 
     /** The two orders, as the switch above the list names them. */
     fun title(order: PublicFlightsOrder): String = when (order) {
@@ -133,17 +131,18 @@ fun PublicFlightsList(
     onOpenPilot: ((String, String) -> Unit)? = null,
 ) {
     var wanted by rememberSaveable { mutableStateOf("") }
+    val words = remember { pilotsWords() }
     Column(modifier.fillMaxSize()) {
         if (onOpenPilot != null) {
             OutlinedTextField(
                 value = wanted,
                 onValueChange = { wanted = it },
-                placeholder = { Text(CommunityWords.FIND_A_PILOT) },
+                placeholder = { Text(words.searchPlaceholder) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_search), contentDescription = null) },
                 trailingIcon = {
                     if (wanted.isNotEmpty()) {
                         IconButton(onClick = { wanted = "" }) {
-                            Icon(painterResource(R.drawable.ic_close), contentDescription = "Clear")
+                            Icon(painterResource(R.drawable.ic_close), contentDescription = words.searchClear)
                         }
                     }
                 },
@@ -312,6 +311,8 @@ fun PilotFlightsScreen(
     /** The pilot's name as the flight it was opened from had it. */
     name: String,
     community: CommunityModel,
+    /** Pilots among each other: who follows this pilot, and the button that does. */
+    social: SocialModel,
     /** The pilot's own account, which a report is sent from. */
     account: AccountModel,
     /** The address of the server this pilot's page is on. */
@@ -324,9 +325,6 @@ fun PilotFlightsScreen(
     onOpenSite: ((FlownSiteLine) -> Unit)? = null,
 ) {
     LaunchedEffect(handle) {
-        community.showPilot(handle)
-    }
-    LaunchedEffect(handle) {
         community.showPilotTotals(handle)
     }
     var isShowingMenu by remember { mutableStateOf(false) }
@@ -336,6 +334,11 @@ fun PilotFlightsScreen(
     val totals = community.pilotTotals?.takeIf { it.handle == handle }
     // The year the totals are of: 0 for all years, as the core numbers them.
     var year by rememberSaveable(handle) { mutableIntStateOf(0) }
+    // The flights under the totals are that season's too, by the bounds the core gives it.
+    val season = totals?.statistics?.seasons?.firstOrNull { it.year == year }
+    LaunchedEffect(handle, season?.fromUnixS, season?.toUnixS) {
+        community.showPilot(handle, season?.fromUnixS, season?.toUnixS)
+    }
     // A total that is one flight's opens that flight, once the list of
     // everyone's flights knows it.
     var opening by remember(handle) { mutableStateOf<String?>(null) }
@@ -386,6 +389,9 @@ fun PilotFlightsScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
         ) {
             item(key = "handle") { SectionHeader("@$handle") }
+            item(key = "follows") {
+                FollowLine(handle, social, requests, Modifier.padding(horizontal = VentiSpace.s1).padding(bottom = VentiSpace.s3))
+            }
             totals?.statistics?.let { statistics ->
                 item(key = "totals") {
                     PilotTotalsSection(
@@ -479,11 +485,13 @@ internal fun PublicFlightRow(
     shape: Shape,
     /** What a test finds the row by: which list it is a row of. */
     tag: String,
+    /** A line under the row, the feed's cheers and comments; none when empty. */
+    under: String? = null,
     onOpen: () -> Unit,
 ) {
     val triangle = CommunityWords.triangle(flight)
     Surface(shape = shape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag(tag)
@@ -492,46 +500,58 @@ internal fun PublicFlightRow(
                 // One element for a screen reader: the pilot, then the rest.
                 .clearAndSetSemantics {
                     contentDescription = flight.pilot
-                    stateDescription = CommunityWords.spoken(flight)
+                    stateDescription = spokenWith(under, CommunityWords.spoken(flight))
                 },
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            TrackThumbnail(flight.outline)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    flight.pilot,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    CommunityWords.detail(flight),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                // The scored cross-country distance; a triangle is marked.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (triangle != null) {
-                        Icon(
-                            painterResource(R.drawable.venti_triangle),
-                            contentDescription = triangle,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(3.dp))
-                    }
-                    Text(CommunityWords.distance(flight), style = MaterialTheme.typography.titleMedium.numbers)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TrackThumbnail(flight.outline)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        flight.pilot,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        CommunityWords.detail(flight),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
+                Spacer(Modifier.width(8.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    // The scored cross-country distance; a triangle is marked.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (triangle != null) {
+                            Icon(
+                                painterResource(R.drawable.venti_triangle),
+                                contentDescription = triangle,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.width(3.dp))
+                        }
+                        Text(CommunityWords.distance(flight), style = MaterialTheme.typography.titleMedium.numbers)
+                    }
+                    Text(
+                        CommunityWords.airtime(flight),
+                        style = MaterialTheme.typography.bodyMedium.numbers,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (!under.isNullOrEmpty()) {
                 Text(
-                    CommunityWords.airtime(flight),
-                    style = MaterialTheme.typography.bodyMedium.numbers,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    under,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Venti.colours.textSecondary,
+                    modifier = Modifier.padding(top = VentiSpace.s2),
                 )
             }
         }

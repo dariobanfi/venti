@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import fly.venti.app.R
+import fly.venti.app.community.NotificationsScreen
+import fly.venti.app.community.SocialModel
 import fly.venti.app.alerts.AlertWords
 import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Format
@@ -90,6 +92,12 @@ fun AccountScreen(
     /** Opens "Alerts", the pilot's alarms. */
     onAlerts: () -> Unit,
     onBack: () -> Unit,
+    /** Pilots among each other: what the pilot was told, a page of the account. `null` for none. */
+    social: SocialModel? = null,
+    /** Opens a public flight a notification is about, by its address on the server. */
+    onOpenFlight: (String) -> Unit = {},
+    /** Opens the page of the pilot a notification is about, by their handle. */
+    onOpenPilot: (String) -> Unit = {},
 ) {
     // What the server says of the account now, asked when its page opens:
     // its name, and whether it is one of Venti's partners for flying sites.
@@ -102,6 +110,12 @@ fun AccountScreen(
     var showsTokens by rememberSaveable { mutableStateOf(false) }
     if (showsTokens && account.isSignedIn) {
         TokensScreen(account, onBack = { showsTokens = false })
+        return
+    }
+    // So is "Notifications".
+    var showsNotifications by rememberSaveable { mutableStateOf(false) }
+    if (showsNotifications && social != null && account.isSignedIn) {
+        NotificationsScreen(social, onOpenFlight, onOpenPilot, onBack = { showsNotifications = false })
         return
     }
     Scaffold(
@@ -129,7 +143,16 @@ fun AccountScreen(
             val signedIn = account.account
             val signUp = account.googleSignUp
             when {
-                signedIn != null -> SignedIn(signedIn, account, wind, scope, onTokens = { showsTokens = true }, onAlerts = onAlerts)
+                signedIn != null -> SignedIn(
+                    signedIn,
+                    account,
+                    wind,
+                    scope,
+                    onTokens = { showsTokens = true },
+                    onAlerts = onAlerts,
+                    notifications = social?.words?.notificationsTitle,
+                    onNotifications = { showsNotifications = true },
+                )
                 signUp != null -> ChooseHandle(account, signUp.second, wind.registration, scope)
                 else -> SignInForm(account, (wind.server as? WindServer.Usable)?.url, wind.googleSignIn, scope)
             }
@@ -405,6 +428,9 @@ private fun SignedIn(
     scope: CoroutineScope,
     onTokens: () -> Unit,
     onAlerts: () -> Unit,
+    /** The core's name of the row that opens what the pilot was told; `null` for no such row. */
+    notifications: String?,
+    onNotifications: () -> Unit,
 ) {
     val context = LocalContext.current
     val google = remember { googleWords() }
@@ -513,6 +539,17 @@ private fun SignedIn(
                     leading = R.drawable.ic_notifications,
                     onClick = onAlerts,
                 )
+            }
+            if (notifications != null) {
+                row {
+                    LinkRow(
+                        notifications,
+                        R.drawable.ic_chevron_right,
+                        Modifier.testTag("account-notifications"),
+                        leading = R.drawable.ic_group,
+                        onClick = onNotifications,
+                    )
+                }
             }
         }
     }

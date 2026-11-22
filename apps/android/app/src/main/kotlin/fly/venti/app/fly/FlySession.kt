@@ -10,7 +10,6 @@ import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.GliderWords
 import fly.venti.app.settings.Preferences
-import fly.venti.core.SiteKind
 import fly.venti.app.waypoints.place
 import fly.venti.core.GroundWind
 import fly.venti.core.GroundWindAlert
@@ -257,11 +256,12 @@ class FlySession(
         private set
 
     /**
-     * The landing fields among the sites the app holds around the glider,
-     * for the core's standing reading of the nearest one within glide. The
-     * app sets this; the pilot's own landings are added here.
+     * The landings for the core's standing reading of the nearest one
+     * within glide, as the core itself picks them (`Core.cockpitLandings`)
+     * from the sites the app holds around the glider, the pilot's own and
+     * the pilot's landing waypoints. The app sets this.
      */
-    var landingsAround: (Coordinate) -> List<TargetPlace> = { emptyList() }
+    var landingsAround: suspend (Coordinate) -> List<TargetPlace> = { emptyList() }
 
     /** The landings last handed to the core's session. */
     private var handedLandings: List<TargetPlace>? = null
@@ -954,10 +954,11 @@ class FlySession(
             isAskingForTakeoffs = true
             scope.launch {
                 val found = takeoffsAround(position)
+                val landings = landingsAround(position)
                 isAskingForTakeoffs = false
-                if (found == null || this@FlySession.session !== session) return@launch
-                if (found != takeoffs) takeoffs = found
-                handLandings(session, position, found)
+                if (this@FlySession.session !== session) return@launch
+                if (found != null && found != takeoffs) takeoffs = found
+                handLandings(session, landings)
             }
         }
         // Files brought in or removed in the middle of a session reach the
@@ -1006,20 +1007,13 @@ class FlySession(
     }
 
     /**
-     * Hands the core the landing fields it keeps a standing reading of:
-     * those among the sites the app holds around the glider and among the
-     * cockpit's take-offs, and the pilot's own landings. Again only when
-     * they have changed, since the core begins its reading anew with each.
+     * Hands the core's session the landings it keeps a standing reading
+     * of, as the core picked them. Again only when they have changed,
+     * since the session begins its reading anew with each.
      */
     @Synchronized
-    private fun handLandings(session: FlightSession, glider: Coordinate, found: CockpitTakeoffs) {
+    private fun handLandings(session: FlightSession, places: List<TargetPlace>) {
         if (this.session !== session) return
-        val places = (
-            found.takeoffs.map { it.site }.filter { SiteKind.LANDING in it.uses }
-                .map { TargetPlace(it.name, it.position, it.elevationM) } +
-                landingsAround(glider) +
-                landings().map { it.place }
-            ).distinctBy { Triple(it.name, it.position.lat, it.position.lon) }
         if (places != handedLandings) {
             handedLandings = places
             session.useLandings(places)

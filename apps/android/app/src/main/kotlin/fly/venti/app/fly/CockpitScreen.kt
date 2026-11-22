@@ -1,5 +1,7 @@
 package fly.venti.app.fly
 
+import androidx.compose.ui.platform.LocalWindowInfo
+import fly.venti.core.cockpitSourceWords
 import fly.venti.app.map.MapSetup
 import androidx.compose.ui.platform.LocalContext
 import fly.venti.core.LiveShareView
@@ -135,7 +137,6 @@ import fly.venti.core.LiftCentreView
 import fly.venti.core.LiveScore
 import fly.venti.core.RouteKind
 import fly.venti.core.WayToTarget
-import fly.venti.core.VarioSourceKind
 import fly.venti.core.WindView
 import kotlin.math.abs
 import kotlin.math.max
@@ -778,7 +779,13 @@ private fun StatusLine(
             // An external vario that was talking and has stopped.
             val varioIsLost = view.instrument?.talking == false
             Text(
-                varioText(view, mode, varioName),
+                // A phone of 360 dp, or one with large text, has room for the short form only.
+                varioText(
+                    view,
+                    mode,
+                    varioName,
+                    narrow = LocalDensity.current.let { LocalWindowInfo.current.containerSize.width / (it.density * it.fontScale) } < NARROW_BAR_DP,
+                ),
                 style = style,
                 color = if (varioIsLost) danger else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -874,19 +881,16 @@ private fun Modifier.turnsPagesBySwipe(onNext: () -> Unit, onPrevious: () -> Uni
     }
 }
 
-private fun varioText(view: CockpitView, mode: FlySession.Mode?, varioName: String?): String {
-    view.instrument?.let { instrument ->
-        val name = varioName ?: "Vario"
-        if (!instrument.talking) return "$name silent"
-        return instrument.batteryPercent?.let { "$name $it%" } ?: name
-    }
-    // In a replay the pressure is the recording's, not this phone's.
-    if (mode is FlySession.Mode.Replay) return "Recorded data"
-    return when (view.varioSource) {
-        VarioSourceKind.PRESSURE -> "Phone barometer"
-        VarioSourceKind.SATELLITE -> "Satellite vario"
-        VarioSourceKind.INSTRUMENT, null -> "No vario yet"
-    }
+/** Under this width, in dp at the text's size, the top bar says where the climb comes from in the short form. */
+private const val NARROW_BAR_DP = 400f
+
+/**
+ * Where the climb comes from, in the core's words: in full, or its short
+ * form where the top bar is narrow, beside "End".
+ */
+private fun varioText(view: CockpitView, mode: FlySession.Mode?, varioName: String?, narrow: Boolean): String {
+    val words = cockpitSourceWords(view.varioSource, view.instrument, varioName, mode is FlySession.Mode.Replay)
+    return if (narrow) words.short else words.words
 }
 
 /**
@@ -1065,7 +1069,7 @@ private fun FlightPage(
                 )
             }
             QuietButton(
-                CockpitDetailsWords.TITLE,
+                CockpitDetailsWords.core.title,
                 R.drawable.ic_info,
                 Modifier.weight(1f).testTag("cockpit-details"),
                 onClick = onDetails,
@@ -1651,7 +1655,7 @@ private fun NearestLandingLine(landing: LandingReading, onOpen: () -> Unit) {
             // As the landing's badge on the other pages: a tap lists the places to fly to.
             .clickable(role = Role.Button, onClick = onOpen)
             .clearAndSetSemantics {
-                contentDescription = "Nearest landing"
+                contentDescription = CockpitDetailsWords.core.nearestLanding
                 stateDescription = landing.words
                 role = Role.Button
                 onClick(label = "List the places to fly to") {

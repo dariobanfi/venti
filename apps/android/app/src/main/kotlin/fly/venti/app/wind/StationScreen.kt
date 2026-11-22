@@ -63,6 +63,7 @@ import fly.venti.core.stationAir
 import fly.venti.core.stationDate
 import fly.venti.core.WindStation
 import kotlinx.coroutines.CancellationException
+import fly.venti.app.design.Common
 
 private sealed interface History {
     data object Loading : History
@@ -134,7 +135,7 @@ fun StationPage(
         ) {
             if (onBack != null) {
                 IconButton(onClick = onBack) {
-                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                 }
             }
             Text(
@@ -144,7 +145,7 @@ fun StationPage(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onDone) { Text("Done") }
+            TextButton(onClick = onDone) { Text(Common.words.done) }
         }
         LazyColumn(
             modifier = Modifier.testTag("station-page"),
@@ -188,7 +189,7 @@ fun StationPage(
                                 }
                                 is History.Failed -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(current.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    TextButton(onClick = { attempt += 1 }) { Text("Try again") }
+                                    TextButton(onClick = { attempt += 1 }) { Text(Common.words.tryAgain) }
                                 }
                             }
                         }
@@ -261,7 +262,7 @@ private fun DayChart(day: Day, onTryAgain: () -> Unit) {
         }
         is Day.Failed -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(day.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = onTryAgain) { Text("Try again") }
+            TextButton(onClick = onTryAgain) { Text(Common.words.tryAgain) }
         }
         is Day.Ready -> {
             val samples = remember(day.day) { WindSample.of(day.day.readings) }
@@ -314,7 +315,7 @@ private fun DayChoice(days: StationDays, shown: String, onChoose: (String) -> Un
                 modifier = Modifier.testTag("station-day-ok"),
             ) { Text("Show") }
         },
-        dismissButton = { TextButton(onClick = { isOpen = false }) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = { isOpen = false }) { Text(Common.words.cancel) } },
     ) {
         DatePicker(picker)
     }

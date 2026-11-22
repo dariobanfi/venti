@@ -52,6 +52,7 @@ import fly.venti.app.wind.grown
 import fly.venti.core.PublicFlight
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import fly.venti.app.design.Common
 
 /**
  * Another pilot's flight, fetched from the server and shown like one of
@@ -137,7 +138,7 @@ fun PublicFlightScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilledTonalIconButton(onClick = onBack, colors = colours) {
-                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                 }
                 Spacer(Modifier.width(VentiSpace.s2))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -172,7 +173,7 @@ fun PublicFlightScreen(
                 Spacer(Modifier.width(VentiSpace.s2))
                 Box {
                     FilledTonalIconButton(onClick = { isShowingMenu = true }, colors = colours) {
-                        Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                        Icon(painterResource(R.drawable.ic_more_vert), contentDescription = Common.words.more)
                     }
                     DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
                         DropdownMenuItem(

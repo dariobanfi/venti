@@ -63,6 +63,7 @@ import fly.venti.core.MonthStatistics
 import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
+import fly.venti.app.design.Common
 
 /** What the bar chart of the months measures. */
 private enum class Measure(val title: String, val unit: String) {
@@ -155,7 +156,7 @@ fun StatisticsScreen(
                 title = { Text("Statistics") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )

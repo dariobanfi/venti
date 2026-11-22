@@ -82,6 +82,7 @@ import org.maplibre.android.style.expressions.Expression
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
+import fly.venti.app.design.Common
 
 /** How much of a file is read for a route: more than any route, and little enough to hold. */
 private const val GPX_BYTES_READ = 4 * 1024 * 1024
@@ -198,7 +199,7 @@ fun RouteMapPlanner(
                 title = { Text(RouteDrawing.TITLE) },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
-                        Icon(painterResource(R.drawable.ic_close), contentDescription = "Cancel")
+                        Icon(painterResource(R.drawable.ic_close), contentDescription = Common.words.cancel)
                     }
                 },
                 actions = {
@@ -211,7 +212,7 @@ fun RouteMapPlanner(
                     // The route as a GPX file, out and in: behind the menu, in the core's words.
                     Box {
                         IconButton(onClick = { isShowingMenu = true }, modifier = Modifier.testTag("route-menu")) {
-                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = Common.words.more)
                         }
                         DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
                             DropdownMenuItem(

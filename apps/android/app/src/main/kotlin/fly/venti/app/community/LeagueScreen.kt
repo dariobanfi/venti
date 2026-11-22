@@ -111,7 +111,7 @@ fun LeagueScreen(
                                         when (list) {
                                             LeagueList.Everyone -> social.words.feedEveryone
                                             LeagueList.Following -> social.words.feedFollowing
-                                            LeagueList.Ranking -> "Ranking"
+                                            LeagueList.Ranking -> social.words.feedRanking
                                         },
                                         maxLines = 1,
                                     )

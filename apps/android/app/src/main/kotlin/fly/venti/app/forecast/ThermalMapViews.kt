@@ -103,6 +103,7 @@ import fly.venti.core.ThermalLegendEntry
 import fly.venti.core.ThermalMap
 import fly.venti.core.ThermalMapCell
 import fly.venti.core.ThermalMapDay
+import fly.venti.app.design.Common
 
 /**
  * The card at the map's lower edge while the forecast map shows. It leaves
@@ -182,7 +183,7 @@ fun ThermalMapCard(
                             is ThermalHoursState.Failed -> Column(Modifier.testTag("forecast-hours-problem")) {
                                 Text(hoursState.message, style = MaterialTheme.typography.bodyMedium, color = colours.text)
                                 TextButton(onClick = onTryAgainHours, modifier = Modifier.heightIn(min = VentiSize.touch)) {
-                                    Text(ThermalMapWords.TRY_AGAIN)
+                                    Text(Common.words.tryAgain)
                                 }
                             }
                             else -> Unit
@@ -615,7 +616,7 @@ internal fun Problem(message: String, onTryAgain: () -> Unit, modifier: Modifier
     Column(modifier.testTag(tag)) {
         Text(message, style = MaterialTheme.typography.bodyMedium, color = Venti.colours.text)
         TextButton(onClick = onTryAgain, modifier = Modifier.heightIn(min = VentiSize.touch)) {
-            Text(ThermalMapWords.TRY_AGAIN)
+            Text(Common.words.tryAgain)
         }
     }
 }
@@ -728,7 +729,7 @@ fun ThermalSquareSheet(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).semantics { heading() },
                     )
-                    TextButton(onClick = onDismiss) { Text("Done") }
+                    TextButton(onClick = onDismiss) { Text(Common.words.done) }
                 }
                 // The status, and what speaks against the day beside it,
                 // read by TalkBack as one: "Marginal, Gusts".
@@ -866,7 +867,7 @@ fun ThermalHourSheet(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).semantics { heading() },
                     )
-                    TextButton(onClick = onDismiss) { Text("Done") }
+                    TextButton(onClick = onDismiss) { Text(Common.words.done) }
                 }
                 Column(
                     modifier = Modifier

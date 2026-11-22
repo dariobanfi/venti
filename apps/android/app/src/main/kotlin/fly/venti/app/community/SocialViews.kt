@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,6 +76,7 @@ import fly.venti.core.commentReportForm
 import fly.venti.core.commentsSwitch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * On a pilot's page, under the handle: how many follow them and whom they
@@ -198,7 +200,9 @@ fun FollowingFeed(social: SocialModel, community: CommunityModel, onOpen: (Publi
                 LaunchedEffect(row.flight.id) { if (next != null) wanted += 1 }
             }
         }
-        val said = problem ?: emptyLine?.takeIf { rows.isEmpty() }
+        // The core's sentence where the feed could not be loaded, the error's own words under it.
+        val said = problem?.let { words -> listOf(social.words.feedFailed, words).filter { it.isNotEmpty() }.joinToString("\n") }
+            ?: emptyLine?.takeIf { rows.isEmpty() }
         if (said != null && !isLoading) {
             item(key = "said") {
                 Text(
@@ -381,6 +385,8 @@ private fun CommentsSheet(
     var isSending by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var reporting by remember { mutableStateOf<CommentRow?>(null) }
+    // The comment the pilot asked to remove, until they say yes or no.
+    var removing by remember { mutableStateOf<CommentRow?>(null) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -395,7 +401,7 @@ private fun CommentsSheet(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f).testTag("comments-count"),
             )
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("comments-close")) { Text("Done") }
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("comments-close")) { Text(Common.words.done) }
         }
         Column(
             Modifier
@@ -414,20 +420,7 @@ private fun CommentsSheet(
                                 remove = words.commentRemove.takeIf { comment.canRemove && social.isSignedIn },
                                 report = words.commentReport.takeIf { social.isSignedIn && comment.handle != social.ownHandle },
                                 enabled = !isSending,
-                                onRemove = {
-                                    isSending = true
-                                    problem = null
-                                    requests.launch {
-                                        try {
-                                            when (val told = social.remove(flight.id, comment.id)) {
-                                                is SocialModel.Told.Read -> onAgain()
-                                                is SocialModel.Told.Refused -> problem = told.words
-                                            }
-                                        } finally {
-                                            isSending = false
-                                        }
-                                    }
-                                },
+                                onRemove = { removing = comment },
                                 onReport = { reporting = comment },
                             )
                         }
@@ -487,9 +480,36 @@ private fun CommentsSheet(
             }
         }
     }
+    removing?.let { comment ->
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            text = { Text(words.commentRemoveQuestion) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        removing = null
+                        isSending = true
+                        problem = null
+                        requests.launch {
+                            try {
+                                when (val told = social.remove(flight.id, comment.id)) {
+                                    is SocialModel.Told.Read -> onAgain()
+                                    is SocialModel.Told.Refused -> problem = told.words
+                                }
+                            } finally {
+                                isSending = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.testTag("comment-remove-confirm"),
+                ) { Text(words.commentRemove) }
+            },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text(Common.words.cancel) } },
+        )
+    }
     reporting?.let { comment ->
         ReportSheet(
-            title = words.commentReport,
+            title = words.commentReportTitle,
             form = remember { commentReportForm() },
             account = account,
             server = server,
@@ -610,7 +630,7 @@ fun NotificationsScreen(
                 title = { Text(social.words.notificationsTitle) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )
@@ -627,14 +647,15 @@ fun NotificationsScreen(
             when (val shown = told) {
                 null -> Waiting()
                 is SocialModel.Told.Refused -> {
+                    // The core's sentence, and the error's own words under it.
                     Text(
-                        shown.words,
+                        listOf(social.words.notificationsFailed, shown.words).filter { it.isNotEmpty() }.joinToString("\n"),
                         style = MaterialTheme.typography.bodyLarge,
                         color = Venti.colours.textSecondary,
                         modifier = Modifier.padding(vertical = VentiSpace.s4).testTag("notifications-problem"),
                     )
                     OutlinedButton(onClick = { asked += 1 }, modifier = Modifier.heightIn(min = VentiSize.touch)) {
-                        Text("Try again")
+                        Text(Common.words.tryAgain)
                     }
                 }
                 is SocialModel.Told.Read -> {

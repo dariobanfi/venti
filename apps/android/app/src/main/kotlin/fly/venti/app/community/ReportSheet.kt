@@ -45,6 +45,7 @@ import fly.venti.core.reportFormFor
 import fly.venti.core.siteWords
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /** Something a pilot reports to whoever runs the server. */
 data class Reported(
@@ -175,7 +176,7 @@ fun ReportSheet(
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextButton(onClick = onDismiss, modifier = Modifier.testTag("report-close")) {
-                Text(if (sent == null && obstacle == null) "Cancel" else "Done")
+                Text(if (sent == null && obstacle == null) Common.words.cancel else Common.words.done)
             }
         }
         Column(

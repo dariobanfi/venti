@@ -41,6 +41,7 @@ import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
+import fly.venti.app.design.Common
 
 /** The list of Bluetooth devices to pick a vario from. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,7 +75,7 @@ fun VarioSheet(vario: VarioLink, onDismiss: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Vario", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
             val state = vario.state

@@ -43,6 +43,7 @@ import fly.venti.app.design.numbers
 import fly.venti.app.wind.color
 import fly.venti.core.WindAtHeightView
 import fly.venti.core.windBand
+import fly.venti.app.design.Common
 
 /** What the list of winds by height says, in words. */
 object WindByHeightWords {
@@ -139,7 +140,7 @@ fun WindByHeightSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(WindByHeightWords.title(groundFirst), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         val stations = ground?.stations.orEmpty()
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp)) {

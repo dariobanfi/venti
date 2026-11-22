@@ -41,6 +41,7 @@ import fly.venti.app.design.SectionHeader
 import fly.venti.core.FlightVisibility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * Who may see a flight, and the link to it. Nothing is ever shared by
@@ -72,7 +73,7 @@ fun ShareFlightSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Share flight", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         Column(
             Modifier
@@ -105,8 +106,7 @@ fun ShareFlightSheet(
                     }
                     // Whether others can write under it: for a flight everyone can see.
                     if (social != null && current.visibility == FlightVisibility.PUBLIC) {
-                        // The flight's address on Venti is the end of its link.
-                        CommentsSwitchRow(current.link.substringAfterLast('/'), social, scope)
+                        CommentsSwitchRow(current.flightId, social, scope)
                     }
                     if (current.visibility != FlightVisibility.PRIVATE) {
                         SectionHeader("Link")
@@ -158,7 +158,7 @@ fun ShareFlightSheet(
             onDismissRequest = { account.problem = null },
             title = { Text("Share flight") },
             text = { Text(problem) },
-            confirmButton = { TextButton(onClick = { account.problem = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { account.problem = null }) { Text(Common.words.ok) } },
         )
     }
 }

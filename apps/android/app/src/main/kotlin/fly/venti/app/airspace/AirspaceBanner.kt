@@ -49,6 +49,7 @@ import fly.venti.core.AirspaceLevel
 import fly.venti.core.AirspaceOrigin
 import fly.venti.core.AirspaceWarning
 import java.util.Locale
+import fly.venti.app.design.Common
 
 /** How urgent a warning is, in words. */
 val AirspaceLevel.words: String
@@ -218,7 +219,7 @@ fun AirspaceWarningsSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Airspace", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
             items(warnings, key = { it.id }) { warning ->

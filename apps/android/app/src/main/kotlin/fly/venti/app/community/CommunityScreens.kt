@@ -75,6 +75,7 @@ import fly.venti.core.pilotsWords
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /** What the list of everyone's flights says, in words. */
 object CommunityWords {
@@ -360,13 +361,13 @@ fun PilotFlightsScreen(
                 title = { Text(totals?.statistics?.name ?: name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
                 actions = {
                     Box {
                         IconButton(onClick = { isShowingMenu = true }) {
-                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = Common.words.more)
                         }
                         DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
                             val report = Reported.pilot(handle)

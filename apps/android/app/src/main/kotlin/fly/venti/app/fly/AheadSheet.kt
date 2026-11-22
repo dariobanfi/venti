@@ -51,6 +51,7 @@ import fly.venti.core.AirspaceAhead
 import fly.venti.core.AirspaceAheadSpan
 import fly.venti.core.AirspacePolicy
 import kotlin.math.round
+import fly.venti.app.design.Common
 
 /** What the side view says that is not the core's to say, and where its line ends in the picture. */
 object AheadWords {
@@ -137,7 +138,7 @@ fun AheadSheet(fly: FlySession, onDismiss: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(AheadWords.TITLE, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         Column(
             Modifier

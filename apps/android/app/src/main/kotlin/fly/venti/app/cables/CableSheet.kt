@@ -18,6 +18,7 @@ import app.venti.design.VentiSpace
 import fly.venti.app.design.SectionFooter
 import fly.venti.core.CableLine
 import fly.venti.core.CablesMap
+import fly.venti.app.design.Common
 
 /**
  * A cable tapped on a map: its words and name as the core gives them, whose
@@ -38,7 +39,7 @@ fun CableSheet(line: CableLine, layer: CablesMap?, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f).testTag("cable-words"),
                 )
-                TextButton(onClick = onDismiss) { Text("Done") }
+                TextButton(onClick = onDismiss) { Text(Common.words.done) }
             }
             line.name?.let { name ->
                 Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = VentiSpace.s2))

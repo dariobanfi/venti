@@ -35,6 +35,7 @@ import fly.venti.core.FlownSiteLine
 import fly.venti.core.PilotStatistics
 import fly.venti.core.PilotTotalsView
 import fly.venti.core.pilotsWords
+import fly.venti.app.design.Common
 
 /**
  * What a pilot's public flights add up to, over the list of them: the
@@ -160,7 +161,7 @@ fun FlightTermsLink(terms: PublicFlightTerms, modifier: Modifier = Modifier) {
             onDismissRequest = { isOpen = false },
             title = { Text(terms.title) },
             text = { Text(terms.text, Modifier.testTag("flight-terms-text")) },
-            confirmButton = { TextButton(onClick = { isOpen = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { isOpen = false }) { Text(Common.words.ok) } },
         )
     }
 }

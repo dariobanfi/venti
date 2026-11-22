@@ -86,6 +86,7 @@ import fly.venti.core.SiteView
 import fly.venti.core.TodayStanding
 import fly.venti.core.todayOrder
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * The Today tab, as the design language's Today screen has it: the day in
@@ -186,7 +187,7 @@ fun TodayScreen(
                         Explained(
                             title = "The forecast could not be read",
                             words = state.message,
-                            action = "Try again",
+                            action = Common.words.tryAgain,
                             act = { scope.launch { today.load(place) } },
                         )
                         // The pilot's own take-offs are on the phone, and

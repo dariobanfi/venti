@@ -125,6 +125,7 @@ import fly.venti.core.WindStation
 import kotlinx.coroutines.CoroutineScope
 import fly.venti.app.terrain.TerrainModel
 import androidx.compose.runtime.DisposableEffect
+import fly.venti.app.design.Common
 
 /**
  * The map tab: terrain, live wind from the stations of the pilot's Venti
@@ -207,8 +208,6 @@ fun MapScreen(
     var showsLayers by remember { mutableStateOf(false) }
     // Every credit in full, behind the (i).
     var showsCredits by remember { mutableStateOf(false) }
-    // Whose the base map is, as its style says.
-    var mapCredits by remember { mutableStateOf<List<String>>(emptyList()) }
     // A climb and a cell of where thermals have been, tapped on the map.
     var chosenClimb by remember { mutableStateOf<ClimbView?>(null) }
     var chosenFlown by remember { mutableStateOf<FlownCellView?>(null) }
@@ -468,7 +467,7 @@ fun MapScreen(
         // What the flights are given under that the thermals' cells are made from.
         listOfNotNull(flown?.takeIf { it.cells.isNotEmpty() }?.terms?.takeIf { it.isNotBlank() })
     // Every credit in full: Venti's data first, then whose the base map is.
-    val allCredits = (credits + mapCredits).distinct()
+    val allCredits = (credits + MapWords.baseCredits).distinct()
     // The forecast map by the hour: the layer and the level as the pilot
     // left them, the hour not.
     val hours = thermalMap?.hours
@@ -507,6 +506,15 @@ fun MapScreen(
     val setPilots = { on: Boolean ->
         hidesPilots = !on
         preferences?.mapHidesPilots = !on
+    }
+    val setForecast = { on: Boolean ->
+        forecast = on
+        preferences?.mapShowsForecast = on
+    }
+    val setRadar = { on: Boolean ->
+        rain = on
+        preferences?.mapShowsRadar = on
+        if (!on) playing?.cancel()
     }
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
@@ -562,15 +570,18 @@ fun MapScreen(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = VentiSpace.s4),
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
-                // The pack's four, as quick switches; every layer, these
-                // among them, has its row in the layers sheet.
-                if (hasServer) {
-                    LayerChip(MapWords.WIND, R.drawable.venti_wind, !hidesWind, onChange = setWind, Modifier.testTag("layer-wind"))
+                // The four the web and the iPhone have, as quick switches;
+                // every layer, these among them, has its row in the layers
+                // sheet, and airspace and pilots are there only.
+                if (hasServer && thermalMap != null) {
+                    LayerChip(MapWords.core.forecast, R.drawable.venti_forecast, forecast, onChange = setForecast, Modifier.testTag("layer-forecast"))
                 }
-                LayerChip(MapWords.AIRSPACE, R.drawable.venti_airspace, !hidesAirspace, onChange = setAirspace, Modifier.testTag("layer-airspace"))
+                if (hasServer && radar != null) {
+                    LayerChip(MapWords.core.radar, R.drawable.ic_rainy, rain, onChange = setRadar, Modifier.testTag("layer-radar"))
+                }
                 if (hasServer) {
-                    LayerChip(MapWords.SITES, R.drawable.venti_site, !hidesSites, onChange = setSites, Modifier.testTag("layer-sites"))
-                    LayerChip(MapWords.PILOTS, R.drawable.venti_live, !hidesPilots, onChange = setPilots, Modifier.testTag("layer-pilots"))
+                    LayerChip(MapWords.core.wind, R.drawable.venti_wind, !hidesWind, onChange = setWind, Modifier.testTag("layer-wind"))
+                    LayerChip(MapWords.core.sites, R.drawable.venti_site, !hidesSites, onChange = setSites, Modifier.testTag("layer-sites"))
                 }
             }
             // Zoomed out too far for where thermals have been, in the core's words.
@@ -667,11 +678,7 @@ fun MapScreen(
             // full behind it. Light on the photographs, which are dark.
             MapCreditsButton(
                 tint = if (aerial) Palette.haloOnMap else Palette.inkOnMap,
-                onOpen = {
-                    // Whose the base map is, as it is drawn at this moment.
-                    mapCredits = map.baseCredits()
-                    showsCredits = true
-                },
+                onOpen = { showsCredits = true },
             )
         }
 
@@ -717,40 +724,33 @@ fun MapScreen(
         val layers = buildList {
             // The kind of day first, as on the iPhone and the web.
             if (hasServer && thermalMap != null) {
-                add(MapLayer(MapWords.FORECAST, R.drawable.venti_forecast, "layer-forecast", forecast) { on ->
-                    forecast = on
-                    preferences?.mapShowsForecast = on
-                })
+                add(MapLayer(MapWords.core.forecast, R.drawable.venti_forecast, "layers-forecast", forecast, onChange = setForecast))
             }
             // What fell in the last hours, beside what is forecast.
             if (hasServer && radar != null) {
-                add(MapLayer(RadarWords.LAYER, R.drawable.ic_rainy, "layer-radar", rain) { on ->
-                    rain = on
-                    preferences?.mapShowsRadar = on
-                    if (!on) playing?.cancel()
-                })
+                add(MapLayer(MapWords.core.radar, R.drawable.ic_rainy, "layers-radar", rain, onChange = setRadar))
             }
             if (offersThermals) {
-                add(MapLayer(MapWords.THERMALS, R.drawable.venti_thermal, "layer-thermals", thermals) { on ->
+                add(MapLayer(MapWords.core.thermals, R.drawable.venti_thermal, "layer-thermals", thermals) { on ->
                     thermals = on
                     preferences?.mapShowsThermals = on
                 })
             }
-            // The chips' four, in the same state.
-            if (hasServer) add(MapLayer(MapWords.WIND, R.drawable.venti_wind, "layers-wind", !hidesWind, onChange = setWind))
-            add(MapLayer(MapWords.AIRSPACE, R.drawable.venti_airspace, "layers-airspace", !hidesAirspace, onChange = setAirspace))
+            // Wind and sites in the chips' state; airspace and pilots, which have no chip.
+            if (hasServer) add(MapLayer(MapWords.core.wind, R.drawable.venti_wind, "layers-wind", !hidesWind, onChange = setWind))
+            add(MapLayer(MapWords.core.airspace, R.drawable.venti_airspace, "layer-airspace", !hidesAirspace, onChange = setAirspace))
             if (hasServer) {
-                add(MapLayer(MapWords.SITES, R.drawable.venti_site, "layers-sites", !hidesSites, onChange = setSites))
-                add(MapLayer(MapWords.PILOTS, R.drawable.venti_live, "layers-pilots", !hidesPilots, onChange = setPilots))
+                add(MapLayer(MapWords.core.sites, R.drawable.venti_site, "layers-sites", !hidesSites, onChange = setSites))
+                add(MapLayer(MapWords.core.pilots, R.drawable.venti_live, "layer-pilots", !hidesPilots, onChange = setPilots))
             }
             if (hasServer && cables != null) {
-                add(MapLayer(MapWords.CABLES, R.drawable.venti_caution, "layer-cables", !hidesCables) { on ->
+                add(MapLayer(MapWords.core.cables, R.drawable.venti_caution, "layer-cables", !hidesCables) { on ->
                     hidesCables = !on
                     preferences?.mapHidesCables = !on
                 })
             }
             // The ground under everything: the drawn map, or photographs from above.
-            add(MapLayer(MapWords.AERIAL, R.drawable.venti_map, "map-aerial", aerial) { on ->
+            add(MapLayer(MapWords.core.aerialView, R.drawable.venti_map, "map-aerial", aerial) { on ->
                 aerial = on
                 preferences?.mapShowsAerial = on
             })
@@ -807,13 +807,13 @@ fun MapScreen(
         val lists = buildList {
             // Everything the arrows say, as a list: for reading the
             // numbers side by side, and for pilots who use TalkBack.
-            if (hasServer && !hidesWind) add(MapList(MapWords.WIND_STATIONS, R.drawable.venti_wind, open { showsStations = true }))
+            if (hasServer && !hidesWind) add(MapList(MapWords.core.windStations, R.drawable.venti_wind, open { showsStations = true }))
             // The signs on the map, as a list.
-            if (hasSites) add(MapList(MapWords.FLYING_SITES, R.drawable.venti_site, open { showsSites = true }))
+            if (hasSites) add(MapList(MapWords.core.flyingSites, R.drawable.venti_site, open { showsSites = true }))
             // Who is in the air on this part of the map, as a list.
-            if (gliders.isNotEmpty()) add(MapList(MapWords.PILOTS_IN_THE_AIR, R.drawable.venti_live, open { showsGliders = true }))
+            if (gliders.isNotEmpty()) add(MapList(MapWords.core.pilotsInTheAir, R.drawable.venti_live, open { showsGliders = true }))
             // Who flies where today and on the days ahead: the plans of the pilot's groups.
-            if (account.isSignedIn || hasServer) add(MapList(MapWords.FLYING_PLANS, R.drawable.ic_calendar_month, open { showsPlans = true }))
+            if (account.isSignedIn || hasServer) add(MapList(MapWords.core.flyingPlans, R.drawable.ic_calendar_month, open { showsPlans = true }))
         }
         MapLayersSheet(layers, lists, onDismiss = { showsLayers = false })
     }
@@ -1104,7 +1104,7 @@ fun MapScreen(
             onDismissRequest = { problem = null },
             title = { Text("Position unavailable") },
             text = { Text(text) },
-            confirmButton = { TextButton(onClick = { problem = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { problem = null }) { Text(Common.words.ok) } },
         )
     }
 }

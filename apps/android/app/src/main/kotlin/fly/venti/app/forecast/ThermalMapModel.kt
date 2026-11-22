@@ -283,7 +283,6 @@ object ThermalMapWords {
     const val UNREACHABLE = "Venti could not be reached for the forecast map."
     const val NO_DAYS = "The forecast map has no days from today on."
     const val NONE_HERE = "The forecast map has no squares for this part of the map."
-    const val TRY_AGAIN = "Try again"
 
     /** A square's status as TalkBack reads it, with what speaks against the day: "Marginal, Gusts". */
     fun status(square: ThermalMapCell): String =

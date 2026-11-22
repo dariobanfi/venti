@@ -128,13 +128,6 @@ class OverviewMap : MapContent {
     /** Told the cell of where thermals have been that the pilot taps, where nothing else of Venti's lies. */
     var onFlownCell: (FlownCellView) -> Unit = {}
 
-    /**
-     * Whose the base map is as it is drawn now, a line for each of its
-     * sources' credits: the map's own credits button is not shown on this
-     * map, and the screen's (i) lists these with Venti's.
-     */
-    fun baseCredits(): List<String> = style?.let(MapCredits::of).orEmpty()
-
     /** The climbs of the last minutes to draw, and those drawn; compared by identity. */
     private var climbs: List<ClimbView> = emptyList()
     private var drawnClimbs: List<ClimbView>? = null

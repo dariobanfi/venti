@@ -47,6 +47,7 @@ import fly.venti.core.SitesWindIs
 import fly.venti.core.WindStation
 import fly.venti.core.sitesFilterChoices
 import fly.venti.core.stationsNear
+import fly.venti.app.design.Common
 
 /**
  * What the filter of the sites needs beside the core's choices and words:
@@ -56,7 +57,6 @@ import fly.venti.core.stationsNear
 object SitesFilterWords {
     /** The button that opens the filter, and the head of its sheet. */
     const val TITLE = "Filter sites"
-    const val DONE = "Done"
 
     /** A filter that asks nothing: every site is shown. */
     val NOTHING = SitesFilter(
@@ -218,7 +218,7 @@ fun SitesFilterSheet(
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
                 TextButton(onClick = onDismiss, modifier = Modifier.testTag("sites-filter-done")) {
-                    Text(SitesFilterWords.DONE)
+                    Text(Common.words.done)
                 }
             }
 

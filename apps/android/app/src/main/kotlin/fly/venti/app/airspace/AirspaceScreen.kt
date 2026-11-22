@@ -55,6 +55,7 @@ import fly.venti.app.logbook.ImportNoticeDialog
 import fly.venti.core.AirspaceFile
 import fly.venti.core.KeptAirspace
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * The pilot's airspace: what the app keeps from the pilot's server, and the
@@ -89,7 +90,7 @@ fun AirspaceScreen(
                 title = { Text("Airspace") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )

@@ -117,6 +117,7 @@ import fly.venti.core.WindStation
 import fly.venti.core.stationsNear
 import kotlin.math.abs
 import kotlin.math.roundToLong
+import fly.venti.app.design.Common
 
 /**
  * The sheet over the map for flying sites: the sites in view as a list, or
@@ -538,7 +539,7 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                     )
                 }
             }
-            TextButton(onClick = onDone) { Text("Done") }
+            TextButton(onClick = onDone) { Text(Common.words.done) }
         }
         if (sites.sites.isEmpty()) {
             EmptyList(
@@ -771,7 +772,7 @@ private fun SitePage(
         ) {
             if (onBack != null) {
                 IconButton(onClick = onBack) {
-                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                 }
             }
             // The name with the day's status beside it; where the two do not
@@ -807,7 +808,7 @@ private fun SitePage(
                     StatusChip(shown.verdict.status, shown.status, Modifier.testTag("site-status"))
                 }
             }
-            TextButton(onClick = onDone) { Text("Done") }
+            TextButton(onClick = onDone) { Text(Common.words.done) }
         }
         LazyColumn(
             modifier = Modifier.testTag("site-page"),
@@ -1341,7 +1342,8 @@ private fun SiteAirLine(site: SiteView) {
     val air = LocalAir.current ?: return
     var words by remember(site.id) { mutableStateOf("") }
     LaunchedEffect(site.id, air) {
-        words = air.siteAir(site.id, site.name, site.position)
+        // The site's own name, or none: never what it is in words, which the core would read as a name.
+        words = air.siteAir(site.id, if (site.isNamed) site.name else "", site.position)
     }
     if (words.isEmpty()) return
     Text(

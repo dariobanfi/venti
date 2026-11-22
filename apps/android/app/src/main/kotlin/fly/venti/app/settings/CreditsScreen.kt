@@ -25,6 +25,7 @@ import fly.venti.app.R
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.wind.WindModel
+import fly.venti.app.design.Common
 
 /**
  * Whose data and software the app uses, with the notices their licences
@@ -43,7 +44,7 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 title = { Text("Data and licences") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )

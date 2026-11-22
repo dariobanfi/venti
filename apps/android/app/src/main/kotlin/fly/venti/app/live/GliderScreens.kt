@@ -62,6 +62,7 @@ import fly.venti.core.Credit
 import fly.venti.core.LiveGlider
 import fly.venti.core.OtherAircraftView
 import kotlinx.coroutines.CoroutineScope
+import fly.venti.app.design.Common
 
 /** What the list and a glider's page say apart from their numbers. */
 object GliderWords {
@@ -110,7 +111,7 @@ fun GliderListSheet(live: LiveModel, onChoose: (String) -> Unit, onDismiss: () -
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("In the air", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         // How many are on the map, Venti's pilots and the other networks' aircraft, in the core's words.
         if (live.countWords.isNotEmpty()) {
@@ -251,7 +252,7 @@ fun GliderSheet(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = onDismiss) { Text("Done") }
+                    TextButton(onClick = onDismiss) { Text(Common.words.done) }
                 }
                 Column(
                     Modifier
@@ -364,7 +365,7 @@ fun OtherAircraftSheet(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).testTag("other-kind"),
             )
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         if (shown != null) {
             OtherAircraftPage(shown.first, shown.second)

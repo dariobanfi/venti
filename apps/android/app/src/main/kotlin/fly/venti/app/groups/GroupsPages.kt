@@ -53,6 +53,7 @@ import fly.venti.core.GroupMember
 import fly.venti.core.GroupView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /** A group whose invite code is to be shown. */
 private data class MadeGroup(val name: String, val code: String)
@@ -224,7 +225,7 @@ private fun TypedDialog(
         confirmButton = {
             TextButton(onClick = { onConfirm(typed) }, enabled = typed.isNotBlank()) { Text(confirm) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(Common.words.cancel) } },
     )
 }
 
@@ -253,7 +254,7 @@ private fun InviteCodeDialog(group: MadeGroup, onDismiss: () -> Unit) {
                 Text(GroupWords.THE_CODE, style = MaterialTheme.typography.bodyMedium)
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(Common.words.done) } },
         dismissButton = {
             TextButton(onClick = { SharedFiles.shareText(context, group.code, "Hand the code on") }) {
                 Text("Hand the code on")
@@ -411,7 +412,7 @@ internal fun GroupPage(
                     )
                 }
             },
-            dismissButton = { TextButton(onClick = { asking = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { asking = null }) { Text(Common.words.cancel) } },
         )
     }
     if (isRenaming && shown != null) {

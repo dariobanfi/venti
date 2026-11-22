@@ -60,6 +60,7 @@ import fly.venti.core.SiteFlightsWords
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * What the public flights that began at a take-off say about it, on its
@@ -218,7 +219,7 @@ fun CandidateSheet(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
-                TextButton(onClick = onDismiss, modifier = Modifier.testTag("candidate-done")) { Text("Done") }
+                TextButton(onClick = onDismiss, modifier = Modifier.testTag("candidate-done")) { Text(Common.words.done) }
             }
             Text(candidate.words, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("candidate-words"))
             if (candidate.altitudeWords.isNotEmpty()) {

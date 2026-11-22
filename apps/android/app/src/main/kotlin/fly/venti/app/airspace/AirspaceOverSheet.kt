@@ -37,6 +37,7 @@ import fly.venti.core.AirspaceOverPlace
 import fly.venti.core.AirspaceOverhead
 import fly.venti.core.AirspacePolicy
 import fly.venti.core.airspaceHeightFilter
+import fly.venti.app.design.Common
 
 /** How Venti treats an airspace, as the pack's status: never colour alone. */
 fun AirspacePolicy.status(): StatusKind = when (this) {
@@ -81,7 +82,7 @@ fun AirspaceOverSheet(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).semantics { heading() },
                     )
-                    TextButton(onClick = onDismiss) { Text("Done") }
+                    TextButton(onClick = onDismiss) { Text(Common.words.done) }
                 }
                 Column(
                     modifier = Modifier

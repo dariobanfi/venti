@@ -83,6 +83,7 @@ import fly.venti.core.siteDraftWindInWords
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * What the screens for adding and correcting a site say that the core has
@@ -93,7 +94,6 @@ object SiteEditWords {
     const val SIGN_IN = "Sign in"
     const val NO_HISTORY = "The history could not be read"
     const val NO_CONFIRMATIONS = "The confirmations could not be read"
-    const val TRY_AGAIN = "Try again"
 
     /** How much of a line's room is used: "12 / 200". */
     fun room(used: Int, atMost: UInt): String = "$used / $atMost"
@@ -801,7 +801,7 @@ private fun OverASiteHead(title: String, name: String, onBack: (() -> Unit)?, on
     ) {
         if (onBack != null) {
             IconButton(onClick = onBack) {
-                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
             }
         }
         Column(Modifier.weight(1f)) {
@@ -814,7 +814,7 @@ private fun OverASiteHead(title: String, name: String, onBack: (() -> Unit)?, on
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        TextButton(onClick = onDone) { Text("Done") }
+        TextButton(onClick = onDone) { Text(Common.words.done) }
     }
 }
 
@@ -883,7 +883,7 @@ fun SiteHistoryPage(
                 shown == null -> {
                     Text(SiteEditWords.NO_HISTORY, style = MaterialTheme.typography.titleMedium)
                     Text(problem.orEmpty(), color = Venti.colours.textSecondary, modifier = Modifier.testTag("site-history-problem"))
-                    TextButton(onClick = { attempt += 1 }) { Text(SiteEditWords.TRY_AGAIN) }
+                    TextButton(onClick = { attempt += 1 }) { Text(Common.words.tryAgain) }
                 }
                 else -> {
                     // Why something is not offered here, in the core's line.
@@ -1023,7 +1023,7 @@ fun SiteConfirmationsPage(
                 confirmations == null -> {
                     Text(SiteEditWords.NO_CONFIRMATIONS, style = MaterialTheme.typography.titleMedium)
                     Text(problem.orEmpty(), color = Venti.colours.textSecondary, modifier = Modifier.testTag("site-confirmations-problem"))
-                    TextButton(onClick = onTryAgain) { Text(SiteEditWords.TRY_AGAIN) }
+                    TextButton(onClick = onTryAgain) { Text(Common.words.tryAgain) }
                 }
                 else -> {
                     Text(

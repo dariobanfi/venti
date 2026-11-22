@@ -44,6 +44,7 @@ import fly.venti.app.forecast.ThermalMapModel
 import fly.venti.app.forecast.ThermalMapWords
 import fly.venti.core.Coordinate
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * The weather along the route, under its legs and score: folded until the
@@ -171,7 +172,7 @@ fun RouteWeatherSection(
                             if (day != null) scope.launch { weather.show(places, day) }
                         },
                         modifier = Modifier.heightIn(min = VentiSize.touch),
-                    ) { Text(RouteWeatherWords.TRY_AGAIN) }
+                    ) { Text(Common.words.tryAgain) }
                 }
             }
         }

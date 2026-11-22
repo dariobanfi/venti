@@ -82,6 +82,7 @@ import fly.venti.core.TokenForm
 import fly.venti.core.TokenScope
 import fly.venti.core.TokenView
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * "Programs with access", a page of the account: the tokens the pilot has
@@ -168,7 +169,7 @@ private fun Refusal(form: TokenForm, words: String, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text(form.title) },
         text = { Text(words, Modifier.testTag("token-problem")) },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(Common.words.ok) } },
     )
 }
 
@@ -185,7 +186,7 @@ private fun Page(title: String, onBack: (() -> Unit)?, content: @Composable () -
                 navigationIcon = {
                     if (onBack != null) {
                         IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                         }
                     }
                 },
@@ -238,7 +239,7 @@ private fun ListPage(
                     color = Venti.colours.textSecondary,
                     modifier = Modifier.padding(horizontal = VentiSpace.s1).testTag("tokens-problem"),
                 )
-                TextButton(onClick = onAgain) { Text(TokenWords.TRY_AGAIN) }
+                TextButton(onClick = onAgain) { Text(Common.words.tryAgain) }
             }
             is TokensModel.Listed.Tokens -> if (listed.tokens.isEmpty()) {
                 Text(
@@ -464,9 +465,9 @@ private fun EndChoice(endsOn: Long?, onChoose: (Long) -> Unit, onDismiss: () -> 
                     picker.selectedDateMillis?.let(onChoose)
                     onDismiss()
                 },
-            ) { Text("OK") }
+            ) { Text(Common.words.ok) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(Common.words.cancel) } },
     ) {
         DatePicker(picker)
     }

@@ -16,8 +16,6 @@ object AlertWords {
     val core: AlertFormWords by lazy { alertFormWords() }
 
     const val SIGN_IN = "Sign in"
-    const val CANCEL = "Cancel"
-    const val OK = "OK"
     const val CHANNEL = "Alarms"
     const val CHANNEL_ABOUT = "What your alarms on Venti fired."
 

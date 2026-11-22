@@ -186,7 +186,6 @@ object RouteWeatherWords {
     const val ASKING = "Asking Venti for the weather along the route"
     const val UNREACHABLE = "Venti could not be reached for the weather along the route."
     const val NO_SERVER = "Without a Venti server there is no forecast along the route."
-    const val TRY_AGAIN = "Try again"
     const val START = "Start"
     const val SPEED = "Speed over the ground"
     const val GLIDE = "Glide"

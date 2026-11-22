@@ -113,7 +113,6 @@ class TokensModel(
 object TokenWords {
     const val ENDED = "Ended"
     const val NO_END = "No end"
-    const val TRY_AGAIN = "Try again"
     const val COPIED = "Copied"
 
     /** What a screen reader says of the button that withdraws a token. */

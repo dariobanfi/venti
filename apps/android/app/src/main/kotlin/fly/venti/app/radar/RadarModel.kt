@@ -494,9 +494,6 @@ class RadarModel(
 
 /** Words of the rain radar that are not the core's: the shell's own, for when there is nothing to read. */
 object RadarWords {
-    /** The chip of the layer. */
-    const val LAYER = "Radar"
-
     const val ASKING = "Asking Venti for the rain radar"
     const val UNREACHABLE = "Venti could not be reached for the rain radar."
     const val PICTURE_UNREACHABLE = "Venti could not be reached for this radar picture."

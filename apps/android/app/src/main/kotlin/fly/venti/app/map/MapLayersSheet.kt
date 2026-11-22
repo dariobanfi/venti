@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,41 +44,14 @@ import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
-import org.maplibre.android.maps.Style
-import org.maplibre.android.style.layers.CircleLayer
-import org.maplibre.android.style.layers.FillExtrusionLayer
-import org.maplibre.android.style.layers.FillLayer
-import org.maplibre.android.style.layers.HillshadeLayer
-import org.maplibre.android.style.layers.Layer
-import org.maplibre.android.style.layers.LineLayer
-import org.maplibre.android.style.layers.Property
-import org.maplibre.android.style.layers.RasterLayer
-import org.maplibre.android.style.layers.SymbolLayer
+import fly.venti.app.design.Common
 
-/**
- * The words of the map tab that are the app's own: the names of its
- * layers and lists, which the core does not give, and of the pieces
- * around them.
- */
+/** The words of the map tab, all of them the core's: the sheet's, its layers' and rows' names, the credits. */
 object MapWords {
-    /** The core's words of the sheet: its title and headings, the two layers of the air, what they say when empty. */
     val core: MapLayersWords by lazy { mapLayersWords() }
 
-    const val DONE = "Done"
-
-    const val FORECAST = "Forecast"
-    const val THERMALS = "Thermals"
-    const val WIND = "Wind"
-    const val AIRSPACE = "Airspace"
-    const val CABLES = "Cables"
-    const val SITES = "Sites"
-    const val PILOTS = "Pilots"
-    const val AERIAL = "Aerial view"
-
-    const val WIND_STATIONS = "Wind stations"
-    const val FLYING_SITES = "Flying sites"
-    const val PILOTS_IN_THE_AIR = "Pilots in the air"
-    const val FLYING_PLANS = "Flying plans"
+    /** Whose the base map and the terrain are, under the credits. */
+    val baseCredits: List<String> get() = listOf(core.baseMapCredit, core.terrainCredit).filter { it.isNotEmpty() }
 }
 
 /** A layer of the map as a row of the layers sheet: its switch, and a line under its name if there is one to say. */
@@ -108,22 +82,25 @@ fun MapLayersSheet(layers: List<MapLayer>, views: List<MapList>, onDismiss: () -
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
+        // The title and "Done" stay at the top while the rows scroll under them.
+        Row(Modifier.padding(horizontal = VentiSpace.s4), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                MapWords.core.title,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f).semantics { heading() },
+            )
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("layers-close")) {
+                Text(Common.words.done)
+            }
+        }
         Column(
             modifier = Modifier
                 .testTag("layers-sheet")
+                // Clear of the navigation bar, so that the last row can be scrolled above it.
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s6),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    MapWords.core.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-                TextButton(onClick = onDismiss, modifier = Modifier.testTag("layers-close")) {
-                    Text(MapWords.DONE)
-                }
-            }
             SectionHeader(MapWords.core.onTheMap)
             Group {
                 for (layer in layers) {
@@ -211,6 +188,8 @@ fun MapCreditsSheet(lines: List<String>, onDismiss: () -> Unit) {
     ) {
         Column(
             modifier = Modifier
+                // Clear of the navigation bar, so that the last row can be scrolled above it.
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s6),
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
@@ -222,7 +201,7 @@ fun MapCreditsSheet(lines: List<String>, onDismiss: () -> Unit) {
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
                 TextButton(onClick = onDismiss, modifier = Modifier.testTag("credits-close")) {
-                    Text(MapWords.DONE)
+                    Text(Common.words.done)
                 }
             }
             // One element for a test and for TalkBack, its lines its texts.
@@ -240,41 +219,6 @@ fun MapCreditsSheet(lines: List<String>, onDismiss: () -> Unit) {
 }
 
 /**
- * Whose the base map is: the credit of every source that a layer in view
- * draws from, as the style gives it, a line for each. The photographs'
- * sources are among them only while the aerial view shows.
- */
-object MapCredits {
-    fun of(style: Style): List<String> = runCatching {
-        val drawn = style.layers
-            .filter { it.visibility.value != Property.NONE }
-            .mapNotNull(::sourceOf)
-            .toSet()
-        style.sources
-            .filter { it.id in drawn }
-            .map { plain(it.attribution) }
-            .filter { it.isNotEmpty() }
-            .distinct()
-    }.getOrDefault(emptyList())
-
-    /** A credit as the style writes it, with links, as words alone. */
-    fun plain(attribution: String): String =
-        attribution.replace(Regex("<[^>]*>"), " ").replace("&copy;", "©").replace("&amp;", "&")
-            .replace(Regex("\\s+"), " ").trim()
-
-    private fun sourceOf(layer: Layer): String? = when (layer) {
-        is FillLayer -> layer.sourceId
-        is LineLayer -> layer.sourceId
-        is SymbolLayer -> layer.sourceId
-        is RasterLayer -> layer.sourceId
-        is HillshadeLayer -> layer.sourceId
-        is CircleLayer -> layer.sourceId
-        is FillExtrusionLayer -> layer.sourceId
-        else -> null
-    }
-}
-
-/**
  * What the map says of a climb or of a cell of where thermals have been,
  * tapped: the core's line, and under it whose it is and what it is.
  */
@@ -288,6 +232,8 @@ fun AirLineSheet(title: String, line: String, notes: List<String>, tag: String, 
     ) {
         Column(
             modifier = Modifier
+                // Clear of the navigation bar, so that the last row can be scrolled above it.
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s6),
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
@@ -299,7 +245,7 @@ fun AirLineSheet(title: String, line: String, notes: List<String>, tag: String, 
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
                 TextButton(onClick = onDismiss, modifier = Modifier.testTag("air-line-close")) {
-                    Text(MapWords.DONE)
+                    Text(Common.words.done)
                 }
             }
             Text(line, style = MaterialTheme.typography.bodyLarge.numbers, modifier = Modifier.testTag(tag))

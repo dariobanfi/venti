@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.HttpAnswer
 import fly.venti.app.account.AccountModel
+import fly.venti.core.PilotsAlarmNumbers
+import fly.venti.core.pilotsAlarmNumbers
 import fly.venti.core.AlertDayKind
 import fly.venti.core.AlertDraft
 import fly.venti.core.AlertFaultView
@@ -139,9 +141,8 @@ class AlertsModel(
             atLeast = AlertDayKind.CROSS_COUNTRY,
         )
 
-        /** Where the two numbers of an alarm for pilots in the air start: what the core takes where none is given. */
-        const val PILOTS_START = 3
-        const val REST_HOURS_START = 6
+        /** The two numbers of an alarm for pilots in the air: where they start, and how far they go, the core's. */
+        val NUMBERS: PilotsAlarmNumbers by lazy { pilotsAlarmNumbers() }
 
         /**
          * A new alarm for a place as the other of its two kinds: the place
@@ -151,8 +152,8 @@ class AlertsModel(
         fun ofKind(draft: AlertDraft, kind: AlertKind): AlertDraft = when (kind) {
             AlertKind.PILOTS -> draft.copy(
                 kind = kind,
-                minPilots = draft.minPilots ?: PILOTS_START.toUShort(),
-                restHours = draft.restHours ?: REST_HOURS_START.toUByte(),
+                minPilots = draft.minPilots ?: NUMBERS.minPilotsDefault,
+                restHours = draft.restHours ?: NUMBERS.restHoursDefault,
             )
             else -> draft.copy(kind = kind)
         }

@@ -62,6 +62,7 @@ import fly.venti.app.settings.Preferences
 import fly.venti.core.LiveAudience
 import fly.venti.core.LiveShareState
 import fly.venti.core.LiveShareView
+import fly.venti.app.design.Common
 
 /**
  * Whom the pilot shows flights to while they are under way. Kept between
@@ -141,7 +142,7 @@ fun LiveScreen(fly: FlySession, account: AccountModel, preferences: Preferences,
                 title = { Text("Live tracking") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )
@@ -174,7 +175,7 @@ fun LiveSheet(fly: FlySession, account: AccountModel, preferences: Preferences, 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Live tracking", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         Column(
             Modifier
@@ -269,7 +270,7 @@ private fun LiveTracking(fly: FlySession, account: AccountModel, preferences: Pr
                     Text("Delete the track", color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { isConfirmingDeletion = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { isConfirmingDeletion = false }) { Text(Common.words.cancel) } },
         )
     }
 }

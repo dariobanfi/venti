@@ -70,6 +70,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
+import fly.venti.app.design.Common
 
 private sealed interface Phase {
     data object Loading : Phase
@@ -252,7 +253,7 @@ private fun TopButtons(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         FilledTonalIconButton(onClick = onBack, colors = colours) {
-            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
         }
         Box {
             FilledTonalIconButton(
@@ -262,7 +263,7 @@ private fun TopButtons(
                 },
                 colors = colours,
             ) {
-                Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                Icon(painterResource(R.drawable.ic_more_vert), contentDescription = Common.words.more)
             }
             DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
                 if (isChoosingSpeed) {

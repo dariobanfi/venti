@@ -89,6 +89,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import fly.venti.app.design.Common
 
 /**
  * The pilot's task: what it is, where it came from and how to hand it on.
@@ -139,7 +140,7 @@ fun TaskScreen(
                 title = { Text("Task") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
                 actions = {
@@ -147,7 +148,7 @@ fun TaskScreen(
                         // Handing the task on, and taking it away.
                         Box {
                             IconButton(onClick = { isShowingMenu = true }) {
-                                Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                                Icon(painterResource(R.drawable.ic_more_vert), contentDescription = Common.words.more)
                             }
                             DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
                                 DropdownMenuItem(
@@ -295,7 +296,7 @@ fun TaskScreen(
                     Text("Remove", color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { isConfirmingRemoval = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { isConfirmingRemoval = false }) { Text(Common.words.cancel) } },
         )
     }
 }
@@ -453,7 +454,7 @@ private fun RoutePlanner(tasks: TaskModel, waypoints: WaypointsModel, onDismiss:
             modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(Common.words.cancel) }
             Text(
                 "Plan a route",
                 style = MaterialTheme.typography.titleLarge,

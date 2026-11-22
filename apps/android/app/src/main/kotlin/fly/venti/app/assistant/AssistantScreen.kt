@@ -80,6 +80,7 @@ import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import fly.venti.core.TranscriptEntry
 import fly.venti.core.assistantModels
+import fly.venti.app.design.Common
 
 /**
  * The assistant: questions about the pilot's own flying, answered by a
@@ -109,7 +110,7 @@ fun AssistantScreen(
                 title = { Text(if (isSettingService) "Another service" else "Assistant") },
                 navigationIcon = {
                     IconButton(onClick = { if (isSettingService) isSettingService = false else onBack() }) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
                 actions = {
@@ -135,7 +136,7 @@ fun AssistantScreen(
             onDismissRequest = { chat.problem = null },
             title = { Text("Assistant") },
             text = { Text(problem) },
-            confirmButton = { TextButton(onClick = { chat.problem = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { chat.problem = null }) { Text(Common.words.ok) } },
         )
     }
 }

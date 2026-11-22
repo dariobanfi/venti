@@ -80,6 +80,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
+import fly.venti.app.design.Common
 
 /** A page of the sheet: the board, or something opened from it. */
 private sealed interface Page {
@@ -155,7 +156,7 @@ fun PlansSheet(
                 ) {
                     if (path.size > 1) {
                         IconButton(onClick = back) {
-                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                         }
                     }
                     Text(
@@ -184,7 +185,7 @@ fun PlansSheet(
                             }
                         }
                     }
-                    TextButton(onClick = onDismiss) { Text("Done") }
+                    TextButton(onClick = onDismiss) { Text(Common.words.done) }
                 }
                 when (page) {
                     Page.Board -> Board(groups, account, onPlan = { open(Page.Plan(it)) }, onGroups = { open(Page.Groups) })
@@ -485,7 +486,7 @@ private fun PlanPage(
                     Text("Delete the plan", color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { isConfirmingDelete = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { isConfirmingDelete = false }) { Text(Common.words.cancel) } },
         )
     }
 }
@@ -704,10 +705,10 @@ private fun PlanForm(
                         isPickingDay = false
                     },
                 ) {
-                    Text("OK")
+                    Text(Common.words.ok)
                 }
             },
-            dismissButton = { TextButton(onClick = { isPickingDay = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { isPickingDay = false }) { Text(Common.words.cancel) } },
         ) {
             DatePicker(picked)
         }
@@ -728,10 +729,10 @@ private fun PlanForm(
                         isPickingTime = false
                     },
                 ) {
-                    Text("OK")
+                    Text(Common.words.ok)
                 }
             },
-            dismissButton = { TextButton(onClick = { isPickingTime = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { isPickingTime = false }) { Text(Common.words.cancel) } },
             text = { TimePicker(picked) },
         )
     }

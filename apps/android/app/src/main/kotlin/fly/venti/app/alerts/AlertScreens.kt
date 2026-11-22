@@ -72,6 +72,7 @@ import fly.venti.core.AlertKind
 import fly.venti.core.AlertView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /** What the pages that offer "Alert me" need: the alarms, and the way to the account to sign in. */
 class AlertsEntry(val model: AlertsModel, val onSignIn: () -> Unit)
@@ -106,7 +107,7 @@ fun AlertMeRow(entry: AlertsEntry, tag: String, draft: () -> AlertDraft) {
                     entry.onSignIn()
                 }) { Text(AlertWords.SIGN_IN) }
             },
-            dismissButton = { TextButton(onClick = { asksToSignIn = false }) { Text(AlertWords.CANCEL) } },
+            dismissButton = { TextButton(onClick = { asksToSignIn = false }) { Text(Common.words.cancel) } },
         )
     }
 }
@@ -149,7 +150,7 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
                 title = { Text(AlertWords.core.title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )
@@ -227,7 +228,7 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
             onDismissRequest = { problem = null },
             title = { Text(AlertWords.core.title) },
             text = { Text(words) },
-            confirmButton = { TextButton(onClick = { problem = null }) { Text(AlertWords.OK) } },
+            confirmButton = { TextButton(onClick = { problem = null }) { Text(Common.words.ok) } },
         )
     }
 }
@@ -301,7 +302,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                         title = { Text(if (id == null) AlertWords.core.alertMe else AlertWords.core.changeTitle) },
                         navigationIcon = {
                             IconButton(onClick = onDone) {
-                                Icon(painterResource(R.drawable.ic_close), contentDescription = AlertWords.CANCEL)
+                                Icon(painterResource(R.drawable.ic_close), contentDescription = Common.words.cancel)
                             }
                         },
                     )
@@ -409,7 +410,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                         modifier = Modifier.testTag("alert-delete-confirm"),
                     ) { Text(AlertWords.core.delete, color = MaterialTheme.colorScheme.error) }
                 },
-                dismissButton = { TextButton(onClick = { isDeleting = false }) { Text(AlertWords.CANCEL) } },
+                dismissButton = { TextButton(onClick = { isDeleting = false }) { Text(Common.words.cancel) } },
             )
         }
         problem?.let { words ->
@@ -417,7 +418,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                 onDismissRequest = { problem = null },
                 title = { Text(AlertWords.core.title) },
                 text = { Text(words, Modifier.testTag("alert-problem")) },
-                confirmButton = { TextButton(onClick = { problem = null }) { Text(AlertWords.OK) } },
+                confirmButton = { TextButton(onClick = { problem = null }) { Text(Common.words.ok) } },
             )
         }
     }
@@ -545,20 +546,21 @@ private fun DayChoices(draft: AlertDraft, faults: List<AlertFaultView>, onChange
 @Composable
 private fun PilotsChoices(draft: AlertDraft, faults: List<AlertFaultView>, onChange: (AlertDraft) -> Unit) {
     faults.at("rule.place", "rule.place_name")?.let { Fault(it) }
-    val pilots = draft.minPilots?.toInt() ?: AlertsModel.PILOTS_START
-    val rest = draft.restHours?.toInt() ?: AlertsModel.REST_HOURS_START
+    val numbers = AlertsModel.NUMBERS
+    val pilots = (draft.minPilots ?: numbers.minPilotsDefault).toInt()
+    val rest = (draft.restHours ?: numbers.restHoursDefault).toInt()
     Spacer(Modifier.height(VentiSpace.s4))
     Group {
         row {
             Stepper(AlertWords.core.pilotsAtLeast, pilots.toString(), faults.at("rule.min_pilots"), "alert-pilots",
-                onLess = { onChange(draft.copy(minPilots = (pilots - 1).coerceAtLeast(1).toUShort())) },
-                onMore = { onChange(draft.copy(minPilots = (pilots + 1).toUShort())) },
+                onLess = { onChange(draft.copy(minPilots = (pilots - 1).coerceAtLeast(numbers.minPilotsLeast.toInt()).toUShort())) },
+                onMore = { onChange(draft.copy(minPilots = (pilots + 1).coerceAtMost(numbers.minPilotsMost.toInt()).toUShort())) },
             )
         }
         row {
             Stepper(AlertWords.core.pilotsRest, rest.toString(), faults.at("rule.rest_hours"), "alert-rest",
-                onLess = { onChange(draft.copy(restHours = (rest - 1).coerceAtLeast(1).toUByte())) },
-                onMore = { onChange(draft.copy(restHours = (rest + 1).toUByte())) },
+                onLess = { onChange(draft.copy(restHours = (rest - 1).coerceAtLeast(numbers.restHoursLeast.toInt()).toUByte())) },
+                onMore = { onChange(draft.copy(restHours = (rest + 1).coerceAtMost(numbers.restHoursMost.toInt()).toUByte())) },
             )
         }
     }

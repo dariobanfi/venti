@@ -63,6 +63,7 @@ import fly.venti.app.fly.FlySession
 import fly.venti.app.wind.WindModel
 import fly.venti.core.mapLayersWords
 import fly.venti.core.GliderClassKind
+import fly.venti.app.design.Common
 
 /** The pilot's settings, and what the app is made of. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,7 +99,7 @@ fun SettingsScreen(
                 title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )

@@ -51,6 +51,7 @@ import fly.venti.app.design.Venti
 import fly.venti.core.Tendency
 import fly.venti.core.Tendencies
 import kotlinx.coroutines.CancellationException
+import fly.venti.app.design.Common
 
 /** What the screen "How you fly" has to show. */
 sealed interface TendenciesState {
@@ -110,7 +111,7 @@ fun TendenciesScreen(logbook: LogbookModel, onOpen: (String) -> Unit, onBack: ()
                 title = { Text(TendenciesWords.TITLE) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )

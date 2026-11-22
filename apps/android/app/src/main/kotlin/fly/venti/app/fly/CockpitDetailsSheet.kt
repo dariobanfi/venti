@@ -27,6 +27,7 @@ import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.numbers
 import fly.venti.core.CockpitView
+import fly.venti.app.design.Common
 
 /** The cockpit's details sheet in words, all of them the core's: its title, the names of its rows, its note. */
 object CockpitDetailsWords {
@@ -68,7 +69,7 @@ fun CockpitDetailsSheet(view: CockpitView, onDismiss: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(CockpitDetailsWords.core.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("cockpit-details-close")) { Text("Done") }
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("cockpit-details-close")) { Text(Common.words.done) }
         }
         val rows = CockpitDetailsWords.rows(view)
         LazyColumn(

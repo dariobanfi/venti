@@ -49,6 +49,7 @@ import fly.venti.core.MapRegionRow
 import fly.venti.core.MapRegionState
 import fly.venti.core.MapRegionView
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /** What the page says that is not the core's. */
 object OfflineMapsWords {
@@ -93,7 +94,7 @@ fun OfflineMapsScreen(maps: OfflineMapsModel, hasServer: Boolean, onBack: () -> 
                 title = { Text(OfflineMapsWords.TITLE) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
                 actions = {
@@ -175,7 +176,7 @@ fun OfflineMapsScreen(maps: OfflineMapsModel, hasServer: Boolean, onBack: () -> 
                     modifier = Modifier.testTag("map-download-confirm"),
                 ) { Text("Download ${region.size}") }
             },
-            dismissButton = { TextButton(onClick = { asking = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { asking = null }) { Text(Common.words.cancel) } },
         )
     }
     deleting?.let { region ->
@@ -189,7 +190,7 @@ fun OfflineMapsScreen(maps: OfflineMapsModel, hasServer: Boolean, onBack: () -> 
                     maps.delete(region)
                 }) { Text("Delete the map", color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(Common.words.cancel) } },
         )
     }
 }

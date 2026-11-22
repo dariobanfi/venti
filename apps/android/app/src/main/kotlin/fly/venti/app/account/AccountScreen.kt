@@ -76,6 +76,7 @@ import fly.venti.core.tokenForm
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.net.URI
+import fly.venti.app.design.Common
 
 /**
  * The pilot's account on a Venti server: sign in or create one, see how the
@@ -124,7 +125,7 @@ fun AccountScreen(
                 title = { Text("Account") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )
@@ -164,7 +165,7 @@ fun AccountScreen(
             onDismissRequest = { account.problem = null },
             title = { Text("Account") },
             text = { Text(problem) },
-            confirmButton = { TextButton(onClick = { account.problem = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { account.problem = null }) { Text(Common.words.ok) } },
         )
     }
 }
@@ -415,7 +416,7 @@ private fun ChooseHandle(
         enabled = !account.isWorking,
         modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch),
     ) {
-        Text("Cancel")
+        Text(Common.words.cancel)
     }
 }
 
@@ -594,7 +595,7 @@ private fun SignedIn(
                     Text("Sign out")
                 }
             },
-            dismissButton = { TextButton(onClick = { isConfirmingSignOut = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { isConfirmingSignOut = false }) { Text(Common.words.cancel) } },
         )
     }
     if (isDeleting) {
@@ -667,6 +668,6 @@ private fun DeleteAccountDialog(onDelete: (String) -> Unit, withGoogle: (() -> U
                 Text("Delete account")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(Common.words.cancel) } },
     )
 }

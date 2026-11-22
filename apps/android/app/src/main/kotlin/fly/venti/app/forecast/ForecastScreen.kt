@@ -74,6 +74,7 @@ import fly.venti.core.ForecastWind
 import fly.venti.core.ModelForecast
 import kotlinx.coroutines.CancellationException
 import kotlin.math.roundToInt
+import fly.venti.app.design.Common
 
 /** A place whose forecast is asked for: what it is called and where it is. */
 data class ForecastPlace(val name: String, val position: Coordinate)
@@ -196,7 +197,7 @@ fun ForecastPage(
         ) {
             if (onBack != null) {
                 IconButton(onClick = onBack) {
-                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                 }
             }
             Text(
@@ -206,7 +207,7 @@ fun ForecastPage(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onDone) { Text("Done") }
+            TextButton(onClick = onDone) { Text(Common.words.done) }
         }
         head?.invoke()
         when (val current = phase) {
@@ -253,7 +254,7 @@ private fun NoForecast(title: String, text: String, onRetry: (() -> Unit)?) {
             textAlign = TextAlign.Center,
         )
         if (onRetry != null) {
-            TextButton(onClick = onRetry) { Text("Try again") }
+            TextButton(onClick = onRetry) { Text(Common.words.tryAgain) }
         }
     }
 }

@@ -47,6 +47,7 @@ import fly.venti.core.FlightView
 import fly.venti.core.GlideSummary
 import fly.venti.core.RouteKind
 import fly.venti.core.ThermalSummary
+import fly.venti.app.design.Common
 
 /**
  * Everything known about a flight, as a list. Opened from the flight panel.
@@ -80,7 +81,7 @@ fun FlightDetailsSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Flight details", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         LazyColumn(
             modifier = Modifier.testTag("flight-details"),

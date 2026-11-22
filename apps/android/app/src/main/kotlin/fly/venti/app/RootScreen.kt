@@ -79,6 +79,7 @@ import fly.venti.core.SiteWritten
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * The whole app: its sections under a tab bar, the screens opened from
@@ -247,7 +248,7 @@ fun RootScreen(
             onDismissRequest = { fly.problem = null },
             title = { Text("Flying") },
             text = { Text(problem) },
-            confirmButton = { TextButton(onClick = { fly.problem = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { fly.problem = null }) { Text(Common.words.ok) } },
         )
     }
 }

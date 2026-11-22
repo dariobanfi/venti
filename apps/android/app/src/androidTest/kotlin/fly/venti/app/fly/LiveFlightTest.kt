@@ -62,6 +62,9 @@ class LiveFlightTest {
 
     private companion object {
         const val ELLIPSOID_HEIGHT = 1500.0
+
+        /** The ground at the made-up take-off above the Tegernsee, above the ellipsoid, as the map's terrain has it. */
+        const val TAKEOFF_GROUND_ELLIPSOID_HEIGHT = 1120.0
     }
 
     @Before
@@ -208,11 +211,19 @@ class LiveFlightTest {
         waitFor(hasText("Fly") and isSelectable())
         tap(hasText("Fly") and isSelectable())
         waitFor(hasText("Open the cockpit"))
-        // Eight seconds at the take-off, forty-five of flight at 10 m/s
-        // sinking a metre a second, then standing in the landing field.
+        // Eight seconds at the take-off, forty-four of flight at 10 m/s,
+        // 220 m north and back, then standing where it started. On the
+        // ground: the core does not end a flight while the terrain the app
+        // knows lies more than 50 m below (it waits five minutes there),
+        // and the emulator's barometer holds the height of the first fix,
+        // so the whole flight is at the height of the ground at the
+        // take-off. The map's terrain has it at some 1,070 m above the sea
+        // (a recorded flight: 482 m over ground at 1,553 m, 100 m north),
+        // which is some 1,120 m above the ellipsoid here.
         feed { second ->
-            val flown = (second - 8).coerceIn(0, 45).toDouble()
-            Triple(10 * flown, ELLIPSOID_HEIGHT + 100 - flown, if (second in 9..53) 10f else 0f)
+            val flown = (second - 8).coerceIn(0, 44)
+            val north = 10.0 * (if (flown <= 22) flown else 44 - flown)
+            Triple(north, TAKEOFF_GROUND_ELLIPSOID_HEIGHT, if (second in 9..52) 10f else 0f)
         }
         tap(hasText("Open the cockpit"))
 

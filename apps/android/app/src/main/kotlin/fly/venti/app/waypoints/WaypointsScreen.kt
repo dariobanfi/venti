@@ -67,6 +67,7 @@ import fly.venti.core.ReachView
 import fly.venti.core.WaypointView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /** What the app says about the files it reads waypoints from. */
 const val WAYPOINT_FILES = "Venti reads SeeYou files (.cup) and GEO files (.wpt)."
@@ -103,13 +104,13 @@ fun WaypointsScreen(waypoints: WaypointsModel, onBack: () -> Unit) {
                 title = { Text("Waypoints") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
                 actions = {
                     Box {
                         IconButton(onClick = { isShowingMenu = true }) {
-                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = Common.words.more)
                         }
                         DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
                             DropdownMenuItem(
@@ -217,7 +218,7 @@ fun WaypointsScreen(waypoints: WaypointsModel, onBack: () -> Unit) {
                     Text("Delete all", color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { isConfirmingDeleteAll = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { isConfirmingDeleteAll = false }) { Text(Common.words.cancel) } },
         )
     }
 }

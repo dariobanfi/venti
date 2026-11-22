@@ -69,6 +69,7 @@ import kotlin.math.cos
 import kotlin.math.roundToLong
 import kotlin.math.sin
 import kotlin.math.sqrt
+import fly.venti.app.design.Common
 
 /**
  * A second flight laid beside the one on screen. Flights that were in the
@@ -241,7 +242,7 @@ fun CompareChooser(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(CompareWords.CHOOSER_TITLE, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(Common.words.cancel) }
         }
         Box(Modifier.fillMaxHeight()) {
             LazyColumn(
@@ -316,7 +317,7 @@ fun CompareChooser(
             onDismissRequest = { problem = null },
             title = { Text(CompareWords.NOT_LAID) },
             text = { Text(words) },
-            confirmButton = { TextButton(onClick = { problem = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { problem = null }) { Text(Common.words.ok) } },
         )
     }
 }
@@ -390,7 +391,7 @@ fun ComparisonSheet(compared: ComparedFlight, onNearest: () -> Unit, onEnd: () -
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(CompareWords.SHEET_TITLE, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
             item {

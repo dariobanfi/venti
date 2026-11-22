@@ -52,6 +52,7 @@ import fly.venti.app.waypoints.RowDivider
 import fly.venti.core.KeptSite
 import fly.venti.core.KeptSites
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * The pilot's own take-offs, all of them: the sites marked on their pages.
@@ -83,7 +84,7 @@ fun KeptSitesScreen(kept: KeptSitesModel, preferences: Preferences, onBack: () -
                 title = { Text(KeptSitesWords.TITLE) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
                     }
                 },
             )
@@ -152,7 +153,7 @@ fun KeptSitesScreen(kept: KeptSitesModel, preferences: Preferences, onBack: () -
                     Text(KeptSitesWords.FORGET, color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { forgetting = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { forgetting = null }) { Text(Common.words.cancel) } },
         )
     }
 }

@@ -65,6 +65,7 @@ import fly.venti.core.RouteKind
 import fly.venti.core.Totals
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /** The pilot's flights, newest first, by year. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -306,7 +307,7 @@ fun ImportNoticeDialog(notice: ImportNotice?, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text(notice.title) },
         text = { Text(notice.text) },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(Common.words.ok) } },
     )
 }
 
@@ -327,7 +328,7 @@ fun DeleteFlightDialog(
                 Text("Delete flight", color = MaterialTheme.colorScheme.error)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(Common.words.cancel) } },
     )
 }
 

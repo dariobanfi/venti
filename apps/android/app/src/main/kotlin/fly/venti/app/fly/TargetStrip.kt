@@ -64,6 +64,7 @@ import fly.venti.core.ReachView
 import fly.venti.core.WayToTarget
 import fly.venti.core.WaypointView
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /**
  * The line between the map and the instruments that says where the cockpit
@@ -259,7 +260,7 @@ fun TargetPicker(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Fly to", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(Common.words.cancel) }
         }
         if (all.isNotEmpty()) {
             WaypointSearch(search, onChange = { search = it })

@@ -55,6 +55,7 @@ import fly.venti.app.forecast.ForecastPlace
 import fly.venti.core.WindMark
 import fly.venti.core.WindStation
 import fly.venti.core.WindSymbol
+import fly.venti.app.design.Common
 
 /**
  * The sheet over the map for the wind: the stations in view as a list, or
@@ -123,7 +124,7 @@ private fun StationList(wind: WindModel, onOpen: (WindStation) -> Unit, onDone: 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Wind stations", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDone) { Text("Done") }
+            TextButton(onClick = onDone) { Text(Common.words.done) }
         }
         if (wind.stations.isEmpty()) {
             EmptyList("No stations here", wind.problem ?: "Move the map to an area with wind stations.")

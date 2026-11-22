@@ -42,6 +42,7 @@ import fly.venti.core.TaskPhase
 import fly.venti.core.TaskStatusView
 import fly.venti.core.TaskView
 import kotlin.math.abs
+import fly.venti.app.design.Common
 
 /**
  * The line in the cockpit that says where the flight stands in its task:
@@ -189,7 +190,7 @@ fun TaskProgressSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Task", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(Common.words.done) }
         }
         if (task == null || status == null) {
             Text(

@@ -152,10 +152,11 @@ class VentiUiTest {
 
     /**
      * The layers that are rows of the layers sheet only. The map's chips
-     * switch four: "layer-wind", "layer-airspace", "layer-sites", "layer-pilots".
+     * switch four: "layer-forecast", "layer-radar", "layer-wind", "layer-sites";
+     * their rows in the sheet are "layers-forecast" and so on.
      */
     private val SHEET_LAYERS =
-        setOf("layer-forecast", "layer-radar", "layer-thermals", "layer-cables", "map-aerial", "layer-climbs", "layer-flown")
+        setOf("layer-airspace", "layer-pilots", "layer-thermals", "layer-cables", "map-aerial", "layer-climbs", "layer-flown")
 
     private fun exists(what: SemanticsMatcher) = screen.onAllNodes(what).fetchSemanticsNodes().isNotEmpty()
 
@@ -197,6 +198,11 @@ class VentiUiTest {
     private fun tapInLayers(row: SemanticsMatcher) {
         openLayers()
         waitFor(row)
+        // The lists are the sheet's last rows, and its scroll reaches under
+        // the navigation bar: a scroll to the row may leave it behind the
+        // bar, where a tap goes to the bar. Swiped to the sheet's end first.
+        screen.onNode(hasTestTag("layers-sheet")).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
         screen.onNode(row).performScrollTo().performClick()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("layers-sheet")) }
     }
@@ -2141,7 +2147,10 @@ class VentiUiTest {
             launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
             val scenario = checkNotNull(app)
             waitFor(described("Show my position"))
+            // The pilots' layer, a switch of the layers sheet, is on.
+            openLayers()
             waitFor(hasTestTag("layer-pilots") and isOn())
+            closeLayers()
             assertTrue(TestDevice.lookAt(scenario, lat = 47.6642, lon = 11.7967, zoom = 11.0))
             screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
                 (TestDevice.drawnOnTheMap(scenario, "live-others") ?: 0) > 0
@@ -2475,13 +2484,15 @@ class VentiUiTest {
         // The chips' row scrolls: a chip beyond its edge is scrolled to
         // first. A test's choices are its own: every launch starts a new
         // session with the chips as a new phone has them.
-        for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
+        for (layer in listOf("layer-wind", "layer-sites")) {
             tapChip(layer)
             screen.onNode(hasTestTag(layer)).assertIsOff()
         }
+        // The pilots, a switch of the layers sheet only.
+        switchLayer("layer-pilots", on = false)
         assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
         // Off until the pilot switches it on, in the layers sheet.
-        switchLayer("layer-forecast", on = true)
+        switchLayer("layers-forecast", on = true)
 
         // The card: the days and, behind "Key and notes", the key from the
         // best kind of day down to "Not flyable" and the model with its run.
@@ -2836,7 +2847,7 @@ class VentiUiTest {
         assertFalse(showsARadarLayer(scenario))
         lookAtTheWholeRadar(scenario)
         // Off until the pilot switches it on, in the layers sheet.
-        switchLayer("layer-radar", on = true)
+        switchLayer("layers-radar", on = true)
 
         // The card: two moments, the newest chosen, and its line in the
         // core's words, which says of the analysis under it what it is of.
@@ -3173,9 +3184,20 @@ class VentiUiTest {
             screen.onNode(hasTestTag("today-nearby-note")).performScrollTo()
             assertTrue(exists(hasTestTag("today-nearby-note") and hasText("changes no verdict", substring = true)))
 
-            // The take-off's own page, which speaks of its first day with
-            // flying hours: the line under that day's, where it is that day's.
-            screen.onAllNodes(line).onFirst().performScrollTo().performClick()
+            // The take-off's own page, which speaks of the day chosen on
+            // Today. Where the page is to be of a day without the line (the
+            // recorded Sunday), the switch goes back to the day before the
+            // Monday that has it, and the same take-off opens from there.
+            val takeoff = screen.onAllNodes(line).onFirst().fetchSemanticsNode()
+                .config.getOrNull(SemanticsProperties.Text).orEmpty().first().text
+            if (!theLineIsOnThePage) {
+                // `day` is one past the Monday's place in the switch.
+                val before = day - 2
+                assertTrue("The day with the line is the first of the switch.", before >= 0)
+                screen.onAllNodes(days)[before].performScrollTo().performClick()
+                waitFor(hasTestTag("today-card") and status)
+            }
+            screen.onAllNodes(hasText(takeoff) and hasClickAction()).onFirst().performScrollTo().performClick()
             val page = hasTestTag("site-page")
             waitFor(page)
             waitFor(hasTestTag("site-outlook"))
@@ -5639,8 +5661,10 @@ class VentiUiTest {
         waitForAll(
             hasTestTag("layers-wind") and isOn(),
             hasTestTag("layers-sites") and isOn(),
-            hasTestTag("layer-forecast") and isOff(),
-            hasTestTag("layer-radar") and isOff(),
+            hasTestTag("layers-forecast") and isOff(),
+            hasTestTag("layers-radar") and isOff(),
+            hasTestTag("layer-airspace") and isOn(),
+            hasTestTag("layer-pilots") and isOn(),
         )
         letTheMapDraw(1)
         keepScreenshot("light-layers-3-sheet")
@@ -6022,10 +6046,16 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(credits) }
 
         openLayers()
-        waitFor(hasTestTag("layer-forecast"))
+        waitFor(hasTestTag("layers-forecast"))
         letTheMapDraw(1)
         keepScreenshot("$prefix-sheets-2-layers")
-        screen.onNode(hasTestTag("layer-flown")).performScrollTo()
+        // Every row under "Lists and plans" can be scrolled to, the last
+        // one at the foot of the sheet, clear of the navigation bar.
+        val lists = listOf("Wind stations", "Flying sites", "Pilots in the air", "Flying plans").filter { exists(described(it)) }
+        assertTrue(lists.containsAll(listOf("Wind stations", "Flying sites", "Flying plans")))
+        for (list in lists) {
+            screen.onNode(described(list)).performScrollTo().assertIsDisplayed()
+        }
         letTheMapDraw(1)
         keepScreenshot("$prefix-sheets-3-layers-end")
         closeLayers()

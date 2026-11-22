@@ -67,6 +67,7 @@ import fly.venti.core.dhvxcUploaded
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import fly.venti.app.design.Common
 
 /** What the sheet says that is not the core's. The core words the deadline, the signature and the answers. */
 object LeagueWords {
@@ -239,7 +240,7 @@ fun LeagueSheet(flight: String, leagues: Leagues, onDismiss: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(LeagueWords.TITLE, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("league-close")) { Text("Done") }
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("league-close")) { Text(Common.words.done) }
         }
         Box(Modifier.fillMaxHeight()) {
             val current = handover
@@ -364,7 +365,7 @@ fun LeagueSheet(flight: String, leagues: Leagues, onDismiss: () -> Unit) {
                     },
                 ) { Text("Send") }
             },
-            dismissButton = { TextButton(onClick = { isAsking = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { isAsking = false }) { Text(Common.words.cancel) } },
         )
     }
 
@@ -373,7 +374,7 @@ fun LeagueSheet(flight: String, leagues: Leagues, onDismiss: () -> Unit) {
             onDismissRequest = { answer = null },
             title = { Text(said.title) },
             text = { Text(said.words) },
-            confirmButton = { TextButton(onClick = { answer = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { answer = null }) { Text(Common.words.ok) } },
         )
     }
 }

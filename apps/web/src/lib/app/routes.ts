@@ -120,9 +120,13 @@ export function publicFlightHref(id: string): string {
 	return `${resolve('/logbook/everyone/flight')}?id=${encodeURIComponent(id)}`;
 }
 
-/** The board: who means to fly where, in the pilot's groups. */
-export function plansHref(): string {
-	return resolve('/plans');
+/**
+ * Community: the plans of the pilot's groups for the coming days, the
+ * flights of the pilots they follow, finding a pilot, and what they were
+ * told. `/plans/`, where the board was, leads here.
+ */
+export function communityHref(): string {
+	return resolve('/community');
 }
 
 /** One plan, by its identifier on the server. */

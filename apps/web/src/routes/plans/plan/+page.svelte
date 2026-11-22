@@ -13,7 +13,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { plansHref } from '#lib/app/routes.ts';
+	import { communityHref } from '#lib/app/routes.ts';
 	import { reportedPlan } from '#lib/community/report.ts';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import type { PlanView } from '#lib/core/index.ts';
@@ -54,7 +54,7 @@
 		problem = undefined;
 		try {
 			await work();
-			if (thenLeave) await goto(plansHref());
+			if (thenLeave) await goto(communityHref());
 		} catch (error) {
 			problem = error instanceof Error ? error.message : String(error);
 		} finally {
@@ -74,9 +74,9 @@
 
 <div class="settings-page">
 	<header>
-		<a class="back-link" href={plansHref()}>
+		<a class="back-link" href={communityHref()}>
 			<Icon name="back" />
-			Flying plans
+			Community
 		</a>
 	</header>
 	<h1>Plan</h1>

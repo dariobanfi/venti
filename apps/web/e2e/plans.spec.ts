@@ -1,7 +1,7 @@
 /**
- * Flying plans: the board of who means to fly where, a plan with who is
- * in, the form for a plan, and the groups, with what a keeper and a member
- * can do. The server is the development mode's, which keeps groups and
+ * Flying plans: the board of who means to fly where, the first part of
+ * Community, a plan with who is in, the form for a plan, and the groups,
+ * with what a keeper and a member can do. The server is the development mode's, which keeps groups and
  * plans in memory and takes any registration.
  *
  * Every test makes accounts of its own, and the long one a group of its
@@ -29,7 +29,7 @@ const NEEDS_ACCOUNT =
 
 const field = (page: Page, name: string) => page.getByRole('textbox', { name });
 
-/** The navigation, where "Plans" is a section beside the map and the logbook. */
+/** The navigation, where "Community" is a section beside the map and the flights. */
 const sections = (page: Page) => page.getByRole('navigation', { name: 'Sections' });
 
 /** Creates an account nobody has used on this server, and leaves the browser signed in to it. */
@@ -45,11 +45,15 @@ async function signUp(page: Page, name: string): Promise<string> {
 	return handle;
 }
 
-/** Opens the board from wherever the pilot is, without loading the site anew. */
+/** Opens the board, Community's first part, from wherever the pilot is, without loading the site anew. */
 async function openBoard(page: Page): Promise<void> {
-	await sections(page).getByRole('link', { name: 'Plans', exact: true }).click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Flying plans' })).toBeVisible();
+	await sections(page).getByRole('link', { name: 'Community', exact: true }).click();
+	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 }
+
+/** The way back from a plan or the groups to Community, in the page's head. */
+const backToTheBoard = (page: Page): Locator =>
+	page.getByRole('main').getByRole('link', { name: 'Community', exact: true });
 
 /** A day by the browser's own clock, as a date field writes it: today, or some days on. */
 function dayByTheBrowser(page: Page, daysOn = 0): Promise<string> {
@@ -61,12 +65,15 @@ function dayByTheBrowser(page: Page, daysOn = 0): Promise<string> {
 	}, daysOn);
 }
 
-/** The plans listed under a day of the board, by what the day is called. */
+/** The plans of the board on a day, by what the day is called: each plan is a card that names its day. */
 const plansOf = (page: Page, day: string): Locator =>
 	page
-		.getByRole('list', { name: day, exact: true })
-		.getByRole('listitem')
-		.or(page.getByRole('table', { name: day, exact: true }).locator('tbody > tr'));
+		.getByRole('list', { name: 'Plans', exact: true })
+		.locator('> li')
+		.filter({ has: page.locator('.day').getByText(day, { exact: true }) });
+
+/** The pilot's word on a plan of the board, a button that stays pressed while the pilot is in. */
+const imIn = (plan: Locator): Locator => plan.getByRole('button', { name: 'I am in' });
 
 /** Fills the form for a plan and saves it. */
 async function savePlan(
@@ -116,16 +123,36 @@ async function join(page: Page, code: string): Promise<Locator> {
 	return asking;
 }
 
-test('signed out, the board says that plans need an account', async ({ page, keep, problems }) => {
+test('signed out, Community finds a pilot and asks to sign in for the rest', async ({
+	page,
+	keep,
+	problems
+}) => {
 	await page.goto('/map/');
 	await openBoard(page);
-	await expect(page).toHaveTitle('Flying plans · Venti');
+	await expect(page).toHaveTitle('Community · Venti');
 
-	await expect(page.getByText(NEEDS_ACCOUNT)).toBeVisible();
-	// Nothing to plan with, and nothing asked of the server.
+	// Nothing to plan with, nobody followed, nothing told.
+	await expect(page.getByText(/^With an account you plan flying days/)).toBeVisible();
+	await expect(page.getByRole('main').getByRole('link', { name: 'Sign in' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'New plan' })).toBeHidden();
 	await expect(page.getByRole('link', { name: 'Groups' })).toBeHidden();
+	await expect(page.getByRole('region', { name: 'Following' })).toHaveCount(0);
+	await expect(page.getByRole('region', { name: 'Notifications' })).toHaveCount(0);
+
+	// Finding a pilot is for everyone.
+	const find = page.getByRole('region', { name: 'Find a pilot' });
+	await find.getByRole('searchbox', { name: 'Find a pilot' }).fill('le');
+	const found = find.getByRole('list', { name: 'Pilots found' }).getByRole('link');
+	await expect(found.first()).toHaveText('Lena Probe (@lena), 3 public flights');
 	await keep('74-plans-signed-out');
+	await found.first().click();
+	await expect(page.getByRole('heading', { level: 1, name: 'Lena Probe' })).toBeVisible();
+
+	// The board's old address leads to Community.
+	await page.goto('/plans/');
+	await expect(page).toHaveURL(/\/community\/$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 
 	// The groups and a plan have addresses of their own, and say the same.
 	await page.goto('/plans/groups/');
@@ -257,12 +284,15 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 	await expect(mine).toContainText('Only you so far');
 	await expect(mine).toContainText('Hausberg-Runde');
 	await expect(mine).toContainText('10:30');
-	await expect(mine.getByRole('img', { name: 'You are in' })).toBeVisible();
-	await expect(
-		plansOf(page, 'Today')
-			.filter({ hasText: 'Beispielwiese' })
-			.getByRole('img', { name: 'You are in' })
-	).toBeHidden();
+	await expect(imIn(mine)).toHaveAttribute('aria-pressed', 'true');
+	// Who is in as faces: Kira Pilot's initials, the pilot's own.
+	const faces = mine.getByRole('list', { name: 'Who is in' }).getByRole('listitem');
+	await expect(faces).toHaveCount(1);
+	await expect(faces).toContainText('KP');
+	await expect(imIn(plansOf(page, 'Today').filter({ hasText: 'Beispielwiese' }))).toHaveAttribute(
+		'aria-pressed',
+		'false'
+	);
 	await expect(plansOf(page, 'Tomorrow')).toContainText(['Musterberg, Startplatz Ost']);
 	await expect(
 		page.getByText(
@@ -302,17 +332,24 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 
 	// Another member's plan: the pilot says "I am in"; changing it is its
 	// author's alone, deleting it also the keeper's.
-	await page.getByRole('link', { name: 'Flying plans' }).click();
+	await backToTheBoard(page).click();
 	await plansOf(page, 'Today').filter({ hasText: 'Beispielwiese' }).getByRole('link').click();
 	await expect(metric(page, 'Posted by')).toHaveText('Mira Member');
 	await expect(page.getByRole('button', { name: 'Change the plan' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Delete the plan' })).toBeVisible();
 	await page.getByRole('button', { name: 'I am in' }).click();
 	await expect(whoIsIn).toHaveText(['You', 'Mira Member']);
-	await page.getByRole('link', { name: 'Flying plans' }).click();
-	await expect(plansOf(page, 'Today').filter({ hasText: 'Beispielwiese' })).toContainText(
-		'You and Mira Member'
-	);
+	await backToTheBoard(page).click();
+	const theirs = plansOf(page, 'Today').filter({ hasText: 'Beispielwiese' });
+	await expect(theirs).toContainText('You and Mira Member');
+
+	// The pilot's word is on the card as well: out, and in again.
+	await imIn(theirs).click();
+	await expect(imIn(theirs)).toHaveAttribute('aria-pressed', 'false');
+	await expect(theirs).not.toContainText('You and Mira Member');
+	await imIn(theirs).click();
+	await expect(imIn(theirs)).toHaveAttribute('aria-pressed', 'true');
+	await expect(theirs).toContainText('You and Mira Member');
 
 	// Deleting a plan asks first, with what it means.
 	await plansOf(page, 'Today').filter({ hasText: 'Musterberg Süd' }).getByRole('link').click();
@@ -320,7 +357,7 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 	const deleting = page.getByRole('alertdialog', { name: 'Delete this plan?' });
 	await expect(deleting).toContainText('It goes for everyone in the group, with who was in.');
 	await deleting.getByRole('button', { name: 'Delete the plan' }).click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Flying plans' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
 	await expect(plansOf(page, 'Today')).toHaveText([/Beispielwiese/]);
 
 	// The group: its members, and what its keeper can do.
@@ -496,7 +533,7 @@ test('the board is asked for from the day on the pilot’s own clock, not UTC’
 	await expect(metric(page, 'Where')).toHaveText(place);
 	await expect(page.getByText('<b>Bring a torch.</b>')).toBeVisible();
 	await expect(page.getByRole('main').locator('img, b')).toHaveCount(0);
-	await page.getByRole('link', { name: 'Flying plans' }).click();
+	await backToTheBoard(page).click();
 
 	// Leaving takes the plan along: the group is as it was.
 	await page.getByRole('link', { name: 'Groups' }).click();
@@ -559,7 +596,7 @@ test('a board of several days, and a plan that says where its place is', async (
 		place,
 		position: { lat: 47.6922, lon: 11.7675 }
 	});
-	await page.getByRole('link', { name: 'Flying plans' }).click();
+	await backToTheBoard(page).click();
 	await plansOf(page, 'Tomorrow').filter({ hasText: place }).getByRole('link').click();
 	await expect(page.getByRole('button', { name: 'Forecast for this place' })).toBeVisible();
 	await page.getByRole('button', { name: 'Change the plan' }).click();
@@ -580,7 +617,7 @@ test('a board of several days, and a plan that says where its place is', async (
 	await expect(page.getByRole('button', { name: 'Forecast for this place' })).toBeHidden();
 
 	// Leaving takes the plan along: the group is as it was.
-	await page.getByRole('link', { name: 'Flying plans' }).click();
+	await backToTheBoard(page).click();
 	await page.getByRole('link', { name: 'Groups' }).click();
 	await page.getByRole('link', { name: /^Mustergruppe/ }).click();
 	await page.getByRole('button', { name: 'Leave the group' }).click();

@@ -2,7 +2,7 @@
 	The app's sections.
 
 	On a narrow screen this is the design pack's tab bar along the bottom
-	edge: Home, Map, Today, Flights, Plans and Settings, the others reached
+	edge: Home, Map, Today, Flights, Community and Settings, the others reached
 	from those. On a wide screen it is a website's bar across the top, as a
 	sports data site has it: Venti's logo, the sections as words, and
 	Settings and the account at the right. The pilot's own flights are the
@@ -20,10 +20,10 @@
 	import { getApp } from './app.svelte.ts';
 	import {
 		accountHref,
+		communityHref,
 		everyoneHref,
 		homeHref,
 		mapHref,
-		plansHref,
 		rankingHref,
 		settingsHref,
 		todayHref
@@ -74,8 +74,18 @@
 			root: '/logbook/ranking',
 			on: 'wide'
 		},
-		// Who means to fly where: the plans of the pilot's groups.
-		{ name: 'Plans', icon: 'calendar', href: plansHref, root: '/plans', on: 'both' },
+		// Pilots among each other: the plans of the pilot's groups, the
+		// flights of those they follow, finding a pilot, what they were told.
+		// A plan's and a group's pages are still under `/plans`.
+		{
+			name: 'Community',
+			breaks: 'Com\u00admunity',
+			icon: 'people',
+			href: communityHref,
+			root: '/community',
+			also: ['/plans'],
+			on: 'both'
+		},
 		{
 			name: 'Settings',
 			breaks: 'Set\u00adtings',

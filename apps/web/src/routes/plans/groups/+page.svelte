@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { groupHref, plansHref } from '#lib/app/routes.ts';
+	import { groupHref, communityHref } from '#lib/app/routes.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import PromptDialog from '#lib/design/PromptDialog.svelte';
 	import InviteCodeSheet from '#lib/groups/InviteCodeSheet.svelte';
@@ -69,9 +69,9 @@
 
 <div class="settings-page">
 	<header>
-		<a class="back-link" href={plansHref()}>
+		<a class="back-link" href={communityHref()}>
 			<Icon name="back" />
-			Flying plans
+			Community
 		</a>
 	</header>
 	<h1>Groups</h1>

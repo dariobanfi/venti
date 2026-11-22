@@ -79,6 +79,32 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 	await expect(page).toHaveURL(/\/logbook\/everyone\/$/);
 	await expect(rowsOf(page, 'Everyone’s flights').first()).toBeVisible();
 
+	// Community has the same: the plans of the demo pilot's group, the
+	// feed as cards with the track's shape, finding a pilot, and the
+	// newest of what the pilot was told.
+	await page
+		.getByRole('navigation', { name: 'Sections' })
+		.getByRole('link', { name: 'Community', exact: true })
+		.click();
+	await expect(page.getByRole('heading', { level: 1, name: 'Community' })).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Plans' })).toBeVisible();
+	const cards = rowsOf(page.getByRole('region', { name: 'Following' }), 'Following');
+	await expect(cards.first()).toBeVisible();
+	await expect(cards.first().locator('svg polyline')).toHaveCount(1);
+	await expect(cards.filter({ hasText: 'Mara Muster' }).first()).toContainText(/\d+:\d\dh/);
+	await expect(page.getByRole('searchbox', { name: 'Find a pilot' })).toBeVisible();
+	const newest = page.getByRole('region', { name: 'Notifications' });
+	await expect(newest.getByRole('list', { name: 'Notifications' })).toContainText(
+		/cheered your flight|follows you|commented/
+	);
+	await keep('270b-community');
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await keep('270c-community-dark');
+	await page.emulateMedia({ colorScheme: test.info().project.use.colorScheme ?? 'light' });
+	// A card opens the flight.
+	await cards.first().locator('a.open').click();
+	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
+
 	// A pilot's page says who follows them, and that the demo pilot does.
 	await page.goto('/logbook/everyone/pilot/?handle=mara');
 	await expect(page.getByRole('heading', { name: 'Mara Muster', level: 1 })).toBeVisible();

@@ -81,7 +81,13 @@ test('a browser without WebAssembly is told it needs it, over the whole window',
 	await saysItNeedsWebAssembly(page);
 
 	// Every page says the same, at once.
-	for (const path of ['/map/', '/today/', '/settings/account/flights/', '/plans/', '/settings/']) {
+	for (const path of [
+		'/map/',
+		'/today/',
+		'/settings/account/flights/',
+		'/community/',
+		'/settings/'
+	]) {
 		await page.goto(path);
 		await saysItNeedsWebAssembly(page);
 	}

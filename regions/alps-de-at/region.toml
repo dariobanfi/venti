@@ -18,10 +18,12 @@ east = 17.2
 # 46.3° N, which is all of the province's weather stations but Salurn, and
 # its west the east of Switzerland and Liechtenstein: 24 stations of
 # MeteoSwiss and 44 of the SLF's avalanche service on 2026-11-22. It also
-# takes in the north of Trentino (the valleys of Sole, Non, Fassa and
-# Primiero) and the north of Slovenia (the Julian Alps, the Karawanks, the
-# Pohorje), so Meteotrentino's and ARSO's stations are named here and in
-# regions/alps-south, and collected once over both boxes.
+# takes in the north of Slovenia (the Julian Alps, the Karawanks, the
+# Pohorje), so ARSO's stations are named here and in regions/alps-south,
+# and collected once over both boxes. It takes in the north of Trentino
+# too (the valleys of Sole, Non, Fassa and Primiero), whose network
+# (`meteotrentino`) is in the build and in no pack since 2026-11-22: the
+# server cannot reach the province's host (regions/alps-south says why).
 #
 # The priority says which station is handed out where two networks measure
 # at one place (docs/data-sources.md, "The same station from two sources"):
@@ -40,7 +42,6 @@ sources = [
     "dwd-10min",
     "geosphere-tawes",
     "suedtirol-meteo",
-    "meteotrentino",
     "meteoswiss-smn",
     "arso-ams",
     "slf-imis",
@@ -51,7 +52,6 @@ priority = [
     "dwd-10min",
     "geosphere-tawes",
     "suedtirol-meteo",
-    "meteotrentino",
     "meteoswiss-smn",
     "arso-ams",
     "slf-imis",
@@ -60,10 +60,13 @@ priority = [
 ]
 
 # Airspace from openAIP, which may not be used commercially and stays a
-# layer of its own. Its adapter fetches every country the box above takes in:
-# Germany, Austria, Switzerland, Italy, Slovenia, Croatia, Hungary and
-# Slovakia. Liechtenstein lies in the box too and has no file of its own at
-# openAIP.
+# layer of its own. Its adapter fetches every country the box of the three
+# Alpine regions takes in: Germany, Austria, Switzerland, France, Italy,
+# Slovenia, Croatia, Bosnia and Herzegovina, Hungary and Slovakia. Of these
+# the box above takes in all but France and Bosnia and Herzegovina, and a
+# server that collects this region alone fetches them all the same.
+# Liechtenstein lies in the box too and has no file of its own at openAIP:
+# its airspace is in Switzerland's.
 [airspace]
 sources = ["openaip"]
 

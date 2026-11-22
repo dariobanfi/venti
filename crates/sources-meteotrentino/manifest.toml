@@ -2,6 +2,41 @@ id = "meteotrentino"
 # The Autonomous Province of Trento publishes the data on its open-data
 # portal; its weather service, Meteotrentino, runs the stations and the
 # service that answers (dati.meteotrentino.it).
+#
+# IN THE BUILD AND IN NO REGION PACK since 2026-11-22: the server cannot
+# reach the host. Its first live run failed with "error sending request",
+# beneath which is "Connection reset by peer", at the first message of TLS.
+# What the host offers, by `openssl s_client` on 2026-11-22:
+#   - Microsoft-IIS/8.5 at 46.226.204.20; the names content, contenuti,
+#     realtime, neve and husky.meteotrentino.it are the same machine;
+#   - a certificate of Let's Encrypt for an RSA key, valid, its chain whole,
+#     the host's name in it: nothing is wrong with the certificate;
+#   - TLS 1.0, 1.1 and 1.2; no TLS 1.3;
+#   - for TLS 1.2, ECDHE only with CBC suites (ECDHE-RSA-AES256-SHA384,
+#     ECDHE-RSA-AES128-SHA256, and the SHA-1 ones), and AES-GCM only with a
+#     static RSA key exchange (AES256-GCM-SHA384) or with DHE and a key that
+#     OpenSSL refuses as too small. Offered ECDHE-RSA with AES-GCM or
+#     ChaCha20-Poly1305 alone, or TLS 1.3 alone, it resets the connection.
+# The server's TLS is rustls, which has TLS 1.3 and, for TLS 1.2, ECDHE with
+# AES-GCM or ChaCha20-Poly1305, and by its design neither CBC suites nor a
+# key exchange without forward secrecy. So the two share nothing, and that
+# is the host's to mend: the fetcher is not weakened for one provider, and
+# OpenSSL is banned from the workspace (deny.toml). `curl` on a Mac reaches
+# the host because it still offers the CBC suites.
+# The province's open-data pages name this host and no other for both
+# datasets (their resources are written with http://, which the fetcher
+# does not ask), read on 2026-11-22 through the catalogue's own API,
+# https://dati.trentino.it/api/3/action/package_show?id=dati-recenti-delle-stazioni-meteo.
+# WHAT BRINGS IT BACK: the host offering TLS 1.3, or TLS 1.2 with
+# ECDHE-RSA-AES256-GCM-SHA384 or ECDHE-RSA-AES128-GCM-SHA256, or the
+# province serving the same answers from another host. (IIS 8.5 is the web
+# server of Windows Server 2012 R2, whose TLS has those two suites only for
+# ECDSA certificates, and Windows Server 2016 has them for RSA ones: said
+# from memory, not read on Microsoft's pages today, so to verify.) Test with
+#   openssl s_client -connect dati.meteotrentino.it:443 -tls1_2 \
+#     -cipher ECDHE-RSA-AES256-GCM-SHA384
+# and then one live run of the source; then its name goes back into
+# regions/alps-south and regions/alps-de-at, after South Tyrol's.
 provider = "Provincia Autonoma di Trento - Meteotrentino"
 kinds = ["observations"]
 countries = ["IT"]

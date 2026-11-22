@@ -263,8 +263,9 @@ pub fn radar_recorded_from(source: &venti_domain::SourceId) -> Timestamp {
 /// Trentino's and Slovenia's four) have a sample of the evening the clock
 /// stands at, three stations each, made from what their services gave for
 /// that evening when asked later: see the `fixtures` of their crates. A
-/// network with a sample that the first region does not name (Lombardy's)
-/// is asked by nobody. The airfield reports are
+/// network with a sample that the first region does not name (Lombardy's,
+/// and Trentino's since its host cannot be reached) is asked by nobody.
+/// The airfield reports are
 /// asked for by area, and their sample answers for the first region's box
 /// as it is; should the box change, the development mode says at its start
 /// that the reports no longer give a healthy run.

@@ -13,10 +13,37 @@ countries = ["SI"]
 # UTC on 2026-11-22. The file itself says <suggested_pickup>5 minutes after
 # valid</suggested_pickup> and <suggested_pickup_period>10</...>, and the
 # service's page says "na pol ure ali 10 minut" (every half hour or every
-# ten minutes). On 2026-11-22 it had last been written at 07:58:54 UTC and
-# was not written again between 08:20 and 08:24: how regularly it is
-# written every ten minutes is to verify.
-cadence_seconds = 600
+# ten minutes).
+#
+# The server asks every four minutes, not every ten, because of how ARSO
+# writes the file: more than once for each ten minutes, as the stations'
+# values come in, and each time with ONLY the stations whose new values are
+# there. A station that has not delivered yet is not in the file at all, not
+# even with its values of ten minutes before. Watched on 2026-11-22, by the
+# file's Last-Modified and when the web server first gave that version:
+#   written 09:38:49, there from about 09:40: 93 stations, values to 09:30
+#   written 09:45:39, there from about 09:47: 72 stations (56 to 09:40 and
+#                                             the 16 main ones to 09:30)
+#   written 09:48:55, there from about 09:50: 103 stations, the same and 31
+#                                             more to 09:40
+#   written 09:55:48, there from about 09:57: 101 stations (85 to 09:50)
+# and at about 09:39 the owner's server was given 8 stations to 09:30, the
+# eight whose values the fuller file says came in at 09:33. So a version
+# that is still filling stands for three to five minutes of every ten, about
+# five to nine minutes after the values' time, which is when the file's own
+# suggestion would ask; the full one stands for the five to seven minutes
+# after it. A server that asks every ten minutes asks at the same minute of
+# each ten, and one that begins in the wrong one is given the first few
+# stations run after run: Rogla, Vršič, Vogel and Uršlja gora were not in
+# the version of 09:45:39. Two runs four minutes apart (the scheduler adds
+# up to a tenth) cannot both miss a version that stands for five. What a run
+# finds is stored beside what earlier runs found, so every station has its
+# values of every ten minutes, the late ones up to four minutes later. The
+# two versions are in the crate's fixtures, cut to the same eight stations.
+# How long each version stands on other days, and at night, is to verify.
+# On 2026-11-22 the file was also once not written for 25 minutes (written
+# 07:58:54, unchanged at 08:24).
+cadence_seconds = 240
 auth = "none"
 # The one answer of a run was 811,155 bytes on 2026-11-22 (103 stations);
 # the catalogue had 668 kB and 85 stations a few days before.
@@ -24,8 +51,10 @@ max_response_kb = 4096
 
 # ARSO publishes no limit on requests: none was found on the service's page
 # (https://meteo.arso.gov.si/met/sl/service/), in the file's description or
-# in the terms. A run is one request, every ten minutes: six an hour, which
-# is the period the file itself suggests.
+# in the terms. A run is one request, every four minutes: fifteen an hour of
+# a file that travels as 28 kB with gzip, which the server's fetcher asks
+# for. That is more often than the ten minutes the file suggests, for the
+# reason above; the file's Cache-Control is "no-cache, max-age=600".
 
 [licence]
 name = "ARSO terms of reuse (Pogoji ponovne uporabe)"

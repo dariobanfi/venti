@@ -1,5 +1,6 @@
 //! Runs the real pipeline over the file recorded from ARSO on 2026-11-22,
-//! cut down to fifteen stations, and over the sample of the evening of
+//! cut down to fifteen stations, over two versions of the file of one ten
+//! minutes later that day, and over the sample of the evening of
 //! 2026-11-18, and compares the results with golden files.
 
 use std::path::{Path, PathBuf};
@@ -89,10 +90,15 @@ fn the_plan_is_one_request_for_any_area() {
             "https://meteo.arso.gov.si/uploads/probase/www/observ/surface/text/sl/observationAms_si_latest.xml"
         );
     }
-    // What it costs: one request every ten minutes, six an hour, for an
-    // answer of 811 kB on 2026-11-22. ARSO publishes no limit.
+    // What it costs: one request every four minutes, fifteen an hour, for
+    // an answer of 811 kB on 2026-11-22 (28 kB with gzip). ARSO publishes
+    // no limit. Why four minutes and not the file's ten is in the manifest
+    // and in `a_file_that_is_still_filling_…` below: the scheduler adds up
+    // to a tenth to a wait, and two runs must not both miss a version of
+    // the file that stands for five minutes.
     let manifest = source.manifest();
-    assert_eq!(manifest.cadence_seconds, 600);
+    assert_eq!(manifest.cadence_seconds, 240);
+    assert!(manifest.cadence_seconds + manifest.cadence_seconds / 10 < 5 * 60);
     assert_eq!(manifest.requests_per_run(), None);
     assert!(manifest.max_response_bytes() > 811_155);
 }
@@ -237,6 +243,107 @@ fn the_north_of_slovenia_is_in_the_first_regions_box() {
     assert_eq!(kredarica.wind_speed_ms, Some(5.39));
     assert_eq!(kredarica.wind_gust_ms, Some(13.04));
     assert_eq!(kredarica.pressure_hpa, Some(741.6));
+}
+
+/// ARSO writes the file more than once for each ten minutes, and a version
+/// holds only the stations whose new values have come in. These are two
+/// versions of the ten minutes to 09:40 UTC on 2026-11-22, as the web
+/// server gave them three minutes apart, each cut to the same eight
+/// stations: the first was written at 09:45:39 with 72 stations, the
+/// second at 09:48:55 with 103. The owner's server had been given 8 a few
+/// minutes before, in the same way, and no Kredarica, Rogla or Vršič.
+#[test]
+fn a_file_that_is_still_filling_gives_what_it_holds_and_the_next_one_the_rest() {
+    // One box around the two packs that name the source, as the server
+    // collects it: all of Slovenia.
+    let both_packs = BoundingBox::new(43.5, 9.4, 48.5, 17.2).unwrap();
+    let at = |h, m, s| Utc.with_ymd_and_hms(2026, 11, 22, h, m, s).unwrap();
+    let filling = run(
+        &with_latest("observationAms_filling.xml"),
+        both_packs,
+        at(9, 47, 16),
+    );
+    let filled = run(
+        &with_latest("observationAms_filled.xml"),
+        both_packs,
+        at(9, 50, 20),
+    );
+    let codes = |output: &RunOutput| -> Vec<String> {
+        output
+            .stations
+            .iter()
+            .map(|s| s.id.local().to_owned())
+            .collect()
+    };
+
+    // The first version is a whole document and a healthy run: nothing in
+    // it says that half of the eight are still to come. A missing station
+    // is not skipped, rejected or failed; it is not there.
+    for output in [&filling, &filled] {
+        assert!(output.report.failures.is_empty());
+        assert!(output.report.skipped.is_empty());
+        assert!(output.report.rejected.is_empty());
+        assert!(output.report.is_healthy());
+    }
+    assert_eq!(
+        codes(&filling),
+        ["CELJE_MEDLOG_", "KANIN_", "KREDA-ICA_", "KRVAVEC_"]
+    );
+    assert_eq!(filling.observations.len(), 4);
+
+    // Three minutes later the same four are there unchanged, to the last
+    // value, and the four that had not delivered: Rogla, Uršlja gora and
+    // Vogel with their wind of the same ten minutes, Vršič with its
+    // temperature (it has no anemometer).
+    assert_eq!(
+        codes(&filled),
+        [
+            "CELJE_MEDLOG_",
+            "KANIN_",
+            "KREDA-ICA_",
+            "KRVAVEC_",
+            "ROGLA_",
+            "URSLJ-GOR_",
+            "VOGEL_",
+            "VRSIC_"
+        ]
+    );
+    assert_eq!(filled.observations.len(), 8);
+    for station in &filling.stations {
+        assert!(filled.stations.contains(station), "{}", station.id);
+    }
+    for observation in &filling.observations {
+        assert!(
+            filled.observations.contains(observation),
+            "{}",
+            observation.station
+        );
+    }
+    let of = |code: &str| {
+        filled
+            .observations
+            .iter()
+            .find(|o| o.station.local() == code)
+            .unwrap()
+    };
+    let to_0940 = at(9, 40, 0);
+    assert_eq!(of("ROGLA_").time, to_0940);
+    assert_eq!(of("ROGLA_").wind_speed_ms, Some(6.83));
+    assert_eq!(of("ROGLA_").wind_gust_ms, Some(11.7));
+    assert_eq!(of("ROGLA_").wind_direction_deg, Some(235.0));
+    assert_eq!(of("VRSIC_").wind_speed_ms, None);
+    assert_eq!(of("VRSIC_").temperature_c, Some(0.2));
+    assert_eq!(of("KREDA-ICA_").time, to_0940);
+    assert_eq!(of("KREDA-ICA_").wind_speed_ms, Some(4.75));
+    // Celje is a main station: in both versions its values are those of
+    // the half hour to 09:30.
+    assert_eq!(of("CELJE_MEDLOG_").time, at(9, 30, 0));
+
+    // So the server asks more often than a version stands, and stores what
+    // each run finds beside what the runs before it found: the manifest's
+    // cadence, which `the_plan_is_one_request_for_any_area` holds.
+    assert_golden(&golden("filling_run.json"), &filling);
+    assert_golden(&golden("filled_run.json"), &filled);
 }
 
 #[test]

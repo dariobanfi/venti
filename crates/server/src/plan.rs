@@ -615,13 +615,28 @@ mod tests {
         ] {
             assert_eq!(area_of(source), whole, "{source}");
         }
+        // So is openAIP's airspace, and its set says it is whole over that
+        // box for the countries its adapter fetches: every country the box
+        // takes in, France and Bosnia and Herzegovina among them. A box
+        // around the three regions with a country of it not fetched would
+        // be airspace nobody is warned about.
+        assert_eq!(area_of("openaip"), whole);
+        let openaip = adapters::registry()
+            .manifest(&SourceId::new("openaip").unwrap(), Kind::Airspace)
+            .unwrap()
+            .countries
+            .clone();
+        assert_eq!(
+            openaip,
+            ["DE", "AT", "CH", "FR", "IT", "SI", "HR", "BA", "HU", "SK"]
+        );
         // MeteoSwiss is named by the first and the western pack, and one
         // box around those two is the whole as well.
         assert_eq!(area_of("meteoswiss-smn"), whole);
         // South Tyrol's stations with the southern pack: Salurn at
-        // 46.24° N is inside. Trentino's and Slovenia's lie on both sides
-        // of the edge the two packs share, and are collected the same way.
-        for source in ["suedtirol-meteo", "meteotrentino", "arso-ams"] {
+        // 46.24° N is inside. Slovenia's lie on both sides of the edge
+        // the two packs share, and are collected the same way.
+        for source in ["suedtirol-meteo", "arso-ams"] {
             assert_eq!(
                 area_of(source),
                 BoundingBox::new(43.5, 9.4, 48.5, 17.2).unwrap(),
@@ -629,14 +644,11 @@ mod tests {
             );
         }
 
-        // What only the first region names stays in its box. For airspace
-        // that is the rule to keep: openAIP's manifest has no France, and
-        // a layer that says it is whole over a box that takes in France
-        // would be airspace nobody is warned about. The cables' answer for
-        // the whole Alps is too large for one request, and the radars'
-        // pictures and the thermal map are made over the box of their job.
+        // What only the first region names stays in its box. The cables'
+        // answer for the whole Alps is too large for one request, and the
+        // radars' pictures and the thermal map are made over the box of
+        // their job.
         for source in [
-            "openaip",
             "osm-cables",
             "dwd-radar-ry",
             "geosphere-inca-rr",
@@ -645,7 +657,7 @@ mod tests {
             assert_eq!(area_of(source), first, "{source}");
         }
         for pack in &packs[1..] {
-            assert!(pack.airspace.is_empty(), "{}", pack.id);
+            assert!(!pack.airspace.is_empty(), "{}", pack.id);
             assert!(pack.cables.is_empty(), "{}", pack.id);
             assert!(pack.forecasts.is_empty(), "{}", pack.id);
             assert!(pack.radar.is_empty(), "{}", pack.id);

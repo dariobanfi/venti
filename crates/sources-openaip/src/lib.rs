@@ -638,9 +638,14 @@ mod tests {
         let requests = source.plan(&ctx);
         let tags: Vec<&str> = requests.iter().map(|r| r.tag.as_str()).collect();
         // One file per country, and the countries are the manifest's.
-        assert_eq!(tags, ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"]);
+        assert_eq!(
+            tags,
+            ["DE", "AT", "CH", "FR", "IT", "SI", "HR", "BA", "HU", "SK"]
+        );
         assert_eq!(tags, source.manifest().countries);
         assert!(requests[1].url.ends_with("/at_asp.geojson"));
-        assert!(requests[7].url.ends_with("/sk_asp.geojson"));
+        assert!(requests[3].url.ends_with("/fr_asp.geojson"));
+        assert!(requests[7].url.ends_with("/ba_asp.geojson"));
+        assert!(requests[9].url.ends_with("/sk_asp.geojson"));
     }
 }

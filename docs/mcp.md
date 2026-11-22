@@ -331,7 +331,7 @@ For "the airspace within 15 km of Hochfilzen":
   ],
   "data": [
     {
-      "coverage": "This source's data reaches the place and the whole radius. It holds the airspace of these countries only: DE, AT, CH, IT, SI, HR, HU, SK. If the place or its surroundings lie in another country, this source says nothing about the airspace there.",
+      "coverage": "This source's data reaches the place and the whole radius. It holds the airspace of these countries only: DE, AT, CH, FR, IT, SI, HR, BA, HU, SK. If the place or its surroundings lie in another country, this source says nothing about the airspace there.",
       "fetched_days_ago": 0,
       "fetched_utc": "2026-11-18 19:05",
       "files_written_utc": "2026-11-18 19:05",

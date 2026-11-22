@@ -1,0 +1,98 @@
+{
+  "stations": [
+    {
+      "id": "arso-ams:CELJE_MEDLOG_",
+      "name": "Celje",
+      "position": {
+        "lat": 46.2366,
+        "lon": 15.2259
+      },
+      "elevation_m": 244.0
+    },
+    {
+      "id": "arso-ams:KANIN_",
+      "name": "Kanin",
+      "position": {
+        "lat": 46.3581,
+        "lon": 13.4744
+      },
+      "elevation_m": 2260.0
+    },
+    {
+      "id": "arso-ams:KREDA-ICA_",
+      "name": "Kredarica",
+      "position": {
+        "lat": 46.3787,
+        "lon": 13.8489
+      },
+      "elevation_m": 2514.0
+    },
+    {
+      "id": "arso-ams:KRVAVEC_",
+      "name": "Krvavec",
+      "position": {
+        "lat": 46.2973,
+        "lon": 14.5333
+      },
+      "elevation_m": 1740.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "arso-ams:CELJE_MEDLOG_",
+      "time": "2026-11-22T09:30:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.2,
+      "wind_direction_deg": 15.0,
+      "gust_direction_deg": 18.0,
+      "temperature_c": 4.4,
+      "humidity_pct": 92.0,
+      "pressure_hpa": 982.9
+    },
+    {
+      "station": "arso-ams:KANIN_",
+      "time": "2026-11-22T09:40:00Z",
+      "wind_speed_ms": 6.77,
+      "wind_gust_ms": 11.67,
+      "wind_direction_deg": 244.0,
+      "gust_direction_deg": 259.0,
+      "temperature_c": -3.2,
+      "humidity_pct": 91.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "arso-ams:KREDA-ICA_",
+      "time": "2026-11-22T09:40:00Z",
+      "wind_speed_ms": 4.75,
+      "wind_gust_ms": 10.82,
+      "wind_direction_deg": 341.0,
+      "gust_direction_deg": 329.0,
+      "temperature_c": -4.4,
+      "humidity_pct": 93.0,
+      "pressure_hpa": 741.0
+    },
+    {
+      "station": "arso-ams:KRVAVEC_",
+      "time": "2026-11-22T09:40:00Z",
+      "wind_speed_ms": 9.28,
+      "wind_gust_ms": 12.07,
+      "wind_direction_deg": 283.0,
+      "gust_direction_deg": 275.0,
+      "temperature_c": -0.2,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "arso-ams",
+    "requests": 1,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 4,
+    "observations": 4,
+    "newest_observation": "2026-11-22T09:40:00Z"
+  }
+}

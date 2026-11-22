@@ -163,7 +163,6 @@ impl Fetch for HttpFetch {
     }
 
     async fn get_within(&self, request: &Request, max_bytes: usize) -> Result<Fetched, FetchError> {
-        let transport = |e: reqwest::Error| FetchError::Transport(e.to_string());
         let url = self.allowed(&request.url)?;
         let mut response = self.client.get(url).send().await.map_err(transport)?;
         let status = response.status();
@@ -204,6 +203,25 @@ impl Fetch for HttpFetch {
             last_modified,
         })
     }
+}
+
+/// A request that did not get through, with why. The client's own sentence
+/// names the address and stops there ("error sending request for url (…)");
+/// whether the name was not found, nobody listened, or the provider and the
+/// server share no way of encrypting is in the errors beneath it, and a
+/// run's report is where whoever runs the server reads it.
+fn transport(error: reqwest::Error) -> FetchError {
+    let mut text = error.to_string();
+    let mut cause = std::error::Error::source(&error);
+    while let Some(inner) = cause {
+        let inner_text = inner.to_string();
+        if !text.contains(&inner_text) {
+            text.push_str(": ");
+            text.push_str(&inner_text);
+        }
+        cause = inner.source();
+    }
+    FetchError::Transport(text)
 }
 
 /// The refusal for a redirect that was not followed, with where it led.
@@ -517,6 +535,52 @@ mod tests {
         assert!(
             matches!(circles, Err(FetchError::Transport(_))),
             "{circles:?}"
+        );
+    }
+
+    /// Trentino's host, on 2026-11-22, shared no cipher suite with the
+    /// server and reset the connection at the first message of TLS. All a
+    /// run's report said was "error sending request for url (…)", which is
+    /// what the client says of every request that does not get through.
+    #[tokio::test]
+    async fn a_request_that_does_not_get_through_says_why() {
+        let fetch = HttpFetch::new("venti-server/test").unwrap();
+
+        // A provider that takes the connection and hangs up on the first
+        // message of the handshake.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let mut hello = [0u8; 16];
+                let _ = stream.read(&mut hello).await;
+                drop(stream);
+            }
+        });
+        let url = format!("https://{address}/file");
+        let hung_up = fetch.get(&request(url.clone())).await;
+        let Err(FetchError::Transport(why)) = hung_up else {
+            panic!("{hung_up:?}");
+        };
+        // The client's sentence, and after it what was beneath.
+        let said = format!("({url}): ");
+        assert!(why.contains(&said), "{why}");
+        assert!(why.len() > why.find(&said).unwrap() + said.len(), "{why}");
+
+        // Nobody listening at all reads differently from that.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let url = format!("https://{address}/file");
+        let nobody = fetch.get(&request(url.clone())).await;
+        let Err(FetchError::Transport(nobody)) = nobody else {
+            panic!("{nobody:?}");
+        };
+        assert!(nobody.contains(&format!("({url}): ")), "{nobody}");
+        assert!(nobody.to_lowercase().contains("refused"), "{nobody}");
+        assert_ne!(
+            why.replace(&said, ""),
+            nobody.replace(&format!("({url}): "), "")
         );
     }
 

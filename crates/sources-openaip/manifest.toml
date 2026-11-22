@@ -1,17 +1,20 @@
 id = "openaip"
 provider = "openAIP"
 kinds = ["airspace"]
-# The countries whose export files are fetched: every country the first
-# region's box takes in. openAIP covers the world; adding a country is adding
-# its code here and recording a fixture for it. Liechtenstein has no file at
-# openAIP (asked for on 2026-11-19: not found).
-countries = ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"]
+# The countries whose export files are fetched: every country the box of
+# the three Alpine regions takes in, 5.0° to 17.2° E and 43.5° to 48.5° N
+# (regions/), and no other. openAIP covers the world; adding a country is
+# adding its code here and recording a fixture for it. Liechtenstein, Monaco
+# and San Marino lie in the box and have no file of their own at openAIP
+# (asked for on 2026-11-19 and 2026-11-22: not found); their airspace is in
+# the files of Switzerland, France and Italy. Czechia ends north of the box.
+countries = ["DE", "AT", "CH", "FR", "IT", "SI", "HR", "BA", "HU", "SK"]
 # The export files are rebuilt every day.
 cadence_seconds = 86400
 # The export files are public. Only openAIP's API needs a key, and it is not used.
 auth = "none"
-# The largest country file of the first region, Italy's, was 3.6 MB on
-# 2026-11-19. A run in which one file is refused leaves the airspace a
+# The largest country files, France's and Italy's, were 3.9 and 3.6 MB on
+# 2026-11-22. A run in which one file is refused leaves the airspace a
 # day older, so the room is wide.
 max_response_kb = 32768
 

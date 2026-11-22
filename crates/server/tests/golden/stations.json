@@ -302,60 +302,6 @@
       }
     },
     {
-      "id": "meteotrentino:T0076",
-      "source": "meteotrentino",
-      "name": "Rabbi (San Bernardo)",
-      "position": {
-        "lat": 46.401374,
-        "lon": 10.849515
-      },
-      "elevation_m": 1132.0,
-      "latest": {
-        "time": "2026-11-18T18:30:00Z",
-        "wind_speed_ms": 1.2,
-        "wind_gust_ms": 2.3,
-        "wind_direction_deg": 354.0,
-        "temperature_c": 4.3,
-        "humidity_pct": 84.0
-      }
-    },
-    {
-      "id": "meteotrentino:T0403",
-      "source": "meteotrentino",
-      "name": "Canazei (Ciampac)",
-      "position": {
-        "lat": 46.445989,
-        "lon": 11.769081
-      },
-      "elevation_m": 2150.0,
-      "latest": {
-        "time": "2026-11-18T18:30:00Z",
-        "wind_speed_ms": 3.0,
-        "wind_gust_ms": 6.9,
-        "wind_direction_deg": 151.0,
-        "temperature_c": 1.6,
-        "humidity_pct": 66.0
-      }
-    },
-    {
-      "id": "meteotrentino:T0404",
-      "source": "meteotrentino",
-      "name": "Marmolada (Sas Del Mul)",
-      "position": {
-        "lat": 46.443614,
-        "lon": 11.880813
-      },
-      "elevation_m": 2606.0,
-      "latest": {
-        "time": "2026-11-18T18:30:00Z",
-        "wind_speed_ms": 5.1,
-        "wind_gust_ms": 12.3,
-        "wind_direction_deg": 210.0,
-        "temperature_c": -1.9,
-        "humidity_pct": 63.0
-      }
-    },
-    {
       "id": "pioupiou:1514",
       "source": "pioupiou",
       "name": "Kampenwand Hirschenstein 1453 m",
@@ -546,13 +492,6 @@
       "licence": "CC BY 4.0",
       "text": "Source: MeteoSwiss",
       "url": "https://opendatadocs.meteoswiss.ch/general/terms-of-use"
-    },
-    {
-      "source": "meteotrentino",
-      "provider": "Provincia Autonoma di Trento - Meteotrentino",
-      "licence": "CC BY 4.0",
-      "text": "Dati: Provincia Autonoma di Trento - Meteotrentino, CC BY 4.0",
-      "url": "https://dati.trentino.it/dataset/dati-recenti-delle-stazioni-meteo"
     },
     {
       "source": "pioupiou",

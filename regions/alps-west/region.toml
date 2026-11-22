@@ -48,11 +48,16 @@ priority = [
     "awc-metar",
 ]
 
-# No [airspace] yet. openAIP's adapter fetches the countries its manifest
-# names, and France is not among them: a layer over this box would be
-# without France's airspace, 411 of the 2,167 airspaces of the whole Alps.
-# France and Bosnia and Herzegovina want a line in the manifest and a
-# recorded file each first.
+# Airspace from openAIP, which may not be used commercially and stays a
+# layer of its own. The three packs name it, so it is collected once over
+# the box of all three, and its adapter fetches every country that box
+# takes in: Germany, Austria, Switzerland, France, Italy, Slovenia, Croatia,
+# Bosnia and Herzegovina, Hungary and Slovakia. This box takes in France,
+# Switzerland, Italy, Germany and Monaco, whose airspace is in France's
+# file. 2,167 airspaces reach into the box of all three on 2026-11-22, 411
+# of them France's.
+[airspace]
+sources = ["openaip"]
 
 # Take-offs and landings from OpenStreetMap, under the ODbL: a layer of its
 # own. 1,480 sites in this box on 2026-11-22, three times the first

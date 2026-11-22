@@ -2,6 +2,11 @@
 //! which its weather service, Meteotrentino, runs and publishes as open
 //! data.
 //!
+//! **In the build and in no region pack** since 2026-11-22: the province's
+//! host and the server's TLS share no cipher suite, so the server cannot
+//! reach it. The manifest says what the host offers and what brings the
+//! source back; the adapter itself is whole and tested from recordings.
+//!
 //! The province's service answers for one station at a time. A run asks
 //! the list of stations once, and then the values of each station of the
 //! list that measures wind and stands in the run's area, one request each.

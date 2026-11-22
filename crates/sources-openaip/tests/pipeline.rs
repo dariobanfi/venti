@@ -1,5 +1,5 @@
 //! Runs the real pipeline over files recorded from openAIP on 2026-11-19
-//! and compares the result with golden files, then flies through the
+//! and 2026-11-22 and compares the result with golden files, then flies through the
 //! result with the warning engine.
 
 use std::collections::BTreeMap;
@@ -23,6 +23,13 @@ use venti_sources_openaip::{OpenAip, fixtures};
 const GERMANY: &str = "https://storage.openaip.net/openaip-system-exports/de_asp.geojson";
 const AUSTRIA: &str = "https://storage.openaip.net/openaip-system-exports/at_asp.geojson";
 const SLOVAKIA: &str = "https://storage.openaip.net/openaip-system-exports/sk_asp.geojson";
+const FRANCE: &str = "https://storage.openaip.net/openaip-system-exports/fr_asp.geojson";
+
+/// The countries of the manifest, in the order the adapter fetches them.
+const COUNTRIES: [&str; 10] = ["DE", "AT", "CH", "FR", "IT", "SI", "HR", "BA", "HU", "SK"];
+
+/// How many airspaces the recorded files hold in all.
+const RECORDED: usize = 257;
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -37,11 +44,23 @@ fn golden(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// Shortly after the fixtures were recorded, over the first region's area.
+/// The box of the three Alpine regions, which a server that collects all
+/// three asks the adapter for.
+fn the_alps() -> BoundingBox {
+    BoundingBox::new(43.5, 5.0, 48.5, 17.2).unwrap()
+}
+
+/// The first region's box.
+fn first_region() -> BoundingBox {
+    BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap()
+}
+
+/// Shortly after the fixtures were recorded, over the box of the three
+/// Alpine regions.
 fn ctx() -> PlanCtx {
     PlanCtx {
         now: fixtures::recorded_at(),
-        area: BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap(),
+        area: the_alps(),
     }
 }
 
@@ -155,8 +174,8 @@ fn a_recorded_run_matches_the_golden_file() {
     let output = run(&fetch, &archive);
 
     // One request per country, each archived.
-    assert_eq!(output.report.requests, 8);
-    assert_eq!(archive.stored().len(), 8);
+    assert_eq!(output.report.requests, 10);
+    assert_eq!(archive.stored().len(), 10);
     assert!(output.report.failures.is_empty());
     assert!(
         output.report.skipped.is_empty(),
@@ -175,13 +194,13 @@ fn a_recorded_run_matches_the_golden_file() {
         let of_country = |a: &&Airspace| a.country.as_deref() == Some(country);
         output.airspaces.iter().filter(of_country).count()
     };
-    let per_country = ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"].map(from);
-    assert_eq!(per_country, [41, 47, 13, 25, 15, 27, 16, 8]);
-    assert_eq!(output.airspaces.len(), 192);
+    let per_country = COUNTRIES.map(from);
+    assert_eq!(per_country, [41, 47, 13, 46, 25, 15, 27, 19, 16, 8]);
+    assert_eq!(output.airspaces.len(), RECORDED);
     // The countries of the records are the countries the manifest names,
     // which is what an answer says its airspace is of.
     let manifest = OpenAip::new().manifest().countries.clone();
-    assert_eq!(manifest, ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"]);
+    assert_eq!(manifest, COUNTRIES);
 
     for airspace in &output.airspaces {
         assert_eq!(airspace.validate(), Ok(()), "{}", airspace.name);
@@ -191,14 +210,43 @@ fn a_recorded_run_matches_the_golden_file() {
         assert!(airspace.validity.updated.is_some());
         let country = airspace.country.as_ref().unwrap();
         assert!(manifest.contains(country), "{}: {country}", airspace.name);
-        // Every one reaches into the first region's box, or the run would
-        // not have kept it.
+        // Every one reaches into the box of the three regions, or the run
+        // would not have kept it.
         let bounds = airspace.bounds();
-        assert!(bounds.north() >= 46.3 && bounds.south() <= 48.5);
-        assert!(bounds.east() >= 9.4 && bounds.west() <= 17.2);
+        assert!(bounds.north() >= 43.5 && bounds.south() <= 48.5);
+        assert!(bounds.east() >= 5.0 && bounds.west() <= 17.2);
     }
 
     assert_golden(&golden("recorded_run.json"), &summary(&output));
+}
+
+#[test]
+fn the_first_region_alone_gets_the_same_files_and_keeps_what_reaches_in() {
+    // A server that collects the first region alone fetches every country
+    // of the manifest, and its answers name all ten. Of France and Bosnia
+    // and Herzegovina nothing reaches into that box: they are named because
+    // they were fetched, and nothing of them is there.
+    let fetch = FixtureFetch::new().with_all(fixtures::recorded());
+    let first = PlanCtx {
+        area: first_region(),
+        ..ctx()
+    };
+    let output = block_on(run_airspace(
+        &OpenAip::new(),
+        &fetch,
+        &MemoryArchive::default(),
+        &first,
+        &RunOptions::default(),
+    ));
+    assert_eq!(output.report.requests, 10);
+    assert!(output.report.is_healthy());
+    assert_eq!(output.airspaces.len(), RECORDED - 46 - 19);
+    assert!(
+        output
+            .airspaces
+            .iter()
+            .all(|a| !matches!(a.country.as_deref(), Some("FR" | "BA")))
+    );
 }
 
 #[test]
@@ -300,6 +348,24 @@ fn every_country_is_read_like_the_first_two() {
             .any(|a| a.country.as_deref() == Some("CH") && a.upper_at_most.is_some())
     );
 
+    // France: the control zone of Chambéry, and the areas of the Alps in
+    // which flight is restricted to the north of the Écrins.
+    let chambery = named(&output, "CTR CHAMBERY 1 (HX)");
+    assert_eq!(chambery.country.as_deref(), Some("FR"));
+    assert_eq!(chambery.airspace_type, AirspaceType::Ctr);
+    assert_eq!(chambery.class, AirspaceClass::D);
+    assert_eq!(chambery.lower, VerticalLimit::ground());
+    assert_eq!(
+        chambery.upper,
+        VerticalLimit::new(VerticalReference::MeanSeaLevel, 3500.0, HeightUnit::Feet).unwrap()
+    );
+    let lta = named(&output, "LTA 3 ALPES 2 VERCORS");
+    assert_eq!(lta.airspace_type, AirspaceType::Lta);
+    // Bosnia and Herzegovina: a terminal area over Banja Luka.
+    let banja_luka = named(&output, "BANJA LUKA TMA");
+    assert_eq!(banja_luka.country.as_deref(), Some("BA"));
+    assert_eq!(banja_luka.airspace_type, AirspaceType::Tma);
+
     // What the warning table makes of each country's sample. It has rules
     // of its own for Germany and Austria only; the others go by type and
     // class. None of the recorded airspaces is of a type the adapter does
@@ -324,8 +390,10 @@ fn every_country_is_read_like_the_first_two() {
     // Avoid, caution, free.
     let expected = [
         ("AT", [28, 9, 10]),
+        ("BA", [14, 0, 5]),
         ("CH", [11, 0, 2]),
         ("DE", [29, 2, 10]),
+        ("FR", [27, 4, 15]),
         ("HR", [27, 0, 0]),
         ("HU", [12, 4, 0]),
         ("IT", [16, 9, 0]),
@@ -390,7 +458,7 @@ fn damaged_airspaces_are_reported_and_the_rest_is_kept() {
     assert_eq!(report.rejected.len(), 1);
     assert_eq!(report.rejected[0].name, "TMA LOWI 1");
     // Three of Austria's eight, and the other countries whole.
-    assert_eq!(output.airspaces.len(), 192 - 47 + 3);
+    assert_eq!(output.airspaces.len(), RECORDED - 47 + 3);
     // Every request worked, so the run may replace the set before it; the
     // report says what is missing.
     assert!(report.is_healthy());
@@ -409,12 +477,12 @@ fn a_file_that_is_not_geojson_fails_its_country_and_the_run() {
     assert_eq!(output.report.failures[0].tag, "AT");
     // The other countries' airspace is delivered, but a set with a country
     // missing must not replace a complete one.
-    assert_eq!(output.airspaces.len(), 192 - 47);
+    assert_eq!(output.airspaces.len(), RECORDED - 47);
     assert!(!output.report.is_healthy());
 
     // A country that cannot be fetched at all is the same, whichever it is:
     // the answer would go on naming it among its countries.
-    for missing in [GERMANY, SLOVAKIA] {
+    for missing in [GERMANY, FRANCE, SLOVAKIA] {
         let output = run(&recorded_but(missing, None), &MemoryArchive::default());
         assert_eq!(output.report.failures.len(), 1);
         assert_eq!(output.report.failures[0].error, "HTTP status 404");
@@ -539,6 +607,18 @@ fn the_warning_engine_flies_through_the_recorded_airspace() {
         "{:?}",
         names(&warnings, Level::Inside)
     );
+
+    // Over Chambéry's airfield at 600 m: in its control zone, which
+    // reaches 3500 ft.
+    let mut engine = WarningEngine::new(Config::default());
+    let warnings = engine
+        .update(&index, &sample(0.0, 45.64, 5.88, 600.0))
+        .unwrap();
+    assert!(
+        names(&warnings, Level::Inside).contains(&"CTR CHAMBERY 1 (HX)".to_owned()),
+        "{:?}",
+        names(&warnings, Level::Inside)
+    );
 }
 
 /// Prints what a run delivered, country by country: how many airspaces,
@@ -609,9 +689,10 @@ fn survey(output: &AirspaceRunOutput) {
 /// VENTI_OPENAIP_DIR=<folder> cargo test -p venti-sources-openaip --test pipeline whole -- --nocapture
 /// ```
 ///
-/// It prints, for every country whole and for what of it reaches into the
-/// first region's box, what the warning table makes of the airspace. The
-/// numbers of 2026-11-19 are in `docs/airspace.md`. The files are not part
+/// It prints, for every country whole, for what of it reaches into the box
+/// of the three Alpine regions and for what reaches into the first
+/// region's, what the warning table makes of the airspace. The numbers of
+/// 2026-11-19 and 2026-11-22 are in `docs/airspace.md`. The files are not part
 /// of the repository.
 #[test]
 fn whole_country_files_are_read_when_given() {
@@ -629,7 +710,7 @@ fn whole_country_files_are_read_when_given() {
             let body = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             fetch.with(request.url, body)
         });
-    // Every country whole, not only the first region's box.
+    // Every country whole, not only the box of the regions.
     let everywhere = PlanCtx {
         now: fixtures::recorded_at(),
         area: BoundingBox::new(-90.0, -180.0, 90.0, 180.0).unwrap(),
@@ -645,6 +726,14 @@ fn whole_country_files_are_read_when_given() {
         ))
     };
     println!("The first region's box:");
+    let first = PlanCtx {
+        area: first_region(),
+        ..ctx()
+    };
+    let in_the_first = run_over(&first);
+    survey(&in_the_first);
+    assert!(in_the_first.report.is_healthy());
+    println!("The box of the three Alpine regions:");
     let in_the_box = run_over(&ctx());
     survey(&in_the_box);
     assert!(in_the_box.report.is_healthy());

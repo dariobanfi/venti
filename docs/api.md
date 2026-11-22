@@ -60,7 +60,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: 27 stations, three of each of the nine networks the first region names, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three each of South Tyrol, the airfields, MeteoSwiss, the SLF, Pioupiou, Trentino and Slovenia with what their services, asked three and four days later, gave for that evening), and two more that are made up for the [foehn reading](#get-v1foehn), Klagenfurt's and Salzburg's airfields, with a pressure, a temperature and a light wind. Of the 29, [28 are handed out](#get-v1stationsbboxwestsoutheastnorth): Samedan's airfield report gives way to MeteoSwiss's station on the airfield. Every one of them has a wind in its newest reading. With them come 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has both of the first region's sources, two frames of each, recorded on 2026-11-21 within two minutes: DWD's of 13:10 and 13:15 UTC and GeoSphere Austria's analysis of 12:45 and 13:00, and a clock of its own that stands at 13:19, four minutes after DWD's second ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: 24 stations, three of each of the eight networks the first region names, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three each of South Tyrol, the airfields, MeteoSwiss, the SLF, Pioupiou and Slovenia with what their services, asked three and four days later, gave for that evening), and two more that are made up for the [foehn reading](#get-v1foehn), Klagenfurt's and Salzburg's airfields, with a pressure, a temperature and a light wind. Of the 26, [25 are handed out](#get-v1stationsbboxwestsoutheastnorth): Samedan's airfield report gives way to MeteoSwiss's station on the airfield. Every one of them has a wind in its newest reading. With them come 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. The adapter's recordings of France and of Bosnia and Herzegovina (2026-11-22) lie outside that box and are not served, but the two countries are fetched, so the layer names all ten countries, as a real server's does. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has both of the first region's sources, two frames of each, recorded on 2026-11-21 within two minutes: DWD's of 13:10 and 13:15 UTC and GeoSphere Austria's analysis of 12:45 and 13:00, and a clock of its own that stands at 13:19, four minutes after DWD's second ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 Map regions are the one thing the mode does not carry inside it. It hands out those of a folder it is told, as a real server hands out those of its own, and none otherwise. The repository holds one region, the valley of the sample flight that the apps bundle:
 
@@ -372,7 +372,7 @@ How the server and each of its data sources are doing.
     {
       "source": "arso-ams",
       "provider": "Slovenian Environment Agency ARSO",
-      "cadence_seconds": 600,
+      "cadence_seconds": 240,
       "last_success": "2026-11-18T19:05:00Z",
       "newest_observation": "2026-11-18T18:50:00Z",
       "stale": false,
@@ -427,15 +427,6 @@ How the server and each of its data sources are doing.
       "cadence_seconds": 600,
       "last_success": "2026-11-18T19:05:00Z",
       "newest_observation": "2026-11-18T18:50:00Z",
-      "stale": false,
-      "stations": 3
-    },
-    {
-      "source": "meteotrentino",
-      "provider": "Provincia Autonoma di Trento - Meteotrentino",
-      "cadence_seconds": 900,
-      "last_success": "2026-11-18T19:05:00Z",
-      "newest_observation": "2026-11-18T18:30:00Z",
       "stale": false,
       "stations": 3
     },
@@ -623,11 +614,11 @@ The server does not decide what is too old to show. A station that stopped repor
 **One station for one place.** Where two sources have a station at the same place, the list holds one of the two, since 2026-11-21. A client does nothing for it and sees it only in what is missing:
 
 - *The same place* is two stations of different sources that differ by no more than 50 m in height and stand no farther apart than 2.75 km where one of the two is an airfield's report (`awc-metar`), and no farther than 750 m where both are stations of weather networks (since 2026-11-22; the 750 m are an estimate, *to verify*). A station without `elevation_m` is at the same place as no other, and two stations of one source never are.
-- *Listed* is the one whose source the server's regions prefer: in the first region DWD, then GeoSphere Austria, South Tyrol, Trentino, MeteoSwiss, Slovenia, the SLF and Pioupiou, and the airfields' reports last. With one exception: a station that has no `wind_speed_ms` of the last hour does not stand for one that has, so while a weather service's station on an airfield is silent, the airfield's report is listed in its place.
+- *Listed* is the one whose source the server's regions prefer: in the first region DWD, then GeoSphere Austria, South Tyrol, MeteoSwiss, Slovenia, the SLF and Pioupiou, and the airfields' reports last. With one exception: a station that has no `wind_speed_ms` of the last hour does not stand for one that has, so while a weather service's station on an airfield is silent, the airfield's report is listed in its place.
 - *The other is not in the list*, whatever the box: a station at the edge of a box is judged against its neighbour outside it. Nothing of it is copied into the station that is listed, and its source is in `attributions` only if another of its stations is listed. Only in an answer that is `truncated` may both of two show at the box's edge.
 - *It is still there.* The server goes on collecting it, and its [observations](#get-v1stationsidobservationsfromto) answer by its identifier as before. An identifier an app has kept stays good. Which of two is listed can change from one answer to the next, when a station falls silent or is heard again; an app that shows a station by an identifier it kept should therefore not conclude from the list that the station is gone.
 
-In the first region this left out the reports of ten airfields among 435 stations on 2026-11-21. The development mode lists 28 of its 29 stations: Samedan is one place measured by two, the airfield's report (`awc-metar:LSZS`, 1708 m) and MeteoSwiss's station on the airfield (`meteoswiss-smn:SAM`, 1709 m), and MeteoSwiss's is the one in the list. The Weissfluhjoch is in it twice and is two stations, MeteoSwiss's at 2691 m and the SLF's at 2536 m. The two airfields made up for the foehn reading, Klagenfurt and Salzburg, are GeoSphere Austria's stations there and have no report beside them in this mode. Pioupiou's three sensors have no `elevation_m`: the network gives none.
+In the first region this left out the reports of ten airfields among 435 stations on 2026-11-21. The development mode lists 25 of its 26 stations: Samedan is one place measured by two, the airfield's report (`awc-metar:LSZS`, 1708 m) and MeteoSwiss's station on the airfield (`meteoswiss-smn:SAM`, 1709 m), and MeteoSwiss's is the one in the list. The Weissfluhjoch is in it twice and is two stations, MeteoSwiss's at 2691 m and the SLF's at 2536 m. The two airfields made up for the foehn reading, Klagenfurt and Salzburg, are GeoSphere Austria's stations there and have no report beside them in this mode. Pioupiou's three sensors have no `elevation_m`: the network gives none.
 
 ## `GET /v1/stations/{id}/observations?from=&to=`
 
@@ -735,9 +726,11 @@ curl 'http://127.0.0.1:8080/v1/airspace?bbox=12.65,47.48,12.66,47.49'
         "DE",
         "AT",
         "CH",
+        "FR",
         "IT",
         "SI",
         "HR",
+        "BA",
         "HU",
         "SK"
       ],
@@ -897,13 +890,13 @@ A record is the canonical airspace record of the project, the same that the apps
 **No airspace in the answer is not "no airspace".** The server does not hold the world's airspace. It holds what reaches into the area it collects for, of the countries it fetches, and a layer says both:
 
 - `covers` is the area the server collected the set for: one box around its regions. Inside it the layer holds every airspace the server could read from what the source publishes for the countries in `countries`. Outside it the layer holds nothing, or only what happens to reach out of it.
-- `countries` are the countries that were fetched. Today those are Germany, Austria, Switzerland, Italy, Slovenia, Croatia, Hungary and Slovakia: every country the first region's box takes in that openAIP has a file for.
+- `countries` are the countries that were fetched. Since 2026-11-22 those are Germany, Austria, Switzerland, France, Italy, Slovenia, Croatia, Bosnia and Herzegovina, Hungary and Slovakia: every country the box of the three Alpine regions takes in that openAIP has a file for. They are the adapter's list, the same on a server that collects fewer of the regions: such a server fetches them all, and names a country of which nothing reaches into its box.
 
 Both describe the server's set, not the request: they are the same whatever box was asked for. A client that wants to know whether a place is covered asks whether the place lies in one of the boxes of `covers`. It shows a pilot "no airspace near" only for a place inside; anywhere else it says that its airspace does not reach there. A glider at 49° N is outside the first region's box, which ends at 48.5° N, and must not be told its air is free because the answer had no airspace in it.
 
-**A box can take in more than the countries, and the answer cannot say where a border runs.** For the first region this is settled as far as the source allows: all eight countries its box reaches into are fetched. (Czechia begins 6 km north of the box.) One country is left, Liechtenstein, for which openAIP publishes no file. The records that lie over it are in the Swiss file: the Swiss flight information region, the control area above the Alps and a glider area. Whether openAIP lacks anything over Liechtenstein is *to verify*. On a server whose regions reach into a country that is not in `countries`, the layer holds nothing of that country's airspace although the place is inside `covers`; a client therefore shows the pilot the countries with the airspace.
+**A box can take in more than the countries, and the answer cannot say where a border runs.** For the three Alpine regions, 5.0° to 17.2° E and 43.5° to 48.5° N, this is settled as far as the source allows: all ten countries their box reaches into that have a file are fetched. (Czechia begins 6 km north of the box.) Three are left for which openAIP publishes no file (asked for on 2026-11-22: none exists): Liechtenstein, Monaco and San Marino. The records that lie over Liechtenstein are in the Swiss file: the Swiss flight information region, the control areas above the Alps, a glider area and a sector of Zurich's information service. Those over Monaco are in the French file (Nice's control zone and terminal area, the restricted area LF-R106 Monaco), those over San Marino in the Italian one (Bologna's control zone, a control area, a restricted area). Whether openAIP lacks anything over the three is *to verify*. On a server whose regions reach into a country that is not in `countries`, the layer holds nothing of that country's airspace although the place is inside `covers`; a client therefore shows the pilot the countries with the airspace.
 
-**Whole means every record the server could read.** A record the source publishes in a form the server cannot read, or one that fails the server's checks (a ceiling below its floor), is left out and named in the server's log. The run still counts, and the answer does not say that something is missing. On 2026-11-19 none of the 506 airspaces in the first region's box was left out. One Hungarian record far east of the box was: its ceiling is at the ground.
+**Whole means every record the server could read.** A record the source publishes in a form the server cannot read, or one that fails the server's checks (a ceiling below its floor), is left out and named in the server's log. The run still counts, and the answer does not say that something is missing. On 2026-11-19 none of the 506 airspaces in the first region's box was left out. One Hungarian record far east of the box was: its ceiling is at the ground. On 2026-11-22 none of the 2,167 in the box of the three regions was left out either, nor any of France's 1,761 or Bosnia and Herzegovina's 79 whole.
 
 **What a warning means differs by country, and the app's table was written for two of them.** See [airspace.md](airspace.md#outside-germany-and-austria).
 
@@ -933,9 +926,11 @@ curl 'http://127.0.0.1:8080/v1/airspace?bbox=14.90,48.20,14.91,48.21'
         "DE",
         "AT",
         "CH",
+        "FR",
         "IT",
         "SI",
         "HR",
+        "BA",
         "HU",
         "SK"
       ],
@@ -967,7 +962,18 @@ The credit and the notice come with it: that the source has nothing there is a s
 | The first region (46.3 to 48.5° N, 9.4 to 17.2° E) | 506 | 49,888 | 1,237 kB | 291 kB |
 | The first region when only Germany and Austria were fetched | 344 | 31,438 | 798 kB | 187 kB |
 
-A box that holds more than 5000 airspaces is refused with `400` and `box_too_large`. The first region is a tenth of that; the eight countries whole would be 3,575, of which Italy alone has 1,557. It is not cut short: a client could take a cut answer for the whole airspace of the box, and a pilot is not warned about airspace that is missing. Ask for such a box in several smaller ones.
+Measured again on 2026-11-22 with openAIP's files of that day, the ten countries fetched and the set collected as a server with the three Alpine regions collects it, over one box around them (`whole_countries_are_measured_when_given` in `crates/server/tests/airspace.rs`). Around Chamonix and around Grenoble is the area an app keeps for flying ([airspace.md](airspace.md#where-it-lives), "Airspace from the pilot's server"): two degrees of latitude and three of longitude to each side of the place.
+
+| Box | Airspaces | Corners | Plain | With gzip |
+|---|---|---|---|---|
+| The three regions (43.5 to 48.5° N, 5.0 to 17.2° E) | 2,167 | 99,502 | 3,032 kB | 644 kB |
+| The first region | 518 | 50,899 | 1,262 kB | 298 kB |
+| Kept around Chamonix (45.92° N, 6.87° E) | 780 | 45,060 | 1,262 kB | 285 kB |
+| Kept around Grenoble (45.19° N, 5.72° E) | 613 | 26,495 | 824 kB | 173 kB |
+
+Around Chamonix 282 of the airspaces are France's, 269 Italy's, 194 Switzerland's; around Grenoble 317 France's. The first region gains two of France's, the control area and the flight information region of Marseille, whose boxes reach to 9.75° E.
+
+A box that holds more than 5000 airspaces is refused with `400` and `box_too_large`. The three regions together are under half of that; the eight countries whole were 3,575 on 2026-11-19, of which Italy alone has 1,557, and France alone has 1,761. It is not cut short: a client could take a cut answer for the whole airspace of the box, and a pilot is not warned about airspace that is missing. Ask for such a box in several smaller ones.
 
 **When a source fails.** A run that could not fetch every file of a source changes nothing: the server keeps serving the set of its last complete run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
 

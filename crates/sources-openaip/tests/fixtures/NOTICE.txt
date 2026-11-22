@@ -1,5 +1,6 @@
 The .geojson files in this folder are data of openAIP, https://www.openaip.net,
-recorded on 2026-11-19 from https://storage.openaip.net/openaip-system-exports/
+recorded on 2026-11-19 and 2026-11-22 from
+https://storage.openaip.net/openaip-system-exports/
 and licensed under the Creative Commons Attribution-NonCommercial 4.0
 International License, https://creativecommons.org/licenses/by-nc/4.0/.
 They are not covered by the licence of the code around them.
@@ -18,6 +19,13 @@ Italy, Slovenia, Croatia, Hungary and Slovakia of the same day, cut down to
 the features that reach into the first region's box and have no more than
 60 corners, with the same two fields removed.
 
+fr_asp.geojson and ba_asp.geojson are the airspace exports for France and
+for Bosnia and Herzegovina of 2026-11-22, with the same two fields removed.
+France's is cut down to the features that reach into the Alps from Grenoble
+to Annecy and Chamonix and have no more than 20 corners; Bosnia's to those
+that reach into the box of the three Alpine regions and have no more than
+60 corners.
+
 All of them are samples. They are not the airspace of any area.
 
 To record them again: fetch the files from the address above. Of
@@ -25,7 +33,10 @@ de_asp.geojson and at_asp.geojson keep the features whose bounding box
 touches 47.2..48.5 N, 10.9..13.2 E (Germany) or 47.0..47.95 N,
 10.9..13.2 E (Austria), within the corner limits; of the six others those
 whose bounding box touches 46.3..48.5 N, 9.4..17.2 E and that have no more
-than 60 corners; all in the order of the file. Then run the tests with
+than 60 corners; of fr_asp.geojson those whose bounding box touches
+45.0..46.1 N, 5.6..7.1 E and that have no more than 20 corners; of
+ba_asp.geojson those whose bounding box touches 43.5..48.5 N, 5.0..17.2 E
+and that have no more than 60 corners; all in the order of the file. Then run the tests with
 VENTI_UPDATE_GOLDEN=1 and review what changed.
 
 at_asp_damaged.geojson is not openAIP's data as published: it is eight

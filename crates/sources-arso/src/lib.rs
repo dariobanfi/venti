@@ -2,9 +2,21 @@
 //! Environment Agency (Agencija Republike Slovenije za okolje): the state's
 //! network, from the coast to Kredarica below the Triglav at 2514 m.
 //!
-//! One file holds the newest values of every station: its position, height
-//! and names, and what it measured over its last interval. A run asks it
-//! once and keeps the stations inside the run's area.
+//! One file holds the newest values of the stations: its position, height
+//! and names for each, and what it measured over its last interval. A run
+//! asks it once and keeps the stations inside the run's area.
+//!
+//! **The file is not always whole.** ARSO writes it more than once for each
+//! ten minutes, as the stations' values come in, and a version holds only
+//! the stations whose new values are there: on 2026-11-22 the same ten
+//! minutes were first 72 stations and three minutes later 103, and a run of
+//! the owner's server was given 8. A station that is missing is not gone
+//! and not damaged; it is in the next version. The adapter reads what a
+//! version holds and reports nothing about the rest: it cannot know which
+//! stations there are, and it keeps nothing between two runs. What makes
+//! the server see every station is how often it asks, `cadence_seconds` in
+//! the manifest, which says what was measured; the store keeps what each
+//! run found. `tests/fixtures` has two versions of the same ten minutes.
 //!
 //! The file is XML and its element names are Slovenian abbreviations. What
 //! each means is taken from the description that the file writes beside

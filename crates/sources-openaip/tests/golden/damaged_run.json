@@ -7,6 +7,278 @@
         "on_request": false,
         "special_agreement": false
       },
+      "class": "E",
+      "country": "BA",
+      "id": "openaip:626144baed4452e4a07735c2",
+      "lower": "1000 Feet above AboveGround = 304.8 m",
+      "name": "BANJA LUKA TMA",
+      "shape": "30 corners, 0 holes, 44.3706..45.2683 N, 16.4411..17.9694 E, 2d29ceedc131d656",
+      "type": "tma",
+      "updated": "2023-10-03T15:50:49.708Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "BA",
+      "id": "openaip:626144baed4452e4a07735d1",
+      "lower": "ground",
+      "name": "BIHAC ATZ",
+      "shape": "6 corners, 0 holes, 44.7472..44.9069 N, 15.7833..16.0750 E, f53269ccebdfc643",
+      "type": "atz",
+      "updated": "2023-10-03T07:01:08.985Z",
+      "upper": "7300 Feet above MeanSeaLevel = 2225.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144bbed4452e4a0773604",
+      "lower": "ground",
+      "name": "LQBI GOLUBIC-BIHAC",
+      "shape": "6 corners, 0 holes, 44.7472..44.9069 N, 15.7833..16.0750 E, f53269ccebdfc643",
+      "type": "glider-sector",
+      "updated": "2023-03-10T10:17:00.434Z",
+      "upper": "7300 Feet above MeanSeaLevel = 2225.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "BA",
+      "id": "openaip:626144bbf2228b5341bf47a2",
+      "lower": "ground",
+      "name": "STIPE KRISTO-LIVNO ATZ",
+      "shape": "5 corners, 0 holes, 43.6167..43.9167 N, 16.7500..17.0833 E, 995a02242e4b1895",
+      "type": "atz",
+      "updated": "2023-10-03T07:19:40.920Z",
+      "upper": "6000 Feet above MeanSeaLevel = 1828.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144bbf2228b5341bf47c9",
+      "lower": "ground",
+      "name": "LQ-D15 BARBARA NOTAM",
+      "shape": "32 corners, 0 holes, 44.1182..44.1362 N, 16.9061..16.9311 E, df563f30ddd1abb3",
+      "type": "danger",
+      "updated": "2023-03-10T10:17:00.879Z",
+      "upper": "8000 Feet above MeanSeaLevel = 2438.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144bbf2228b5341bf47d3",
+      "lower": "ground",
+      "name": "LQ-D17 ADIL BESIC NOTAM",
+      "shape": "32 corners, 0 holes, 44.7882..44.8062 N, 15.8488..15.8741 E, 6b9501fd96b7853d",
+      "type": "danger",
+      "updated": "2023-03-10T10:17:01.275Z",
+      "upper": "4200 Feet above MeanSeaLevel = 1280.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144bcf2228b5341bf47e0",
+      "lower": "ground",
+      "name": "LQ-D19 GLAMOC NOTAM",
+      "shape": "7 corners, 0 holes, 44.0950..44.1694 N, 16.8650..16.9561 E, 88b69e638db25ca9",
+      "type": "danger",
+      "updated": "2023-03-10T10:17:01.528Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144bded4452e4a07736a9",
+      "lower": "ground",
+      "name": "LQ-D34 MANJACA DPA3 NOTAM",
+      "shape": "33 corners, 0 holes, 44.6735..44.7004 N, 16.9761..17.0140 E, a7064fec824b701f",
+      "type": "danger",
+      "updated": "2023-03-10T10:17:03.989Z",
+      "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144bdf2228b5341bf4845",
+      "lower": "ground",
+      "name": "LQ-D35 MANJACA DPA4 NOTAM",
+      "shape": "34 corners, 0 holes, 44.6309..44.6669 N, 17.0293..17.0797 E, 6e6d202073be0e74",
+      "type": "danger",
+      "updated": "2023-03-10T10:17:04.192Z",
+      "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144bff2228b5341bf48b9",
+      "lower": "ground",
+      "name": "LQMP MEDENO POLJE",
+      "shape": "6 corners, 0 holes, 44.4283..44.7183 N, 16.1469..16.5461 E, e5750fb5d04e08b6",
+      "type": "glider-sector",
+      "updated": "2023-03-10T10:17:06.796Z",
+      "upper": "8500 Feet above MeanSeaLevel = 2590.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144c0ed4452e4a077375e",
+      "lower": "ground",
+      "name": "LQ-R4 MANJACA-LOW NOTAM",
+      "shape": "8 corners, 0 holes, 44.6111..44.7381 N, 16.9089..17.1050 E, 86e9ea18458037a1",
+      "type": "restricted",
+      "updated": "2023-03-10T10:17:08.518Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144c0ed4452e4a077376c",
+      "lower": "ground",
+      "name": "LQ-TSA2 TURJAK MO-FR",
+      "shape": "53 corners, 0 holes, 44.9634..45.0533 N, 17.0864..17.2136 E, 8396df965d85f0a0",
+      "type": "restricted",
+      "updated": "2023-11-18T14:29:50.438Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144c0f2228b5341bf48f0",
+      "lower": "ground",
+      "name": "LQ-R3 MANJACA-HIGH NOTAM",
+      "shape": "8 corners, 0 holes, 44.6111..44.7381 N, 16.9089..17.1050 E, 86e9ea18458037a1",
+      "type": "restricted",
+      "updated": "2023-03-10T10:17:08.395Z",
+      "upper": "250 FlightLevel above Standard = 7620.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:626144c0f2228b5341bf48fa",
+      "lower": "ground",
+      "name": "LQ-TSA3 MISIN HAN MO-FR",
+      "shape": "6 corners, 0 holes, 44.8728..44.9403 N, 17.0603..17.1650 E, e31804c7ce6c6a5e",
+      "type": "restricted",
+      "updated": "2023-11-18T14:30:49.484Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "BA",
+      "id": "openaip:626144c1f2228b5341bf4921",
+      "lower": "ground",
+      "name": "MEDENO POLJE ATZ",
+      "shape": "6 corners, 0 holes, 44.4283..44.7183 N, 16.1469..16.5461 E, e5750fb5d04e08b6",
+      "type": "atz",
+      "updated": "2023-10-03T07:23:26.098Z",
+      "upper": "8500 Feet above MeanSeaLevel = 2590.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "BA",
+      "id": "openaip:626144c2ed4452e4a07737da",
+      "lower": "ground",
+      "name": "ZALUZANI ATZ",
+      "shape": "40 corners, 0 holes, 44.8250..44.8750 N, 17.1898..17.2602 E, 0fd985293f20f44a",
+      "type": "atz",
+      "updated": "2023-10-03T07:03:28.716Z",
+      "upper": "3000 Feet above MeanSeaLevel = 914.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
       "class": "C",
       "country": "SK",
       "id": "openaip:626150755e9ded571044ee61",
@@ -538,6 +810,40 @@
     {
       "activity": {
         "by_notam": false,
+        "on_demand": true,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:655a1ba9491198e2a780be49",
+      "lower": "ground",
+      "name": "LQLV STIPE KRISTO-LIVNO",
+      "shape": "5 corners, 0 holes, 43.6167..43.9167 N, 16.7500..17.0833 E, e7072c13a082008d",
+      "type": "glider-sector",
+      "updated": "2023-11-19T14:29:25.380Z",
+      "upper": "6000 Feet above MeanSeaLevel = 1828.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:655a1ddc491198e2a780cd4a",
+      "lower": "ground",
+      "name": "LQZ4 VELIKA GOMILA",
+      "shape": "5 corners, 0 holes, 44.8592..45.0011 N, 15.9589..16.1531 E, c59c8cef1acc76fd",
+      "type": "glider-sector",
+      "updated": "2023-11-19T14:40:23.404Z",
+      "upper": "3600 Feet above MeanSeaLevel = 1097.3 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
         "on_demand": false,
         "on_request": false,
         "special_agreement": false
@@ -993,6 +1299,23 @@
       "type": "rmz",
       "updated": "2026-07-18T19:54:44.424Z",
       "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "BA",
+      "id": "openaip:66672f6b59581dac92f2e53c",
+      "lower": "ground",
+      "name": "LQ-D48 ALFA CODE CAZIN",
+      "shape": "19 corners, 0 holes, 44.9242..44.9308 N, 15.9308..15.9403 E, ee539761316902ae",
+      "type": "danger",
+      "updated": "2024-06-10T16:55:01.369Z",
+      "upper": "2000 Feet above MeanSeaLevel = 609.6 m"
     },
     {
       "activity": {
@@ -2263,6 +2586,150 @@
         "special_agreement": false
       },
       "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 123.7,
+          "name": "CHAMBERY APP",
+          "primary": true
+        }
+      ],
+      "id": "openaip:680ba7b31015c49a67cae497",
+      "lower": "95 FlightLevel above Standard = 2895.6 m",
+      "name": "SIV CHAMBERY 2",
+      "shape": "15 corners, 0 holes, 45.6206..45.8764 N, 5.4894..6.1633 E, 64dc42e6f0415a02",
+      "type": "fis-sector",
+      "updated": "2025-04-25T15:22:23.990Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 126.35,
+          "name": "GENEVE INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:680ba7b41015c49a67cae4cf",
+      "lower": "ground",
+      "name": "SIV GENEVE 4",
+      "shape": "5 corners, 0 holes, 45.6206..45.8064 N, 6.0878..6.2597 E, e403a850dfadc8ba",
+      "type": "fis-sector",
+      "updated": "2025-04-25T15:22:25.759Z",
+      "upper": "155 FlightLevel above Standard = 4724.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 126.35,
+          "name": "GENEVE INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:680ba7b41015c49a67cae4d3",
+      "lower": "115 FlightLevel above Standard = 3505.2 m",
+      "name": "SIV GENEVE 5",
+      "shape": "12 corners, 0 holes, 45.6206..45.8064 N, 5.4894..6.0967 E, 6683215dcd85ce0a",
+      "type": "fis-sector",
+      "updated": "2025-04-25T15:22:25.872Z",
+      "upper": "155 FlightLevel above Standard = 4724.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 126.35,
+          "name": "GENEVE INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:680ba7b41015c49a67cae4d7",
+      "lower": "115 FlightLevel above Standard = 3505.2 m",
+      "name": "SIV GENEVE 6",
+      "shape": "11 corners, 0 holes, 45.7447..45.8764 N, 5.5547..6.1633 E, 119aee9fe02f8eb8",
+      "type": "fis-sector",
+      "updated": "2025-04-25T15:22:25.989Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 135.525,
+          "name": "LYON INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:680ba7b41015c49a67cae53f",
+      "lower": "95 FlightLevel above Standard = 2895.6 m",
+      "name": "SIV LYON 4",
+      "shape": "16 corners, 0 holes, 45.7167..45.9753 N, 5.4506..5.6628 E, 49d16949b6c0b054",
+      "type": "fis-sector",
+      "updated": "2025-04-25T15:22:29.191Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 135.525,
+          "name": "LYON INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:680ba7b41015c49a67cae543",
+      "lower": "95 FlightLevel above Standard = 2895.6 m",
+      "name": "SIV LYON 5",
+      "shape": "14 corners, 0 holes, 45.4383..45.6856 N, 5.4981..6.0878 E, db85ea228963e44b",
+      "type": "fis-sector",
+      "updated": "2025-04-25T15:22:29.325Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
       "country": "HR",
       "id": "openaip:681b9bf312af9b68bf4ab055",
       "lower": "ground",
@@ -2271,6 +2738,654 @@
       "type": "tra",
       "updated": "2025-05-13T08:42:57.294Z",
       "upper": "140 FlightLevel above Standard = 4267.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 121.0,
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8ae4436d2f57240c37",
+      "lower": "ground",
+      "name": "RMZ GRENOBLE LE VERSOUD",
+      "shape": "7 corners, 0 holes, 45.1744..45.2625 N, 5.7656..5.8958 E, 862847d89de3df7a",
+      "type": "rmz",
+      "updated": "2025-09-05T10:30:03.444Z",
+      "upper": "2700 Feet above MeanSeaLevel = 823.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 118.305,
+          "name": "CHAMBERY TWR",
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8ce4436d2f57240d04",
+      "lower": "ground",
+      "name": "CTR CHAMBERY 1 (HX)",
+      "shape": "10 corners, 0 holes, 45.5375..45.7772 N, 5.8333..5.9492 E, 922f20ffb8d4b172",
+      "type": "ctr",
+      "updated": "2026-11-08T10:54:51.570Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "upper_at_most": "1000 Feet above AboveGround = 304.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 118.305,
+          "name": "CHAMBERY TWR",
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8ce4436d2f57240d08",
+      "lower": "ground",
+      "name": "CTR CHAMBERY 2 (ACTIVE MID DEC -> MID APRIL)",
+      "shape": "7 corners, 0 holes, 45.5028..45.6014 N, 5.7889..5.8333 E, 737bf316bee37985",
+      "type": "ctr",
+      "updated": "2026-11-08T10:54:51.548Z",
+      "upper": "1000 Feet above AboveGround = 304.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 123.7,
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8ee4436d2f57240f24",
+      "lower": "95 FlightLevel above Standard = 2895.6 m",
+      "name": "TMA CHAMBERY 3",
+      "shape": "9 corners, 0 holes, 45.6353..45.8722 N, 5.4894..6.1128 E, f8928aa62151fb65",
+      "type": "tma",
+      "updated": "2025-09-05T10:30:27.178Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 123.7,
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8ee4436d2f57240f28",
+      "lower": "4000 Feet above MeanSeaLevel = 1219.2 m",
+      "lower_at_least": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA CHAMBERY 4",
+      "shape": "8 corners, 0 holes, 45.4383..45.5197 N, 5.6567..5.8694 E, 8147b4db2a2b22e6",
+      "type": "tma",
+      "updated": "2026-11-08T10:54:51.676Z",
+      "upper": "75 FlightLevel above Standard = 2286.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 135.2,
+          "name": "LYON INFORMATION",
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8fe4436d2f5724108b",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "TMA LYON 2.1",
+      "shape": "13 corners, 0 holes, 45.2792..45.5364 N, 4.8833..5.6189 E, 42c23aba20590d9e",
+      "type": "tma",
+      "updated": "2025-09-05T10:30:37.214Z",
+      "upper": "4500 Feet above MeanSeaLevel = 1371.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 135.2,
+          "name": "LYON INFORMATION",
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8fe4436d2f572410ab",
+      "lower": "95 FlightLevel above Standard = 2895.6 m",
+      "name": "TMA LYON 7",
+      "shape": "13 corners, 0 holes, 45.7167..45.9753 N, 5.4506..5.6628 E, 19bcf4c335ca9640",
+      "type": "tma",
+      "updated": "2026-10-16T18:44:04.134Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 135.2,
+          "name": "LYON INFORMATION",
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8fe4436d2f572410af",
+      "lower": "75 FlightLevel above Standard = 2286.0 m",
+      "name": "TMA LYON 8",
+      "shape": "7 corners, 0 holes, 45.3561..45.5817 N, 5.5281..5.7258 E, d4936638942c9d3d",
+      "type": "tma",
+      "updated": "2025-09-05T10:30:38.167Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 135.525,
+          "name": "LYON INFORMATION",
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb8fe4436d2f572410b7",
+      "lower": "95 FlightLevel above Standard = 2895.6 m",
+      "name": "TMA LYON 10",
+      "shape": "19 corners, 0 holes, 45.0661..45.6856 N, 5.3019..5.9828 E, a36d97736051a8c9",
+      "type": "tma",
+      "updated": "2025-09-05T10:30:38.349Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb95e4436d2f57241652",
+      "lower": "ground",
+      "name": "LF-R30A MONT BLANC",
+      "shape": "6 corners, 0 holes, 45.9261..45.9506 N, 6.8889..6.9172 E, 57eae50ebed42785",
+      "type": "restricted",
+      "updated": "2026-11-07T19:18:06.605Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m",
+      "upper_at_most": "3300 Feet above AboveGround = 1005.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": true,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 123.7,
+          "name": "CHAMBERY INFO",
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb95e4436d2f57241727",
+      "lower": "ground",
+      "name": "LF-R48 PAS DE LA FOSSE",
+      "shape": "8 corners, 0 holes, 45.4947..45.5158 N, 5.8908..5.9100 E, 35b3e873d32f1ee8",
+      "type": "restricted",
+      "updated": "2026-11-08T12:25:14.478Z",
+      "upper": "8000 Feet above MeanSeaLevel = 2438.4 m",
+      "upper_at_most": "3300 Feet above AboveGround = 1005.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 135.525,
+          "name": "LYON INFO",
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb97e4436d2f57241906",
+      "lower": "115 FlightLevel above Standard = 3505.2 m",
+      "name": "LF-R131 GRENOBLE",
+      "shape": "7 corners, 0 holes, 45.0497..45.2750 N, 5.6381..5.8964 E, c21d14d8ddf88552",
+      "type": "glider-sector",
+      "updated": "2026-04-18T05:43:17.897Z",
+      "upper": "145 FlightLevel above Standard = 4419.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "frequencies": [
+        {
+          "mhz": 127.975,
+          "primary": false
+        }
+      ],
+      "id": "openaip:68babb98e4436d2f57241a37",
+      "lower": "3300 Feet above AboveGround = 1005.8 m",
+      "name": "LF-R196B GAP (NOTAM)",
+      "shape": "6 corners, 0 holes, 44.4428..45.0158 N, 5.2969..5.8892 E, c968531128e47764",
+      "type": "restricted",
+      "updated": "2025-09-05T10:31:49.132Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb98e4436d2f57241ae9",
+      "lower": "ground",
+      "name": "LF-R221A ROCHILLES (NOTAM)",
+      "shape": "14 corners, 0 holes, 45.0000..45.1833 N, 6.4292..6.6667 E, 8575a9da2bdcf1eb",
+      "type": "restricted",
+      "updated": "2025-09-05T10:31:54.052Z",
+      "upper": "240 FlightLevel above Standard = 7315.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb98e4436d2f57241aec",
+      "lower": "ground",
+      "name": "LF-R221B ROCHILLES (NOTAM)",
+      "shape": "5 corners, 0 holes, 44.9736..45.0000 N, 6.4861..6.6667 E, 998b319c9407dc41",
+      "type": "restricted",
+      "updated": "2025-09-05T10:31:54.149Z",
+      "upper": "240 FlightLevel above Standard = 7315.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb98e4436d2f57241aef",
+      "lower": "ground",
+      "name": "LF-R222A GALIBIER (NOTAM)",
+      "shape": "5 corners, 0 holes, 45.0494..45.2092 N, 6.1011..6.4292 E, e72e52e34305114f",
+      "type": "restricted",
+      "updated": "2025-09-05T10:31:54.250Z",
+      "upper": "230 FlightLevel above Standard = 7010.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb98e4436d2f57241af2",
+      "lower": "ground",
+      "name": "LF-R222B GALIBIER (NOTAM)",
+      "shape": "6 corners, 0 holes, 45.0222..45.0494 N, 6.1011..6.4292 E, 9f6936a7c8fd8100",
+      "type": "restricted",
+      "updated": "2025-09-05T10:31:54.362Z",
+      "upper": "230 FlightLevel above Standard = 7010.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb98e4436d2f57241af5",
+      "lower": "ground",
+      "name": "LF-R222C GALIBIER (NOTAM)",
+      "shape": "5 corners, 0 holes, 45.1000..45.2092 N, 6.0639..6.1011 E, 84979ce66c2b7def",
+      "type": "restricted",
+      "updated": "2025-09-05T10:31:54.472Z",
+      "upper": "230 FlightLevel above Standard = 7010.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb99e4436d2f57241b28",
+      "lower": "ground",
+      "name": "LF-R235 COMBOIRE",
+      "shape": "5 corners, 0 holes, 45.1367..45.1456 N, 5.6822..5.6917 E, d116648c9cc2f375",
+      "type": "restricted",
+      "updated": "2025-09-05T10:31:55.994Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb99e4436d2f57241c1d",
+      "lower": "ground",
+      "name": "LF-R331 ARBONNE",
+      "shape": "7 corners, 0 holes, 45.6108..45.6322 N, 6.6775..6.7525 E, 1156bbad0b45298d",
+      "type": "restricted",
+      "updated": "2025-09-05T10:32:03.040Z",
+      "upper": "85 FlightLevel above Standard = 2590.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb99e4436d2f57241c20",
+      "lower": "ground",
+      "name": "LF-R332A/B POINTE LEISETTE COMBE LA NEUVE",
+      "shape": "9 corners, 0 holes, 45.6322..45.6978 N, 6.6333..6.7486 E, 30bf810c000d716d",
+      "type": "restricted",
+      "updated": "2025-09-05T10:32:03.142Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb9ae4436d2f57241c83",
+      "lower": "ground",
+      "name": "LF-R576A POLSET",
+      "shape": "7 corners, 0 holes, 45.2342..45.2525 N, 6.6186..6.6453 E, 74977fbd55a2947a",
+      "type": "restricted",
+      "updated": "2025-09-05T10:32:06.209Z",
+      "upper": "8500 Feet above MeanSeaLevel = 2590.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb9ae4436d2f57241c86",
+      "lower": "ground",
+      "name": "LF-R576B POLSET",
+      "shape": "9 corners, 0 holes, 45.2147..45.2525 N, 6.6186..6.6467 E, bf05d2382ecac839",
+      "type": "restricted",
+      "updated": "2025-09-05T10:32:06.308Z",
+      "upper": "165 FlightLevel above Standard = 5029.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb9be4436d2f57241e1c",
+      "lower": "ground",
+      "name": "LF-D74 (MULTI LIGNES ELECTRIQUES)",
+      "shape": "15 corners, 0 holes, 46.0061..46.1178 N, 5.7650..5.8500 E, 130b11ad0f375d1f",
+      "type": "danger",
+      "updated": "2025-09-05T10:32:18.686Z",
+      "upper": "800 Feet above AboveGround = 243.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:68babb9ce4436d2f57241f04",
+      "lower": "ground",
+      "name": "PARC/RESERVE GRAND PARADIS",
+      "shape": "11 corners, 0 holes, 45.3953..45.6833 N, 7.0667..7.5861 E, 9f74a20cef88ecd8",
+      "type": "overflight-restriction",
+      "updated": "2025-09-05T10:32:25.195Z",
+      "upper": "14764 Feet above MeanSeaLevel = 4500.1 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "FR",
+      "id": "openaip:68babb9de4436d2f57241f3d",
+      "lower": "9186 Feet above MeanSeaLevel = 2799.9 m",
+      "name": "PARC/RESERVE ECRINS SORTIE N COMBEYNOT",
+      "shape": "14 corners, 0 holes, 44.9389..45.0311 N, 6.3567..6.4461 E, b135058e6bbe6b70",
+      "type": "glider-sector",
+      "updated": "2026-08-10T13:25:06.709Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "FR",
+      "id": "openaip:68babb9de4436d2f57241f40",
+      "lower": "9186 Feet above MeanSeaLevel = 2799.9 m",
+      "name": "PARC/RESERVE ECRINS SORTIE NW",
+      "shape": "8 corners, 0 holes, 44.9911..45.0089 N, 6.2492..6.3064 E, b8632f6380d80871",
+      "type": "glider-sector",
+      "updated": "2026-08-10T13:25:06.442Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "FR",
+      "id": "openaip:68babb9de4436d2f57241f69",
+      "lower": "125 FlightLevel above Standard = 3810.0 m",
+      "name": "LTA 3 ALPES 2 VERCORS",
+      "shape": "11 corners, 0 holes, 44.4283..45.0469 N, 5.0233..5.7633 E, 4e51c88a62fa7cf3",
+      "type": "lta",
+      "updated": "2026-04-16T09:30:59.362Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "FR",
+      "id": "openaip:68babb9de4436d2f57241f6c",
+      "lower": "115 FlightLevel above Standard = 3505.2 m",
+      "lower_at_least": "3000 Feet above AboveGround = 914.4 m",
+      "name": "LTA 3 ALPES 2 VERCORS",
+      "shape": "11 corners, 0 holes, 44.4283..45.0469 N, 5.0233..5.7633 E, 4e51c88a62fa7cf3",
+      "type": "lta",
+      "updated": "2026-04-16T09:30:59.374Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "FR",
+      "id": "openaip:68babb9de4436d2f57241f6f",
+      "lower": "145 FlightLevel above Standard = 4419.6 m",
+      "name": "LTA 3 ALPES 3 BELLEDONNE",
+      "shape": "17 corners, 0 holes, 44.6536..45.7083 N, 5.6317..6.4606 E, 95dbb09eea74f062",
+      "type": "lta",
+      "updated": "2026-04-16T09:30:59.394Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "FR",
+      "id": "openaip:68babb9de4436d2f57241f72",
+      "lower": "115 FlightLevel above Standard = 3505.2 m",
+      "lower_at_least": "3000 Feet above AboveGround = 914.4 m",
+      "name": "LTA 3 ALPES 3 BELLEDONNE",
+      "shape": "17 corners, 0 holes, 44.6536..45.7083 N, 5.6317..6.4606 E, 95dbb09eea74f062",
+      "type": "lta",
+      "updated": "2026-04-16T09:30:59.417Z",
+      "upper": "145 FlightLevel above Standard = 4419.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "FR",
+      "id": "openaip:68babb9de4436d2f57241f75",
+      "lower": "125 FlightLevel above Standard = 3810.0 m",
+      "name": "LTA 3 ALPES 4 BAUGES",
+      "shape": "14 corners, 0 holes, 45.4556..45.9322 N, 5.9550..6.3908 E, fa7c1522a023a67e",
+      "type": "lta",
+      "updated": "2026-04-16T09:17:41.119Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "FR",
+      "id": "openaip:68babb9de4436d2f57241f78",
+      "lower": "115 FlightLevel above Standard = 3505.2 m",
+      "lower_at_least": "3000 Feet above AboveGround = 914.4 m",
+      "name": "LTA 3 ALPES 4 BAUGES",
+      "shape": "14 corners, 0 holes, 45.4556..45.9322 N, 5.9550..6.3908 E, fa7c1522a023a67e",
+      "type": "lta",
+      "updated": "2026-04-16T09:30:59.467Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
     },
     {
       "activity": {
@@ -2617,6 +3732,137 @@
         "on_request": false,
         "special_agreement": false
       },
+      "class": "G",
+      "country": "FR",
+      "id": "openaip:6a7addd476b43d9787160809",
+      "lower": "ground",
+      "name": "P4 THERMALLING SECTOR-SECTEUR POMPE P4 RHEMES-CALABRE (01 AOUT->31 OCTOBRE)",
+      "shape": "7 corners, 0 holes, 45.4700..45.4744 N, 7.0592..7.0772 E, 5bbd607774261836",
+      "type": "glider-sector",
+      "updated": "2026-08-11T08:43:11.566Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:6aa7b9d6e7db7c9322916199",
+      "lower": "ground",
+      "name": "ZSM LE CLAPIER - AR604 (6231)",
+      "shape": "12 corners, 0 holes, 45.0375..45.0472 N, 6.2239..6.2397 E, 287215cbbd54c442",
+      "type": "overflight-restriction",
+      "updated": "2026-09-14T09:10:14.325Z",
+      "upper": "11319 Feet above MeanSeaLevel = 3450.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:6aa7b9d6e7db7c93229161a9",
+      "lower": "ground",
+      "name": "ZSM PIC DE LA FARE (6376)",
+      "shape": "16 corners, 0 holes, 45.1158..45.1403 N, 5.9317..5.9747 E, c50c2617b57c137c",
+      "type": "overflight-restriction",
+      "updated": "2026-09-14T09:10:14.469Z",
+      "upper": "11368 Feet above MeanSeaLevel = 3465.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:6aa7b9d6e7db7c93229161b9",
+      "lower": "ground",
+      "name": "ZSM CHARDONNIERES (2996)",
+      "shape": "17 corners, 0 holes, 45.9853..46.0081 N, 6.7739..6.7914 E, 4ab2838356d1d17e",
+      "type": "overflight-restriction",
+      "updated": "2026-09-14T09:10:14.668Z",
+      "upper": "12369 Feet above MeanSeaLevel = 3770.1 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "from": "2026-09-14T15:00:00Z",
+        "hours_remarks": "- From 14th September 2026 to 25th September 2026 Activable from SS+30 to SR-30\n- From 12th October 2026 to 23th October 2026 Activable from SS+30 to SR-30\n- From 23th November 2026 to 03th December 2026 Activable from SS+30 to SR-30",
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false,
+        "until": "2026-12-03T09:00:00Z"
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:6ab7a313b199805150abbc77",
+      "lower": "ground",
+      "name": "ZRT ALLEVARD",
+      "remarks": "AIP SUP 185/26",
+      "shape": "5 corners, 0 holes, 45.3592..45.5128 N, 5.9983..6.1800 E, ba59472164bad62c",
+      "type": "restricted",
+      "updated": "2026-09-26T11:07:32.683Z",
+      "upper": "50 FlightLevel above Standard = 1524.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "from": "2026-09-14T15:00:00Z",
+        "hours_remarks": "- From 14th September 2026 to 25th September 2026 Activable from SS+30 to SR-30\n- From 12th October 2026 to 23th October 2026 Activable from SS+30 to SR-30\n- From 23th November 2026 to 03th December 2026 Activable from SS+30 to SR-30",
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false,
+        "until": "2026-12-03T08:00:00Z"
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:6ab7a376b199805150abbde3",
+      "lower": "ground",
+      "name": "ZRT SEMNOZ",
+      "remarks": "AIP SUP 185/26",
+      "shape": "5 corners, 0 holes, 45.7744..45.8136 N, 6.0389..6.1111 E, f6327396434a0141",
+      "type": "restricted",
+      "updated": "2026-09-26T11:07:32.668Z",
+      "upper": "50 FlightLevel above Standard = 1524.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "from": "2026-09-14T15:00:00Z",
+        "hours_remarks": "- From 14th September 2026 to 25th September 2026 Activable from SS+30 to SR-30\n- From 12th October 2026 to 23th October 2026 Activable from SS+30 to SR-30\n- From 23th November 2026 to 03th December 2026 Activable from SS+30 to SR-30",
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false,
+        "until": "2026-12-03T09:00:00Z"
+      },
+      "class": "unclassified",
+      "country": "FR",
+      "id": "openaip:6ab7a43db199805150abc0e8",
+      "lower": "ground",
+      "name": "ZRT COTE 182",
+      "remarks": "AIP SUP 185/26",
+      "shape": "5 corners, 0 holes, 45.5567..45.5711 N, 5.9700..6.0094 E, 038db2bbb22325c2",
+      "type": "restricted",
+      "updated": "2026-09-26T11:07:32.710Z",
+      "upper": "30 FlightLevel above Standard = 914.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
       "class": "C",
       "country": "SI",
       "id": "openaip:6acfbe70c1511651879cc615",
@@ -2789,7 +4035,7 @@
     }
   ],
   "report": {
-    "airspaces": 148,
+    "airspaces": 213,
     "budget_exhausted": false,
     "duplicates": 0,
     "failures": [],
@@ -2801,7 +4047,7 @@
         "reason": "the lower limit lies above the upper limit"
       }
     ],
-    "requests": 8,
+    "requests": 10,
     "skipped": [
       {
         "reason": "a ring needs at least four points, this one has 3",

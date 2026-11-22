@@ -2,8 +2,9 @@
 //! from a provider's files into the store.
 //!
 //! The endpoint is tested against what the development mode serves: a
-//! sample of the first region's airspace recorded from openAIP, eight
-//! countries of it, run through the real adapter. Two answers are kept as
+//! sample of the first region's airspace recorded from openAIP, run through
+//! the real adapter, which fetches ten countries and finds eight of them in
+//! the first region's box. Two answers are kept as
 //! golden files, which are also the examples in `docs/api.md`.
 
 use std::path::PathBuf;
@@ -43,9 +44,15 @@ fn first_region() -> BoundingBox {
     BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap()
 }
 
-/// The countries the first region's box takes in and openAIP has a file
-/// for, in the order the adapter fetches them.
-const COUNTRIES: [&str; 8] = ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"];
+/// The countries the adapter fetches, in its order: every country the box
+/// of the three Alpine regions takes in that openAIP has a file for. A
+/// server that collects the first region alone fetches them all the same,
+/// and its answers name them.
+const COUNTRIES: [&str; 10] = ["DE", "AT", "CH", "FR", "IT", "SI", "HR", "BA", "HU", "SK"];
+
+/// The countries of which the recorded files have airspace in the first
+/// region's box: all but France and Bosnia and Herzegovina.
+const IN_THE_FIRST_REGION: [&str; 8] = ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"];
 
 /// How many airspaces the recorded files hold in all.
 const RECORDED: usize = 192;
@@ -175,7 +182,11 @@ async fn airspace_comes_in_a_layer_with_its_source_its_dates_and_its_credit() {
     assert_eq!(layer.airspaces.len(), RECORDED);
     for country in COUNTRIES {
         let of_country = |a: &Airspace| a.country.as_deref() == Some(country);
-        assert!(layer.airspaces.iter().any(of_country), "{country}");
+        assert_eq!(
+            layer.airspaces.iter().any(of_country),
+            IN_THE_FIRST_REGION.contains(&country),
+            "{country}"
+        );
     }
     assert!(
         layer
@@ -203,7 +214,7 @@ async fn airspace_comes_in_a_layer_with_its_source_its_dates_and_its_credit() {
     }
 
     // Where the server's set is whole: the region it collects for, of
-    // every country the region takes in that the source has a file for.
+    // every country the source fetches.
     // The valley of the apps' sample flight is inside, and so is South
     // Tyrol; the north of Germany is not, and neither is Zurich.
     assert_eq!(layer.covers, [first_region()]);
@@ -569,14 +580,19 @@ async fn a_run_that_misses_a_country_keeps_yesterdays_airspace() {
 /// that holds openAIP's export files is named.
 ///
 /// The recorded fixtures are a small part of each country. To measure
-/// what a phone downloads for a whole region, fetch `<country>_asp.geojson`
-/// for every country of the adapter's manifest into a folder and run
+/// what a phone downloads, fetch `<country>_asp.geojson` for every country
+/// of the adapter's manifest into a folder and run
 ///
 /// ```text
 /// VENTI_OPENAIP_DIR=<folder> cargo test -p venti-server --test airspace whole -- --nocapture
 /// ```
 ///
-/// The numbers of 2026-11-19 are in `docs/api.md`.
+/// The set is collected as a server with the three Alpine regions
+/// collects it, over the box around them, and asked for that box, for the
+/// first region's, and for the area a phone keeps around Chamonix and
+/// around Grenoble (two degrees of latitude and three of longitude to each
+/// side, as `kept_airspace` in the core asks). The numbers of 2026-11-19
+/// and 2026-11-22 are in `docs/api.md`.
 #[tokio::test]
 async fn whole_countries_are_measured_when_given() {
     let Some(folder) = std::env::var_os("VENTI_OPENAIP_DIR") else {
@@ -594,17 +610,20 @@ async fn whole_countries_are_measured_when_given() {
     let clock = TestClock::new();
     let store = Arc::new(MemoryStore::new());
     let router = serving(store.clone(), &clock, [&openaip_manifest()]);
-    // Every country whole, not only the first region's box.
-    let everywhere = BoundingBox::new(35.0, 5.0, 56.0, 23.0).unwrap();
+    let the_alps = BoundingBox::new(43.5, 5.0, 48.5, 17.2).unwrap();
     let job = Job {
-        area: everywhere,
+        area: the_alps,
         ..airspace_job()
     };
     assert!(collector(store, fetch, &clock).collect(&job).await);
+    let kept_around =
+        |lat: f64, lon: f64| BoundingBox::new(lat - 2.0, lon - 3.0, lat + 2.0, lon + 3.0).unwrap();
 
     for (name, bbox) in [
-        ("the eight countries whole", everywhere),
+        ("the box of the three regions", the_alps),
         ("the first region's box", first_region()),
+        ("kept around Chamonix", kept_around(45.92, 6.87)),
+        ("kept around Grenoble", kept_around(45.19, 5.72)),
     ] {
         let began = std::time::Instant::now();
         let plain = get(&router, &path(bbox)).await;
@@ -615,9 +634,15 @@ async fn whole_countries_are_measured_when_given() {
         let airspace: AirspaceResponse = plain.json();
         let records = &airspace.layers[0].airspaces;
         let corners: usize = records.iter().map(|a| a.geometry.exterior().len()).sum();
+        let mut countries: std::collections::BTreeMap<&str, usize> = Default::default();
+        for record in records {
+            *countries
+                .entry(record.country.as_deref().unwrap_or("none"))
+                .or_default() += 1;
+        }
         println!(
             "{name}: {} airspaces, {corners} corners, {} bytes plain, {} bytes gzipped, \
-             answered in {took:?} (unoptimised build)",
+             answered in {took:?} (unoptimised build); by country {countries:?}",
             records.len(),
             plain.body.len(),
             packed.body.len(),

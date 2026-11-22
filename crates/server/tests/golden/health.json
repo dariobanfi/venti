@@ -40,7 +40,7 @@
     {
       "source": "arso-ams",
       "provider": "Slovenian Environment Agency ARSO",
-      "cadence_seconds": 600,
+      "cadence_seconds": 240,
       "last_success": "2026-11-18T19:05:00Z",
       "newest_observation": "2026-11-18T18:50:00Z",
       "stale": false,
@@ -95,15 +95,6 @@
       "cadence_seconds": 600,
       "last_success": "2026-11-18T19:05:00Z",
       "newest_observation": "2026-11-18T18:50:00Z",
-      "stale": false,
-      "stations": 3
-    },
-    {
-      "source": "meteotrentino",
-      "provider": "Provincia Autonoma di Trento - Meteotrentino",
-      "cadence_seconds": 900,
-      "last_success": "2026-11-18T19:05:00Z",
-      "newest_observation": "2026-11-18T18:30:00Z",
       "stale": false,
       "stations": 3
     },

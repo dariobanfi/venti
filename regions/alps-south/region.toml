@@ -28,17 +28,22 @@ east = 17.2
 # pilots' own sensors of Pioupiou are few here; the airfields' reports are
 # 24, the wind at an airfield and not at a take-off. The order of the
 # priority is the first region's, and so is Pioupiou's condition.
-# Meteotrentino's stations (46 with an anemometer) and ARSO's of Slovenia
-# (103) are collected since 2026-11-22; both reach into the first region's
-# box and are named there too. Lombardy's stations have an adapter
-# (`arpa-lombardia`) and are named in no pack: their values reach the
-# region's portal two to six hours late, which is no live wind. The weather
+# ARSO's stations of Slovenia (some hundred) are collected since
+# 2026-11-22; they reach into the first region's box and are named there
+# too. Two adapters are in the build and named in no pack. Trentino's
+# (`meteotrentino`, 46 stations with an anemometer) was named here and in
+# the first region's pack for a morning and taken out on 2026-11-22: the
+# province's host, dati.meteotrentino.it, encrypts with nothing the
+# server's TLS accepts, so the server cannot reach it at all
+# (docs/data-sources.md, the row "Meteotrentino", says what the host offers
+# and what brings the source back). Lombardy's (`arpa-lombardia`): its
+# values reach the region's portal two to six hours late, which is no live
+# wind. The weather
 # services of Veneto and Friuli have no adapter yet: docs/data-sources.md,
 # "Catalogue: the rest of the Alps", lists them in the order to write them.
 [observations]
 sources = [
     "suedtirol-meteo",
-    "meteotrentino",
     "arso-ams",
     "slf-imis",
     "pioupiou",
@@ -46,17 +51,21 @@ sources = [
 ]
 priority = [
     "suedtirol-meteo",
-    "meteotrentino",
     "arso-ams",
     "slf-imis",
     "pioupiou",
     "awc-metar",
 ]
 
-# No [airspace] yet: openAIP's adapter fetches the countries its manifest
-# names, and Bosnia and Herzegovina, which this box reaches into, is not
-# among them, nor is France, which the box of all three regions takes in.
-# Both want a line in the manifest and a recorded file first.
+# Airspace from openAIP, which may not be used commercially and stays a
+# layer of its own. The three packs name it, so it is collected once over
+# the box of all three, and its adapter fetches every country that box
+# takes in: Germany, Austria, Switzerland, France, Italy, Slovenia, Croatia,
+# Bosnia and Herzegovina, Hungary and Slovakia. This box takes in Italy,
+# Switzerland (the Val Poschiavo), Slovenia, Croatia, Bosnia and
+# Herzegovina, Hungary and San Marino, whose airspace is in Italy's file.
+[airspace]
+sources = ["openaip"]
 
 # Take-offs and landings from OpenStreetMap, under the ODbL: a layer of its
 # own. 192 sites in this box on 2026-11-22.

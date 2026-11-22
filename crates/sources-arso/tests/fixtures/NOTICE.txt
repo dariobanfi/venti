@@ -42,6 +42,49 @@ The whole file had 103 stations, all inside the Alps' box (5.0 to 17.2 E,
 had a mean wind (40 south, 16 north), one more a gust only; 102 a
 temperature, 20 a pressure at the station.
 
+observationAms_filling.xml and observationAms_filled.xml are two versions
+of the same address, of the same ten minutes, recorded later that morning
+with curl (asking for gzip, as the server's fetcher does). ARSO writes the
+file more than once for each ten minutes, as the stations' values come in,
+and a version holds only the stations whose new values are there: a
+station that has not delivered yet is not in it at all. The address was
+asked for its headers every twenty seconds from 09:43 to 09:58 UTC and
+fetched whenever they changed:
+
+    Last-Modified   first given at   bytes     stations
+    09:38:49        (by) 09:41:02    734,430    93, all to 09:30 UTC
+    09:45:39        09:47:16         569,030    72: 56 to 09:40 and the 16
+                                                main ones to 09:30
+    09:48:55        09:50:20         813,924   103: the same 72 unchanged
+                                                and 31 more to 09:40
+    09:55:48        09:57:04         799,201   101: 85 to 09:50 and the 16
+                                                main ones to 09:30
+
+The web server gave a version 65 to 100 seconds after the time it says it
+was written. How far a version has filled differs from one ten minutes to
+the next: the first of the ten minutes to 09:40 had 72 stations, the first
+of those to 09:50 had 101. At about 09:39 UTC the owner's server had been given 8
+stations to 09:30 (Hrastnik, Koper Markovec, Ljubljana's and Maribor's
+airports, Ljubljana - Vič, Nova Gorica, Otlica, Trbovlje): the eight whose
+<tsUpdated_UTC> in the version of 09:38:49 is 09:33, where the other 85 say
+09:34 to 09:37. That version was not recorded. The 31 stations missing at
+09:45:39 were, by id, most of those from R to Z and a few before
+(BORST_GOREN-VAS_, JEZERSKO_, KAMNI-BIS_, LJUBL-ANA_BEZIGRAD_,
+MARIBOR_VRBAN-PLA_), among them Rogla, Vršič, Vogel, Uršlja gora, Zelenica
+and Slavnik; the 10 missing at 09:38:49 came with the next ten minutes.
+
+    observationAms_filling.xml   the version of 09:45:39, fetched 09:47:16
+    observationAms_filled.xml    the version of 09:48:55, fetched 09:50:20
+
+each cut down, as observationAms_si_latest.xml was and checked the same
+way, to those of eight stations that it holds: CELJE_MEDLOG_ (a main
+station, half-hourly), KANIN_, KREDA-ICA_ and KRVAVEC_, which are in both,
+and ROGLA_, URSLJ-GOR_, VOGEL_ and VRSIC_ (no anemometer), which are in the
+second only. So the first holds four <metData> and the second eight. A
+station's own file (observationAms_ROGLA_latest.xml beside it, 9,410 bytes,
+one <metData> in the same form) was asked once at 09:52:50 and is not kept:
+the adapter does not ask it.
+
 The folder evening/ holds three answers of ARSO's archive of measurements
 (https://meteo.arso.gov.si/met/sl/archive/), whole and unchanged, asked at
 about 08:25 UTC:
@@ -96,7 +139,9 @@ reports what it cannot read. The test that uses it says what was changed.
 To record them again: fetch the file, cut it down as above (the counts the
 tests pin are of the fifteen stations and of that moment), set the moment
 in tests/pipeline.rs, run the tests with VENTI_UPDATE_GOLDEN=1 and review
-what changed. The evening sample stays as it is for as long as the
+what changed. Count the <metData> of what was fetched before cutting it: a
+version that is still filling looks like any other, and the two versions
+above want a watch of the headers over ten minutes to be caught again. The evening sample stays as it is for as long as the
 development mode's clock does.
 
 A value in these files is what an instrument reported. It is no statement

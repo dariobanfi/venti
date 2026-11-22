@@ -259,6 +259,10 @@ pub struct MapLayersWords {
     /// where pilots climb now."
     #[uniffi(default = "")]
     pub climbs_too_wide: String,
+    /// When airspace is switched on and the map shows too wide a part to
+    /// draw it: "Zoom in to see airspace."
+    #[uniffi(default = "")]
+    pub airspace_too_wide: String,
     /// When no cell of flown thermals lies in the part shown: "No climbs
     /// from shared flights here yet."
     #[uniffi(default = "")]
@@ -361,6 +365,7 @@ pub fn map_layers_words() -> MapLayersWords {
         flown_thermals_note: "From flights their pilots shared, in every month of the year."
             .to_owned(),
         climbs_too_wide: "Zoom in to see where pilots climb now.".to_owned(),
+        airspace_too_wide: "Zoom in to see airspace.".to_owned(),
         flown_empty: "No climbs from shared flights here yet.".to_owned(),
         on_the_map: "On the map".to_owned(),
         lists_title: "Lists and plans".to_owned(),

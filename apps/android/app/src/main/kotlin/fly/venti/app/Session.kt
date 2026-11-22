@@ -49,6 +49,7 @@ import fly.venti.app.sites.SitesModel
 import fly.venti.app.forecast.ThermalMapModel
 import fly.venti.app.radar.RadarModel
 import fly.venti.app.today.TodayModel
+import fly.venti.app.widget.TakeoffWidgets
 import fly.venti.app.logbook.WatchedFolder
 import fly.venti.app.task.TaskModel
 import fly.venti.app.terrain.TerrainModel
@@ -318,6 +319,9 @@ sealed interface Session {
             social.server = { (wind.server as? WindServer.Usable)?.url }
             // The pilot's own take-offs are on the account too, once signed in.
             logbook.follow(account, keptSites, scope)
+            // The home-screen widgets draw what Today's model reads of the
+            // pilot's own take-offs. A test's take-offs are not the pilot's.
+            if (!isUnderTest) TakeoffWidgets.follow(app, today, keptSites, scope)
             // The pilot's groups and their plans for a flying day, asked
             // of the account's server and kept nowhere.
             val groups = logbook.makeGroups(account)

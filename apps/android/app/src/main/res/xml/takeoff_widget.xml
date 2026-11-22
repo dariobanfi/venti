@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The home-screen widget "the next days at my take-off": two cells by two
+  when placed, resizable up to four by two and back. Android asks for a new
+  drawing every hour, so that a day that has passed and a forecast grown old
+  are said without a network; the forecast itself is brought up to date by
+  TakeoffWidgetRefresh. From Android 12 it is placed without its own screen,
+  showing the pilot's first take-off, and that screen opens from the
+  widget's own menu; before, it opens when the widget is placed.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:configure="fly.venti.app.widget.TakeoffWidgetChoice"
+    android:description="@string/takeoff_widget_about"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:maxResizeHeight="250dp"
+    android:maxResizeWidth="320dp"
+    android:minHeight="110dp"
+    android:minResizeHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minWidth="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="2"
+    android:updatePeriodMillis="3600000"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable|configuration_optional"
+    tools:targetApi="s" />

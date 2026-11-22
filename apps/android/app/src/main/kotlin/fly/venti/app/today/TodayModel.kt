@@ -130,6 +130,13 @@ class TodayModel(
     var forecastPauseMilliseconds = 5_000L
 
     /**
+     * Called with every outlook the server has just been asked for and the
+     * core has read: the home-screen widget keeps what it says of the
+     * pilot's own take-offs (`widget/TakeoffWidgets`).
+     */
+    var onOutlook: (SiteView, SiteOutlook) -> Unit = { _, _ -> }
+
+    /**
      * Where the take-offs were looked for, from which server, when by this
      * device's clock, what the server answered, and how often the pilot
      * had kept or forgotten a site by then.
@@ -181,6 +188,18 @@ class TodayModel(
     suspend fun outlook(site: SiteView): SiteOutlook? {
         places.firstOrNull { it.site.id == site.id }?.outlook?.let { return it }
         askedSites[site.id]?.let { (kept, at) -> if (deviceClock() - at < KEEP_MILLISECONDS) return kept }
+        val server = server() ?: return null
+        val outlook = outlook(site, server, clock()) ?: return null
+        askedSites[site.id] = outlook to deviceClock()
+        return outlook
+    }
+
+    /**
+     * What the forecast says about one site, asked of the server now
+     * whatever is at hand: for what is brought up to date away from the
+     * screen. `null` without a server and when no answer could be read.
+     */
+    suspend fun freshOutlook(site: SiteView): SiteOutlook? {
         val server = server() ?: return null
         val outlook = outlook(site, server, clock()) ?: return null
         askedSites[site.id] = outlook to deviceClock()
@@ -310,7 +329,7 @@ class TodayModel(
                 site.elevationM,
                 nowUnixS,
             )
-        }
+        }.also { onOutlook(site, it) }
     } catch (error: CancellationException) {
         throw error
     } catch (_: Exception) {

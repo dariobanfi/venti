@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The words of the home-screen widget "the next days at my take-off" that
+  the core does not have: all of them, in this one file, so that they can
+  move into the core together. They are resources and not Kotlin because
+  Android reads the widget's name and description for its widget picker
+  from here. A day's name, its status and its line are the core's, and
+  "Reading the forecast" and "No forecast" are Today's (TodayWords).
+-->
+<resources>
+    <!-- In the launcher's widget picker. -->
+    <string name="takeoff_widget_name">Next days at my take-off</string>
+    <string name="takeoff_widget_about">What the forecast says about flying from one of your take-offs, today and the next days.</string>
+    <!-- Under the days: when they were read. "Updated 14:05", "Updated Sat, 21 Nov at 14:05". -->
+    <string name="takeoff_widget_updated">Updated %1$s</string>
+    <!-- In place of everything, while the pilot keeps no take-off. -->
+    <string name="takeoff_widget_no_takeoff">Keep a take-off in Venti to see its next days here.</string>
+    <!-- In place of the days, when what was read is older than a day. -->
+    <string name="takeoff_widget_stale">This forecast is more than a day old. Open Venti for a new one.</string>
+    <!-- The title of the widget's own screen, where the pilot chooses the take-off. -->
+    <string name="takeoff_widget_choose">Take-off on the home screen</string>
+</resources>

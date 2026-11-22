@@ -33,6 +33,7 @@ import fly.venti.app.alerts.AlertNotifications
 import fly.venti.app.design.VentiTheme
 import fly.venti.app.map.MapSetup
 import fly.venti.app.map.MapStyle
+import fly.venti.app.widget.TakeoffWidget
 
 /** The app's one screen-holder. Everything on screen is Compose inside it. */
 class MainActivity : ComponentActivity() {
@@ -41,6 +42,9 @@ class MainActivity : ComponentActivity() {
 
     /** Whether a notification of what an alarm fired opened the app, and "Alerts" is yet to be shown. */
     private var opensAlerts: Boolean by mutableStateOf(false)
+
+    /** Whether a tap on the home-screen widget opened the app, and Today is yet to come to the front. */
+    private var opensToday: Boolean by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val options = LaunchOptions.from(intent)
@@ -68,6 +72,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             incoming = flightFiles(intent)
             opensAlerts = intent.getBooleanExtra(AlertNotifications.OPENS_WHAT_FIRED, false)
+            opensToday = intent.getBooleanExtra(TakeoffWidget.OPENS_TODAY, false)
         }
 
         setContent {
@@ -79,6 +84,8 @@ class MainActivity : ComponentActivity() {
                         onImported = { incoming = emptyList() },
                         opensAlerts = opensAlerts,
                         onAlertsOpened = { opensAlerts = false },
+                        opensToday = opensToday,
+                        onTodayOpened = { opensToday = false },
                     )
                     is Session.Failed -> DataFailure(session.message)
                 }
@@ -92,6 +99,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         incoming = flightFiles(intent)
         opensAlerts = intent.getBooleanExtra(AlertNotifications.OPENS_WHAT_FIRED, false)
+        opensToday = intent.getBooleanExtra(TakeoffWidget.OPENS_TODAY, false)
     }
 
     /** The files an intent brings: one opened with Venti, or one or more shared to it. */

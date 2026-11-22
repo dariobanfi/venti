@@ -366,7 +366,7 @@ private val HOME = Coordinate(lat = 47.6, lon = 11.75)
  * "Tomorrow" in two in the switch (tried on 2026-11-21).
  */
 private fun days(places: List<TodayPlace>): List<OutlookDay> =
-    places.mapNotNull { it.outlook?.days }.maxByOrNull { it.size }.orEmpty().take(3)
+    places.mapNotNull { it.outlook?.days }.maxByOrNull { it.size }.orEmpty().take(TodayWords.DAYS)
 
 /**
  * What a take-off's forecast says of the chosen day: the day that begins at
@@ -380,7 +380,7 @@ internal fun outlookDay(place: TodayPlace, chosen: OutlookDay?): OutlookDay? =
  * the server is still being asked, or that its forecast does not reach the day.
  */
 private fun waitingWords(place: TodayPlace): String =
-    if (place.isAsked) "No forecast for this day" else "Reading the forecast"
+    if (place.isAsked) "No forecast for this day" else TodayWords.READING
 
 /** "Saturday, near you", or the day alone while the take-offs are those around the middle of the first region. */
 private fun dayLine(days: List<OutlookDay>, day: Int, isNearPilot: Boolean): String {
@@ -391,12 +391,12 @@ private fun dayLine(days: List<OutlookDay>, day: Int, isNearPilot: Boolean): Str
 
 /** The day in a line: the best take-off's. Before there is one, what the screen is waiting for. */
 private fun headline(state: TodayState, shown: TodayList, day: OutlookDay?): String = when (state) {
-    is TodayState.Failed -> "No forecast"
-    TodayState.Idle, TodayState.Loading -> "Reading the forecast"
+    is TodayState.Failed -> TodayWords.NO_FORECAST
+    TodayState.Idle, TodayState.Loading -> TodayWords.READING
     TodayState.Loaded -> when {
         shown.isEmpty -> "No take-offs near"
         else -> shown.card?.let { outlookDay(it, day) }?.headline
-            ?: if (shown.all.all { it.isAsked }) "No forecast" else "Reading the forecast"
+            ?: if (shown.all.all { it.isAsked }) TodayWords.NO_FORECAST else TodayWords.READING
     }
 }
 
@@ -713,6 +713,15 @@ private fun Foot(
 
 /** Today's own words. */
 object TodayWords {
+    /** How many of the forecast's days Today offers: see `days`. The home-screen widget shows no day beyond them. */
+    const val DAYS = 3
+
+    /** In place of a day's line while the server is being asked. */
+    const val READING = "Reading the forecast"
+
+    /** In place of a day's line when there is none to show. */
+    const val NO_FORECAST = "No forecast"
+
     /** Under a day's hours, in a line: what the numbers and the bars are. */
     fun hours(withThermals: Boolean): String =
         todayWords().let { if (withThermals) it.hourStripNoteWithThermals else it.hourStripNote }

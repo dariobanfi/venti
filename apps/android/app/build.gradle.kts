@@ -106,6 +106,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.maplibre)
     implementation(libs.androidx.work)
+    // The home-screen widget, "the next days at my take-off".
+    implementation(libs.androidx.glance.appwidget)
     // "Continue with Google": Android's Credential Manager asks Google's
     // services on the phone for an ID token, which the app hands to Venti.
     implementation(libs.androidx.credentials)

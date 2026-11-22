@@ -7,6 +7,11 @@
 # JUnit 4 is EPL-1.0 and Hamcrest BSD-3-Clause; they run the tests and are
 # not part of the app.
 #
+# The home-screen widget (read 2026-11-22 in the POMs): androidx.glance's
+# glance-appwidget is Apache-2.0, and so are the AndroidX libraries it
+# brings (DataStore among them); the protobuf-javalite it carries inside
+# is BSD-3-Clause.
+#
 # "Continue with Google" (read 2026-11-21 in the POMs): androidx.credentials
 # and credentials-play-services-auth are Apache-2.0; Google's googleid and
 # the play-services-identity-credentials it pulls in are under the "Android
@@ -25,6 +30,7 @@ serialization-json = "1.13.0"
 maplibre = "13.7.1"
 jna = "5.19.1"
 work = "2.11.0"
+glance = "1.2.0"
 credentials = "1.6.0"
 googleid = "1.1.1"
 junit = "4.13.2"
@@ -44,6 +50,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 maplibre = { module = "org.maplibre.gl:android-sdk-opengl", version.ref = "maplibre" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 androidx-work = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
 androidx-credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
 googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }

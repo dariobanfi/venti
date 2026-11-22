@@ -97,6 +97,10 @@ fun RootScreen(
     opensAlerts: Boolean = false,
     /** Called once it has. */
     onAlertsOpened: () -> Unit = {},
+    /** Whether a tap on the home-screen widget opened the app: Today comes to the front. */
+    opensToday: Boolean = false,
+    /** Called once it has. */
+    onTodayOpened: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -109,6 +113,14 @@ fun RootScreen(
         if (opensAlerts) {
             navigation.showAlerts()
             onAlertsOpened()
+        }
+    }
+
+    LaunchedEffect(opensToday) {
+        if (opensToday) {
+            navigation.tab = AppTab.Today
+            navigation.todayRoute = null
+            onTodayOpened()
         }
     }
 

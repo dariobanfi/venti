@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- An empty screen a UI test lays the home-screen widget's views
+             on, to look at them without a launcher. In debug builds only. -->
+        <activity
+            android:name=".widget.WidgetStage"
+            android:exported="false" />
+    </application>
+</manifest>

@@ -133,17 +133,17 @@ fun PublicFlightScreen(
         )
         Column(Modifier.fillMaxWidth().statusBarsPadding()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = VentiSpace.s2, vertical = VentiSpace.s1),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilledTonalIconButton(onClick = onBack, colors = colours) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(VentiSpace.s2))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerLow, shadowElevation = 2.dp) {
                         Column(
-                            Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Text(
@@ -169,7 +169,7 @@ fun PublicFlightScreen(
                         }
                     }
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(VentiSpace.s2))
                 Box {
                     FilledTonalIconButton(onClick = { isShowingMenu = true }, colors = colours) {
                         Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")

@@ -35,6 +35,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -5924,9 +5925,10 @@ class VentiUiTest {
         tap(lenas)
         waitFor(hasTestTag("public-flight-pilot") and hasText("Lena Probe"))
         waitFor(hasTestTag("flight-cheer"))
-        if (!exists(hasText("You cheered"))) tap(hasTestTag("flight-cheer"))
-        waitFor(hasText("You cheered"))
-        assertTrue(exists(hasTestTag("flight-cheer") and hasText("Cheered")))
+        if (!exists(hasTestTag("flight-cheer") and hasText("Cheered"))) tap(hasTestTag("flight-cheer"))
+        waitFor(hasTestTag("flight-cheer") and hasText("Cheered"))
+        // The pilot alone cheered: the button says it, and no line beside it says it again.
+        assertFalse(exists(hasTestTag("flight-cheers-line")))
         tap(hasTestTag("flight-comments"))
         waitFor(hasTestTag("comment-text"))
         screen.onNode(hasTestTag("comment-text")).performTextInput("Nice line along the ridge.")
@@ -5960,6 +5962,208 @@ class VentiUiTest {
         waitFor(hasTestTag("feed-row"))
         letTheMapDraw(1)
         keepScreenshot("dark-social-feed")
+    }
+
+    /**
+     * The sheets of 2026-11-22 over the map, as `design/AGENTS.md` asks
+     * them to be looked at: the credits, the layers sheet from its head to
+     * its end, a site's page with "How this is read" unfolded, and the
+     * alarm form's "Pilots in the air". On a narrow screen also the
+     * cockpit's "Details" and the glider's settings, which the dark
+     * cockpit test already shows dark. Only the screenshots and that
+     * nothing leaves the screen matter here. Skipped without a server.
+     */
+    private fun walkTheMapsSheets(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        TestDevice.allowNotifications()
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        if (prefix == "narrow") {
+            tap(tab("Fly"))
+            waitFor(hasText("Replay the sample flight"))
+            tap(hasText("Replay the sample flight"))
+            waitFor(hasText("20 times faster"))
+            tap(hasText("20 times faster"))
+            waitFor(described("Altitude"))
+            turnTo("Flight")
+            waitFor(described("Flight time"))
+            tap(hasTestTag("cockpit-details"))
+            waitFor(hasTestTag("cockpit-details-sheet"))
+            waitFor(hasTestTag("cockpit-detail") and described("Altitude"))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-sheets-0a-cockpit-details")
+            tap(hasTestTag("cockpit-details-close"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cockpit-details-sheet")) }
+            holdToEnd()
+            waitFor(hasText("Open the cockpit"))
+            openFromToday("Settings")
+            waitFor(hasText("Vario sound"))
+            screen.onNode(hasTestTag("never-land")).performScrollTo()
+            assertTrue(exists(hasTestTag("glider-class")))
+            TestDevice.letTheAppRun(screen, 1)
+            keepScreenshot("$prefix-sheets-0b-glider")
+            tap(tab("Map"))
+        }
+        signInAsTheDemoPilot()
+        tap(described("Back"))
+        waitFor(tab("Map"))
+        tap(tab("Map"))
+        waitFor(described("Show my position"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.655, lon = 11.775, zoom = 11.0))
+        waitFor(hasTestTag("sites-filter-open"))
+
+        tap(hasTestTag("map-credits"))
+        val credits = hasTestTag("wind-credits")
+        waitFor(credits and hasText("Sites: OpenStreetMap contributors"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sheets-1-credits")
+        tap(hasTestTag("credits-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(credits) }
+
+        openLayers()
+        waitFor(hasTestTag("layer-forecast"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sheets-2-layers")
+        screen.onNode(hasTestTag("layer-flown")).performScrollTo()
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sheets-3-layers-end")
+        closeLayers()
+
+        // A site's page from the map, with what explains it unfolded.
+        tapChip("layer-wind")
+        tapChip("layer-pilots")
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.6652, lon = 11.7954, zoom = 13.0))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
+        }
+        letTheMapDraw(2)
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6652212, lon = 11.7954245)))
+        waitFor(hasTestTag("site-page"))
+        waitFor(hasTestTag("site-air"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sheets-4-site")
+        unfoldHowASiteIsRead()
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sheets-5-site-how-read")
+
+        // The alarm form's second kind.
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-alert-me"))
+        tap(hasTestTag("site-alert-me"))
+        waitFor(hasTestTag("alert-form"))
+        val kinds = hasAnyAncestor(hasTestTag("alert-kind"))
+        waitFor(hasText("Pilots in the air") and kinds)
+        tap(hasText("Pilots in the air") and kinds)
+        waitFor(hasTestTag("alert-line") and hasText("pilots or more in the air at ", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sheets-6-alert-pilots")
+        screen.onNode(hasTestTag("alert-pilots-note")).performScrollTo()
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sheets-7-alert-pilots-note")
+    }
+
+    @Test
+    fun theMapsSheetsInDarkAppearance() = walkTheMapsSheets("dark", dark = true)
+
+    @Test
+    fun theMapsSheetsOnANarrowScreenWithLargeText() {
+        TestDevice.narrowWithLargeText()
+        try {
+            walkTheMapsSheets("narrow", dark = false)
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
+    }
+
+    /**
+     * Pilots among each other, looked at and not changed (but for a cheer
+     * on Lena Probe's flight, which [pilotsFollowCheerAndWriteUnderAFlight]
+     * takes either way): the notifications, the pilot's own flight with
+     * its pills, its comments, Timo Entwurf's page with "Follow", the feed,
+     * and another pilot's flight cheered, where the button alone says so.
+     * Skipped without a server.
+     */
+    private fun walkThePilotsScreens(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        signInAsTheDemoPilot()
+        val width = screen.onRoot().fetchSemanticsNode().boundsInRoot.right
+
+        screen.onNode(hasTestTag("account-notifications")).performScrollTo()
+        tap(hasTestTag("account-notifications"))
+        waitFor(hasTestTag("notification"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-social-1-notifications")
+
+        val commented = hasText("Mara Muster (@mara) commented on your flight", substring = true)
+        tap(commented)
+        waitFor(hasTestTag("public-flight-pilot") and hasText("Demo Pilot"))
+        waitFor(hasTestTag("flight-comments"))
+        waitFor(hasTestTag("flight-cheers-line"))
+        for (tag in listOf("flight-comments", "flight-cheers-line", "public-flight-pilot")) {
+            val part = boundsOf(tag)
+            assertTrue("$tag leaves the screen", part.left >= 0f && part.right <= width)
+        }
+        letTheMapDraw()
+        keepScreenshot("$prefix-social-2-own-flight")
+        tap(hasTestTag("flight-comments"))
+        waitFor(hasTestTag("comments-count"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-social-3-comments")
+        tap(hasTestTag("comments-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("comments")) }
+        tap(described("Back"))
+
+        waitFor(hasTestTag("league-following"))
+        val field = hasTestTag("pilot-search")
+        waitFor(field)
+        screen.onNode(field).performTextInput("timo")
+        val timo = hasText("Timo Entwurf (@timo)", substring = true)
+        waitFor(timo)
+        tap(timo)
+        waitFor(hasTestTag("pilot-follow"))
+        waitFor(hasTestTag("pilot-follows"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-social-4-pilot")
+        tap(described("Back"))
+        waitFor(timo)
+        tap(described("Clear the search"))
+
+        tap(hasTestTag("league-following"))
+        waitFor(hasTestTag("league-following") and isSelected())
+        waitFor(hasTestTag("feed-row"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-social-5-feed")
+
+        val feed = screen.onNode(hasTestTag("feed"))
+        val lenas = hasTestTag("feed-row") and described("Lena Probe")
+        feed.performScrollToNode(lenas)
+        tap(lenas)
+        waitFor(hasTestTag("public-flight-pilot") and hasText("Lena Probe"))
+        waitFor(hasTestTag("flight-cheer"))
+        if (!exists(hasTestTag("flight-cheer") and hasText("Cheered"))) tap(hasTestTag("flight-cheer"))
+        waitFor(hasTestTag("flight-cheer") and hasText("Cheered"))
+        waitFor(hasTestTag("flight-comments"))
+        for (tag in listOf("flight-cheer", "flight-comments")) {
+            val part = boundsOf(tag)
+            assertTrue("$tag leaves the screen", part.left >= 0f && part.right <= width)
+        }
+        letTheMapDraw()
+        keepScreenshot("$prefix-social-6-cheered")
+    }
+
+    @Test
+    fun pilotsAmongEachOtherInDarkAppearance() = walkThePilotsScreens("dark", dark = true)
+
+    @Test
+    fun pilotsAmongEachOtherOnANarrowScreenWithLargeText() {
+        TestDevice.narrowWithLargeText()
+        try {
+            walkThePilotsScreens("narrow", dark = false)
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
     }
 }
 

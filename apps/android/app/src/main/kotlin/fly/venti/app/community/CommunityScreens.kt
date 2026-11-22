@@ -508,7 +508,7 @@ internal fun PublicFlightRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TrackThumbnail(flight.outline)
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(VentiSpace.s3))
                 Column(Modifier.weight(1f)) {
                     Text(
                         flight.pilot,
@@ -524,7 +524,7 @@ internal fun PublicFlightRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(VentiSpace.s2))
                 Column(horizontalAlignment = Alignment.End) {
                     // The scored cross-country distance; a triangle is marked.
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -535,7 +535,7 @@ internal fun PublicFlightRow(
                                 modifier = Modifier.size(14.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Spacer(Modifier.width(3.dp))
+                            Spacer(Modifier.width(VentiSpace.s1))
                         }
                         Text(CommunityWords.distance(flight), style = MaterialTheme.typography.titleMedium.numbers)
                     }

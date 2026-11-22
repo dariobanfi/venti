@@ -167,7 +167,7 @@ fun LinkRow(
             .clickable(role = Role.Button, onClick = onClick)
             .heightIn(min = 52.dp)
             // Room above and below a title of two lines, which large text makes of a sentence.
-            .padding(horizontal = 16.dp, vertical = VentiSpace.s2),
+            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
@@ -199,7 +199,7 @@ fun DisclosureRow(title: String, isOpen: Boolean, modifier: Modifier = Modifier,
             .fillMaxWidth()
             .toggleable(value = isOpen, role = Role.Button, onValueChange = onChange)
             .heightIn(min = 52.dp)
-            .padding(horizontal = 16.dp, vertical = VentiSpace.s2),
+            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))

@@ -263,7 +263,8 @@ fun FlightSocialBar(
         ) {
             cheers?.let { shown ->
                 val cheered = shown.cheered
-                if (cheered != null && social.isSignedIn && !isOwn) {
+                val showsButton = cheered != null && social.isSignedIn && !isOwn
+                if (showsButton && cheered != null) {
                     Pill(
                         shown.button,
                         Modifier
@@ -290,7 +291,10 @@ fun FlightSocialBar(
                         isOn = cheered,
                     )
                 }
-                if (shown.line.isNotEmpty()) {
+                // Beside the button, a line of the pilot's own cheer alone
+                // ("You cheered") would only say again what "Cheered" says.
+                val repeatsButton = showsButton && shown.cheered == true && shown.count == 1u
+                if (shown.line.isNotEmpty() && !repeatsButton) {
                     Pill(shown.line, Modifier.testTag("flight-cheers-line"), quiet = true)
                 }
             }

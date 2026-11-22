@@ -1,5 +1,6 @@
 package fly.venti.app.wind
 
+import app.venti.design.VentiSpace
 import fly.venti.core.stationSheetWords
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -198,7 +199,7 @@ fun StationPage(
                 // What the weather models say about the same place, and an
                 // alarm for this station's wind.
                 val alerts = LocalAlerts.current
-                Group(Modifier.padding(top = 24.dp)) {
+                Group(Modifier.padding(top = VentiSpace.s5)) {
                     row {
                         LinkRow(
                             "Forecast for this place",
@@ -218,7 +219,7 @@ fun StationPage(
             // What the core reads of the air from the readings, and how the
             // chart's hours are to be read: behind a row at the end.
             item {
-                Group(Modifier.padding(top = 24.dp)) {
+                Group(Modifier.padding(top = VentiSpace.s5)) {
                     row {
                         DisclosureRow(
                             stationSheetWords().moreAirTitle,

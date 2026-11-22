@@ -1,5 +1,6 @@
 package fly.venti.app.settings
 
+import app.venti.design.VentiSpace
 import fly.venti.core.gliderClassName
 import fly.venti.core.gliderWords
 import fly.venti.app.maps.OfflineMapsWords
@@ -256,7 +257,8 @@ private fun SwitchRow(title: String, isOn: Boolean, modifier: Modifier = Modifie
             .fillMaxWidth()
             .toggleable(value = isOn, role = Role.Switch, onValueChange = onChange)
             .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp),
+            // Room above and below a title of two lines, which large text makes of a long one.
+            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))

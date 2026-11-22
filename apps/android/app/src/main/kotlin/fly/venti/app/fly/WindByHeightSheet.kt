@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import app.venti.design.VentiSpace
 import fly.venti.core.GroundWindStation
 import fly.venti.core.GroundWind
 import fly.venti.core.Credit
@@ -147,7 +148,7 @@ fun WindByHeightSheet(
                     Text(
                         words,
                         style = MaterialTheme.typography.bodyLarge.numbers,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp).testTag("wind-words"),
+                        modifier = Modifier.padding(horizontal = VentiSpace.s1, vertical = VentiSpace.s2).testTag("wind-words"),
                     )
                 }
             }

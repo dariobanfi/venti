@@ -2,7 +2,7 @@
   "version": 8,
   "name": "Venti",
   "metadata": {
-    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the URLs of the base map and the terrain are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote. The map has two views, the drawn ground and the aerial view: photographs from above, laid over the drawn ground and under the names and everything an app draws. A layer that belongs to one view only says so in its metadata, venti:view, as drawn or aerial; an app shows the layers of the view the pilot chose and hides the other's, and every other layer stays. The file stands in the drawn view, and nothing of the photographs is fetched while they are hidden. The world's, Switzerland's, South Tyrol's and Bavaria's are fetched from their providers, at addresses that are the same for every app. Austria's come through Venti, which cuts them at the border: the address begins with a placeholder for the Venti server an app talks to, and an app that has none leaves that source and its layer out. Switzerland's and South Tyrol's photographs reach beyond their borders, by a kilometre and more, and are transparent further out, so they lie under Austria's and Bavaria's: where two meet, the later layer covers the earlier. docs/data-sources.md has each provider's terms. Each layer of photographs names its maker in a few words in its metadata, venti:credit: an app's short credit line on the map lists the makers whose photographs are in view, which are the layers whose source's bounds meet the part of the map on screen at a zoom the layer is shown at. A layer an app's chip switches on and off says which in its metadata, venti:layer; the first is the thermal map of thermal.kk7.ch, hidden as the file stands. Its author asks every request to name the app's domain: the address ends in a placeholder for it, and an app that has no domain to name leaves that source and its layer out, so nothing is asked of his server without saying who asks."
+    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the URLs of the base map and the terrain are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote. The map has two views, the drawn ground and the aerial view: photographs from above, laid over the drawn ground and under the names and everything an app draws. A layer that belongs to one view only says so in its metadata, venti:view, as drawn or aerial; an app shows the layers of the view the pilot chose and hides the other's, and every other layer stays. The file stands in the drawn view, and nothing of the photographs is fetched while they are hidden. The layers of photographs, the lowest first: the world's (EOX's mosaic of 2025, a layer of its own, since its licence's share-alike binds what is made of it), Switzerland's, South Tyrol's, France's, Austria's, Baden-Württemberg's and Bavaria's. The world's, Switzerland's, South Tyrol's, Baden-Württemberg's and Bavaria's are fetched from their providers, at addresses that are the same for every app; Baden-Württemberg's from a WMS, whose address carries {bbox-epsg-3857} for the map engine to fill per tile. France's and Austria's come through Venti, which cuts them at the border: the address begins with a placeholder for the Venti server an app talks to, and an app that has none leaves those sources and their layers out. Switzerland's, South Tyrol's and Baden-Württemberg's photographs reach beyond their borders, by a kilometre and more, and are transparent further out, so they lie under the layers after them: where two meet, the later layer covers the earlier, and Bavaria's covers Baden-Württemberg's. docs/data-sources.md has each provider's terms. Each layer of photographs names its maker in a few words in its metadata, venti:credit: an app's short credit line on the map lists the makers whose photographs are in view, which are the layers whose source's bounds meet the part of the map on screen at a zoom the layer is shown at. A layer an app's chip switches on and off says which in its metadata, venti:layer; the first is the thermal map of thermal.kk7.ch, hidden as the file stands. Its author asks every request to name the app's domain: the address ends in a placeholder for it, and an app that has no domain to name leaves that source and its layer out, so nothing is asked of his server without saying who asks."
   },
   "glyphs": "__GLYPHS_URL__/{fontstack}/{range}.pbf",
   "sources": {
@@ -27,11 +27,11 @@
     "aerial-world": {
       "type": "raster",
       "tiles": [
-        "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"
+        "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"
       ],
       "tileSize": 256,
       "maxzoom": 13,
-      "attribution": "<a href=\"https://cloudless.eox.at\">EOxCloudless</a> by <a href=\"https://eox.at\">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2016 &amp; 2017)"
+      "attribution": "<a href=\"https://cloudless.eox.at\">EOxCloudless</a> by <a href=\"https://eox.at\">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2025), <a href=\"https://creativecommons.org/licenses/by-nc-sa/4.0/\">CC BY-NC-SA 4.0</a>"
     },
     "aerial-switzerland": {
       "type": "raster",
@@ -53,6 +53,15 @@
       "bounds": [10.3506, 46.175, 12.5246, 47.1414],
       "attribution": "© <a href=\"https://natur-raum.provinz.bz.it/de/orthofotos-und-historische-luftbilder\">Autonome Provinz Bozen - Südtirol</a>, Orthofoto 2023, <a href=\"https://creativecommons.org/licenses/by/4.0/deed.de\">CC BY 4.0</a>"
     },
+    "aerial-france": {
+      "type": "raster",
+      "tiles": ["__VENTI_SERVER__/v1/imagery/ign-ortho/{z}/{x}/{y}"],
+      "tileSize": 256,
+      "minzoom": 13,
+      "maxzoom": 19,
+      "bounds": [-5.1413, 41.3335, 9.56, 51.0892],
+      "attribution": "<a href=\"https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO\">IGN – BD ORTHO®</a>"
+    },
     "aerial-austria": {
       "type": "raster",
       "tiles": ["__VENTI_SERVER__/v1/imagery/basemap-at/{z}/{x}/{y}"],
@@ -60,6 +69,16 @@
       "maxzoom": 19,
       "bounds": [9.5307, 46.3723, 17.1608, 49.0205],
       "attribution": "<a href=\"https://basemap.at\">Datenquelle: basemap.at</a>"
+    },
+    "aerial-baden-wuerttemberg": {
+      "type": "raster",
+      "tiles": [
+        "https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IMAGES_DOP_20_RGB&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true"
+      ],
+      "tileSize": 256,
+      "maxzoom": 19,
+      "bounds": [7.20, 47.40, 10.70, 50.00],
+      "attribution": "<a href=\"https://www.lgl-bw.de\">LGL-BW</a> (2026) <a href=\"https://www.govdata.de/dl-de/by-2-0\">Datenlizenz Deutschland - Namensnennung - Version 2.0</a>"
     },
     "aerial-bavaria": {
       "type": "raster",
@@ -176,10 +195,26 @@
       "layout": { "visibility": "none" }
     },
     {
+      "id": "aerial-france",
+      "type": "raster",
+      "metadata": { "venti:view": "aerial", "venti:credit": "IGN" },
+      "source": "aerial-france",
+      "minzoom": 12,
+      "layout": { "visibility": "none" }
+    },
+    {
       "id": "aerial-austria",
       "type": "raster",
       "metadata": { "venti:view": "aerial", "venti:credit": "basemap.at" },
       "source": "aerial-austria",
+      "minzoom": 11,
+      "layout": { "visibility": "none" }
+    },
+    {
+      "id": "aerial-baden-wuerttemberg",
+      "type": "raster",
+      "metadata": { "venti:view": "aerial", "venti:credit": "LGL-BW" },
+      "source": "aerial-baden-wuerttemberg",
       "minzoom": 11,
       "layout": { "visibility": "none" }
     },

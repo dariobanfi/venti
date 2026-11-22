@@ -22,8 +22,8 @@ export const ONLINE = {
 	/**
 	 * Where the photographs of the aerial view come from: EOX for the whole
 	 * world, swisstopo for Switzerland, the province of Bolzano for South
-	 * Tyrol, the Bavarian survey office for Bavaria. Austria's come through
-	 * Venti's own server. Their addresses stand in the shared style
+	 * Tyrol, the LGL for Baden-Württemberg, the Bavarian survey office for
+	 * Bavaria. France's and Austria's come through Venti's own server. Their addresses stand in the shared style
 	 * (`map/style.json`), the same for every app; here are their hosts, for
 	 * the policy, and a test holds the two together.
 	 */
@@ -31,6 +31,7 @@ export const ONLINE = {
 		'https://tiles.maps.eox.at',
 		'https://wmts.geo.admin.ch',
 		'https://geoservices.buergernetz.bz.it',
+		'https://owsproxy.lgl-bw.de',
 		'https://wmtsod1.bayernwolke.de'
 	],
 	/**

@@ -11,6 +11,11 @@ function around(lat: number, lon: number): Area {
 
 const TEGERNSEE = around(47.71, 11.75);
 const INTERLAKEN = around(46.69, 7.86);
+const GRENOBLE = around(45.19, 5.72);
+/** Annecy lies inside the box of Switzerland's photographs, which are transparent there. */
+const ANNECY = around(45.9, 6.13);
+const ISNY = around(47.69, 10.04);
+const FREIBURG = around(48.0, 7.85);
 
 describe('the short line of whose the photographs are', () => {
 	const makers = aerialMakers(mapStyle(where));
@@ -20,7 +25,9 @@ describe('the short line of whose the photographs are', () => {
 			'EOX',
 			'swisstopo',
 			'Autonome Provinz Bozen - Südtirol',
+			'IGN',
 			'basemap.at',
+			'LGL-BW',
 			'Bayerische Vermessungsverwaltung'
 		]);
 		// The world's photographs have no bounds; the others have theirs from the source.
@@ -32,13 +39,28 @@ describe('the short line of whose the photographs are', () => {
 		expect(photosCredit(makers, TEGERNSEE, 12)).toBe(
 			'Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX'
 		);
-		expect(photosCredit(makers, INTERLAKEN, 12)).toBe('Photos: swisstopo · EOX');
+		expect(photosCredit(makers, INTERLAKEN, 11)).toBe('Photos: swisstopo · EOX');
+		// France's box (Corsica to Alsace) takes in western Switzerland:
+		// the line goes by the boxes, and names IGN there from zoom 12.
+		expect(photosCredit(makers, INTERLAKEN, 12)).toBe('Photos: swisstopo · IGN · EOX');
+		expect(photosCredit(makers, FREIBURG, 11)).toBe('Photos: LGL-BW · EOX');
+		expect(photosCredit(makers, ISNY, 14)).toBe(
+			'Photos: swisstopo · basemap.at · LGL-BW · Bayerische Vermessungsverwaltung · EOX'
+		);
+	});
+
+	it('names France’s photographs from zoom 12, inside their box', () => {
+		expect(photosCredit(makers, GRENOBLE, 11)).toBe('Photos: EOX');
+		expect(photosCredit(makers, GRENOBLE, 12)).toBe('Photos: IGN · EOX');
+		expect(photosCredit(makers, ANNECY, 15)).toBe('Photos: swisstopo · IGN · EOX');
+		expect(photosCredit(makers, TEGERNSEE, 15)).not.toContain('IGN');
 	});
 
 	it('names only the world’s before the zoom the regions’ photographs show from', () => {
 		expect(photosCredit(makers, TEGERNSEE, 8)).toBe('Photos: EOX');
 		expect(photosCredit(makers, INTERLAKEN, 8)).toBe('Photos: EOX');
 		expect(photosCredit(makers, around(46.5, 11.35), 8)).toBe('Photos: EOX');
+		expect(photosCredit(makers, FREIBURG, 10)).toBe('Photos: EOX');
 	});
 
 	it('does not name a maker whose layer the loaded style lacks', () => {

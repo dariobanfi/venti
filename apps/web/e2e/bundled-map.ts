@@ -70,6 +70,7 @@ export const AERIAL_HOSTS = [
 	'tiles.maps.eox.at',
 	'wmts.geo.admin.ch',
 	'geoservices.buergernetz.bz.it',
+	'owsproxy.lgl-bw.de',
 	'wmtsod1.bayernwolke.de'
 ];
 

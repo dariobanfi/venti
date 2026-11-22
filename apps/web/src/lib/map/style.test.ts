@@ -20,7 +20,9 @@ describe('the map style prepared for the browser', () => {
 		expect(style.version).toBe(8);
 		expect(Object.keys(style.sources).sort()).toEqual([
 			'aerial-austria',
+			'aerial-baden-wuerttemberg',
 			'aerial-bavaria',
+			'aerial-france',
 			'aerial-south-tyrol',
 			'aerial-switzerland',
 			'aerial-world',
@@ -78,7 +80,9 @@ describe('the map style prepared for the browser', () => {
 			'aerial-world',
 			'aerial-switzerland',
 			'aerial-south-tyrol',
+			'aerial-france',
 			'aerial-austria',
+			'aerial-baden-wuerttemberg',
 			'aerial-bavaria',
 			'aerial-road',
 			'aerial-aerialway-casing'
@@ -88,7 +92,9 @@ describe('the map style prepared for the browser', () => {
 			'aerial-world',
 			'aerial-switzerland',
 			'aerial-south-tyrol',
+			'aerial-france',
 			'aerial-austria',
+			'aerial-baden-wuerttemberg',
 			'aerial-bavaria'
 		]);
 		// The file stands in the drawn view: nothing of the photographs is fetched.
@@ -123,15 +129,52 @@ describe('the map style prepared for the browser', () => {
 		}
 	});
 
-	it('asks Venti itself for Austria’s photographs, which it cuts at the border', () => {
-		const austria = mapStyle().sources['aerial-austria'] as {
+	it('asks Venti itself for France’s and Austria’s photographs, which it cuts at the border', () => {
+		const sources = mapStyle().sources;
+		const austria = sources['aerial-austria'] as { tiles: string[]; attribution: string };
+		const france = sources['aerial-france'] as {
 			tiles: string[];
 			attribution: string;
+			minzoom: number;
+			bounds: number[];
 		};
 
 		// Under the app's own address: here, where there is none, a path alone.
 		expect(austria.tiles).toEqual(['/v1/imagery/basemap-at/{z}/{x}/{y}']);
 		expect(austria.attribution).toContain('basemap.at');
+		expect(france.tiles).toEqual(['/v1/imagery/ign-ortho/{z}/{x}/{y}']);
+		expect(france.attribution).toContain('IGN – BD ORTHO®');
+		expect(france.minzoom).toBe(13);
+		expect(france.bounds).toEqual([-5.1413, 41.3335, 9.56, 51.0892]);
+	});
+
+	it('asks Baden-Württemberg’s map server for each tile by its box, transparent beyond the state', () => {
+		const source = mapStyle().sources['aerial-baden-wuerttemberg'] as {
+			tiles: string[];
+			attribution: string;
+		};
+
+		expect(source.tiles).toHaveLength(1);
+		const address = new URL(source.tiles[0]);
+		expect(address.origin).toBe('https://owsproxy.lgl-bw.de');
+		expect(address.searchParams.get('CRS')).toBe('EPSG:3857');
+		expect(address.searchParams.get('BBOX')).toBe('{bbox-epsg-3857}');
+		expect(address.searchParams.get('FORMAT')).toBe('image/png');
+		expect(address.searchParams.get('TRANSPARENT')).toBe('true');
+		expect(source.attribution).toContain('Datenlizenz Deutschland - Namensnennung - Version 2.0');
+		// It lies under Bavaria's, which covers it where the two meet.
+		const ids = mapStyle().layers.map((layer) => layer.id);
+		expect(ids.indexOf('aerial-baden-wuerttemberg')).toBe(ids.indexOf('aerial-bavaria') - 1);
+	});
+
+	it('takes the world’s mosaic from EOX’s edition of 2025, under its own licence', () => {
+		const world = mapStyle().sources['aerial-world'] as { tiles: string[]; attribution: string };
+
+		expect(world.tiles).toEqual([
+			'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg'
+		]);
+		expect(world.attribution).toContain('Copernicus Sentinel data 2025');
+		expect(world.attribution).toContain('CC BY-NC-SA 4.0');
 	});
 
 	it('has the thermal map only where the page has a domain to name to its author', () => {
@@ -165,9 +208,12 @@ describe('the map style prepared for the browser', () => {
 		const at = style.layers.findIndex((one) => one.id === 'thermals');
 		expect(style.layers.slice(at + 1).some((one) => one.type === 'fill')).toBe(false);
 		expect(at).toBeGreaterThan(style.layers.findIndex((one) => one.id === 'aerial-bavaria'));
-		// And Venti's own address is where Austria's photographs are asked for.
+		// And Venti's own address is where France's and Austria's photographs are asked for.
 		expect((style.sources['aerial-austria'] as { tiles: string[] }).tiles).toEqual([
 			'https://venti.example/v1/imagery/basemap-at/{z}/{x}/{y}'
+		]);
+		expect((style.sources['aerial-france'] as { tiles: string[] }).tiles).toEqual([
+			'https://venti.example/v1/imagery/ign-ortho/{z}/{x}/{y}'
 		]);
 	});
 

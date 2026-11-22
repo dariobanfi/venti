@@ -17,6 +17,7 @@ import {
 	mapTool,
 	openCredits,
 	openLayers,
+	showMyPosition,
 	closeLayers,
 	layerSwitch,
 	switchAirspaceOn,
@@ -153,6 +154,8 @@ test('the layers’ sheet lays photographs from above under the map, and the bro
 	if (wide) {
 		for (const wording of [
 			'EOxCloudless',
+			'Copernicus Sentinel data 2025',
+			'CC BY-NC-SA 4.0',
 			'©swisstopo',
 			'Autonome Provinz Bozen - Südtirol',
 			'Datenquelle: basemap.at',
@@ -190,6 +193,78 @@ test('the layers’ sheet lays photographs from above under the map, and the bro
 	await expect(page.getByText(/^Photos: /)).toHaveCount(0);
 	expect(problems).toEqual([]);
 });
+
+/**
+ * Where the aerial view has photographs beyond the development region: in
+ * Baden-Württemberg, from the LGL's map server, a tile asked for by its box
+ * (the test browser answers it with the square of green); and in France,
+ * through Venti, which the development server answers with seven recorded
+ * tiles around Annecy at zoom 15, real photographs, and with nothing
+ * elsewhere. Outside the Tegernsee valley the test's drawn map is blank.
+ */
+for (const place of [
+	{
+		name: 'Baden-Württemberg',
+		at: { latitude: 47.69, longitude: 10.04 },
+		asked:
+			/^https:\/\/owsproxy\.lgl-bw\.de\/owsproxy\/ows\/WMS_LGL-BW_ATKIS_DOP_20_C\?.*BBOX=[-\d.]+,[-\d.]+,[-\d.]+,[-\d.]+&/,
+		credit: 'LGL-BW',
+		wording: 'Datenlizenz Deutschland - Namensnennung - Version 2.0',
+		screenshot: '101b-map-aerial-baden-wuerttemberg'
+	},
+	{
+		name: 'France',
+		at: { latitude: 45.9, longitude: 6.13 },
+		asked: /\/v1\/imagery\/ign-ortho\/15\/\d+\/\d+$/,
+		credit: 'IGN',
+		wording: 'IGN – BD ORTHO®',
+		screenshot: '101c-map-aerial-france'
+	}
+]) {
+	test(`the aerial view has ${place.name}’s photographs`, async ({
+		context,
+		page,
+		mapDrawn,
+		keep,
+		wide
+	}) => {
+		const asked: string[] = [];
+		const answered: number[] = [];
+		page.on('request', (request) => {
+			if (place.asked.test(request.url())) asked.push(request.url());
+		});
+		page.on('response', (response) => {
+			if (place.asked.test(response.url())) answered.push(response.status());
+		});
+		await context.addInitScript(() => localStorage.setItem('venti.map-aerial', 'on'));
+		await context.grantPermissions(['geolocation']);
+		await context.setGeolocation(place.at);
+		await page.goto('/map/');
+		await mapTabDrawn(page, mapDrawn);
+		await showMyPosition(page, mapDrawn);
+		// One step in from the hillside's zoom: zoom 13.5, at which the map
+		// asks for tiles of 256 pixels at zoom 15.
+		const canvas = page.locator('canvas.maplibregl-canvas');
+		await canvas.focus();
+		await page.keyboard.press('Equal');
+		await mapDrawn();
+		await canvas.blur();
+		await expect.poll(() => asked.length).toBeGreaterThan(0);
+		await expect.poll(() => answered.filter((status) => status === 200).length).toBeGreaterThan(0);
+		if (wide) {
+			await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText(place.wording);
+		} else {
+			await openCredits(page);
+			const line = page.getByText(/^Photos: /);
+			await expect(line).toContainText(place.credit);
+			// The short line fits the screen, however many makers it names.
+			const box = (await line.boundingBox())!;
+			expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+		}
+		await page.waitForTimeout(800);
+		await keep(place.screenshot);
+	});
+}
 
 test('a take-off’s sheet has the forecast’s status and its line, a landing has neither', async ({
 	context,

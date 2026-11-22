@@ -14,6 +14,8 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **Google sign-in on Android** needs two things only you can do: an emulator image with Google Play (the one in use, `pixel6-api36`, is plain Android without Google's services, so it cannot add a Google account at all), and Android's OAuth client registered in your Google Cloud project for `fly.venti.app` with the debug build's signing certificate, its client ID passed to the build as `venti.googleClientId`. The iPhone signs in through a web page and needs neither.
 - [ ] **A real phone:** nothing has run on one. The iPhone's widget needs a second bundle identifier and an app group on your developer account.
 - [ ] **GitHub:** delete the stale branch `phase-0/foundations`; sessions cannot.
+- [ ] **The DHV's permission in writing:** its text or a copy (who gave it, when, and whether it covers keeping the sites, handing them out through the API and the connector, and the credit to show), so that the adapter's manifest can record it ([plan.md](plan.md#owner-decisions), 22).
+- [ ] **XContest:** the letter about its upload key may also ask for its live positions (XContest Live); a draft can be written for you, nothing has been sent.
 
 ## Decide, yes or no (what is built stands until you say otherwise)
 
@@ -33,9 +35,12 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **Icons the design pack lacks:** Android's two QR icons were drawn from memory of an open icon set, and the iPhone's radar switch uses a system symbol. Supply icons for a QR code, scanning one and the radar, or say that stand-ins are fine.
 - [ ] **A real phone's camera** has never read a task's QR code on Android: the tests have none. Try it once with a code from XCTrack or from the iPhone.
 
+- [ ] **A chip that is on** is told by its colour alone, and the pack's dark theme makes "on" cream and "off" purple, which you read the other way round (2026-11-22). Add a mark to an "on" chip, make "off" lighter in both themes, or keep it? The pack is yours.
+- [ ] **The dark theme's new background:** pick one of the swatches the sessions prepare (2026-11-22: "keep the dark style, but change it a bit").
+
 ## Look at, and say what is wrong
 
-- [ ] Your own 101 flights (2022 to 2026), brought into both phones on 2026-11-22 from a copy in `~/code/venti-flights`: the logbook, a flight's page, and "Replay in the cockpit". They are on no server and in no account.
+- [ ] Your own 101 flights (2022 to 2026), brought into both phones on 2026-11-22 from a copy in `~/code/venti-flights`: the logbook, a flight's page, and "Replay in the cockpit". Since that evening they are also in your account on the local server, all public by your word.
 - [ ] **Sign in with Google** yourself, on the website and on each phone: sessions type no passwords. The local Venti takes new accounts by invite; ask a session for a code.
 - [ ] The map with airspace off until switched on, and the third round button.
 - [ ] Wind across Switzerland and the French Alps, and a station's row naming its network.

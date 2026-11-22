@@ -3,9 +3,9 @@
 use chrono::Duration;
 use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
-    Account, Derived, Flight, Flown, Kept, Listing, Month, NewFlight, Place, PublicFlightChanges,
-    PublicFlights, PublicOrder, Room, Saved, Score, ScoreKind, Store, StoreError, Visibility,
-    VisibilityChange,
+    Account, AllFlightsSet, AllVisibilityChange, Derived, Flight, Flown, Kept, Listing, Month,
+    NewFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Room, Saved, Score,
+    ScoreKind, Store, StoreError, Visibility, VisibilityChange,
 };
 
 use super::accounts::{create, id};
@@ -1698,6 +1698,330 @@ pub(crate) async fn suspending_and_deleting_an_account_withdraws_flights(store: 
     store.resume_publishing(&dario.id).await.unwrap();
     let back = set(store, &d1, Visibility::Public, at(22, 30)).await;
     assert_eq!(back.public_change, Some(micros(at(22, 30))));
+}
+
+// --- Public unless the pilot keeps them private ------------------------------
+
+/// Creates an account as the server makes one: its new flights are
+/// public (owner decision 21).
+async fn create_sharing(store: &impl Store, handle: &str) -> Account {
+    let account = create(store, handle).await;
+    store
+        .set_new_flights_public(&account.id, true)
+        .await
+        .unwrap()
+        .expect("the account was just made")
+}
+
+pub(crate) async fn new_flights_are_public_by_their_pilots_setting(store: &impl Store) {
+    let dario = create_sharing(store, "dario").await;
+    assert!(dario.new_flights_public);
+    assert_eq!(store.account("dario").await.unwrap(), Some(dario.clone()));
+
+    // Published at the upload, as if its pilot had made it public then.
+    let first = new_flight(&dario, 1, at(10, 0));
+    let flight = save(store, &first).await;
+    assert_eq!(flight.visibility, Visibility::Public);
+    assert_eq!(flight.published_at, Some(first.uploaded_at));
+    assert_eq!(flight.public_change, Some(micros(first.uploaded_at)));
+    assert_eq!(flight.change, micros(first.uploaded_at));
+    assert_eq!(public(store, &everywhere(), &NEWEST).await, ["dario1"]);
+    let (flights, withdrawn, _) = told(store, None, 0).await;
+    assert_eq!(flights, ["dario1"]);
+    assert!(withdrawn.is_empty());
+    // The same file again changes nothing.
+    assert_eq!(put(store, &first).await, (flight.clone(), false));
+
+    // Switched off, the next flight starts private; the first stays.
+    let off = store
+        .set_new_flights_public(&dario.id, false)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!off.new_flights_public);
+    assert_eq!(store.account("dario").await.unwrap(), Some(off));
+    let second = new_flight(&dario, 2, at(11, 0));
+    let private = save(store, &second).await;
+    assert_eq!(private.visibility, Visibility::Private);
+    assert_eq!((private.published_at, private.public_change), (None, None));
+    assert_eq!(store.flight(&first.id).await.unwrap(), Some(flight));
+
+    // A public flight that is deleted is withdrawn; uploaded again with the
+    // setting on, it is public again and told as withdrawn no longer.
+    store.set_new_flights_public(&dario.id, true).await.unwrap();
+    assert!(
+        store
+            .delete_flight(&dario.id, &first.id, at(20, 10))
+            .await
+            .unwrap()
+    );
+    let (_, withdrawn, _) = told(store, None, 0).await;
+    assert_eq!(withdrawn, ["dario1"]);
+    let back = NewFlight {
+        uploaded_at: at(20, 20),
+        ..first.clone()
+    };
+    let again = save(store, &back).await;
+    assert_eq!(again.visibility, Visibility::Public);
+    assert_eq!(again.published_at, Some(at(20, 20)));
+    let (flights, withdrawn, _) = told(store, None, 0).await;
+    assert_eq!(flights, ["dario1"]);
+    assert!(withdrawn.is_empty());
+
+    // Another pilot's setting is theirs alone.
+    let anna = create(store, "anna").await;
+    let annas = save(store, &new_flight(&anna, 1, at(10, 0))).await;
+    assert_eq!(annas.visibility, Visibility::Private);
+    assert_eq!(
+        store
+            .set_new_flights_public(&id("nobody"), true)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
+pub(crate) async fn an_upload_is_private_while_suspended_or_taken_down(store: &impl Store) {
+    let dario = create_sharing(store, "dario").await;
+    store
+        .suspend_publishing(&dario.id, at(19, 0))
+        .await
+        .unwrap()
+        .unwrap();
+    // The setting stays the pilot's; the suspension stands above it.
+    let first = new_flight(&dario, 1, at(10, 0));
+    assert_eq!(save(store, &first).await.visibility, Visibility::Private);
+    assert!(public(store, &everywhere(), &NEWEST).await.is_empty());
+
+    // Resumed, the next upload is public again, and the earlier one stays
+    // private: resuming makes nothing public.
+    assert_eq!(
+        store.resume_publishing(&dario.id).await.unwrap(),
+        Some(true)
+    );
+    let second = new_flight(&dario, 2, at(11, 0));
+    assert_eq!(save(store, &second).await.visibility, Visibility::Public);
+    let earlier = store.flight(&first.id).await.unwrap().unwrap();
+    assert_eq!(earlier.visibility, Visibility::Private);
+
+    // A flight that was taken down comes back taken down, and private.
+    store
+        .take_down_flight(&second.id, at(20, 30))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        store
+            .delete_flight(&dario.id, &second.id, at(20, 40))
+            .await
+            .unwrap()
+    );
+    let back = NewFlight {
+        uploaded_at: at(20, 50),
+        ..second.clone()
+    };
+    let again = save(store, &back).await;
+    assert_eq!(again.visibility, Visibility::Private);
+    assert_eq!(again.taken_down_at, Some(at(20, 30)));
+    assert_eq!((again.published_at, again.public_change), (None, None));
+    assert!(public(store, &everywhere(), &NEWEST).await.is_empty());
+}
+
+/// What a call that sets every flight of an account says when it did.
+fn all(flights: u64, changed: u64, taken_down: u64) -> AllVisibilityChange {
+    AllVisibilityChange::Set(AllFlightsSet {
+        flights,
+        changed,
+        taken_down,
+    })
+}
+
+pub(crate) async fn all_flights_are_made_public_or_private_at_once(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let d1 = new_flight(&dario, 1, at(10, 0));
+    let d2 = new_flight(&dario, 2, at(11, 0));
+    let d3 = new_flight(&dario, 3, at(12, 0));
+    let d4 = new_flight(&dario, 4, at(13, 0));
+    let a1 = new_flight(&anna, 1, at(10, 30));
+    for flight in [&d1, &d2, &d3, &d4, &a1] {
+        save(store, flight).await;
+    }
+    set(store, &d2, Visibility::Unlisted, at(20, 10)).await;
+    set(store, &d3, Visibility::Public, at(20, 20)).await;
+    store
+        .take_down_flight(&d4.id, at(20, 30))
+        .await
+        .unwrap()
+        .unwrap();
+    let seen = micros(at(20, 30));
+    let read = async |new: &NewFlight| store.flight(&new.id).await.unwrap().unwrap();
+
+    // All public: the private one and the one shared by link change, each
+    // a change of its own in the order of the addresses; the public one
+    // keeps its moment; the one taken down stays private.
+    let now = at(21, 0);
+    assert_eq!(
+        store
+            .set_all_visibility(&dario.id, Visibility::Public, now)
+            .await
+            .unwrap(),
+        all(3, 2, 1)
+    );
+    let one = read(&d1).await;
+    let two = read(&d2).await;
+    assert_eq!(
+        (
+            one.visibility,
+            one.published_at,
+            one.public_change,
+            one.change
+        ),
+        (
+            Visibility::Public,
+            Some(now),
+            Some(micros(now)),
+            micros(now)
+        )
+    );
+    assert_eq!(
+        (
+            two.visibility,
+            two.published_at,
+            two.public_change,
+            two.change
+        ),
+        (
+            Visibility::Public,
+            Some(now),
+            Some(micros(now) + 1),
+            micros(now) + 1
+        )
+    );
+    let three = read(&d3).await;
+    assert_eq!(three.published_at, Some(at(20, 20)));
+    assert_eq!(three.change, micros(at(20, 20)));
+    let four = read(&d4).await;
+    assert_eq!(four.visibility, Visibility::Private);
+    assert_eq!(four.taken_down_at, Some(at(20, 30)));
+    assert_eq!(read(&a1).await.visibility, Visibility::Private);
+    // The pilot's devices hear of the two, and so does whoever follows
+    // the public flights.
+    let changes = store.flight_changes(&dario.id, seen, 100).await.unwrap();
+    assert_eq!(short(&changes.flights), ["dario1", "dario2"]);
+    assert_eq!(changes.latest, micros(now) + 1);
+    let (flights, withdrawn, _) = told(store, None, micros(at(20, 20))).await;
+    assert_eq!(flights, ["dario1", "dario2"]);
+    assert!(withdrawn.is_empty());
+    // Asking again changes nothing.
+    assert_eq!(
+        store
+            .set_all_visibility(&dario.id, Visibility::Public, at(21, 5))
+            .await
+            .unwrap(),
+        all(3, 0, 1)
+    );
+    assert_eq!(
+        store
+            .flight_changes(&dario.id, 0, 100)
+            .await
+            .unwrap()
+            .latest,
+        micros(now) + 1
+    );
+
+    // All private: the three public ones are withdrawn, in the order of
+    // the addresses; the one taken down is private already.
+    let later = at(22, 0);
+    assert_eq!(
+        store
+            .set_all_visibility(&dario.id, Visibility::Private, later)
+            .await
+            .unwrap(),
+        all(4, 3, 0)
+    );
+    let (flights, withdrawn, changes) = told(store, Some(&dario), micros(now) + 1).await;
+    assert!(flights.is_empty());
+    assert_eq!(withdrawn, ["dario1", "dario2", "dario3"]);
+    assert_eq!(changes.withdrawn[0].change, micros(later));
+    assert_eq!(changes.withdrawn[2].change, micros(later) + 2);
+    assert_eq!(changes.withdrawn[0].withdrawn_at, Some(later));
+    assert!(public(store, &everywhere(), &NEWEST).await.is_empty());
+    let one = read(&d1).await;
+    assert_eq!(
+        (one.visibility, one.published_at, one.public_change),
+        (Visibility::Private, None, None)
+    );
+    let latest = store
+        .flight_changes(&dario.id, 0, 100)
+        .await
+        .unwrap()
+        .latest;
+    assert_eq!(latest, micros(later) + 2);
+
+    // Public again, a withdrawn flight is told as withdrawn no longer.
+    store
+        .set_all_visibility(&dario.id, Visibility::Public, at(22, 10))
+        .await
+        .unwrap();
+    let (flights, withdrawn, _) = told(store, None, micros(later) + 2).await;
+    assert_eq!(flights, ["dario1", "dario2", "dario3"]);
+    assert!(withdrawn.is_empty());
+    store
+        .set_all_visibility(&dario.id, Visibility::Private, at(22, 20))
+        .await
+        .unwrap();
+    let latest = store
+        .flight_changes(&dario.id, 0, 100)
+        .await
+        .unwrap()
+        .latest;
+
+    // Suspended, the account makes none public, and nothing changes; all
+    // private still works.
+    store
+        .suspend_publishing(&dario.id, at(22, 30))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        store
+            .set_all_visibility(&dario.id, Visibility::Public, at(23, 0))
+            .await
+            .unwrap(),
+        AllVisibilityChange::PublishingSuspended
+    );
+    assert_eq!(
+        store
+            .flight_changes(&dario.id, 0, 100)
+            .await
+            .unwrap()
+            .latest,
+        latest
+    );
+    assert_eq!(
+        store
+            .set_all_visibility(&dario.id, Visibility::Private, at(23, 0))
+            .await
+            .unwrap(),
+        all(4, 0, 0)
+    );
+    assert_eq!(
+        store
+            .set_all_visibility(&id("nobody"), Visibility::Public, at(23, 0))
+            .await
+            .unwrap(),
+        AllVisibilityChange::NoSuchAccount
+    );
+    // An account without flights has nothing to change.
+    let bernd = create(store, "bernd").await;
+    assert_eq!(
+        store
+            .set_all_visibility(&bernd.id, Visibility::Public, at(23, 0))
+            .await
+            .unwrap(),
+        all(0, 0, 0)
+    );
 }
 
 // --- The months of a ranking, pilots by name, a pilot's totals ----------------

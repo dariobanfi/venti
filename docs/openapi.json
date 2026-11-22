@@ -105,6 +105,10 @@
           "handle": {
             "type": "string"
           },
+          "new_flights_public": {
+            "description": "Whether a flight the pilot uploads is public from the start: the pilot's own setting, on until they switch it off. A suspended account's uploads are private whatever it says. Left out by a server from before the setting, which made new flights private.",
+            "type": "boolean"
+          },
           "publishing_suspended_at": {
             "format": "date-time",
             "type": "string"
@@ -6222,6 +6226,15 @@
         ],
         "type": "object"
       },
+      "UpdateAccountRequest": {
+        "properties": {
+          "new_flights_public": {
+            "description": "Whether a flight the pilot uploads from now on is public from the start. Left out, it stays as it is.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "UpdateFlightRequest": {
         "properties": {
           "visibility": {
@@ -6230,6 +6243,48 @@
         },
         "required": [
           "visibility"
+        ],
+        "type": "object"
+      },
+      "UpdateFlightsRequest": {
+        "properties": {
+          "visibility": {
+            "description": "Who may see every flight of the account from now on.",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "visibility"
+        ],
+        "type": "object"
+      },
+      "UpdateFlightsResponse": {
+        "properties": {
+          "changed": {
+            "description": "How many of them the request changed.",
+            "type": "integer"
+          },
+          "flights": {
+            "description": "How many of the account's flights are so now, those that were so before included.",
+            "type": "integer"
+          },
+          "taken_down": {
+            "description": "How many stay private because whoever runs the server took them down.",
+            "type": "integer"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          }
+        },
+        "required": [
+          "visibility",
+          "flights",
+          "changed",
+          "taken_down"
         ],
         "type": "object"
       },
@@ -6494,6 +6549,53 @@
         ],
         "summary": "The account",
         "x-venti-docs": "GET /v1/account"
+      },
+      "patch": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `flights:write`.",
+        "operationId": "patch_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "flights:write"
+            ]
+          }
+        ],
+        "summary": "Change the pilot's settings: whether new flights are public",
+        "x-venti-docs": "PATCH /v1/account"
       }
     },
     "/v1/account/alerts": {
@@ -7841,6 +7943,53 @@
         ],
         "summary": "The pilot's own flights, newest first",
         "x-venti-docs": "GET /v1/flights?after=&limit="
+      },
+      "patch": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `flights:write`.",
+        "operationId": "patch_flights",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFlightsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateFlightsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "flights:write"
+            ]
+          }
+        ],
+        "summary": "Make every flight of the pilot public, or every one private",
+        "x-venti-docs": "PATCH /v1/flights"
       },
       "post": {
         "description": "The pilot: a session's token, or a token for a program with the scope `flights:write`.",

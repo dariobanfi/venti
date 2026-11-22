@@ -20,6 +20,7 @@ fn account_from(row: &Row) -> Account {
         created_at: row.get("account_created_at"),
         publishing_suspended_at: row.get("publishing_suspended_at"),
         edits_sites_since: row.get("edits_sites_since"),
+        new_flights_public: row.get("new_flights_public"),
     }
 }
 
@@ -35,7 +36,8 @@ fn session_from(row: &Row) -> Session {
 
 /// The columns [`account_from`] reads, for an `accounts` table named `a`.
 const ACCOUNT_COLUMNS: &str = "a.id AS account_id, a.handle, a.display_name, \
-     a.created_at AS account_created_at, a.publishing_suspended_at, a.edits_sites_since";
+     a.created_at AS account_created_at, a.publishing_suspended_at, a.edits_sites_since, \
+     a.new_flights_public";
 
 pub(super) async fn create(
     client: &mut Client,
@@ -98,14 +100,15 @@ async fn create_with(
 
     let inserted = tx
         .execute(
-            "INSERT INTO accounts (id, handle, display_name, created_at)
-             VALUES ($1, $2, $3, $4)
+            "INSERT INTO accounts (id, handle, display_name, created_at, new_flights_public)
+             VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (handle) DO NOTHING",
             &[
                 &account.id,
                 &account.handle,
                 &account.display_name,
                 &account.created_at,
+                &account.new_flights_public,
             ],
         )
         .await
@@ -576,6 +579,24 @@ pub(super) async fn site_editors(client: &Client) -> Result<Vec<Account>, StoreE
     Ok(rows.iter().map(account_from).collect())
 }
 
+pub(super) async fn set_new_flights_public(
+    client: &Client,
+    account_id: &str,
+    public: bool,
+) -> Result<Option<Account>, StoreError> {
+    // One statement: an upload that locks the row reads the setting as it
+    // was before or as it is after, never between.
+    let query = format!(
+        "UPDATE accounts a SET new_flights_public = $2 WHERE a.id = $1
+         RETURNING {ACCOUNT_COLUMNS}"
+    );
+    let row = client
+        .query_opt(&query, &[&account_id, &public])
+        .await
+        .map_err(db_error)?;
+    Ok(row.as_ref().map(account_from))
+}
+
 pub(super) async fn create_invite(client: &Client, invite: &NewInvite) -> Result<(), StoreError> {
     client
         .execute(
@@ -640,7 +661,7 @@ const USE_SESSION: &str = "
     SELECT s.id, s.account_id, s.device, s.created_at,
            CASE WHEN s.last_used_at < $4 THEN $2 ELSE s.last_used_at END AS last_used_at,
            a.handle, a.display_name, a.created_at AS account_created_at,
-           a.publishing_suspended_at, a.edits_sites_since
+           a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public
     FROM sessions s
     JOIN accounts a ON a.id = s.account_id
     WHERE s.token_hash = $1 AND s.last_used_at >= $3";
@@ -827,7 +848,7 @@ const USE_ACCESS_TOKEN: &str = "
            CASE WHEN t.last_used_on IS NULL OR t.last_used_on < $3 THEN $3
                 ELSE t.last_used_on END AS last_used_on,
            a.handle, a.display_name, a.created_at AS account_created_at,
-           a.publishing_suspended_at, a.edits_sites_since
+           a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public
     FROM access_tokens t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.token_hash = $1 AND (t.expires_at IS NULL OR t.expires_at > $2)

@@ -23,7 +23,7 @@ mod common;
 
 use common::{
     Answer, TestClock, ask, get, get_with, golden, recorded, server, set_visibility, settings,
-    sign_up, upload,
+    sign_up, sign_up_private, upload,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -313,8 +313,8 @@ async fn the_list_is_read_page_by_page_in_either_order() {
 #[tokio::test]
 async fn the_list_is_narrowed_to_a_box_and_to_a_span_of_time() {
     let router = open_server();
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
     let public = Visibility::Public;
     // 1 July from the Wallberg; 2 July from 0.6° further east, near Kössen;
     // 2 July from the Wallberg, by someone else; 3 July from the Wallberg.
@@ -478,8 +478,8 @@ fn cursors_around(flight: &Flight) -> Vec<String> {
 async fn a_server_with_nothing_public_answers_like_a_server_with_nothing() {
     let empty = open_server();
     let router = open_server();
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
     // Flights that are private, and flights for those with a link: from
     // the place and on the day that will be asked for, some of them long.
     let mut hidden = Vec::new();
@@ -526,8 +526,8 @@ async fn a_server_with_nothing_public_answers_like_a_server_with_nothing() {
 #[tokio::test]
 async fn beside_a_public_flight_the_others_stay_out_of_every_answer() {
     let router = open_server();
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
     // One public flight of medium length, with flights on either side of
     // it in both orders that are not public.
     let file = |seconds| flight_file(day(7, 2), 0.0, seconds);

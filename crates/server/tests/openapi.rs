@@ -545,6 +545,13 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
     ("sessions.json", "get", "/v1/sessions", Answer(200)),
     ("account.json", "get", "/v1/account", Answer(200)),
     ("account_suspended.json", "get", "/v1/account", Answer(200)),
+    (
+        "account_settings_request.json",
+        "patch",
+        "/v1/account",
+        Request,
+    ),
+    ("account_settings.json", "patch", "/v1/account", Answer(200)),
     ("tokens.json", "get", "/v1/account/tokens", Answer(200)),
     (
         "token_create_request.json",
@@ -670,6 +677,18 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
     ),
     ("upload.json", "post", "/v1/flights", Answer(201)),
     ("flights.json", "get", "/v1/flights", Answer(200)),
+    (
+        "flights_visibility_request.json",
+        "patch",
+        "/v1/flights",
+        Request,
+    ),
+    (
+        "flights_visibility.json",
+        "patch",
+        "/v1/flights",
+        Answer(200),
+    ),
     (
         "flight_changes.json",
         "get",

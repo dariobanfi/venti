@@ -38,7 +38,7 @@ use common::oauth::{
 };
 use common::{
     Answer, PASSWORD, PUBLIC_URL, TestClock, ask, get, sample_file, sample_file_on, server,
-    set_visibility, settings, sign_up, try_sign_in, upload,
+    set_visibility, settings, sign_up, sign_up_private, try_sign_in, upload,
 };
 
 const PROTECTED_RESOURCE: &str = "/.well-known/oauth-protected-resource";
@@ -419,7 +419,7 @@ async fn registrations_are_bounded_for_an_address_and_in_all() {
 async fn an_assistant_reads_a_pilots_logbook_from_their_agreement_to_its_withdrawal() {
     let clock = TestClock::new();
     let (router, _) = real(&clock);
-    let session = sign_up(&router, "dario").await.token;
+    let session = sign_up_private(&router, "dario").await.token;
     let private = upload(&router, &session, &sample_file()).await.flight;
     let public = upload(&router, &session, &sample_file_on("050726"))
         .await
@@ -1468,8 +1468,8 @@ async fn a_program_gives_its_tokens_up() {
 async fn a_private_flight_is_read_by_its_pilots_assistant_and_no_other() {
     let clock = TestClock::new();
     let (router, _) = real(&clock);
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
     let private = upload(&router, &dario, &sample_file()).await.flight;
     let by_link = upload(&router, &dario, &sample_file_on("050726"))
         .await

@@ -14,10 +14,12 @@ use serde::Deserialize;
 use tokio::sync::{Semaphore, SemaphorePermit};
 use venti_api_types::v1::{
     DeletedFlight, ErrorCode, FlightChangesResponse, FlightId, FlightResponse, FlightTerms,
-    FlightsResponse, MAX_FLIGHT_FILE_BYTES, UpdateFlightRequest, UploadResponse,
+    FlightsResponse, MAX_FLIGHT_FILE_BYTES, UpdateFlightRequest, UpdateFlightsRequest,
+    UpdateFlightsResponse, UploadResponse,
 };
 use venti_store::{
-    Flight, FlightKey, Kept, Listing, Room, Saved, Store, Visibility, VisibilityChange,
+    AllVisibilityChange, Flight, FlightKey, Kept, Listing, Room, Saved, Store, Visibility,
+    VisibilityChange,
 };
 
 use super::auth::{May, ReadFlights, Viewer, Viewing, WriteFlights};
@@ -707,6 +709,67 @@ pub(crate) async fn update<S: Store>(
     let answer = FlightResponse {
         flight: api.shown_flight(&flight).await?,
         terms: terms_of(&flight),
+    };
+    Ok(cache::private_json(StatusCode::OK, &answer))
+}
+
+/// `PATCH /v1/flights`: makes every flight of the account public, or
+/// every one private, by the rules of one flight's change.
+pub(crate) async fn update_all<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    May(signed, ..): May<WriteFlights>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let request: UpdateFlightsRequest = body::json(&headers, &body)?;
+    let visibility = match wire::stored_visibility(request.visibility) {
+        Some(visibility @ (Visibility::Public | Visibility::Private)) => visibility,
+        Some(Visibility::Unlisted) | None => {
+            return Err(ApiError::bad_request(
+                ErrorCode::InvalidVisibility,
+                "visibility must be public or private: every flight of the account is set to it",
+            ));
+        }
+    };
+    // Counted before the store is asked, whatever becomes of it: each time
+    // can change every flight of the account.
+    let now = api.clock.now();
+    let by_day = [Counted::new(
+        &signed.account.id,
+        api.limits.all_flights_changes_per_day,
+    )];
+    api.all_flights_changes
+        .attempt(&by_day, now)
+        .map_err(|refused| {
+            ApiError::rate_limited(
+                refused,
+                "this account has set all its flights at once as often today as one account may",
+            )
+        })?;
+    let change = api
+        .store
+        .set_all_visibility(&signed.account.id, visibility, now)
+        .await?;
+    let set = match change {
+        AllVisibilityChange::Set(set) => set,
+        // The account can go between the token's check and this.
+        AllVisibilityChange::NoSuchAccount => {
+            return Err(ApiError::unauthorized("the account is gone"));
+        }
+        AllVisibilityChange::PublishingSuspended => {
+            return Err(ApiError::forbidden(
+                ErrorCode::PublishingSuspended,
+                "whoever runs this server has suspended this account's publishing: it can \
+                 make no flight public; nothing was changed",
+            ));
+        }
+    };
+    let count = |n: u64| u32::try_from(n).unwrap_or(u32::MAX);
+    let answer = UpdateFlightsResponse {
+        visibility: wire::visibility(visibility),
+        flights: count(set.flights),
+        changed: count(set.changed),
+        taken_down: count(set.taken_down),
     };
     Ok(cache::private_json(StatusCode::OK, &answer))
 }

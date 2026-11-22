@@ -45,9 +45,9 @@ use crate::{
     SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
     VisibilityChange, batch,
 };
+use crate::{AllVisibilityChange, GoogleLink, GoogleLinking, NewGoogleAccount};
 use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
-use crate::{GoogleLink, GoogleLinking, NewGoogleAccount};
 
 /// Connections kept to the database. The API's queries take milliseconds,
 /// so a few connections serve many requests.
@@ -786,6 +786,14 @@ impl Store for PgStore {
         accounts::site_editors(&self.client().await?).await
     }
 
+    async fn set_new_flights_public(
+        &self,
+        account_id: &str,
+        public: bool,
+    ) -> Result<Option<Account>, StoreError> {
+        accounts::set_new_flights_public(&self.client().await?, account_id, public).await
+    }
+
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {
         accounts::create_invite(&self.client().await?, invite).await
     }
@@ -1318,6 +1326,16 @@ impl Store for PgStore {
     ) -> Result<VisibilityChange, StoreError> {
         let mut client = self.client().await?;
         flights::set_visibility(&mut client, account_id, id, visibility, now).await
+    }
+
+    async fn set_all_visibility(
+        &self,
+        account_id: &str,
+        visibility: Visibility,
+        now: Timestamp,
+    ) -> Result<AllVisibilityChange, StoreError> {
+        let mut client = self.client().await?;
+        flights::set_all_visibility(&mut client, account_id, visibility, now).await
     }
 
     async fn take_down_flight(

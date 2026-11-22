@@ -157,7 +157,7 @@ fn words(scope: Scope) -> Option<(&'static str, &'static str)> {
         Scope::FlightsRead => ("Flights: read", "your logbook, the private flights too"),
         Scope::FlightsWrite => (
             "Flights: write",
-            "upload flights, change who may see one, delete one",
+            "upload flights, change who may see them, delete one",
         ),
         Scope::LiveWrite => (
             "Live tracking: send",

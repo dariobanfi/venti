@@ -33,9 +33,9 @@ use crate::{
     SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
     VisibilityChange, airspace, batch, cable, forecast, site, takeoff,
 };
+use crate::{AllVisibilityChange, GoogleLink, GoogleLinking, NewGoogleAccount};
 use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
-use crate::{GoogleLink, GoogleLinking, NewGoogleAccount};
 
 /// A store that lives in the process and forgets everything when it ends.
 ///
@@ -737,6 +737,17 @@ impl Store for MemoryStore {
         Ok(self.lock().accounts.site_editors())
     }
 
+    async fn set_new_flights_public(
+        &self,
+        account_id: &str,
+        public: bool,
+    ) -> Result<Option<Account>, StoreError> {
+        Ok(self
+            .lock()
+            .accounts
+            .set_new_flights_public(account_id, public))
+    }
+
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {
         self.lock().accounts.create_invite(invite);
         Ok(())
@@ -1407,6 +1418,18 @@ impl Store for MemoryStore {
         Ok(inner
             .flights
             .set_visibility(account_id, id, visibility, now, &mut inner.accounts))
+    }
+
+    async fn set_all_visibility(
+        &self,
+        account_id: &str,
+        visibility: Visibility,
+        now: Timestamp,
+    ) -> Result<AllVisibilityChange, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .flights
+            .set_all_visibility(account_id, visibility, now, &mut inner.accounts))
     }
 
     async fn take_down_flight(

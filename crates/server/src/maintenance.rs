@@ -341,6 +341,7 @@ mod tests {
             created_at: now,
             publishing_suspended_at: None,
             edits_sites_since: None,
+            new_flights_public: false,
         };
         let new = NewAccount {
             account: account.clone(),
@@ -418,6 +419,7 @@ mod tests {
             created_at: noon(2026, 1, 1),
             publishing_suspended_at: None,
             edits_sites_since: None,
+            new_flights_public: false,
         };
         for handle in ["dario", "anna"] {
             let new = NewAccount {
@@ -493,6 +495,7 @@ mod tests {
             created_at: now,
             publishing_suspended_at: None,
             edits_sites_since: None,
+            new_flights_public: false,
         };
         let new = NewAccount {
             account: account.clone(),

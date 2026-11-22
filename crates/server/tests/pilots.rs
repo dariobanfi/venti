@@ -23,8 +23,8 @@ use venti_store::testing::TroubledStore;
 mod common;
 
 use common::{
-    TestClock, ask, get, get_with, golden, recorded, server, set_visibility, settings, sign_up,
-    upload,
+    TestClock, ask, get, get_with, golden, recorded, server, set_visibility, settings,
+    sign_up_private, upload,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -196,8 +196,8 @@ async fn the_development_mode_adds_up_a_pilots_public_flights() {
 #[tokio::test]
 async fn what_is_not_public_is_in_no_search_and_no_total() {
     let router = open_server();
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
     let whole = synthetic_flight().fixes.len();
 
     // Nobody shares anything: nobody is found and nobody has totals.

@@ -319,6 +319,7 @@ mod tests {
             created_at: at,
             publishing_suspended_at: suspended.then_some(at),
             edits_sites_since: partner.then_some(at),
+            new_flights_public: false,
         }
     }
 

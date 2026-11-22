@@ -119,6 +119,14 @@ pub struct Limits {
     /// loop would keep the server at nothing else. Four lets a pilot ask
     /// again after a download that broke off (an estimate).
     pub archives_per_day: u32,
+    /// Times one account may make all its flights public or private at
+    /// once within a day (`PATCH /v1/flights`), whatever becomes of the
+    /// request. Each time can change every flight the account has, and
+    /// each change is told to the pilot's devices and to every copy of
+    /// the public flights: a pilot does it now and then, and a program
+    /// that did it in a loop would fill both. Twenty is more than a pilot
+    /// who changes their mind needs (an estimate).
+    pub all_flights_changes_per_day: u32,
     /// Requests to the connector from one address within
     /// [`connector_window`](Self::connector_window). The connector is open
     /// to the internet without sign-in. An assistant's provider sends the
@@ -247,6 +255,7 @@ impl Default for Limits {
             comments_per_day: venti_api_types::v1::COMMENTS_PER_DAY,
             follows_and_cheers_per_day: venti_api_types::v1::FOLLOWS_AND_CHEERS_PER_DAY,
             archives_per_day: 4,
+            all_flights_changes_per_day: 20,
             connector_requests_per_address: 120,
             connector_requests_per_network: 480,
             connector_window: Duration::minutes(1),
@@ -292,6 +301,7 @@ impl Limits {
             comments_per_day: u32::MAX,
             follows_and_cheers_per_day: u32::MAX,
             archives_per_day: u32::MAX,
+            all_flights_changes_per_day: u32::MAX,
             connector_requests_per_address: u32::MAX,
             connector_requests_per_network: u32::MAX,
             forecast_fetches_per_address: u32::MAX,

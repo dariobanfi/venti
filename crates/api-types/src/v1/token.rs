@@ -28,7 +28,8 @@ pub enum Scope {
     /// list, what changed since, each flight and its file.
     #[serde(rename = "flights:read")]
     FlightsRead,
-    /// Uploading flights, changing who may see one, deleting one.
+    /// Uploading flights, changing who may see one or all of them,
+    /// deleting one; and whether new flights are public.
     #[serde(rename = "flights:write")]
     FlightsWrite,
     /// Sending the positions of a live track, and ending one.

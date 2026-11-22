@@ -33,6 +33,13 @@ pub struct Account {
     /// thing this says: nothing else about the account differs. A new
     /// account is created with `None`.
     pub edits_sites_since: Option<Timestamp>,
+    /// Whether a flight the account uploads is public from the start: the
+    /// pilot's own setting ([`crate::Store::set_new_flights_public`]). The
+    /// server creates every account with it on, as owner decision 21
+    /// asks; the store keeps what it is given. A suspended account's
+    /// uploads, and a flight that comes back taken down, are private
+    /// whatever this says.
+    pub new_flights_public: bool,
 }
 
 /// What became of suspending an account's publishing.

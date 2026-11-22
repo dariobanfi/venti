@@ -269,6 +269,7 @@ mod tests {
             created_at: now,
             publishing_suspended_at: None,
             edits_sites_since: None,
+            new_flights_public: false,
         };
         let new = NewAccount {
             account: account.clone(),

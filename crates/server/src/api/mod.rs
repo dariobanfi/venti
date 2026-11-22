@@ -290,6 +290,8 @@ pub struct Api<S> {
     comments: Throttle,
     /// Pilots followed and flights cheered, by account.
     follows_and_cheers: Throttle,
+    /// Times all of an account's flights were set at once, by account.
+    all_flights_changes: Throttle,
     /// Archives asked for, by account, and the one turn at making one.
     archives: archive::Archives,
     /// Uploads under way.
@@ -421,6 +423,11 @@ impl<S: Store> Api<S> {
             ),
             follows_and_cheers: Throttle::new(
                 "accounts that followed pilots and cheered flights",
+                chrono::Duration::days(1),
+                limits.watched_keys,
+            ),
+            all_flights_changes: Throttle::new(
+                "accounts that set all their flights at once",
                 chrono::Duration::days(1),
                 limits.watched_keys,
             ),
@@ -695,7 +702,9 @@ impl<S: Store> Api<S> {
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(
                 ACCOUNT_PATH,
-                get(account::show::<S>).delete(account::delete::<S>),
+                get(account::show::<S>)
+                    .patch(account::update::<S>)
+                    .delete(account::delete::<S>),
             )
             .route(ACCOUNT_PASSWORD_PATH, put(account::change_password::<S>))
             .route(
@@ -749,7 +758,10 @@ impl<S: Store> Api<S> {
                 post(google::link::<S>).delete(google::unlink::<S>),
             )
             .route(DEV_GOOGLE_ID_TOKEN_PATH, get(google::dev_id_token::<S>))
-            .route(FLIGHTS_PATH, get(flights::list::<S>))
+            .route(
+                FLIGHTS_PATH,
+                get(flights::list::<S>).patch(flights::update_all::<S>),
+            )
             .route(FLIGHT_CHANGES_PATH, get(flights::changes::<S>))
             .route(PUBLIC_FLIGHTS_PATH, get(feed::list::<S>))
             .route(PUBLIC_FLIGHT_CHANGES_PATH, get(feed::changes::<S>))

@@ -79,7 +79,7 @@ It also starts with one account, so that an app can be built and tested against 
 | Password | `demo-pilot-password` |
 | A session token that always works | `venti_0000000000000000000000000000000000000000000000000000` |
 | A [token for another program](#tokens-for-other-programs), "Demo logger", which may read and write the account's flights and nothing else | `venti_pat_0000000000000000000000000000000000000000000000000000` |
-| Flights | Three made-up ones: one public (2026-08-15, it lands), one unlisted (2026-07-04, the sample file the apps bundle; its recording ends in the air), one private (2025-06-21, a short one) |
+| Flights | Three made-up ones: one public (2026-08-15, it lands), one unlisted (2026-07-04, the sample file the apps bundle; its recording ends in the air), one private (2025-06-21, a short one). A flight it uploads is public, as for every account ([`new_flights_public`](#get-v1account)); every pilot of the mode has that setting on |
 | Live tracks | Three, made from the sample flight and dated by this mode's clock; see the table below |
 | Groups | One that it keeps, with the two further pilots in it and three plans; see the tables below |
 
@@ -4849,7 +4849,8 @@ The answer is `201`. This is the development mode's, with the token and the sess
     "handle": "demo",
     "display_name": "Demo Pilot",
     "created_at": "2026-11-18T19:05:00Z",
-    "edits_sites": true
+    "edits_sites": true,
+    "new_flights_public": true
   },
   "session": {
     "id": "3kq9x2m7r4t8v1w6y0a5b3c2d4",
@@ -4996,7 +4997,8 @@ Needs a token. The account the token belongs to.
     "handle": "demo",
     "display_name": "Demo Pilot",
     "created_at": "2026-11-18T19:05:00Z",
-    "edits_sites": true
+    "edits_sites": true,
+    "new_flights_public": true
   }
 }
 ```
@@ -5008,6 +5010,7 @@ Needs a token. The account the token belongs to.
 | `publishing_suspended_at` | Since when the account may publish nothing, because whoever runs the server [suspended its publishing](#what-whoever-runs-the-server-can-do). Left out for every account that may, which is nearly every account |
 | `google_email` | The email of the Google account the account [signs in with](#sign-in-with-google), if it is linked to one. Only the account itself sees it. Left out otherwise |
 | `edits_sites` | `true` for an account whoever runs the server named as a [partner for flying sites](#sites-that-ventis-partners-and-pilots-add): it adds to the partners' layer `venti` and corrects sites of both layers. Left out for every other account, which is nearly every account. A token with `account:read` reads it too. The demo account of the development mode is one |
+| `new_flights_public` | Whether a flight the pilot [uploads](#post-v1flights) is public from the start. The pilot's own setting, changed with [`PATCH /v1/account`](#patch-v1account): `true` for every account until its pilot switches it off, accounts made before the setting (2026-11-22) included. While `publishing_suspended_at` is there an upload is private whatever this says. Always there; a server from before the setting leaves it out, and made every new flight private |
 
 The answers to creating an account and to signing in carry the same `account`. This is the demo account after its publishing was suspended:
 
@@ -5018,10 +5021,41 @@ The answers to creating an account and to signing in carry the same `account`. T
     "display_name": "Demo Pilot",
     "created_at": "2026-11-18T19:05:00Z",
     "publishing_suspended_at": "2026-11-18T19:05:00Z",
-    "edits_sites": true
+    "edits_sites": true,
+    "new_flights_public": true
   }
 }
 ```
+
+### `PATCH /v1/account`
+
+Needs a token, with `flights:write` for a program: its one setting today is one of the pilot's flights. Changes the pilot's own settings of the account. A field that is left out stays as it is; `{}` changes nothing. The answer is `200` with the account, as [`GET /v1/account`](#get-v1account) has it.
+
+```json
+{
+  "new_flights_public": false
+}
+```
+
+This is the development mode's answer to that body:
+
+```json
+{
+  "account": {
+    "handle": "demo",
+    "display_name": "Demo Pilot",
+    "created_at": "2026-11-18T19:05:00Z",
+    "edits_sites": true,
+    "new_flights_public": false
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `new_flights_public` | Whether a flight the pilot uploads from now on is public from the start. It changes no flight the account has: [`PATCH /v1/flights`](#patch-v1flights) makes all of them public or private at once |
+
+A field of the wrong kind is `400` with `invalid_request`. An app shows the setting as a switch where the pilot chooses who sees their flights, with the two buttons of `PATCH /v1/flights` beside it; the core has the words for both (`flight_visibility_words`).
 
 ### `GET /v1/account/archive`
 
@@ -5248,7 +5282,7 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 |---|---|
 | `account:read` | The account: handle, display name, since when it exists, whether its publishing is suspended |
 | `flights:read` | The pilot's flights, the private ones among them: the list, what changed since, each flight and its file |
-| `flights:write` | Uploading flights, changing who may see one, deleting one |
+| `flights:write` | Uploading flights, changing who may see one or all of them, deleting one; and whether new flights are public |
 | `live:write` | Sending the positions of a live track, and ending one |
 | `sites:write` | Adding, correcting, removing and restoring [sites that pilots make](#sites-that-ventis-partners-and-pilots-add) |
 | `groups:read` | The pilot's groups, their members and their plans |
@@ -5266,10 +5300,12 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | Request | Needs |
 |---|---|
 | `GET /v1/account` | `account:read` |
+| `PATCH /v1/account` | `flights:write` |
 | `GET /v1/flights` | `flights:read` |
 | `GET /v1/flights/changes` | `flights:read` |
 | `GET /v1/flights/{id}`, `GET /v1/flights/{id}/igc`, `GET /v1/flights/{id}/track` | Nothing for a flight that is public or shared by link. `flights:read` for the pilot's own private flight |
 | `POST /v1/flights` | `flights:write` |
+| `PATCH /v1/flights` | `flights:write` |
 | `PATCH /v1/flights/{id}` | `flights:write` |
 | `DELETE /v1/flights/{id}` | `flights:write` |
 | `POST /v1/live/positions` | `live:write` |
@@ -6224,15 +6260,17 @@ The server keeps a pilot's flight files exactly as they were uploaded, and works
 
 | Value | Meaning |
 |---|---|
-| `private` | Only its pilot. Every flight starts like this |
+| `private` | Only its pilot |
 | `unlisted` | Anyone who has its link. It is listed nowhere |
 | `public` | Anyone. It is listed on its pilot's page |
 
 To everyone but its pilot, a private flight does not exist: the answer is the one for an address that belongs to no flight, `404` with `flight_not_found`, the same in every detail. A client must expect further values of `visibility` in answers; one for followers is planned.
 
-The pilot chooses, with two exceptions that whoever runs the server can make by hand: a single flight can be [taken down](#what-whoever-runs-the-server-can-do), which makes it private until they release it, and an account's publishing can be suspended, which leaves `unlisted` as the most it can share with. The flight and the account say so to their pilot (`taken_down_at`, `publishing_suspended_at`), and to nobody else.
+**A pilot's flights are public unless the pilot keeps them private** (owner decision 21, 2026-11-22). A new flight starts as the account's setting [`new_flights_public`](#get-v1account) says: `public` while it is on, which it is for every account until its pilot switches it off ([`PATCH /v1/account`](#patch-v1account)), and `private` otherwise. One flight's visibility is changed with [`PATCH /v1/flights/{id}`](#patch-v1flightsid), all of them at once with [`PATCH /v1/flights`](#patch-v1flights).
 
-**Since when a flight is public** is its `published_at`: the moment its pilot made it public, there while it is public and left out otherwise. A flight that was withdrawn and made public again has the moment of the second time. For a flight that was public before the server kept this (2026-11-21), it is the moment of the upload, which is the earliest it can have been. A flight that stops being public (made private or unlisted, taken down, deleted, or gone with its account) is **withdrawn**, and [the changes among the public flights](#get-v1flightspublicchangessincepilotlimit) say so to whoever kept a copy.
+The pilot chooses, with two exceptions that whoever runs the server can make by hand: a single flight can be [taken down](#what-whoever-runs-the-server-can-do), which makes it private until they release it, and an account's publishing can be suspended, which leaves `unlisted` as the most it can share with. The flight and the account say so to their pilot (`taken_down_at`, `publishing_suspended_at`), and to nobody else. Both stand above the setting: a suspended account's uploads are private, and so is a flight that was taken down when it was deleted and comes back with its file.
+
+**Since when a flight is public** is its `published_at`: the moment its pilot made it public, or the moment of its upload for a flight that was public from the start, there while it is public and left out otherwise. A flight that was withdrawn and made public again has the moment of the second time. For a flight that was public before the server kept this (2026-11-21), it is the moment of the upload, which is the earliest it can have been. A flight that stops being public (made private or unlisted, taken down, deleted, or gone with its account) is **withdrawn**, and [the changes among the public flights](#get-v1flightspublicchangessincepilotlimit) say so to whoever kept a copy.
 
 **Under what a flight is given.** Every answer that holds a flight someone other than its pilot may read carries `terms`: the list of public flights, what changed among them, a pilot's page, the ranking, and one flight and its track when the flight is public or shared by link.
 
@@ -6257,7 +6295,7 @@ curl -X POST http://127.0.0.1:8080/v1/flights \
   --data-binary @flight.igc
 ```
 
-The answer is `201` when the upload created the flight, and `200` when the account already had it. Both are a success; `created` says which. The flight that was already there is returned as it is: its visibility stays, and the first file received stays the file.
+The answer is `201` when the upload created the flight, and `200` when the account already had it. Both are a success; `created` says which. A new flight is public or private as the account's setting [`new_flights_public`](#get-v1account) says, with its `published_at` the moment of the upload when it is public; the upload itself names no visibility. The flight that was already there is returned as it is: its visibility stays, and the first file received stays the file.
 
 ```json
 {
@@ -6268,7 +6306,7 @@ The answer is `201` when the upload created the flight, and `200` when the accou
       "handle": "demo",
       "display_name": "Demo Pilot"
     },
-    "visibility": "private",
+    "visibility": "public",
     "uploaded_at": "2026-11-18T19:05:00Z",
     "start": "2026-09-01T10:30:00Z",
     "airtime_s": 1744,
@@ -6301,7 +6339,8 @@ The answer is `201` when the upload created the flight, and `200` when the accou
       ]
     ],
     "file_bytes": 64678,
-    "analysis_version": 1
+    "analysis_version": 1,
+    "published_at": "2026-11-18T19:05:00Z"
   },
   "created": true
 }
@@ -6708,9 +6747,47 @@ Two answers say that whoever runs the server stands in the way, and nothing chan
 
 Neither goes away by asking again, and neither is a fault in the app: show the pilot what it is, and that the person to talk to is whoever runs the server. A flight that is both gets `flight_taken_down`.
 
+### `PATCH /v1/flights`
+
+Needs a token, with `flights:write` for a program, as for one flight. Makes every flight of the account public, or every one private, in one go: "make all 101 flights public". The body is that of one flight's change, with `public` or `private`:
+
+```json
+{
+  "visibility": "public"
+}
+```
+
+The answer is `200` and says how the account's flights stand. This is the development mode's, for its demo account, whose three flights were one public, one shared by link and one private:
+
+```json
+{
+  "visibility": "public",
+  "flights": 3,
+  "changed": 2,
+  "taken_down": 0
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `visibility` | What was asked for |
+| `flights` | How many of the account's flights are so now, those that were so before included |
+| `changed` | How many of them the request changed |
+| `taken_down` | How many stay private because whoever runs the server [took them down](#what-whoever-runs-the-server-can-do). Only ever more than 0 for `public`; such a flight is not counted in `flights` |
+
+It follows the rules of [one flight's change](#patch-v1flightsid) for each flight, all or nothing, in one transaction: a flight shared by link becomes public or private like any other; one that is taken down stays private; each flight that changes is a change of its own among the account's flights ([`GET /v1/flights/changes`](#get-v1flightschangessincelimit)), in the order of the flights' addresses, so the pilot's other devices hear of each; one that becomes public gets the moment of the request as its `published_at`, and one that stops being public is withdrawn from [the public flights](#get-v1flightspublicchangessincepilotlimit). Asking for what every flight is already changes nothing and is answered `200` with `changed` 0. It does not change the setting for new flights: [`PATCH /v1/account`](#patch-v1account) does.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_visibility` | `visibility` is not `public` or `private`. Making every flight `unlisted` is not offered |
+| 403 | `publishing_suspended` | The account's publishing is suspended, and the request asked for `public`. Nothing changed, not even what could have been shared by link; `private` works |
+| 429 | `rate_limited` | The account sets all its flights at once at most 20 times a day, whatever became of each request: each can change every flight, and each change is told to the pilot's devices and to every copy of the public flights. `Retry-After` says when to try again |
+
+An app asks before it sends this, with the number of flights in the question ("Make all 101 flights public?"), and says the answer in a line ("101 flights are public"); the core has both (`all_flights_question`, `Core::all_flights_set`).
+
 ### `DELETE /v1/flights/{id}`
 
-Needs a token. Deletes a flight of the account and its file, at once and for good. The answer is `204` with no body. The server remembers only that the flight was deleted, with its `id` and `identity`, so that the pilot's other devices can be told. Uploading the file again makes the flight again, private, under the same address. A flight that was taken down when it was deleted comes back taken down, since the same moment.
+Needs a token. Deletes a flight of the account and its file, at once and for good. The answer is `204` with no body. The server remembers only that the flight was deleted, with its `id` and `identity`, so that the pilot's other devices can be told. Uploading the file again makes the flight again under the same address, public or private as the account's setting says then. A flight that was taken down when it was deleted comes back taken down, since the same moment, and private.
 
 ## Pilots
 

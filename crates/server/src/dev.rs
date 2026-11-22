@@ -973,6 +973,7 @@ pub async fn add_demo_takeoffs(store: &MemoryStore, password_cost: Cost) -> Resu
             created_at: now,
             publishing_suspended_at: None,
             edits_sites_since: None,
+            new_flights_public: true,
         };
         add_pilot(store, &account, flights, password_cost).await?;
     }
@@ -991,8 +992,14 @@ async fn add_pilot(
         .hash(&Password::new(DEMO_PASSWORD))
         .await
         .map_err(|e| e.to_string())?;
+    // Each demo flight is uploaded private and then given the visibility
+    // it is meant to have, so that none of them is withdrawn on the way;
+    // the account's own setting is put in after them.
     let new = NewAccount {
-        account: account.clone(),
+        account: Account {
+            new_flights_public: false,
+            ..account.clone()
+        },
         password_hash,
         invite: None,
     };
@@ -1019,6 +1026,10 @@ async fn add_pilot(
             .await
             .map_err(|e| e.to_string())?;
     }
+    store
+        .set_new_flights_public(&account.id, account.new_flights_public)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1064,6 +1075,7 @@ async fn add_demo_account(
         created_at: now,
         publishing_suspended_at: None,
         edits_sites_since: None,
+        new_flights_public: true,
     };
     add_pilot(store, &account, demo_flights(), password_cost).await?;
     // The demo account is this mode's one partner for flying sites: it
@@ -1082,6 +1094,7 @@ async fn add_demo_account(
             created_at: now,
             publishing_suspended_at: None,
             edits_sites_since: None,
+            new_flights_public: true,
         };
         add_pilot(store, &further, flights, password_cost).await?;
         pilots.push(further);

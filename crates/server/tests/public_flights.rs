@@ -29,7 +29,7 @@ mod common;
 
 use common::{
     Answer, TestClock, ask, get, golden, recorded, sample_file, sample_file_on, server,
-    set_visibility, settings, sign_up, upload,
+    set_visibility, settings, sign_up, sign_up_private, upload,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -128,9 +128,9 @@ async fn a_copy_that_follows_the_changes_holds_exactly_the_public_flights() {
     let clock = TestClock::new();
     let (router, store) = open_server(&clock);
     let minute = chrono::Duration::minutes(1);
-    let anna = sign_up(&router, "anna").await;
-    let ben = sign_up(&router, "ben").await;
-    let cleo = sign_up(&router, "cleo").await;
+    let anna = sign_up_private(&router, "anna").await;
+    let ben = sign_up_private(&router, "ben").await;
+    let cleo = sign_up_private(&router, "cleo").await;
 
     // Nothing is public: the changes are empty, and say where to go on.
     let mut mirror = Mirror::default();
@@ -271,8 +271,8 @@ async fn the_changes_of_one_pilot_are_followed_like_those_of_everyone() {
     let clock = TestClock::new();
     let (router, _) = open_server(&clock);
     let minute = chrono::Duration::minutes(1);
-    let anna = sign_up(&router, "anna").await;
-    let ben = sign_up(&router, "ben").await;
+    let anna = sign_up_private(&router, "anna").await;
+    let ben = sign_up_private(&router, "ben").await;
     let of = |handle: &str| PublicFlightChangesRequest {
         pilot: Some(Handle::new(handle).unwrap()),
         ..PublicFlightChangesRequest::default()
@@ -382,7 +382,7 @@ async fn the_changes_of_one_pilot_are_followed_like_those_of_everyone() {
 async fn a_flight_says_since_when_it_is_public_and_under_what_it_is_given() {
     let clock = TestClock::new();
     let (router, _) = open_server(&clock);
-    let anna = sign_up(&router, "anna").await;
+    let anna = sign_up_private(&router, "anna").await;
     let id = upload(&router, &anna.token, &sample_file()).await.flight.id;
     let read = |token: Option<&'static str>| {
         let (router, path) = (&router, flight_path(&id));
@@ -462,8 +462,8 @@ async fn a_flight_says_since_when_it_is_public_and_under_what_it_is_given() {
 async fn a_track_is_read_by_whoever_may_see_the_flight() {
     let clock = TestClock::new();
     let (router, _) = open_server(&clock);
-    let anna = sign_up(&router, "anna").await;
-    let ben = sign_up(&router, "ben").await;
+    let anna = sign_up_private(&router, "anna").await;
+    let ben = sign_up_private(&router, "ben").await;
     let id = upload(&router, &anna.token, &sample_file()).await.flight.id;
     let path = flight_track_path(&id);
     assert_eq!(path, format!("/v1/flights/{id}/track"));

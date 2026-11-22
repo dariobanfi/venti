@@ -26,7 +26,7 @@ mod common;
 
 use common::{
     Answer, PASSWORD, TestClock, ask, golden, recorded, recorded_with_its_store, sample_file,
-    server, settings, sign_up, upload,
+    server, settings, sign_up, sign_up_private, upload,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -101,9 +101,11 @@ fn scoped() -> Vec<(Method, String, Scope)> {
     let comment = format!("{flight}/comments/{ID}");
     vec![
         (Method::GET, ACCOUNT_PATH.to_owned(), AccountRead),
+        (Method::PATCH, ACCOUNT_PATH.to_owned(), FlightsWrite),
         (Method::GET, FLIGHTS_PATH.to_owned(), FlightsRead),
         (Method::GET, FLIGHT_CHANGES_PATH.to_owned(), FlightsRead),
         (Method::POST, FLIGHTS_PATH.to_owned(), FlightsWrite),
+        (Method::PATCH, FLIGHTS_PATH.to_owned(), FlightsWrite),
         (Method::PATCH, flight.clone(), FlightsWrite),
         (Method::DELETE, flight, FlightsWrite),
         (Method::POST, LIVE_POSITIONS_PATH.to_owned(), LiveWrite),
@@ -466,8 +468,8 @@ async fn making_a_token_takes_the_password_a_name_scopes_and_an_end_to_come() {
 #[tokio::test]
 async fn a_private_flight_is_read_through_a_token_only_with_the_scope() {
     let (router, _) = server(settings(), &TestClock::new());
-    let dario = sign_up(&router, "dario").await;
-    let anna = sign_up(&router, "anna").await;
+    let dario = sign_up_private(&router, "dario").await;
+    let anna = sign_up_private(&router, "anna").await;
     let flight = upload(&router, &dario.token, &sample_file()).await.flight;
     let reads = make(&router, &dario.token, &[Scope::FlightsRead])
         .await

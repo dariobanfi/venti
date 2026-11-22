@@ -3,7 +3,8 @@
     "handle": "demo",
     "display_name": "Demo Pilot",
     "created_at": "2026-11-18T19:05:00Z",
-    "edits_sites": true
+    "edits_sites": true,
+    "new_flights_public": true
   },
   "session": {
     "id": "3kq9x2m7r4t8v1w6y0a5b3c2d4",

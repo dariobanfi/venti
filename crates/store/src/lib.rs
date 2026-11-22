@@ -72,9 +72,10 @@ pub use alert::{
 };
 pub use cable::{CableLayer, CableSet};
 pub use flight::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Flown, FoundPilot, Kept, Listing,
-    Near, NewFlight, OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder,
-    Ranked, Room, Saved, Score, ScoreKey, ScoreKind, Visibility, VisibilityChange, WithdrawnFlight,
+    AllFlightsSet, AllVisibilityChange, DeletedFlight, Derived, Flight, FlightChanges, FlightKey,
+    Flown, FoundPilot, Kept, Listing, Near, NewFlight, OutdatedFlight, Place, PublicFlightChanges,
+    PublicFlights, PublicOrder, Ranked, Room, Saved, Score, ScoreKey, ScoreKind, Visibility,
+    VisibilityChange, WithdrawnFlight,
 };
 pub use forecast::{ForecastModel, ThermalPart};
 pub use group::{
@@ -735,6 +736,18 @@ pub trait Store: Send + Sync + 'static {
     /// order of the handles.
     fn site_editors(&self) -> impl Future<Output = Result<Vec<Account>, StoreError>> + Send;
 
+    /// Sets whether a flight the account uploads from now on is public
+    /// from the start ([`Account::new_flights_public`]), and returns the
+    /// account as it then is. `None` if there is no such account.
+    ///
+    /// It changes no flight the account has: [`Store::set_all_visibility`]
+    /// does that.
+    fn set_new_flights_public(
+        &self,
+        account_id: &str,
+        public: bool,
+    ) -> impl Future<Output = Result<Option<Account>, StoreError>> + Send;
+
     /// Stores an invite that one account can be created with.
     fn create_invite(
         &self,
@@ -1279,10 +1292,18 @@ pub trait Store: Send + Sync + 'static {
 
     // --- Flights ----------------------------------------------------------
 
-    /// Stores a flight, private, unless its account already has a flight
-    /// with the same identity or has no room for another. Says which of
-    /// the three it was, with the stored flight or with what the account
-    /// keeps.
+    /// Stores a flight, unless its account already has a flight with the
+    /// same identity or has no room for another. Says which of the three
+    /// it was, with the stored flight or with what the account keeps.
+    ///
+    /// A new flight is public from its upload when its account's setting
+    /// says so ([`Account::new_flights_public`]), as if its pilot had made
+    /// it public that moment: it has its `published_at` and a number of the
+    /// public count, and a withdrawal of an earlier flight at its address
+    /// is no longer told. It is private when the setting is off, when the
+    /// account's publishing is suspended, and when it comes back taken
+    /// down; the account's row is read under its lock, so neither rule
+    /// can be raced past.
     ///
     /// The flight that is already there is returned untouched: the first
     /// file received is the one that is kept. Two calls that race for the
@@ -1493,6 +1514,24 @@ pub trait Store: Send + Sync + 'static {
         visibility: Visibility,
         now: Timestamp,
     ) -> impl Future<Output = Result<VisibilityChange, StoreError>> + Send;
+
+    /// Sets who may see every flight of an account at once, all or
+    /// nothing, by the rules of [`Store::set_visibility`], and says how
+    /// the account's flights then stand; see [`AllVisibilityChange`].
+    ///
+    /// A flight that is taken down stays private and is counted as such.
+    /// An account whose publishing is suspended makes no flight public: it
+    /// is refused, and nothing changes. Each flight that changes takes the
+    /// account's next change number, in the order of the flights'
+    /// addresses, and what the public sees follows in the same count as
+    /// for one flight: one that becomes public gets the moment `now` and a
+    /// number, one that stops being public is withdrawn.
+    fn set_all_visibility(
+        &self,
+        account_id: &str,
+        visibility: Visibility,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<AllVisibilityChange, StoreError>> + Send;
 
     /// Makes a flight private, whoever it belongs to and whatever its
     /// pilot had set, and keeps it so until [`Store::release_flight`].

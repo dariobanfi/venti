@@ -329,6 +329,14 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn set_new_flights_public(
+        &self,
+        _: &str,
+        _: bool,
+    ) -> Result<Option<Account>, StoreError> {
+        self.fail().await
+    }
+
     async fn create_invite(&self, _: &NewInvite) -> Result<(), StoreError> {
         self.fail().await
     }
@@ -806,6 +814,15 @@ impl Store for TroubledStore {
         _: Visibility,
         _: Timestamp,
     ) -> Result<VisibilityChange, StoreError> {
+        self.fail().await
+    }
+
+    async fn set_all_visibility(
+        &self,
+        _: &str,
+        _: Visibility,
+        _: Timestamp,
+    ) -> Result<crate::AllVisibilityChange, StoreError> {
         self.fail().await
     }
 

@@ -63,6 +63,7 @@ use venti_core::{AgreementOutcome, AgreementPage, AgreementWords};
 use venti_core::{
     AlertDraft, AlertFaultView, AlertFormWords, AlertView, FiredLine, FiredPage, PilotsAlarmNumbers,
 };
+use venti_core::{AllFlightsSet, FlightVisibilityWords};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{
     CheerList, CheerState, CommentDraft, CommentList, CommentPosted, CommentsSwitch, Feed,
@@ -698,6 +699,49 @@ impl Core {
             .call(|core| core.shared(id, status, body))
             .map_err(thrown)?;
         to_js(&sharing)
+    }
+
+    /// The request that sets whether a flight sent to the server from now
+    /// on is public from the start. Its answer is the account, for
+    /// `accountRead`.
+    #[wasm_bindgen(js_name = newFlightsPublicRequest)]
+    pub fn new_flights_public_request(&self, public: bool) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .call(|core| core.new_flights_public_request(public))
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// The request that makes every flight of the account public, or
+    /// every one private. Ask `allFlightsQuestion` first; the answer goes
+    /// to `allFlightsSet`.
+    #[wasm_bindgen(js_name = allFlightsRequest)]
+    pub fn all_flights_request(
+        &self,
+        visibility: Ts<FlightVisibility>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let visibility = from_js(&visibility)?;
+        let request = self
+            .session
+            .call(|core| core.all_flights_request(visibility))
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// Reads the server's answer to `allFlightsRequest`: how the
+    /// account's flights stand, with the line to show.
+    #[wasm_bindgen(js_name = allFlightsSet)]
+    pub fn all_flights_set(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Ts<AllFlightsSet>, JsValue> {
+        let set = self
+            .session
+            .call(|core| core.all_flights_set(status, body))
+            .map_err(thrown)?;
+        to_js(&set)
     }
 
     /// Starts bringing the logbook in step with the server.
@@ -1633,6 +1677,26 @@ pub fn token_withdrawn(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
 #[wasm_bindgen(js_name = googleWords)]
 pub fn google_words() -> Result<Ts<GoogleWords>, JsValue> {
     to_js(&venti_core::google_words())
+}
+
+/// The words of who sees a pilot's flights: the switch for new flights,
+/// its line, and the two buttons that set all flights at once.
+#[wasm_bindgen(js_name = flightVisibilityWords)]
+pub fn flight_visibility_words() -> Result<Ts<FlightVisibilityWords>, JsValue> {
+    to_js(&venti_core::flight_visibility_words())
+}
+
+/// The question asked before every flight is made public or private:
+/// "Make all 101 flights public?".
+#[wasm_bindgen(js_name = allFlightsQuestion)]
+pub fn all_flights_question(
+    flights: u32,
+    visibility: Ts<FlightVisibility>,
+) -> Result<String, JsValue> {
+    Ok(venti_core::all_flights_question(
+        flights,
+        from_js(&visibility)?,
+    ))
 }
 
 /// What a sync did, in a line for the pilot: "3 sent, 1 fetched".

@@ -18,9 +18,9 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tower::ServiceExt;
 use venti_api_types::v1::{
-    ACCOUNTS_PATH, CreateAccountRequest, ErrorCode, ErrorResponse, FLIGHTS_PATH, FlightId,
-    FlightResponse, Password, SESSIONS_PATH, SignInRequest, SignInResponse, UpdateFlightRequest,
-    UploadResponse, Visibility, flight_path,
+    ACCOUNT_PATH, ACCOUNTS_PATH, AccountResponse, CreateAccountRequest, ErrorCode, ErrorResponse,
+    FLIGHTS_PATH, FlightId, FlightResponse, Password, SESSIONS_PATH, SignInRequest, SignInResponse,
+    UpdateAccountRequest, UpdateFlightRequest, UploadResponse, Visibility, flight_path,
 };
 use venti_domain::Timestamp;
 use venti_flight::igc;
@@ -326,6 +326,29 @@ pub async fn sign_up(router: &Router, handle: &str) -> SignInResponse {
         .send(router)
         .await
         .ok(StatusCode::CREATED)
+}
+
+/// Switches off that the account's new flights are public, as a pilot who
+/// keeps them private does: for the tests of what is private, whose
+/// flights start private and are shared by hand.
+pub async fn keep_new_flights_private(router: &Router, token: &str) {
+    let answer: AccountResponse = ask(Method::PATCH, ACCOUNT_PATH)
+        .token(token)
+        .json(&UpdateAccountRequest {
+            new_flights_public: Some(false),
+        })
+        .send(router)
+        .await
+        .ok(StatusCode::OK);
+    assert!(!answer.account.new_flights_public);
+}
+
+/// Creates an account as [`sign_up`] does, for a pilot who keeps new
+/// flights private ([`keep_new_flights_private`]).
+pub async fn sign_up_private(router: &Router, handle: &str) -> SignInResponse {
+    let signed = sign_up(router, handle).await;
+    keep_new_flights_private(router, &signed.token).await;
+    signed
 }
 
 /// Tries to sign in and returns the server's answer, whatever it is.

@@ -29,7 +29,7 @@ mod common;
 
 use common::{
     Answer, PASSWORD, TestClock, WEB_APP, ask, get, golden, recorded, sample_file, send, server,
-    set_visibility, settings, sign_up, try_sign_in, upload,
+    set_visibility, settings, sign_up, sign_up_private, try_sign_in, upload,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -947,7 +947,7 @@ async fn a_full_table_does_not_refuse_whoever_the_server_has_not_seen() {
 async fn a_json_body_is_taken_only_from_a_request_that_says_it_is_json() {
     let clock = TestClock::new();
     let router = limited_server(&clock, &[]);
-    let dario = sign_up(&router, "dario").await;
+    let dario = sign_up_private(&router, "dario").await;
     let flight = upload(&router, &dario.token, &sample_file()).await.flight;
 
     // Every request of the API that carries JSON, each with a body that
@@ -961,12 +961,15 @@ async fn a_json_body_is_taken_only_from_a_request_that_says_it_is_json() {
     });
     let delete = serde_json::json!({"password": PASSWORD});
     let share = serde_json::json!({"visibility": "public"});
+    let settings = serde_json::json!({"new_flights_public": true});
     let requests = [
         (Method::POST, SESSIONS_PATH.to_owned(), sign_in, false),
         (Method::POST, ACCOUNTS_PATH.to_owned(), register, false),
         (Method::PUT, ACCOUNT_PASSWORD_PATH.to_owned(), change, true),
         (Method::DELETE, ACCOUNT_PATH.to_owned(), delete, true),
-        (Method::PATCH, flight_path(&flight.id), share, true),
+        (Method::PATCH, flight_path(&flight.id), share.clone(), true),
+        (Method::PATCH, ACCOUNT_PATH.to_owned(), settings, true),
+        (Method::PATCH, FLIGHTS_PATH.to_owned(), share, true),
     ];
 
     // A page on any site can make a visitor's browser send these types
@@ -1006,6 +1009,12 @@ async fn a_json_body_is_taken_only_from_a_request_that_says_it_is_json() {
     assert!(works(&router, &dario.token).await);
     let answer = get(&router, &flight_path(&flight.id)).await;
     answer.error(StatusCode::NOT_FOUND, ErrorCode::FlightNotFound);
+    let account: AccountResponse = ask(Method::GET, ACCOUNT_PATH)
+        .token(&dario.token)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert!(!account.account.new_flights_public);
 
     // Said as JSON, with or without a character set, the same bodies work.
     for said in ["application/json", "application/json; charset=utf-8"] {

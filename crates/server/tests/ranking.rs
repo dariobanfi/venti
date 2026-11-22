@@ -22,7 +22,7 @@ mod common;
 
 use common::{
     TestClock, ask, get, get_with, golden, recorded, server, set_visibility, settings, sign_up,
-    upload,
+    sign_up_private, upload,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -288,9 +288,9 @@ async fn the_best_three_public_flights_of_a_pilot_count_and_no_others() {
     let router = open_server();
     assert!(ranking(&router, &everything()).await.pilots.is_empty());
 
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
-    let bernd = sign_up(&router, "bernd").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
+    let bernd = sign_up_private(&router, "bernd").await.token;
 
     // Dario flies four times, each flight longer than the one before.
     let mut darios = Vec::new();
@@ -447,8 +447,8 @@ async fn a_ranking_of_a_part_of_the_map_counts_the_flights_that_took_off_there()
 async fn the_periods_are_those_of_public_flights_in_the_box() {
     let router = open_server();
     assert!(ranking(&router, &everything()).await.periods.is_empty());
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
     let whole = synthetic_flight().fixes.len();
     let last_year = NaiveDate::from_ymd_opt(2025, 9, 14).unwrap();
     for (date, east, visibility) in [

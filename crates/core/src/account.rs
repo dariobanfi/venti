@@ -3,8 +3,10 @@
 //!
 //! Without an account everything stays on the device. With one, the
 //! pilot's flight files are copied to the server, so that they appear on
-//! the pilot's other devices and can be shared with a link. A flight is
-//! private on the server until the pilot says otherwise.
+//! the pilot's other devices and can be shared. A flight is public on the
+//! server from its upload unless the pilot keeps new flights private
+//! ([`Core::new_flights_public_request`]); all of them are made public or
+//! private at once with [`Core::all_flights_request`].
 //!
 //! The core does no I/O here either. For every conversation with the
 //! server it hands the shell a [`ServerRequest`] and reads the answer; the
@@ -117,6 +119,99 @@ pub struct AccountView {
     #[uniffi(default = None)]
     #[cfg_attr(feature = "wasm", tsify(optional))]
     pub google_email: Option<String>,
+    /// Whether a flight sent to the server is public from the start: the
+    /// pilot's own setting, as the server said it last. On for every
+    /// account until the pilot switches it off
+    /// ([`Core::new_flights_public_request`]); read as on for an account
+    /// an earlier build stored, as the server has it.
+    #[uniffi(default = true)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub new_flights_public: bool,
+}
+
+/// The words of who sees a pilot's flights, the same on every platform:
+/// the setting for new flights and the change of all of them at once.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct FlightVisibilityWords {
+    /// The switch's label.
+    pub new_flights_public: String,
+    /// The one line under it.
+    pub new_flights_public_line: String,
+    /// The button that makes every flight public; ask
+    /// [`all_flights_question`] before sending.
+    pub make_all_public: String,
+    /// The button that makes every flight private.
+    pub make_all_private: String,
+}
+
+/// The words of who sees a pilot's flights.
+#[uniffi::export]
+pub fn flight_visibility_words() -> FlightVisibilityWords {
+    FlightVisibilityWords {
+        new_flights_public: "New flights are public".to_owned(),
+        new_flights_public_line: "Switch off to keep new flights to yourself.".to_owned(),
+        make_all_public: "Make all public".to_owned(),
+        make_all_private: "Make all private".to_owned(),
+    }
+}
+
+/// The question asked before every flight is made public or private:
+/// "Make all 101 flights public?". `flights` is how many the account has
+/// on the server, as the shell knows it ([`AccountView::flights_on_server`]
+/// on a phone).
+#[uniffi::export]
+pub fn all_flights_question(flights: u32, visibility: FlightVisibility) -> String {
+    let to = visibility_word(visibility);
+    match flights {
+        0 => format!("Make all flights {to}?"),
+        1 => format!("Make your flight {to}?"),
+        n => format!("Make all {n} flights {to}?"),
+    }
+}
+
+/// The word for who may see a flight, as a line says it.
+fn visibility_word(visibility: FlightVisibility) -> &'static str {
+    match visibility {
+        FlightVisibility::Private => "private",
+        FlightVisibility::Unlisted => "shared by link",
+        FlightVisibility::Public => "public",
+    }
+}
+
+/// How the account's flights stand after they were all made public or
+/// private ([`Core::all_flights_request`]).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct AllFlightsSet {
+    /// What was asked for.
+    pub visibility: FlightVisibility,
+    /// How many of the account's flights are so now, those that were so
+    /// before included.
+    pub flights: u32,
+    /// How many the request changed.
+    pub changed: u32,
+    /// How many stay private because whoever runs the server took them
+    /// down.
+    pub taken_down: u32,
+    /// The answer in a line for the pilot: "101 flights are public".
+    pub line: String,
+}
+
+/// The line that says how the account's flights stand.
+fn all_flights_line(visibility: FlightVisibility, flights: u32, taken_down: u32) -> String {
+    let to = visibility_word(visibility);
+    let mut line = match flights {
+        0 => format!("No flights are {to}"),
+        1 => format!("1 flight is {to}"),
+        n => format!("{n} flights are {to}"),
+    };
+    if taken_down > 0 {
+        line.push_str(&format!(". {taken_down} taken down stays private"));
+    }
+    line
 }
 
 /// What a sign-in with Google came to: signed in, or a first sign-in
@@ -338,6 +433,17 @@ struct Stored {
     /// server said it last.
     #[serde(default)]
     google_email: Option<String>,
+    /// Whether a flight sent to the server is public from the start, as
+    /// the server said it last. Missing from a record an earlier build
+    /// stored, which reads as on: so it is for every account on the
+    /// server until its pilot switches it off.
+    #[serde(default = "on")]
+    new_flights_public: bool,
+}
+
+/// What a setting that is on unless it was switched off reads as.
+fn on() -> bool {
+    true
 }
 
 /// A flight on the server.
@@ -452,6 +558,7 @@ impl Core {
         stored.edits_sites = response.account.edits_sites;
         stored.publishing_suspended = response.account.publishing_suspended_at.is_some();
         stored.google_email = response.account.google_email;
+        stored.new_flights_public = response.account.new_flights_public;
         stored.session_id = response.session.id;
         self.store_account(&stored)?;
         Ok(SignedIn {
@@ -654,9 +761,92 @@ impl Core {
             stored.edits_sites = response.account.edits_sites;
             stored.publishing_suspended = response.account.publishing_suspended_at.is_some();
             stored.google_email = response.account.google_email;
+            stored.new_flights_public = response.account.new_flights_public;
             self.store_account(&stored)?;
         }
         Ok(Some(self.account_view(&stored)))
+    }
+
+    /// The request that sets whether a flight sent to the server from now
+    /// on is public from the start: `PATCH /v1/account`. Its answer is the
+    /// account, which goes to [`Core::account_read`]; the switch shows
+    /// [`AccountView::new_flights_public`] from it. It changes no flight
+    /// the server has: [`Core::all_flights_request`] does.
+    pub fn new_flights_public_request(&self, public: bool) -> Result<ServerRequest, CoreError> {
+        self.stored_account()?.ok_or_else(not_signed_in)?;
+        json_request(
+            "PATCH",
+            api::ACCOUNT_PATH,
+            &api::UpdateAccountRequest {
+                new_flights_public: Some(public),
+            },
+            true,
+        )
+    }
+
+    /// The request that makes every flight of the account public, or every
+    /// one private: `PATCH /v1/flights`. Ask [`all_flights_question`]
+    /// first; the answer goes to [`Core::all_flights_set`]. Shared by link
+    /// is not something all flights are made at once.
+    pub fn all_flights_request(
+        &self,
+        visibility: FlightVisibility,
+    ) -> Result<ServerRequest, CoreError> {
+        self.stored_account()?.ok_or_else(not_signed_in)?;
+        let visibility = match visibility {
+            FlightVisibility::Public => Visibility::Public,
+            FlightVisibility::Private => Visibility::Private,
+            FlightVisibility::Unlisted => {
+                return Err(invalid("All flights can be made public or private."));
+            }
+        };
+        json_request(
+            "PATCH",
+            api::FLIGHTS_PATH,
+            &api::UpdateFlightsRequest { visibility },
+            true,
+        )
+    }
+
+    /// Reads the server's answer to [`Core::all_flights_request`]: how the
+    /// account's flights stand, with the line to show. What this device
+    /// knows of who sees each flight follows where the answer leaves no
+    /// doubt; the next sync brings each changed flight as it is.
+    ///
+    /// # Errors
+    ///
+    /// A refusal of the server, in words: an account whose publishing is
+    /// suspended makes no flight public, and nothing changed.
+    pub fn all_flights_set(&self, status: u16, body: Vec<u8>) -> Result<AllFlightsSet, CoreError> {
+        let response: api::UpdateFlightsResponse = answer(status, &body)?;
+        let visibility = match response.visibility {
+            Visibility::Public => FlightVisibility::Public,
+            Visibility::Private => FlightVisibility::Private,
+            Visibility::Unlisted | Visibility::Unknown => {
+                return Err(CoreError::Server {
+                    message:
+                        "The server's answer could not be read. The app may be older than the server."
+                            .to_owned(),
+                });
+            }
+        };
+        // Every flight is so now, unless some were taken down: which those
+        // are, the next sync says.
+        if response.taken_down == 0
+            && let Some(mut stored) = self.stored_account()?
+        {
+            for remote in stored.flights.values_mut() {
+                remote.visibility = response.visibility;
+            }
+            self.store_account(&stored)?;
+        }
+        Ok(AllFlightsSet {
+            visibility,
+            flights: response.flights,
+            changed: response.changed,
+            taken_down: response.taken_down,
+            line: all_flights_line(visibility, response.flights, response.taken_down),
+        })
     }
 
     /// The request that signs this device out on the server, if it is
@@ -890,6 +1080,7 @@ impl Core {
             last_sync_unix_s: stored.last_sync_unix_s,
             may_edit_partner_sites: stored.edits_sites,
             google_email: stored.google_email.clone(),
+            new_flights_public: stored.new_flights_public,
         }
     }
 
@@ -1745,6 +1936,155 @@ mod tests {
         );
     }
 
+    /// A body of a request as JSON, to compare with a golden file.
+    fn body_of(request: &ServerRequest) -> Value {
+        serde_json::from_slice(request.body.as_deref().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn whether_new_flights_are_public_is_the_pilots_and_follows_the_server() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        // Signed out, there is no account to set it for.
+        assert!(core.new_flights_public_request(false).is_err());
+
+        // On for the demo account, as for every account.
+        assert!(signed_in(&core).account.new_flights_public);
+        let asked = core.new_flights_public_request(false).unwrap();
+        assert_eq!(
+            (
+                asked.method.as_str(),
+                asked.path.as_str(),
+                asked.needs_token
+            ),
+            ("PATCH", "/v1/account", true)
+        );
+        let sent: Value = serde_json::from_slice(&golden("account_settings_request.json")).unwrap();
+        assert_eq!(body_of(&asked), sent);
+        // The answer is the account, read as any read of it.
+        let read = core
+            .account_read(200, golden("account_settings.json"))
+            .unwrap()
+            .unwrap();
+        assert!(!read.new_flights_public);
+        drop(core);
+        let core = self::core(&folder);
+        assert!(!core.account().unwrap().unwrap().new_flights_public);
+
+        // A record that an earlier build stored reads as on, as the
+        // server has it for every account until its pilot says otherwise.
+        let path = folder.path().join("account.json");
+        let mut stored: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let fields = stored.as_object_mut().unwrap();
+        assert_eq!(fields.remove("new_flights_public"), Some(json!(false)));
+        std::fs::write(&path, stored.to_string()).unwrap();
+        drop(core);
+        let core = self::core(&folder);
+        assert!(core.account().unwrap().unwrap().new_flights_public);
+    }
+
+    #[test]
+    fn every_flight_is_made_public_or_private_at_once() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        assert!(core.all_flights_request(FlightVisibility::Public).is_err());
+        let id = core.import_flight(sample()).unwrap().id;
+        signed_in(&core);
+        let sync = core.clone().sync();
+        sync.start(NOW);
+        sync.receive(200, no_more_changes(), None);
+        sync.receive(201, golden("upload.json"), None);
+        // Public from its upload, as the account's setting says.
+        let shared = core.flight_sharing(id.clone()).unwrap().unwrap();
+        assert_eq!(shared.visibility, FlightVisibility::Public);
+
+        let asked = core.all_flights_request(FlightVisibility::Private).unwrap();
+        assert_eq!(
+            (
+                asked.method.as_str(),
+                asked.path.as_str(),
+                asked.needs_token
+            ),
+            ("PATCH", "/v1/flights", true)
+        );
+        assert_eq!(body_of(&asked), json!({"visibility": "private"}));
+        let asked = core.all_flights_request(FlightVisibility::Public).unwrap();
+        let sent: Value =
+            serde_json::from_slice(&golden("flights_visibility_request.json")).unwrap();
+        assert_eq!(body_of(&asked), sent);
+        // Shared by link is for one flight at a time.
+        assert!(
+            core.all_flights_request(FlightVisibility::Unlisted)
+                .is_err()
+        );
+
+        // All private: every flight this device knows of is so now.
+        let answer = json!({"visibility": "private", "flights": 3, "changed": 3, "taken_down": 0});
+        let set = core
+            .all_flights_set(200, answer.to_string().into_bytes())
+            .unwrap();
+        assert_eq!(set.visibility, FlightVisibility::Private);
+        assert_eq!((set.flights, set.changed, set.taken_down), (3, 3, 0));
+        assert_eq!(set.line, "3 flights are private");
+        let shared = core.flight_sharing(id.clone()).unwrap().unwrap();
+        assert_eq!(shared.visibility, FlightVisibility::Private);
+
+        // All public, as the development server answers.
+        let set = core
+            .all_flights_set(200, golden("flights_visibility.json"))
+            .unwrap();
+        assert_eq!(set.line, "3 flights are public");
+        let shared = core.flight_sharing(id.clone()).unwrap().unwrap();
+        assert_eq!(shared.visibility, FlightVisibility::Public);
+
+        // With a flight taken down nobody here knows which: the next sync
+        // says, and nothing is guessed meanwhile.
+        core.all_flights_set(200, answer.to_string().into_bytes())
+            .unwrap();
+        let some = json!({"visibility": "public", "flights": 1, "changed": 1, "taken_down": 1});
+        let set = core
+            .all_flights_set(200, some.to_string().into_bytes())
+            .unwrap();
+        assert_eq!(set.line, "1 flight is public. 1 taken down stays private");
+        let shared = core.flight_sharing(id).unwrap().unwrap();
+        assert_eq!(shared.visibility, FlightVisibility::Private);
+
+        // A suspended account is refused in words, and nothing changed.
+        let refused = json!({"error": {"code": "publishing_suspended", "message": "x"}});
+        let error = core
+            .all_flights_set(403, refused.to_string().into_bytes())
+            .unwrap_err();
+        assert!(!error.to_string().is_empty());
+    }
+
+    #[test]
+    fn the_words_of_who_sees_the_flights_are_short() {
+        let words = flight_visibility_words();
+        assert_eq!(words.new_flights_public, "New flights are public");
+        assert_eq!(words.make_all_public, "Make all public");
+        assert_eq!(words.make_all_private, "Make all private");
+        assert_eq!(
+            all_flights_question(101, FlightVisibility::Public),
+            "Make all 101 flights public?"
+        );
+        assert_eq!(
+            all_flights_question(1, FlightVisibility::Private),
+            "Make your flight private?"
+        );
+        assert_eq!(
+            all_flights_question(0, FlightVisibility::Public),
+            "Make all flights public?"
+        );
+        assert_eq!(
+            all_flights_line(FlightVisibility::Public, 101, 0),
+            "101 flights are public"
+        );
+        assert_eq!(
+            all_flights_line(FlightVisibility::Private, 0, 0),
+            "No flights are private"
+        );
+    }
+
     #[test]
     fn a_wrong_password_and_other_refusals_are_said_in_words() {
         let folder = TempFolder::new();
@@ -1889,8 +2229,9 @@ mod tests {
             "http://127.0.0.1:8080/f/7cf5ytrw45b0aeb5tcr8wet2km"
         );
         assert_eq!(sample_shared.flight_id, "7cf5ytrw45b0aeb5tcr8wet2km");
+        // Public from its upload, as the account's setting says.
         let sent = core.flight_sharing(only_here).unwrap().unwrap();
-        assert_eq!(sent.visibility, FlightVisibility::Private);
+        assert_eq!(sent.visibility, FlightVisibility::Public);
 
         // The next sync asks only for what changed since, and has nothing to do.
         let sync = core.clone().sync();
@@ -2362,7 +2703,7 @@ mod tests {
         assert_eq!(account.flights_to_send, 0);
         assert_eq!(account.last_sync_unix_s, Some(NOW));
         let (sharing, _) = browser.call(|| core.flight_sharing(here.clone()));
-        assert_eq!(sharing.unwrap().visibility, FlightVisibility::Private);
+        assert_eq!(sharing.unwrap().visibility, FlightVisibility::Public);
 
         // With nothing more to ask, a further answer is refused in words.
         assert_eq!(

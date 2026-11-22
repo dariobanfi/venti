@@ -6,7 +6,7 @@
       "handle": "demo",
       "display_name": "Demo Pilot"
     },
-    "visibility": "private",
+    "visibility": "public",
     "uploaded_at": "2026-11-18T19:05:00Z",
     "start": "2026-09-01T10:30:00Z",
     "airtime_s": 1744,
@@ -39,7 +39,8 @@
       ]
     ],
     "file_bytes": 64678,
-    "analysis_version": 1
+    "analysis_version": 1,
+    "published_at": "2026-11-18T19:05:00Z"
   },
   "created": true
 }

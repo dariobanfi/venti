@@ -22,7 +22,7 @@ mod common;
 
 use common::{
     Answer, TestClock, ask, get, golden, recorded, sample_file, sample_file_on, server,
-    set_visibility, settings, sign_up, upload,
+    set_visibility, settings, sign_up, sign_up_private, upload,
 };
 
 async fn with(router: &Router, method: Method, path: &str, token: &str) -> Answer {
@@ -192,9 +192,9 @@ async fn a_pilot_follows_another_and_reads_their_flights() {
 async fn a_public_flight_is_cheered_and_commented_on() {
     let clock = TestClock::new();
     let (router, store) = server(settings(), &clock);
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
-    let bernd = sign_up(&router, "bernd").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
+    let bernd = sign_up_private(&router, "bernd").await.token;
     let flight = public_flight(&router, &anna, &sample_file()).await;
     let private = upload(&router, &anna, &sample_file_on("050726"))
         .await

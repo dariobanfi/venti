@@ -12,11 +12,12 @@ use axum::http::{Method, StatusCode, header};
 use chrono::Duration;
 use futures::StreamExt;
 use venti_api_types::v1::{
-    ErrorCode, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, Flight, FlightChangesRequest,
-    FlightChangesResponse, FlightId, FlightResponse, FlightsRequest, FlightsResponse, Handle,
-    MAX_FLIGHT_FILE_BYTES, PilotRequest, PilotResponse, RouteKind, UpdateFlightRequest,
-    UploadResponse, Visibility, flight_file_path, flight_path, pilot_path, share_image_path,
-    share_path,
+    ACCOUNT_PATH, AccountResponse, ErrorCode, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, Flight,
+    FlightChangesRequest, FlightChangesResponse, FlightId, FlightResponse, FlightsRequest,
+    FlightsResponse, Handle, MAX_FLIGHT_FILE_BYTES, PUBLIC_FLIGHTS_PATH, PilotRequest,
+    PilotResponse, RouteKind, UpdateAccountRequest, UpdateFlightRequest, UpdateFlightsRequest,
+    UpdateFlightsResponse, UploadResponse, Visibility, flight_file_path, flight_path, pilot_path,
+    share_image_path, share_path,
 };
 use venti_server::accounts::Limits;
 use venti_server::api::Settings;
@@ -32,7 +33,7 @@ mod common;
 use common::stalling_analyser;
 use common::{
     Answer, TestClock, ask, get, get_with, golden, recorded, sample_file, sample_file_on, server,
-    set_visibility, settings, sign_up, upload,
+    set_visibility, settings, sign_up, sign_up_private, upload,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -98,7 +99,7 @@ fn hostile_file(fixes: usize) -> Vec<u8> {
 // --- Uploading ----------------------------------------------------------------
 
 #[tokio::test]
-async fn an_uploaded_flight_is_kept_private_with_what_the_phone_shows_for_it() {
+async fn an_uploaded_flight_is_public_with_what_the_phone_shows_for_it() {
     let router = open_server();
     let dario = sign_up(&router, "dario").await;
 
@@ -108,11 +109,15 @@ async fn an_uploaded_flight_is_kept_private_with_what_the_phone_shows_for_it() {
         .send(&router)
         .await;
 
+    // The answer is made for the account, whoever may see the flight.
     let uploaded: UploadResponse = answer.ok(StatusCode::CREATED);
     answer.is_private();
     assert!(uploaded.created);
     let flight = uploaded.flight;
-    assert_eq!(flight.visibility, Visibility::Private);
+    // Public by the pilot's setting, which is on until they switch it
+    // off (owner decision 21), since its upload.
+    assert_eq!(flight.visibility, Visibility::Public);
+    assert_eq!(flight.published_at, Some(flight.uploaded_at));
     assert_eq!(flight.pilot.handle.as_str(), "dario");
     assert_eq!(flight.pilot.display_name, "Pilot dario");
     // The identity the apps give the bundled sample flight, and the
@@ -175,7 +180,250 @@ async fn uploading_a_flight_again_is_a_success_that_says_so() {
     assert!(annas.created);
     assert_eq!(annas.flight.identity, first.flight.identity);
     assert_ne!(annas.flight.id, first.flight.id);
-    assert_eq!(annas.flight.visibility, Visibility::Private);
+    // Public, as her account's setting says.
+    assert_eq!(annas.flight.visibility, Visibility::Public);
+}
+
+// --- Public unless the pilot keeps them private -------------------------------
+
+#[tokio::test]
+async fn new_flights_are_public_until_the_pilot_switches_that_off() {
+    let router = open_server();
+    let dario = sign_up(&router, "dario").await;
+    assert!(dario.account.new_flights_public);
+    let account = |token: &str| {
+        let token = token.to_owned();
+        let router = router.clone();
+        async move {
+            let answer: AccountResponse = ask(Method::GET, ACCOUNT_PATH)
+                .token(&token)
+                .send(&router)
+                .await
+                .ok(StatusCode::OK);
+            answer.account
+        }
+    };
+    assert!(account(&dario.token).await.new_flights_public);
+    let first = upload(&router, &dario.token, &sample_file_on("010726")).await;
+    assert_eq!(first.flight.visibility, Visibility::Public);
+
+    // Switched off, the next flight starts private and the first stays
+    // public. The answer is the account, as `GET /v1/account` has it.
+    let off = UpdateAccountRequest {
+        new_flights_public: Some(false),
+    };
+    let answer = ask(Method::PATCH, ACCOUNT_PATH)
+        .token(&dario.token)
+        .json(&off)
+        .send(&router)
+        .await;
+    let changed: AccountResponse = answer.ok(StatusCode::OK);
+    answer.is_private();
+    assert!(!changed.account.new_flights_public);
+    assert_eq!(changed.account, account(&dario.token).await);
+    let second = upload(&router, &dario.token, &sample_file_on("020726")).await;
+    assert_eq!(second.flight.visibility, Visibility::Private);
+    let first_now: FlightResponse = get(&router, &flight_path(&first.flight.id))
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!(first_now.flight.visibility, Visibility::Public);
+
+    // A body that names nothing changes nothing; one that is not the
+    // setting's is refused.
+    let same: AccountResponse = ask(Method::PATCH, ACCOUNT_PATH)
+        .token(&dario.token)
+        .json(&serde_json::json!({}))
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!(same.account, changed.account);
+    let answer = ask(Method::PATCH, ACCOUNT_PATH)
+        .token(&dario.token)
+        .json(&serde_json::json!({"new_flights_public": "yes"}))
+        .send(&router)
+        .await;
+    assert_eq!(answer.status, StatusCode::BAD_REQUEST);
+    // Without a token there is no account to change.
+    let answer = ask(Method::PATCH, ACCOUNT_PATH)
+        .json(&off)
+        .send(&router)
+        .await;
+    answer.error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
+}
+
+#[tokio::test]
+async fn every_flight_is_made_public_or_private_at_once() {
+    let router = open_server();
+    let dario = sign_up_private(&router, "dario").await;
+    let anna = sign_up_private(&router, "anna").await;
+    let mut flights = Vec::new();
+    for day in ["010726", "020726", "030726"] {
+        flights.push(
+            upload(&router, &dario.token, &sample_file_on(day))
+                .await
+                .flight,
+        );
+    }
+    set_visibility(&router, &dario.token, &flights[1].id, Visibility::Unlisted).await;
+    let annas = upload(&router, &anna.token, &sample_file()).await.flight;
+    let all = |token: &str, visibility: Visibility| {
+        ask(Method::PATCH, FLIGHTS_PATH)
+            .token(token)
+            .json(&UpdateFlightsRequest { visibility })
+            .send(&router)
+    };
+    let public_list = || async {
+        let listed: FlightsResponse = get(&router, PUBLIC_FLIGHTS_PATH).await.ok(StatusCode::OK);
+        listed
+            .flights
+            .into_iter()
+            .map(|flight| flight.id)
+            .collect::<Vec<_>>()
+    };
+
+    // All public: the private two and the one shared by link.
+    let answer = all(&dario.token, Visibility::Public).await;
+    let set: UpdateFlightsResponse = answer.ok(StatusCode::OK);
+    answer.is_private();
+    assert_eq!(
+        set,
+        UpdateFlightsResponse {
+            visibility: Visibility::Public,
+            flights: 3,
+            changed: 3,
+            taken_down: 0,
+        }
+    );
+    let mut listed = public_list().await;
+    listed.sort();
+    let mut expected: Vec<FlightId> = flights.iter().map(|flight| flight.id.clone()).collect();
+    expected.sort();
+    assert_eq!(listed, expected);
+    // Another pilot's flights are theirs.
+    let hers = flight_as(&router, &anna.token, &annas.id).await;
+    let hers: FlightResponse = hers.ok(StatusCode::OK);
+    assert_eq!(hers.flight.visibility, Visibility::Private);
+    // Asked again, nothing changes.
+    let again: UpdateFlightsResponse = all(&dario.token, Visibility::Public)
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!((again.flights, again.changed), (3, 0));
+
+    // All private: every one, and the public list has none of them; the
+    // pilot's devices hear of each.
+    let before = changes(&router, &dario.token, None).await.cursor;
+    let private: UpdateFlightsResponse = all(&dario.token, Visibility::Private)
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!(
+        (private.visibility, private.flights, private.changed),
+        (Visibility::Private, 3, 3)
+    );
+    assert!(public_list().await.is_empty());
+    let news = changes(&router, &dario.token, Some(&before)).await;
+    assert_eq!(news.flights.len(), 3);
+    assert!(
+        news.flights
+            .iter()
+            .all(|flight| flight.visibility == Visibility::Private)
+    );
+
+    // Shared by link is not something all flights are made at once; and a
+    // value the server does not know is refused as for one flight.
+    for refused in [
+        serde_json::json!({"visibility": "unlisted"}),
+        serde_json::json!({"visibility": "followers"}),
+    ] {
+        let answer = ask(Method::PATCH, FLIGHTS_PATH)
+            .token(&dario.token)
+            .json(&refused)
+            .send(&router)
+            .await;
+        answer.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidVisibility);
+    }
+    let answer = ask(Method::PATCH, FLIGHTS_PATH)
+        .json(&UpdateFlightsRequest {
+            visibility: Visibility::Public,
+        })
+        .send(&router)
+        .await;
+    answer.error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
+}
+
+#[tokio::test]
+async fn an_account_sets_all_its_flights_at_once_a_few_times_a_day() {
+    let clock = TestClock::new();
+    let limited = Settings {
+        limits: Limits::default(),
+        ..settings()
+    };
+    let (router, _) = server(limited, &clock);
+    let token = sign_up(&router, "petra").await.token;
+    let all = |token: &str, visibility: Visibility| {
+        ask(Method::PATCH, FLIGHTS_PATH)
+            .token(token)
+            .json(&UpdateFlightsRequest { visibility })
+            .send(&router)
+    };
+    let most = Limits::default().all_flights_changes_per_day;
+    for n in 0..most {
+        let visibility = if n % 2 == 0 {
+            Visibility::Private
+        } else {
+            Visibility::Public
+        };
+        assert_eq!(all(&token, visibility).await.status, StatusCode::OK);
+    }
+    let refused = all(&token, Visibility::Public).await;
+    refused.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    assert!(refused.headers.contains_key(header::RETRY_AFTER));
+    // Another account is not held up by it, and a day later neither is
+    // this one.
+    let other = sign_up(&router, "quirin").await.token;
+    assert_eq!(all(&other, Visibility::Public).await.status, StatusCode::OK);
+    clock.advance(Duration::days(1) + Duration::seconds(1));
+    assert_eq!(all(&token, Visibility::Public).await.status, StatusCode::OK);
+
+    // The documentation states the bound.
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/api.md");
+    let docs = std::fs::read_to_string(path).unwrap();
+    let stated = format!("sets all its flights at once at most {most} times a day");
+    assert!(docs.contains(&stated), "docs/api.md does not say: {stated}");
+}
+
+#[tokio::test]
+async fn the_demo_account_changes_its_settings_and_all_its_flights() {
+    let router = recorded().await;
+
+    // The examples of the documentation, as the development mode answers.
+    let off = UpdateAccountRequest {
+        new_flights_public: Some(false),
+    };
+    assert_golden(&golden("account_settings_request.json"), &off);
+    let changed: AccountResponse = ask(Method::PATCH, ACCOUNT_PATH)
+        .token(DEMO_TOKEN)
+        .json(&off)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert!(!changed.account.new_flights_public);
+    assert_golden(&golden("account_settings.json"), &changed);
+
+    let request = UpdateFlightsRequest {
+        visibility: Visibility::Public,
+    };
+    assert_golden(&golden("flights_visibility_request.json"), &request);
+    let set: UpdateFlightsResponse = ask(Method::PATCH, FLIGHTS_PATH)
+        .token(DEMO_TOKEN)
+        .json(&request)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    // One of its three was public, one shared by link, one private.
+    assert_eq!((set.flights, set.changed, set.taken_down), (3, 2, 0));
+    assert_golden(&golden("flights_visibility.json"), &set);
+    let page: PilotResponse = get(&router, "/v1/pilots/demo").await.ok(StatusCode::OK);
+    assert_eq!(page.flights.len(), 3);
 }
 
 #[tokio::test]
@@ -776,7 +1024,7 @@ async fn flights_are_listed_newest_first_page_by_page() {
 async fn a_device_asks_what_changed_since_it_last_asked() {
     let clock = TestClock::new();
     let (router, _) = server(settings(), &clock);
-    let dario = sign_up(&router, "dario").await;
+    let dario = sign_up_private(&router, "dario").await;
     let token = dario.token.as_str();
 
     // A new account has no changes, and a cursor all the same.
@@ -862,7 +1110,7 @@ async fn a_device_asks_what_changed_since_it_last_asked() {
     // database, lies beyond this account's last change: the server starts
     // from the beginning and says so.
     clock.advance(Duration::hours(1));
-    let anna = sign_up(&router, "anna").await;
+    let anna = sign_up_private(&router, "anna").await;
     upload(&router, &anna.token, &sample_file()).await;
     let annas = changes(&router, &anna.token, None).await;
     let reset = changes(&router, token, Some(&annas.cursor)).await;
@@ -900,8 +1148,8 @@ fn observable(answer: &Answer) -> (StatusCode, Vec<(String, String)>, Vec<u8>) {
 #[tokio::test]
 async fn a_private_flight_looks_like_no_flight_to_everyone_but_its_pilot() {
     let router = open_server();
-    let dario = sign_up(&router, "dario").await;
-    let anna = sign_up(&router, "anna").await;
+    let dario = sign_up_private(&router, "dario").await;
+    let anna = sign_up_private(&router, "anna").await;
     let private = upload(&router, &dario.token, &sample_file()).await.flight;
     // An address of the right form that belongs to no flight.
     let nothing: FlightId = "0123456789abcdefghjkmnpqrs".parse().unwrap();
@@ -1000,8 +1248,8 @@ async fn a_private_flight_looks_like_no_flight_to_everyone_but_its_pilot() {
 #[tokio::test]
 async fn a_shared_flight_is_seen_by_others_and_changed_by_its_pilot_only() {
     let router = open_server();
-    let dario = sign_up(&router, "dario").await;
-    let anna = sign_up(&router, "anna").await;
+    let dario = sign_up_private(&router, "dario").await;
+    let anna = sign_up_private(&router, "anna").await;
     let public = upload(&router, &dario.token, &sample_file_on("010726"))
         .await
         .flight;
@@ -1163,7 +1411,7 @@ async fn what_may_keep_an_answer_depends_on_who_it_was_for() {
 #[tokio::test]
 async fn a_pilots_page_lists_their_public_flights() {
     let router = open_server();
-    let dario = sign_up(&router, "dario").await;
+    let dario = sign_up_private(&router, "dario").await;
     let mut public = Vec::new();
     for day in ["010726", "020726", "030726"] {
         let flight = upload(&router, &dario.token, &sample_file_on(day))
@@ -1240,7 +1488,7 @@ async fn a_pilots_page_lists_their_public_flights() {
     // A pilot who shares nothing publicly has no page either, and looks
     // exactly like a handle nobody has: with flights that are private or
     // unlisted, and whatever is asked for.
-    let anna = sign_up(&router, "anna").await;
+    let anna = sign_up_private(&router, "anna").await;
     upload(&router, &anna.token, &sample_file_on("010726")).await;
     let unlisted = upload(&router, &anna.token, &sample_file_on("020726"))
         .await

@@ -19,6 +19,7 @@
 //! | [`SESSIONS_PATH`] | GET, DELETE | | [`SessionsResponse`], nothing |
 //! | [`session_path`] | DELETE | | nothing |
 //! | [`ACCOUNT_PATH`] | GET | | [`AccountResponse`] |
+//! | [`ACCOUNT_PATH`] | PATCH | [`UpdateAccountRequest`] | [`AccountResponse`] |
 //! | [`ACCOUNT_PATH`] | DELETE | [`DeleteAccountRequest`] | nothing |
 //! | [`ACCOUNT_ARCHIVE_PATH`] | GET | | a ZIP file; [`ArchiveIndex`] is its `index.json` |
 //! | [`ACCOUNT_PASSWORD_PATH`] | PUT | [`ChangePasswordRequest`] | nothing |
@@ -37,6 +38,7 @@
 //! | [`ALERTS_FIRED_PATH`] | GET | [`FiredAlertsRequest`] | [`FiredAlertsResponse`] |
 //! | [`FLIGHTS_PATH`] | POST | the flight file | [`UploadResponse`] |
 //! | [`FLIGHTS_PATH`] | GET | [`FlightsRequest`] | [`FlightsResponse`] |
+//! | [`FLIGHTS_PATH`] | PATCH | [`UpdateFlightsRequest`] | [`UpdateFlightsResponse`] |
 //! | [`FLIGHT_CHANGES_PATH`] | GET | [`FlightChangesRequest`] | [`FlightChangesResponse`] |
 //! | [`flight_path`] | GET, DELETE | | [`FlightResponse`], nothing |
 //! | [`flight_path`] | PATCH | [`UpdateFlightRequest`] | [`FlightResponse`] |
@@ -129,7 +131,7 @@ pub use account::{
     CreateGoogleAccountRequest, DeleteAccountRequest, DevGoogleIdTokenResponse, DisplayNameError,
     GoogleSignInRequest, GoogleSignUpResponse, Handle, HandleError, LinkGoogleRequest,
     MAX_DISPLAY_NAME_LENGTH, Password, PasswordError, Session, SessionsResponse, SignInRequest,
-    SignInResponse, parse_display_name,
+    SignInResponse, UpdateAccountRequest, parse_display_name,
 };
 pub use air::{
     FLOWN_CELL_DEG, FLOWN_MIN_PILOTS, FLOWN_THERMALS_PATH, FlownThermalCell, FlownThermalsRequest,
@@ -174,7 +176,7 @@ pub use flights::{
     FlightTrack, FlightsResponse, MAX_FLIGHT_FILE_BYTES, MAX_PAGE_SIZE, MAX_TRACK_POINTS, Pilot,
     PilotResponse, PublicFlightChangesResponse, RANKING_COUNTED, RankedPilot, RankingResponse,
     RouteKind, TAKEOFF_SITE_WITHIN_M, TrackLine, TrackProperties, UpdateFlightRequest,
-    UploadResponse, Visibility, WithdrawnFlight,
+    UpdateFlightsRequest, UpdateFlightsResponse, UploadResponse, Visibility, WithdrawnFlight,
 };
 pub use flights::{
     FlownSite, FoundPilot, HighestFlight, LongestFlight, PILOT_SEARCH_MAX_CHARS,

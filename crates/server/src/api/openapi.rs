@@ -481,6 +481,13 @@ fn operations() -> Vec<Op> {
         get(ACCOUNT_PATH, "The account")
             .with(AccountRead)
             .json("AccountResponse"),
+        patch(
+            ACCOUNT_PATH,
+            "Change the pilot's settings: whether new flights are public",
+        )
+        .with(FlightsWrite)
+        .takes("UpdateAccountRequest")
+        .json("AccountResponse"),
         delete(ACCOUNT_PATH, "Delete the account and what goes with it")
             .session()
             .takes("DeleteAccountRequest")
@@ -592,6 +599,13 @@ fn operations() -> Vec<Op> {
             .with(FlightsRead)
             .query(PAGE)
             .json("FlightsResponse"),
+        patch(
+            FLIGHTS_PATH,
+            "Make every flight of the pilot public, or every one private",
+        )
+        .with(FlightsWrite)
+        .takes("UpdateFlightsRequest")
+        .json("UpdateFlightsResponse"),
         get(
             FLIGHT_CHANGES_PATH,
             "What changed among the pilot's own flights, deletions included",

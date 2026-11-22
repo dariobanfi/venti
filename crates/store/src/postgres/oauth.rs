@@ -502,7 +502,7 @@ pub(super) async fn refresh_grant(
             "SELECT t.id, t.account_id, t.name, t.scopes, t.created_at, t.last_used_on,
                     t.expires_at, t.client_id, t.resource, t.access_until,
                     a.handle, a.display_name, a.created_at AS account_created_at,
-                    a.publishing_suspended_at, a.edits_sites_since
+                    a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public
              FROM access_tokens t JOIN accounts a ON a.id = t.account_id
              WHERE t.id = $1",
             &[&token_id],

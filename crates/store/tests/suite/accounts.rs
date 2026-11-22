@@ -23,6 +23,10 @@ pub(crate) fn id(name: &str) -> String {
     format!("{name:0>26}")
 }
 
+/// An account whose new flights start private: the tests here set who may
+/// see each flight themselves. The server makes every account with the
+/// setting on; the tests of the setting (`new_flights_are_public_by_their_
+/// pilots_setting` and those after it) make theirs so.
 pub(crate) fn account(handle: &str) -> Account {
     Account {
         id: id(handle),
@@ -31,6 +35,7 @@ pub(crate) fn account(handle: &str) -> Account {
         created_at: at(9, 0),
         publishing_suspended_at: None,
         edits_sites_since: None,
+        new_flights_public: false,
     }
 }
 

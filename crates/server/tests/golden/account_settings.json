@@ -1,0 +1,9 @@
+{
+  "account": {
+    "handle": "demo",
+    "display_name": "Demo Pilot",
+    "created_at": "2026-11-18T19:05:00Z",
+    "edits_sites": true,
+    "new_flights_public": false
+  }
+}

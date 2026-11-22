@@ -299,6 +299,25 @@ impl Accounts {
             .is_some_and(|account| account.publishing_suspended_at.is_some())
     }
 
+    /// Whether a flight an account uploads is public from the start;
+    /// `false` for an account that is not there.
+    pub(super) fn new_flights_public(&self, account_id: &str) -> bool {
+        self.by_id(account_id)
+            .is_some_and(|account| account.new_flights_public)
+    }
+
+    /// Sets it, and returns the account as it then is. `None` for an
+    /// account that is not there.
+    pub(super) fn set_new_flights_public(
+        &mut self,
+        account_id: &str,
+        public: bool,
+    ) -> Option<Account> {
+        let entry = self.accounts.get_mut(account_id)?;
+        entry.account.new_flights_public = public;
+        Some(entry.account.clone())
+    }
+
     /// Marks an account as suspended since `now`, or leaves the mark it
     /// has, and returns the moment it then carries. `None` for an account
     /// that is not there.

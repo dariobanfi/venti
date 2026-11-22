@@ -267,6 +267,25 @@ pub struct Account {
     /// an older server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub google_email: Option<String>,
+    /// Whether a flight the pilot uploads is public from the start: the
+    /// pilot's own setting, on for every account until its pilot switches
+    /// it off ([`UpdateAccountRequest`]). While the account's publishing is
+    /// suspended its uploads are private whatever this says. A server
+    /// from before the setting leaves it out, and made every new flight
+    /// private: that is how it reads.
+    #[serde(default)]
+    pub new_flights_public: bool,
+}
+
+/// The body of `PATCH /v1/account`: the pilot's own settings of the
+/// account. A field that is left out stays as it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct UpdateAccountRequest {
+    /// Whether a flight the pilot uploads from now on is public from the
+    /// start. It changes no flight the account has; `PATCH /v1/flights`
+    /// does that ([`super::UpdateFlightsRequest`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub new_flights_public: Option<bool>,
 }
 
 /// The body of `POST /v1/auth/google`: signs this device in with a Google
@@ -595,6 +614,7 @@ mod tests {
                 publishing_suspended_at: None,
                 edits_sites: false,
                 google_email: None,
+                new_flights_public: true,
             },
             session: Session {
                 id: "s".to_owned(),
@@ -619,6 +639,7 @@ mod tests {
             publishing_suspended_at: None,
             edits_sites: false,
             google_email: None,
+            new_flights_public: true,
         };
         let json = serde_json::to_value(&account).unwrap();
         assert!(
@@ -637,5 +658,41 @@ mod tests {
         let json = serde_json::to_value(&suspended).unwrap();
         assert_eq!(json["publishing_suspended_at"], "2026-11-18T11:06:40Z");
         assert_eq!(serde_json::from_value::<Account>(json).unwrap(), suspended);
+    }
+
+    #[test]
+    fn whether_new_flights_are_public_is_said_always_and_read_as_off_from_an_older_server() {
+        let now = chrono::DateTime::from_timestamp(1_795_000_000, 0).unwrap();
+        let account = Account {
+            handle: Handle::new("dario_b").unwrap(),
+            display_name: "Dario".to_owned(),
+            created_at: now,
+            publishing_suspended_at: None,
+            edits_sites: false,
+            google_email: None,
+            new_flights_public: false,
+        };
+        let mut json = serde_json::to_value(&account).unwrap();
+        assert_eq!(json["new_flights_public"], false);
+        // A server from before the setting made every new flight private.
+        json.as_object_mut().unwrap().remove("new_flights_public");
+        assert_eq!(serde_json::from_value::<Account>(json).unwrap(), account);
+
+        // A change names what it changes, and nothing else.
+        let request = UpdateAccountRequest {
+            new_flights_public: Some(false),
+        };
+        assert_eq!(
+            serde_json::to_string(&request).unwrap(),
+            r#"{"new_flights_public":false}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&UpdateAccountRequest::default()).unwrap(),
+            "{}"
+        );
+        assert_eq!(
+            serde_json::from_str::<UpdateAccountRequest>("{}").unwrap(),
+            UpdateAccountRequest::default()
+        );
     }
 }

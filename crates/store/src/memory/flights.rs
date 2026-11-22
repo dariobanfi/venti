@@ -7,13 +7,14 @@ use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use super::accounts::Accounts;
 use crate::flight::{
     Kept, PublicEffect, Room, Saved, cut, cut_public, holds_text, may_be_set, next_public_change,
-    ranked_order, score_order, sought,
+    ranked_order, score_order, sought, uploaded_visibility,
 };
 use crate::takeoff::{Cell, Tally, cell_of, cells_of};
 use crate::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, FlightsFrom, Flown, FoundPilot,
-    Listing, Month, NewFlight, OutdatedFlight, Place, PublicFlightChanges, PublicFlights,
-    PublicOrder, Ranked, ScoreKey, StoreError, Visibility, VisibilityChange, WithdrawnFlight,
+    AllFlightsSet, AllVisibilityChange, DeletedFlight, Derived, Flight, FlightChanges, FlightKey,
+    FlightsFrom, Flown, FoundPilot, Listing, Month, NewFlight, OutdatedFlight, Place,
+    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, ScoreKey, StoreError, Visibility,
+    VisibilityChange, WithdrawnFlight,
 };
 
 #[derive(Debug, Default)]
@@ -131,7 +132,10 @@ impl Flights {
             .expect("the account was found above");
         let place = (new.account_id.clone(), new.id.clone());
         self.deleted.remove(&place);
-        let entry = Entry {
+        // Deleting a flight and uploading it again does not undo that it
+        // was taken down.
+        let taken_down_at = self.deleted_taken_down.remove(&place);
+        let mut entry = Entry {
             flight: Flight {
                 id: new.id.clone(),
                 account_id: new.account_id.clone(),
@@ -143,14 +147,20 @@ impl Flights {
                 file_bytes: new.file_bytes,
                 derived: new.derived.clone(),
                 change,
-                // Deleting a flight and uploading it again does not undo
-                // that it was taken down.
-                taken_down_at: self.deleted_taken_down.remove(&place),
+                taken_down_at,
                 published_at: None,
                 public_change: None,
             },
             file: new.file.clone(),
         };
+        let visibility = uploaded_visibility(
+            accounts.new_flights_public(&new.account_id),
+            accounts.is_suspended(&new.account_id),
+            taken_down_at.is_some(),
+        );
+        if visibility == Visibility::Public {
+            self.public.publish(&mut entry.flight, new.uploaded_at);
+        }
         let flight = Self::read(&entry, accounts);
         self.flights.insert(new.id.clone(), entry);
         Ok(Saved::Created(flight))
@@ -548,6 +558,41 @@ impl Flights {
             entry.flight.change = change;
         }
         VisibilityChange::Set(Box::new(Self::read(entry, accounts)))
+    }
+
+    /// Sets who may see every flight of an account, each that changes as a
+    /// change of its own in the order of the flights' addresses.
+    pub(super) fn set_all_visibility(
+        &mut self,
+        account_id: &str,
+        visibility: Visibility,
+        now: Timestamp,
+        accounts: &mut Accounts,
+    ) -> AllVisibilityChange {
+        if !accounts.has(account_id) {
+            return AllVisibilityChange::NoSuchAccount;
+        }
+        if may_be_set(false, accounts.is_suspended(account_id), visibility).is_err() {
+            return AllVisibilityChange::PublishingSuspended;
+        }
+        let mut set = AllFlightsSet::default();
+        // The map is sorted by address.
+        for entry in self.flights.values_mut() {
+            let flight = &mut entry.flight;
+            if flight.account_id != account_id {
+                continue;
+            }
+            let taken_down = flight.taken_down_at.is_some();
+            if !set.count(flight.visibility, taken_down, visibility) {
+                continue;
+            }
+            let Some(change) = accounts.next_flight_change(account_id, now) else {
+                break;
+            };
+            self.public.set(flight, visibility, now);
+            flight.change = change;
+        }
+        AllVisibilityChange::Set(set)
     }
 
     /// Makes a flight private and keeps it so, whoever it belongs to.

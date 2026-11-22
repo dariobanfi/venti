@@ -2,9 +2,11 @@
 //! changing the password, deleting the account, and the tokens a pilot
 //! gives to other programs.
 //!
-//! Everything here but reading the account is for the pilot's own sign-in
-//! ([`OwnSession`]): a token for a program can read the account if it has
-//! the scope, and can do nothing else in this file.
+//! Everything here but reading the account and changing its settings is
+//! for the pilot's own sign-in ([`OwnSession`]): a token for a program can
+//! read the account if it has the scope, and change whether new flights
+//! are public if it may write flights, and can do nothing else in this
+//! file.
 
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -16,12 +18,12 @@ use axum::response::{IntoResponse, Response};
 use venti_api_types::v1::{
     AccessTokensResponse, AccountResponse, ChangePasswordRequest, CreateAccessTokenRequest,
     CreateAccessTokenResponse, CreateAccountRequest, DeleteAccountRequest, ErrorCode, Handle,
-    Password, Scope, SessionsResponse, SignInRequest, SignInResponse, parse_display_name,
-    parse_token_name,
+    Password, Scope, SessionsResponse, SignInRequest, SignInResponse, UpdateAccountRequest,
+    parse_display_name, parse_token_name,
 };
 use venti_store::{AccessToken, Account, AccountCreation, NewAccount, Session, Store};
 
-use super::auth::{Client, May, OwnSession, ReadAccount};
+use super::auth::{Client, May, OwnSession, ReadAccount, WriteFlights};
 use super::error::ApiError;
 use super::{Api, body, cache, wire};
 use crate::accounts::client::counting_keys;
@@ -317,6 +319,9 @@ pub(crate) async fn create<S: Store>(
         created_at: now,
         publishing_suspended_at: None,
         edits_sites_since: None,
+        // A pilot's flights are public unless the pilot keeps them
+        // private (owner decision 21).
+        new_flights_public: true,
     };
     let new = NewAccount {
         account: account.clone(),
@@ -433,6 +438,36 @@ pub(crate) async fn show<S: Store>(
 ) -> Result<Response, ApiError> {
     let google = api.store.google_link(&signed.account.id).await?;
     let account = wire::account(&signed.account, google.as_ref())?;
+    Ok(cache::private_json(
+        StatusCode::OK,
+        &AccountResponse { account },
+    ))
+}
+
+/// `PATCH /v1/account`: changes the pilot's own settings of the account,
+/// and answers with the account as `GET /v1/account` does.
+///
+/// Its one setting today is whether new flights are public, a setting of
+/// the pilot's flights: a program needs `flights:write`, as it does to
+/// change who sees one flight.
+pub(crate) async fn update<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    May(signed, ..): May<WriteFlights>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let request: UpdateAccountRequest = body::json(&headers, &body)?;
+    let mut account = signed.account;
+    if let Some(public) = request.new_flights_public {
+        // The account can go between the token's check and this.
+        account = api
+            .store
+            .set_new_flights_public(&account.id, public)
+            .await?
+            .ok_or_else(|| ApiError::unauthorized("the account is gone"))?;
+    }
+    let google = api.store.google_link(&account.id).await?;
+    let account = wire::account(&account, google.as_ref())?;
     Ok(cache::private_json(
         StatusCode::OK,
         &AccountResponse { account },

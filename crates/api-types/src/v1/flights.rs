@@ -87,8 +87,9 @@ impl From<FlightId> for String {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Visibility {
-    /// Only its pilot. To everyone else the flight does not exist. Every
-    /// flight starts like this.
+    /// Only its pilot. To everyone else the flight does not exist. A new
+    /// flight starts like this when its pilot keeps new flights private
+    /// ([`super::Account::new_flights_public`]), and public otherwise.
     Private,
     /// Anyone who has its link. It is not listed anywhere.
     Unlisted,
@@ -607,6 +608,30 @@ pub struct RankedPilot {
 pub struct UpdateFlightRequest {
     /// Who may see the flight from now on.
     pub visibility: Visibility,
+}
+
+/// The body of `PATCH /v1/flights`: who may see every flight of the
+/// account from now on, `public` or `private`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateFlightsRequest {
+    /// `public` or `private`. A flight shared by link is set like any
+    /// other; making all of them `unlisted` is not offered.
+    pub visibility: Visibility,
+}
+
+/// The answer of `PATCH /v1/flights`: how the account's flights stand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateFlightsResponse {
+    /// What was asked for.
+    pub visibility: Visibility,
+    /// How many of the account's flights are so now, those that were so
+    /// before included.
+    pub flights: u32,
+    /// How many of them the request changed.
+    pub changed: u32,
+    /// How many stay private because whoever runs the server took them
+    /// down. Only ever more than 0 when `public` was asked for.
+    pub taken_down: u32,
 }
 
 /// The answer of `GET /v1/flights/changes`: what happened to the account's

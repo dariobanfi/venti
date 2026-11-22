@@ -75,6 +75,10 @@
       "google_email": {
         "type": "string",
         "description": "The email of the Google account the account is signed in to with, if it is linked to one. Only in the account's own answers."
+      },
+      "new_flights_public": {
+        "type": "boolean",
+        "description": "Whether a flight the pilot uploads is public from the start: the pilot's own setting, on until they switch it off. A suspended account's uploads are private whatever it says. Left out by a server from before the setting, which made new flights private."
       }
     },
     "required": [
@@ -5631,6 +5635,15 @@
       "every"
     ]
   },
+  "UpdateAccountRequest": {
+    "type": "object",
+    "properties": {
+      "new_flights_public": {
+        "type": "boolean",
+        "description": "Whether a flight the pilot uploads from now on is public from the start. Left out, it stays as it is."
+      }
+    }
+  },
   "UpdateFlightRequest": {
     "type": "object",
     "properties": {
@@ -5640,6 +5653,48 @@
     },
     "required": [
       "visibility"
+    ]
+  },
+  "UpdateFlightsRequest": {
+    "type": "object",
+    "properties": {
+      "visibility": {
+        "type": "string",
+        "enum": [
+          "public",
+          "private"
+        ],
+        "description": "Who may see every flight of the account from now on."
+      }
+    },
+    "required": [
+      "visibility"
+    ]
+  },
+  "UpdateFlightsResponse": {
+    "type": "object",
+    "properties": {
+      "visibility": {
+        "$ref": "#/components/schemas/Visibility"
+      },
+      "flights": {
+        "type": "integer",
+        "description": "How many of the account's flights are so now, those that were so before included."
+      },
+      "changed": {
+        "type": "integer",
+        "description": "How many of them the request changed."
+      },
+      "taken_down": {
+        "type": "integer",
+        "description": "How many stay private because whoever runs the server took them down."
+      }
+    },
+    "required": [
+      "visibility",
+      "flights",
+      "changed",
+      "taken_down"
     ]
   },
   "UpdateGroupRequest": {

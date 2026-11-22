@@ -22,9 +22,9 @@ use venti_api_types::v1::{
     MAX_REPORT_TEXT_LENGTH, PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH, PilotResponse, Plan,
     PlanBoardResponse, PlanRequest, PlanResponse, PlansResponse, REPORTS_PATH, ReportReason,
     ReportRequest, ReportResponse, ReportSubject, ReportedPlan, ReportedSite, SESSIONS_PATH,
-    SignInResponse, UpdateFlightRequest, UpdateGroupRequest, Visibility, flight_file_path,
-    flight_path, group_member_path, group_path, group_plans_path, plan_in_path, plan_path,
-    share_image_path, share_path,
+    SignInResponse, UpdateFlightRequest, UpdateFlightsRequest, UpdateGroupRequest, Visibility,
+    flight_file_path, flight_path, group_member_path, group_path, group_plans_path, plan_in_path,
+    plan_path, share_image_path, share_path,
 };
 use venti_domain::{GeoPoint, SiteId, SiteUse, WindSector};
 use venti_server::accounts::Limits;
@@ -50,7 +50,7 @@ mod common;
 use common::{
     Answer, PUBLIC_URL, TestClock, ask, assert_golden_text, get, golden, recorded,
     recorded_with_its_store, sample_file, sample_file_on, server, set_visibility, settings,
-    sign_up, try_sign_in, upload,
+    sign_up, sign_up_private, try_sign_in, upload,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -296,8 +296,8 @@ async fn what_a_reporter_may_not_see_is_not_there_to_report() {
         ..settings()
     };
     let (router, store) = server(with_a_clock, &clock);
-    let dario = sign_up(&router, "dario").await.token;
-    let anna = sign_up(&router, "anna").await.token;
+    let dario = sign_up_private(&router, "dario").await.token;
+    let anna = sign_up_private(&router, "anna").await.token;
     let private = fly(
         &router,
         &anna,
@@ -1228,14 +1228,28 @@ async fn an_account_that_may_not_publish_is_told_so_and_publishes_nothing() {
             "{said}"
         );
     }
-    // Everything else works: sharing by link, taking back, uploading.
+    // Not all at once either, and nothing changes.
+    let refused = ask(Method::PATCH, FLIGHTS_PATH)
+        .token(DEMO_TOKEN)
+        .json(&UpdateFlightsRequest {
+            visibility: Visibility::Public,
+        })
+        .send(&router)
+        .await;
+    let said = refused.error(StatusCode::FORBIDDEN, ErrorCode::PublishingSuspended);
+    assert!(said.contains("nothing was changed"), "{said}");
+    assert_eq!(
+        own_flight(&router, DEMO_TOKEN, &unlisted.id).await,
+        *unlisted
+    );
+    // Everything else works: sharing by link, taking back, uploading. An
+    // upload is private, whatever the account's setting says.
     set_visibility(&router, DEMO_TOKEN, &private.id, Visibility::Unlisted).await;
     set_visibility(&router, DEMO_TOKEN, &private.id, Visibility::Private).await;
-    assert!(
-        upload(&router, DEMO_TOKEN, &sample_file_on("010926"))
-            .await
-            .created
-    );
+    assert!(account.account.new_flights_public);
+    let uploaded = upload(&router, DEMO_TOKEN, &sample_file_on("010926")).await;
+    assert!(uploaded.created);
+    assert_eq!(uploaded.flight.visibility, Visibility::Private);
 
     // A live track it sends as public is kept, for those with its link:
     // the answer says what the track is, and the map does not show it.

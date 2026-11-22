@@ -15,13 +15,14 @@ use super::takeoffs::distance;
 use super::{corrupt, db_error};
 use crate::flight::{
     Kept, PublicEffect, Room, Saved, cut, cut_public, may_be_set, next_change, next_public_change,
-    ranked_order, sought,
+    ranked_order, sought, uploaded_visibility,
 };
 use crate::takeoff::around;
 use crate::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Flown, FoundPilot, Listing, Month,
-    NewFlight, OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked,
-    Score, ScoreKind, StoreError, Visibility, VisibilityChange, WithdrawnFlight,
+    AllFlightsSet, AllVisibilityChange, DeletedFlight, Derived, Flight, FlightChanges, FlightKey,
+    Flown, FoundPilot, Listing, Month, NewFlight, OutdatedFlight, Place, PublicFlightChanges,
+    PublicFlights, PublicOrder, Ranked, Score, ScoreKind, StoreError, Visibility, VisibilityChange,
+    WithdrawnFlight,
 };
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
@@ -198,6 +199,8 @@ struct Locked {
     latest: i64,
     /// Whether its publishing is suspended.
     publishing_suspended: bool,
+    /// Whether a flight it uploads is public from the start.
+    new_flights_public: bool,
 }
 
 /// Locks an account's row for the rest of the transaction and returns what
@@ -208,7 +211,7 @@ async fn lock_account(
 ) -> Result<Option<Locked>, StoreError> {
     let row = tx
         .query_opt(
-            "SELECT flight_change, publishing_suspended_at IS NOT NULL
+            "SELECT flight_change, publishing_suspended_at IS NOT NULL, new_flights_public
              FROM accounts WHERE id = $1 FOR UPDATE",
             &[&account_id],
         )
@@ -217,6 +220,7 @@ async fn lock_account(
     Ok(row.map(|row| Locked {
         latest: row.get(0),
         publishing_suspended: row.get(1),
+        new_flights_public: row.get(2),
     }))
 }
 
@@ -326,7 +330,7 @@ pub(super) async fn save(
     room: &Room,
 ) -> Result<Saved, StoreError> {
     let tx = client.transaction().await.map_err(db_error)?;
-    let Some(Locked { latest, .. }) = lock_account(&tx, &new.account_id).await? else {
+    let Some(account) = lock_account(&tx, &new.account_id).await? else {
         return Err(StoreError::Invalid(
             "a flight for an account that does not exist".to_owned(),
         ));
@@ -361,17 +365,53 @@ pub(super) async fn save(
         return Ok(Saved::NoRoom(kept));
     }
 
-    let change = take_change(&tx, &new.account_id, latest, new.uploaded_at).await?;
+    let change = take_change(&tx, &new.account_id, account.latest, new.uploaded_at).await?;
+    let deletion = tx
+        .query_opt(
+            "DELETE FROM flight_deletions WHERE account_id = $1 AND flight_id = $2
+             RETURNING taken_down_at",
+            &[&new.account_id, &new.id],
+        )
+        .await
+        .map_err(db_error)?;
+    // Deleting a flight and uploading it again does not undo that it was
+    // taken down.
+    let taken_down_at: Option<Timestamp> = deletion.and_then(|row| row.get(0));
+    // Still under the account's lock: neither its setting nor a suspension
+    // can change before the flight is in.
+    let visibility = uploaded_visibility(
+        account.new_flights_public,
+        account.publishing_suspended,
+        taken_down_at.is_some(),
+    );
+    // A flight that is public from its upload is published as one that its
+    // pilot made public: a moment, a number, and no withdrawal of an
+    // earlier flight at its address told any longer.
+    let (published_at, public_change) = if visibility == Visibility::Public {
+        let number = take_public_changes(&tx, 1, Some(new.uploaded_at))
+            .await
+            .map_err(db_error)?;
+        tx.execute(
+            "DELETE FROM flight_withdrawals WHERE flight_id = $1",
+            &[&new.id],
+        )
+        .await
+        .map_err(db_error)?;
+        (Some(new.uploaded_at), Some(number))
+    } else {
+        (None, None)
+    };
+
     let derived = &new.derived;
     let values = DerivedValues::of(derived);
     let (takeoff, landing) = (&values.takeoff, &values.landing);
     let file_bytes = i32::try_from(new.file_bytes).unwrap_or(i32::MAX);
-    let visibility = Visibility::Private.as_str();
+    let visibility = visibility.as_str();
     let insert = format!(
         "INSERT INTO flights
              (id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
-              {}, profile)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, {}, $29)",
+              {}, profile, taken_down_at, published_at, public_change)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, {}, $29, $30, $31, $32)",
         DERIVED_COLUMNS.join(", "),
         (9..29)
             .map(|n| format!("${n}"))
@@ -411,29 +451,13 @@ pub(super) async fn save(
             &derived.glider,
             &values.outline,
             &values.profile,
+            &taken_down_at,
+            &published_at,
+            &public_change,
         ],
     )
     .await
     .map_err(db_error)?;
-    let deletion = tx
-        .query_opt(
-            "DELETE FROM flight_deletions WHERE account_id = $1 AND flight_id = $2
-             RETURNING taken_down_at",
-            &[&new.account_id, &new.id],
-        )
-        .await
-        .map_err(db_error)?;
-    // Deleting a flight and uploading it again does not undo that it was
-    // taken down.
-    let taken_down_at: Option<Timestamp> = deletion.and_then(|row| row.get(0));
-    if taken_down_at.is_some() {
-        tx.execute(
-            "UPDATE flights SET taken_down_at = $2 WHERE id = $1",
-            &[&new.id, &taken_down_at],
-        )
-        .await
-        .map_err(db_error)?;
-    }
 
     let flight = one(&tx, "f.id = $1", &[&new.id])
         .await?
@@ -1051,6 +1075,104 @@ pub(super) async fn set_visibility(
     Ok(flight.map_or(VisibilityChange::NoSuchFlight, |flight| {
         VisibilityChange::Set(Box::new(flight))
     }))
+}
+
+pub(super) async fn set_all_visibility(
+    client: &mut Client,
+    account_id: &str,
+    visibility: Visibility,
+    now: Timestamp,
+) -> Result<AllVisibilityChange, StoreError> {
+    let tx = client.transaction().await.map_err(db_error)?;
+    let Some(account) = lock_account(&tx, account_id).await? else {
+        return Ok(AllVisibilityChange::NoSuchAccount);
+    };
+    // The account's row is locked: nothing uploads, changes, takes down or
+    // deletes a flight of it beside this, and its publishing is not
+    // suspended meanwhile.
+    if may_be_set(false, account.publishing_suspended, visibility).is_err() {
+        return Ok(AllVisibilityChange::PublishingSuspended);
+    }
+    // By address, byte by byte, as the in-memory store orders them.
+    let rows = tx
+        .query(
+            "SELECT id, visibility, taken_down_at IS NOT NULL FROM flights
+             WHERE account_id = $1 ORDER BY id COLLATE \"C\"",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    let mut set = AllFlightsSet::default();
+    let mut changing: Vec<String> = Vec::new();
+    let mut withdrawn: Vec<String> = Vec::new();
+    for row in &rows {
+        let was: &str = row.get(1);
+        let was = Visibility::from_name(was).ok_or_else(|| corrupt("visibility", was))?;
+        if set.count(was, row.get(2), visibility) {
+            let id: String = row.get(0);
+            if PublicEffect::of(was, visibility) == PublicEffect::Withdrawn {
+                withdrawn.push(id.clone());
+            }
+            changing.push(id);
+        }
+    }
+    let Some(more) = i64::try_from(changing.len()).ok().filter(|n| *n > 0) else {
+        tx.commit().await.map_err(db_error)?;
+        return Ok(AllVisibilityChange::Set(set));
+    };
+
+    // Each flight is a change of its own, in the order of the addresses.
+    let first = next_change(account.latest, now);
+    if visibility == Visibility::Public {
+        // Every one of them becomes public, with a number of the public
+        // count of its own in the same order.
+        let first_public = take_public_changes(&tx, more, Some(now))
+            .await
+            .map_err(db_error)?;
+        tx.execute(
+            "DELETE FROM flight_withdrawals WHERE flight_id = ANY($1)",
+            &[&changing],
+        )
+        .await
+        .map_err(db_error)?;
+        tx.execute(
+            "UPDATE flights f
+             SET visibility = 'public', change = $2 + listed.place - 1,
+                 published_at = $3, public_change = $4 + listed.place - 1
+             FROM unnest($1::text[]) WITH ORDINALITY AS listed (id, place)
+             WHERE f.id = listed.id",
+            &[&changing, &first, &now, &first_public],
+        )
+        .await
+        .map_err(db_error)?;
+    } else {
+        if let Some(count) = i64::try_from(withdrawn.len()).ok().filter(|n| *n > 0) {
+            let first_public = take_public_changes(&tx, count, Some(now))
+                .await
+                .map_err(db_error)?;
+            record_withdrawals(&tx, &withdrawn, Some(account_id), first_public, Some(now))
+                .await
+                .map_err(db_error)?;
+        }
+        tx.execute(
+            "UPDATE flights f
+             SET visibility = $2, change = $3 + listed.place - 1,
+                 published_at = NULL, public_change = NULL
+             FROM unnest($1::text[]) WITH ORDINALITY AS listed (id, place)
+             WHERE f.id = listed.id",
+            &[&changing, &visibility.as_str(), &first],
+        )
+        .await
+        .map_err(db_error)?;
+    }
+    tx.execute(
+        "UPDATE accounts SET flight_change = $2 WHERE id = $1",
+        &[&account_id, &first.saturating_add(more - 1)],
+    )
+    .await
+    .map_err(db_error)?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(AllVisibilityChange::Set(set))
 }
 
 /// The flight with this address, with its account's row locked for the

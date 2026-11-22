@@ -36,6 +36,7 @@ pub(crate) fn account(
         created_at: account.created_at,
         publishing_suspended_at: account.publishing_suspended_at,
         edits_sites: account.edits_sites_since.is_some(),
+        new_flights_public: account.new_flights_public,
     })
 }
 

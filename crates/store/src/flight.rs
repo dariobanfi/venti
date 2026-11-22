@@ -283,6 +283,71 @@ pub(crate) fn may_be_set(
     Ok(())
 }
 
+/// Who may see a flight that an account uploads: everyone when the
+/// account's setting says so ([`crate::Account::new_flights_public`]),
+/// unless the account may not publish or the flight comes back taken
+/// down; only its pilot otherwise.
+///
+/// Both stores ask this, with the account read under its lock, so that an
+/// upload follows the same two rules as [`may_be_set`].
+pub(crate) fn uploaded_visibility(
+    new_flights_public: bool,
+    publishing_suspended: bool,
+    taken_down: bool,
+) -> Visibility {
+    if new_flights_public
+        && may_be_set(taken_down, publishing_suspended, Visibility::Public).is_ok()
+    {
+        Visibility::Public
+    } else {
+        Visibility::Private
+    }
+}
+
+/// What became of a call that sets who may see every flight of an
+/// account at once ([`crate::Store::set_all_visibility`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AllVisibilityChange {
+    /// Every flight that may be as was asked for is so now.
+    Set(AllFlightsSet),
+    /// There is no such account.
+    NoSuchAccount,
+    /// The account may not publish, and its flights were to be made
+    /// public. Nothing was changed, not even the flights that could have
+    /// been shared by link.
+    PublishingSuspended,
+}
+
+/// How an account's flights stand after they were all set at once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AllFlightsSet {
+    /// How many of the account's flights are now as was asked for, those
+    /// that were so before included.
+    pub flights: u64,
+    /// How many of them the call changed. Each took a change number of
+    /// its own, in the order of the flights' addresses.
+    pub changed: u64,
+    /// How many stay private because they are taken down: only when
+    /// something other than private was asked for.
+    pub taken_down: u64,
+}
+
+impl AllFlightsSet {
+    /// Counts in one flight of the account: one that is `was` and taken
+    /// down or not, when every flight is to be `wanted`. Whether the flight
+    /// changes. Both stores count with this, so that they set alike.
+    pub(crate) fn count(&mut self, was: Visibility, taken_down: bool, wanted: Visibility) -> bool {
+        if may_be_set(taken_down, false, wanted).is_err() {
+            self.taken_down += 1;
+            return false;
+        }
+        self.flights += 1;
+        let changes = was != wanted;
+        self.changed += u64::from(changes);
+        changes
+    }
+}
+
 /// A flight that was deleted, kept so that the pilot's other devices can
 /// be told. Nothing of the flight itself is left.
 #[derive(Debug, Clone, PartialEq, Eq)]

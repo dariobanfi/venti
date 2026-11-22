@@ -440,6 +440,7 @@ mod tests {
             created_at: crate::adapters::recorded_at(),
             publishing_suspended_at: None,
             edits_sites_since: None,
+            new_flights_public: false,
         }
     }
 

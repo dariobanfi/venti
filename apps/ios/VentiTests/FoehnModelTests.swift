@@ -6,14 +6,25 @@ import XCTest
 /// What the development server answers at `/v1/foehn`, with the last four
 /// points of each pair's 24 hours: Bolzano and Innsbruck at "likely",
 /// Klagenfurt and Salzburg at "none", read at 19:05 UTC on 18 November 2026.
+/// Every pressure is reduced to sea level by its provider, as in the
+/// server's golden file `crates/server/tests/golden/foehn.json`.
 private enum FoehnAnswer {
     static let body = #"""
     {"time":"2026-11-18T19:05:00Z","possible_from_hpa":3.0,"likely_from_hpa":6.0,"fresh_for_s":3600,"pairs":[
-    {"id":"bolzano-innsbruck","south":{"id":"suedtirol-meteo:83200MS","source":"suedtirol-meteo","name":"Bolzano","position":{"lat":46.4977,"lon":11.3128},"elevation_m":245.0,"pressure":{"time":"2026-11-18T18:50:00Z","sea_level_hpa":1004.4,"reduced_by":"provider"}},"north":{"id":"geosphere-tawes:11320","source":"geosphere-tawes","name":"Innsbruck","position":{"lat":47.26,"lon":11.3842},"elevation_m":578.0,"pressure":{"time":"2026-11-18T19:00:00Z","sea_level_hpa":998.2,"reduced_by":"venti"}},"level":"likely","difference_hpa":6.2,"difference_time":"2026-11-18T18:50:00Z","higher":"south","foehn":"south","series":[{"time":"2026-11-18T12:50:00Z","difference_hpa":5.0},{"time":"2026-11-18T14:50:00Z","difference_hpa":5.4},{"time":"2026-11-18T16:50:00Z","difference_hpa":5.8},{"time":"2026-11-18T18:50:00Z","difference_hpa":6.2}],"to_verify":false,"basis":"The pair and the limits of 3 and 6 hPa are those of the foehn chart of the weather service of the Province of Bolzano, which gives them for north foehn; for south foehn Venti uses the same limits, which no weather service has given."},
-    {"id":"klagenfurt-salzburg","south":{"id":"geosphere-tawes:11331","source":"geosphere-tawes","name":"Klagenfurt","position":{"lat":46.6483,"lon":14.3183},"elevation_m":450.0,"pressure":{"time":"2026-11-18T18:50:00Z","sea_level_hpa":1001.0,"reduced_by":"venti"}},"north":{"id":"geosphere-tawes:11150","source":"geosphere-tawes","name":"Salzburg","position":{"lat":47.7894,"lon":13.0086},"elevation_m":430.0,"pressure":{"time":"2026-11-18T18:50:00Z","sea_level_hpa":1000.2,"reduced_by":"venti"}},"level":"none","difference_hpa":0.8,"difference_time":"2026-11-18T18:50:00Z","higher":"south","series":[{"time":"2026-11-18T12:50:00Z","difference_hpa":0.8},{"time":"2026-11-18T14:50:00Z","difference_hpa":0.8},{"time":"2026-11-18T16:50:00Z","difference_hpa":0.8},{"time":"2026-11-18T18:50:00Z","difference_hpa":0.8}],"to_verify":true,"basis":"Venti's own choice of two airfields on either side of the Tauern, with the limits of the pair Bolzano and Innsbruck. No weather service has given either."}],
+    {"id":"bolzano-innsbruck","south":{"id":"suedtirol-meteo:83200MS","source":"suedtirol-meteo","name":"Bolzano","position":{"lat":46.4977,"lon":11.3128},"elevation_m":245.0,"pressure":{"time":"2026-11-18T18:50:00Z","sea_level_hpa":1007.9,"reduced_by":"provider"}},"north":{"id":"geosphere-tawes:11320","source":"geosphere-tawes","name":"Innsbruck","position":{"lat":47.26,"lon":11.3842},"elevation_m":578.0,"pressure":{"time":"2026-11-18T19:00:00Z","sea_level_hpa":1001.7,"reduced_by":"provider"}},"level":"likely","difference_hpa":6.2,"difference_time":"2026-11-18T18:50:00Z","higher":"south","foehn":"south","series":[{"time":"2026-11-18T12:50:00Z","difference_hpa":5.0},{"time":"2026-11-18T14:50:00Z","difference_hpa":5.4},{"time":"2026-11-18T16:50:00Z","difference_hpa":5.8},{"time":"2026-11-18T18:50:00Z","difference_hpa":6.2}],"to_verify":false,"basis":"The pair and the limits of 3 and 6 hPa are those of the foehn chart of the weather service of the Province of Bolzano, which gives them for north foehn; for south foehn Venti uses the same limits, which no weather service has given."},
+    {"id":"klagenfurt-salzburg","south":{"id":"geosphere-tawes:11331","source":"geosphere-tawes","name":"Klagenfurt","position":{"lat":46.6483,"lon":14.3183},"elevation_m":450.0,"pressure":{"time":"2026-11-18T18:50:00Z","sea_level_hpa":1001.0,"reduced_by":"provider"}},"north":{"id":"geosphere-tawes:11150","source":"geosphere-tawes","name":"Salzburg","position":{"lat":47.7894,"lon":13.0086},"elevation_m":430.0,"pressure":{"time":"2026-11-18T18:50:00Z","sea_level_hpa":1000.2,"reduced_by":"provider"}},"level":"none","difference_hpa":0.8,"difference_time":"2026-11-18T18:50:00Z","higher":"south","series":[{"time":"2026-11-18T12:50:00Z","difference_hpa":0.8},{"time":"2026-11-18T14:50:00Z","difference_hpa":0.8},{"time":"2026-11-18T16:50:00Z","difference_hpa":0.8},{"time":"2026-11-18T18:50:00Z","difference_hpa":0.8}],"to_verify":true,"basis":"Venti's own choice of two airfields on either side of the Tauern, with the limits of the pair Bolzano and Innsbruck. No weather service has given either."}],
     "caution":"A pressure difference across the main ridge is a sign of foehn, not a measurement of it. Foehn can blow with a small difference, and with a large one it can stay above a valley's cold air for hours and then break through within minutes. It says nothing about one valley or one take-off: read the wind stations, the forecast and the sky, and when in doubt do not fly.",
-    "attributions":[{"source":"geosphere-tawes","provider":"GeoSphere Austria","licence":"CC BY 4.0","text":"Data source: GeoSphere Austria - https://data.hub.geosphere.at","url":"https://data.hub.geosphere.at"},{"source":"suedtirol-meteo","provider":"Autonome Provinz Bozen - Südtirol","licence":"CC0 1.0","text":"Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz","url":"https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche"}]}
+    "attributions":[{"source":"geosphere-tawes","provider":"GeoSphere Austria","short_name":"GeoSphere","licence":"CC BY 4.0","text":"Data source: GeoSphere Austria - https://data.hub.geosphere.at","url":"https://data.hub.geosphere.at"},{"source":"suedtirol-meteo","provider":"Autonome Provinz Bozen - Südtirol","short_name":"South Tyrol","licence":"CC0 1.0","text":"Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz","url":"https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche"}]}
     """#
+
+    /// The same answer with Innsbruck's pressure reduced to sea level by
+    /// Venti itself, as when GeoSphere sends only the station's pressure.
+    static let reducedByVenti: String = {
+        let provider = #""sea_level_hpa":1001.7,"reduced_by":"provider""#
+        precondition(body.contains(provider))
+        return body.replacingOccurrences(
+            of: provider, with: #""sea_level_hpa":1001.7,"reduced_by":"venti""#)
+    }()
 
     /// A quarter of an hour after the newest reading.
     static let now: Int64 = 1_795_028_700
@@ -83,6 +94,28 @@ final class FoehnModelTests: XCTestCase {
         let twice = await asked.count
         XCTAssertEqual(twice, 2)
         XCTAssertNotNil(model.line)
+    }
+
+    /// A pressure that Venti reduced itself gives the view its row, with its
+    /// level and a note that says so, and Today no line: a warning there
+    /// rests only on the providers' own pressures.
+    func testAPressureVentiReducedGivesTheViewItsRowAndTodayNoLine() async throws {
+        let model = FoehnModel(transport: { _ in (200, Data(FoehnAnswer.reducedByVenti.utf8)) })
+        await model.load(from: server, places: [tegernsee], now: { FoehnAnswer.now })
+        XCTAssertEqual(model.state, .loaded)
+        XCTAssertNil(model.line)
+        let view = try XCTUnwrap(model.view)
+        XCTAssertEqual(view.rows.map(\.id), ["bolzano-innsbruck", "klagenfurt-salzburg"])
+        let row = view.rows[0]
+        XCTAssertEqual(row.level, .likely)
+        XCTAssertTrue(row.words.contains("Bolzano"), row.words)
+        XCTAssertTrue(row.note.contains("Innsbruck sent only"), row.note)
+        XCTAssertTrue(row.note.hasSuffix("gives Today no line."), row.note)
+
+        // Against an unknown clock too.
+        await model.load(from: server, places: [tegernsee], now: { 0 }, anew: true)
+        XCTAssertEqual(model.view?.rows.first?.level, .likely)
+        XCTAssertNil(model.line)
     }
 
     /// Against an unknown clock a reading has no age: the core's words

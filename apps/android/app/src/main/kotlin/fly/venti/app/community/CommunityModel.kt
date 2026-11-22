@@ -90,6 +90,9 @@ class CommunityModel(
     /** The server to ask, without a slash at its end. The app sets this to the one in the settings. */
     var server: () -> String? = { null }
 
+    /** Venti's time, seconds since 1970, for the ranking's years; 0 while it is unknown. The app sets this. */
+    var clock: suspend () -> Long = { System.currentTimeMillis() / 1000 }
+
     /**
      * One pilot's public flights, the newest first: the page reached from a
      * flight of that pilot's. Kept here, not in its screen, so that it is
@@ -272,8 +275,9 @@ class CommunityModel(
     suspend fun rank(
         season: String? = null,
         month: String? = if (season == null) ranked.month else null,
-        nowUnixS: Long = System.currentTimeMillis() / 1000,
+        nowUnixS: Long? = null,
     ) {
+        val nowUnixS = nowUnixS ?: clock()
         val server = server()
         if (server == null) {
             ranked = Ranked()

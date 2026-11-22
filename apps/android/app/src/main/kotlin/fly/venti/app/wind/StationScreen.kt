@@ -427,7 +427,7 @@ private fun Now(station: WindStation) {
 /** How old the reading is, and what that means if it is old. */
 private fun ageText(station: WindStation, now: Long): String {
     val reading = station.latest ?: return "Venti has no reading from this station."
-    val age = Format.age(Format.minutes(from = reading.timeUnixS, to = now))
+    val age = StationWords.age(station, reading, now)
     return if (station.isOld) {
         "Measured $age. Too old to say what the wind is doing now."
     } else {

@@ -3916,6 +3916,11 @@ class VentiUiTest {
 
         // Too far out to draw it: the row says to zoom in, in the core's words.
         assertTrue(TestDevice.lookAt(scenario, lat = 47.686, lon = 11.728, zoom = 5.0))
+        // Over the map too, so that a tap on the button that draws nothing says why.
+        waitFor(hasTestTag("airspace-too-wide"))
+        assertTrue(exists(hasText("Zoom in to see airspace.")))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-map-airspace-zoom-in")
         openLayers()
         screen.onNode(row).performScrollTo()
         waitFor(row and hasText("Zoom in to see airspace."))
@@ -3924,6 +3929,7 @@ class VentiUiTest {
         waitFor(row and isOff())
         closeLayers()
         waitFor(button and isSelected().not())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("airspace-too-wide")) }
 
         // On and off once more with the button, closer in.
         assertTrue(TestDevice.lookAt(scenario, lat = 47.686, lon = 11.728, zoom = 11.5))

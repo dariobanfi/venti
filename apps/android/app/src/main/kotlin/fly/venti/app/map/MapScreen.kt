@@ -598,8 +598,16 @@ fun MapScreen(
                     LayerChip(MapWords.core.sites, R.drawable.venti_site, !hidesSites, onChange = setSites, Modifier.testTag("layer-sites"))
                 }
             }
+            // Airspace switched on and zoomed out too far to draw it, in the
+            // core's words; it alone says to zoom in where both would.
+            if (airspaceTooWide) {
+                Notice(
+                    MapWords.core.airspaceTooWide,
+                    Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4).testTag("airspace-too-wide"),
+                )
+            }
             // Zoomed out too far for where thermals have been, in the core's words.
-            if (showsFlown && air?.flownTooWide == true) {
+            if (showsFlown && air?.flownTooWide == true && !airspaceTooWide) {
                 Notice(
                     flownTooWideWords(),
                     Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4).testTag("flown-too-wide"),

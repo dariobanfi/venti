@@ -53,6 +53,7 @@ import fly.venti.app.design.numbers
 import fly.venti.app.forecast.ForecastPage
 import fly.venti.app.forecast.ForecastPlace
 import fly.venti.core.WindMark
+import fly.venti.core.WindReading
 import fly.venti.core.WindStation
 import fly.venti.core.WindSymbol
 import fly.venti.app.design.Common
@@ -269,10 +270,18 @@ object StationWords {
         if (reading == null) {
             parts += "no reading"
         } else if (station.isOld) {
-            parts += Format.age(Format.minutes(from = reading.timeUnixS, to = now))
+            parts += age(station, reading, now)
         }
         return parts.joinToString(" · ")
     }
+
+    /**
+     * How old a reading is, "25 minutes ago"; or its own time on the clock,
+     * "14:05", where the core gives no age because Venti's clock was not
+     * known when the stations were read.
+     */
+    fun age(station: WindStation, reading: WindReading, now: Long): String =
+        if (station.ageMin == null) Format.time(reading.timeUnixS) else Format.age(Format.minutes(from = reading.timeUnixS, to = now))
 
     /** The wind in words, for a screen reader. */
     fun spoken(station: WindStation, mark: WindMark, detail: String): String {

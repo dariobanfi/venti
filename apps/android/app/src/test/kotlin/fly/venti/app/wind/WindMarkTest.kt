@@ -139,4 +139,16 @@ class WindMarkTest {
             StationWords.spoken(calm, calm.mark, StationWords.detail(calm, recordedAt)),
         )
     }
+
+    @Test
+    fun againstAnUnknownClockAReadingSaysItsOwnTime() {
+        // Read with Venti's clock unknown (0): the core gives no age, and the reading's time stands where it stood.
+        val unknown = windMap(200.toUShort(), recorded("stations.json"), 0).stations.first { it.name.startsWith("Zugspitze") }
+        val reading = checkNotNull(unknown.latest)
+        assertEquals(null, unknown.ageMin)
+        assertEquals(fly.venti.app.design.Format.time(reading.timeUnixS), StationWords.age(unknown, reading, recordedAt + 3600))
+        // With the clock known, the age.
+        val known = station("Zugspitze", minutesLater = 25)
+        assertEquals("70 minutes ago", StationWords.age(known, checkNotNull(known.latest), recordedAt + 25 * 60))
+    }
 }

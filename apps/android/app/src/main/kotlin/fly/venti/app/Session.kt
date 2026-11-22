@@ -274,16 +274,16 @@ sealed interface Session {
             fly.landingsAround = { place -> keptSites.cockpitLandings(place, sites.heldAround(place)) }
             val today = TodayModel(keptSites)
             today.server = { (wind.server as? WindServer.Usable)?.url }
-            today.clock = { wind.serverNow() }
+            today.clock = { wind.serverTimeOrZero() }
             // The kind of day square by square, for the map, from the same
             // server and by the same clock.
             val thermalMap = ThermalMapModel()
             thermalMap.server = { (wind.server as? WindServer.Usable)?.url }
-            thermalMap.clock = { wind.serverNow() }
+            thermalMap.clock = { wind.serverTimeOrZero() }
             // The rain radar too: its frames' ages are counted against Venti's clock.
             val radar = RadarModel()
             radar.server = { (wind.server as? WindServer.Usable)?.url }
-            radar.clock = { wind.serverNow() }
+            radar.clock = { wind.serverTimeOrZero() }
             // So do the other pilots in the air.
             val live = LiveModel(scope)
             live.server = { (wind.server as? WindServer.Usable)?.url }
@@ -297,6 +297,8 @@ sealed interface Session {
             fly.wantsClimbs = { preferences.cockpitShowsClimbs }
             // And everyone's public flights, on the Logbook tab.
             val community = CommunityModel()
+            // The ranking's years by Venti's clock, or the core's all years while it is unread.
+            community.clock = { wind.serverTimeOrZero() }
             community.server = { (wind.server as? WindServer.Usable)?.url }
             // The pilot's account on that server, if there is one. A test
             // starts signed out, and its token stays out of the keystore.
@@ -398,6 +400,8 @@ sealed interface Session {
                 preferences,
                 if (isUnderTest) MemoryUploadPasswordStore() else KeystoreUploadPasswordStore(app),
             )
+            // A league's deadline by Venti's clock; named without calling the flight late while it is unread.
+            leagues.clock = { wind.serverTimeOrZero() }
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, social, account, groups, alerts, siteEdit, tasks,
                 leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(app, preferences, logbook), preferences, files, scope,

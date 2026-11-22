@@ -85,8 +85,11 @@ class ThermalMapModel(
     /** The server to ask, without a slash at its end: the app's (`AppServer`), or a test's. */
     var server: () -> String? = { null }
 
-    /** The time by the server's clock, seconds since 1970: it decides which day is today. The app sets this. */
+    /** The time by the server's clock, seconds since 1970: it decides which day is today. The app sets this; 0 while the clock is unknown, when the core keeps every day. */
     var clock: suspend () -> Long = { deviceClock() / 1000 }
+
+    /** The offset from UTC at that time; at this device's time where the clock is unknown (0). */
+    private fun offsetAt(nowUnixS: Long): Int = utcOffsetSeconds(if (nowUnixS > 0) nowUnixS else deviceClock() / 1000)
 
     /** Which server the map came from, and when by this device's clock. */
     private class Fetched(val server: String, val at: Long)
@@ -174,7 +177,7 @@ class ThermalMapModel(
                 thermalMap(
                     answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(),
                     answer.body,
-                    utcOffsetSeconds(nowUnixS),
+                    offsetAt(nowUnixS),
                     nowUnixS,
                 )
             }
@@ -206,7 +209,7 @@ class ThermalMapModel(
         val day = day ?: return
         val server = server() ?: return
         val now = clock()
-        hours.show(map, day.date, server, now, utcOffsetSeconds(now))
+        hours.show(map, day.date, server, now, offsetAt(now))
     }
 
     /** A square's days side by side, for a place, as the core reads them from the map's answer. */
@@ -215,7 +218,7 @@ class ThermalMapModel(
         val now = clock()
         return try {
             withContext(background) {
-                thermalMapStrip(answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(), answer.body, utcOffsetSeconds(now), now, lat, lon)
+                thermalMapStrip(answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(), answer.body, offsetAt(now), now, lat, lon)
             }
         } catch (error: CoreException) {
             emptyList()

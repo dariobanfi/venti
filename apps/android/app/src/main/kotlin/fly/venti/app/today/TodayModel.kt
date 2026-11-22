@@ -118,9 +118,13 @@ class TodayModel(
 
     /**
      * The time by the server's clock, seconds since 1970: the hours that
-     * are gone are gone by that clock. The app sets this.
+     * are gone are gone by that clock. The app sets this; 0 while the
+     * clock is unknown, when the core leaves no hour out.
      */
     var clock: suspend () -> Long = { deviceClock() / 1000 }
+
+    /** The offset from UTC at that time; at this device's time where the clock is unknown (0). */
+    private fun offsetAt(nowUnixS: Long): Int = utcOffsetSeconds(if (nowUnixS > 0) nowUnixS else deviceClock() / 1000)
 
     /** How long to wait before asking again for a forecast the server is still fetching. */
     var forecastPauseMilliseconds = 5_000L
@@ -301,7 +305,7 @@ class TodayModel(
             siteOutlook(
                 answer.status.asStatus(),
                 answer.body,
-                utcOffsetSeconds(nowUnixS),
+                offsetAt(nowUnixS),
                 site.wind,
                 site.elevationM,
                 nowUnixS,

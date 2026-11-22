@@ -225,8 +225,11 @@ class WindModel(
      */
     suspend fun serverTimeOrZero(): Long {
         readClockIfUnread()
-        return if (serverClock == null) 0 else now
+        return nowOrZero
     }
+
+    /** The server's clock as last read, advanced; 0 while it is unread. */
+    val nowOrZero: Long get() = if (serverClock == null) 0 else now
 
     /** Reads the server's health when its clock has not been read yet. Quiet: without an answer it stays unread. */
     private suspend fun readClockIfUnread() {
@@ -291,7 +294,8 @@ class WindModel(
                 lateProviders = state.lateProviders
             }
             val answer = transport(server + windMapPath(area.south, area.west, area.north, area.east))
-            val map = withContext(background) { windMap(answer.status.asStatus(), answer.body, now) }
+            // Against Venti's clock, or 0 while it is unread: then the core gives no age.
+            val map = withContext(background) { windMap(answer.status.asStatus(), answer.body, nowOrZero) }
             // The pilot may have changed the address while this was under way.
             if (server != url) return
             stations = map.stations
@@ -355,7 +359,8 @@ class WindModel(
     suspend fun history(station: WindStation): StationHistory {
         val server = url ?: throw IOException("Venti is not connected.")
         val answer = transport(server + stationHistoryPath(station.id))
-        return withContext(background) { stationHistory(answer.status.asStatus(), answer.body, now) }
+        val nowUnixS = serverTimeOrZero()
+        return withContext(background) { stationHistory(answer.status.asStatus(), answer.body, nowUnixS) }
     }
 
     /** The span of days a station's page can show, today last, by this phone's clock. */

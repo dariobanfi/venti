@@ -98,6 +98,7 @@ import fly.venti.app.forecast.ForecastPage
 import fly.venti.app.forecast.ForecastPlace
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.StationPage
+import fly.venti.app.wind.StationWords
 import fly.venti.app.wind.WindGlyph
 import fly.venti.app.wind.WindModel
 import fly.venti.core.Credit
@@ -1282,7 +1283,7 @@ object SiteWords {
     /** What stands in place of a station's wind when it is not current. */
     fun age(station: WindStation, now: Long): String {
         val reading = station.latest ?: return "no reading"
-        return Format.age(Format.minutes(from = reading.timeUnixS, to = now))
+        return StationWords.age(station, reading, now)
     }
 
     /** Under the list: what a site on a map is worth, whose data it is, and how old. */

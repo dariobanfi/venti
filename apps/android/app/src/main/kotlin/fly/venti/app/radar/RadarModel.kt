@@ -105,8 +105,11 @@ class RadarModel(
     /** The server to ask, without a slash at its end: the app's (`AppServer`), or a test's. */
     var server: () -> String? = { null }
 
-    /** The moment the frames' ages are counted against, seconds since 1970. The app sets this to Venti's clock. */
+    /** The moment the frames' ages are counted against, seconds since 1970. The app sets this to Venti's clock, 0 while it is unread. */
     var clock: suspend () -> Long = { System.currentTimeMillis() / 1000 }
+
+    /** The offset from UTC at that time; at this device's time where the clock is unknown (0). */
+    private fun offsetAt(nowUnixS: Long): Int = utcOffsetSeconds(if (nowUnixS > 0) nowUnixS else System.currentTimeMillis() / 1000)
 
     /** The radar as the core last read it, from the server set now. */
     var view: RadarView? by mutableStateOf(null)
@@ -322,7 +325,7 @@ class RadarModel(
     private suspend fun read(fetched: HttpAnswer): RadarView {
         val now = clock()
         return withContext(background) {
-            radar(fetched.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(), fetched.body, utcOffsetSeconds(now), now)
+            radar(fetched.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(), fetched.body, offsetAt(now), now)
         }
     }
 

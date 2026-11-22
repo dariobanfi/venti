@@ -160,7 +160,10 @@ class Leagues(
         )
     },
 ) {
-    suspend fun handover(id: String): LeagueHandover = logbook.leagueHandover(id)
+    /** Venti's time, seconds since 1970, for a league's deadline; 0 while it is unknown. The app sets this. */
+    var clock: suspend () -> Long = { System.currentTimeMillis() / 1000 }
+
+    suspend fun handover(id: String): LeagueHandover = logbook.leagueHandover(id, clock())
 
     /** The password kept from the last upload the DHV-XC took, if any. */
     fun keptPassword(): String = passwords.read().orEmpty()

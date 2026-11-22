@@ -2,6 +2,7 @@ package fly.venti.app.logbook
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -52,11 +53,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.venti.design.VentiSize
+import app.venti.design.VentiSpace
 import fly.venti.app.AppNavigation
 import fly.venti.app.LogbookRoute
 import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.Metric
+import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
 import fly.venti.app.pilotMessage
 import fly.venti.core.LogbookEntry
@@ -122,7 +126,7 @@ fun LogbookScreen(
         if (folder != null && watched != null) {
             imports.launch {
                 val report = try {
-                    watched.watch(folder)
+                    watched.watch(folder.toString())
                 } catch (error: SecurityException) {
                     onNotice(ImportNotice("The folder cannot be kept", error.pilotMessage))
                     null
@@ -152,6 +156,17 @@ fun LogbookScreen(
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(Modifier.padding(padding)) {
+            // A watched folder that is lost: said over the flights, with
+            // the two things to do about it.
+            val lost = watched?.name?.takeIf { watched.isLost }
+            if (lost != null) {
+                LostFolderCard(
+                    lost,
+                    onChooseAgain = { watchPicker.launch(null) },
+                    onStop = { watched?.stop() },
+                    modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, top = VentiSpace.s1, bottom = VentiSpace.s2),
+                )
+            }
             Box(Modifier.weight(1f)) {
                 if (logbook.view.years.isEmpty()) {
                     EmptyLogbook(
@@ -191,6 +206,49 @@ fun LogbookScreen(
             },
             onDismiss = { flightToDelete = null },
         )
+    }
+}
+
+/**
+ * The watched folder can no longer be found, so nothing comes in from it:
+ * the caution's sign and words on a card of the pack, and under them
+ * choosing the folder again or giving it up. It stays until the pilot does
+ * one of the two, or the folder is found again.
+ */
+@Composable
+private fun LostFolderCard(name: String, onChooseAgain: () -> Unit, onStop: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.padding(VentiSpace.s4), verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+            Row(
+                modifier = Modifier.testTag("watched-folder-lost"),
+                horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3),
+            ) {
+                Icon(
+                    painterResource(R.drawable.venti_caution),
+                    contentDescription = null,
+                    modifier = Modifier.size(VentiSize.icon),
+                    tint = Venti.colours.caution,
+                )
+                Text(LogbookWords.lost(name), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            }
+            Button(
+                onClick = onChooseAgain,
+                modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("watched-folder-again"),
+            ) {
+                Text(LogbookWords.CHOOSE_AGAIN)
+            }
+            TextButton(
+                onClick = onStop,
+                modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("watched-folder-stop"),
+            ) {
+                Text(LogbookWords.stopWatching(name), textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 
@@ -573,4 +631,11 @@ object LogbookWords {
     fun watchAnother(name: String): String = "Bring in from another folder than $name"
 
     fun stopWatching(name: String): String = "Stop bringing in from $name"
+
+    /** Said over the flights while the watched folder is lost; the iPhone's words. */
+    fun lost(name: String): String =
+        "Venti can no longer find the folder $name, so no new flights come in from it. " +
+            "Choose it again, or stop bringing in from it."
+
+    const val CHOOSE_AGAIN = "Choose the folder again"
 }

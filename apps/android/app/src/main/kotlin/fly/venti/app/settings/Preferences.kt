@@ -141,6 +141,13 @@ interface Preferences {
     /** The folder Venti brings new flight files in from whenever it opens, as Android names it; empty for none. */
     var watchedFolder: String
 
+    /**
+     * That folder's name as the pilot knows it, kept so that it can still
+     * be named once Android no longer finds the folder; empty where none
+     * was kept.
+     */
+    var watchedFolderName: String
+
     /** The files of that folder already looked at: where each lies, its size and when it changed. */
     var watchedSeen: Set<String>
 
@@ -315,6 +322,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getString("VentiWatchedFolder", null).orEmpty()
         set(value) = store.edit { putString("VentiWatchedFolder", value) }
 
+    override var watchedFolderName: String
+        get() = store.getString("VentiWatchedFolderName", null).orEmpty()
+        set(value) = store.edit { putString("VentiWatchedFolderName", value) }
+
     override var watchedSeen: Set<String>
         get() = store.getStringSet("VentiWatchedSeen", null).orEmpty().toSet()
         set(value) = store.edit { putStringSet("VentiWatchedSeen", value) }
@@ -383,5 +394,6 @@ class MemoryPreferences : Preferences {
     override var cockpitKeepsBrightness = false
     override var mapSitesFilter: String? = null
     override var watchedFolder = ""
+    override var watchedFolderName = ""
     override var watchedSeen: Set<String> = emptySet()
 }

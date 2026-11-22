@@ -50,6 +50,7 @@ import fly.venti.app.forecast.ThermalMapModel
 import fly.venti.app.radar.RadarModel
 import fly.venti.app.today.TodayModel
 import fly.venti.app.widget.TakeoffWidgets
+import fly.venti.app.logbook.AndroidFolders
 import fly.venti.app.logbook.WatchedFolder
 import fly.venti.app.task.TaskModel
 import fly.venti.app.terrain.TerrainModel
@@ -153,6 +154,8 @@ sealed interface Session {
             sampleAirspace: Boolean = false,
             sampleTask: Boolean = false,
             slowGlider: Boolean = false,
+            /** A UI test's watched folder that Android no longer lets the app into. */
+            lostWatchedFolder: Boolean = false,
             /** A UI test's Google account, for the development server's made-up Google; `null` for Google itself. */
             googleTestAccount: String? = null,
         ): Session {
@@ -166,6 +169,10 @@ sealed interface Session {
             val preferences = if (isUnderTest) MemoryPreferences() else StoredPreferences(app)
             if (slowGlider) {
                 preferences.trimSpeed = LaunchOptions.SLOW_GLIDER_TRIM_SPEED
+            }
+            if (lostWatchedFolder) {
+                preferences.watchedFolder = LaunchOptions.LOST_FOLDER
+                preferences.watchedFolderName = LaunchOptions.LOST_FOLDER_NAME
             }
             val vario = VarioLink(app, preferences)
             val scope = MainScope()
@@ -408,7 +415,7 @@ sealed interface Session {
             leagues.clock = { wind.serverTimeOrZero() }
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, social, account, groups, alerts, siteEdit, tasks,
-                leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(app, preferences, logbook), preferences, files, scope,
+                leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(AndroidFolders(app), preferences, logbook), preferences, files, scope,
             )
         }
     }
@@ -441,6 +448,7 @@ class VentiApplication : Application() {
             sampleWaypoints = options.usesSampleWaypoints,
             sampleAirspace = options.usesSampleAirspace,
             sampleTask = options.usesSampleTask,
+            lostWatchedFolder = options.watchesALostFolder,
             slowGlider = options.usesSlowGlider,
             googleTestAccount = options.googleTestAccount,
         ).also { testSession = it }
@@ -491,6 +499,12 @@ data class LaunchOptions(
      */
     val usesSlowGlider: Boolean = false,
     /**
+     * Start with a watched folder that Android never let the app into, as
+     * after the pilot took the permission away, so that the logbook's
+     * notice of a lost folder can be tested without the folder picker.
+     */
+    val watchesALostFolder: Boolean = false,
+    /**
      * Sign in "with Google" as this email through the development server's
      * made-up Google (`GET /v1/dev/google-id-token`) instead of Google's
      * sheet, so that the sign-in can be tested without a Google account.
@@ -507,7 +521,12 @@ data class LaunchOptions(
         const val SAMPLE_AIRSPACE = "sample-airspace"
         const val SAMPLE_TASK = "sample-task"
         const val SLOW_GLIDER = "slow-glider"
+        const val LOST_WATCHED_FOLDER = "lost-watched-folder"
         const val GOOGLE_TEST_ACCOUNT = "google-test-account"
+
+        /** The watched folder of [watchesALostFolder]: one the app holds no permission for, and its name. */
+        const val LOST_FOLDER = "content://com.android.externalstorage.documents/tree/primary%3AXCTrack%2FTracklogs"
+        const val LOST_FOLDER_NAME = "Tracklogs"
 
         /** The name the made-up Google gives the test's account. */
         const val GOOGLE_TEST_NAME = "UI Test"
@@ -572,6 +591,7 @@ data class LaunchOptions(
                 usesSampleAirspace = intent.getBooleanExtra(SAMPLE_AIRSPACE, false),
                 usesSampleTask = intent.getBooleanExtra(SAMPLE_TASK, false),
                 usesSlowGlider = intent.getBooleanExtra(SLOW_GLIDER, false),
+                watchesALostFolder = intent.getBooleanExtra(LOST_WATCHED_FOLDER, false),
                 googleTestAccount = intent.getStringExtra(GOOGLE_TEST_ACCOUNT),
             )
         }

@@ -4017,6 +4017,43 @@ class VentiUiTest {
         openAndCloseTheCockpit(expected = -1f)
     }
 
+    /**
+     * A watched folder that can no longer be found: the logbook says so
+     * over the flights, by the folder's name, with the two things to do
+     * about it. A test cannot answer Android's folder picker, so the app
+     * starts with a folder it holds no permission for, as after the pilot
+     * took it away, and gives it up.
+     */
+    @Test
+    fun theLogbookSaysWhenTheWatchedFolderIsLost() {
+        launch { putExtra(LaunchOptions.LOST_WATCHED_FOLDER, true) }
+        waitFor(described("Show my position"))
+        tap(tab("Logbook"))
+        val notice = hasTestTag("watched-folder-lost")
+        waitFor(notice)
+        assertTrue(exists(hasText("Venti can no longer find the folder Tracklogs", substring = true)))
+        assertTrue(exists(hasTestTag("watched-folder-again") and hasText("Choose the folder again")))
+        assertTrue(exists(hasTestTag("watched-folder-stop") and hasText("Stop bringing in from Tracklogs")))
+        // The logbook itself is there under it.
+        assertTrue(exists(hasText("No flights yet")))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("light-logbook-watched-folder-lost")
+
+        // With flights it stands over them.
+        tap(hasText("Add a sample flight"))
+        waitFor(described("Flight details"))
+        tap(described("Back"))
+        waitFor(hasTestTag("logbook-row"))
+        assertTrue(exists(notice))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("light-logbook-watched-folder-lost-2-over-flights")
+
+        // Given up, the notice goes and the menu offers a folder as at first.
+        tap(hasTestTag("watched-folder-stop"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(notice) }
+        assertTrue(exists(hasTestTag("logbook-row")))
+    }
+
     @Test
     fun theCockpitWarnsOfAirspace() = flyNearAirspace("light", dark = false)
 

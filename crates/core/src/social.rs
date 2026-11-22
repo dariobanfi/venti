@@ -82,7 +82,15 @@ fn counted(count: u32, one: &str, several: &str) -> String {
 /// How long ago something was, for a line under it: "just now",
 /// "5 min ago", "3 h ago", "2 d ago", and from a week on the day,
 /// "21 Nov 2026".
+///
+/// The times are the server's, so "now" is the server's clock as the shell
+/// last read it. A shell that has not read it hands in zero, and the line is
+/// then the day, which is right by any clock: an age counted by a phone's
+/// own clock can be days off.
 fn age(at: Timestamp, now_unix_s: i64) -> String {
+    if now_unix_s <= 0 {
+        return day_in_words(at);
+    }
     let seconds = (now_unix_s - at.timestamp()).max(0);
     match seconds {
         0..=59 => "just now".to_owned(),
@@ -1346,6 +1354,8 @@ mod tests {
     #[test]
     fn an_age_is_said_as_a_pilot_reads_it() {
         let at = |seconds_ago: i64| chrono::DateTime::from_timestamp(NOW - seconds_ago, 0).unwrap();
+        // No server clock read yet: the day, never an age by another clock.
+        assert_eq!(age(at(0), 0), day_in_words(at(0)));
         assert_eq!(age(at(0), NOW), "just now");
         assert_eq!(age(at(-30), NOW), "just now");
         assert_eq!(age(at(59), NOW), "just now");

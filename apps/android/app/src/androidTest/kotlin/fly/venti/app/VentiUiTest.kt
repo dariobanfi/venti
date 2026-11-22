@@ -256,6 +256,18 @@ class VentiUiTest {
     }
 
     /**
+     * Switches airspace on on the map tab, where it is off until the pilot
+     * asks for it, with its round button above the layers button.
+     */
+    private fun switchAirspaceOn() {
+        val button = hasTestTag("map-airspace")
+        waitFor(button)
+        if (exists(button and isSelected())) return
+        tap(button)
+        waitFor(button and isSelected())
+    }
+
+    /**
      * Opens every credit in full behind the map's (i), waits for these
      * among them, and closes them. The credits are one element, its lines
      * its texts.
@@ -962,6 +974,7 @@ class VentiUiTest {
         waitFor(hasTestTag("logbook-row"))
         tap(tab("Map"))
         waitFor(described("Show my position"))
+        switchAirspaceOn()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
         letTheMapDraw(5)
         keepScreenshot("$prefix-map-airspace")
@@ -1001,7 +1014,8 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         waitFor(described("Show my position"))
 
-        // The map asked for the airspace around what it shows.
+        // Switched on, the map asked for the airspace around what it shows.
+        switchAirspaceOn()
         seeInCredits(hasText("Airspace: openAIP, not certified"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceEdgesOnTheMap(scenario) > 0 }
         letTheMapDraw(3)
@@ -3831,6 +3845,7 @@ class VentiUiTest {
         waitFor(described("Show my position"))
         val scenario = checkNotNull(app)
         assertTrue(TestDevice.lookAt(scenario, lat = 47.686, lon = 11.728, zoom = 11.5))
+        switchAirspaceOn()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
         letTheMapDraw(2)
         TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.686, lon = 11.728)))
@@ -3868,6 +3883,62 @@ class VentiUiTest {
 
     @Test
     fun theAirspaceOverAPlaceInDarkAppearance() = lookAtTheAirspaceOverAPlace("dark", dark = true)
+
+    /**
+     * Airspace on the map tab is off until the pilot switches it on: the
+     * map opens without it and without its credit, with three round
+     * buttons. Its button switches it on (drawn, the layers sheet's switch
+     * on with it) and off again; zoomed out too far, the sheet's row says
+     * to zoom in. The made-up zone of the pilot's sample file, no server.
+     */
+    private fun switchAirspaceOnAndOff(prefix: String, dark: Boolean) {
+        launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_AIRSPACE, true) }
+        waitFor(described("Show my position"))
+        val scenario = checkNotNull(app)
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.686, lon = 11.728, zoom = 11.5))
+        val button = hasTestTag("map-airspace")
+        waitFor(button and isSelected().not() and described("Airspace"))
+        letTheMapDraw(3)
+        assertTrue(airspaceEdgesOnTheMap(scenario) == 0)
+        keepScreenshot("$prefix-map-airspace-off")
+
+        // On with the button: drawn, and the sheet's switch says so.
+        tap(button)
+        waitFor(button and isSelected())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
+        letTheMapDraw(3)
+        keepScreenshot("$prefix-map-airspace-on")
+        openLayers()
+        val row = hasTestTag("layer-airspace")
+        screen.onNode(row).performScrollTo()
+        waitFor(row and isOn())
+        closeLayers()
+
+        // Too far out to draw it: the row says to zoom in, in the core's words.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.686, lon = 11.728, zoom = 5.0))
+        openLayers()
+        screen.onNode(row).performScrollTo()
+        waitFor(row and hasText("Zoom in to see airspace."))
+        // Off with the sheet's switch: the button follows.
+        screen.onNode(row).performClick()
+        waitFor(row and isOff())
+        closeLayers()
+        waitFor(button and isSelected().not())
+
+        // On and off once more with the button, closer in.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.686, lon = 11.728, zoom = 11.5))
+        tap(button)
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
+        tap(button)
+        waitFor(button and isSelected().not())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceEdgesOnTheMap(scenario) == 0 }
+    }
+
+    @Test
+    fun airspaceIsOffOnTheMapUntilSwitchedOn() = switchAirspaceOnAndOff("light", dark = false)
+
+    @Test
+    fun airspaceSwitchedOnAndOffInDarkAppearance() = switchAirspaceOnAndOff("dark", dark = true)
 
     private fun lookAtTheWindOnTheGround(prefix: String, dark: Boolean) {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
@@ -5662,7 +5733,7 @@ class VentiUiTest {
     }
 
     /**
-     * The map as it is since 2026-11-22: two round buttons, an
+     * The map as it is since 2026-11-22: three round buttons, an
      * (i) for every credit in full, and one layers sheet with a switch
      * for every layer and a row for every list. In it "Climbs now", off
      * until switched on: the development server's two made-up climbs over
@@ -5679,8 +5750,9 @@ class VentiUiTest {
         waitFor(described("Show my position"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.655, lon = 11.775, zoom = 11.0))
         waitForSites()
-        // Two round buttons, and none of the lists', the plans' or the sites' filter.
+        // Three round buttons, airspace off, and none of the lists', the plans' or the sites' filter.
         assertTrue(exists(hasTestTag("map-layers")))
+        assertTrue(exists(hasTestTag("map-airspace") and isSelected().not()))
         for (gone in listOf("Wind stations", "Flying sites", "Pilots in the air", "Flying plans", "Aerial view", "Filter sites")) {
             assertFalse(gone, exists(described(gone)))
         }
@@ -5691,7 +5763,6 @@ class VentiUiTest {
         tap(hasTestTag("map-credits"))
         val credits = hasTestTag("wind-credits")
         waitForAll(
-            credits and hasText("Airspace: openAIP, not certified"),
             credits and hasText("Sites: OpenStreetMap contributors"),
             // The base map's own, which the map's button showed before.
             credits and hasText("© OpenStreetMap contributors", substring = true),
@@ -5709,7 +5780,7 @@ class VentiUiTest {
             hasTestTag("layers-sites") and isOn(),
             hasTestTag("layers-forecast") and isOff(),
             hasTestTag("layers-radar") and isOff(),
-            hasTestTag("layer-airspace") and isOn(),
+            hasTestTag("layer-airspace") and isOff(),
             hasTestTag("layer-pilots") and isOn(),
         )
         letTheMapDraw(1)

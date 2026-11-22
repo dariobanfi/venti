@@ -84,7 +84,9 @@ interface Preferences {
 
     /** The layers of the map tab the pilot has switched off with its chips. All are shown until then. */
     var mapHidesWind: Boolean
-    var mapHidesAirspace: Boolean
+
+    /** Whether the map tab draws airspace: off until the pilot switches it on. */
+    var mapShowsAirspace: Boolean
     var mapHidesSites: Boolean
     var mapHidesPilots: Boolean
     var mapHidesCables: Boolean
@@ -230,9 +232,9 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapHidesWind", false)
         set(value) = store.edit { putBoolean("VentiMapHidesWind", value) }
 
-    override var mapHidesAirspace: Boolean
-        get() = store.getBoolean("VentiMapHidesAirspace", false)
-        set(value) = store.edit { putBoolean("VentiMapHidesAirspace", value) }
+    override var mapShowsAirspace: Boolean
+        get() = store.getBoolean("VentiMapShowsAirspace", false)
+        set(value) = store.edit { putBoolean("VentiMapShowsAirspace", value) }
 
     override var mapHidesSites: Boolean
         get() = store.getBoolean("VentiMapHidesSites", false)
@@ -352,7 +354,7 @@ class MemoryPreferences : Preferences {
     override var dhvxcPublishes = false
     override var todayNearPilot = false
     override var mapHidesWind = false
-    override var mapHidesAirspace = false
+    override var mapShowsAirspace = false
     override var mapHidesSites = false
     override var mapHidesPilots = false
     override var mapHidesCables = false

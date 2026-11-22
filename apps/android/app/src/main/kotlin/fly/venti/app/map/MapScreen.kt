@@ -176,7 +176,8 @@ fun MapScreen(
     val context = LocalContext.current
     // The layers the chips switch, as the pilot left them.
     var hidesWind by remember { mutableStateOf(preferences?.mapHidesWind == true) }
-    var hidesAirspace by remember { mutableStateOf(preferences?.mapHidesAirspace == true) }
+    // Airspace: off until the pilot switches it on, with its round button or its row of the layers sheet.
+    var airspaceOn by remember { mutableStateOf(preferences?.mapShowsAirspace == true) }
     var hidesSites by remember { mutableStateOf(preferences?.mapHidesSites == true) }
     var hidesPilots by remember { mutableStateOf(preferences?.mapHidesPilots == true) }
     var hidesCables by remember { mutableStateOf(preferences?.mapHidesCables == true) }
@@ -275,9 +276,9 @@ fun MapScreen(
         sites.show(shown)
         candidates?.show(shown)
         live.show(shown)
-        // The airspace around what the pilot is looking at, unless it is
-        // the whole continent. The model asks only when it is due.
-        if (shown.north - shown.south < 4) {
+        // The airspace around what the pilot is looking at, while it is
+        // switched on and not the whole continent. The model asks only when it is due.
+        if (airspaceOn && shown.north - shown.south < 4) {
             airspace.refreshSoon(
                 Coordinate(lat = (shown.south + shown.north) / 2, lon = (shown.west + shown.east) / 2),
             )
@@ -303,7 +304,7 @@ fun MapScreen(
         // Only where the map's grid reaches: the core finds the square.
         if (thermalMap?.hours?.square(cell, place.lat, place.lon) != null) hourSquare = place to cell
     }
-    map.onAirspace = { place -> airspaceOver = airspace.over(place) }
+    map.onAirspace = { place -> if (airspaceOn) airspaceOver = airspace.over(place) }
     map.onPlan = { id ->
         planOnMap = id
         showsPlans = true
@@ -420,8 +421,8 @@ fun MapScreen(
     // for either.
     val all = airspace.set
     val showsAirspace = region?.let { it.east - it.west < 6 } == true
-    val airspaceInView = remember(region, all, airspaceCeiling) {
-        region?.takeIf { showsAirspace && !hidesAirspace }?.let { airspace.shapes(it, airspaceCeiling) }.orEmpty()
+    val airspaceInView = remember(region, all, airspaceCeiling, airspaceOn) {
+        region?.takeIf { showsAirspace && airspaceOn }?.let { airspace.shapes(it, airspaceCeiling) }.orEmpty()
     }
     // What the pilot asks of the sites, as they left it. The wind of
     // "Measured now" is the station's nearest the middle of the map.
@@ -453,7 +454,7 @@ fun MapScreen(
     // and each site's page and on the airspace screen.
     val credits = listOfNotNull(
         wind.creditLine.takeIf { !hidesWind },
-        airspace.mapCredit.takeIf { showsAirspace && !hidesAirspace },
+        airspace.mapCredit.takeIf { showsAirspace && airspaceOn },
         cables?.creditLine?.takeIf { !hidesCables && region?.let { it.north - it.south < CABLES_WITHIN_DEGREES } == true },
         sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true && !hidesSites },
         // Who made the photographs, by name, while they show.
@@ -501,9 +502,16 @@ fun MapScreen(
         preferences?.mapHidesWind = !on
     }
     val setAirspace = { on: Boolean ->
-        hidesAirspace = !on
-        preferences?.mapHidesAirspace = !on
+        airspaceOn = on
+        preferences?.mapShowsAirspace = on
+        // Asked for at once where the map is close enough; nothing was asked while it was off.
+        val shown = region
+        if (on && shown != null && shown.north - shown.south < 4) {
+            airspace.refreshSoon(Coordinate(lat = (shown.south + shown.north) / 2, lon = (shown.west + shown.east) / 2))
+        }
     }
+    // Airspace switched on and the map too wide a part to draw it, in the core's words.
+    val airspaceTooWide = airspaceOn && region != null && !showsAirspace
     val setSites = { on: Boolean ->
         hidesSites = !on
         preferences?.mapHidesSites = !on
@@ -692,9 +700,15 @@ fun MapScreen(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Two: the layers and lists, and the pilot's own position.
-            // Everything else the map can show or lead to, the sites'
-            // filter too, is a row of the layers sheet.
+            // Three: airspace on and off, the layers and lists, and the
+            // pilot's own position. Everything else the map can show or
+            // lead to, the sites' filter too, is a row of the layers sheet.
+            RoundButton(
+                R.drawable.venti_airspace,
+                MapWords.core.airspace,
+                Modifier.testTag("map-airspace"),
+                isOn = airspaceOn,
+            ) { setAirspace(!airspaceOn) }
             RoundButton(R.drawable.venti_layers, MapWords.core.title, Modifier.testTag("map-layers")) { showsLayers = true }
             // Centres the map on the pilot and follows until the map is dragged.
             MapButton(
@@ -732,7 +746,17 @@ fun MapScreen(
             }
             // Wind and sites in the chips' state; airspace and pilots, which have no chip.
             if (hasServer) add(MapLayer(MapWords.core.wind, R.drawable.venti_wind, "layers-wind", !hidesWind, onChange = setWind))
-            add(MapLayer(MapWords.core.airspace, R.drawable.venti_airspace, "layer-airspace", !hidesAirspace, onChange = setAirspace))
+            add(
+                MapLayer(
+                    MapWords.core.airspace,
+                    R.drawable.venti_airspace,
+                    "layer-airspace",
+                    airspaceOn,
+                    // Too far out to draw it, in the core's words.
+                    notes = listOfNotNull(MapWords.core.airspaceTooWide.takeIf { airspaceTooWide }),
+                    onChange = setAirspace,
+                ),
+            )
             if (hasServer) {
                 add(MapLayer(MapWords.core.sites, R.drawable.venti_site, "layers-sites", !hidesSites, onChange = setSites))
                 add(MapLayer(MapWords.core.pilots, R.drawable.venti_live, "layer-pilots", !hidesPilots, onChange = setPilots))
@@ -759,7 +783,8 @@ fun MapScreen(
                         // How many, in the core's words; or why none.
                         notes = when {
                             !air.climbsOn -> emptyList()
-                            air.climbsTooWide -> listOf(MapWords.core.climbsTooWide)
+                            // Where airspace's line says to zoom in, it alone says so.
+                            air.climbsTooWide -> listOfNotNull(MapWords.core.climbsTooWide.takeIf { !airspaceTooWide })
                             else -> listOfNotNull(
                                 air.climbs?.let { if (it.climbs.isEmpty()) liveClimbsEmptyWords() else it.countWords },
                             )

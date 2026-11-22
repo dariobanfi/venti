@@ -23,7 +23,7 @@ import {
 	type ThermalStripDay
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
-import { type Answer, type Get, getFromThisOrigin } from './wind-source';
+import { type Answer, type Get, getFromThisOrigin, utcOffsetAt } from './wind-source';
 
 /** One layer of one day, at one level for the wind: what the hours are asked for by. */
 export interface HoursAsked {
@@ -158,7 +158,7 @@ export class ThermalMapSource {
 	/** The moment by Venti's clock, and how far the pilot's clock is ahead of UTC then. */
 	async #clock(): Promise<{ nowUnixS: number; offsetS: number }> {
 		const nowUnixS = await this.#now();
-		return { nowUnixS, offsetS: -new Date(nowUnixS * 1000).getTimezoneOffset() * 60 };
+		return { nowUnixS, offsetS: utcOffsetAt(nowUnixS) };
 	}
 }
 

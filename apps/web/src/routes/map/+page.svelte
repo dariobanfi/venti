@@ -1764,6 +1764,7 @@
 		<MapButton
 			label={layerWords?.airspace || 'Airspace'}
 			icon="airspace"
+			outlined
 			pressed={airspaceChosen}
 			onclick={() => setAirspace(!airspaceChosen)}
 		/>

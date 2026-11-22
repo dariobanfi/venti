@@ -11,12 +11,14 @@
 		icon: IconName;
 		/** For a button that switches something on and off: whether it is on. */
 		pressed?: boolean;
+		/** Keeps the sign an outline when on, for a sign that filled in is a blob (airspace). */
+		outlined?: boolean;
 		/** The link this leads to, for a button that goes somewhere. */
 		href?: string;
 		onclick?: () => void;
 	}
 
-	let { label, icon, pressed, href, onclick }: Props = $props();
+	let { label, icon, pressed, outlined = false, href, onclick }: Props = $props();
 </script>
 
 {#if href}
@@ -33,7 +35,7 @@
 		title={label}
 		{onclick}
 	>
-		<Icon name={icon} filled={pressed} />
+		<Icon name={icon} filled={pressed && !outlined} />
 	</button>
 {/if}
 

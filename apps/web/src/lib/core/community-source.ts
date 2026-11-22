@@ -123,10 +123,17 @@ export class CommunitySource {
 	/** Whether this site has a server at all. One without is never asked. */
 	#present: () => Promise<boolean>;
 	#get: Get;
+	/** Venti's clock, in seconds, or 0 while it is not known: the seasons are offered by it. */
+	#now: () => Promise<number>;
 
-	constructor(present: () => Promise<boolean> = async () => true, get: Get = getFromThisOrigin) {
+	constructor(
+		present: () => Promise<boolean> = async () => true,
+		get: Get = getFromThisOrigin,
+		now: () => Promise<number> = async () => Date.now() / 1000
+	) {
 		this.#present = present;
 		this.#get = get;
+		this.#now = now;
 	}
 
 	/**
@@ -204,11 +211,11 @@ export class CommunitySource {
 	async ranking(
 		season?: string,
 		near?: Coordinate,
-		nowUnixS = Date.now() / 1000,
+		nowUnixS?: number,
 		month?: string
 	): Promise<SeasonRanking | undefined> {
 		if (!(await this.#present())) return undefined;
-		const { seasons } = rankingSeasons(nowUnixS);
+		const { seasons } = rankingSeasons(nowUnixS ?? (await this.#now()));
 		const asked = seasons.find((offered) => offered.name === season) ?? seasons[0];
 		const area = near ? flownFromHere(near.lat, near.lon) : undefined;
 		const answer = await this.#get(

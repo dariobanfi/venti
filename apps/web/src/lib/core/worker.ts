@@ -67,21 +67,25 @@ const starting: Promise<Answering> = (async () => {
 		takeoffs: new TakeoffsSource(session, () => wind.takesSitesFromPilots()),
 		forecast: new ForecastSource(() => wind.present()),
 		live: new LiveSource(() => wind.present()),
-		community: new CommunitySource(() => wind.present()),
+		community: new CommunitySource(
+			() => wind.present(),
+			undefined,
+			() => wind.serverNow()
+		),
 		groups: new GroupsSource(session),
 		terrain: new TerrainSource(),
 		today: new TodaySource(
 			session,
 			() => wind.present(),
-			() => wind.now()
+			() => wind.serverNow()
 		),
 		thermals: new ThermalMapSource(
 			() => wind.present(),
-			() => wind.now()
+			() => wind.serverNow()
 		),
 		radar: new RadarSource(
 			() => wind.present(),
-			() => wind.now()
+			() => wind.serverNow()
 		),
 		routeWeather: new RouteWeatherSource(() => wind.present()),
 		glideReach: new GlideReachSource(),

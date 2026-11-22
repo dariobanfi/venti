@@ -133,9 +133,9 @@
 
 	/** How old the reading is, and what that means if it is old. */
 	const ageText = $derived.by(() => {
-		if (!reading || station.ageMin === undefined) {
-			return 'Venti has no reading from this station.';
-		}
+		if (!reading) return 'Venti has no reading from this station.';
+		// Without Venti's clock the core counts no age: the reading's own time stands there.
+		if (station.ageMin === undefined) return `Measured at ${text.time(reading.timeUnixS)}.`;
 		const measured = `Measured ${age(station.ageMin)}.`;
 		return station.isOld ? `${measured} Too old to say what the wind is doing now.` : measured;
 	});

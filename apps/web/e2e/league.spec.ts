@@ -6,15 +6,29 @@
  */
 
 import { readFileSync } from 'node:fs';
+import type { BrowserContext } from '@playwright/test';
 import { addSampleFlight, expect, SAMPLE_FLIGHT, test } from './helpers';
 
+/**
+ * Sets Venti's clock, which the handover is judged by: the development
+ * server's answer about itself, with only its time moved.
+ */
+async function serverTimeIs(context: BrowserContext, time: string): Promise<void> {
+	await context.route('**/v1/health', async (route) => {
+		const response = await route.fetch();
+		await route.fulfill({ response, json: { ...(await response.json()), time } });
+	});
+}
+
 test('a flight is handed to a league with what the leagues ask about', async ({
+	context,
 	page,
 	keep,
 	problems
 }) => {
 	// The sample flight was flown on 4 July 2026: fourteen days on, the
 	// leagues still took it for their contests.
+	await serverTimeIs(context, '2026-07-10T12:00:00Z');
 	await page.clock.setFixedTime(new Date('2026-07-10T12:00:00Z'));
 	await addSampleFlight(page);
 
@@ -40,9 +54,11 @@ test('a flight is handed to a league with what the leagues ask about', async ({
 });
 
 test('a flight flown more than fourteen days ago is said to be late, by a sign and in words', async ({
+	context,
 	page,
 	keep
 }) => {
+	await serverTimeIs(context, '2026-11-20T12:00:00Z');
 	await page.clock.setFixedTime(new Date('2026-11-20T12:00:00Z'));
 	await addSampleFlight(page);
 

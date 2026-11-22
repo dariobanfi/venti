@@ -126,11 +126,11 @@ export class CoreClient {
 
 	/**
 	 * What the pilot is told before a flight of the logbook goes to a
-	 * league, with its file, by the browser's clock now.
+	 * league, with its file, by Venti's clock now.
 	 */
 	leagueHandover(id: string) {
-		// The page's clock: the one a pilot sees, and the one a test sets.
-		return this.#call('leagueHandover', { id, nowUnixS: Date.now() / 1000 });
+		// Venti's clock, or 0 while it is not known: the core then calls no flight late.
+		return this.#call('leagueHandover', { id });
 	}
 
 	deleteFlight(id: string) {

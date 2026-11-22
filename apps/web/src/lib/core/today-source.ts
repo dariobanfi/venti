@@ -29,7 +29,7 @@ import {
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
 import type { CoreSession } from './session';
-import { type Get, getFromThisOrigin } from './wind-source';
+import { type Get, getFromThisOrigin, utcOffsetAt } from './wind-source';
 
 /** How often a forecast the server is still fetching is asked for. */
 const FORECAST_TRIES = 7;
@@ -154,7 +154,7 @@ export class TodaySource {
 				await new Promise((done) => setTimeout(done, this.#pauseMs));
 				continue;
 			}
-			const offsetS = -new Date(nowUnixS * 1000).getTimezoneOffset() * 60;
+			const offsetS = utcOffsetAt(nowUnixS);
 			return siteOutlook(answer.status, answer.body, offsetS, site.wind, site.elevationM, nowUnixS);
 		}
 	}

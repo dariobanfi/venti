@@ -200,7 +200,7 @@ export interface Calls {
 	flightAnalysis: { given: string; answer: FlightAnalysis };
 	flightFile: { given: string; answer: FlightFile };
 	/** What the pilot is told before the flight goes to a league, with its file. */
-	leagueHandover: { given: { id: string; nowUnixS: number }; answer: LeagueHandover };
+	leagueHandover: { given: { id: string }; answer: LeagueHandover };
 	deleteFlight: { given: string; answer: undefined };
 	/**
 	 * The ground under a flight's track, read from the map's elevation
@@ -766,7 +766,7 @@ export async function answer<Name extends CallName>(
 		flight: (id) => session.flight(id),
 		flightAnalysis: (id) => session.flightAnalysis(id),
 		flightFile: (id) => session.flightFile(id),
-		leagueHandover: ({ id, nowUnixS }) => session.leagueHandover(id, nowUnixS),
+		leagueHandover: async ({ id }) => session.leagueHandover(id, await wind.serverNow()),
 		deleteFlight: (id) => session.deleteFlight(id),
 		flightGround: (asked) => terrain.under(asked),
 		forgetFlightGround: (asking) => terrain.forget(asking),

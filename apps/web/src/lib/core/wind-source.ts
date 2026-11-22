@@ -51,6 +51,14 @@ export interface WindAnswer {
 	lateProviders: string[];
 }
 
+/**
+ * How far the pilot's clock is ahead of UTC at a moment, in seconds; at
+ * this moment where the moment is not known (0: the server's clock not read).
+ */
+export function utcOffsetAt(unixS: number): number {
+	return -new Date(unixS > 0 ? unixS * 1000 : Date.now()).getTimezoneOffset() * 60;
+}
+
 /** How long the server's clock is trusted before it is read again, in milliseconds. */
 const CLOCK_KEPT_MS = 60_000;
 
@@ -102,7 +110,7 @@ export class WindSource {
 		if (!(await this.#readClock())) return undefined;
 		const answer = await this.#get(windMapPath(box.south, box.west, box.north, box.east));
 		return {
-			map: windMap(answer.status, answer.body, this.#serverNow()),
+			map: windMap(answer.status, answer.body, this.#serverClock()),
 			lateProviders: this.#lateProviders
 		};
 	}
@@ -163,7 +171,7 @@ export class WindSource {
 	/** What a station measured over the last 24 hours. */
 	async stationHistory(stationId: string): Promise<StationHistory> {
 		const answer = await this.#get(stationHistoryPath(stationId));
-		return stationHistory(answer.status, answer.body, this.#serverNow());
+		return stationHistory(answer.status, answer.body, this.#serverClock());
 	}
 
 	/**
@@ -204,6 +212,11 @@ export class WindSource {
 	 */
 	async serverNow(): Promise<number> {
 		await this.present();
+		return this.#serverClock();
+	}
+
+	/** The server's clock as it stands, or 0 while it is not known: the core then counts no age. */
+	#serverClock(): number {
 		return this.#clock ? this.#serverNow() : 0;
 	}
 

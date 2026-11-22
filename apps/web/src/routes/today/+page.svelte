@@ -189,7 +189,7 @@
 	/** The day in the head: "Saturday, near you". */
 	const dayLine = $derived.by(() => {
 		const day = days[dayIndex];
-		const name = text.weekday(day?.startUnixS ?? shown.nowUnixS ?? Date.now() / 1000);
+		const name = text.weekday(day?.startUnixS ?? (shown.nowUnixS || Date.now() / 1000));
 		return `${name}, ${shown.nearYou ? 'near you' : 'around the Tegernsee'}`;
 	});
 

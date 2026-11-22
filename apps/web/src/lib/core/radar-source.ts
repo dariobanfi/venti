@@ -16,7 +16,7 @@
 
 import { radar, radarFrameImageUnder, radarPath, type RadarView } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
-import type { Answer, Get } from './wind-source';
+import { type Answer, type Get, utcOffsetAt } from './wind-source';
 
 /**
  * The colours a picture is written in, each as `0xRRGGBBAA`: the six steps
@@ -131,7 +131,7 @@ export class RadarSource {
 
 	async #read(answer: Answer): Promise<RadarView> {
 		const nowUnixS = await this.#now();
-		const offsetS = -new Date(nowUnixS * 1000).getTimezoneOffset() * 60;
+		const offsetS = utcOffsetAt(nowUnixS);
 		return radar(answer.status, answer.body, offsetS, nowUnixS);
 	}
 }

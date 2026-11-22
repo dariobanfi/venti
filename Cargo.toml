@@ -23,7 +23,9 @@ venti-sources-geosphere-radar = { path = "crates/sources-geosphere-radar" }
 venti-sources-openaip = { path = "crates/sources-openaip" }
 venti-sources-ogn = { path = "crates/sources-ogn" }
 venti-sources-osm = { path = "crates/sources-osm" }
+venti-outline = { path = "crates/outline" }
 venti-sources-basemapat = { path = "crates/sources-basemapat" }
+venti-sources-ign = { path = "crates/sources-ign" }
 venti-sources-openmeteo = { path = "crates/sources-openmeteo" }
 venti-sources-suedtirol = { path = "crates/sources-suedtirol" }
 venti-sources-awc = { path = "crates/sources-awc" }

@@ -1,0 +1,35 @@
+france.geojson in this folder is the outline of metropolitan France (the
+mainland, its islands and Corsica), made from data of IGN, the Institut
+national de l'information géographique et forestière: ADMIN EXPRESS COG,
+edition 2026, the layer ADMINEXPRESS-COG.2026:region of the Géoplateforme's
+WFS, under the Licence Ouverte / Open Licence 2.0 (Etalab). It is not
+covered by the licence of the code around it.
+
+Credit, in our own words until IGN's own wording is found (to verify):
+"IGN – ADMIN EXPRESS COG 2026, Licence Ouverte; régions réunies et
+simplifiées", with
+https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_ADMIN-EXPRESS as
+its link. The licence asks for the source and the date of its last update:
+the record of the data set was last revised on 2026-11-19, and the regions
+were fetched on 2026-11-22.
+
+What was done to it: the thirteen metropolitan regions (3,318 rings,
+3,226,785 positions, in WGS 84 as the service gives them) were joined into
+one outline by dropping every piece of boundary that two regions share;
+each ring was simplified by Douglas-Peucker in Lambert-93 metres, at 5 m
+east of 5.5° E between 43.6° and 47.7° N, where Switzerland, Italy and
+Monaco are, and at 15 m elsewhere; the 2,991 islets under a hectare were
+dropped; positions were rounded to six decimals. 310 rings: the mainland
+(83,306 positions), Corsica (14,061), 307 islands, and one hole of 13 km²,
+the Spanish town of Llívia. 112,398 positions, 2,385,264 bytes, 548,856 km²
+in Lambert-93. ../tools/build_outline.py makes it again, with Python 3 and
+nothing else.
+
+Two things to know. At the sea and on Lake Geneva the outline is the
+shore: the regions hold no water. And on Mont Blanc it is the border as
+France draws it, which Italy draws differently around the summit: the
+summit lies about 275 m inside the outline, and the outline passes by Mont
+Blanc de Courmayeur.
+
+The licence was read on 2026-11-22 in the data set's own record,
+https://data.geopf.fr/csw?REQUEST=GetRecordById&SERVICE=CSW&VERSION=2.0.2&OUTPUTSCHEMA=http://standards.iso.org/iso/19115/-3/mdb/2.0&elementSetName=full&ID=IGNF_ADMIN-EXPRESS

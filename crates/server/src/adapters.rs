@@ -15,6 +15,7 @@ use venti_sources_dwd::Dwd10Min;
 use venti_sources_dwd_radar::DwdRadarRy;
 use venti_sources_geosphere::Tawes10Min;
 use venti_sources_geosphere_radar::GeosphereIncaRr;
+use venti_sources_ign::Ign;
 use venti_sources_ogn::Ogn;
 use venti_sources_openaip::OpenAip;
 use venti_sources_openmeteo::OpenMeteo;
@@ -257,20 +258,27 @@ pub fn recorded_payloads() -> FixtureFetch {
 /// The sources of map imagery the server passes on. They are not in the
 /// registry: nothing collects them, and a client asks for a tile.
 ///
-/// The first call reads Austria's outline for basemap.at, which takes a
-/// moment.
+/// The first call reads Austria's outline for basemap.at and France's for
+/// IGN, which takes a moment.
 pub fn imagery_sources() -> Vec<Arc<dyn ImagerySource>> {
-    vec![Arc::new(BasemapAt::new())]
+    vec![Arc::new(BasemapAt::new()), Arc::new(Ign::new())]
 }
 
 /// The tiles recorded from the providers of imagery, as a fetcher that
 /// answers from them and with "not found" for every other.
 pub fn recorded_imagery() -> FixtureFetch {
     let basemap_at = BasemapAt::new();
-    venti_sources_basemapat::fixtures::recorded()
+    let ign = Ign::new();
+    let austria = venti_sources_basemapat::fixtures::recorded()
         .into_iter()
-        .fold(FixtureFetch::new(), |fetch, recorded| {
-            fetch.with(basemap_at.url(recorded.tile), recorded.jpeg)
+        .map(|recorded| (basemap_at.url(recorded.tile), recorded.jpeg));
+    let france = venti_sources_ign::fixtures::recorded()
+        .into_iter()
+        .map(|recorded| (ign.url(recorded.tile), recorded.jpeg));
+    austria
+        .chain(france)
+        .fold(FixtureFetch::new(), |fetch, (url, jpeg)| {
+            fetch.with(url, jpeg)
         })
 }
 

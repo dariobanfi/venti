@@ -1,7 +1,8 @@
 //! Map imagery through the real router: basemap.at's tiles recorded on
-//! 2026-11-20, cut along Austria's outline by the real adapter, fetched
-//! from a stand-in for the provider that counts what it is asked, and kept
-//! in a folder each test makes and removes.
+//! 2026-11-20 and IGN's recorded on 2026-11-22, cut along Austria's and
+//! France's outlines by the real adapters, fetched from a stand-in for the
+//! provider that counts and notes what it is asked, and kept in a folder
+//! each test makes and removes.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -20,6 +21,7 @@ use venti_server::imagery::{Imagery, Limits, TileCache, TileFetch};
 use venti_sources::{Cut, FetchError, Fetched, ImagerySource, TileAddress};
 use venti_sources_basemapat::BasemapAt;
 use venti_sources_basemapat::fixtures::{self, Recorded};
+use venti_sources_ign::Ign;
 use venti_store::MemoryStore;
 
 mod common;
@@ -43,6 +45,8 @@ enum Upstream {
 struct StandIn {
     answers: Mutex<HashMap<String, Upstream>>,
     asked: AtomicUsize,
+    /// Every address it was asked for, in order.
+    addresses: Mutex<Vec<String>>,
     delay: Mutex<Option<Duration>>,
 }
 
@@ -61,6 +65,7 @@ impl TileFetch for StandIn {
     fn get(&self, url: String, _max_bytes: usize) -> BoxFuture<'_, Result<Fetched, FetchError>> {
         Box::pin(async move {
             self.asked.fetch_add(1, Ordering::SeqCst);
+            self.addresses.lock().unwrap().push(url.clone());
             let delay = *self.delay.lock().unwrap();
             if let Some(delay) = delay {
                 tokio::time::sleep(delay).await;
@@ -528,6 +533,282 @@ async fn the_development_mode_asks_the_provider_only_when_told() {
     assert!(cache.root().starts_with(std::env::temp_dir()));
     assert!(said.contains("ONLINE"), "{said}");
     assert!(said.contains(&cache.root().display().to_string()), "{said}");
-    assert_eq!(imagery.sources().collect::<Vec<_>>(), ["basemap-at"]);
+    assert_eq!(
+        imagery.sources().collect::<Vec<_>>(),
+        ["basemap-at", "ign-ortho"]
+    );
     // Nothing is asked here: the tests do not use the network.
+}
+
+// --- France's photographs ---------------------------------------------------------
+
+fn french(name: &str, z: u8) -> venti_sources_ign::fixtures::Recorded {
+    venti_sources_ign::fixtures::recorded()
+        .into_iter()
+        .find(|recorded| recorded.name == name && recorded.tile.z() == z)
+        .unwrap()
+}
+
+fn french_path(tile: TileAddress) -> String {
+    format!(
+        "/v1/imagery/ign-ortho/{}/{}/{}",
+        tile.z(),
+        tile.x(),
+        tile.y()
+    )
+}
+
+/// A stand-in that has every tile recorded from IGN.
+fn ign() -> Arc<StandIn> {
+    let source = Ign::new();
+    let stand_in = Arc::new(StandIn::default());
+    for recorded in venti_sources_ign::fixtures::recorded() {
+        stand_in.answering(
+            source.url(recorded.tile),
+            Upstream::Body(recorded.jpeg.to_vec()),
+        );
+    }
+    stand_in
+}
+
+#[tokio::test]
+async fn a_french_tile_is_passed_on_inside_cut_on_the_border_and_nothing_beyond() {
+    let folder = Folder::new("france");
+    let provider = ign();
+    let (router, cache) = server(provider.clone(), &folder);
+    let source = Ign::new();
+
+    // Inside: the provider's JPEG as it came.
+    let annecy = french("inside_annecy", 15);
+    let answer = ask(Method::GET, &french_path(annecy.tile))
+        .header(header::ORIGIN, WEB_APP)
+        .send(&router)
+        .await;
+    assert_eq!(answer.status, StatusCode::OK);
+    assert_eq!(answer.header(header::CONTENT_TYPE), "image/jpeg");
+    assert_eq!(answer.body, annecy.jpeg);
+    kept_a_week(&answer);
+    assert_eq!(answer.header(header::ACCESS_CONTROL_ALLOW_ORIGIN), WEB_APP);
+    assert_eq!(
+        cache.file("ign-ortho", annecy.tile, "jpeg"),
+        folder.0.join("ign-ortho/15/16941/11670.jpeg")
+    );
+    assert!(cache.file("ign-ortho", annecy.tile, "jpeg").exists());
+
+    // Across the border, at the coarsest zoom, a middle one and on Mont
+    // Blanc: cut, and the cut tile is what is kept.
+    for (name, z) in [
+        ("border_veyrier", 13),
+        ("border_veyrier", 15),
+        ("border_montblanc", 15),
+        ("border_menton", 15),
+    ] {
+        let border = french(name, z);
+        let Cut::Png(cut) = source.cut(border.tile, border.jpeg).unwrap().cut else {
+            panic!("{name} at zoom {z} is cut");
+        };
+        let answer = get(&router, &french_path(border.tile)).await;
+        assert_eq!(answer.status, StatusCode::OK, "{name}");
+        assert_eq!(answer.header(header::CONTENT_TYPE), "image/png");
+        assert_eq!(answer.body, cut);
+        kept_a_week(&answer);
+        assert_eq!(
+            std::fs::read(cache.file("ign-ortho", border.tile, "png")).unwrap(),
+            cut
+        );
+        assert!(!cache.file("ign-ortho", border.tile, "jpeg").exists());
+    }
+    assert_eq!(provider.asked(), 5);
+
+    // Beyond the border: the white tile over Courmayeur, which the
+    // stand-in has; Turin; Geneva's centre; Monaco. Nothing, and nothing
+    // is asked.
+    let courmayeur = french("outside_courmayeur", 15).tile;
+    for tile in [
+        courmayeur,
+        TileAddress::new(15, 17083, 11778).unwrap(),
+        TileAddress::new(15, 16942, 11631).unwrap(),
+        TileAddress::new(17, 68237, 47794).unwrap(),
+    ] {
+        let answer = get(&router, &french_path(tile)).await;
+        assert_eq!(answer.status, StatusCode::NO_CONTENT, "{tile}");
+        assert!(answer.body.is_empty());
+        kept_a_week(&answer);
+    }
+    assert_eq!(provider.asked(), 5);
+
+    // Asked again, a tile comes from the disk.
+    get(&router, &french_path(annecy.tile)).await;
+    assert_eq!(provider.asked(), 5);
+}
+
+#[tokio::test]
+async fn a_zoom_the_french_layer_is_not_passed_on_at_is_nothing_and_asks_nothing() {
+    let folder = Folder::new("france-zooms");
+    let provider = ign();
+    let (router, _) = server(provider.clone(), &folder);
+    // Annecy at the zooms where the provider's layer shows more than its
+    // photographs of France (0 to 12), and beyond its finest (20 to 24).
+    for (z, x, y) in [
+        (0, 0, 0),
+        (8, 132, 91),
+        (11, 1058, 729),
+        (12, 2117, 1458),
+        (20, 542_140, 373_466),
+        (24, 8_674_240, 5_975_456),
+    ] {
+        let tile = TileAddress::new(z, x, y).unwrap();
+        let answer = get(&router, &french_path(tile)).await;
+        assert_eq!(answer.status, StatusCode::NO_CONTENT, "{tile}");
+        kept_a_week(&answer);
+    }
+    // And a place the box of France does not hold, at a zoom it has.
+    let vienna = TileAddress::new(15, 17874, 11362).unwrap();
+    assert_eq!(
+        get(&router, &french_path(vienna)).await.status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(provider.asked(), 0);
+    // The first zoom that is passed on is 13.
+    let annecy = TileAddress::new(13, 4235, 2917).unwrap();
+    assert_eq!(
+        get(&router, &french_path(annecy)).await.status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(provider.asked(), 1);
+}
+
+#[tokio::test]
+async fn a_tile_ign_refuses_is_nothing_if_it_has_none_and_a_failure_otherwise() {
+    let folder = Folder::new("france-refused");
+    let source = Ign::new();
+    // Three tiles inside France, side by side at Annecy.
+    let [none, busy, limited] =
+        [0, 1, 2].map(|dx| TileAddress::new(15, 16941 + dx, 11671).unwrap());
+    let provider = Arc::new(StandIn::default())
+        .answering(source.url(none), Upstream::Status(404))
+        .answering(source.url(busy), Upstream::Status(500))
+        .answering(source.url(limited), Upstream::Status(429));
+    let (router, cache) = server(provider.clone(), &folder);
+
+    // "No such tile" is an answer, and it is kept.
+    for _ in 0..2 {
+        let answer = get(&router, &french_path(none)).await;
+        assert_eq!(answer.status, StatusCode::NO_CONTENT);
+        kept_a_week(&answer);
+    }
+    assert!(cache.file("ign-ortho", none, "none").exists());
+    assert_eq!(provider.asked(), 1);
+
+    // A failure, and "too many requests", are failures for a minute, and
+    // nothing of them is kept.
+    for tile in [busy, limited] {
+        let answer = get(&router, &french_path(tile)).await;
+        assert_eq!(answer.status, StatusCode::BAD_GATEWAY, "{tile}");
+        assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=60");
+        for extension in ["jpeg", "png", "none"] {
+            assert!(!cache.file("ign-ortho", tile, extension).exists());
+        }
+    }
+
+    // The service's XML in place of a tile on the border is a failure too.
+    let border = french("border_veyrier", 15).tile;
+    provider.answering(
+        source.url(border),
+        Upstream::Body(b"<ExceptionReport><Exception/></ExceptionReport>".to_vec()),
+    );
+    assert_eq!(
+        get(&router, &french_path(border)).await.status,
+        StatusCode::BAD_GATEWAY
+    );
+    assert!(!cache.file("ign-ortho", border, "png").exists());
+}
+
+#[tokio::test]
+async fn the_server_asks_the_providers_for_their_own_layers_and_nothing_else() {
+    let folder = Folder::new("relay");
+    let basemap_at = BasemapAt::new();
+    let source = Ign::new();
+    let provider = ign();
+    let innsbruck = recorded("inside_innsbruck", 15);
+    provider.answering(
+        basemap_at.url(innsbruck.tile),
+        Upstream::Body(innsbruck.jpeg.to_vec()),
+    );
+    let (router, _) = server(provider.clone(), &folder);
+    let annecy = french("inside_annecy", 15).tile;
+
+    // Another layer, host or address named in place of a source, or
+    // slipped into a number: not found, and nothing is asked.
+    for path in [
+        "/v1/imagery/ORTHOIMAGERY.ORTHOPHOTOS/15/16941/11670",
+        "/v1/imagery/ORTHOIMAGERY.ORTHOPHOTOS2024/15/16941/11670",
+        "/v1/imagery/GEOGRAPHICALGRIDSYSTEMS.MAPS/15/16941/11670",
+        "/v1/imagery/ign/15/16941/11670",
+        "/v1/imagery/IGN-ORTHO/15/16941/11670",
+        "/v1/imagery/ign-ortho%2F..%2Fbasemap-at/15/16941/11670",
+        "/v1/imagery/data.geopf.fr/15/16941/11670",
+        "/v1/imagery/https:%2F%2Fexample.org%2Ftiles/15/16941/11670",
+        "/v1/imagery/example.org/15/16941/11670",
+        "/v1/imagery/ign-ortho/15/16941/11670%26LAYER=GEOGRAPHICALGRIDSYSTEMS.MAPS",
+        "/v1/imagery/ign-ortho/15/16941%26TILEROW=1/11670",
+        "/v1/imagery/ign-ortho/15%26LAYER=X/16941/11670",
+        "/v1/imagery/ign-ortho/15/16941@example.org/11670",
+        "/v1/imagery/ign-ortho/15/16941/11670%23",
+        "/v1/imagery/ign-ortho/15/16941/11670%3F",
+        "/v1/imagery/ign-ortho/15/16941/%2F%2Fexample.org",
+        "/v1/imagery/ign-ortho/15/16941/11670.jpeg",
+        "/v1/imagery/ign-ortho/15/16941",
+        "/v1/imagery/ign-ortho/15/16941/11670/x",
+    ] {
+        get(&router, path)
+            .await
+            .error(StatusCode::NOT_FOUND, ErrorCode::NotFound);
+    }
+    assert_eq!(provider.asked(), 0);
+    assert_eq!(std::fs::read_dir(&folder.0).unwrap().count(), 0);
+
+    // What a request adds after the tile changes nothing of what the
+    // provider is asked.
+    for path in [
+        format!(
+            "{}?LAYER=GEOGRAPHICALGRIDSYSTEMS.MAPS&url=https://example.org/&FORMAT=image/png",
+            french_path(annecy)
+        ),
+        format!("{}?source=ign-ortho&z=1", path(innsbruck.tile)),
+    ] {
+        let answer = get(&router, &path).await;
+        assert_eq!(answer.status, StatusCode::OK, "{path}");
+        assert_eq!(answer.header(header::CONTENT_TYPE), "image/jpeg");
+    }
+    // Each source was asked for its own layer at its own host, and for
+    // the tile that was named.
+    assert_eq!(
+        *provider.addresses.lock().unwrap(),
+        [source.url(annecy), basemap_at.url(innsbruck.tile)]
+    );
+    assert_eq!(
+        source.url(annecy),
+        "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM_0_19&TILEMATRIX=15&TILECOL=16941&TILEROW=11670&FORMAT=image/jpeg"
+    );
+}
+
+#[tokio::test]
+async fn the_development_mode_answers_frances_recorded_tiles_too() {
+    let (imagery, _) = dev::imagery(false).unwrap();
+    let router = server_with(imagery);
+    for recorded in venti_sources_ign::fixtures::recorded() {
+        let answer = get(&router, &french_path(recorded.tile)).await;
+        let expected = match recorded.name {
+            "outside_courmayeur" => StatusCode::NO_CONTENT,
+            _ => StatusCode::OK,
+        };
+        assert_eq!(answer.status, expected, "{}", recorded.name);
+    }
+    // A tile inside France that was not recorded: nothing, and no network.
+    let paris = TileAddress::new(15, 16597, 11273).unwrap();
+    assert_eq!(
+        get(&router, &french_path(paris)).await.status,
+        StatusCode::NO_CONTENT
+    );
 }

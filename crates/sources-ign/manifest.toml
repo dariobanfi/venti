@@ -1,0 +1,74 @@
+id = "ign-ortho"
+provider = "IGN, Institut national de l'information géographique et forestière (Géoplateforme)"
+kinds = ["imagery"]
+countries = ["FR"]
+# The photographs are renewed department by department, each about every
+# three years; the record of BD ORTHO was last revised on 2026-11-18. The
+# service tells whoever keeps a tile to keep it for 21 days
+# (cache-control: private, max-age=1814400, read on 2026-11-22), and this
+# is that.
+cadence_seconds = 1814400
+auth = "none"
+# A tile is a JPEG of 256 by 256 pixels. The largest of the seven recorded
+# on 2026-11-22 was 24 kB; a tile over 1 MB is refused.
+max_response_kb = 1024
+
+# No limit on requests: the Géoplateforme's terms, annex 3, article 3.2,
+# name the WMTS "Non soumis à limite d'usage" (the WMS has 40 requests a
+# second and IP). The server asks for a tile once and keeps it, and asks at
+# most a few at a time.
+
+[licence]
+name = "Licence Ouverte / Open Licence 2.0 (Etalab)"
+commercial = true
+redistribution = true
+share_alike = false
+# Ours: IGN words no credit on any page that was read (to verify). The
+# licence asks for the source, at least the grantor's name, and the date
+# of the last update, and lets a link to the source stand for both.
+attribution = "IGN – BD ORTHO®"
+link = "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO"
+constraints = [
+    "The licence, by the data set's own record (IGNF_BD-ORTHO): \"Licence Ouverte / Open License (compatible ODC-BY, CC-BY 2.0)\", access \"Pas de restriction d'accès public selon INSPIRE\". The Géoplateforme's terms of 15 October 2024: \"Sur la Géoplateforme, l'utilisation des géodonnées et géoservices est gratuite (sauf licence spécifique).\"",
+    "The licence's one condition: \"An acknowledgement of the authorship of the Information: its source (at least, the name of the Grantor) and the date of the most recent update of the reused Information. Specifically, the Reuser may satisfy this condition by pointing, via a hypertext link, to the source of the Information\". So the credit names IGN and the product and is a link to IGN's page of the data set, which carries its dates.",
+    "To verify: IGN's own wording of a credit. None stands in the terms, the record, the service's capabilities or cartes.gouv.fr's legal notes, read on 2026-11-22; the credit above is ours.",
+    "Only zoom 13 to 19 are passed on. Up to zoom 12 the layer shows the ground beyond France too (seen over Turin), which is not IGN's aerial photography; the same service has a layer \"Planet Observer\", \"Image satellite retravaillée pour obtenir une couverture mondiale esthétique\". To verify: whose pictures the layer shows up to zoom 12, inside France and outside, and under what licence. From zoom 13 a tile beyond France is white or missing.",
+    "The tiles are white beyond the edge of the photographs, which lies up to some kilometres beyond France's border; the cut that removes what lies beyond the border rests on the outline below. Tiles wholly outside France are never asked for.",
+    "Requests reach IGN's servers. When the server fetches the tiles, it is the server that is seen, not the pilot.",
+    "The terms may change at any time: \"Il vous appartient de vérifier la version en vigueur des CGU à chaque utilisation des API.\" The service promises 99.5 % availability a year and no compensation.",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://data.geopf.fr/csw?REQUEST=GetRecordById&SERVICE=CSW&VERSION=2.0.2&OUTPUTSCHEMA=http://standards.iso.org/iso/19115/-3/mdb/2.0&elementSetName=full&ID=IGNF_BD-ORTHO",
+    "https://cartes.gouv.fr/cgu",
+    "https://static.data.gouv.fr/resources/licence-ouverte-2-0/20260911-071954/open-licence.pdf",
+    "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetCapabilities",
+    "https://cartes.gouv.fr/mentions-legales",
+]
+
+[[asset]]
+name = "The outline of metropolitan France"
+file = "assets/france.geojson"
+provider = "IGN, Institut national de l'information géographique et forestière"
+made_from = "ADMIN EXPRESS COG, edition 2026: the thirteen metropolitan regions (code_insee 11, 24, 27, 28, 32, 44, 52, 53, 75, 76, 84, 93, 94) of the layer ADMINEXPRESS-COG.2026:region, fetched on 2026-11-22 from the Géoplateforme's WFS in WGS 84, https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=ADMINEXPRESS-COG.2026:region&outputFormat=application/json&srsName=EPSG:4326&CQL_FILTER=code_insee%3D%27<code>%27. Joined into one outline by dropping every piece of boundary two regions share; simplified by Douglas-Peucker in Lambert-93 metres, at 5 m east of 5.5° E between 43.6° and 47.7° N (the borders with Switzerland, Italy and Monaco) and at 15 m elsewhere; the 2,991 islets under a hectare dropped; rounded to 6 decimals: 310 rings (the mainland, Corsica, 307 islands, and one hole, the Spanish town of Llívia), 112,398 positions. tools/build_outline.py makes it again."
+
+[asset.licence]
+name = "Licence Ouverte / Open Licence 2.0 (Etalab)"
+commercial = true
+redistribution = true
+share_alike = false
+# Ours, until IGN's own wording is found (to verify).
+attribution = "IGN – ADMIN EXPRESS COG 2026, Licence Ouverte; régions réunies et simplifiées"
+link = "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_ADMIN-EXPRESS"
+constraints = [
+    "The licence, by the data set's own record (IGNF_ADMIN-EXPRESS, revised 2026-11-19): \"Licence Ouverte / Open License (compatible ODC-BY, CC-BY 2.0)\", access \"Pas de restriction d'accès public\".",
+    "To verify: IGN's own wording of a credit; the credit above is ours.",
+    "To verify: the accuracy in metres. The record states none, only \"Échelles comprises entre le 1 : 25 000 et le 1 : 500 000\". The cut keeps a margin of 50 m, which also holds the 15 m of the simplification.",
+    "At the sea and on Lake Geneva the outline is the shore as the regions' limits have it, so the photographs end within 50 m of it: the water, sandbanks and islets under a hectare are cut away with what lies beyond the land borders.",
+]
+verified_on = "2026-11-22"
+verified_from = [
+    "https://data.geopf.fr/csw?REQUEST=GetRecordById&SERVICE=CSW&VERSION=2.0.2&OUTPUTSCHEMA=http://standards.iso.org/iso/19115/-3/mdb/2.0&elementSetName=full&ID=IGNF_ADMIN-EXPRESS",
+    "https://static.data.gouv.fr/resources/licence-ouverte-2-0/20260911-071954/open-licence.pdf",
+    "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetCapabilities",
+]

@@ -1,0 +1,20 @@
+[package]
+name = "venti-sources-ign"
+description = "Adapter for France's orthophotos from IGN's Géoplateforme: which tiles are passed on, where France's border runs through them, and the cut that removes what lies beyond it."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-sources.workspace = true
+venti-outline.workspace = true
+
+[dev-dependencies]
+png.workspace = true
+zune-core.workspace = true
+zune-jpeg.workspace = true
+
+[lints]
+workspace = true

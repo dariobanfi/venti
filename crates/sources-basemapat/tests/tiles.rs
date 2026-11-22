@@ -12,8 +12,8 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use venti_outline::cut::WHITE;
 use venti_sources::{Coverage, Cut, CutTile, TileAddress};
-use venti_sources_basemapat::cut::WHITE;
 use venti_sources_basemapat::fixtures::{self, Recorded};
 use venti_sources_basemapat::{BasemapAt, MARGIN_M};
 use zune_core::bytestream::ZCursor;

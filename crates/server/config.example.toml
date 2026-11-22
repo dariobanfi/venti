@@ -40,9 +40,10 @@ archive_dir = "var/archive"
 # maps_dir = "var/maps"
 
 # Folder the server keeps tiles of map imagery in:       VENTI_IMAGERY_DIR
-# Austria's orthophoto from basemap.at, cut at the border, which the apps
-# ask for at /v1/imagery/basemap-at/{z}/{x}/{y}. A tile is asked of the
-# provider once and kept here. Without it the server passes no imagery on
+# Austria's orthophoto from basemap.at and France's from IGN, each cut at
+# its border, which the apps ask for at /v1/imagery/basemap-at/{z}/{x}/{y}
+# and /v1/imagery/ign-ortho/{z}/{x}/{y}. A tile is asked of the provider
+# once and kept here. Without it the server passes no imagery on
 # and every such address is "not found".
 imagery_dir = "var/imagery"
 

@@ -35,7 +35,7 @@ pub const WHITE: u8 = 245;
 const MAX_SIDE: usize = 1024;
 
 /// Cuts a tile that covers `rect` along `outline`.
-pub(crate) fn cut(outline: &Outline, rect: Rect, jpeg: &[u8]) -> Result<CutTile, SourceError> {
+pub fn cut(outline: &Outline, rect: Rect, jpeg: &[u8]) -> Result<CutTile, SourceError> {
     let options = DecoderOptions::default()
         .jpeg_set_out_colorspace(ColorSpace::RGB)
         .set_max_width(MAX_SIDE)
@@ -57,7 +57,7 @@ pub(crate) fn cut(outline: &Outline, rect: Rect, jpeg: &[u8]) -> Result<CutTile,
 }
 
 /// Cuts a tile's pixels, three bytes each, row by row from the north.
-pub(crate) fn cut_rgb(
+pub fn cut_rgb(
     outline: &Outline,
     rect: Rect,
     pixels: &[u8],

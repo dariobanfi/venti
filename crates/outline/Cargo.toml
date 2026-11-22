@@ -1,0 +1,18 @@
+[package]
+name = "venti-outline"
+description = "A country's outline on the map and the cut of a map tile along it: what the adapters of imagery that is white beyond a border share. No I/O and no provider's types."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-sources.workspace = true
+png.workspace = true
+serde_json.workspace = true
+zune-core.workspace = true
+zune-jpeg.workspace = true
+
+[lints]
+workspace = true

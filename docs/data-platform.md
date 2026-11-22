@@ -44,6 +44,7 @@ One table family per kind in `crates/store/migrations`; the licence is each sour
 | The thermal map | `thermal_map_parts` (`0011`) | Venti's own estimate from the forecast above | Remade with every model run |
 | Rain radar | In memory (`crates/server/src/radar.rs`) | DWD: CC BY 4.0 | The newest frames |
 | Aerial photographs of Austria | Tiles on disk (`crates/server/src/imagery.rs`) | basemap.at: CC BY 4.0 | Passed on, cut at the border |
+| Aerial photographs of France | Tiles on disk (`crates/server/src/imagery.rs`) | IGN, BD ORTHO: Licence Ouverte 2.0 | Passed on, cut at the border, from zoom 13 |
 | Map regions | Files in a folder (`crates/server/src/maps.rs`) | OpenStreetMap and the terrain's sources | Handed out as files |
 
 Three licence families are in the store: attribution only (CC BY, CC0, public domain), share-alike (ODbL), and non-commercial (openAIP). They never share a table row, a layer or an answer's record.

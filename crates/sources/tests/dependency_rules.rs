@@ -2,7 +2,10 @@
 //!
 //! - `venti-domain` depends on no other workspace crate.
 //! - `venti-sources` depends only on `venti-domain`.
-//! - A provider crate (`venti-sources-*`) depends only on those two.
+//! - A provider crate (`venti-sources-*`) depends only on those two, and
+//!   on what two providers share and no provider owns: `venti-hdf5`, a
+//!   file format's reader, and `venti-outline`, the cut of a map tile
+//!   along a country's outline.
 //! - Only the server, which assembles the registry, depends on provider
 //!   crates, so no other code can name a provider-specific type.
 //! - The server may depend on `venti-flight`: it works out from a flight
@@ -169,11 +172,18 @@ fn crate_dependencies_point_inward() {
             // The reader of the HDF5 files that radar products come in
             // stands alone: it knows bytes, no provider and no radar.
             "venti-hdf5" => Some(&[]),
-            // A provider's crate, and the one file format two of them
-            // share a reader for.
-            provider if is_provider(provider) => {
-                Some(&["venti-domain", "venti-sources", "venti-hdf5"])
-            }
+            // The outline of a country and the cut of a map tile along
+            // it, which two providers of imagery share: it knows tiles and
+            // no provider.
+            "venti-outline" => Some(&["venti-domain", "venti-sources"]),
+            // A provider's crate, and what two of them share: the reader
+            // of one file format, and the cut along an outline.
+            provider if is_provider(provider) => Some(&[
+                "venti-domain",
+                "venti-sources",
+                "venti-hdf5",
+                "venti-outline",
+            ]),
             _ => None,
         };
         if let Some(allowed) = allowed {

@@ -1,0 +1,37 @@
+Seven tiles of IGN's orthophotos recorded on 2026-11-22, against France's outline with a margin of 50 m. White is every channel at least 245.
+
+inside_annecy 15/16941/11670: 23770 bytes, inside
+  kept 65536, removed outside the margin 0, removed as white in the band 0
+  white pixels kept 39, pixels that are not white removed 0
+  goes out as: the provider's JPEG
+
+outside_courmayeur 15/17018/11685: 1651 bytes, outside
+  kept 0, removed outside the margin 65536, removed as white in the band 0
+  white pixels kept 0, pixels that are not white removed 0
+  goes out as: nothing (204)
+
+border_veyrier 13/4236/2909: 16249 bytes, on the edge
+  kept 54073, removed outside the margin 11463, removed as white in the band 0
+  white pixels kept 18, pixels that are not white removed 11452
+  goes out as: a PNG of 137233 bytes
+
+border_veyrier 15/16946/11636: 19667 bytes, on the edge
+  kept 38794, removed outside the margin 26741, removed as white in the band 1
+  white pixels kept 11, pixels that are not white removed 26740
+  goes out as: a PNG of 118681 bytes
+
+border_veyrier 19/271142/186184: 12959 bytes, on the edge
+  kept 65371, removed outside the margin 0, removed as white in the band 165
+  white pixels kept 0, pixels that are not white removed 0
+  goes out as: a PNG of 143508 bytes
+
+border_montblanc 15/17008/11679: 11699 bytes, on the edge
+  kept 45074, removed outside the margin 18985, removed as white in the band 1477
+  white pixels kept 6554, pixels that are not white removed 18293
+  goes out as: a PNG of 72324 bytes
+
+border_menton 15/17069/11942: 10433 bytes, on the edge
+  kept 10211, removed outside the margin 55325, removed as white in the band 0
+  white pixels kept 0, pixels that are not white removed 51810
+  goes out as: a PNG of 30455 bytes
+

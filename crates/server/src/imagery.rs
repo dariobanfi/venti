@@ -2,8 +2,8 @@
 //! for it, kept on the disk so that the provider is asked once.
 //!
 //! Some providers' tiles cannot go to a map as they are. basemap.at's are
-//! white beyond Austria's border, and a map style cannot cut a raster along
-//! a line. So a client asks this server, and the server asks the provider
+//! white beyond Austria's border and IGN's beyond France's, and a map style
+//! cannot cut a raster along a line. So a client asks this server, and the server asks the provider
 //! and answers with what the adapter says may be shown
 //! ([`venti_sources::ImagerySource`]):
 //!

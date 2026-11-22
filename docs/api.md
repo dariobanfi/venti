@@ -9040,7 +9040,14 @@ What is left to build: a map under the line, and one that moves without the page
 
 ## Map imagery
 
-Photographs from above that the server passes on to the apps' maps, tile by tile, where a provider's tiles cannot be drawn as they are. There is one source so far, `basemap-at`: Austria's orthophoto from [basemap.at](https://basemap.at), whose tiles are white beyond Austria's border. The server cuts them along the border, so that a map can lay them over other photographs ([architecture.md](architecture.md#the-aerial-view-through-the-server)). Anyone may read it, without an account. The credit the provider asks for goes with the layer wherever it is shown: "Datenquelle: basemap.at", with basemap.at as a link to https://basemap.at.
+Photographs from above that the server passes on to the apps' maps, tile by tile, where a provider's tiles cannot be drawn as they are. There are two sources, both cut along a border so that a map can lay them over other photographs ([architecture.md](architecture.md#the-aerial-view-through-the-server)). Anyone may read them, without an account. The credit goes with the layer wherever it is shown.
+
+| Source | What | Zooms passed on | Box (west, south, east, north) | Credit |
+|---|---|---|---|---|
+| `basemap-at` | Austria's orthophoto from [basemap.at](https://basemap.at), whose tiles are white beyond Austria's border | 0 to 19 | the provider's: 8.782379, 46.358770, 17.5, 49.037872; Austria's outline lies in 9.5307, 46.3723, 17.1608, 49.0205 | "Datenquelle: basemap.at", with basemap.at as a link to https://basemap.at |
+| `ign-ortho` | France's orthophotos from IGN's Géoplateforme (BD ORTHO, the layer "Photographies aériennes"), which reach beyond France's border and are white further out. Metropolitan France with Corsica; not the overseas departments | 13 to 19 | France's outline: -5.1413, 41.3335, 9.56, 51.0892 | "IGN – BD ORTHO®", as a link to https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO (ours; IGN words none) |
+
+A map's raster source takes `/v1/imagery/{source}/{z}/{x}/{y}` as its tile address, the box as its `bounds` and 19 as its `maxzoom`; for `ign-ortho` it also takes 13 as its `minzoom`, so that a map asks for no coarser tile. Below zoom 13 IGN's layer shows more than its own photographs of France, so the server passes nothing of it on there and answers `204` ([data-sources.md](data-sources.md#photographs-for-the-rest-of-the-alps)). There is no list of the sources in the API: they are the two above, and an address with any other is `404`.
 
 ### `GET /v1/imagery/{source}/{z}/{x}/{y}`
 
@@ -9048,20 +9055,23 @@ Photographs from above that the server passes on to the apps' maps, tile by tile
 cargo run -p venti-server -- dev
 curl -o innsbruck.jpg http://127.0.0.1:8080/v1/imagery/basemap-at/15/17420/11489
 curl -o brenner.png http://127.0.0.1:8080/v1/imagery/basemap-at/15/17431/11524
+curl -o annecy.jpg http://127.0.0.1:8080/v1/imagery/ign-ortho/15/16941/11670
+curl -o veyrier.png http://127.0.0.1:8080/v1/imagery/ign-ortho/15/16946/11636
+curl -i http://127.0.0.1:8080/v1/imagery/ign-ortho/15/17018/11685    # Courmayeur: 204
 ```
 
-One tile of the Web Mercator scheme every web map uses: zoom `z`, column `x` from the west, row `y` from the north, in the order MapLibre writes `{z}/{x}/{y}`. A map's raster source takes `/v1/imagery/basemap-at/{z}/{x}/{y}` as its tile address.
+One tile of the Web Mercator scheme every web map uses: zoom `z`, column `x` from the west, row `y` from the north, in the order MapLibre writes `{z}/{x}/{y}`. The fourth of these, the tile at Veyrier below the Salève, is `crates/sources-ign/tests/golden/border_veyrier_15_16946_11636.png`: France's side of it, and Switzerland's transparent.
 
 | Answer | When |
 |---|---|
-| `200`, `image/jpeg` | The tile lies wholly inside Austria: the provider's JPEG as it came |
-| `200`, `image/png` | Austria's border runs through the tile or within 50 m of it: the provider's tile cut, with what lies beyond the border transparent |
-| `204 No Content` | Nothing here: the tile lies beyond the border, outside the provider's box (8.78 to 17.5° E, 46.36 to 49.04° N), at a zoom other than 0 to 19, or was cut to nothing; or the provider has no such tile |
+| `200`, `image/jpeg` | The tile lies wholly inside the country: the provider's JPEG as it came |
+| `200`, `image/png` | The border runs through the tile or within 50 m of it: the provider's tile cut, with what lies beyond the border transparent |
+| `204 No Content` | Nothing here: the tile lies beyond the border, outside the source's box, at a zoom that is not passed on, or was cut to nothing; or the provider has no such tile |
 | `502` `unavailable` | The provider failed, or sent what is not a tile |
 | `504` `timeout` | The provider did not answer within eight seconds |
 | `404` `not_found` | Not the address of a tile: a source the server does not have, or anything but three plain numbers that name a tile (zoom at most 24, column and row below 2^zoom). Also every address, on a server that passes no imagery on |
 
-`200` and `204` carry `Cache-Control: public, max-age=604800`, a week; `502` and `504` carry `public, max-age=60`. A tile is asked of the provider once and then kept on the server's disk. A tile beyond the border is never asked of the provider. The development mode answers from six tiles recorded on 2026-11-20 (the two above are among them; `crates/sources-basemapat/tests/fixtures/NOTICE.txt` lists them) and with `204` for every other, unless it is started with `--online-imagery`.
+`200` and `204` carry `Cache-Control: public, max-age=604800`, a week; `502` and `504` carry `public, max-age=60`. A tile is asked of the provider once and then kept on the server's disk. A tile beyond the border is never asked of the provider, and nothing a request says reaches the provider but the three numbers of the tile: the host, the layer and the format are the adapter's. France's border is the land's: at the sea and on Lake Geneva the photographs end within 50 m of the shore. The development mode answers from six tiles of basemap.at recorded on 2026-11-20 and seven of IGN recorded on 2026-11-22 (the five above are among them; `crates/sources-basemapat/tests/fixtures/NOTICE.txt` and `crates/sources-ign/tests/fixtures/NOTICE.txt` list them) and with `204` for every other, unless it is started with `--online-imagery`.
 
 ## What is not here yet
 

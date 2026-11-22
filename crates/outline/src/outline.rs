@@ -12,8 +12,8 @@
 //! band reaches is on the edge; any other is wholly inside or wholly
 //! outside.
 //!
-//! **The index.** Austria's outline has some 20,000 points, and most tiles
-//! are kilometres from it. So the outline is read once into a grid of a few
+//! **The index.** A country's outline has many points (Austria's some
+//! 20,000, France's some 112,000), and most tiles are kilometres from it. So the outline is read once into a grid of a few
 //! hundred cells on a side over its box. A cell the band reaches lists the
 //! segments of the rings that reach it; any other cell knows whether it is
 //! inside or outside. A tile far from the border looks at the cells under
@@ -490,7 +490,7 @@ impl Outline {
     /// rounded one: a tile within the margin of a corner of the outline
     /// diagonally may be called an edge tile where it is not quite. That
     /// costs a cut that removes nothing, never a pixel of white.
-    pub(crate) fn side_of(&self, rect: Rect) -> Side {
+    pub fn side_of(&self, rect: Rect) -> Side {
         let reach = rect.grown(self.margin_units);
         let Some((columns, rows)) = self.cells_under(reach) else {
             return Side::Outside;

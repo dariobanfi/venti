@@ -3206,6 +3206,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "venti-outline"
+version = "0.1.0"
+dependencies = [
+ "png",
+ "serde_json",
+ "venti-sources",
+ "zune-core",
+ "zune-jpeg",
+]
+
+[[package]]
 name = "venti-regions"
 version = "0.1.0"
 dependencies = [
@@ -3270,6 +3281,7 @@ dependencies = [
  "venti-sources-dwd-radar",
  "venti-sources-geosphere",
  "venti-sources-geosphere-radar",
+ "venti-sources-ign",
  "venti-sources-ogn",
  "venti-sources-openaip",
  "venti-sources-openmeteo",
@@ -3309,7 +3321,7 @@ name = "venti-sources-basemapat"
 version = "0.1.0"
 dependencies = [
  "png",
- "serde_json",
+ "venti-outline",
  "venti-sources",
  "zune-core",
  "zune-jpeg",
@@ -3358,6 +3370,17 @@ dependencies = [
  "venti-domain",
  "venti-hdf5",
  "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-ign"
+version = "0.1.0"
+dependencies = [
+ "png",
+ "venti-outline",
+ "venti-sources",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]

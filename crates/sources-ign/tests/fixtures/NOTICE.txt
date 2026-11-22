@@ -1,0 +1,53 @@
+The seven .jpeg files in this folder are tiles of IGN's orthophotos
+(BD ORTHO, the layer "Photographies aériennes" of the Géoplateforme),
+"IGN – BD ORTHO®"
+(https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO), under
+the Licence Ouverte / Open Licence 2.0. They are not covered by the licence
+of the code around them.
+
+Each was recorded on 2026-11-22 between 07:38 and 07:47 UTC with one GET of
+
+    https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM_0_19&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}&FORMAT=image/jpeg
+
+with a generic User-Agent, and is kept as it came. The file name is
+<where>_<z>_<x>_<y>.jpeg:
+
+    inside_annecy_15_16941_11670        Annecy, wholly inside France
+    outside_courmayeur_15_17018_11685   Courmayeur, in Italy: all white,
+                                        1651 bytes, byte for byte the tile
+                                        over Geneva's centre at zoom 15 and
+                                        the one over Turin at zoom 13
+    border_veyrier_13_4236_2909         the Swiss border at Veyrier, below
+                                        the Salève, at the coarsest zoom
+                                        that is passed on: all photograph,
+                                        on both sides of the border
+    border_veyrier_15_16946_11636       the same, finer
+    border_veyrier_19_271142_186184     the same, at the finest zoom: all
+                                        photograph, inside France but
+                                        within 50 m of the border
+    border_montblanc_15_17008_11679     the Italian border on the ridge
+                                        west of Mont Blanc's summit: snow
+    border_menton_15_17069_11942        the Italian border at the sea at
+                                        Menton: the photograph ends in
+                                        white some hundred metres beyond it
+
+What the service answered on the same morning, beside these: a tile that
+holds nothing of the photographs is a 404 of 137 bytes (XML), not a white
+tile (Turin at zoom 14 and 15), and so is a tile at zoom 20, which the
+service's set does not have (Annecy). Up to zoom
+12 the layer shows the ground beyond France too (Turin at zoom 10, 11 and
+12 are pictures of 19 to 21 kB), which is why nothing coarser than zoom 13
+is passed on. The photographs reach beyond the border: the tile at
+Veyrier at zoom 13, five kilometres wide, is photograph on both sides, and
+so is one of a kilometre on the pass of the Petit-Saint-Bernard
+(15/17010/11699); the white begins further out.
+tests/golden/summary.txt counts what the cut removes of them. On Mont
+Blanc the snow on the border itself is white enough to count as the
+provider's white, and 1,477 pixels of it are removed within the band.
+
+Each answer carried "cache-control: private, max-age=1814400" and
+"access-control-allow-origin: *".
+
+To record them again: fetch the addresses above, then run the tests with
+VENTI_UPDATE_GOLDEN=1 and look at the PNGs in tests/golden before accepting
+them.

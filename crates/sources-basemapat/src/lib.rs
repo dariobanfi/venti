@@ -27,19 +27,17 @@
 //!
 //! Like every adapter this crate does no I/O and reads no clock.
 
-pub mod cut;
 pub mod fixtures;
-pub mod mercator;
-pub mod outline;
 
 use std::sync::{Arc, OnceLock};
 
 use venti_sources::{Coverage, CutTile, ImagerySource, Manifest, SourceError, TileAddress};
 
-pub use outline::{Outline, OutlineError};
+use venti_outline::cut;
+use venti_outline::mercator::Rect;
+use venti_outline::outline::Side;
 
-use crate::mercator::Rect;
-use crate::outline::Side;
+pub use venti_outline::{Outline, OutlineError};
 
 /// Where the service has its tiles: zoom, row and column in this order,
 /// the row before the column. From the service's capabilities, read on
@@ -191,6 +189,7 @@ impl ImagerySource for BasemapAt {
 
 #[cfg(test)]
 mod tests {
+    use venti_outline::mercator;
     use venti_sources::{Cut, Kind, LicenceFamily};
 
     use super::*;

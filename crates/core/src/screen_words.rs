@@ -284,6 +284,68 @@ pub struct MapLayersWords {
     /// The heading over the credits of what the map shows: "Credits".
     #[uniffi(default = "")]
     pub credits_title: String,
+    /// The layer of the forecast's hours: "Forecast".
+    #[uniffi(default = "")]
+    pub forecast: String,
+    /// The layer of the rain radar: "Radar".
+    #[uniffi(default = "")]
+    pub radar: String,
+    /// The layer of the thermals: "Thermals".
+    #[uniffi(default = "")]
+    pub thermals: String,
+    /// The layer of the wind stations: "Wind".
+    #[uniffi(default = "")]
+    pub wind: String,
+    /// The layer of the airspace: "Airspace".
+    #[uniffi(default = "")]
+    pub airspace: String,
+    /// The layer of the flying sites: "Sites".
+    #[uniffi(default = "")]
+    pub sites: String,
+    /// The layer of the pilots in the air: "Pilots".
+    #[uniffi(default = "")]
+    pub pilots: String,
+    /// The layer of the slopes' steepness: "Slopes".
+    #[uniffi(default = "")]
+    pub slopes: String,
+    /// The layer of the cables: "Cables".
+    #[uniffi(default = "")]
+    pub cables: String,
+    /// The aerial photographs in place of the base map: "Aerial view".
+    #[uniffi(default = "")]
+    pub aerial_view: String,
+    /// The row that opens the list of stations: "Wind stations".
+    #[uniffi(default = "")]
+    pub wind_stations: String,
+    /// The row that opens the list of sites: "Flying sites".
+    #[uniffi(default = "")]
+    pub flying_sites: String,
+    /// The row that opens the sites' filter, with
+    /// [`crate::SitesFiltered::filter_words`] as its value: "Filter the
+    /// sites".
+    #[uniffi(default = "")]
+    pub filter_sites: String,
+    /// The row that opens the list of who is in the air: "Pilots in the
+    /// air".
+    #[uniffi(default = "")]
+    pub pilots_in_the_air: String,
+    /// The row that opens the plans of who flies where: "Flying plans".
+    #[uniffi(default = "")]
+    pub flying_plans: String,
+    /// The row that opens the route planner: "Plan a route". The row that
+    /// adds a site is not here: its words depend on the account, and are
+    /// [`crate::SiteAdding::entry_words`], shown when not empty.
+    #[uniffi(default = "")]
+    pub plan_route: String,
+    /// The credit of the base map, under "Credits": "Base map: ©
+    /// OpenStreetMap contributors. Tiles from OpenFreeMap, ©
+    /// OpenMapTiles." The full wording with the licence is the page of
+    /// data and licences.
+    #[uniffi(default = "")]
+    pub base_map_credit: String,
+    /// The credit of the terrain beside it: "Terrain: © Mapterhorn."
+    #[uniffi(default = "")]
+    pub terrain_credit: String,
 }
 
 /// The words of the map's sheet of layers.
@@ -309,6 +371,26 @@ pub fn map_layers_words() -> MapLayersWords {
              cockpit's map: a hint, since a climb may be gone."
         ),
         credits_title: "Credits".to_owned(),
+        forecast: "Forecast".to_owned(),
+        radar: "Radar".to_owned(),
+        thermals: "Thermals".to_owned(),
+        wind: "Wind".to_owned(),
+        airspace: "Airspace".to_owned(),
+        sites: "Sites".to_owned(),
+        pilots: "Pilots".to_owned(),
+        slopes: "Slopes".to_owned(),
+        cables: "Cables".to_owned(),
+        aerial_view: "Aerial view".to_owned(),
+        wind_stations: "Wind stations".to_owned(),
+        flying_sites: "Flying sites".to_owned(),
+        filter_sites: "Filter the sites".to_owned(),
+        pilots_in_the_air: "Pilots in the air".to_owned(),
+        flying_plans: "Flying plans".to_owned(),
+        plan_route: "Plan a route".to_owned(),
+        base_map_credit:
+            "Base map: © OpenStreetMap contributors. Tiles from OpenFreeMap, © OpenMapTiles."
+                .to_owned(),
+        terrain_credit: "Terrain: © Mapterhorn.".to_owned(),
     }
 }
 
@@ -360,6 +442,98 @@ pub fn planner_words() -> PlannerWords {
     PlannerWords {
         export_gpx: "Export GPX".to_owned(),
         import_gpx: "Import GPX".to_owned(),
+    }
+}
+
+// --- Common controls ---------------------------------------------------------
+
+/// The words of the controls every screen has: the same in the three apps.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct CommonWords {
+    /// The button that closes a sheet having kept what was chosen:
+    /// "Done".
+    #[uniffi(default = "")]
+    pub done: String,
+    /// The way back to the screen before: "Back".
+    #[uniffi(default = "")]
+    pub back: String,
+    /// The menu of further actions: "More".
+    #[uniffi(default = "")]
+    pub more: String,
+    /// The button that takes note of a message: "OK".
+    #[uniffi(default = "")]
+    pub ok: String,
+    /// The button that leaves a question or a form doing nothing:
+    /// "Cancel".
+    #[uniffi(default = "")]
+    pub cancel: String,
+    /// The button that asks again for what could not be loaded: "Try
+    /// again".
+    #[uniffi(default = "")]
+    pub try_again: String,
+    /// The button that closes a sheet or a message: "Close".
+    #[uniffi(default = "")]
+    pub close: String,
+}
+
+/// The words of the controls every screen has.
+#[uniffi::export]
+pub fn common_words() -> CommonWords {
+    CommonWords {
+        done: "Done".to_owned(),
+        back: "Back".to_owned(),
+        more: "More".to_owned(),
+        ok: "OK".to_owned(),
+        cancel: "Cancel".to_owned(),
+        try_again: "Try again".to_owned(),
+        close: "Close".to_owned(),
+    }
+}
+
+// --- Other pages -------------------------------------------------------------
+
+/// The words of pages that have only a few of their own: everyone's
+/// flights, a forecast's notes, the settings and the alarms.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct PagesWords {
+    /// The title of the page of everyone's public flights: "Everyone's
+    /// flights".
+    #[uniffi(default = "")]
+    pub everyones_flights: String,
+    /// The control over that page's choice of dates: "Filter".
+    #[uniffi(default = "")]
+    pub filter: String,
+    /// Its choice of no date: "Any day".
+    #[uniffi(default = "")]
+    pub any_day: String,
+    /// The heading over what a forecast is made from and how it is read:
+    /// "About this forecast".
+    #[uniffi(default = "")]
+    pub about_forecast: String,
+    /// The settings' row that opens the glider's and the cockpit's
+    /// settings: "Glider and cockpit".
+    #[uniffi(default = "")]
+    pub glider_and_cockpit: String,
+    /// The accessible name of the choice between the alarm's two kinds:
+    /// "Kind".
+    #[uniffi(default = "")]
+    pub alarm_kind: String,
+}
+
+/// The words of pages that have only a few of their own.
+#[uniffi::export]
+pub fn pages_words() -> PagesWords {
+    PagesWords {
+        everyones_flights: "Everyone's flights".to_owned(),
+        filter: "Filter".to_owned(),
+        any_day: "Any day".to_owned(),
+        about_forecast: "About this forecast".to_owned(),
+        glider_and_cockpit: "Glider and cockpit".to_owned(),
+        alarm_kind: "Kind".to_owned(),
     }
 }
 
@@ -427,5 +601,69 @@ mod tests {
             map_layers_words().climbs_now_note,
             "Where gliders circled and climbed in the last 10 minutes."
         );
+    }
+
+    #[test]
+    fn the_layers_sheet_names_its_layers_rows_and_the_map_s_credits() {
+        let words = map_layers_words();
+        let layers = [
+            &words.forecast,
+            &words.radar,
+            &words.thermals,
+            &words.wind,
+            &words.airspace,
+            &words.sites,
+            &words.pilots,
+            &words.slopes,
+            &words.cables,
+            &words.aerial_view,
+        ];
+        assert_eq!(
+            layers.map(String::as_str),
+            [
+                "Forecast",
+                "Radar",
+                "Thermals",
+                "Wind",
+                "Airspace",
+                "Sites",
+                "Pilots",
+                "Slopes",
+                "Cables",
+                "Aerial view"
+            ]
+        );
+        assert_eq!(words.plan_route, "Plan a route");
+        assert_eq!(words.filter_sites, "Filter the sites");
+        // The two lines the apps wrote, word for word.
+        assert_eq!(
+            words.base_map_credit,
+            "Base map: © OpenStreetMap contributors. Tiles from OpenFreeMap, © OpenMapTiles."
+        );
+        assert_eq!(words.terrain_credit, "Terrain: © Mapterhorn.");
+    }
+
+    #[test]
+    fn the_common_controls_and_the_small_pages_have_their_words() {
+        let common = common_words();
+        assert_eq!(
+            [
+                common.done,
+                common.back,
+                common.more,
+                common.ok,
+                common.cancel,
+                common.try_again,
+                common.close
+            ],
+            ["Done", "Back", "More", "OK", "Cancel", "Try again", "Close"]
+        );
+        let pages = pages_words();
+        assert_eq!(pages.everyones_flights, "Everyone's flights");
+        assert_eq!(
+            (pages.filter.as_str(), pages.any_day.as_str()),
+            ("Filter", "Any day")
+        );
+        assert_eq!(pages.alarm_kind, "Kind");
     }
 }

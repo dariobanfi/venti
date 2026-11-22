@@ -965,6 +965,28 @@ pub struct SocialWords {
     /// [`following_request`]): "Following".
     #[uniffi(default = "")]
     pub following_title: String,
+    /// The feed's third choice, beside `feed_everyone` and
+    /// `feed_following`: "Ranking".
+    #[uniffi(default = "")]
+    pub feed_ranking: String,
+    /// The question before a comment is removed: "Remove this comment?"
+    /// Its confirm is `comment_remove`, its cancel
+    /// [`crate::CommonWords::cancel`].
+    #[uniffi(default = "")]
+    pub comment_remove_question: String,
+    /// The title of the form that reports a comment: "Report this
+    /// comment".
+    #[uniffi(default = "")]
+    pub comment_report_title: String,
+    /// In place of the feed when it could not be loaded: "The flights
+    /// could not be loaded." With the error's own words under it, if
+    /// any, and [`crate::CommonWords::try_again`].
+    #[uniffi(default = "")]
+    pub feed_failed: String,
+    /// The same for the notifications: "The notifications could not be
+    /// loaded."
+    #[uniffi(default = "")]
+    pub notifications_failed: String,
 }
 
 /// The words around following, cheers, comments and notifications that no
@@ -983,6 +1005,11 @@ pub fn social_words() -> SocialWords {
         cheers_title: "Cheers".to_owned(),
         followers_title: "Followers".to_owned(),
         following_title: "Following".to_owned(),
+        feed_ranking: "Ranking".to_owned(),
+        comment_remove_question: "Remove this comment?".to_owned(),
+        comment_report_title: "Report this comment".to_owned(),
+        feed_failed: "The flights could not be loaded.".to_owned(),
+        notifications_failed: "The notifications could not be loaded.".to_owned(),
     }
 }
 
@@ -1328,5 +1355,23 @@ mod tests {
         assert_eq!(age(at(86_400), NOW), "1 d ago");
         assert_eq!(age(at(6 * 86_400), NOW), "6 d ago");
         assert_eq!(age(at(7 * 86_400), NOW), "11 Nov 2026");
+    }
+
+    #[test]
+    fn removing_and_reporting_a_comment_and_a_failed_feed_have_their_words() {
+        let words = social_words();
+        assert_eq!(
+            [
+                words.feed_everyone.as_str(),
+                words.feed_following.as_str(),
+                words.feed_ranking.as_str()
+            ],
+            ["Everyone", "Following", "Ranking"]
+        );
+        assert_eq!(words.comment_remove_question, "Remove this comment?");
+        assert_eq!(words.comment_remove, "Remove");
+        assert_eq!(words.comment_report_title, "Report this comment");
+        assert!(words.feed_failed.ends_with("could not be loaded."));
+        assert!(words.notifications_failed.ends_with("could not be loaded."));
     }
 }

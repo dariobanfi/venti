@@ -215,6 +215,11 @@ pub struct FlightSharing {
     /// The link to its page on the server. Useful to others only when the
     /// flight is not private.
     pub link: String,
+    /// The flight's id on the server, the end of `link`: for the calls
+    /// that name a flight of the server, such as
+    /// [`crate::comments_open_request`], so that no shell reads a link.
+    #[uniffi(default = "")]
+    pub flight_id: String,
 }
 
 /// What a sync did.
@@ -1460,6 +1465,7 @@ fn sharing(server: &str, remote: &Remote) -> Option<FlightSharing> {
     Some(FlightSharing {
         visibility,
         link: format!("{server}/f/{}", remote.id),
+        flight_id: remote.id.clone(),
     })
 }
 
@@ -1882,6 +1888,7 @@ mod tests {
             sample_shared.link,
             "http://127.0.0.1:8080/f/7cf5ytrw45b0aeb5tcr8wet2km"
         );
+        assert_eq!(sample_shared.flight_id, "7cf5ytrw45b0aeb5tcr8wet2km");
         let sent = core.flight_sharing(only_here).unwrap().unwrap();
         assert_eq!(sent.visibility, FlightVisibility::Private);
 
@@ -2146,6 +2153,7 @@ mod tests {
             now.link,
             "http://127.0.0.1:8080/f/5t1eshypdtvrq7rxw39a18vsrg"
         );
+        assert_eq!(now.flight_id, "5t1eshypdtvrq7rxw39a18vsrg");
         assert_eq!(core.flight_sharing(id).unwrap(), Some(now));
     }
 

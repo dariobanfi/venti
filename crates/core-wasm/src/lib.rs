@@ -58,16 +58,18 @@ use venti_core::{
     ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
     TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
-use venti_core::{AlertDraft, AlertFaultView, AlertFormWords, AlertView, FiredLine, FiredPage};
+use venti_core::{
+    AlertDraft, AlertFaultView, AlertFormWords, AlertView, FiredLine, FiredPage, PilotsAlarmNumbers,
+};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{
     CheerList, CheerState, CommentDraft, CommentList, CommentPosted, CommentsSwitch, Feed,
     FollowList, FollowState, Notifications,
 };
 use venti_core::{
-    CockpitDetailsWords, CockpitSourceWords, GliderClassKind, GliderWords, InstrumentView,
-    MapLayersWords, PlannerWords, SiteSheetWords, SocialWords, StationSheetWords, TargetPlace,
-    TodayWords, VarioSourceKind,
+    CockpitDetailsWords, CockpitSourceWords, CommonWords, GliderClassKind, GliderWords,
+    InstrumentView, MapLayersWords, PagesWords, PlannerWords, SiteSheetWords, SocialWords,
+    StationSheetWords, TargetPlace, TodayWords, VarioSourceKind,
 };
 use venti_core::{FlownThermals, LiveClimbs, SitesAir};
 use venti_core::{GoogleSignIn, GoogleWords};
@@ -1386,6 +1388,13 @@ pub fn alert_form_words() -> Result<Ts<AlertFormWords>, JsValue> {
     to_js(&venti_core::alert_form_words())
 }
 
+/// The numbers of the form of an alarm about pilots in the air: what its
+/// two fields start at and the least and most they may be.
+#[wasm_bindgen(js_name = pilotsAlarmNumbers)]
+pub fn pilots_alarm_numbers() -> Result<Ts<PilotsAlarmNumbers>, JsValue> {
+    to_js(&venti_core::pilots_alarm_numbers())
+}
+
 /// Reads the answer to `alertsRequest`.
 #[wasm_bindgen(js_name = alertsRead)]
 pub fn alerts_read(status: u16, body: Vec<u8>) -> Result<Vec<Ts<AlertView>>, JsValue> {
@@ -2475,7 +2484,8 @@ pub fn live_sites(status: u16, body: Vec<u8>) -> Result<Ts<SitesAir>, JsValue> {
 
 /// The line a site's page says of who flies there now, from the answer
 /// to `liveSitesPath`: "5 pilots in the air at Wallberg, 2 took off in
-/// the last hour". Empty when nobody does.
+/// the last hour". Empty when nobody does. `siteName` is the site's own
+/// name or empty: without one the line says "here".
 #[wasm_bindgen(js_name = siteAirWords)]
 pub fn site_air_words(
     status: u16,
@@ -2916,6 +2926,20 @@ pub fn today_words() -> Result<Ts<TodayWords>, JsValue> {
 #[wasm_bindgen(js_name = plannerWords)]
 pub fn planner_words() -> Result<Ts<PlannerWords>, JsValue> {
     to_js(&venti_core::planner_words())
+}
+
+/// The words of the controls every screen has: "Done", "Back", "More",
+/// "OK", "Cancel", "Try again", "Close".
+#[wasm_bindgen(js_name = commonWords)]
+pub fn common_words() -> Result<Ts<CommonWords>, JsValue> {
+    to_js(&venti_core::common_words())
+}
+
+/// The words of pages that have only a few of their own: everyone's
+/// flights and its filter, a forecast's notes, the settings, the alarms.
+#[wasm_bindgen(js_name = pagesWords)]
+pub fn pages_words() -> Result<Ts<PagesWords>, JsValue> {
+    to_js(&venti_core::pages_words())
 }
 
 /// The words around following, cheers, comments and notifications that

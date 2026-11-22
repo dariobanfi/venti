@@ -19,8 +19,8 @@ use serde::{Deserialize, Serialize};
 use venti_api_types::v1::{
     ALERTS_PATH, Alert, AlertHours, AlertRequest, AlertResponse, AlertRule, AlertSector,
     AlertsResponse, DayAlert, DayAtLeast, FiredAlert, FiredAlertsRequest, FiredAlertsResponse,
-    PILOTS_ALERT_DEFAULT_PILOTS, PILOTS_ALERT_DEFAULT_REST_HOURS, PilotsAlert, WindAlert,
-    alert_path, fired_words,
+    MAX_PILOTS_ALERT_PILOTS, MAX_PILOTS_REST_HOURS, PILOTS_ALERT_DEFAULT_PILOTS,
+    PILOTS_ALERT_DEFAULT_REST_HOURS, PilotsAlert, WindAlert, alert_path, fired_words,
 };
 use venti_domain::GeoPoint;
 
@@ -819,6 +819,50 @@ pub fn alert_form_words() -> AlertFormWords {
     }
 }
 
+/// The numbers of the form of an alarm about pilots in the air: what its
+/// two fields start at and what they may be, by the rules the server
+/// holds to ([`alert_check`] says the same).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct PilotsAlarmNumbers {
+    /// The pilots it waits for when the draft names none
+    /// ([`AlertDraft::min_pilots`] `None`): 3.
+    #[uniffi(default = 0)]
+    pub min_pilots_default: u16,
+    /// The fewest pilots it may wait for: 1.
+    #[uniffi(default = 0)]
+    pub min_pilots_least: u16,
+    /// The most: 100.
+    #[uniffi(default = 0)]
+    pub min_pilots_most: u16,
+    /// The hours it rests after it fired when the draft names none
+    /// ([`AlertDraft::rest_hours`] `None`): 6.
+    #[uniffi(default = 0)]
+    pub rest_hours_default: u8,
+    /// The fewest hours it may rest: 1.
+    #[uniffi(default = 0)]
+    pub rest_hours_least: u8,
+    /// The most: 24.
+    #[uniffi(default = 0)]
+    pub rest_hours_most: u8,
+}
+
+/// The numbers of the form of an alarm about pilots in the air, for a
+/// stepper or a field that cannot leave them.
+#[uniffi::export]
+pub fn pilots_alarm_numbers() -> PilotsAlarmNumbers {
+    PilotsAlarmNumbers {
+        min_pilots_default: PILOTS_ALERT_DEFAULT_PILOTS,
+        // The API refuses 0 for either (`PilotsAlert::check`).
+        min_pilots_least: 1,
+        min_pilots_most: MAX_PILOTS_ALERT_PILOTS,
+        rest_hours_default: PILOTS_ALERT_DEFAULT_REST_HOURS,
+        rest_hours_least: 1,
+        rest_hours_most: MAX_PILOTS_REST_HOURS,
+    }
+}
+
 fn view(alert: &Alert) -> AlertView {
     AlertView {
         id: alert.id.clone(),
@@ -1396,5 +1440,52 @@ mod tests {
         let words = alert_form_words();
         assert_eq!(words.pilots_kind, "Pilots in the air");
         assert!(words.pilots_note.contains("within 5 km"));
+    }
+
+    #[test]
+    fn the_pilots_form_s_numbers_are_those_the_check_holds_to() {
+        let numbers = pilots_alarm_numbers();
+        assert_eq!(
+            (
+                numbers.min_pilots_default,
+                numbers.min_pilots_least,
+                numbers.min_pilots_most
+            ),
+            (3, 1, 100)
+        );
+        assert_eq!(
+            (
+                numbers.rest_hours_default,
+                numbers.rest_hours_least,
+                numbers.rest_hours_most
+            ),
+            (6, 1, 24)
+        );
+        let draft = |min_pilots: u16, rest_hours: u8| AlertDraft {
+            kind: AlertKind::Pilots,
+            min_pilots: Some(min_pilots),
+            rest_hours: Some(rest_hours),
+            ..day_draft()
+        };
+        let faults = |draft| -> Vec<String> {
+            alert_check(draft)
+                .into_iter()
+                .map(|fault| fault.field)
+                .collect()
+        };
+        // At the bounds a draft may be sent; one step past them it may not.
+        assert!(faults(draft(numbers.min_pilots_least, numbers.rest_hours_least)).is_empty());
+        assert!(faults(draft(numbers.min_pilots_most, numbers.rest_hours_most)).is_empty());
+        assert_eq!(
+            faults(draft(
+                numbers.min_pilots_least - 1,
+                numbers.rest_hours_most + 1
+            )),
+            ["rule.min_pilots", "rule.rest_hours"]
+        );
+        assert_eq!(
+            faults(draft(numbers.min_pilots_most + 1, 6)),
+            ["rule.min_pilots"]
+        );
     }
 }

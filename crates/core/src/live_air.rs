@@ -277,13 +277,18 @@ pub fn live_sites(status: u16, body: Vec<u8>) -> Result<SitesAir, CoreError> {
 /// The line a site's page says of who flies there now: "5 pilots in the
 /// air at Wallberg, 2 took off in the last hour". Empty when nobody is in
 /// the air and nobody took off: the page then says nothing.
+///
+/// A shell passes the site's own name, or nothing (an empty string) for
+/// a site without one, never a word of its own such as the site's kind:
+/// without a name the line says "here", "8 pilots in the air here, 2
+/// took off in the last hour".
 #[uniffi::export]
 pub fn site_air_words(air: SitesAir, site_id: String, site_name: String) -> String {
     let Some(site) = air.sites.iter().find(|site| site.site_id == site_id) else {
         return String::new();
     };
     let at = match site_name.trim() {
-        "" => String::new(),
+        "" => " here".to_owned(),
         name => format!(" at {name}"),
     };
     let took_off = match site.took_off {
@@ -514,7 +519,33 @@ mod tests {
         };
         assert_eq!(
             site_air_words(one, "a:1".to_owned(), String::new()),
-            "1 pilot in the air"
+            "1 pilot in the air here"
+        );
+    }
+
+    #[test]
+    fn a_site_without_a_name_is_here() {
+        let air = SitesAir {
+            sites: vec![SiteAirView {
+                site_id: "a:1".to_owned(),
+                airborne: 8,
+                took_off: 2,
+                label: "8".to_owned(),
+            }],
+            credits: Vec::new(),
+        };
+        let said = |name: &str| site_air_words(air.clone(), "a:1".to_owned(), name.to_owned());
+        assert_eq!(
+            said(""),
+            "8 pilots in the air here, 2 took off in the last hour"
+        );
+        assert_eq!(
+            said("  "),
+            "8 pilots in the air here, 2 took off in the last hour"
+        );
+        assert_eq!(
+            said("Wallberg"),
+            "8 pilots in the air at Wallberg, 2 took off in the last hour"
         );
     }
 

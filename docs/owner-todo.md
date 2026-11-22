@@ -16,6 +16,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 
 ## Decide, yes or no (what is built stands until you say otherwise)
 
+- [ ] **A flight's times by the place it was flown at** (13). Seen on the owner's own logbook on 2026-11-22: flights flown in California show a take-off at 23:39 and at 2:56 at night, because the times are in the phone's own zone. The sessions' advice is yes; it needs a way to know a place's time zone without a network.
 - [ ] **Foehn:** do "possible" from 3 hPa and "likely" from 6 hPa match what you know of the Inn valley, also for south foehn? Is Klagenfurt–Salzburg a pair pilots use? Until you say, that pair never speaks on Today (19).
 - [ ] **The Alpine box's western edge** is 5.0° E, 56 km west of Grenoble; beyond it the cockpit says it is not checking airspace. Move it west? (23)
 - [ ] **How a stranger's adapter reaches the repository:** the guide says a pull request; your rule of none covers your own work (17).
@@ -33,6 +34,8 @@ A short list to pick up when there is time. Each line says what to do and where 
 
 ## Look at, and say what is wrong
 
+- [ ] Your own 101 flights (2022 to 2026), brought into both phones on 2026-11-22 from a copy in `~/code/venti-flights`: the logbook, a flight's page, and "Replay in the cockpit". They are on no server and in no account.
+- [ ] **Sign in with Google** yourself, on the website and on each phone: sessions type no passwords. The local Venti takes new accounts by invite; ask a session for a code.
 - [ ] The map with airspace off until switched on, and the third round button.
 - [ ] Wind across Switzerland and the French Alps, and a station's row naming its network.
 - [ ] The foehn line on Today and the view behind it.

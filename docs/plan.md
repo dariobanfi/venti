@@ -213,6 +213,7 @@ Each step's state is what the repository showed on 2026-11-22, with the commits 
 - With no airspace reading the iPhone's large strip in the cockpit stays and shows "– –", and Android hides it.
 - The words of the watched folder, of "Last sync" and "In step since", of the widgets and of the credits pages are each shell's own and belong in the core.
 - The trail of smaller ones: the wording of a reading's own time ("Measured at 14:05."), a station's history picker over "no history yet", Pioupiou's credit with a raw address, Trentino's and Slovenia's "to verify" notes in their manifests.
+- Seen with the owner's own 101 flights on 2026-11-22: the web app says only "WebAssembly is not defined" in a browser that has WebAssembly switched off (the owner's Chrome), where it should say in plain words what it needs; and the iPhone's logbook keeps saying "No flights yet" while an import of many files runs, where the design says the list fills.
 - No whole UI suite has run on either phone since the afternoon's changes; the unit suites pass on all three apps.
 - Cables, radar, the thermal map and forecasts for a place cover the first region only; sites for the two new regions come with the next daily run.
 

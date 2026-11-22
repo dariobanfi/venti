@@ -8,7 +8,6 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **Trentino:** ask the Province of Trento to bring its server's encryption up to date, so its 46 wind stations can come back (24). A draft can be written for you; nothing has been sent.
 - [ ] **SLF:** register with its data service, which its terms recommend (21).
 - [ ] **The other letters:** Holfuy, the DHV, the four avalanche services, Austro Control, Land Tirol (10). Drafts on request; nothing has been sent to anyone.
-- [ ] **thermal.kk7.ch:** the author's agreement in writing and the value the apps should send, now that `venti.fly` exists (11).
 - [ ] **A server and HTTPS:** nothing is deployed. The assistant's sign-in (`/connect/`) cannot be tried with a real Claude or ChatGPT until Venti answers over HTTPS ([running-a-server.md](running-a-server.md)).
 - [ ] **A real Google sign-in** on each app, and on the page where a pilot agrees to an assistant (8).
 - [ ] **Google sign-in on Android** needs two things only you can do: an emulator image with Google Play (the one in use, `pixel6-api36`, is plain Android without Google's services, so it cannot add a Google account at all), and Android's OAuth client registered in your Google Cloud project for `fly.venti.app` with the debug build's signing certificate, its client ID passed to the build as `venti.googleClientId`. The iPhone signs in through a web page and needs neither.

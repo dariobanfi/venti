@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+	<defs>
+		<linearGradient id="nv-welcome-sky" x1="0" y1="0" x2="0" y2="1">
+			<stop offset="0" class="k-sky" />
+			<stop offset="0.45" class="k-mint" />
+			<stop offset="0.7" class="k-sage" />
+			<stop offset="0.9" class="k-cream" />
+		</linearGradient>
+	</defs>
+	<rect width="1200" height="600" fill="url(#nv-welcome-sky)" />
+	<circle cx="955" cy="150" r="40" class="f-gold" />
+	<polygon class="f-cream" points="612,128 630,108 660,100 684,110 702,98 732,104 752,120 768,128" />
+	<polygon class="f-cream" points="842,92 856,80 878,76 896,84 912,78 930,86 944,96" />
+	<polygon class="f-lilac" opacity="0.6" points="0,600 0,380 80,352 150,366 230,322 300,346 380,302 450,332 520,312 600,342 680,296 760,330 840,306 920,336 1000,300 1080,326 1200,310 1200,600" />
+	<polygon class="f-sand" opacity="0.75" points="300,600 300,432 380,410 440,426 500,396 560,422 620,388 690,414 760,398 840,430 900,600" />
+	<polygon class="f-sage" points="360,600 440,526 560,506 700,510 800,524 900,600" />
+	<polygon class="f-mint" points="540,548 580,532 660,528 720,536 744,550 700,562 600,564" />
+	<polygon class="f-lilac" points="0,600 0,200 90,216 160,190 250,262 330,300 420,382 520,474 600,600" />
+	<polygon class="f-violet" points="0,600 0,262 70,270 150,322 220,350 300,424 380,472 450,562 480,600" />
+	<polygon class="f-indigo" points="0,600 0,332 60,350 130,402 190,432 250,502 300,562 320,600" />
+	<g class="s-purple" fill="none" stroke-width="1.5" stroke-linejoin="round">
+		<polyline points="0,382 55,398 120,446 176,476 230,540 266,600" />
+		<polyline points="0,432 50,446 110,490 160,522 206,580 222,600" />
+		<polyline points="0,482 45,494 100,536 146,566 176,600" />
+		<polyline points="0,532 40,542 90,578 112,600" />
+	</g>
+	<polygon class="f-sand" points="1200,600 1200,180 1120,212 1040,272 960,302 880,382 800,452 720,522 660,600" />
+	<polygon class="f-peach" points="1200,600 1200,250 1130,300 1060,342 990,412 930,472 880,542 850,600" />
+	<polygon class="f-coral" points="1200,600 1200,332 1150,362 1090,422 1040,482 1000,542 980,600" />
+	<g class="s-brick" fill="none" stroke-width="1.5" stroke-linejoin="round">
+		<polyline points="1200,382 1160,406 1106,462 1060,516 1026,576 1016,600" />
+		<polyline points="1200,432 1170,452 1120,502 1080,552 1056,600" />
+		<polyline points="1200,482 1180,500 1136,546 1100,592 1096,600" />
+		<polyline points="1200,532 1188,544 1152,586 1142,600" />
+	</g>
+	<g transform="translate(565 205) rotate(-7) scale(1.35)">
+		<path class="f-coral" d="M-42 2 Q0 -26 42 2 Q0 -13 -42 2 Z" />
+		<g class="s-ink" fill="none" stroke-width="1" stroke-linecap="round">
+			<line x1="-39" y1="1" x2="0" y2="36" />
+			<line x1="-14" y1="-8" x2="0" y2="36" />
+			<line x1="14" y1="-8" x2="0" y2="36" />
+			<line x1="39" y1="1" x2="0" y2="36" />
+		</g>
+		<circle class="f-ink" cx="0" cy="39" r="4" />
+	</g>
+	<g transform="translate(780 292) rotate(9) scale(0.7)">
+		<path class="f-indigo" d="M-42 2 Q0 -26 42 2 Q0 -13 -42 2 Z" />
+		<g class="s-ink" fill="none" stroke-width="1.4" stroke-linecap="round">
+			<line x1="-39" y1="1" x2="0" y2="36" />
+			<line x1="-14" y1="-8" x2="0" y2="36" />
+			<line x1="14" y1="-8" x2="0" y2="36" />
+			<line x1="39" y1="1" x2="0" y2="36" />
+		</g>
+		<circle class="f-ink" cx="0" cy="39" r="5" />
+	</g>
+</svg>

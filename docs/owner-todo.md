@@ -39,6 +39,8 @@ A short list to pick up when there is time. Each line says what to do and where 
 
 ## Look at, and say what is wrong
 
+- [ ] **The first news post** (`apps/web/src/content/news/2026-11-22-welcome-to-venti.md`, marked Draft) and its picture, and the page `/about/`: rewrite or approve them, then remove `draft: true` (2026-11-23).
+
 - [ ] Your own 101 flights (2022 to 2026), brought into both phones on 2026-11-22 from a copy in `~/code/venti-flights`: the logbook, a flight's page, and "Replay in the cockpit". Since that evening they are also in your account on the local server, all public by your word.
 - [ ] **Sign in with Google** yourself, on the website and on each phone: sessions type no passwords. The local Venti takes new accounts by invite; ask a session for a code.
 - [ ] The map with airspace off until switched on, and the third round button.

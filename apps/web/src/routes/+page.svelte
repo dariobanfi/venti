@@ -1,10 +1,13 @@
 <!--
-	Home: what is going on, in the first region and on Venti. Panels side by
-	side on a wide screen, as a sports data site has them, one under the
-	other on a phone: today's take-offs as the core judges them, who is in
-	the air now, today's best flights (or the newest), the top of the
-	season's ranking, what pilots added to the map, the weather at a
-	glance, and, for a pilot who is signed in, what their alarms fired.
+	Home: what is going on, in the first region and on Venti. At the top
+	what Venti stands for, in four lines, and the season's flights that
+	stand out as large cards; then panels side by side on a wide screen, as
+	a sports data site has them, one under the other on a phone: the
+	weather for the pilot's place, today's take-offs there as the core
+	judges them, who is in the air now, Venti's news, the top of the
+	season's ranking, today's best flights (or the newest), what pilots
+	added to the map, and, for a pilot who is signed in, what their alarms
+	fired and what the pilots they follow flew.
 
 	Every word about a verdict, a rule or a count is the core's; the
 	panels' titles are the page's. The map, which was here, is at `/map`:
@@ -22,6 +25,8 @@
 		alertsHref,
 		everyoneHref,
 		mapHref,
+		newsHref,
+		newsPostHref,
 		pilotHref,
 		placeHref,
 		publicFlightHref,
@@ -34,9 +39,15 @@
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import { dayOf } from '#lib/groups/days.ts';
+	import Achievements from '#lib/home/Achievements.svelte';
 	import HomePanel from '#lib/home/HomePanel.svelte';
+	import StandsFor from '#lib/home/StandsFor.svelte';
+	import WeatherPanel from '#lib/home/WeatherPanel.svelte';
+	import DraftMark from '#lib/news/DraftMark.svelte';
+	import NewsPicture from '#lib/news/NewsPicture.svelte';
+	import { postMoment, posts } from '#lib/news/posts.ts';
 	import StatusChip from '#lib/today/StatusChip.svelte';
-	import { FIRST_REGION, NOTHING_YET } from '#lib/today/model.svelte.ts';
+	import { NOTHING_YET } from '#lib/today/model.svelte.ts';
 	import { arranged, firstDay } from '#lib/today/order.ts';
 
 	const app = getApp();
@@ -52,12 +63,9 @@
 	const todayDate = dayOf(new Date());
 	$effect(() => home?.show(todayDate));
 
-	/* Today: the core's take-offs of the first region, ordered by the core. */
+	/* Today: the core's take-offs where the weather panel looks, ordered by the core. */
 	const today = $derived(app.today);
 	const shown = $derived(today?.state ?? NOTHING_YET);
-	$effect(() => {
-		today?.show(FIRST_REGION, false, app.kept?.revision ?? 0);
-	});
 	const dayIndex = $derived(firstDay(shown.places));
 	const dayName = $derived(
 		shown.places.find((place) => place.outlook)?.outlook?.days[dayIndex]?.name ?? 'Today'
@@ -95,6 +103,9 @@
 	 */
 	const wide = new MediaQuery('min-width: 56rem', false);
 
+	/** The newest news: the first large, with its picture, two more as lines. */
+	const [newest, ...older] = posts.slice(0, 3);
+
 	const todaysBest = everyoneHref(queryOf({ order: 'best', from: todayDate, to: todayDate }));
 </script>
 
@@ -118,11 +129,21 @@
 	</header>
 
 	<div class="columns">
+		<StandsFor class="span-12" />
+
+		<Achievements
+			class="span-12"
+			shown={home?.achievements}
+			again={() => home?.again('achievements', todayDate)}
+		/>
+
+		<WeatherPanel class="span-4" />
+
 		<!-- Today's take-offs -->
 		<HomePanel
 			id="home-today"
 			title={dayName === 'Today' ? 'Take-offs today' : `Take-offs, ${dayName}`}
-			class="span-5"
+			class="span-4"
 			more={{ href: todayHref(), words: 'Today' }}
 			loading={shown.phase === 'idle' || shown.phase === 'loading'}
 			problem={shown.phase === 'failed' ? shown.problem : undefined}
@@ -165,80 +186,45 @@
 			{/if}
 		</HomePanel>
 
-		<!-- Who is in the air -->
-		<HomePanel
-			id="home-live"
-			title="In the air now"
-			class="span-4"
-			more={{ href: mapHref(undefined, 'pilots'), words: 'On the map' }}
-			loading={!live || live.phase === 'loading'}
-			problem={live?.phase === 'failed' ? live.problem : undefined}
-			absent={live?.phase === 'absent'}
-			again={() => home?.again('live', todayDate)}
-		>
-			{#if live?.phase === 'loaded'}
-				{@const venti = live.value.map.gliders}
-				{#if live.value.others?.countWords}
-					<p class="count">{live.value.others.countWords}</p>
-				{:else if venti.length === 0}
-					<p class="quiet">Nobody shows a flight in the air here now.</p>
-				{/if}
-				{#if venti.length > 0 || freeFlight.length > 0}
-					<ul class="list">
-						{#each venti.slice(0, 5) as glider (glider.id)}
-							<li>
-								<a href={pilotHref(glider.handle)}>{glider.name}</a>
-								<span class="quiet numeric">{text.metres(glider.altitudeM)} m</span>
-							</li>
-						{/each}
-						{#each freeFlight.slice(0, 5 - Math.min(5, venti.length)) as aircraft (aircraft.id)}
-							<li>
-								<span>{aircraft.name ?? aircraft.kindWords}</span>
-								<span class="quiet">{aircraft.line}</span>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-				{#if liveCredits.length > 0}
-					<p class="credit">{liveCredits.join(' · ')}</p>
-				{/if}
-			{/if}
-		</HomePanel>
-
-		<div class="span-3 stack">
-			<!-- The weather at a glance -->
+		<div class="span-4 stack">
+			<!-- Who is in the air -->
 			<HomePanel
-				id="home-weather"
-				title="Weather"
-				more={{ href: mapHref(), words: 'Map' }}
-				loading={!home || home.weather.phase === 'loading'}
-				problem={home?.weather.phase === 'failed' ? home.weather.problem : undefined}
-				absent={home?.weather.phase === 'absent'}
-				again={() => home?.again('weather', todayDate)}
+				id="home-live"
+				title="In the air now"
+				more={{ href: mapHref(undefined, 'pilots'), words: 'On the map' }}
+				loading={!live || live.phase === 'loading'}
+				problem={live?.phase === 'failed' ? live.problem : undefined}
+				absent={live?.phase === 'absent'}
+				again={() => home?.again('live', todayDate)}
 			>
-				{#if home?.weather.phase === 'loaded'}
-					{@const weather = home.weather.value}
-					<dl class="facts">
-						{#if weather.thermals}
-							<div>
-								<dt>Thermal map</dt>
-								<dd>
-									{weather.thermals.name}, {weather.thermals.model} of {text.time(
-										weather.thermals.runUnixS
-									)}
-								</dd>
-							</div>
-						{/if}
-						{#if weather.radar}
-							<div>
-								<dt>Radar</dt>
-								<dd>{weather.radar}</dd>
-							</div>
-						{/if}
-					</dl>
+				{#if live?.phase === 'loaded'}
+					{@const venti = live.value.map.gliders}
+					{#if live.value.others?.countWords}
+						<p class="count">{live.value.others.countWords}</p>
+					{:else if venti.length === 0}
+						<p class="quiet">Nobody shows a flight in the air here now.</p>
+					{/if}
+					{#if venti.length > 0 || freeFlight.length > 0}
+						<ul class="list">
+							{#each venti.slice(0, 5) as glider (glider.id)}
+								<li>
+									<a href={pilotHref(glider.handle)}>{glider.name}</a>
+									<span class="quiet numeric">{text.metres(glider.altitudeM)} m</span>
+								</li>
+							{/each}
+							{#each freeFlight.slice(0, 5 - Math.min(5, venti.length)) as aircraft (aircraft.id)}
+								<li>
+									<span>{aircraft.name ?? aircraft.kindWords}</span>
+									<span class="quiet">{aircraft.line}</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+					{#if liveCredits.length > 0}
+						<p class="credit">{liveCredits.join(' · ')}</p>
+					{/if}
 				{/if}
 			</HomePanel>
-
 			{#if signedIn}
 				<!-- What the pilot's alarms fired -->
 				<HomePanel id="home-alerts" title="Your alarms" more={{ href: alertsHref(), words: 'All' }}>
@@ -257,6 +243,81 @@
 				</HomePanel>
 			{/if}
 		</div>
+
+		<!-- Venti's news: posts the owner writes, kept in the repository. -->
+		<HomePanel
+			id="home-news"
+			title="News"
+			class="span-8"
+			more={older.length > 0 ? { href: newsHref(), words: 'All news' } : undefined}
+		>
+			{#if !newest}
+				<p class="quiet">No news yet.</p>
+			{:else}
+				<article class="lead">
+					{#if newest.image}
+						<a class="picture" href={newsPostHref(newest.slug)} tabindex="-1" aria-hidden="true">
+							<NewsPicture svg={newest.image} alt={newest.imageAlt} />
+						</a>
+					{/if}
+					<div class="lead-words">
+						<p class="date">
+							{text.day(postMoment(newest.date))}
+							{#if newest.draft}<DraftMark />{/if}
+						</p>
+						<h3 class="post-title">
+							<a href={newsPostHref(newest.slug)}>{newest.title}</a>
+						</h3>
+						{#if newest.summary}<p class="quiet">{newest.summary}</p>{/if}
+					</div>
+				</article>
+				{#if older.length > 0}
+					<ul class="list">
+						{#each older as post (post.slug)}
+							<li>
+								<a href={newsPostHref(post.slug)}>{post.title}</a>
+								<span class="quiet">{text.day(postMoment(post.date))}</span>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{/if}
+		</HomePanel>
+
+		<!-- The top of the season's ranking -->
+		<HomePanel
+			id="home-ranking"
+			title={home?.ranking.phase === 'loaded' && home.ranking.value.season
+				? `Ranking ${home.ranking.value.season}`
+				: 'Ranking'}
+			class="span-4"
+			more={{ href: rankingHref(), words: 'The whole ranking' }}
+			loading={!home || home.ranking.phase === 'loading'}
+			problem={home?.ranking.phase === 'failed' ? home.ranking.problem : undefined}
+			absent={home?.ranking.phase === 'absent'}
+			again={() => home?.again('ranking', todayDate)}
+		>
+			{#if home?.ranking.phase === 'loaded'}
+				{#if home.ranking.value.pilots.length === 0}
+					<p class="quiet">Nobody is ranked in this season yet.</p>
+				{:else}
+					<table class="rows numeric fit" aria-label="Ranking">
+						<tbody>
+							{#each home.ranking.value.pilots as pilot (pilot.handle)}
+								<tr>
+									<td class="place">{pilot.place}</td>
+									<th scope="row" class="name">
+										<a href={pilotHref(pilot.handle)}>{pilot.name}</a>
+									</th>
+									<td class="quiet words">{pilot.counted}</td>
+									<td class="number">{text.points(pilot.points)}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
+			{/if}
+		</HomePanel>
 
 		<!-- For a signed-in pilot: what the pilots they follow flew, with the
 		     core's lines of cheers and comments. -->
@@ -344,7 +405,7 @@
 			title={home?.flights.phase === 'loaded' && !home.flights.value.ofToday
 				? 'Flown lately'
 				: 'Best flights today'}
-			class="span-8"
+			class="span-12"
 			more={home?.flights.phase === 'loaded' && home.flights.value.ofToday
 				? { href: todaysBest, words: 'All of today' }
 				: { href: everyoneHref(), words: app.said?.pages.everyonesFlights ?? '' }}
@@ -414,41 +475,6 @@
 							</tbody>
 						</table>
 					</div>
-				{/if}
-			{/if}
-		</HomePanel>
-
-		<!-- The top of the season's ranking -->
-		<HomePanel
-			id="home-ranking"
-			title={home?.ranking.phase === 'loaded' && home.ranking.value.season
-				? `Ranking ${home.ranking.value.season}`
-				: 'Ranking'}
-			class="span-4"
-			more={{ href: rankingHref(), words: 'The whole ranking' }}
-			loading={!home || home.ranking.phase === 'loading'}
-			problem={home?.ranking.phase === 'failed' ? home.ranking.problem : undefined}
-			absent={home?.ranking.phase === 'absent'}
-			again={() => home?.again('ranking', todayDate)}
-		>
-			{#if home?.ranking.phase === 'loaded'}
-				{#if home.ranking.value.pilots.length === 0}
-					<p class="quiet">Nobody is ranked in this season yet.</p>
-				{:else}
-					<table class="rows numeric fit" aria-label="Ranking">
-						<tbody>
-							{#each home.ranking.value.pilots as pilot (pilot.handle)}
-								<tr>
-									<td class="place">{pilot.place}</td>
-									<th scope="row" class="name">
-										<a href={pilotHref(pilot.handle)}>{pilot.name}</a>
-									</th>
-									<td class="quiet words">{pilot.counted}</td>
-									<td class="number">{text.points(pilot.points)}</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
 				{/if}
 			{/if}
 		</HomePanel>
@@ -672,15 +698,39 @@
 		align-items: flex-start;
 	}
 
-	.facts {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
+	/* The newest post: its picture beside its words on a wide screen, over them on a phone. */
+	.lead {
+		display: grid;
+		gap: var(--space-3);
 	}
 
-	.facts dt {
+	.lead-words {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+
+	.picture {
+		display: block;
+	}
+
+	.date {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		color: var(--text-secondary);
 		font-size: var(--subheadline);
+	}
+
+	.post-title {
+		margin: 0;
+		font-size: var(--title);
+		line-height: 1.3;
+	}
+
+	.post-title a:hover {
+		text-decoration: underline;
 	}
 
 	.halves {
@@ -708,6 +758,12 @@
 	}
 
 	@media (min-width: 56rem) {
+		.lead {
+			grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+			align-items: center;
+			gap: var(--space-5);
+		}
+
 		.halves {
 			grid-template-columns: 1fr 1fr;
 			gap: var(--space-6);

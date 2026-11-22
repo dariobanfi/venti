@@ -21,6 +21,8 @@ import type {
 import { isInWords } from '#lib/core/index.ts';
 import { span } from '#lib/community/pages.ts';
 import { asked, NO_CHOICE } from '#lib/sites/filter.ts';
+import type { SeasonRanking } from '#lib/core/community-source.ts';
+import { type Achievement, achievements, RECENT_DAYS } from './achievements.ts';
 
 /**
  * The part of the map the home page looks at: the first region, from the
@@ -42,6 +44,9 @@ export type Panel<T> =
 	| { phase: 'absent' };
 
 const LOADING = { phase: 'loading' } as const;
+
+/** The panels the model asks for. */
+type Kind = 'flights' | 'ranking' | 'live' | 'community' | 'achievements';
 
 export interface FlightsPanel {
 	flights: PublicFlight[];
@@ -66,22 +71,18 @@ export interface CommunityPanel {
 	candidatesMore: string;
 }
 
-export interface WeatherPanel {
-	/** The thermal map's first day: "Today, ICON-D2 of 06:00" and its note. */
-	thermals: { name: string; model: string; runUnixS: number; note: string } | undefined;
-	/** The radar's newest moment in the core's words: "Rain radar, 14:15, 4 minutes ago." */
-	radar: string | undefined;
-}
-
 export class HomeModel {
 	flights = $state.raw<Panel<FlightsPanel>>(LOADING);
 	ranking = $state.raw<Panel<RankingPanel>>(LOADING);
 	live = $state.raw<Panel<LiveAnswer>>(LOADING);
 	community = $state.raw<Panel<CommunityPanel>>(LOADING);
-	weather = $state.raw<Panel<WeatherPanel>>(LOADING);
+	/** The season's flights that stand out, as large cards. */
+	achievements = $state.raw<Panel<Achievement[]>>(LOADING);
 
 	#core: CoreClient;
 	#asked = false;
+	/** The newest season's ranking, asked for once for its panel and the achievements. */
+	#season: Promise<SeasonRanking | undefined> | undefined;
 
 	constructor(core: CoreClient) {
 		this.#core = core;
@@ -96,26 +97,24 @@ export class HomeModel {
 			void this.#fill('ranking', () => this.#ranking());
 			void this.#fill('live', () => this.#core.live(HOME_BOX));
 			void this.#fill('community', () => this.#community());
-			void this.#fill('weather', () => this.#weather());
+			void this.#fill('achievements', () => this.#achievements());
 		});
 	}
 
 	/** Asks again for one panel, after it failed. */
-	again(panel: 'flights' | 'ranking' | 'live' | 'community' | 'weather', today: string): void {
+	again(panel: Kind, today: string): void {
+		if (panel === 'ranking' || panel === 'achievements') this.#season = undefined;
 		const ask = {
 			flights: () => this.#flights(today),
 			ranking: () => this.#ranking(),
 			live: () => this.#core.live(HOME_BOX),
 			community: () => this.#community(),
-			weather: () => this.#weather()
+			achievements: () => this.#achievements()
 		}[panel] as () => Promise<never>;
 		void this.#fill(panel, ask);
 	}
 
-	async #fill<K extends 'flights' | 'ranking' | 'live' | 'community' | 'weather'>(
-		panel: K,
-		ask: () => Promise<unknown>
-	): Promise<void> {
+	async #fill<K extends Kind>(panel: K, ask: () => Promise<unknown>): Promise<void> {
 		this[panel] = LOADING;
 		try {
 			const value = await ask();
@@ -138,8 +137,14 @@ export class HomeModel {
 		return { flights: (newest?.flights ?? []).slice(0, FLIGHTS_SHOWN), ofToday: false };
 	}
 
+	/** The newest season's ranking, asked for once until a panel asks again. */
+	#seasonRanking(): Promise<SeasonRanking | undefined> {
+		this.#season ??= this.#core.ranking(undefined);
+		return this.#season;
+	}
+
 	async #ranking(): Promise<RankingPanel | undefined> {
-		const ranked = await this.#core.ranking(undefined);
+		const ranked = await this.#seasonRanking();
 		if (!ranked) return undefined;
 		return { season: ranked.season.name, pilots: ranked.ranking.pilots.slice(0, RANKED_SHOWN) };
 	}
@@ -172,20 +177,31 @@ export class HomeModel {
 		};
 	}
 
-	async #weather(): Promise<WeatherPanel | undefined> {
-		const [thermals, radar] = await Promise.all([
-			this.#core.thermalMap().catch(() => undefined),
-			this.#core.radar().catch(() => undefined)
+	/**
+	 * The season's longest flight, its best triangle and the best of the
+	 * last days (or the newest), from everyone's flights by points.
+	 */
+	async #achievements(): Promise<Achievement[] | undefined> {
+		const ranked = await this.#seasonRanking();
+		if (!ranked) return undefined;
+		const { season } = ranked;
+		const recentFrom = Math.floor(Date.now() / 1000) - RECENT_DAYS * 86_400;
+		const [best, recent, newest] = await Promise.all([
+			this.#core.publicFlights({
+				order: 'best',
+				fromUnixS: season.fromUnixS,
+				toUnixS: season.toUnixS
+			}),
+			this.#core.publicFlights({ order: 'best', fromUnixS: recentFrom }),
+			this.#core.publicFlights({ order: 'newest' })
 		]);
-		if (!thermals && !radar) return undefined;
-		const day = thermals?.days[0];
-		const moment = radar?.moments[radar.firstMoment];
-		return {
-			thermals: day
-				? { name: day.name, model: day.model, runUnixS: day.runUnixS, note: day.note }
-				: undefined,
-			radar: moment?.label
-		};
+		if (!best) return undefined;
+		return achievements(
+			season.fromUnixS === undefined ? '' : season.name,
+			best.flights,
+			recent?.flights ?? [],
+			newest?.flights ?? []
+		);
 	}
 }
 

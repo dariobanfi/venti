@@ -128,9 +128,7 @@ test('a strong day puts the take-offs in the order of their thermals, with the c
 	await expect(hours.first()).toContainText(/\d\.\d/);
 	await expect(hours.filter({ hasText: /thermals \d\.\d m\/s to \d+ m/ }).first()).toBeAttached();
 	// What the strip shows, in the core's words.
-	await expect(best).toContainText(
-		'Wind in km/h at 10 m and the climb in m/s. A tall bar is a flyable hour.'
-	);
+	await expect(best).toContainText('Wind in km/h at 10 m, the climb in m/s.');
 
 	// The others: a stronger day before a weaker one, each with its kind.
 	const others = wide

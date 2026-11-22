@@ -1,5 +1,6 @@
 /**
- * The home page, from the Venti server in its development mode: the
+ * The home page, from the Venti server in its development mode: what Venti
+ * stands for, the season's flights that stand out, the weather and the
  * region's take-offs, its made-up pilots in the air and the Open Glider
  * Network's made-up aircraft over the Tegernsee, the public flights and
  * the ranking of its six made-up pilots, the made-up place from pilots
@@ -27,6 +28,45 @@ test('the home page shows what is going on, panel by panel', async ({
 		'aria-current',
 		'page'
 	);
+
+	// What Venti stands for, in four lines, with the way to the about page.
+	const standsFor = page.getByRole('region', { name: 'What Venti stands for' });
+	await expect(standsFor.getByRole('listitem')).toHaveCount(4);
+	await expect(standsFor.getByRole('link', { name: 'What Venti stands for' })).toHaveAttribute(
+		'href',
+		/\/about\/?$/
+	);
+
+	// The season's flights that stand out: its longest, and the newest, since
+	// none of the made-up flights is of the last days or a triangle.
+	const achievements = page.getByRole('region', { name: 'Achievements' });
+	const cards = achievements.getByRole('listitem');
+	await expect(cards).toHaveCount(2);
+	await expect(cards.first()).toContainText('Longest flight, 2026');
+	await expect(cards.first()).toContainText('Lena Probe');
+	await expect(cards.first().getByRole('link', { name: /km$/ })).toHaveAttribute(
+		'href',
+		/\/logbook\/everyone\/flight\/?\?id=/
+	);
+	await expect(cards.nth(1)).toContainText('Newest flight');
+
+	// The weather: the best take-off around the region's middle, as Today's
+	// core judges it, its wind and the next hours, and when the model ran.
+	const weather = panel(page, 'Weather');
+	await expect(weather.getByText(/, around the Tegernsee$/)).toBeVisible();
+	await expect(weather.locator('.site')).toContainText(/(Flyable|Marginal|Not flyable)$/);
+	await expect(weather.getByRole('list', { name: 'Hour by hour' })).toBeVisible();
+	await expect(weather.getByText(/ICON-(D2|EU) of /)).toBeVisible();
+	await expect(weather.getByRole('link', { name: 'Today' })).toBeVisible();
+	await expect(weather.getByRole('button', { name: 'Use my position' })).toBeVisible();
+
+	// Venti's news: the first post, still a draft.
+	const news = panel(page, 'News');
+	await expect(news.getByRole('link', { name: 'Welcome to Venti' })).toHaveAttribute(
+		'href',
+		/\/news\/2026-11-22-welcome-to-venti\/?$/
+	);
+	await expect(news.getByText('Draft', { exact: true })).toBeVisible();
 
 	// Today's take-offs, as the core judges them, with the way to Today.
 	const today = panel(page, /^Take-offs/);
@@ -75,11 +115,6 @@ test('the home page shows what is going on, panel by panel', async ({
 	await expect(community.getByRole('link', { name: 'Beispieljoch' })).toBeVisible();
 	await expect(community.getByText(/No site names this place\.$/).first()).toBeVisible();
 
-	// The weather at a glance: the thermal map's day and the radar's newest frame.
-	const weather = panel(page, 'Weather');
-	await expect(weather.getByText(/ICON-(D2|EU) of /)).toBeVisible();
-	await expect(weather.getByText(/^Rain radar, /)).toBeVisible();
-
 	// Signed out, no alarms.
 	await expect(panel(page, 'Your alarms')).toHaveCount(0);
 	await keep('200-home');
@@ -118,6 +153,43 @@ test('signed in, the home page has the pilot’s alarms', async ({ page, keep, w
 	}
 	await following.scrollIntoViewIfNeeded();
 	await keep('222-home-following');
+});
+
+test('refused a position, the weather offers a place to choose', async ({ page, keep }) => {
+	await page.goto('/');
+	const weather = panel(page, 'Weather');
+	await expect(weather.getByRole('list', { name: 'Hour by hour' })).toBeVisible();
+
+	// The test's browser gives no position: one line, and a choice of place.
+	await weather.getByRole('button', { name: 'Use my position' }).click();
+	await expect(weather.getByText('Your browser does not give Venti your position.')).toBeVisible();
+	await expect(weather.getByRole('link', { name: 'On the map' })).toHaveAttribute(
+		'href',
+		/\/map\/?\?lat=/
+	);
+	const choice = weather.getByRole('combobox', { name: 'Choose a take-off' });
+	await weather.scrollIntoViewIfNeeded();
+	await keep('202-home-weather-refused');
+
+	// A take-off chosen: the weather is for it, and stays so on the next visit.
+	const name = (await choice.locator('option').nth(2).textContent())?.trim() ?? '';
+	await choice.selectOption({ label: name });
+	await expect(weather.getByText(/, the take-off you chose$/)).toBeVisible();
+	await expect(weather.getByRole('link', { name, exact: true })).toBeVisible();
+	await page.reload();
+	await expect(panel(page, 'Weather').getByRole('link', { name, exact: true })).toBeVisible();
+});
+
+test('given a position, the weather is for the pilot’s place', async ({ page, context, keep }) => {
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation({ latitude: 47.6642, longitude: 11.7967 });
+	await page.goto('/');
+	const weather = panel(page, 'Weather');
+	await expect(weather.getByText(/, near you$/)).toBeVisible();
+	await expect(weather.getByRole('list', { name: 'Hour by hour' })).toBeVisible();
+	await expect(weather.getByRole('button', { name: 'Use my position' })).toHaveCount(0);
+	await weather.scrollIntoViewIfNeeded();
+	await keep('203-home-weather-near-you');
 });
 
 test('an address of the map from before goes to the map', async ({ page }) => {

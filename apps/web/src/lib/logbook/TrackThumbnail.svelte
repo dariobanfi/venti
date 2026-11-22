@@ -5,6 +5,8 @@
 	`large` is the pilot's own list's: a little map of its own, a quiet grid
 	of the pack's hairline under the track, north up, with the take-off as a
 	hollow dot and the landing as a solid one, as the flight's map has them.
+	`fill` is the same drawing filling the box it stands in: the home page's
+	achievements.
 -->
 <script lang="ts">
 	import type { Coordinate } from '#lib/core/index.ts';
@@ -13,9 +15,12 @@
 	interface Props {
 		outline: Coordinate[];
 		large?: boolean;
+		/** As large, as big as the box it stands in. */
+		fill?: boolean;
 	}
 
-	let { outline, large = false }: Props = $props();
+	let { outline, large: asked = false, fill = false }: Props = $props();
+	const large = $derived(asked || fill);
 
 	/** The drawing is 52 units square whatever size it is shown at. */
 	const SIZE = 52;
@@ -31,7 +36,7 @@
 	const GRID = [13, 26, 39];
 </script>
 
-<svg class:large viewBox="0 0 {SIZE} {SIZE}" aria-hidden="true" focusable="false">
+<svg class:large class:fill viewBox="0 0 {SIZE} {SIZE}" aria-hidden="true" focusable="false">
 	{#if large}
 		<g class="grid">
 			{#each GRID as at (at)}
@@ -65,6 +70,11 @@
 		border-radius: var(--radius-card);
 		background: var(--background);
 		box-shadow: inset 0 0 0 1px var(--separator);
+	}
+
+	svg.fill {
+		width: 100%;
+		height: 100%;
 	}
 
 	.grid line {

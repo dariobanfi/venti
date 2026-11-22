@@ -144,3 +144,24 @@ export function groupHref(id: string): string {
 export function myFlightHref(id: string): string {
 	return `${resolve('/settings/account/flights/flight')}?id=${encodeURIComponent(id)}`;
 }
+
+/** What Venti stands for. */
+export function aboutHref(): string {
+	return resolve('/about');
+}
+
+/** Venti's news, the newest first. */
+export function newsHref(): string {
+	return resolve('/news');
+}
+
+/** One news post, by its file's name. */
+export function newsPostHref(slug: string): string {
+	return resolve('/news/[slug]', { slug });
+}
+
+/** Where the code of Venti is kept. */
+export const SOURCE_CODE = 'https://github.com/dariobanfi/venti';
+
+/** The server's description of its API, at the root of the site's origin. */
+export const API_DESCRIPTION = '/v1/openapi.json';

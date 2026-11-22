@@ -60,10 +60,14 @@
 	/* Type: Fira Sans at the pack's styles. Numbers are set in it with
 	   figures of one width. */
 	--font-rounded: var(--font);
+	/* hero 36/38, Black Italic: at most one on a screen */
+	--hero: 2.25rem;
 	/* title 26/32 */
 	--large-title: 1.625rem;
 	/* heading 19/25 */
 	--title: 1.1875rem;
+	/* instrument-l 44/46: a reading that stands out, as an achievement's distance */
+	--number-large: 2.75rem;
 	/* instrument-m 24/28 */
 	--number: 1.5rem;
 	/* body 16/24 */

@@ -32,6 +32,12 @@
    "unit": "hPa"
   },
   {
+   "name": "PRED",
+   "long_name": "Reduzierter Luftdruck",
+   "desc": "Reduzierter Luftdruck 10 Minuten",
+   "unit": "hPa"
+  },
+  {
    "name": "RF",
    "long_name": "Relative Feuchte",
    "desc": "Relative Feuchte 10 Minuten",

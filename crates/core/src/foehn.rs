@@ -4,7 +4,8 @@
 //! The shell asks the server ([`foehn_path`]) and hands the answer here
 //! ([`foehn`]) with the places of the pilot's sites and the time. Out
 //! comes one line for Today, which exists only when a pair of stations
-//! near one of those places is at "possible" or "likely", and a view:
+//! near one of those places is at "possible" or "likely" on two pressures
+//! that their providers reduced to sea level themselves, and a view:
 //! each pair as a row with its words, its level and its last 24 hours as
 //! points for a small chart, what the number means, the caution, the
 //! credits, and every label a screen needs.
@@ -20,7 +21,7 @@
 //! reading's own time.
 
 use chrono::{DateTime, Duration, Utc};
-use venti_api_types::v1::{FOEHN_PATH, FoehnPair, FoehnResponse, FoehnStation};
+use venti_api_types::v1::{FOEHN_PATH, FoehnPair, FoehnReducedBy, FoehnResponse, FoehnStation};
 use venti_domain::GeoPoint;
 use venti_flight::foehn::{self, Judgement, Level, SeaLevelPressure, Side, Unknown};
 use venti_flight::geodesy::Earth;
@@ -109,7 +110,10 @@ pub struct FoehnRow {
     /// The chart's lower side: "Higher at Innsbruck: north foehn".
     pub below_label: String,
     /// Where the pair and its limits are from, and what of it waits to be
-    /// verified: small print under the row.
+    /// verified: small print under the row. When Venti reduced a station's
+    /// pressure to sea level itself, it says so here, that the number may
+    /// be off by several hectopascals, and that the pair gives Today no
+    /// line.
     pub note: String,
 }
 
@@ -121,8 +125,9 @@ pub struct FoehnView {
     /// The view's title, "Foehn".
     pub title: String,
     /// The line for Today, when a pair near the pilot's sites is at
-    /// "possible" or "likely". Nothing otherwise: no line is not "no
-    /// foehn", and a shell writes nothing in its place.
+    /// "possible" or "likely" on pressures that both providers reduced to
+    /// sea level themselves. Nothing otherwise: no line is not "no foehn",
+    /// and a shell writes nothing in its place.
     pub today_line: Option<FoehnLine>,
     /// The pairs, in the server's order.
     pub rows: Vec<FoehnRow>,
@@ -183,6 +188,10 @@ pub fn foehn(
     let mut rows = Vec::with_capacity(response.pairs.len());
     for pair in &response.pairs {
         let judgement = judge(pair, now_unix_s);
+        // A pressure that Venti reduced itself, from the height the
+        // provider lists for the station, was 3.7 hPa off at Innsbruck on
+        // 2026-11-22: more than the step between two levels.
+        let sure = matches!(judgement, Judgement::Known { sure: true, .. });
         let row = row(pair, judgement, now_unix_s);
         let near = places.iter().any(|place| {
             [&pair.south, &pair.north].iter().any(|station| {
@@ -191,10 +200,13 @@ pub fn foehn(
         });
         // The strongest level of the pairs near by; of two equal ones the
         // first. A pair whose stations or limits no weather service gave
-        // (`to_verify`) is shown in the view and never speaks on Today: a
-        // warning there has to rest on more than Venti's own guess.
+        // (`to_verify`), and a pair with a pressure that Venti reduced to
+        // sea level itself, is shown in the view and never speaks on
+        // Today: a warning there has to rest on more than Venti's own
+        // guess, at the limits and at the pressures.
         if near
             && !pair.to_verify
+            && sure
             && matches!(row.level, FoehnLevel::Possible | FoehnLevel::Likely)
             && today_line
                 .as_ref()
@@ -255,7 +267,7 @@ fn pressure(station: &FoehnStation) -> Option<SeaLevelPressure> {
     station.pressure.map(|pressure| SeaLevelPressure {
         time_unix_s: pressure.time.timestamp(),
         hpa: pressure.sea_level_hpa,
-        reduced_here: false,
+        reduced_here: pressure.reduced_by == FoehnReducedBy::Venti,
     })
 }
 
@@ -293,6 +305,7 @@ fn row(pair: &FoehnPair, judgement: Judgement, now_unix_s: i64) -> FoehnRow {
             difference,
             higher,
             level,
+            sure: _,
         } => {
             let shown = whole(foehn::shown_hpa(difference.hpa));
             let measured = match higher {
@@ -345,16 +358,22 @@ fn row(pair: &FoehnPair, judgement: Judgement, now_unix_s: i64) -> FoehnRow {
         }
     };
     let mut note = pair.basis.clone();
-    if [&pair.south, &pair.north].iter().any(|station| {
-        station
-            .pressure
-            .is_some_and(|p| p.reduced_by == venti_api_types::v1::FoehnReducedBy::Venti)
-    }) {
-        note.push_str(
-            " Where a station sends the pressure at its own height, Venti reduces it to sea \
-             level from the station's height and temperature, which can be off by a \
-             hectopascal or more in cold valley air.",
-        );
+    let reduced_here: Vec<&str> = [&pair.south, &pair.north]
+        .iter()
+        .filter(|station| {
+            station
+                .pressure
+                .is_some_and(|p| p.reduced_by == FoehnReducedBy::Venti)
+        })
+        .map(|station| station.name.as_str())
+        .collect();
+    if !reduced_here.is_empty() {
+        note.push_str(&format!(
+            " {} sent only the pressure at the station's own height, so Venti reduced it to \
+             sea level itself, from the station's height and temperature. That can be off by \
+             several hectopascals, so this number is less sure and gives Today no line.",
+            reduced_here.join(" and ")
+        ));
     }
     FoehnRow {
         id: pair.id.clone(),
@@ -412,8 +431,17 @@ mod tests {
     const NOW: i64 = 1_795_028_700;
 
     /// An answer with one pair: Bolzano's and Innsbruck's pressures, each
-    /// with its time, or none.
+    /// with its time, or none, both reduced by their providers.
     fn body(south: Option<(&str, f64)>, north: Option<(&str, f64)>) -> Vec<u8> {
+        body_reduced_by(south, north, "provider")
+    }
+
+    /// The same with Innsbruck's pressure reduced by `north_by`.
+    fn body_reduced_by(
+        south: Option<(&str, f64)>,
+        north: Option<(&str, f64)>,
+        north_by: &str,
+    ) -> Vec<u8> {
         let pressure = |reading: Option<(&str, f64)>, by: &str| {
             reading.map_or_else(String::new, |(time, hpa)| {
                 format!(
@@ -446,7 +474,7 @@ mod tests {
             ]
         }}"#,
             pressure(south, "provider"),
-            pressure(north, "venti")
+            pressure(north, north_by)
         )
         .into_bytes()
     }
@@ -494,9 +522,9 @@ mod tests {
         assert_eq!(row.points.len(), 2);
         assert_eq!(row.points[0].level, FoehnLevel::None);
         assert_eq!(row.points[1].level, FoehnLevel::Likely);
-        // Innsbruck's pressure was reduced by Venti, and the row says so.
-        assert!(row.note.starts_with("From the province's foehn chart."));
-        assert!(row.note.contains("Venti reduces it to sea level"));
+        // Both pressures are their providers' own: the note is the
+        // pair's basis and no more.
+        assert_eq!(row.note, "From the province's foehn chart.");
 
         assert_eq!(view.title, "Foehn");
         assert_eq!(view.caution, "A sign, not a measurement.");
@@ -527,6 +555,49 @@ mod tests {
         assert_eq!(view.today_line, None);
         // The view still shows what the pressure says.
         assert_eq!(view.rows[0].level, FoehnLevel::Likely);
+    }
+
+    #[test]
+    fn a_pressure_that_venti_reduced_gives_the_view_its_row_and_today_no_line() {
+        // The morning of 22 November 2026 as Venti first said it: Bolzano
+        // 1014.5 hPa by the province, Innsbruck 1007.8 hPa by Venti's own
+        // reduction of the station's pressure.
+        const AT_0900: &str = "2026-11-22T09:00:00Z";
+        let now = 1_795_338_300;
+        let ours = body_reduced_by(Some((AT_0900, 1014.5)), Some((AT_0900, 1007.8)), "venti");
+        let view = foehn(200, ours, vec![WALLBERG], now).unwrap();
+        assert_eq!(view.today_line, None);
+        let row = &view.rows[0];
+        assert_eq!(row.level, FoehnLevel::Likely);
+        assert_eq!(
+            row.words,
+            "South foehn likely: 7 hPa higher at Bolzano than at Innsbruck"
+        );
+        assert!(
+            row.note
+                .starts_with("From the province's foehn chart. Innsbruck sent only")
+        );
+        assert!(row.note.contains("Venti reduced it to sea level itself"));
+        assert!(row.note.contains("off by several hectopascals"));
+        assert!(row.note.ends_with("gives Today no line."));
+        // Against an unknown clock too.
+        let ours = body_reduced_by(Some((AT_0900, 1014.5)), Some((AT_0900, 1007.8)), "venti");
+        assert_eq!(
+            foehn(200, ours, vec![WALLBERG], 0).unwrap().today_line,
+            None
+        );
+
+        // The same morning with GeoSphere's own reduction of the same
+        // reading, 1011.5 hPa: possible, and a line.
+        let theirs = body(Some((AT_0900, 1014.5)), Some((AT_0900, 1011.5)));
+        let view = foehn(200, theirs, vec![WALLBERG], now).unwrap();
+        let line = view.today_line.unwrap();
+        assert_eq!(
+            line.text,
+            "South foehn possible: 3 hPa higher at Bolzano than at Innsbruck"
+        );
+        assert_eq!(line.level, FoehnLevel::Possible);
+        assert_eq!(view.rows[0].note, "From the province's foehn chart.");
     }
 
     #[test]

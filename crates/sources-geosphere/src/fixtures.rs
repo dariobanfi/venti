@@ -1,5 +1,13 @@
 //! Payloads recorded from the GeoSphere Austria Data Hub on 2026-11-18.
 //!
+//! The reduced pressure, `PRED`, joined them on 2026-11-22: its values for
+//! the same three stations at the same time stamp, 2026-11-18 19:00 UTC,
+//! from the same dataset's archive
+//! (`…/v1/station/historical/tawes-v1-10min?parameters=FF,FFX,DD,DDX,TL,RF,P,PRED&station_ids=11126,11320,11343&start=2026-11-18T19:00&end=2026-11-18T19:00`),
+//! which gave the seven other parameters exactly as they were recorded;
+//! and its entry in the metadata's list of parameters, from the metadata
+//! of that day. Nothing in them is made up.
+//!
 //! The crate's own tests run the pipeline over them. The server's
 //! development mode does the same and serves the result, so client work
 //! needs neither the network nor a database.
@@ -34,7 +42,7 @@ pub fn recorded() -> Vec<(String, &'static [u8])> {
         ),
         (
             format!(
-                "{DATASET}?parameters=FF,FFX,DD,DDX,TL,RF,P\
+                "{DATASET}?parameters=FF,FFX,DD,DDX,TL,RF,P,PRED\
                  &station_ids=11126,11320,11343&output_format=geojson"
             ),
             include_bytes!("../tests/fixtures/current.json").as_slice(),

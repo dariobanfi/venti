@@ -180,7 +180,8 @@
         "wind_gust_ms": 2.1,
         "wind_direction_deg": 190.0,
         "temperature_c": 7.8,
-        "pressure_hpa": 949.5
+        "pressure_hpa": 949.5,
+        "pressure_sea_level_hpa": 1000.2
       }
     },
     {
@@ -200,7 +201,8 @@
         "gust_direction_deg": 244.0,
         "temperature_c": 7.8,
         "humidity_pct": 84.0,
-        "pressure_hpa": 930.9
+        "pressure_hpa": 930.9,
+        "pressure_sea_level_hpa": 1001.7
       }
     },
     {
@@ -218,7 +220,8 @@
         "wind_gust_ms": 2.1,
         "wind_direction_deg": 190.0,
         "temperature_c": 7.8,
-        "pressure_hpa": 948.0
+        "pressure_hpa": 948.0,
+        "pressure_sea_level_hpa": 1001.0
       }
     },
     {
@@ -503,7 +506,7 @@
         "wind_direction_deg": 69.5,
         "temperature_c": 6.0,
         "humidity_pct": 90.8,
-        "pressure_sea_level_hpa": 1004.4
+        "pressure_sea_level_hpa": 1007.9
       }
     }
   ],

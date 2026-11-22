@@ -2,9 +2,10 @@
 //! each pair of stations, and what it says about foehn.
 //!
 //! Answered from the store: each station's readings of the last 24 hours,
-//! its pressure at sea level in each (the provider's own, or reduced here
-//! from the pressure at the station), and the rule of the flight engine
-//! ([`venti_flight::foehn`]) over the newest two. A pair with a missing
+//! its pressure at sea level in each (the provider's own, or, where it
+//! sends none, reduced here from the pressure at the station, which is
+//! said with it and may be off by hectopascals), and the rule of the flight
+//! engine ([`venti_flight::foehn`]) over the newest two. A pair with a missing
 //! reading, or one older than an hour, has the level `unknown` and says
 //! why; that is never "no foehn". Public, like the stations themselves.
 
@@ -156,10 +157,13 @@ fn judged(
 ) -> FoehnPair {
     let judgement = foehn::judge(south_series.last(), north_series.last(), now.timestamp());
     let (level, unknown_because, difference, higher) = match judgement {
+        // Whether the difference is sure is in the two stations'
+        // `reduced_by`, from which the core and the tools read it.
         Judgement::Known {
             difference,
             higher,
             level,
+            sure: _,
         } => (wire_level(level), None, Some(difference), higher),
         Judgement::Unknown(why) => (FoehnLevel::Unknown, Some(wire_unknown(why)), None, None),
     };

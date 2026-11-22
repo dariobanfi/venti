@@ -49,7 +49,8 @@
       "gust_direction_deg": 244.0,
       "temperature_c": 7.8,
       "humidity_pct": 84.0,
-      "pressure_hpa": 930.9
+      "pressure_hpa": 930.9,
+      "pressure_sea_level_hpa": 1001.7
     },
     {
       "station": "geosphere-tawes:11343",

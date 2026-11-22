@@ -1625,11 +1625,14 @@ pub async fn recorded_with_its_store(
 /// Made-up pressures for the foehn reading's two pairs, so that this mode
 /// shows one pair at "likely" and one at "none".
 ///
-/// Bolzano's pressure at sea level stands 6.2 hPa above what Innsbruck's
-/// recorded pressure reduces to, after rising against it all day: south
-/// foehn likely. Klagenfurt and Salzburg, two stations the recordings do
-/// not have and that get a light made-up wind with it, stand 0.8 hPa
-/// apart: no sign. Each station gets a value every
+/// Bolzano's pressure at sea level stands 6.2 hPa above Innsbruck's, which
+/// is the recorded one as GeoSphere reduced it, after rising against it
+/// all day: south foehn likely. Klagenfurt and Salzburg, two stations the
+/// recordings do not have and that get a light made-up wind with it, stand
+/// 0.8 hPa apart: no sign. Every one of the four is reduced to sea level
+/// by its provider, as on the owner's server: the province sends Bolzano's
+/// so, and GeoSphere the three others' beside the pressure at the station.
+/// Each station gets a value every
 /// two hours of the last day, back from its newest recorded reading and
 /// never after it, so that no station's newest reading becomes one without
 /// a wind. The runs are dated a day and an hour back, behind the recorded
@@ -1644,9 +1647,9 @@ async fn add_made_up_pressures(store: &MemoryStore, now: Timestamp) -> Result<()
     const STEPS: i32 = 12;
     // Stations send their pressure to a tenth of a hectopascal.
     let tenth = |hpa: f64| (hpa * 10.0).round() / 10.0;
-    // Innsbruck's recorded reading, 930.9 hPa at 578 m and 7.8 °C, reduced
-    // to sea level.
-    let innsbruck_hpa = reduce_to_sea_level(930.9, 578.0, 7.8);
+    // Innsbruck's recorded reading as GeoSphere reduced it to sea level:
+    // 930.9 hPa at the station and 7.8 °C.
+    let innsbruck_hpa = 1001.7;
     // Each station: its name and height where the recordings do not have
     // it, the pressure at sea level now, and how much lower it was a step
     // earlier.
@@ -1693,16 +1696,22 @@ async fn add_made_up_pressures(store: &MemoryStore, now: Timestamp) -> Result<()
             let mut observation =
                 Observation::empty(id.clone(), newest - Duration::hours(2) * step);
             let hpa = hpa_now - fall * f64::from(step);
-            if id.source().as_str() == "suedtirol-meteo" {
-                // The province sends its pressure reduced to sea level.
-                observation.pressure_sea_level_hpa = Some(tenth(hpa));
-            } else {
-                // GeoSphere sends the pressure at the station: the one that
-                // reduces to `hpa` at 7.8 °C.
-                let elevation_m = station.elevation_m.unwrap_or_default();
+            // Both providers send the pressure reduced to sea level.
+            observation.pressure_sea_level_hpa = Some(tenth(hpa));
+            if id.source().as_str() != "suedtirol-meteo" {
+                // GeoSphere sends the pressure at the station with it:
+                // Innsbruck's as far under the reduced one as in its
+                // recorded reading, which stays as it was recorded, and a
+                // made-up station's by Venti's formula at 7.8 °C and its
+                // height.
+                let at_station = if unknown.is_none() {
+                    930.9 / innsbruck_hpa
+                } else {
+                    let elevation_m = station.elevation_m.unwrap_or_default();
+                    1.0 / reduce_to_sea_level(1.0, elevation_m, 7.8)
+                };
                 observation.temperature_c = Some(7.8);
-                observation.pressure_hpa =
-                    Some(tenth(hpa / reduce_to_sea_level(1.0, elevation_m, 7.8)));
+                observation.pressure_hpa = Some(tenth(hpa * at_station));
             }
             // A station this mode makes up has a wind in its newest
             // reading, as every recorded one has: light, from the south.

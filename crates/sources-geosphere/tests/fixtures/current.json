@@ -97,6 +97,17 @@
        null,
        760.4
       ]
+     },
+     "PRED": {
+      "name": "Reduzierter Luftdruck",
+      "unit": "hPa",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       835.8
+      ]
      }
     },
     "station": "11126"
@@ -188,6 +199,17 @@
        null,
        null,
        930.9
+      ]
+     },
+     "PRED": {
+      "name": "Reduzierter Luftdruck",
+      "unit": "hPa",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       1001.7
       ]
      }
     },
@@ -281,11 +303,22 @@
        null,
        681.6
       ]
+     },
+     "PRED": {
+      "name": "Reduzierter Luftdruck",
+      "unit": "hPa",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       790.6
+      ]
      }
     },
     "station": "11343"
    }
   }
  ],
- "datapoints": 105
+ "datapoints": 120
 }

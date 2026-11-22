@@ -10,6 +10,25 @@
 //! station and parameter, a list of values aligned with it. A station has
 //! values only at its own newest time stamp; the other positions are null.
 //!
+//! The pressure comes twice: `P`, at the station's own height, and `PRED`,
+//! "Reduzierter Luftdruck", which GeoSphere reduces to sea level itself.
+//! `PRED` goes into a field of its own, `pressure_sea_level_hpa`, which the
+//! foehn reading compares; Venti's own reduction of `P` from the height the
+//! metadata lists read 3.7 hPa lower than `PRED` at Innsbruck's university
+//! on 2026-11-22, because that height is not the barometer's and the
+//! metadata names no other. By which method GeoSphere reduces is not on
+//! the pages read that day: to verify.
+//!
+//! `PRED` is a pressure at sea level only at the lower stations. At the
+//! higher ones it carries the height of a pressure surface instead, as a
+//! weather report's group for a mountain station does: the metadata calls
+//! `PGPM`, the geopotential, "gültiger Wert bei pred < 950 hPa". On
+//! 2026-11-22 the 170 stations up to 890 m sent 1008.1 to 1015.7 hPa, and
+//! the 68 from 909 m up sent 795.1 to 843.2, each exactly 700 (or 500)
+//! plus a tenth of its `PGPM`: 840.3 beside 1403 gpm. Such a value is not
+//! a pressure and is not taken ([`SEA_LEVEL_FROM_HPA`]). Two stations sent
+//! `P` and no `PRED` at all.
+//!
 //! Whether a TAWES time stamp marks the start or the end of its interval is
 //! not stated in the pages read on 2026-11-18. It is treated as the end, as
 //! for the other sources. To verify.
@@ -31,7 +50,14 @@ struct Parameter {
     set: fn(&mut Observation, f64),
 }
 
-const PARAMETERS: [Parameter; 7] = [
+/// From this value a `PRED` is a pressure reduced to sea level, hPa. Below
+/// it the station is a high one and the value encodes the height of a
+/// pressure surface: the limit is the metadata's own, in its description
+/// of `PGPM` (read 2026-11-22). No pressure at sea level in Austria has
+/// been this low.
+pub const SEA_LEVEL_FROM_HPA: f64 = 950.0;
+
+const PARAMETERS: [Parameter; 8] = [
     Parameter {
         name: "FF",
         set: |o, v| o.wind_speed_ms = Some(v),
@@ -59,6 +85,14 @@ const PARAMETERS: [Parameter; 7] = [
     Parameter {
         name: "P",
         set: |o, v| o.pressure_hpa = Some(v),
+    },
+    Parameter {
+        name: "PRED",
+        set: |o, v| {
+            if v >= SEA_LEVEL_FROM_HPA {
+                o.pressure_sea_level_hpa = Some(v);
+            }
+        },
     },
 ];
 
@@ -269,6 +303,57 @@ mod tests {
     use chrono::TimeZone;
 
     use super::*;
+
+    /// A station's values at one time stamp, as the service answers.
+    fn current(station: &str, parameters: &str) -> Vec<u8> {
+        format!(
+            r#"{{"timestamps": ["2026-11-22T09:00+00:00"], "features": [{{"properties":
+                {{"station": "{station}", "parameters": {{{parameters}}}}}}}]}}"#
+        )
+        .into_bytes()
+    }
+
+    fn observation(station: &str, parameters: &str) -> Observation {
+        let source = SourceId::new("geosphere-tawes").unwrap();
+        let mut parsed = parse_current(&source, &current(station, parameters)).unwrap();
+        assert!(parsed.skipped.is_empty());
+        assert_eq!(parsed.observations.len(), 1);
+        parsed.observations.remove(0)
+    }
+
+    #[test]
+    fn the_reduced_pressure_is_taken_beside_the_stations_own() {
+        // Innsbruck's university on 22 November 2026 at 09:00 UTC.
+        let innsbruck = observation(
+            "11320",
+            r#""TL": {"data": [2.8]}, "P": {"data": [938.7]}, "PRED": {"data": [1011.5]}"#,
+        );
+        assert_eq!(innsbruck.pressure_hpa, Some(938.7));
+        assert_eq!(innsbruck.pressure_sea_level_hpa, Some(1011.5));
+    }
+
+    #[test]
+    fn a_station_without_a_pressure_at_sea_level_has_none() {
+        // The Patscherkofel at 2251 m the same morning: its `PRED` is the
+        // height of the 850 hPa surface, 1407 gpm, in a report's code.
+        let patscherkofel = observation(
+            "11126",
+            r#""TL": {"data": [-3.0]}, "P": {"data": [764.8]}, "PRED": {"data": [840.7]}"#,
+        );
+        assert_eq!(patscherkofel.pressure_hpa, Some(764.8));
+        assert_eq!(patscherkofel.pressure_sea_level_hpa, None);
+
+        // Frohnleiten sent the pressure at the station and no reduced one
+        // (at 09:10 UTC); a station may leave the parameter out altogether.
+        for parameters in [
+            r#""P": {"data": [961.9]}, "PRED": {"data": [null]}"#,
+            r#""P": {"data": [961.9]}"#,
+        ] {
+            let frohnleiten = observation("11249", parameters);
+            assert_eq!(frohnleiten.pressure_hpa, Some(961.9));
+            assert_eq!(frohnleiten.pressure_sea_level_hpa, None);
+        }
+    }
 
     #[test]
     fn reads_time_stamps_with_and_without_seconds() {

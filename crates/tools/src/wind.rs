@@ -19,7 +19,7 @@ use venti_api_types::v1::{
     Attribution, ErrorCode, ObservationsRequest, ObservationsResponse, Reading, StationsRequest,
     StationsResponse,
 };
-use venti_api_types::v1::{FOEHN_PATH, FoehnResponse, FoehnSide, FoehnUnknown};
+use venti_api_types::v1::{FOEHN_PATH, FoehnReducedBy, FoehnResponse, FoehnSide, FoehnUnknown};
 use venti_domain::{BoundingBox, GeoPoint, StationId};
 
 use crate::{Tool, ToolError, source_text};
@@ -192,7 +192,8 @@ pub fn result(
 /// The foehn reading as the model gets it: each pair with its difference,
 /// its level and its last 24 hours, and the caution. A pair without two
 /// fresh readings has the level `unknown` and the reason; nothing here
-/// says "no foehn".
+/// says "no foehn". A pair with a pressure that Venti reduced to sea level
+/// itself says that its level is not sure.
 pub fn foehn(answer: &FoehnResponse) -> Value {
     let pairs: Vec<Value> = answer
         .pairs
@@ -235,6 +236,26 @@ pub fn foehn(answer: &FoehnResponse) -> Value {
                     FoehnSide::South => "south foehn, in the valleys north of the ridge",
                     FoehnSide::North => "north foehn, in the valleys south of the ridge",
                 });
+            }
+            // A pressure Venti reduced itself from the station's listed
+            // height may be off by hectopascals, and the level with it.
+            let reduced_here: Vec<&str> = [&pair.south, &pair.north]
+                .iter()
+                .filter(|station| {
+                    station
+                        .pressure
+                        .is_some_and(|pressure| pressure.reduced_by == FoehnReducedBy::Venti)
+                })
+                .map(|station| station.name.as_str())
+                .collect();
+            if pair.difference_hpa.is_some() && !reduced_here.is_empty() {
+                entry["not_sure_because"] = json!(format!(
+                    "Venti reduced the pressure of {} to sea level itself, from the station's \
+                     listed height and its temperature, because the provider sent none. That \
+                     can be off by several hPa, and the level with it: say so, and do not \
+                     warn of foehn on this pair alone.",
+                    reduced_here.join(" and ")
+                ));
             }
             entry["last_24_hours"] = pair
                 .series
@@ -941,6 +962,40 @@ mod tests {
         );
         assert!(fail(502, "<html>").contains("502"));
         assert!(fail(200, "not json").contains("could not be read"));
+    }
+
+    #[test]
+    fn a_foehn_pair_with_a_pressure_venti_reduced_says_that_it_is_not_sure() {
+        let answer = |north_by: &str| {
+            let text = format!(
+                r#"{{
+                "time": "2026-11-22T09:05:00Z",
+                "possible_from_hpa": 3.0, "likely_from_hpa": 6.0, "fresh_for_s": 3600,
+                "pairs": [{{
+                    "id": "bolzano-innsbruck",
+                    "south": {{"id": "suedtirol-meteo:83200MS", "source": "suedtirol-meteo",
+                        "name": "Bolzano", "position": {{"lat": 46.4977, "lon": 11.3128}},
+                        "pressure": {{"time": "2026-11-22T09:00:00Z", "sea_level_hpa": 1014.5,
+                                      "reduced_by": "provider"}}}},
+                    "north": {{"id": "geosphere-tawes:11320", "source": "geosphere-tawes",
+                        "name": "Innsbruck", "position": {{"lat": 47.26, "lon": 11.3842}},
+                        "pressure": {{"time": "2026-11-22T09:00:00Z", "sea_level_hpa": 1007.8,
+                                      "reduced_by": "{north_by}"}}}},
+                    "level": "likely", "difference_hpa": 6.7,
+                    "difference_time": "2026-11-22T09:00:00Z",
+                    "higher": "south", "foehn": "south",
+                    "series": [], "to_verify": false, "basis": "The province's chart."
+                }}],
+                "caution": "A sign, not a measurement.", "attributions": []
+            }}"#
+            );
+            foehn(&serde_json::from_str(&text).unwrap())
+        };
+        let ours = answer("venti");
+        let said = ours["pairs"][0]["not_sure_because"].as_str().unwrap();
+        assert!(said.contains("Innsbruck") && !said.contains("Bolzano"));
+        assert!(said.contains("several hPa"));
+        assert!(answer("provider")["pairs"][0]["not_sure_because"].is_null());
     }
 
     #[test]

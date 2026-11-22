@@ -34,10 +34,28 @@
 //!   that day names a pair or a limit inside the first region.
 //!
 //! The pressure has to be at one level to be compared. A provider's own
-//! reduction to sea level is taken where it sends one; else the pressure at
-//! the station is reduced here ([`reduce_to_sea_level`]), which a cold
-//! valley floor makes wrong by a hectopascal or more. So the figures are
-//! whole hectopascals, and the level is chosen from the figure as shown.
+//! reduction to sea level is taken where it sends one: the province's for
+//! Bolzano, GeoSphere Austria's for the Austrian stations. Only where a
+//! station sends nothing but the pressure at its own height is that
+//! reduced here ([`reduce_to_sea_level`]), from the height the provider
+//! names for the station. That is the ground's and not the barometer's:
+//! measured on 2026-11-22 at 09:00 UTC, Innsbruck's university sent 938.7
+//! hPa at 2.8 °C and a height of 578 m, which reduces here to 1007.8 hPa,
+//! where GeoSphere's own reduction of the same reading was 1011.5 hPa and
+//! the airfield's report agreed with GeoSphere. 3.7 hPa is more than the
+//! step from "possible" to "likely". So a difference with a pressure
+//! reduced here on either side is not sure (`sure` of [`Judgement::Known`]):
+//! it is shown for what it is, and warns nobody on its own.
+//!
+//! The two providers reduce by their own methods, which neither describes
+//! on a page that could be read on 2026-11-22. GeoSphere's value follows
+//! the day's temperature: it stood about 2 hPa above the altimeter setting
+//! of Innsbruck's airfield in air of 2 °C, as the textbook reduction does.
+//! Bolzano's stood within the airfield's altimeter setting, where a
+//! reduction by the day's temperature would stand about 1 hPa above it. So
+//! a difference of about a hectopascal between the methods is possible in
+//! cold air: *to verify*. The figures are whole hectopascals, and the
+//! level is chosen from the figure as shown.
 //!
 //! A difference says that air is pushed over the ridge. It does not say
 //! that the foehn has reached a valley's floor, nor that it has not: foehn
@@ -103,8 +121,8 @@ pub struct Pair {
 }
 
 /// The pairs of the first region. Each station is one the region collects
-/// and that sends its pressure: Bolzano reduced to sea level by the
-/// province, the Austrian stations at their own height.
+/// and that sends its pressure reduced to sea level: Bolzano by the
+/// province, the Austrian stations by GeoSphere Austria.
 pub const PAIRS: [Pair; 2] = [
     Pair {
         id: "bolzano-innsbruck",
@@ -180,7 +198,15 @@ pub struct SeaLevelPressure {
 /// m/s², `R` = 287.05 J/(kg·K) for dry air and `T` in kelvin. The weather
 /// services add the air's moisture and smooth the temperature over twelve
 /// hours (to verify against DWD's and GeoSphere's own practice); this does
-/// neither, and reads too high over a cold valley floor.
+/// neither.
+///
+/// The height weighs most: 8 m are a hectopascal. A provider's list gives
+/// a station's height, which need not be its barometer's. Against
+/// GeoSphere's own reduction on 2026-11-22 this read 0.7 hPa low at
+/// Innsbruck's airfield and 3.7 hPa low at the university, both listed at
+/// 578 m, the second with a barometer that reads as if it hung 25 to 30 m
+/// higher. GeoSphere's metadata names no barometer height. So a value from
+/// here may be off by hectopascals, and nothing warns a pilot on it alone.
 #[must_use]
 pub fn reduce_to_sea_level(pressure_hpa: f64, elevation_m: f64, temperature_c: f64) -> f64 {
     const GRAVITY: f64 = 9.806_65;
@@ -304,6 +330,11 @@ pub enum Judgement {
         /// is south foehn with the south higher and north foehn with the
         /// north higher.
         level: Level,
+        /// Whether both pressures were reduced to sea level by their
+        /// providers. Where one was reduced here it may be off by
+        /// hectopascals, and the level with it: a caller shows such a
+        /// difference with that said, and gives no warning on it.
+        sure: bool,
     },
     /// Nothing can be said, and why. Never "no foehn".
     Unknown(Unknown),
@@ -344,6 +375,7 @@ pub fn judge_together(south: &SeaLevelPressure, north: &SeaLevelPressure) -> Jud
             difference,
             higher: higher(difference.hpa),
             level: level(difference.hpa),
+            sure: !south.reduced_here && !north.reduced_here,
         },
         None => Judgement::Unknown(Unknown::Apart),
     }
@@ -392,7 +424,11 @@ mod tests {
                 difference,
                 higher,
                 level,
-            } => (difference.hpa, higher, level),
+                sure,
+            } => {
+                assert!(sure, "both are the providers' own");
+                (difference.hpa, higher, level)
+            }
             Judgement::Unknown(why) => panic!("no judgement: {why:?}"),
         }
     }
@@ -516,6 +552,64 @@ mod tests {
         assert_eq!(at_sea_level(&reading, Some(2251.0)), None);
         reading.temperature_c = None;
         assert_eq!(at_sea_level(&reading, Some(578.0)), None);
+    }
+
+    /// 22 November 2026, 09:00 UTC, as the providers sent it.
+    #[test]
+    fn the_morning_of_22_november_2026_is_possible_and_not_likely() {
+        let at = 1_795_338_000;
+        let reading = |pressure_hpa, pressure_sea_level_hpa, temperature_c| StationReading {
+            time_unix_s: at,
+            pressure_hpa,
+            pressure_sea_level_hpa,
+            temperature_c,
+        };
+        // Bolzano as the province reduces it; Innsbruck's university with
+        // the pressure at the station and GeoSphere's own reduction of it.
+        let bolzano = at_sea_level(&reading(None, Some(1014.5), Some(2.4)), Some(245.0)).unwrap();
+        let innsbruck = reading(Some(938.7), Some(1011.5), Some(2.8));
+        let theirs = at_sea_level(&innsbruck, Some(578.0)).unwrap();
+        assert_eq!(
+            judge(Some(&bolzano), Some(&theirs), at + 600),
+            Judgement::Known {
+                difference: Difference {
+                    time_unix_s: at,
+                    hpa: 3.0
+                },
+                higher: Some(Side::South),
+                level: Level::Possible,
+                sure: true,
+            }
+        );
+
+        // What Venti said that morning, from the station's pressure and
+        // its listed height: 1007.8 hPa, and "likely" on 6.7 hPa. The
+        // rule still shows it, and no longer calls it sure.
+        let ours = at_sea_level(
+            &StationReading {
+                pressure_sea_level_hpa: None,
+                ..innsbruck
+            },
+            Some(578.0),
+        )
+        .unwrap();
+        assert!((ours.hpa - 1007.8).abs() < 0.1, "{}", ours.hpa);
+        assert!(matches!(
+            judge(Some(&bolzano), Some(&ours), at + 600),
+            Judgement::Known {
+                level: Level::Likely,
+                sure: false,
+                ..
+            }
+        ));
+        // Ours on the southern side is no surer.
+        assert!(matches!(
+            judge(Some(&ours), Some(&theirs), at + 600),
+            Judgement::Known { sure: false, .. }
+        ));
+        // A barometer 30 m above the height GeoSphere lists would explain
+        // it: no height in its metadata says so.
+        assert!((reduce_to_sea_level(938.7, 608.0, 2.8) - 1011.5).abs() < 0.3);
     }
 
     #[test]

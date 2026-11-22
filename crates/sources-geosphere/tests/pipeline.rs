@@ -15,7 +15,7 @@ const METADATA: &str =
 /// The request the adapter must build from the recorded metadata: one call
 /// for the three active stations, in the order the metadata lists them.
 const CURRENT: &str = "https://dataset.api.hub.geosphere.at/v1/station/current/tawes-v1-10min\
-    ?parameters=FF,FFX,DD,DDX,TL,RF,P&station_ids=11126,11320,11343&output_format=geojson";
+    ?parameters=FF,FFX,DD,DDX,TL,RF,P,PRED&station_ids=11126,11320,11343&output_format=geojson";
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -63,6 +63,18 @@ fn a_recorded_run_matches_the_golden_file() {
     // The inactive station in the metadata is neither listed nor requested.
     assert_eq!(output.stations.len(), 3);
     assert_eq!(output.observations.len(), 3);
+    // GeoSphere's own reduction to sea level is taken for Innsbruck in the
+    // valley, beside the pressure at the station. The two mountain
+    // stations' `PRED`, 835.8 and 790.6, is the height of a pressure
+    // surface in a report's code and no pressure: left out, and not
+    // reported as a rejected value in every run.
+    let reduced: Vec<Option<f64>> = output
+        .observations
+        .iter()
+        .map(|observation| observation.pressure_sea_level_hpa)
+        .collect();
+    assert_eq!(reduced, [None, Some(1001.7), None]);
+    assert!(output.report.rejected.is_empty());
 
     assert_golden(&golden("recorded_run.json"), &output);
 }

@@ -613,7 +613,7 @@ curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.4,11.0,47.5'
 | `latest.wind_speed_ms`, `wind_gust_ms` | Mean wind and strongest gust of the interval |
 | `latest.wind_direction_deg`, `gust_direction_deg` | Where the wind and the strongest gust came from |
 | `latest.temperature_c`, `humidity_pct`, `pressure_hpa` | Air temperature, relative humidity, pressure at the station |
-| `latest.pressure_sea_level_hpa` | The pressure reduced to sea level by the provider's own reduction, hPa. Only from a station whose provider sends it so (South Tyrol's); the [foehn reading](#get-v1foehn) compares it |
+| `latest.pressure_sea_level_hpa` | The pressure reduced to sea level by the provider's own reduction, hPa. Only from a station whose provider sends it so (South Tyrol's, and GeoSphere Austria's up to about 900 m); the [foehn reading](#get-v1foehn) compares it |
 | `truncated` | `true` when the box holds more than 5000 stations. The answer then lists the first 5000 by source and identifier; ask for a smaller box |
 
 Stations are sorted by source and then by identifier.
@@ -4423,7 +4423,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
         "elevation_m": 245.0,
         "pressure": {
           "time": "2026-11-18T18:50:00Z",
-          "sea_level_hpa": 1004.4,
+          "sea_level_hpa": 1007.9,
           "reduced_by": "provider"
         }
       },
@@ -4438,8 +4438,8 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
         "elevation_m": 578.0,
         "pressure": {
           "time": "2026-11-18T19:00:00Z",
-          "sea_level_hpa": 998.2,
-          "reduced_by": "venti"
+          "sea_level_hpa": 1001.7,
+          "reduced_by": "provider"
         }
       },
       "level": "likely",
@@ -4514,7 +4514,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
         "pressure": {
           "time": "2026-11-18T18:50:00Z",
           "sea_level_hpa": 1001.0,
-          "reduced_by": "venti"
+          "reduced_by": "provider"
         }
       },
       "north": {
@@ -4529,7 +4529,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
         "pressure": {
           "time": "2026-11-18T18:50:00Z",
           "sea_level_hpa": 1000.2,
-          "reduced_by": "venti"
+          "reduced_by": "provider"
         }
       },
       "level": "none",
@@ -4539,7 +4539,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
       "series": [
         {
           "time": "2026-11-17T20:50:00Z",
-          "difference_hpa": 0.7
+          "difference_hpa": 0.8
         },
         {
           "time": "2026-11-17T22:50:00Z",
@@ -4547,7 +4547,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
         },
         {
           "time": "2026-11-18T00:50:00Z",
-          "difference_hpa": 0.7
+          "difference_hpa": 0.8
         },
         {
           "time": "2026-11-18T02:50:00Z",
@@ -4555,7 +4555,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
         },
         {
           "time": "2026-11-18T04:50:00Z",
-          "difference_hpa": 0.7
+          "difference_hpa": 0.8
         },
         {
           "time": "2026-11-18T06:50:00Z",
@@ -4563,7 +4563,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
         },
         {
           "time": "2026-11-18T08:50:00Z",
-          "difference_hpa": 0.7
+          "difference_hpa": 0.8
         },
         {
           "time": "2026-11-18T10:50:00Z",
@@ -4618,7 +4618,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
 | `pairs[].id` | A stable name for the pair |
 | `pairs[].south`, `north` | The station south and the station north of the ridge: its `id` (its readings are at [`/v1/stations/{id}/observations`](#get-v1stationsidobservationsfromto)), `source`, the place's `name` as pilots say it, `position`, and `elevation_m` if the server knows the station |
 | `pairs[].south.pressure`, `north.pressure` | The station's newest pressure at sea level of the last 24 hours, however old: `time`, `sea_level_hpa` to a tenth, and `reduced_by`. Left out when the server holds none |
-| `…pressure.reduced_by` | `provider`: the provider sends the pressure reduced to sea level (South Tyrol). `venti`: the provider sends the pressure at the station, and the server reduced it from the station's height and temperature by the barometric formula, which over a cold valley floor reads a hectopascal or more too high. Only for stations up to 1000 m |
+| `…pressure.reduced_by` | `provider`: the provider sends the pressure reduced to sea level (South Tyrol and GeoSphere Austria, so all four stations of the two pairs). `venti`: the provider sent only the pressure at the station, and the server reduced it by the barometric formula from the station's temperature and the height the provider lists for it, which need not be the barometer's: on 2026-11-22 that read 3.7 hPa low at Innsbruck. Only for stations up to 1000 m. **A difference with a `venti` on either side is not sure**: the level is still what the two numbers say, a client shows it with that said, and it is no ground for a warning; the Venti apps give such a pair no line on Today |
 | `pairs[].level` | `unknown`, `none`, `possible` or `likely`, chosen from the difference in whole hectopascals, halves upwards |
 | `pairs[].unknown_because` | With `unknown` only: `south_missing`, `north_missing` (no pressure that can be compared), `south_old`, `north_old` (older than an hour), `apart` (the two readings are more than 30 minutes apart) |
 | `pairs[].difference_hpa`, `difference_time` | The pressure in the south less the pressure in the north, to a tenth, and the time of the older of the two readings. Left out with `unknown` |
@@ -4629,7 +4629,7 @@ Air is pushed over the ridge from the side with the higher pressure and falls in
 | `caution` | What the reading does not say |
 | `attributions[]` | The credit of every source that has a pressure in the answer |
 
-The development mode's pressures are made up, so that one pair stands at `likely` and one at `none`: Bolzano 6.2 hPa above what Innsbruck's recorded 930.9 hPa at 578 m and 7.8 °C reduces to, after rising against it all day; Klagenfurt and Salzburg, two stations the recordings do not have and this mode makes up with a pressure, a temperature and a light wind, 0.8 hPa apart.
+The development mode's pressures are made up, so that one pair stands at `likely` and one at `none`, each on pressures reduced by the providers: Bolzano 6.2 hPa above Innsbruck's recorded 1001.7 hPa, which is GeoSphere's own reduction of the recorded 930.9 hPa at the station, after rising against it all day; Klagenfurt and Salzburg, two stations the recordings do not have and this mode makes up with their pressures, a temperature and a light wind, 0.8 hPa apart.
 
 ## Maps
 

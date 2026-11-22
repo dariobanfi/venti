@@ -147,8 +147,12 @@ pub struct FoehnPressure {
 pub enum FoehnReducedBy {
     /// The provider sends it so.
     Provider,
-    /// Venti, from the pressure at the station, its height and its
-    /// temperature, by the barometric formula.
+    /// Venti, from the pressure at the station, its temperature and the
+    /// height the provider lists for it, by the barometric formula, because
+    /// the provider sent no reduced pressure. The height need not be the
+    /// barometer's, so the value may be off by several hectopascals: a
+    /// difference with it on either side is not sure, and no ground for a
+    /// warning.
     Venti,
 }
 

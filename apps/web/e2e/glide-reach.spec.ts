@@ -17,10 +17,14 @@ test('a click near the Wallberg offers what a glide reaches from there, and draw
 	wide,
 	problems
 }) => {
-	// The wind's arrows, the sites' signs and the gliders stay off the map,
-	// so that a click on the summit is a click on the place.
+	// The wind's arrows, the sites' signs, the gliders and the cables (the
+	// Wallbergbahn runs up to the summit) stay off the map, so that a click
+	// on the summit is a click on the place.
 	await page.addInitScript(() =>
-		localStorage.setItem('venti.map-layers-off', JSON.stringify(['wind', 'sites', 'pilots']))
+		localStorage.setItem(
+			'venti.map-layers-off',
+			JSON.stringify(['wind', 'sites', 'pilots', 'cables'])
+		)
 	);
 	await page.goto('/?lat=47.6642&lon=11.7967');
 	await mapTabDrawn(page, mapDrawn);

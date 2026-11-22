@@ -72,7 +72,7 @@ test('signed in, the home page has the pilot’s alarms', async ({ page, keep })
 	await page.goto('/settings/account/');
 	await page.getByRole('textbox', { name: 'Handle', exact: true }).fill('demo');
 	await page.getByRole('textbox', { name: 'Password', exact: true }).fill('demo-pilot-password');
-	await page.getByRole('button', { name: 'Sign in' }).click();
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(metric(page, 'Handle')).toHaveText('@demo');
 
 	await page

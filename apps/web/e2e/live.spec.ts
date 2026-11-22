@@ -249,6 +249,8 @@ test('a glider nothing was heard of for a while is drawn held back, and never ca
 		if (track.id === FLYING.id) track.latest.time = '2026-11-18T18:58:00Z';
 	};
 	await context.route('**/v1/live**', async (route) => {
+		// Others in the air (`/v1/live/others`) are the gliding network's, not Venti's.
+		if (new URL(route.request().url()).pathname === '/v1/live/others') return route.continue();
 		const response = await route.fetch();
 		if (response.status() !== 200) return route.fulfill({ response });
 		const answer = await response.json();

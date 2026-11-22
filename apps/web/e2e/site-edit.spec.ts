@@ -79,7 +79,7 @@ async function signInAsPartner(page: Page): Promise<void> {
 	await page.goto('/settings/account/');
 	await field(page, 'Handle').fill(DEMO.handle);
 	await field(page, 'Password').fill(DEMO.password);
-	await page.getByRole('button', { name: 'Sign in' }).click();
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(metric(page, 'Handle')).toHaveText(`@${DEMO.handle}`);
 }
 
@@ -679,7 +679,7 @@ test('signed out, the entry on the map says to sign in and leads to the account'
 	await keep('167m-site-add-signed-out');
 	await entry.click();
 	await expect(page).toHaveURL(/\/settings\/account\/?$/);
-	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 
 	expect(problems).toEqual([]);
 });

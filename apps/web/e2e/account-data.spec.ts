@@ -9,7 +9,7 @@
  */
 
 import type { Page } from '@playwright/test';
-import { expect, metric, test } from './helpers';
+import { expect, metric, test, withPasswordForm } from './helpers';
 
 /** A handle nobody has used on this server: a letter, then letters and digits. */
 function newHandle(): string {
@@ -62,6 +62,7 @@ test('a kept take-off goes to the pilot’s account and comes back in a browser 
 	// Another browser, which holds nothing, signs in to the same account
 	// and has the take-off from it.
 	const elsewhere = await browser.newContext({ baseURL });
+	await withPasswordForm(elsewhere);
 	try {
 		const second = await elsewhere.newPage();
 		await second.goto('/settings/');
@@ -73,7 +74,7 @@ test('a kept take-off goes to the pilot’s account and comes back in a browser 
 			.click();
 		await field(second, 'Handle').fill(handle);
 		await field(second, 'Password').fill(PASSWORD);
-		await second.getByRole('button', { name: 'Sign in' }).click();
+		await second.getByRole('button', { name: 'Sign in', exact: true }).click();
 		await expect(metric(second, 'Handle')).toHaveText(`@${handle}`);
 		await sections(second).getByRole('link', { name: 'Settings', exact: true }).click();
 		const theirs = second.getByRole('list', { name: 'Your take-offs' });
@@ -129,7 +130,7 @@ test('a pilot gives a program access, sees its secret once, and withdraws the ac
 	const form = page.getByRole('dialog', { name: 'Give access' });
 	const give = form.getByRole('button', { name: 'Give access' });
 	await expect(form.getByText('What it may do')).toBeVisible();
-	await expect(form.getByRole('switch')).toHaveCount(12);
+	await expect(form.getByRole('switch')).toHaveCount(14);
 	await expect(form.getByText(/^Leave empty for access that does not end/)).toBeVisible();
 	await expect(form.getByText(/^Asked for so that nobody who picks up this device/)).toBeVisible();
 	await give.click();

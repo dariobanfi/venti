@@ -93,12 +93,12 @@ async function refused(call: () => unknown): Promise<string> {
 }
 
 describe('programs with access', () => {
-	it('has the core’s words for the screen and the form, with the twelve things to allow', async () => {
+	it('has the core’s words for the screen and the form, with the fourteen things to allow', async () => {
 		const { tokens } = await signedIn();
 		const form = tokens.form();
 		expect(form.title).toBe('Programs with access');
 		expect(form.submit).toBe('Give access');
-		expect(form.scopes).toHaveLength(12);
+		expect(form.scopes).toHaveLength(14);
 		expect(form.scopes[1]).toEqual({
 			scope: 'flights:read',
 			title: 'Flights: read',

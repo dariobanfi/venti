@@ -6,7 +6,14 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { test as base, expect, type Locator, type Page, type Request } from '@playwright/test';
+import {
+	test as base,
+	expect,
+	type BrowserContext,
+	type Locator,
+	type Page,
+	type Request
+} from '@playwright/test';
 import { serveBundledMap } from './bundled-map';
 
 /** The made-up sample flight, the one copy every app shares. */
@@ -41,6 +48,14 @@ interface Fixtures {
 	refused: string[];
 }
 
+/**
+ * Opens the account screen with its handle and password form in this
+ * context, as for a pilot who opened it last time. A second browser a test
+ * makes (`browser.newContext()`) needs it too, to sign in with a password.
+ */
+export const withPasswordForm = (context: BrowserContext) =>
+	context.addInitScript(() => localStorage.setItem('venti.account-with-password', '1'));
+
 export const test = base.extend<Fixtures>({
 	// Every page draws its map from the region in the repository. The
 	// account screen opens with its handle and password form, as for a
@@ -48,7 +63,7 @@ export const test = base.extend<Fixtures>({
 	// `google.spec.ts` closes it again.
 	context: async ({ context }, use) => {
 		await serveBundledMap(context);
-		await context.addInitScript(() => localStorage.setItem('venti.account-with-password', '1'));
+		await withPasswordForm(context);
 		await use(context);
 		// A routed request may still be on its way when the test ends: let go
 		// of every route without waiting for it, so that its handler's

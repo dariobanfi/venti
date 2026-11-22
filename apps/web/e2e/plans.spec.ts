@@ -13,7 +13,7 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { expect, metric, test } from './helpers';
+import { expect, metric, test, withPasswordForm } from './helpers';
 
 /** The development mode's group that the demo pilot keeps, and the code that lets a pilot in. */
 const MUSTERGRUPPE = {
@@ -194,6 +194,7 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 	// Another pilot, in a browser of their own, comes in with the code. A
 	// code that is none is refused in the core's words.
 	const others = await browser.newContext();
+	await withPasswordForm(others);
 	const other = await others.newPage();
 	await signUp(other, 'Mira Member');
 	await other.goto('/plans/groups/');

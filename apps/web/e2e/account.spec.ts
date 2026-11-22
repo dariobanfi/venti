@@ -29,7 +29,7 @@ async function signIn(page: Page, { handle, password } = DEMO): Promise<void> {
 	await page.goto('/settings/account/');
 	await field(page, 'Handle').fill(handle);
 	await field(page, 'Password').fill(password);
-	await page.getByRole('button', { name: 'Sign in' }).click();
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(metric(page, 'Handle')).toHaveText(`@${handle}`);
 }
 
@@ -62,7 +62,7 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	await expect(page).toHaveTitle('Account · Venti');
 	await expect(page.getByText('A flight stays private until you share it.')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'localhost:4173' })).toBeVisible();
-	const submit = page.getByRole('button', { name: 'Sign in' });
+	const submit = page.getByRole('button', { name: 'Sign in', exact: true });
 	await expect(submit).toBeDisabled();
 	await keep('24-account-sign-in');
 
@@ -110,7 +110,7 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	const asking = page.getByRole('alertdialog', { name: 'Sign out?' });
 	await expect(asking).toContainText('Your flights stay in this browser and on Venti.');
 	await asking.getByRole('button', { name: 'Sign out' }).click();
-	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
 	await expect(metric(page.getByLabel('All flights'), 'Flights')).toHaveText('3');
 
@@ -215,12 +215,12 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	await deleting.getByLabel('Password').fill(pilot.password);
 	await deleting.getByRole('button', { name: 'Delete account' }).click();
 	await expect(deleting).toBeHidden();
-	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 
 	// It is gone: nobody signs in to it any more.
 	await field(page, 'Handle').fill(pilot.handle);
 	await field(page, 'Password').fill(pilot.password);
-	await page.getByRole('button', { name: 'Sign in' }).click();
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page.getByRole('alert')).toHaveText('The handle or the password is wrong.');
 
 	// Nothing went wrong but what was meant to: the passwords the server
@@ -320,7 +320,7 @@ test('a flight cannot be shared before the pilot is signed in, and the sheet say
 	await keep('31-share-signed-out');
 	await sheet.getByRole('link', { name: 'Account' }).click();
 	await expect(page).toHaveTitle('Account · Venti');
-	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 });
 
 test('the form for a new account follows who may register on the server', async ({
@@ -363,7 +363,7 @@ test('the form for a new account follows who may register on the server', async 
 	await keep('53-account-new-closed');
 	await page.getByRole('radio', { name: 'Sign in' }).check();
 	await expect(field(page, 'Handle')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 
 	// A server older than the question says nothing, and may ask for a
 	// code: the field is offered, as it always was.
@@ -395,6 +395,6 @@ test('a site without a server has no account to sign in to, and says so', async 
 	await expect(
 		page.getByText('This copy of the app is served without Venti behind it, so there is no account')
 	).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Sign in' })).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeHidden();
 	await keep('32-account-no-server');
 });

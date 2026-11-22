@@ -18,7 +18,7 @@ async function signIn(page: Page): Promise<void> {
 	await page.goto('/settings/account/');
 	await field(page, 'Handle').fill(DEMO.handle);
 	await field(page, 'Password').fill(DEMO.password);
-	await page.getByRole('button', { name: 'Sign in' }).click();
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(metric(page, 'Handle')).toHaveText(`@${DEMO.handle}`);
 }
 

@@ -797,7 +797,7 @@ fn rank(takeoff: &TodayStanding) -> u8 {
         (Some(Flyability::Flyable), Some(Thermals::Big)) => 0,
         (Some(Flyability::Flyable), Some(Thermals::CrossCountry)) => 1,
         (Some(Flyability::Flyable), Some(Thermals::Local)) => 2,
-        (Some(Flyability::Flyable), Some(Thermals::Weak) | None) => 3,
+        (Some(Flyability::Flyable), Some(Thermals::Weak | Thermals::NoThermals) | None) => 3,
         (Some(Flyability::Marginal), _) => 4,
         (Some(Flyability::NotFlyable), _) => 5,
         (None, _) => 6,

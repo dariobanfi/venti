@@ -116,7 +116,10 @@ impl From<Flyability> for Verdict {
 )]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum Thermals {
-    /// None a paraglider climbs in, or none that reach above the take-off.
+    /// Nothing a paraglider climbs in above the take-off: less than
+    /// 0.2 m/s, or ending less than 100 m above it. A winter's day.
+    NoThermals,
+    /// Something to climb in above the take-off, less than local thermals.
     Weak,
     /// Enough to stay up around the take-off.
     Local,
@@ -130,6 +133,7 @@ impl Thermals {
     /// The kind of day in words, calm ones.
     pub(crate) fn words(self) -> &'static str {
         match self {
+            Self::NoThermals => "No thermals",
             Self::Weak => "Weak thermals",
             Self::Local => "Local thermals",
             Self::CrossCountry => "Cross-country day",
@@ -141,6 +145,7 @@ impl Thermals {
 impl From<Kind> for Thermals {
     fn from(kind: Kind) -> Self {
         match kind {
+            Kind::NoThermals => Self::NoThermals,
             Kind::Weak => Self::Weak,
             Kind::Local => Self::Local,
             Kind::CrossCountry => Self::CrossCountry,
@@ -152,6 +157,7 @@ impl From<Kind> for Thermals {
 impl From<Thermals> for Kind {
     fn from(thermals: Thermals) -> Self {
         match thermals {
+            Thermals::NoThermals => Self::NoThermals,
             Thermals::Weak => Self::Weak,
             Thermals::Local => Self::Local,
             Thermals::CrossCountry => Self::CrossCountry,
@@ -1630,16 +1636,25 @@ mod tests {
     }
 
     #[test]
-    fn weak_thermals_and_thermals_under_the_take_off_are_said_as_they_are() {
-        // A hazy day: 20 W/m² lift the air at 1.1 m/s, a glider at 0.1.
-        let day = outlook_of(|_| air(20.0, 0.0, 4.0, 4.0)).days.remove(0);
+    fn weak_thermals_none_and_thermals_under_the_take_off_are_said_as_they_are() {
+        // A little more sun: 40 W/m² lift the air at 1.4 m/s, a glider at
+        // 0.4. Weak thermals.
+        let day = outlook_of(|_| air(40.0, 0.0, 4.0, 4.0)).days.remove(0);
         assert_eq!(day.thermals, Some(Thermals::Weak));
         assert_eq!(day.thermal_words, "Weak thermals");
-        assert_eq!(day.thermal_line, "0.1 m/s to 3250 m at best");
+        assert_eq!(day.thermal_line, "0.4 m/s to 3250 m at best");
+
+        // A hazy day: 20 W/m² lift the air at 1.1 m/s, a glider at 0.1,
+        // which is nothing to climb in.
+        let day = outlook_of(|_| air(20.0, 0.0, 4.0, 4.0)).days.remove(0);
+        assert_eq!(day.thermals, Some(Thermals::NoThermals));
+        assert_eq!(day.thermal_words, "No thermals");
+        assert_eq!(day.thermal_line, "None to climb in");
 
         // The ground gives no heat: nothing rises.
         let day = outlook_of(|_| air(-10.0, 0.0, 4.0, 4.0)).days.remove(0);
-        assert_eq!(day.thermals, Some(Thermals::Weak));
+        assert_eq!(day.thermals, Some(Thermals::NoThermals));
+        assert_eq!(day.thermal_words, "No thermals");
         assert_eq!(day.thermal_line, "None to climb in");
         assert_eq!(day.climb_ms, Some(0.0));
         assert_eq!(day.thermal_top_m, None);
@@ -1651,6 +1666,29 @@ mod tests {
         let day = outlook_of(|_| air(300.0, 1700.0, 10.0, 4.0)).days.remove(0);
         assert_eq!(day.thermals, Some(Thermals::Weak));
         assert_eq!(day.thermal_line, "1.0 m/s to 1700 m at best");
+    }
+
+    #[test]
+    fn a_winters_day_of_rain_and_then_no_sun_is_no_thermals_and_never_weak() {
+        // The owner, 2026-11-22: "It says weak thermals tomorrow. It's
+        // winter, it's raining." Rain until one o'clock, then dry with no
+        // heat from the ground: a day that can be flown in the afternoon,
+        // and nothing to climb in.
+        let day = outlook_of(|at| {
+            let dry = air(-10.0, 0.0, 4.0, 4.0);
+            if at < 13 {
+                dry.replace(r#""precipitation_mm": 0.0"#, r#""precipitation_mm": 0.8"#)
+            } else {
+                dry
+            }
+        })
+        .days
+        .remove(0);
+        assert_ne!(day.verdict, Flyability::NotFlyable);
+        assert_eq!(day.thermals, Some(Thermals::NoThermals));
+        assert_eq!(day.thermal_words, "No thermals");
+        // The hours of rain say nothing of thermals.
+        assert!(day.hours[..5].iter().all(|hour| hour.thermals.is_none()));
     }
 
     #[test]

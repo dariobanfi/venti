@@ -257,7 +257,7 @@ impl DayAtLeast {
             return false;
         }
         let rank = |kind: ThermalKind| match kind {
-            ThermalKind::Weak => 0,
+            ThermalKind::NoThermals | ThermalKind::Weak => 0,
             ThermalKind::Local => 1,
             ThermalKind::CrossCountry => 2,
             ThermalKind::Big => 3,

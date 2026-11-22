@@ -1198,6 +1198,7 @@ mod tests {
                 (5, "Cross-country day", ThermalMapScale::Thermal, 5),
                 (3, "Local thermals", ThermalMapScale::Thermal, 3),
                 (2, "Weak thermals", ThermalMapScale::Thermal, 2),
+                (1, "No thermals", ThermalMapScale::Thermal, 1),
                 (0, "Not flyable", ThermalMapScale::Veil, 0),
             ]
         );

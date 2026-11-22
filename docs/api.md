@@ -3147,10 +3147,10 @@ The answer of the development mode, whole:
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,
@@ -3162,13 +3162,13 @@ The answer of the development mode, whole:
         null,
         null,
         null,
-        950
+        null
       ],
       "cloud": [
         false,
         false,
         false,
-        true
+        false
       ]
     },
     {
@@ -3189,8 +3189,8 @@ The answer of the development mode, whole:
         "rain"
       ],
       "thermals": [
-        "weak",
-        "weak",
+        "no_thermals",
+        "no_thermals",
         null,
         null
       ],
@@ -3201,14 +3201,14 @@ The answer of the development mode, whole:
         null
       ],
       "top_m": [
-        1900,
-        1850,
+        null,
+        null,
         null,
         null
       ],
       "cloud": [
-        true,
-        true,
+        false,
+        false,
         false,
         false
       ]
@@ -3231,10 +3231,10 @@ The answer of the development mode, whole:
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,
@@ -3243,10 +3243,10 @@ The answer of the development mode, whole:
         0.0
       ],
       "top_m": [
-        1600,
-        1500,
-        1350,
-        1500
+        null,
+        null,
+        null,
+        null
       ],
       "cloud": [
         false,
@@ -3290,7 +3290,7 @@ A day holds its values in lists as long as the grid has cells, in the grid's ord
 | `whole` | Whether every cell that has a verdict was judged with all of the day's daylight hours. `false` on a day the runs at hand do not reach the whole of, which is mostly the last day of the map: a run of ICON-EU of 00, 06 or 12 UTC ends on the third day after today at 06, 12 or 18 UTC, which can be before that day's daylight does, and the run of 18 UTC has all of it. And `false` on today after a start of the server, when the hours before the run began are missing. Such a day is judged by the hours there are, which can make it look worse than it is |
 | `verdict` | Per cell `flyable`, `marginal` or `not_flyable`, by the air alone; `null` where the day has no hours for the cell |
 | `why` | Per cell what speaks against the day: `rain`, `wind` (the mean wind 10 m above the model's ground), `gusts`, `wind_aloft` (the wind at the model's levels within 1,500 m above the ground), `cloud_base` (convective cloud with its base at or just above the ground) or `storms` (air in which showers or thunderstorms can grow). It is the thing met most often among the hours that are no better than the day's verdict, and of equally frequent ones the earliest. `null` on a flyable day and where the day has no hours. Since 2026-11-21; a server older than that leaves the list out, and a client then shows no reason |
-| `thermals` | Per cell the kind of day: `weak`, `local`, `cross_country` or `big`. `null` on a day that is not flyable, and where there is no estimate |
+| `thermals` | Per cell the kind of day: `no_thermals` (since 2026-11-22: nothing to climb in above the ground), `weak`, `local`, `cross_country` or `big`. `null` on a day that is not flyable, and where there is no estimate |
 | `climb_ms` | Per cell the climb to expect, m/s to a tenth: the mean over the hours that make the kind of day, or the best hour's on a day of weak thermals. `null` where `thermals` is |
 | `top_m` | Per cell how high the thermals go, metres above mean sea level to the nearest fifty. `null` without thermals |
 | `cloud` | Per cell whether that height is a base of cumulus; `false` in the blue and without thermals |
@@ -3505,7 +3505,7 @@ An hour has its `time` and the lists of the layer that was asked for, each as lo
 | all | `time` | The moment the hour's values are for. Rain and gusts are those of the hour before it, as the model gives them |
 | `thermals` | `verdict` | Per cell `flyable`, `marginal` or `not_flyable`, by the air alone, for this hour |
 | `thermals` | `why` | Per cell the worst thing the air has against the hour, with the names of `GET /v1/thermals`; of two equally bad the first of wind, gusts, wind higher up, cloud base, storms. `null` in a flyable hour |
-| `thermals` | `thermals` | Per cell what the hour's thermals count as: `weak`, `local`, `cross_country` or `big`, by their climb, how far above the ground they reach and the wind in them. Never more than `local` in a marginal hour. `null` in an hour that is not flyable, and where there is no estimate |
+| `thermals` | `thermals` | Per cell what the hour's thermals count as: `no_thermals`, `weak`, `local`, `cross_country` or `big`, by their climb, how far above the ground they reach and the wind in them. Never more than `local` in a marginal hour. `null` in an hour that is not flyable, and where there is no estimate |
 | `thermals` | `climb_ms`, `top_m`, `cloud` | Per cell the climb to expect in the hour's thermals, m/s to a tenth; how high they go, metres above mean sea level to the nearest fifty; and whether that height is a base of cumulus. As in a day of `GET /v1/thermals`, of the one hour |
 | `wind` | `wind_kmh` | Per cell the wind's mean speed, **whole km/h**: 10 m above the model's ground, or at `height_m` |
 | `wind` | `wind_from_deg` | Per cell the direction it comes from, degrees **to the nearest ten**, 0 to 350 |
@@ -3671,7 +3671,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T08:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 3,
@@ -3710,7 +3710,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T09:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 0,
@@ -3749,7 +3749,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T10:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 1,
@@ -3788,7 +3788,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T11:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 1,
@@ -3827,7 +3827,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T12:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "top_m": 1200,
           "cloud": true,
@@ -3867,7 +3867,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T13:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 2,
@@ -3906,7 +3906,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T14:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 3,
@@ -3958,7 +3958,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T08:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 4,
@@ -3997,7 +3997,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T09:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 4,
@@ -4036,7 +4036,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T10:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 3,
@@ -4075,7 +4075,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T11:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "top_m": 1150,
           "cloud": false,
@@ -4115,7 +4115,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T12:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "top_m": 1150,
           "cloud": false,
@@ -4155,7 +4155,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T13:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 2,
@@ -4194,7 +4194,7 @@ The answer of the development mode, whole: the Wallberg, a place in the square s
         {
           "time": "2026-11-22T14:00:00Z",
           "verdict": "flyable",
-          "thermals": "weak",
+          "thermals": "no_thermals",
           "climb_ms": 0.0,
           "cloud": false,
           "wind_kmh": 2,

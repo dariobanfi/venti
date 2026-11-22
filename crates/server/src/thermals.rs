@@ -1291,6 +1291,7 @@ fn reason(reason: Reason) -> ThermalReason {
 
 fn kind(kind: Kind) -> ThermalKind {
     match kind {
+        Kind::NoThermals => ThermalKind::NoThermals,
         Kind::Weak => ThermalKind::Weak,
         Kind::Local => ThermalKind::Local,
         Kind::CrossCountry => ThermalKind::CrossCountry,
@@ -1382,7 +1383,14 @@ mod stored {
     struct Air(f64, Option<f64>, f64, f64, f64, Option<f64>);
 
     const VERDICTS: [Verdict; 3] = [Verdict::Flyable, Verdict::Marginal, Verdict::NotFlyable];
-    const KINDS: [Kind; 4] = [Kind::Weak, Kind::Local, Kind::CrossCountry, Kind::Big];
+    // Kept hours hold an index into this: a kind joins at the end.
+    const KINDS: [Kind; 5] = [
+        Kind::Weak,
+        Kind::Local,
+        Kind::CrossCountry,
+        Kind::Big,
+        Kind::NoThermals,
+    ];
 
     fn index_of<T: PartialEq>(all: &[T], one: &T) -> u8 {
         u8::try_from(all.iter().position(|of| of == one).unwrap_or(0)).unwrap_or(0)

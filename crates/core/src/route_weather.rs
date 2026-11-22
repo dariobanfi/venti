@@ -762,6 +762,7 @@ pub(crate) fn listed(names: &[&str]) -> String {
 
 fn thermal_words(kind: v1::ThermalKind) -> &'static str {
     match kind {
+        v1::ThermalKind::NoThermals => "no thermals",
         v1::ThermalKind::Weak => "weak thermals",
         v1::ThermalKind::Local => "local thermals",
         v1::ThermalKind::CrossCountry => "cross-country thermals",
@@ -790,6 +791,7 @@ fn flyability(verdict: v1::ThermalVerdict) -> Flyability {
 
 fn thermals(kind: v1::ThermalKind) -> Thermals {
     match kind {
+        v1::ThermalKind::NoThermals => Thermals::NoThermals,
         v1::ThermalKind::Weak => Thermals::Weak,
         v1::ThermalKind::Local => Thermals::Local,
         v1::ThermalKind::CrossCountry => Thermals::CrossCountry,
@@ -889,7 +891,7 @@ mod tests {
         let first = &along.points[0];
         assert_eq!(first.clock, "10:00");
         assert_eq!(first.hour_unix_s, Some(NINE_UTC));
-        // November: weak thermals, if any, and a wind read at a height.
+        // November: no thermals, and a wind read at a height.
         assert!(first.flyability.is_some());
         assert!(first.wind_height_m.is_some(), "{first:?}");
         assert!(first.wind_kmh.is_some(), "{first:?}");
@@ -919,7 +921,7 @@ mod tests {
         );
         assert_eq!(
             first.words,
-            "Wallberg at 10:00: weak thermals. 9 km/h from the SSW at 1570 m. Overcast."
+            "Wallberg at 10:00: no thermals. 9 km/h from the SSW at 1570 m. Overcast."
         );
         assert_eq!(
             leg.words,

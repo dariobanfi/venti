@@ -25,6 +25,21 @@
 //! again, so that ground handling and a receiver's start-up leave nothing
 //! in the logbook. The times are our own; to verify in the air.
 //!
+//! A flight is provisional until it has done something only a glider does
+//! (`venti_flight::live::flight_check`): a cable car, a chairlift or a car
+//! on a pass meets the take-off rule as well. A provisional flight that
+//! comes to rest for good, or moves as fast as a car on an open road, is
+//! taken back: in a session that records by itself its file is removed and
+//! the session waits for the take-off again, and
+//! [`FlightSession::take_false_start`] says so once. A file left behind by
+//! a crash during a provisional flight carries a line that says it was
+//! provisional, and [`pending_recordings`] says so.
+//!
+//! The phone sounds the vario only in flight, and not while the external
+//! vario the pilot chose is connected: that one beeps itself. When its link
+//! is lost the phone's pressure sensor and the phone's tone take over at
+//! once, and [`FlightSession::take_vario_lost`] says so once, in the air.
+//!
 //! [`Replay`] feeds a recorded flight through a session at any speed. It is
 //! how the cockpit is tried on the ground and how its screens are tested.
 
@@ -39,12 +54,13 @@ use venti_domain::GeoPoint;
 use venti_flight::fai;
 use venti_flight::geodesy::Earth;
 use venti_flight::igc::{self, Fix, IgcFile};
+use venti_flight::live::flight_check::COURSE_FROM_MS;
 use venti_flight::live::landing::{self, NearestLanding};
 use venti_flight::live::navigation::{self, Glider, Performance, Target};
 use venti_flight::live::polar::{GliderClass, Polar};
 use venti_flight::live::{
-    self, AltitudeSource, FlightComputer, Phase, PositionSample, QnhSource, VarioSource,
-    WindSource, atmosphere, tone,
+    self, AltitudeSource, FalseStart, FlightComputer, Phase, PositionSample, QnhSource,
+    VarioSource, WindSource, atmosphere, tone,
 };
 use venti_flight::scoring;
 use venti_flight::sun;
@@ -156,6 +172,23 @@ impl CableWatch {
 /// counts as disconnected and the phone's own pressure sensor takes over.
 const INSTRUMENT_SILENCE_S: f64 = 3.0;
 
+/// An external vario whose link is up but that has said nothing for this
+/// many seconds counts as lost: its own beeper may have died with it, and
+/// the phone's tone takes over. Longer than [`INSTRUMENT_SILENCE_S`], so
+/// that a hiccup of the radio does not set the phone beeping.
+const VARIO_QUIET_S: f64 = 5.0;
+
+/// A vario that was lost and is back is announced again only once it has
+/// been back this many seconds: a link that comes and goes is said once.
+const VARIO_BACK_S: f64 = 60.0;
+
+/// The line a flight file that records itself carries while its flight
+/// is provisional, and the one written once it is a flight. Free text of
+/// the format's own kind for it, which every reader passes over.
+const IGC_PROVISIONAL: &str = "LXVE provisional flight: not yet seen to be one";
+/// See [`IGC_PROVISIONAL`].
+const IGC_CONFIRMED: &str = "LXVE flight confirmed";
+
 /// A flight that records itself begins this many seconds before its
 /// take-off was noticed: the run, and a little of the standing before it.
 const LEAD_S: f64 = 30.0;
@@ -230,8 +263,81 @@ pub enum VarioSourceKind {
     Instrument,
     /// A pressure sensor: the phone's, or an instrument's.
     Pressure,
-    /// Satellite altitude: slow, the last resort.
-    Satellite,
+}
+
+/// Which vario the pilot flies with: their setting, which the shell passes
+/// in with [`FlightSession::set_vario_choice`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum VarioChoice {
+    /// The phone alone: its pressure sensor gives the climb and it sounds.
+    Phone,
+    /// An external vario over Bluetooth. While it is connected it gives the
+    /// climb and the phone is silent, since it beeps itself; while it is
+    /// not, the phone does both.
+    External,
+}
+
+/// What the shell's Bluetooth link to the external vario is doing, as it
+/// tells the session with [`FlightSession::on_vario_link`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum VarioLinkState {
+    /// Looking for it, or asking it to connect, also again after a loss.
+    Connecting,
+    /// Connected.
+    Connected,
+    /// The connection dropped, or Bluetooth is off or not allowed.
+    Lost,
+}
+
+/// The vario's state, for a small mark in the cockpit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum VarioMark {
+    /// The pilot flies with the phone alone ([`VarioChoice::Phone`]).
+    NoneSetUp,
+    /// An external vario is chosen and has not been connected yet in this
+    /// session.
+    Connecting,
+    /// It is connected and talking.
+    Connected,
+    /// It was connected in this session and is not now: its link dropped,
+    /// or it has said nothing for five seconds. The phone sounds.
+    Lost,
+}
+
+/// Why a flight was taken back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum FalseStartKind {
+    /// It moved as fast as a car on an open road, 108 km/h, for half a
+    /// minute.
+    Vehicle,
+    /// It came to rest for good without having done anything only a
+    /// glider does: a lift at its top station, a car parked.
+    NothingFlown,
+}
+
+/// A flight taken back: what the take-off rule took for one was not.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct FalseStartView {
+    /// Why.
+    pub kind: FalseStartKind,
+    /// Whether its recording was removed: in a session that records by
+    /// itself. A recording the pilot started goes on.
+    pub recording_dropped: bool,
+    /// In words, to show quietly: "Not a flight: it came to rest without
+    /// having flown. The recording is dropped."
+    pub words: String,
+}
+
+/// The direction flown over the ground, from the satellites: for the
+/// cockpit's arrow and the compass word beside it, so that the three apps
+/// say the same.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct DirectionFlownView {
+    /// Degrees clockwise from north, whole, from 0 to 359.
+    pub degrees: f64,
+    /// One of eight compass points: "N", "NE", "E", "SE", "S", "SW", "W",
+    /// "NW".
+    pub point: String,
 }
 
 /// A wind.
@@ -446,8 +552,8 @@ pub struct CockpitView {
     pub course_deg: Option<f64>,
     /// The direction of travel as a reading, in degrees and as one of
     /// eight compass points: "285° W". Absent while the glider moves
-    /// slower than 2 m/s over the ground, where a course says nothing,
-    /// and whenever there is no course.
+    /// slower than 3 m/s over the ground, where a satellite course says
+    /// nothing, and whenever there is no course.
     pub course_words: Option<String>,
     /// Metres forward per metre of height lost. Absent when not losing
     /// height.
@@ -484,8 +590,8 @@ pub struct CockpitView {
     pub bearing_to_takeoff_deg: Option<f64>,
     /// The track of the last three minutes, oldest first.
     pub trail: Vec<TrailPointView>,
-    /// The vario tone for this moment, or none for silence. Silent on the
-    /// ground.
+    /// The vario tone for this moment, or none for silence: none whenever
+    /// `phone_tone` is false, and none in a glide.
     pub tone: Option<ToneView>,
     /// The external instrument, if one has sent anything.
     pub instrument: Option<InstrumentView>,
@@ -589,6 +695,25 @@ pub struct CockpitView {
     /// ([`FlightSession::set_never_land`]): the pilot ends it.
     #[uniffi(default = false)]
     pub never_lands: bool,
+    /// Whether the phone sounds the vario now: in flight, with a climb
+    /// from a pressure sensor or an instrument, and not while the external
+    /// vario the pilot chose is connected. The shell plays `tone` and has
+    /// no mute of its own: on the ground and after landing it is silent.
+    #[uniffi(default = false)]
+    pub phone_tone: bool,
+    /// The external vario's state, for a small mark.
+    pub vario: VarioMark,
+    /// The direction flown over the ground, while the glider moves at
+    /// 3 m/s or more over the ground: slower, the satellites' course
+    /// wanders by tens of degrees.
+    #[uniffi(default = None)]
+    pub direction_flown: Option<DirectionFlownView>,
+    /// Whether the flight since the take-off is provisional: it has not
+    /// yet done anything only a glider does, and is taken back if it comes
+    /// to rest for good so ([`FlightSession::take_false_start`]). A flight
+    /// that records itself is saved only once it is not.
+    #[uniffi(default = false)]
+    pub flight_provisional: bool,
 }
 
 /// Where a wind was measured.
@@ -879,6 +1004,11 @@ pub struct PendingRecording {
     pub name: String,
     /// The flight file's text.
     pub igc_text: String,
+    /// Whether it was cut short while its flight was still provisional:
+    /// what the take-off rule took for a flight had not yet shown itself
+    /// to be one, and may be a lift or a drive.
+    #[uniffi(default = false)]
+    pub provisional: bool,
 }
 
 /// One flying session. The shell creates it when the pilot opens the
@@ -951,6 +1081,36 @@ struct Inner {
     /// replayed is never shared: it would put a glider on other people's
     /// maps that is not there.
     replayed: bool,
+    /// The pilot's vario, and its link as the shell last told it.
+    vario: VarioWatch,
+    /// A flight taken back, until the shell asks.
+    false_start: Option<FalseStartView>,
+}
+
+/// The external vario the pilot chose, and its link.
+#[derive(Debug, Clone, Copy)]
+struct VarioWatch {
+    choice: VarioChoice,
+    link: Option<VarioLinkState>,
+    /// Since when the link has been up, as the shell told it.
+    connected_since: Option<f64>,
+    /// Whether it has been connected since it was chosen.
+    was_connected: bool,
+    /// Whether its loss in the air has been said, until it is back for
+    /// [`VARIO_BACK_S`].
+    lost_said: bool,
+}
+
+impl Default for VarioWatch {
+    fn default() -> Self {
+        Self {
+            choice: VarioChoice::Phone,
+            link: None,
+            connected_since: None,
+            was_connected: false,
+            lost_said: false,
+        }
+    }
 }
 
 /// A recording that waits for the take-off.
@@ -995,6 +1155,15 @@ impl Inner {
     /// Goes back to waiting for the take-off, as if the session had just
     /// begun: the flight computer starts anew and the recording is empty.
     fn wait_again(&mut self, now_s: f64) {
+        self.drop_flight(now_s);
+        self.computer = FlightComputer::new(live::Config::default());
+        self.computer.set_never_land(self.never_land);
+        self.computer.set_qnh(self.qnh_by_hand);
+    }
+
+    /// Throws away what was recorded of the flight, and waits for the
+    /// take-off again.
+    fn drop_flight(&mut self, now_s: f64) {
         if let Some(recorder) = self.recorder.as_mut() {
             // A file that cannot be removed is found at the next launch
             // as a recording cut short; that is the lesser harm.
@@ -1004,12 +1173,46 @@ impl Inner {
             since_s: now_s,
             fixes: VecDeque::new(),
         });
-        self.computer = FlightComputer::new(live::Config::default());
-        self.computer.set_never_land(self.never_land);
-        self.computer.set_qnh(self.qnh_by_hand);
         self.flown.clear();
         self.score = None;
         self.longest = None;
+    }
+
+    /// Whether the external vario the pilot chose is connected and
+    /// talking: it gives the climb and beeps itself.
+    fn vario_connected(&self, now_s: f64) -> bool {
+        let watch = &self.vario;
+        let Some(since) = watch.connected_since.filter(|_| {
+            watch.choice == VarioChoice::External && watch.link == Some(VarioLinkState::Connected)
+        }) else {
+            return false;
+        };
+        // Just connected, it has had no time to talk yet.
+        now_s - since <= VARIO_QUIET_S
+            || self
+                .instrument
+                .is_some_and(|instrument| now_s - instrument.last_heard_s <= VARIO_QUIET_S)
+    }
+
+    fn vario_mark(&self, now_s: f64) -> VarioMark {
+        if self.vario.choice == VarioChoice::Phone {
+            VarioMark::NoneSetUp
+        } else if self.vario_connected(now_s) {
+            VarioMark::Connected
+        } else if self.vario.was_connected {
+            VarioMark::Lost
+        } else {
+            VarioMark::Connecting
+        }
+    }
+
+    /// Forgets what the instrument said of pressure and climb, so that the
+    /// phone's sensor takes over at once.
+    fn forget_instrument(&mut self) {
+        if let Some(instrument) = self.instrument.as_mut() {
+            instrument.last_pressure_s = None;
+        }
+        self.computer.forget_instrument_vario();
     }
 
     /// How the glider glides: by its polar where the pilot has set one,
@@ -1084,6 +1287,8 @@ impl FlightSession {
                 others: OthersHeard::default(),
                 climbs: ClimbsHeard::default(),
                 replayed: false,
+                vario: VarioWatch::default(),
+                false_start: None,
             }),
         })
     }
@@ -1308,7 +1513,7 @@ impl FlightSession {
         let on_course = state.course_deg.filter(|_| !state.circling).filter(|_| {
             state
                 .ground_speed_ms
-                .is_some_and(|speed| speed >= MOVING_MS)
+                .is_some_and(|speed| speed >= COURSE_FROM_MS)
         });
         let (bearing_deg, toward) = match on_course {
             Some(course) => (course, format!("On course {}", compass(course))),
@@ -1814,6 +2019,87 @@ impl FlightSession {
         })
     }
 
+    /// Sets which vario the pilot flies with, from their setting. Until
+    /// it is set the phone is taken to fly alone.
+    pub fn set_vario_choice(&self, choice: VarioChoice) {
+        let mut inner = self.lock();
+        if inner.vario.choice != choice {
+            // The link stays as the shell last told it.
+            let VarioWatch {
+                link,
+                connected_since,
+                ..
+            } = inner.vario;
+            inner.vario = VarioWatch {
+                choice,
+                link,
+                connected_since,
+                was_connected: choice == VarioChoice::External
+                    && link == Some(VarioLinkState::Connected),
+                lost_said: false,
+            };
+        }
+    }
+
+    /// Takes what the Bluetooth link to the external vario is doing, each
+    /// time it changes. A link that is lost hands the climb and the tone
+    /// to the phone at once, without waiting for the vario's last word to
+    /// go stale.
+    pub fn on_vario_link(&self, time_unix_s: f64, state: VarioLinkState) {
+        let mut inner = self.lock();
+        let was = inner.vario.link;
+        inner.vario.link = Some(state);
+        match state {
+            VarioLinkState::Connected => {
+                if was != Some(VarioLinkState::Connected) {
+                    inner.vario.connected_since = Some(time_unix_s);
+                }
+                if inner.vario.choice == VarioChoice::External {
+                    inner.vario.was_connected = true;
+                }
+            }
+            VarioLinkState::Connecting | VarioLinkState::Lost => {
+                inner.vario.connected_since = None;
+                if was == Some(VarioLinkState::Connected) {
+                    inner.forget_instrument();
+                }
+            }
+        }
+    }
+
+    /// Whether to say loudly, once, that the external vario was lost in
+    /// the air: true the first time it is asked while the glider flies and
+    /// the vario the pilot chose was connected in this session and is not
+    /// now. Said again only after the vario has been back for a minute.
+    /// The phone's own tone has taken over by then.
+    pub fn take_vario_lost(&self, now_unix_s: f64) -> bool {
+        let mut inner = self.lock();
+        let mark = inner.vario_mark(now_unix_s);
+        let back_long = inner
+            .vario
+            .connected_since
+            .is_some_and(|since| now_unix_s - since >= VARIO_BACK_S);
+        if mark == VarioMark::Connected && back_long {
+            inner.vario.lost_said = false;
+        }
+        let flying = inner.computer.state(now_unix_s).phase == Phase::Flying;
+        if flying && mark == VarioMark::Lost && !inner.vario.lost_said {
+            inner.vario.lost_said = true;
+            return true;
+        }
+        false
+    }
+
+    /// A flight taken back since this was last asked, once: what the
+    /// take-off rule took for a flight turned out to be none. The session
+    /// is on the ground again; in a session that records by itself the
+    /// recording is gone and it waits for the take-off. The shell says it
+    /// quietly, and goes back to where the pilot was if it opened the
+    /// cockpit for the take-off.
+    pub fn take_false_start(&self) -> Option<FalseStartView> {
+        self.lock().false_start.take()
+    }
+
     /// Takes a position from the phone.
     pub fn on_location(&self, sample: LocationSample) {
         let Ok(position) = GeoPoint::new(sample.lat, sample.lon) else {
@@ -1835,6 +2121,15 @@ impl FlightSession {
             course_deg: sample.course_deg.filter(|course| *course >= 0.0),
         });
         inner.last_position_s = Some(sample.time_unix_s);
+        // What the take-off rule took for a flight was none: in a session
+        // that records by itself, what was written of it goes.
+        if let Some(false_start) = inner.computer.take_false_start() {
+            let dropped = inner.by_itself && !inner.by_hand && inner.recorder.is_some();
+            if dropped {
+                inner.drop_flight(sample.time_unix_s);
+            }
+            inner.false_start = Some(false_start_view(false_start, dropped));
+        }
 
         let state = inner.computer.state(sample.time_unix_s);
         let pressure_altitude = state.pressure_altitude_m;
@@ -1949,6 +2244,14 @@ impl FlightSession {
                 }
             }
         }
+        // The flight is one: the file says so, so that a crash after this
+        // leaves a flight behind and not a provisional one.
+        if state.confirmed_by.is_some()
+            && let Some(recorder) = inner.recorder.as_mut()
+            && recorder.provisional
+        {
+            let _ = recorder.confirm();
+        }
         // A hop too short to be a flight: what was written of it is
         // thrown away, and the session waits for the take-off again.
         let hop = state
@@ -2035,9 +2338,16 @@ impl FlightSession {
             let recorder = Recorder::new(&inner.folder, header_text(pilot), header_text(glider));
             inner.recorder = Some(recorder.map_err(storage)?);
         }
-        if let (Some(lead), Some(recorder)) = (inner.lead.take(), inner.recorder.as_mut()) {
-            for (kept, position, pressure_altitude) in lead.fixes {
-                let _ = recorder.add(&kept, position, pressure_altitude);
+        // The pilot's word: nothing of it is taken back.
+        inner.computer.set_never_take_back(true);
+        if let Some(recorder) = inner.recorder.as_mut() {
+            if recorder.provisional {
+                let _ = recorder.confirm();
+            }
+            if let Some(lead) = inner.lead.take() {
+                for (kept, position, pressure_altitude) in lead.fixes {
+                    let _ = recorder.add(&kept, position, pressure_altitude);
+                }
             }
         }
         inner.by_hand = true;
@@ -2059,8 +2369,10 @@ impl FlightSession {
         if inner.recorder.is_some() {
             return Ok(());
         }
-        let recorder = Recorder::new(&inner.folder, header_text(pilot), header_text(glider));
-        inner.recorder = Some(recorder.map_err(storage)?);
+        let mut recorder = Recorder::new(&inner.folder, header_text(pilot), header_text(glider))
+            .map_err(storage)?;
+        recorder.provisional = true;
+        inner.recorder = Some(recorder);
         inner.by_itself = true;
         // A session switched on in the air records at once.
         if inner.computer.state(now_unix_s).phase == Phase::Ground {
@@ -2082,6 +2394,7 @@ impl FlightSession {
             inner.lead = None;
             inner.by_itself = false;
             inner.by_hand = false;
+            inner.computer.set_never_take_back(false);
             inner.recorder.take()
         };
         let Some(recorder) = recorder else {
@@ -2100,9 +2413,11 @@ impl FlightSession {
         };
         let end = state.landing_time_s.unwrap_or(now_unix_s);
         // A flight that records itself is saved a while after the landing.
+        // Not a provisional one: that is taken back when its landing stands.
         let saves_in_s = state
             .landing_time_s
             .filter(|_| inner.by_itself && state.phase == Phase::Landed)
+            .filter(|_| !state.provisional)
             .map(|landed| (landed + SAVE_AFTER_LANDING_S - now_unix_s).max(0.0).ceil() as i64);
         let waited_s = inner.lead.as_ref().map(|lead| now_unix_s - lead.since_s);
         // The glider through the air, where the wind is fresh enough to
@@ -2126,6 +2441,17 @@ impl FlightSession {
             .zip(state.climb_ms)
             .filter(|_| gliding)
             .map(|((polar, air), climb)| (polar, air, polar.netto_ms(climb, air.airspeed_ms)));
+        // The phone sounds only in the air, where nothing else does: not
+        // while the external vario the pilot chose is connected, which
+        // beeps itself. So no mute is needed on the ground.
+        let phone_tone = state.phase == Phase::Flying
+            && state.climb_ms.is_some()
+            && !inner.vario_connected(now_unix_s);
+        let direction_flown = state
+            .course_deg
+            .zip(state.ground_speed_ms)
+            .filter(|(course, speed)| course.is_finite() && *speed >= COURSE_FROM_MS)
+            .map(|(course, _)| course);
         let over = if saves_in_s == Some(0) {
             Some(SessionOver::Landed)
         } else if waited_s.is_some_and(|waited| waited >= WAIT_FOR_TAKEOFF_S) {
@@ -2164,16 +2490,11 @@ impl FlightSession {
             vario_source: state.vario_source.map(|source| match source {
                 VarioSource::Instrument => VarioSourceKind::Instrument,
                 VarioSource::Pressure => VarioSourceKind::Pressure,
-                VarioSource::Satellite => VarioSourceKind::Satellite,
             }),
             average_climb_ms: state.average_climb_ms,
             ground_speed_ms: state.ground_speed_ms,
             course_deg: state.course_deg,
-            course_words: state
-                .course_deg
-                .zip(state.ground_speed_ms)
-                .filter(|(course, speed)| course.is_finite() && *speed >= MOVING_MS)
-                .map(|(course, _)| course_in_words(course)),
+            course_words: direction_flown.map(course_in_words),
             glide_ratio: state.glide_ratio,
             wind: state.wind.map(|wind| WindView {
                 from_deg: wind.from_deg,
@@ -2234,11 +2555,9 @@ impl FlightSession {
                     climb_ms: point.climb_ms,
                 })
                 .collect(),
-            // A vario that beeps while the pilot walks to the take-off is a
-            // nuisance; it sounds only in the air.
             tone: state
                 .climb_ms
-                .filter(|_| state.phase == Phase::Flying)
+                .filter(|_| phone_tone)
                 .and_then(tone::tone)
                 .map(|tone| ToneView {
                     frequency_hz: tone.frequency_hz,
@@ -2314,7 +2633,35 @@ impl FlightSession {
                 )
             }),
             never_lands: inner.never_land,
+            phone_tone,
+            vario: inner.vario_mark(now_unix_s),
+            direction_flown: direction_flown.map(|course| DirectionFlownView {
+                degrees: course.rem_euclid(360.0).round() % 360.0,
+                point: compass(course).to_owned(),
+            }),
+            flight_provisional: state.provisional,
         }
+    }
+}
+
+/// A flight taken back, in words.
+fn false_start_view(false_start: FalseStart, recording_dropped: bool) -> FalseStartView {
+    let (kind, why) = match false_start {
+        FalseStart::Vehicle => (FalseStartKind::Vehicle, "moving as fast as a car"),
+        FalseStart::NothingFlown => (
+            FalseStartKind::NothingFlown,
+            "it came to rest without having flown",
+        ),
+    };
+    let then = if recording_dropped {
+        "The recording is dropped."
+    } else {
+        "The recording goes on."
+    };
+    FalseStartView {
+        kind,
+        recording_dropped,
+        words: format!("Not a flight: {why}. {then}"),
     }
 }
 
@@ -2505,10 +2852,16 @@ pub fn pending_recordings(data_folder: String) -> Vec<PendingRecording> {
             let name = path.file_name()?.to_str()?.to_owned();
             let igc_text = fs::read_to_string(&path).ok()?;
             // A recording with no fix yet is not a flight.
+            let provisional = igc_text.lines().any(|line| line == IGC_PROVISIONAL)
+                && !igc_text.lines().any(|line| line == IGC_CONFIRMED);
             igc_text
                 .lines()
                 .any(|line| line.starts_with('B'))
-                .then_some(PendingRecording { name, igc_text })
+                .then_some(PendingRecording {
+                    name,
+                    igc_text,
+                    provisional,
+                })
         })
         .collect();
     recordings.sort_by(|a, b| a.name.cmp(&b.name));
@@ -2589,6 +2942,9 @@ struct Recorder {
     file: Option<(File, String)>,
     last_second: Option<i64>,
     fixes: u32,
+    /// Whether the flight is provisional: the file then begins with
+    /// [`IGC_PROVISIONAL`], and [`IGC_CONFIRMED`] follows once it is not.
+    provisional: bool,
 }
 
 impl Recorder {
@@ -2602,7 +2958,17 @@ impl Recorder {
             file: None,
             last_second: None,
             fixes: 0,
+            provisional: false,
         })
+    }
+
+    /// Says in the file that its flight is one, once it has begun.
+    fn confirm(&mut self) -> io::Result<()> {
+        self.provisional = false;
+        if let Some((file, _)) = self.file.as_mut() {
+            file.write_all(format!("{IGC_CONFIRMED}\r\n").as_bytes())?;
+        }
+        Ok(())
     }
 
     /// Appends a fix. Flight files hold at most one fix a second, so
@@ -2639,6 +3005,9 @@ impl Recorder {
                 skipped_lines: 0,
             });
             file.write_all(header.as_bytes())?;
+            if self.provisional {
+                file.write_all(format!("{IGC_PROVISIONAL}\r\n").as_bytes())?;
+            }
             self.file = Some((file, name));
         }
         let (file, _) = self.file.as_mut().expect("the file was just opened");
@@ -2665,6 +3034,9 @@ impl Recorder {
     fn restart(&mut self) -> io::Result<()> {
         self.last_second = None;
         self.fixes = 0;
+        // Only a recording that records itself is thrown away, and its
+        // next flight is provisional again.
+        self.provisional = true;
         if let Some((file, name)) = self.file.take() {
             drop(file);
             fs::remove_file(self.folder.join(name))?;
@@ -2681,7 +3053,11 @@ impl Recorder {
         file.sync_all()?;
         drop(file);
         let igc_text = fs::read_to_string(self.folder.join(&name))?;
-        Ok(Some(PendingRecording { name, igc_text }))
+        Ok(Some(PendingRecording {
+            name,
+            igc_text,
+            provisional: self.provisional,
+        }))
     }
 }
 
@@ -2795,11 +3171,6 @@ fn aim_of(inner: &Inner, state: &live::LiveState) -> Option<(Target, bool)> {
         ),
     })
 }
-
-/// Below this speed over the ground a course says nothing, metres per
-/// second: it is not looked along for the side view and not written as a
-/// reading.
-const MOVING_MS: f64 = 2.0;
 
 /// A course as a reading: whole degrees from 0 to 359 and the compass
 /// point, "285° W".
@@ -4085,6 +4456,179 @@ mod tests {
     }
 
     #[test]
+    fn the_phone_sounds_only_in_flight_and_not_while_the_chosen_vario_is_connected() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        let began = 1_786_000_000.0;
+        // A vario that sends pressure and climb, and the phone's own
+        // pressure sensor, both following the flight's altitude.
+        let sentence = b"$LK8EX1,98725,99999,180,21,1085,*2D\r\n".to_vec();
+        let mut linked = true;
+        let second = |second: i32, north_m: f64, altitude_m: f64, linked: bool| {
+            let time = began + f64::from(second);
+            if linked {
+                session.on_instrument_bytes(time, sentence.clone());
+            }
+            session.on_pressure(time, atmosphere::pressure_hpa_at(altitude_m));
+            step(&session, time, north_m, altitude_m);
+            session.view(time)
+        };
+
+        // Chosen, and not yet connected.
+        session.set_vario_choice(VarioChoice::External);
+        session.on_vario_link(began, VarioLinkState::Connecting);
+        assert_eq!(session.view(began).vario, VarioMark::Connecting);
+        session.on_vario_link(began + 1.0, VarioLinkState::Connected);
+        // On the ground: connected, and the phone silent.
+        let mut view = second(1, 0.0, 1600.0, linked);
+        for at in 2..300 {
+            view = second(at, 0.0, 1600.0, linked);
+        }
+        assert_eq!(view.vario, VarioMark::Connected);
+        assert_eq!(view.phase, FlightPhase::Ground);
+        assert!(!view.phone_tone && view.tone.is_none());
+
+        // In flight with the vario connected: its climb, and the phone
+        // silent, since the vario beeps itself.
+        let flight = |at: i32| {
+            let flown = f64::from(at - 300);
+            (9.0 * flown, 1600.0 - flown)
+        };
+        for at in 300..400 {
+            let (north, altitude) = flight(at);
+            view = second(at, north, altitude, linked);
+        }
+        assert_eq!(view.phase, FlightPhase::Flying);
+        assert_eq!(view.vario_source, Some(VarioSourceKind::Instrument));
+        assert!(!view.phone_tone);
+        assert!(!session.take_vario_lost(began + 399.0));
+
+        // The link drops in the air: the phone's sensor and its tone take
+        // over at once, and the loss is said once, loudly.
+        linked = false;
+        session.on_vario_link(began + 400.0, VarioLinkState::Lost);
+        for at in 400..403 {
+            let (north, altitude) = flight(at);
+            view = second(at, north, altitude, linked);
+        }
+        assert_eq!(view.vario, VarioMark::Lost);
+        assert_eq!(view.vario_source, Some(VarioSourceKind::Pressure));
+        assert!(view.phone_tone);
+        assert!(session.take_vario_lost(began + 402.0));
+        assert!(!session.take_vario_lost(began + 403.0));
+        // The shell tries again: still lost, and not said again.
+        session.on_vario_link(began + 403.0, VarioLinkState::Connecting);
+        assert_eq!(session.view(began + 403.0).vario, VarioMark::Lost);
+        assert!(!session.take_vario_lost(began + 403.0));
+
+        // Back: the phone falls silent again.
+        linked = true;
+        session.on_vario_link(began + 410.0, VarioLinkState::Connected);
+        for at in 410..420 {
+            let (north, altitude) = flight(at);
+            view = second(at, north, altitude, linked);
+        }
+        assert_eq!(view.vario, VarioMark::Connected);
+        assert!(!view.phone_tone);
+
+        // A vario whose link stays up but that says nothing counts as
+        // lost after five seconds.
+        linked = false;
+        for at in 420..430 {
+            let (north, altitude) = flight(at);
+            view = second(at, north, altitude, linked);
+        }
+        assert_eq!(view.vario, VarioMark::Lost);
+        assert!(view.phone_tone);
+
+        // The phone alone: it sounds in flight whatever is connected.
+        session.set_vario_choice(VarioChoice::Phone);
+        let view = session.view(began + 429.0);
+        assert_eq!(view.vario, VarioMark::NoneSetUp);
+        assert!(view.phone_tone);
+    }
+
+    #[test]
+    fn a_cable_car_ride_is_taken_back_and_the_flight_after_it_is_saved() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        let began = 1_786_000_000.0;
+        session.record_from_takeoff(None, None, began).unwrap();
+        // Two minutes at the valley station, eight up the cable at 4 m/s
+        // over the ground and 3 m/s up, and standing at the top.
+        let at = |second: i32| began + f64::from(second);
+        for second in 0..120 {
+            step(&session, at(second), 0.0, 800.0);
+        }
+        for second in 120..600 {
+            let ridden = f64::from(second - 120);
+            step(&session, at(second), 4.0 * ridden, 800.0 + 3.0 * ridden);
+        }
+        let top = (4.0 * 480.0, 800.0 + 3.0 * 480.0);
+        let view = session.view(at(599));
+        assert_eq!(view.phase, FlightPhase::Flying);
+        assert!(view.recording && view.flight_provisional);
+        // Cut short now, the file would say that it was provisional.
+        let pending = pending_recordings(folder_text(&folder));
+        assert_eq!(pending.len(), 1);
+        assert!(pending[0].provisional);
+
+        for second in 600..640 {
+            step(&session, at(second), top.0, top.1);
+        }
+        // Landed, and not to be saved.
+        let view = session.view(at(639));
+        assert_eq!(view.phase, FlightPhase::Landed);
+        assert_eq!((view.saves_in_s, view.over), (None, None));
+        for second in 640..800 {
+            step(&session, at(second), top.0, top.1);
+        }
+        let view = session.view(at(799));
+        assert_eq!(view.phase, FlightPhase::Ground);
+        assert!(view.waiting_for_takeoff && !view.recording);
+        assert_eq!(view.recorded_fixes, 0);
+        assert!(pending_recordings(folder_text(&folder)).is_empty());
+        let taken_back = session.take_false_start().unwrap();
+        assert_eq!(taken_back.kind, FalseStartKind::NothingFlown);
+        assert!(taken_back.recording_dropped);
+        assert_eq!(
+            taken_back.words,
+            "Not a flight: it came to rest without having flown. The recording is dropped."
+        );
+        assert_eq!(session.take_false_start(), None);
+
+        // The walk to the launch, and a flight from it: provisional for a
+        // minute of glide, then a flight, saved once it has landed.
+        for second in 800..1100 {
+            step(&session, at(second), top.0 + f64::from(second - 800), top.1);
+        }
+        let launch = top.0 + 300.0;
+        for second in 1100..1400 {
+            let flown = f64::from(second - 1100);
+            step(
+                &session,
+                at(second),
+                launch + 10.0 * flown,
+                top.1 - 1.2 * flown,
+            );
+        }
+        let view = session.view(at(1399));
+        assert_eq!(view.phase, FlightPhase::Flying);
+        assert!(!view.flight_provisional);
+        assert!(!pending_recordings(folder_text(&folder))[0].provisional);
+        let landed = (launch + 3000.0, top.1 - 360.0);
+        for second in 1400..1600 {
+            step(&session, at(second), landed.0, landed.1);
+        }
+        assert_eq!(session.view(at(1599)).over, Some(SessionOver::Landed));
+        let recording = session.stop_recording().unwrap().unwrap();
+        assert!(!recording.provisional);
+        let file = igc::parse(&recording.igc_text).unwrap();
+        let first = file.fixes[0].time.timestamp() as f64 - began;
+        assert!((1060.0..=1100.0).contains(&first), "{first}");
+    }
+
+    #[test]
     fn a_session_that_waits_two_hours_for_a_take_off_is_over_with_nothing_to_save() {
         let folder = TempFolder::new();
         let session = FlightSession::new(folder_text(&folder));
@@ -4164,7 +4708,8 @@ mod tests {
     }
 
     #[test]
-    fn the_course_is_written_once_the_glider_moves_enough_for_it_to_mean_something() {
+    fn the_course_and_the_direction_flown_are_given_once_the_glider_moves_enough_for_them_to_mean_something()
+     {
         let folder = TempFolder::new();
         let session = FlightSession::new(folder_text(&folder));
         let began = 1_783_161_000.0;
@@ -4199,17 +4744,23 @@ mod tests {
         let view = at(6, 60.0, Some(9.0), Some(44.6));
         assert_eq!(view.course_words.as_deref(), Some("45° NE"));
 
-        // Slower than 2 m/s a course says nothing: the number is still
-        // there for the arrow, the words are not.
-        let view = at(7, 61.0, Some(1.5), Some(90.0));
-        assert_eq!(view.course_deg, Some(90.0));
-        assert_eq!(view.course_words, None);
-        let view = at(8, 63.0, Some(2.0), Some(90.0));
-        assert_eq!(view.course_words.as_deref(), Some("90° E"));
+        // The direction flown, for the arrow and its word, is the same.
+        let direction = view.direction_flown.unwrap();
+        assert_eq!((direction.degrees, direction.point.as_str()), (45.0, "NE"));
 
-        // Once positions stop there is neither.
+        // Slower than 3 m/s a satellite course says nothing: the number
+        // is still there, the words and the direction flown are not.
+        let view = at(7, 62.0, Some(2.5), Some(90.0));
+        assert_eq!(view.course_deg, Some(90.0));
+        assert_eq!((view.course_words, view.direction_flown), (None, None));
+        let view = at(8, 65.0, Some(3.0), Some(90.0));
+        assert_eq!(view.course_words.as_deref(), Some("90° E"));
+        assert_eq!(view.direction_flown.unwrap().point, "E");
+
+        // Once positions stop there is none of them.
         let view = session.view(began + 60.0);
         assert_eq!((view.course_deg, view.course_words), (None, None));
+        assert_eq!(view.direction_flown, None);
     }
 
     #[test]

@@ -43,10 +43,10 @@
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,
@@ -82,10 +82,10 @@
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,
@@ -121,10 +121,10 @@
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,
@@ -160,10 +160,10 @@
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,
@@ -199,10 +199,10 @@
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,
@@ -238,10 +238,10 @@
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,
@@ -277,10 +277,10 @@
         null
       ],
       "thermals": [
-        "weak",
-        "weak",
-        "weak",
-        "weak"
+        "no_thermals",
+        "no_thermals",
+        "no_thermals",
+        "no_thermals"
       ],
       "climb_ms": [
         0.0,

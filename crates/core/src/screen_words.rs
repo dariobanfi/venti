@@ -16,13 +16,14 @@ use crate::{GliderClassKind, InstrumentView, VarioSourceKind};
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct CockpitSourceWords {
-    /// In full: "Recorded data", "Phone barometer", "Satellite vario",
-    /// "No vario yet", and for an external instrument its name with its
-    /// battery, "XC Tracer 80%", or "XC Tracer silent".
+    /// In full: "Recorded data", "Phone barometer", "No vario yet" (also
+    /// for a phone without a pressure sensor: the satellites give no
+    /// climb), and for an external instrument its name with its battery,
+    /// "XC Tracer 80%", or "XC Tracer silent".
     #[uniffi(default = "")]
     pub words: String,
     /// Short, for a narrow phone beside "End": "Recorded", "Barometer",
-    /// "Satellite", "No vario", "Vario 80%", "Vario", "Vario silent".
+    /// "No vario", "Vario 80%", "Vario", "Vario silent".
     #[uniffi(default = "")]
     pub short: String,
 }
@@ -70,7 +71,6 @@ pub fn cockpit_source_words(
     }
     match vario_source {
         Some(VarioSourceKind::Pressure) => both("Phone barometer", "Barometer"),
-        Some(VarioSourceKind::Satellite) => both("Satellite vario", "Satellite"),
         Some(VarioSourceKind::Instrument) | None => both("No vario yet", "No vario"),
     }
 }
@@ -578,10 +578,6 @@ mod tests {
         assert_eq!(
             said(Some(VarioSourceKind::Pressure), None, None, false),
             pair("Phone barometer", "Barometer")
-        );
-        assert_eq!(
-            said(Some(VarioSourceKind::Satellite), None, None, false),
-            pair("Satellite vario", "Satellite")
         );
         assert_eq!(
             said(None, None, None, false),

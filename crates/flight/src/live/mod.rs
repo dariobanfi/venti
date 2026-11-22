@@ -8,6 +8,7 @@
 pub mod air;
 pub mod atmosphere;
 mod computer;
+pub mod flight_check;
 pub mod landing;
 pub mod navigation;
 pub mod polar;
@@ -22,5 +23,6 @@ pub use computer::{
     QnhSource, Thermal, ThermalMark, TrailPoint, VarioSource, WIND_BAND_M, WIND_HALF_LIFE_S,
     WindEstimate,
 };
+pub use flight_check::{Evidence, FalseStart};
 pub use thermal::{LiftCentre, LiftPoint, ThermalPicture};
 pub use wind::{Wind, WindFix, WindSource};

@@ -123,7 +123,7 @@ fn kind_words(verdict: ThermalVerdict, thermals: Option<ThermalKind>) -> &'stati
         Some(ThermalKind::Big) => "a big day",
         Some(ThermalKind::CrossCountry) => "a cross-country day",
         Some(ThermalKind::Local) => "a day with local thermals",
-        Some(ThermalKind::Weak) | None => "a flyable day",
+        Some(ThermalKind::Weak | ThermalKind::NoThermals) | None => "a flyable day",
     }
 }
 

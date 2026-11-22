@@ -5157,6 +5157,7 @@
   "ThermalKind": {
     "type": "string",
     "enum": [
+      "no_thermals",
       "weak",
       "local",
       "cross_country",

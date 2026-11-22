@@ -412,7 +412,9 @@ pub enum ThermalReason {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ThermalKind {
-    /// None a paraglider climbs in, or none that reach above the ground.
+    /// Nothing a paraglider climbs in above the ground: a winter's day.
+    NoThermals,
+    /// Something to climb in, less than local thermals.
     Weak,
     /// Enough to stay up in.
     Local,

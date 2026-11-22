@@ -37,13 +37,13 @@ use crate::{CoreError, Credit, Flyability, Thermals};
 pub(crate) const MAX_CELLS: usize = 200_000;
 
 /// The steps of the design language's thermal scale the kinds of day are
-/// drawn in, from weak thermals to a big day. The scale has six steps and
-/// is made for a climb in m/s; the kinds take four of them. Not the
-/// palest, which is the colour of the drawn map's land and would not be
-/// seen on it; and with a gap between local thermals and a cross-country
-/// day, the difference a pilot looks for first. Colours of their own for
-/// the kinds of day are the owner's to give.
-const SCALE_STEPS: [u8; 4] = [2, 3, 5, 6];
+/// drawn in, from no thermals to a big day. The scale has six steps and
+/// is made for a climb in m/s; the kinds take five of them. No thermals
+/// the palest, which is the colour of the drawn map's land and is not
+/// seen on it: there is nothing to see; and a gap between local thermals
+/// and a cross-country day, the difference a pilot looks for first.
+/// Colours of their own for the kinds of day are the owner's to give.
+const SCALE_STEPS: [u8; 5] = [1, 2, 3, 5, 6];
 
 /// One square of the thermal map on one day.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
@@ -413,6 +413,7 @@ pub(crate) fn legend() -> Vec<ThermalLegendEntry> {
         Thermals::CrossCountry,
         Thermals::Local,
         Thermals::Weak,
+        Thermals::NoThermals,
     ]
     .into_iter()
     .map(|kind| ThermalLegendEntry {
@@ -429,10 +430,11 @@ pub(crate) fn legend() -> Vec<ThermalLegendEntry> {
 /// The step of the thermal scale a kind of day is drawn in.
 pub(crate) fn scale_step(kind: Thermals) -> u8 {
     match kind {
-        Thermals::Weak => SCALE_STEPS[0],
-        Thermals::Local => SCALE_STEPS[1],
-        Thermals::CrossCountry => SCALE_STEPS[2],
-        Thermals::Big => SCALE_STEPS[3],
+        Thermals::NoThermals => SCALE_STEPS[0],
+        Thermals::Weak => SCALE_STEPS[1],
+        Thermals::Local => SCALE_STEPS[2],
+        Thermals::CrossCountry => SCALE_STEPS[3],
+        Thermals::Big => SCALE_STEPS[4],
     }
 }
 
@@ -499,6 +501,7 @@ pub(crate) fn square(
         .flatten()
         .filter(|_| verdict != Flyability::NotFlyable)
         .map(|kind| match kind {
+            v1::ThermalKind::NoThermals => Thermals::NoThermals,
             v1::ThermalKind::Weak => Thermals::Weak,
             v1::ThermalKind::Local => Thermals::Local,
             v1::ThermalKind::CrossCountry => Thermals::CrossCountry,
@@ -559,7 +562,7 @@ fn line(
         (Thermals::Weak, Some(climb), Some(top)) if climb > 0.0 => {
             format!("{climb:.1} m/s to {top} m at best")
         }
-        (Thermals::Weak, _, _) => "None to climb in".to_owned(),
+        (Thermals::Weak | Thermals::NoThermals, _, _) => "None to climb in".to_owned(),
         (_, Some(climb), Some(top)) if cloud => {
             format!("{climb:.1} m/s to a cloud base of {top} m")
         }
@@ -837,6 +840,7 @@ mod tests {
                 ("Cross-country day", Some(5)),
                 ("Local thermals", Some(3)),
                 ("Weak thermals", Some(2)),
+                ("No thermals", Some(1)),
                 ("Not flyable", None),
             ]
         );

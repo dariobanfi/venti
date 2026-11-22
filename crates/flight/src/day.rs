@@ -65,6 +65,14 @@ pub const DRIFT_KMH: [f64; 2] = [25.0, 20.0];
 /// How many hours in a row make a day of local thermals, a cross-country
 /// day and a big day.
 pub const THERMAL_HOURS: [usize; 3] = [2, 4, 6];
+/// Below this climb, m/s, an hour has no thermals at all, however high
+/// they reach: it is where a vario begins to beep
+/// (`live::tone::LIFT_THRESHOLD_MS`), and the glider's own sink is already
+/// taken off. Ours, to verify against days that were flown.
+pub const WEAK_CLIMB_MS: f64 = 0.2;
+/// Thermals that end less than this far above the place, metres, are no
+/// thermals for it: no room to climb above the take-off. Ours.
+pub const WEAK_REACH_M: f64 = 100.0;
 
 /// How an hour or a day looks for flying, by a forecast.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -223,7 +231,11 @@ pub fn worst<T: Clone>(found: &[(Verdict, T)]) -> (Verdict, Option<T>) {
 /// estimate of the air over a grid cell, never a promise of a climb.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Kind {
-    /// None a paraglider climbs in, or none that reach above the place.
+    /// Nothing a paraglider climbs in above the place: less than
+    /// [`WEAK_CLIMB_MS`], or ending less than [`WEAK_REACH_M`] above it.
+    /// A winter's day.
+    NoThermals,
+    /// Something to climb in above the place, less than local thermals.
     Weak,
     /// Enough to stay up around the take-off.
     Local,
@@ -245,8 +257,10 @@ pub fn kind_of_hour(air: &Convection, place_m: f64, verdict: Verdict) -> Option<
         Kind::CrossCountry
     } else if air.climb_ms >= CLIMB_MS[0] && reach >= REACH_M[0] {
         Kind::Local
-    } else {
+    } else if air.climb_ms >= WEAK_CLIMB_MS && reach >= WEAK_REACH_M {
         Kind::Weak
+    } else {
+        Kind::NoThermals
     };
     match verdict {
         Verdict::Flyable => Some(by_the_air),
@@ -331,14 +345,14 @@ pub struct ThermalDay {
     /// The kind of day.
     pub kind: Kind,
     /// The hours that make it, as the indices of the first and the last;
-    /// none on a day of weak thermals.
+    /// none on a day of weak thermals or none.
     pub window: Option<(usize, usize)>,
     /// The climb to expect, m/s: the mean over the window, or the best
-    /// hour's on a day of weak thermals. Not rounded.
+    /// hour's on a day of weak thermals or none. Not rounded.
     pub climb_ms: f64,
     /// How high the thermals go, metres above mean sea level: the highest
     /// of the window, or the best hour's on a day of weak thermals. None
-    /// without thermals. Not rounded.
+    /// on a day without thermals. Not rounded.
     pub top_m: Option<f64>,
     /// Whether that height is a base of cumulus.
     pub cloud: bool,
@@ -374,18 +388,31 @@ pub fn thermal_day(hours: &[RatedHour]) -> Option<ThermalDay> {
             cloud: highest.cloud_base_m.is_some(),
         });
     }
-    // Weak: the best there is, among the hours that can be flown.
-    let best = hours
-        .iter()
-        .filter(|hour| hour.kind.is_some())
-        .filter_map(|hour| hour.air)
-        .max_by(|a, b| a.climb_ms.total_cmp(&b.climb_ms))?;
+    // Weak: the best there is, among the hours that can be flown and have
+    // thermals; without any, no thermals, and the best climb there is.
+    let best = |kind: Kind| {
+        hours
+            .iter()
+            .filter(|hour| hour.kind >= Some(kind))
+            .filter_map(|hour| hour.air)
+            .max_by(|a, b| a.climb_ms.total_cmp(&b.climb_ms))
+    };
+    if let Some(best) = best(Kind::Weak) {
+        return Some(ThermalDay {
+            kind: Kind::Weak,
+            window: None,
+            climb_ms: best.climb_ms,
+            top_m: (best.depth_m > 0.0).then_some(best.top_m),
+            cloud: best.depth_m > 0.0 && best.cloud_base_m.is_some(),
+        });
+    }
+    let best = best(Kind::NoThermals)?;
     Some(ThermalDay {
-        kind: Kind::Weak,
+        kind: Kind::NoThermals,
         window: None,
         climb_ms: best.climb_ms,
-        top_m: (best.depth_m > 0.0).then_some(best.top_m),
-        cloud: best.depth_m > 0.0 && best.cloud_base_m.is_some(),
+        top_m: None,
+        cloud: false,
     })
 }
 
@@ -659,6 +686,10 @@ mod tests {
         assert_eq!(kind(air(0.6, 1400.0, 2.0)), Some(Kind::Local));
         assert_eq!(kind(air(0.6, 1200.0, 2.0)), Some(Kind::Weak));
         assert_eq!(kind(air(0.3, 2600.0, 2.0)), Some(Kind::Weak));
+        // Too weak to climb in, or ending under the take-off: none.
+        assert_eq!(kind(air(0.1, 2600.0, 2.0)), Some(Kind::NoThermals));
+        assert_eq!(kind(air(0.6, 1050.0, 2.0)), Some(Kind::NoThermals));
+        assert_eq!(kind(air(0.6, 900.0, 2.0)), Some(Kind::NoThermals));
     }
 
     #[test]
@@ -717,6 +748,20 @@ mod tests {
         // The hour that cannot be flown does not speak for the day.
         assert!((day.climb_ms - 0.4).abs() < 1e-9);
         assert_eq!(day.top_m, Some(1800.0));
+    }
+
+    #[test]
+    fn a_winters_day_with_nothing_to_climb_in_has_no_thermals() {
+        let hours = vec![
+            rated(11, Verdict::Flyable, air(0.1, 1500.0, 2.0), 1000.0),
+            rated(12, Verdict::Marginal, air(0.15, 1600.0, 2.0), 1000.0),
+            // Climbs, but ends under the take-off.
+            rated(13, Verdict::Flyable, air(0.8, 1050.0, 2.0), 1000.0),
+        ];
+        let day = thermal_day(&hours).unwrap_or_else(|| unreachable!());
+        assert_eq!(day.kind, Kind::NoThermals);
+        assert_eq!((day.window, day.top_m, day.cloud), (None, None, false));
+        assert!((day.climb_ms - 0.8).abs() < 1e-9);
     }
 
     #[test]

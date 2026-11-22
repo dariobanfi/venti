@@ -98,10 +98,13 @@ async fn the_development_mode_serves_the_map_of_the_recorded_places() {
         for cell in 0..4 {
             // Every cell has a verdict on every day. A day that is not
             // flyable says nothing of thermals, and a November day has no
-            // thermals but weak ones.
+            // thermals, or weak ones at the most.
             match day.verdict[cell] {
                 Some(ThermalVerdict::NotFlyable) => assert_eq!(day.thermals[cell], None),
-                Some(_) => assert!(matches!(day.thermals[cell], Some(ThermalKind::Weak) | None)),
+                Some(_) => assert!(matches!(
+                    day.thermals[cell],
+                    Some(ThermalKind::NoThermals | ThermalKind::Weak) | None
+                )),
                 None => panic!("no verdict for cell {cell} on {}", day.date),
             }
             if let Some(climb) = day.climb_ms[cell] {

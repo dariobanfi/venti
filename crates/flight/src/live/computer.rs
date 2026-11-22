@@ -6,6 +6,7 @@ use venti_domain::GeoPoint;
 
 use super::air::{self, ThroughTheAir};
 use super::atmosphere::{self, pressure_altitude_m};
+use super::flight_check::{Evidence, FalseStart, FlightCheck, Moment};
 use super::navigation::bearing_deg;
 use super::thermal::{self, ThermalPicture};
 use super::vario::VarioFilter;
@@ -152,14 +153,19 @@ pub enum Phase {
 }
 
 /// Where the climb rate comes from, best first.
+///
+/// Never from the satellites' altitude: it wanders by metres from one
+/// second to the next and lags by several, and a vario built on it beeps
+/// in sink and stays silent in lift (the owner, 2026-11-22: "too
+/// unreliable to be useful"). Without an instrument or a pressure sensor
+/// there is no climb and no tone; the satellites' altitude still gives
+/// the altitude, the record and the rules for take-off and landing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VarioSource {
     /// An external instrument's own vario.
     Instrument,
     /// A pressure sensor, the phone's or an instrument's.
     Pressure,
-    /// Satellite altitude: slow and noisy, the last resort.
-    Satellite,
 }
 
 /// One point of the track behind the glider.
@@ -355,11 +361,14 @@ pub struct LiveState {
     pub altitude_m: Option<f64>,
     /// Altitude on the standard atmosphere, metres, from the newest pressure.
     pub pressure_altitude_m: Option<f64>,
-    /// The climb rate now, metres per second.
+    /// The climb rate now, metres per second, from an instrument or a
+    /// pressure sensor ([`VarioSource`]). `None` without either.
     pub climb_ms: Option<f64>,
     /// Where the climb rate comes from.
     pub vario_source: Option<VarioSource>,
-    /// The climb rate averaged over the configured time.
+    /// The climb rate averaged over the configured time. Like the climb,
+    /// only while a pressure sensor gives the altitude: from the
+    /// satellites alone it is not shown.
     pub average_climb_ms: Option<f64>,
     /// Speed over the ground, metres per second.
     pub ground_speed_ms: Option<f64>,
@@ -417,6 +426,13 @@ pub struct LiveState {
     pub max_altitude_m: Option<f64>,
     /// The track of the last few minutes, oldest first.
     pub trail: Vec<TrailPoint>,
+    /// Whether the flight since the take-off is still provisional: it has
+    /// not yet done anything only a glider does ([`Evidence`]), and is
+    /// taken back if it does not before it comes to rest for good
+    /// ([`FalseStart`]). False on the ground.
+    pub provisional: bool,
+    /// What showed the flight to be one, once something has.
+    pub confirmed_by: Option<Evidence>,
 }
 
 /// The flight computer. Feed it sensor samples as they arrive, in any mix
@@ -478,6 +494,20 @@ pub struct FlightComputer {
     winds: Vec<WindBand>,
     max_altitude_m: Option<f64>,
     trail: VecDeque<TrailPoint>,
+    /// What the flight since the take-off has shown of being one, and what
+    /// showed it, once something has.
+    check: FlightCheck,
+    confirmed: Option<Evidence>,
+    /// A flight taken back, until it is asked for.
+    false_start: Option<FalseStart>,
+    /// After a flight was taken back, no take-off counts until the
+    /// receiver has stood or walked for as long as a landing takes to
+    /// stand: a car that drove on would start a flight every half minute.
+    cooling: bool,
+    /// Since when the receiver has moved slower than a landed glider.
+    slow_since: Option<f64>,
+    /// Never to take a flight back: the pilot started the recording.
+    never_take_back: bool,
 }
 
 /// A moment of the flight: when, where and how high.
@@ -547,6 +577,12 @@ impl FlightComputer {
             band_mark: None,
             max_altitude_m: None,
             trail: VecDeque::new(),
+            check: FlightCheck::default(),
+            confirmed: None,
+            false_start: None,
+            cooling: false,
+            slow_since: None,
+            never_take_back: false,
         }
     }
 
@@ -621,9 +657,23 @@ impl FlightComputer {
         self.config.never_land = never_land;
     }
 
+    /// Sets whether a flight is never taken back ([`FalseStart`]), for a
+    /// pilot who started the recording by hand: then a flight is one by
+    /// their word, and never provisional.
+    pub fn set_never_take_back(&mut self, never_take_back: bool) {
+        self.never_take_back = never_take_back;
+    }
+
     /// Takes a climb rate computed by an external instrument.
     pub fn instrument_vario(&mut self, time_s: f64, climb_ms: f64) {
         self.instrument_vario = Some((time_s, climb_ms));
+    }
+
+    /// Forgets the instrument's climb at once, for an instrument whose
+    /// link is lost: the next source takes over now, not when the
+    /// instrument's last word has gone stale.
+    pub fn forget_instrument_vario(&mut self) {
+        self.instrument_vario = None;
     }
 
     /// Takes a position. Positions drive everything that happens once a
@@ -679,6 +729,7 @@ impl FlightComputer {
             }
         }
 
+        let mut circled = false;
         if let Some(velocity) = self.velocity {
             // The sine of a course is its east part, the cosine its north part.
             let (east, north) = velocity.course_deg.to_radians().sin_cos();
@@ -692,6 +743,7 @@ impl FlightComputer {
                 self.velocities.pop_front();
             }
             let measured = self.wind.add(now, east, north);
+            circled = measured.is_some();
             if let Some(fix) = measured {
                 // A circle's wind always stands: it is the better
                 // measurement and the newest.
@@ -781,6 +833,58 @@ impl FlightComputer {
                 self.trail.pop_front();
             }
         }
+
+        // Whether the flight is one.
+        if self.phase == Phase::Flying && self.confirmed.is_none() && !self.never_take_back {
+            let moment = Moment {
+                time_s: now,
+                altitude_m: altitude,
+                speed_ms: self.velocity.map(|velocity| velocity.speed_ms),
+                course_deg: self.velocity.map(|velocity| velocity.course_deg),
+                above_ground_m: self
+                    .ground
+                    .filter(|&(told, _)| (0.0..=POSITION_STALE_S).contains(&(now - told)))
+                    .zip(altitude)
+                    .map(|((_, ground), altitude)| altitude - ground),
+                circled,
+            };
+            match self.check.add(moment, &self.trail) {
+                Some(Ok(evidence)) => self.confirmed = Some(evidence),
+                Some(Err(false_start)) => self.withdraw(false_start),
+                None => {}
+            }
+        }
+    }
+
+    /// A flight taken back since this was last asked, once: the computer
+    /// is on the ground again, as before the take-off, and what the
+    /// flight was is forgotten.
+    pub fn take_false_start(&mut self) -> Option<FalseStart> {
+        self.false_start.take()
+    }
+
+    /// Takes the flight back: it was none.
+    fn withdraw(&mut self, false_start: FalseStart) {
+        self.phase = Phase::Ground;
+        self.takeoff = None;
+        self.landing_time_s = None;
+        self.condition_since = None;
+        self.circling = false;
+        self.thermal = None;
+        self.circled = (0.0, 0.0, 0);
+        self.thermals.clear();
+        // A wind made of a road's bends is no wind.
+        self.wind = WindEstimator::new();
+        self.glide_wind = GlideWindEstimator::new();
+        self.wind_now = None;
+        self.winds.clear();
+        self.band_mark = None;
+        self.max_altitude_m = None;
+        self.trail.clear();
+        self.check = FlightCheck::default();
+        self.confirmed = None;
+        self.false_start = Some(false_start);
+        self.cooling = true;
     }
 
     /// The state of the flight at `now_s`. Passing the time lets the
@@ -804,7 +908,8 @@ impl FlightComputer {
             vario_source: climb.map(|(_, source)| source),
             average_climb_ms: self
                 .average_climb(self.config.averaging_s)
-                .filter(|_| self.has_position(now_s)),
+                .filter(|_| self.has_position(now_s))
+                .filter(|_| self.pressure_levelled(now_s)),
             ground_speed_ms: velocity.map(|velocity| velocity.speed_ms),
             course_deg: velocity.map(|velocity| velocity.course_deg),
             glide_ratio: self.glide_ratio().filter(|_| self.has_position(now_s)),
@@ -818,9 +923,10 @@ impl FlightComputer {
                 }),
             turn_rate_deg_s: self.turn_rate_deg_s().filter(|_| self.has_position(now_s)),
             altitude_source: altitude.map(|_| {
-                match (self.fresh_pressure_altitude(now_s), self.pressure_offset_m) {
-                    (Some(_), Some(_)) => AltitudeSource::Pressure,
-                    _ => AltitudeSource::Satellite,
+                if self.pressure_levelled(now_s) {
+                    AltitudeSource::Pressure
+                } else {
+                    AltitudeSource::Satellite
                 }
             }),
             qnh: self.qnh,
@@ -853,6 +959,10 @@ impl FlightComputer {
                 .map(|(here, takeoff)| bearing_deg(here, takeoff)),
             max_altitude_m: self.max_altitude_m,
             trail: self.trail.iter().copied().collect(),
+            provisional: self.phase != Phase::Ground
+                && self.confirmed.is_none()
+                && !self.never_take_back,
+            confirmed_by: self.confirmed,
         }
     }
 
@@ -922,23 +1032,23 @@ impl FlightComputer {
         }
     }
 
-    /// The climb rate from the best source that is still talking.
+    /// Whether the altitude now is the pressure sensor's, levelled to the
+    /// satellites: a fresh pressure and an offset to level it by.
+    fn pressure_levelled(&self, now_s: f64) -> bool {
+        self.fresh_pressure_altitude(now_s).is_some() && self.pressure_offset_m.is_some()
+    }
+
+    /// The climb rate from the best source that is still talking, and
+    /// none from the satellites ([`VarioSource`]).
     fn climb(&self, now_s: f64) -> Option<(f64, VarioSource)> {
         if let Some((time, climb)) = self.instrument_vario
             && now_s - time <= STALE_S
         {
             return Some((climb, VarioSource::Instrument));
         }
-        if self.fresh_pressure_altitude(now_s).is_some() {
-            return self
-                .pressure_filter
-                .climb_ms()
-                .map(|climb| (climb, VarioSource::Pressure));
-        }
-        self.satellite_filter
-            .climb_ms()
-            .filter(|_| self.has_position(now_s))
-            .map(|climb| (climb, VarioSource::Satellite))
+        self.fresh_pressure_altitude(now_s)
+            .and(self.pressure_filter.climb_ms())
+            .map(|climb| (climb, VarioSource::Pressure))
     }
 
     /// Height gained per second over the last `seconds`, from the altitude
@@ -1159,11 +1269,22 @@ impl FlightComputer {
             _ => here,
         };
         self.previous = Some(here);
+        if speed < self.config.landing_speed_ms {
+            let since = *self.slow_since.get_or_insert(now);
+            if now - since >= self.config.landing_confirm_s {
+                self.cooling = false;
+            }
+        } else {
+            self.slow_since = None;
+        }
         match self.phase {
+            Phase::Ground if self.cooling => {}
             Phase::Ground => {
                 if let Some(takeoff) = self.takes_off(now, speed, here, run_origin, altitude) {
                     self.phase = Phase::Flying;
                     self.takeoff = Some((takeoff.time_s, takeoff.position, takeoff.altitude_m));
+                    self.check = FlightCheck::default();
+                    self.confirmed = None;
                 }
             }
             Phase::Flying => {
@@ -1215,6 +1336,9 @@ impl FlightComputer {
                 {
                     self.phase = Phase::Flying;
                     self.landing_time_s = None;
+                } else if !recent && self.confirmed.is_none() && !self.never_take_back {
+                    // At rest for good, and never a flight.
+                    self.withdraw(FalseStart::NothingFlown);
                 }
             }
         }
@@ -1282,6 +1406,7 @@ impl FlightComputer {
 mod tests {
     use super::*;
     use crate::igc::Fix;
+    use crate::live::flight_check::{Evidence, FalseStart};
 
     /// Metres per degree of latitude on the FAI sphere.
     const M_PER_DEG_LAT: f64 = 111_194.9;
@@ -1323,6 +1448,10 @@ mod tests {
         assert_eq!(states[8].phase, Phase::Flying);
         // The recording starts in flight: the take-off is its first fix.
         assert_eq!(states[8].takeoff_time_s, Some(start));
+        // Provisional, until a minute of the first glide makes it a flight.
+        assert!(states[8].provisional);
+        assert!(!states[80].provisional);
+        assert_eq!(states[80].confirmed_by, Some(Evidence::Glide));
         assert!(states.last().unwrap().landing_time_s.is_none());
         assert_eq!(states.last().unwrap().phase, Phase::Flying);
     }
@@ -1563,11 +1692,11 @@ mod tests {
     }
 
     #[test]
-    fn without_a_pressure_sensor_the_satellites_give_a_slower_vario() {
+    fn without_a_pressure_sensor_there_is_no_climb_and_the_flight_is_still_seen() {
         let flight = synthetic_flight();
         let mut computer = FlightComputer::new(Config::default());
-        let mut state = None;
-        for fix in &flight.fixes[..300] {
+        let mut states = Vec::new();
+        for fix in &flight.fixes[..400] {
             let time = fix.time.timestamp() as f64;
             computer.position(PositionSample {
                 time_s: time,
@@ -1576,15 +1705,21 @@ mod tests {
                 ground_speed_ms: None,
                 course_deg: None,
             });
-            state = Some(computer.state(time));
+            states.push(computer.state(time));
         }
-        let state = state.unwrap();
-        assert_eq!(state.vario_source, Some(VarioSource::Satellite));
-        assert!(
-            (state.climb_ms.unwrap() - 2.4).abs() < 0.4,
-            "{:?}",
-            state.climb_ms
-        );
+        // Deep in the climb of 2.4 m/s: no climb from the satellites.
+        let state = &states[300];
+        assert_eq!(state.vario_source, None);
+        assert_eq!(state.climb_ms, None);
+        assert_eq!(state.average_climb_ms, None);
+        // The altitude, the take-off, the circling and the thermal's own
+        // gain are still there: they are heights, not a vario.
+        assert_eq!(state.altitude_source, Some(AltitudeSource::Satellite));
+        assert!(state.altitude_m.is_some());
+        assert_eq!(state.phase, Phase::Flying);
+        assert!(state.circling);
+        assert!(state.thermal.unwrap().gain_m > 350.0);
+        assert!(states[380].thermals.len() == 1);
     }
 
     #[test]
@@ -1668,11 +1803,16 @@ mod tests {
             }
         };
 
-        // Soaring a dune at one height, then standing in the wind for
-        // forty seconds: by the rule for a landing, landed.
+        // Down from the top of a dune, soaring it at one height, then
+        // standing in the wind for forty seconds: by the rule for a
+        // landing, landed.
         let mut computer = FlightComputer::new(Config::default());
         let mut north = 0.0;
-        fly(&mut computer, 0..120, &mut north);
+        for second in 0..70 {
+            north += 9.0;
+            step(&mut computer, second, north, 370.0 - f64::from(second));
+        }
+        fly(&mut computer, 70..120, &mut north);
         stand(&mut computer, 120..160, north);
         let parked = computer.state(160.0);
         assert_eq!(parked.phase, Phase::Landed);
@@ -1741,7 +1881,8 @@ mod tests {
         let state = computer.state(60.0);
         assert!(state.ground_speed_ms.is_some());
         assert!(state.glide_ratio.is_some());
-        assert!(state.climb_ms.is_some());
+        // No climb without a pressure sensor ([`VarioSource`]).
+        assert!(state.climb_ms.is_none());
         assert!(state.altitude_m.is_some());
 
         let state = computer.state(70.0);
@@ -1999,6 +2140,206 @@ mod tests {
         let state = walking.fly(900, parked);
         assert_eq!(state.phase, Phase::Flying);
         assert_eq!(state.landing_time_s, None);
+    }
+
+    /// East and north parts of a speed on a course, metres per second.
+    fn heading(speed_ms: f64, course_deg: f64) -> (f64, f64) {
+        let (sin, cos) = course_deg.to_radians().sin_cos();
+        (speed_ms * sin, speed_ms * cos)
+    }
+
+    /// A walk, a run and a glide from a launch: what a take-off is.
+    fn launch(flown: &mut Flown) -> LiveState {
+        flown.fly(300, |_| (0.0, 0.0, 0.0));
+        flown.fly(240, |second| {
+            let (east, north) = heading(1.0, 90.0 * (second / 60.0).floor());
+            (east, north, 0.0)
+        });
+        flown.fly(4, |_| (0.0, 3.5, -0.2));
+        flown.fly(10, |_| (0.0, 10.0, -1.2))
+    }
+
+    #[test]
+    fn a_cable_car_is_no_flight_and_the_take_off_after_it_is() {
+        let mut flown = Flown::new();
+        // Queueing at the valley station.
+        flown.fly(120, |_| (0.0, 0.0, 0.0));
+        // Eight minutes up a cable: 4 m/s along the ground to the east,
+        // 3 m/s up, 1,440 m in all. The take-off rule takes it for one.
+        let riding = flown.fly(60, |_| (4.0, 0.0, 3.0));
+        assert_eq!(riding.phase, Phase::Flying);
+        assert!(riding.provisional);
+        let top = flown.fly(420, |_| (4.0, 0.0, 3.0));
+        assert_eq!(top.phase, Phase::Flying);
+        assert!(top.provisional, "{:?}", top.confirmed_by);
+        // At the top station: at rest, and landed by the landing rule; a
+        // landing that would stand in two minutes.
+        let arrived = flown.fly(40, |_| (0.0, 0.0, 0.0));
+        assert_eq!(arrived.phase, Phase::Landed);
+        assert!(arrived.provisional);
+        assert_eq!(flown.computer.take_false_start(), None);
+        // When it stands, the ride is taken back.
+        let back = flown.fly(110, |_| (0.0, 0.0, 0.0));
+        assert_eq!(back.phase, Phase::Ground, "{back:?}");
+        assert_eq!(back.takeoff_time_s, None);
+        assert_eq!(back.max_altitude_m, None);
+        assert!(back.trail.is_empty() && !back.provisional);
+        assert_eq!(
+            flown.computer.take_false_start(),
+            Some(FalseStart::NothingFlown)
+        );
+        assert_eq!(flown.computer.take_false_start(), None);
+
+        // The walk to the launch, and the take-off: a flight, and one
+        // within a minute of gliding.
+        let off = launch(&mut flown);
+        let launched_s = flown.time - 14.0;
+        assert_eq!(off.phase, Phase::Flying);
+        assert!(off.provisional);
+        assert!(
+            (off.takeoff_time_s.unwrap() - launched_s).abs() <= 5.0,
+            "{off:?}"
+        );
+        let gliding = flown.fly(60, |_| (0.0, 10.0, -1.2));
+        assert!(!gliding.provisional);
+        assert_eq!(gliding.confirmed_by, Some(Evidence::Glide));
+        // And it lands, and stays landed.
+        flown.fly(120, |_| (0.0, 10.0, -1.2));
+        let landed = flown.fly(400, |_| (0.0, 0.0, 0.0));
+        assert_eq!(landed.phase, Phase::Landed);
+        assert_eq!(flown.computer.take_false_start(), None);
+    }
+
+    #[test]
+    fn a_car_on_a_pass_is_no_flight() {
+        let mut flown = Flown::new();
+        flown.altitude_m = 800.0;
+        flown.fly(60, |_| (0.0, 0.0, 0.0));
+        // Fifteen to twenty-five metres a second on a road that winds,
+        // turns back on itself every minute and a half, and climbs or falls
+        // 7 % of the way.
+        let road = |up: f64| {
+            move |second: f64| {
+                let speed = 20.0 + 5.0 * (second / 23.0).sin();
+                let leg = (second / 90.0).floor();
+                let back = if leg as i64 % 2 == 0 { 0.0 } else { 180.0 };
+                let bend = 50.0 * (std::f64::consts::TAU * second / 40.0).sin();
+                let (east, north) = heading(speed, 30.0 + back + bend);
+                (east, north, up * 0.07 * speed)
+            }
+        };
+        let stop = |_: f64| (0.0, 0.0, 0.0);
+        let states = [
+            flown.fly(400, road(1.0)),
+            // Thirty seconds at a junction: landed for a moment, and that
+            // is taken back as the car drives on.
+            flown.fly(30, stop),
+            flown.fly(400, road(1.0)),
+            // Over the pass and down the other side.
+            flown.fly(600, road(-1.0)),
+        ];
+        for state in &states {
+            assert_ne!(state.phase, Phase::Ground, "{state:?}");
+            assert!(state.provisional, "{:?}", state.confirmed_by);
+        }
+        // Parked: taken back once it has stood for as long as a landing
+        // takes to stand.
+        let parked = flown.fly(180, stop);
+        assert_eq!(parked.phase, Phase::Ground, "{parked:?}");
+        assert_eq!(
+            flown.computer.take_false_start(),
+            Some(FalseStart::NothingFlown)
+        );
+    }
+
+    #[test]
+    fn a_motorway_is_no_flight_and_starts_none_until_the_car_has_stood() {
+        let mut flown = Flown::new();
+        flown.fly(60, |_| (0.0, 0.0, 0.0));
+        let fast = flown.fly(20, |_| (0.0, 33.0, 0.0));
+        assert_eq!(fast.phase, Phase::Flying);
+        let gone = flown.fly(30, |_| (0.0, 33.0, 0.0));
+        assert_eq!(gone.phase, Phase::Ground, "{gone:?}");
+        assert_eq!(flown.computer.take_false_start(), Some(FalseStart::Vehicle));
+        // Driving on, slower on a country road, and through a village:
+        // no flight begins.
+        for state in [
+            flown.fly(600, |_| (0.0, 33.0, 0.0)),
+            flown.fly(300, |second| (0.0, 18.0, 0.5 * (second / 30.0).sin())),
+            flown.fly(60, |_| (0.0, 0.0, 0.0)),
+            flown.fly(60, |_| (0.0, 12.0, 0.0)),
+        ] {
+            assert_eq!(state.phase, Phase::Ground, "{state:?}");
+        }
+        assert_eq!(flown.computer.take_false_start(), None);
+        // Parked, a walk to the launch, and a flight that is one.
+        launch(&mut flown);
+        let state = flown.fly(60, |_| (0.0, 10.0, -1.2));
+        assert_eq!(state.phase, Phase::Flying);
+        assert_eq!(state.confirmed_by, Some(Evidence::Glide));
+    }
+
+    #[test]
+    fn circles_after_the_launch_make_a_flight_at_once() {
+        let mut flown = Flown::new();
+        launch(&mut flown);
+        // Into a thermal straight after the launch: circles of 25 s,
+        // climbing 1.5 m/s. One circle is enough.
+        let state = flown.fly(35, |second| {
+            let (east, north) = heading(9.0, 360.0 * second / 25.0);
+            (east, north, 1.5)
+        });
+        assert_eq!(state.confirmed_by, Some(Evidence::Circles), "{state:?}");
+    }
+
+    #[test]
+    fn a_ridge_soared_back_and_forth_at_one_height_is_a_flight() {
+        let mut flown = Flown::new();
+        launch(&mut flown);
+        // Beats along a ridge: forty seconds one way at 9 m/s, a turn of
+        // eight seconds, forty seconds back, within twenty metres of one
+        // height.
+        let beat = |second: f64| {
+            let at = second % 96.0;
+            let course = if at < 40.0 {
+                0.0
+            } else if at < 48.0 {
+                180.0 * (at - 40.0) / 8.0
+            } else if at < 88.0 {
+                180.0
+            } else {
+                180.0 - 180.0 * (at - 88.0) / 8.0
+            };
+            let (east, north) = heading(9.0, course);
+            (
+                east,
+                north,
+                0.6 * (std::f64::consts::TAU * second / 96.0).sin(),
+            )
+        };
+        let early = flown.fly(120, beat);
+        assert!(early.provisional, "{:?}", early.confirmed_by);
+        let soared = flown.fly(200, |second| beat(second + 120.0));
+        assert_eq!(soared.confirmed_by, Some(Evidence::Soaring), "{soared:?}");
+    }
+
+    #[test]
+    fn high_over_the_ground_is_a_flight_and_a_cable_car_as_high_is_not() {
+        // Straight and level 300 m over the ground: a flight after a
+        // minute.
+        let mut flown = Flown::new();
+        launch(&mut flown);
+        flown.over_ground_m = Some(300.0);
+        let state = flown.fly(65, |_| (0.0, 9.0, 0.0));
+        assert_eq!(state.confirmed_by, Some(Evidence::HighOverGround));
+
+        // A cable car hanging 150 m over a gorge climbs 3 m/s: no flight.
+        let mut flown = Flown::new();
+        flown.fly(120, |_| (0.0, 0.0, 0.0));
+        flown.over_ground_m = Some(150.0);
+        let state = flown.fly(300, |_| (5.0, 0.0, 3.0));
+        assert_eq!(state.phase, Phase::Flying);
+        assert!(state.provisional, "{:?}", state.confirmed_by);
     }
 
     #[test]

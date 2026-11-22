@@ -43,9 +43,9 @@ class CablesModelTest {
         assertTrue(url, url.startsWith("https://venti.test/v1/cables"))
         assertNotNull(cables.set)
         assertEquals(8, cables.lines.size)
-        // The core's words, and its sentence on what the layer does not promise.
+        // The core's words, and its sentence on what the layer lacks.
         assertTrue(cables.lines.any { it.words == "Power line, 110 kV, height not mapped" })
-        assertTrue(checkNotNull(cables.layer).limits.contains("no promise"))
+        assertTrue(checkNotNull(cables.layer).limits.contains("Not every cable is mapped"))
         assertTrue(checkNotNull(cables.creditLine).contains("OpenStreetMap"))
         val first = cables.lines.first()
         assertEquals(first, cables.line(first.id))

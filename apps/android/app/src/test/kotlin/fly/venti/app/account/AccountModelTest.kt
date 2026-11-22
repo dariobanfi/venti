@@ -69,7 +69,7 @@ class AccountModelTest {
                 method == "PUT" && request.path.startsWith("$KEPT_SITES/") -> HttpAnswer(200, keptAsSent(request))
                 method == "PATCH" -> HttpAnswer(
                     200,
-                    recorded("upload.json").decodeToString().replace("\"private\"", "\"unlisted\"").toByteArray(),
+                    recorded("upload.json").decodeToString().replace("\"public\"", "\"unlisted\"").toByteArray(),
                 )
                 method == "DELETE" -> HttpAnswer(204, ByteArray(0))
                 else -> refusal(404, "not_found")
@@ -149,7 +149,8 @@ class AccountModelTest {
         assertTrue(logbook.deletionWarning.contains("from Venti and from your other devices"))
 
         // Sharing changes who may see the flight and gives its link.
-        assertEquals(FlightVisibility.PRIVATE, account.sharing(flight)?.visibility)
+        // New flights are public unless the pilot keeps them private (owner decision 21).
+        assertEquals(FlightVisibility.PUBLIC, account.sharing(flight)?.visibility)
         val shared = account.share(flight, FlightVisibility.UNLISTED)
         assertEquals(FlightVisibility.UNLISTED, shared?.visibility)
         assertEquals("$SERVER/f/wkvydb8am8wmdcxzds9vkrw5kr", shared?.link)
@@ -434,7 +435,8 @@ class AccountModelTest {
         val server = Server()
         val account = model(logbook, server)
         account.signIn(SERVER, "demo", "a password of the test")
-        assertEquals(FlightVisibility.PRIVATE, account.sharing(flight)?.visibility)
+        // New flights are public unless the pilot keeps them private (owner decision 21).
+        assertEquals(FlightVisibility.PUBLIC, account.sharing(flight)?.visibility)
 
         // A flight the operator took down cannot be shared again, and the
         // refusal is said in the core's words where the pilot asked.
@@ -445,7 +447,8 @@ class AccountModelTest {
                 "It stays in your logbook, and cannot be shared from it.",
             account.problem,
         )
-        assertEquals(FlightVisibility.PRIVATE, account.sharing(flight)?.visibility)
+        // New flights are public unless the pilot keeps them private (owner decision 21).
+        assertEquals(FlightVisibility.PUBLIC, account.sharing(flight)?.visibility)
 
         // So for an account that was stopped from sharing with everyone.
         account.problem = null

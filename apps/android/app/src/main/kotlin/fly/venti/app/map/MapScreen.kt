@@ -83,11 +83,9 @@ import fly.venti.app.live.LiveModel
 import fly.venti.app.live.AirModel
 import fly.venti.core.ClimbView
 import fly.venti.core.FlownCellView
-import fly.venti.core.flownTooWideWords
 import fly.venti.core.liveClimbsEmptyWords
 import kotlinx.coroutines.delay
 import fly.venti.app.live.OtherAircraftSheet
-import fly.venti.core.othersTooWideWords
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.radar.RadarCard
 import fly.venti.app.radar.RadarModel
@@ -621,20 +619,8 @@ fun MapScreen(
                     Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4).testTag("airspace-too-wide"),
                 )
             }
-            // Zoomed out too far for where thermals have been, in the core's words.
-            if (showsFlown && air?.flownTooWide == true && !airspaceTooWide) {
-                Notice(
-                    flownTooWideWords(),
-                    Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4).testTag("flown-too-wide"),
-                )
-            }
-            // Zoomed out too far for the other networks' aircraft, in the core's words.
-            if (live.othersTooWide && !hidesPilots && hasServer) {
-                Notice(
-                    othersTooWideWords(),
-                    Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4).testTag("others-too-wide"),
-                )
-            }
+            // Gliders and where thermals have been simply appear when the map
+            // is close enough: no words for it (owner decision 19).
             wind.notice?.takeIf { !hidesWind }?.let { text ->
                 Notice(text, Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4))
             }
@@ -826,7 +812,7 @@ fun MapScreen(
                         // What the layer is and what its flights are given under; or to zoom in.
                         notes = when {
                             !air.flownOn -> emptyList()
-                            air.flownTooWide -> listOf(flownTooWideWords())
+                            air.flownTooWide -> emptyList()
                             else -> listOfNotNull(
                                 air.flown?.note?.takeIf { it.isNotBlank() },
                                 MapWords.core.flownEmpty.takeIf { air.flown?.cells?.isEmpty() == true },

@@ -6341,10 +6341,9 @@ class VentiUiTest {
         tap(hasTestTag("air-line-close"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("flown-line")) }
 
-        // Zoomed out beyond a degree the core says to zoom in.
+        // Zoomed out beyond a degree nothing is drawn and nothing is said.
         assertTrue(TestDevice.lookAt(scenario, lat = 47.655, lon = 11.775, zoom = 7.0))
-        waitFor(hasText("Zoom in to see where pilots climbed."))
-        assertTrue(exists(hasTestTag("flown-too-wide")))
+        assertFalse(exists(hasText("Zoom in to see where pilots climbed.")))
         letTheMapDraw(1)
         keepScreenshot("light-layers-8-thermals-zoom-in")
     }

@@ -70,6 +70,7 @@
 //! | [`plan_in_path`] | PUT, DELETE | | [`PlanResponse`] |
 //! | [`PLAN_BOARD_PATH`] | GET | [`PlanBoardRequest`] | [`PlanBoardResponse`] |
 //! | [`RADAR_PATH`] | GET | | [`RadarResponse`] |
+//! | [`FOEHN_PATH`] | GET | | [`FoehnResponse`] |
 //! | [`radar_frame_path`] | GET | | the frame's picture, a PNG |
 //! | [`DUMPS_PATH`] | GET | | [`DumpsResponse`] |
 //! | [`sites_dump_path`] | GET | | a layer of Venti's own sites as a file |
@@ -102,6 +103,7 @@ mod cables;
 mod dumps;
 mod error;
 mod flights;
+mod foehn;
 mod forecast;
 mod groups;
 mod health;
@@ -179,6 +181,10 @@ pub use flights::{
     PILOT_SEARCH_MIN_CHARS, PILOT_SITE_STEP_DEG, PILOT_TOP_SITES, PilotSeason,
     PilotStatisticsResponse, PilotTotals, PilotsResponse, RankingMonth, RankingYear, YearMonth,
     YearMonthError,
+};
+pub use foehn::{
+    FOEHN_PATH, FoehnLevel, FoehnPair, FoehnPoint, FoehnPressure, FoehnReducedBy, FoehnResponse,
+    FoehnSide, FoehnStation, FoehnUnknown,
 };
 pub use forecast::{ForecastLayer, ForecastNearby, ForecastResponse, NearbyHour, NearbyStrongest};
 pub use groups::{

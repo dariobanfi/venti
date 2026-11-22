@@ -908,7 +908,8 @@
       "gust_direction_deg": null,
       "temperature_c": 0.6,
       "humidity_pct": 79.5,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.1
     },
     {
       "station": "suedtirol-meteo:02200MS",
@@ -919,7 +920,8 @@
       "gust_direction_deg": null,
       "temperature_c": 3.0,
       "humidity_pct": 83.4,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.1
     },
     {
       "station": "suedtirol-meteo:02500MS",
@@ -930,7 +932,8 @@
       "gust_direction_deg": null,
       "temperature_c": 5.6,
       "humidity_pct": 69.6,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.2
     },
     {
       "station": "suedtirol-meteo:02700SF",
@@ -974,7 +977,8 @@
       "gust_direction_deg": null,
       "temperature_c": 1.4,
       "humidity_pct": 67.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.9
     },
     {
       "station": "suedtirol-meteo:07740WS",
@@ -996,7 +1000,8 @@
       "gust_direction_deg": null,
       "temperature_c": 9.9,
       "humidity_pct": 52.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.6
     },
     {
       "station": "suedtirol-meteo:09700MS",
@@ -1007,7 +1012,8 @@
       "gust_direction_deg": null,
       "temperature_c": 11.3,
       "humidity_pct": 56.5,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.3
     },
     {
       "station": "suedtirol-meteo:11400MS",
@@ -1018,7 +1024,8 @@
       "gust_direction_deg": null,
       "temperature_c": 1.8,
       "humidity_pct": 67.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1020.6
     },
     {
       "station": "suedtirol-meteo:15000SF",
@@ -1062,7 +1069,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.8,
       "humidity_pct": 99.8,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.5
     },
     {
       "station": "suedtirol-meteo:19300MS",
@@ -1073,7 +1081,8 @@
       "gust_direction_deg": null,
       "temperature_c": 6.4,
       "humidity_pct": 83.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.4
     },
     {
       "station": "suedtirol-meteo:20050SF",
@@ -1095,7 +1104,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.8,
       "humidity_pct": 70.0,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.0
     },
     {
       "station": "suedtirol-meteo:20690SF",
@@ -1128,7 +1138,8 @@
       "gust_direction_deg": null,
       "temperature_c": 6.4,
       "humidity_pct": 73.8,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.8
     },
     {
       "station": "suedtirol-meteo:22210MS",
@@ -1139,7 +1150,8 @@
       "gust_direction_deg": null,
       "temperature_c": 8.2,
       "humidity_pct": 85.2,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.8
     },
     {
       "station": "suedtirol-meteo:23200MS",
@@ -1150,7 +1162,8 @@
       "gust_direction_deg": null,
       "temperature_c": 9.7,
       "humidity_pct": 69.0,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.8
     },
     {
       "station": "suedtirol-meteo:24170WS",
@@ -1183,7 +1196,8 @@
       "gust_direction_deg": null,
       "temperature_c": 1.9,
       "humidity_pct": 57.2,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.8
     },
     {
       "station": "suedtirol-meteo:25900MS",
@@ -1194,7 +1208,8 @@
       "gust_direction_deg": null,
       "temperature_c": 3.6,
       "humidity_pct": 98.6,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.0
     },
     {
       "station": "suedtirol-meteo:27100MS",
@@ -1205,7 +1220,8 @@
       "gust_direction_deg": null,
       "temperature_c": 9.1,
       "humidity_pct": 69.8,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.5
     },
     {
       "station": "suedtirol-meteo:31410MS",
@@ -1216,7 +1232,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.7,
       "humidity_pct": 100.0,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.3
     },
     {
       "station": "suedtirol-meteo:31810SF",
@@ -1238,7 +1255,8 @@
       "gust_direction_deg": null,
       "temperature_c": 0.6,
       "humidity_pct": 99.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.4
     },
     {
       "station": "suedtirol-meteo:34200WS",
@@ -1260,7 +1278,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.8,
       "humidity_pct": 97.1,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1021.8
     },
     {
       "station": "suedtirol-meteo:35100WS",
@@ -1293,7 +1312,8 @@
       "gust_direction_deg": null,
       "temperature_c": 5.7,
       "humidity_pct": 96.2,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.7
     },
     {
       "station": "suedtirol-meteo:37700MS",
@@ -1304,7 +1324,8 @@
       "gust_direction_deg": null,
       "temperature_c": 6.3,
       "humidity_pct": 79.3,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.5
     },
     {
       "station": "suedtirol-meteo:39100MS",
@@ -1315,7 +1336,8 @@
       "gust_direction_deg": null,
       "temperature_c": 7.8,
       "humidity_pct": 71.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.7
     },
     {
       "station": "suedtirol-meteo:41000MS",
@@ -1326,7 +1348,8 @@
       "gust_direction_deg": null,
       "temperature_c": -0.2,
       "humidity_pct": 99.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1021.2
     },
     {
       "station": "suedtirol-meteo:42700MS",
@@ -1337,7 +1360,8 @@
       "gust_direction_deg": null,
       "temperature_c": -1.6,
       "humidity_pct": 99.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1023.1
     },
     {
       "station": "suedtirol-meteo:43200MS",
@@ -1348,7 +1372,8 @@
       "gust_direction_deg": null,
       "temperature_c": 1.3,
       "humidity_pct": null,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1020.4
     },
     {
       "station": "suedtirol-meteo:44500MS",
@@ -1359,7 +1384,8 @@
       "gust_direction_deg": null,
       "temperature_c": 1.4,
       "humidity_pct": 98.0,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1022.7
     },
     {
       "station": "suedtirol-meteo:45100WS",
@@ -1392,7 +1418,8 @@
       "gust_direction_deg": null,
       "temperature_c": 1.3,
       "humidity_pct": null,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.5
     },
     {
       "station": "suedtirol-meteo:50360SF",
@@ -1425,7 +1452,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.0,
       "humidity_pct": 85.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.8
     },
     {
       "station": "suedtirol-meteo:53200SF",
@@ -1458,7 +1486,8 @@
       "gust_direction_deg": null,
       "temperature_c": 0.8,
       "humidity_pct": 97.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.4
     },
     {
       "station": "suedtirol-meteo:56500MS",
@@ -1469,7 +1498,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.2,
       "humidity_pct": 99.1,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.9
     },
     {
       "station": "suedtirol-meteo:56900MS",
@@ -1480,7 +1510,8 @@
       "gust_direction_deg": null,
       "temperature_c": 5.3,
       "humidity_pct": 86.1,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.0
     },
     {
       "station": "suedtirol-meteo:59700MS",
@@ -1491,7 +1522,8 @@
       "gust_direction_deg": null,
       "temperature_c": 4.6,
       "humidity_pct": 85.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.3
     },
     {
       "station": "suedtirol-meteo:61300MS",
@@ -1502,7 +1534,8 @@
       "gust_direction_deg": null,
       "temperature_c": 1.5,
       "humidity_pct": 83.5,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.6
     },
     {
       "station": "suedtirol-meteo:61690SF",
@@ -1546,7 +1579,8 @@
       "gust_direction_deg": null,
       "temperature_c": 0.2,
       "humidity_pct": 88.2,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1023.3
     },
     {
       "station": "suedtirol-meteo:65350MS",
@@ -1557,7 +1591,8 @@
       "gust_direction_deg": null,
       "temperature_c": 4.6,
       "humidity_pct": 90.8,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1019.9
     },
     {
       "station": "suedtirol-meteo:65600MS",
@@ -1568,7 +1603,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.6,
       "humidity_pct": 97.6,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.9
     },
     {
       "station": "suedtirol-meteo:66000WS",
@@ -1601,7 +1637,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.3,
       "humidity_pct": 99.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.3
     },
     {
       "station": "suedtirol-meteo:68600MS",
@@ -1612,7 +1649,8 @@
       "gust_direction_deg": null,
       "temperature_c": 3.7,
       "humidity_pct": 72.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.4
     },
     {
       "station": "suedtirol-meteo:69900MS",
@@ -1634,7 +1672,8 @@
       "gust_direction_deg": null,
       "temperature_c": 5.7,
       "humidity_pct": 58.5,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.3
     },
     {
       "station": "suedtirol-meteo:73500MS",
@@ -1645,7 +1684,8 @@
       "gust_direction_deg": null,
       "temperature_c": 0.2,
       "humidity_pct": 81.2,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.9
     },
     {
       "station": "suedtirol-meteo:74200MS",
@@ -1656,7 +1696,8 @@
       "gust_direction_deg": null,
       "temperature_c": 0.4,
       "humidity_pct": 62.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.7
     },
     {
       "station": "suedtirol-meteo:74900MS",
@@ -1667,7 +1708,8 @@
       "gust_direction_deg": null,
       "temperature_c": 6.2,
       "humidity_pct": 80.6,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.5
     },
     {
       "station": "suedtirol-meteo:75600MS",
@@ -1678,7 +1720,8 @@
       "gust_direction_deg": null,
       "temperature_c": 8.1,
       "humidity_pct": 67.2,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1020.4
     },
     {
       "station": "suedtirol-meteo:78110MS",
@@ -1689,7 +1732,8 @@
       "gust_direction_deg": null,
       "temperature_c": 3.2,
       "humidity_pct": 53.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1015.9
     },
     {
       "station": "suedtirol-meteo:78305MS",
@@ -1700,7 +1744,8 @@
       "gust_direction_deg": null,
       "temperature_c": 1.0,
       "humidity_pct": 89.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1020.9
     },
     {
       "station": "suedtirol-meteo:78480SF",
@@ -1722,7 +1767,8 @@
       "gust_direction_deg": null,
       "temperature_c": 5.9,
       "humidity_pct": 79.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.2
     },
     {
       "station": "suedtirol-meteo:80100SF",
@@ -1744,7 +1790,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.6,
       "humidity_pct": 82.6,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.4
     },
     {
       "station": "suedtirol-meteo:82200MS",
@@ -1755,7 +1802,8 @@
       "gust_direction_deg": null,
       "temperature_c": 7.5,
       "humidity_pct": 76.0,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.5
     },
     {
       "station": "suedtirol-meteo:82500WS",
@@ -1777,7 +1825,8 @@
       "gust_direction_deg": null,
       "temperature_c": 7.6,
       "humidity_pct": 64.1,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.9
     },
     {
       "station": "suedtirol-meteo:83200MS",
@@ -1788,7 +1837,8 @@
       "gust_direction_deg": null,
       "temperature_c": 8.6,
       "humidity_pct": 74.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.3
     },
     {
       "station": "suedtirol-meteo:85120MS",
@@ -1799,7 +1849,8 @@
       "gust_direction_deg": null,
       "temperature_c": 5.3,
       "humidity_pct": 56.3,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1015.2
     },
     {
       "station": "suedtirol-meteo:85700MS",
@@ -1810,7 +1861,8 @@
       "gust_direction_deg": null,
       "temperature_c": 7.4,
       "humidity_pct": 83.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.7
     },
     {
       "station": "suedtirol-meteo:86600MS",
@@ -1821,7 +1873,8 @@
       "gust_direction_deg": null,
       "temperature_c": 7.6,
       "humidity_pct": 80.6,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1020.0
     },
     {
       "station": "suedtirol-meteo:86900MS",
@@ -1832,7 +1885,8 @@
       "gust_direction_deg": null,
       "temperature_c": 3.7,
       "humidity_pct": 99.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.7
     },
     {
       "station": "suedtirol-meteo:87300MS",
@@ -1843,7 +1897,8 @@
       "gust_direction_deg": null,
       "temperature_c": 6.1,
       "humidity_pct": 54.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1015.5
     },
     {
       "station": "suedtirol-meteo:89190MS",
@@ -1854,7 +1909,8 @@
       "gust_direction_deg": null,
       "temperature_c": 8.0,
       "humidity_pct": 71.4,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1018.7
     },
     {
       "station": "suedtirol-meteo:90005SF",
@@ -1876,7 +1932,8 @@
       "gust_direction_deg": null,
       "temperature_c": 2.1,
       "humidity_pct": 60.7,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1016.4
     },
     {
       "station": "suedtirol-meteo:91180SF",
@@ -1909,7 +1966,8 @@
       "gust_direction_deg": null,
       "temperature_c": 0.2,
       "humidity_pct": 99.9,
-      "pressure_hpa": null
+      "pressure_hpa": null,
+      "pressure_sea_level_hpa": 1017.3
     }
   ],
   "report": {

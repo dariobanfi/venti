@@ -13,7 +13,8 @@
 //! levels, says what a forecast's hours make of a day for flying, finds the
 //! strongest wind in the model's cells around a place, and marks where the
 //! temperatures at the model's levels stop thermals, says what a glide
-//! reaches over the ground and how steep the ground is.
+//! reaches over the ground and how steep the ground is, and reads foehn
+//! from the pressure on both sides of the main ridge.
 
 pub mod aloft;
 pub mod analysis;
@@ -21,6 +22,7 @@ pub mod cables;
 pub mod convection;
 pub mod day;
 pub mod fai;
+pub mod foehn;
 pub mod geodesy;
 pub mod habits;
 mod identity;

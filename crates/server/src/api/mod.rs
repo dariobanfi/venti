@@ -79,6 +79,7 @@ mod dumps;
 mod error;
 mod feed;
 mod flights;
+mod foehn;
 mod forecast;
 mod google;
 mod groups;
@@ -688,6 +689,7 @@ impl<S: Store> Api<S> {
             .route(THERMAL_HOURS_PATH, get(thermals::thermal_hours::<S>))
             .route(ROUTE_WEATHER_PATH, get(thermals::route_weather::<S>))
             .route(RADAR_PATH, get(radar::radar::<S>))
+            .route(venti_api_types::v1::FOEHN_PATH, get(foehn::foehn::<S>))
             .route(radar::FRAME_ROUTE, get(radar::frame::<S>))
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(

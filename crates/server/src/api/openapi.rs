@@ -405,6 +405,11 @@ fn operations() -> Vec<Op> {
         )
         .json("RadarResponse"),
         get(
+            venti_api_types::v1::FOEHN_PATH,
+            "Foehn: the pressure difference across the Alps' main ridge for each pair of stations",
+        )
+        .json("FoehnResponse"),
+        get(
             "/v1/radar/{source}/{time}.png",
             "One radar frame as a picture",
         )

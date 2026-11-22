@@ -1956,6 +1956,192 @@
         ],
         "type": "object"
       },
+      "FoehnPair": {
+        "properties": {
+          "basis": {
+            "type": "string"
+          },
+          "difference_hpa": {
+            "type": "number"
+          },
+          "difference_time": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "foehn": {
+            "enum": [
+              "south",
+              "north"
+            ],
+            "type": "string"
+          },
+          "higher": {
+            "enum": [
+              "south",
+              "north"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "unknown",
+              "none",
+              "possible",
+              "likely"
+            ],
+            "type": "string"
+          },
+          "north": {
+            "$ref": "#/components/schemas/FoehnStation"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/FoehnPoint"
+            },
+            "type": "array"
+          },
+          "south": {
+            "$ref": "#/components/schemas/FoehnStation"
+          },
+          "to_verify": {
+            "type": "boolean"
+          },
+          "unknown_because": {
+            "enum": [
+              "south_missing",
+              "north_missing",
+              "south_old",
+              "north_old",
+              "apart"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "south",
+          "north",
+          "level",
+          "series",
+          "to_verify",
+          "basis"
+        ],
+        "type": "object"
+      },
+      "FoehnPoint": {
+        "properties": {
+          "difference_hpa": {
+            "type": "number"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "difference_hpa"
+        ],
+        "type": "object"
+      },
+      "FoehnPressure": {
+        "properties": {
+          "reduced_by": {
+            "enum": [
+              "provider",
+              "venti"
+            ],
+            "type": "string"
+          },
+          "sea_level_hpa": {
+            "type": "number"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "sea_level_hpa",
+          "reduced_by"
+        ],
+        "type": "object"
+      },
+      "FoehnResponse": {
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "caution": {
+            "type": "string"
+          },
+          "fresh_for_s": {
+            "type": "integer"
+          },
+          "likely_from_hpa": {
+            "type": "number"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/FoehnPair"
+            },
+            "type": "array"
+          },
+          "possible_from_hpa": {
+            "type": "number"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "possible_from_hpa",
+          "likely_from_hpa",
+          "fresh_for_s",
+          "pairs",
+          "caution",
+          "attributions"
+        ],
+        "type": "object"
+      },
+      "FoehnStation": {
+        "properties": {
+          "elevation_m": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "pressure": {
+            "$ref": "#/components/schemas/FoehnPressure"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "name",
+          "position"
+        ],
+        "type": "object"
+      },
       "FollowResponse": {
         "properties": {
           "followers": {
@@ -4138,6 +4324,9 @@
           "pressure_hpa": {
             "type": "number"
           },
+          "pressure_sea_level_hpa": {
+            "type": "number"
+          },
           "temperature_c": {
             "type": "number"
           },
@@ -5349,6 +5538,9 @@
                 "type": "number"
               },
               "pressure_hpa": {
+                "type": "number"
+              },
+              "pressure_sea_level_hpa": {
                 "type": "number"
               },
               "temperature_c": {
@@ -8545,6 +8737,30 @@
         ],
         "summary": "A flight's track as GeoJSON",
         "x-venti-docs": "GET /v1/flights/{id}/track"
+      }
+    },
+    "/v1/foehn": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_foehn",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoehnResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Foehn: the pressure difference across the Alps' main ridge for each pair of stations",
+        "x-venti-docs": "GET /v1/foehn"
       }
     },
     "/v1/forecast": {

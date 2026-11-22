@@ -526,6 +526,7 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         Answer(200),
     ),
     ("radar.json", "get", "/v1/radar", Answer(200)),
+    ("foehn.json", "get", "/v1/foehn", Answer(200)),
     ("radar_two_layers.json", "get", "/v1/radar", Answer(200)),
     ("maps.json", "get", "/v1/maps", Answer(200)),
     ("sign_in.json", "post", "/v1/sessions", Answer(201)),

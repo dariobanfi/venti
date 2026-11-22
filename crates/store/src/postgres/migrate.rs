@@ -147,6 +147,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "the authorization server: requests that wait for a pilot's answer",
         sql: include_str!("../../migrations/0025_oauth_requests.sql"),
     },
+    Migration {
+        version: 26,
+        name: "pressure reduced to sea level",
+        sql: include_str!("../../migrations/0026_pressure_sea_level.sql"),
+    },
 ];
 
 /// Applies every migration the database has not seen yet.

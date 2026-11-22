@@ -444,6 +444,18 @@ A day that is not flyable says nothing about thermals: rain and wind have decide
 
 **Seeing it.** The recorded forecasts the development server answers with are of late November and have nothing to climb in, so a strong day is seen only with a made-up one: `tools/made-up-day/serve.py` stands in front of a development server, hands on its answers and replaces the hours of every forecast by a summer day's, today. It also answers the thermal map with a made-up one that has every kind of day in it, for four days from today by the development server's clock, so that the days read "Today" and "Tomorrow" in the screenshots; the third and the fourth are ICON-EU's, and the fourth is marked as judged without all of its daylight, so that the note of such a day can be seen. Its forecasts have the hours of the same four days. Since 2026-11-21 its map names the heights of the wind, and it answers the hours of each of its days in every layer (eleven hours a day, 06 to 16 UTC; rain, gusts, cloud and a wind at each height with something to see in each, and no wind at 1000 m where its made-up ground lies higher), read through the core by a test (`the_made_up_days_map_and_hours_are_read`); no app's test asks for them yet. The iPhone's UI test of the kinds of day runs against it, and its screenshots (`today-5-big-day` and after) show a day that is made up.
 
+### Foehn
+
+**Built in the server and the core, on no screen yet** (2026-11-22). The server reads the pressure on both sides of the Alps' main ridge for two pairs of stations ([`GET /v1/foehn`](api.md#get-v1foehn); the rule, the pairs and where the limits are from are in [architecture.md](architecture.md#decision-log)). A shell asks at `foehn_path()` and hands the answer to `foehn(status, body, places, now)` with the places of the pilot's sites; it gets a `FoehnView` and writes no word of its own.
+
+**The proposal for the screens,** the owner's to decide:
+
+- **Today: one line, and only when it has something to say.** `FoehnView.today_line` is there when a pair within 150 km of one of the pilot's sites is at "possible" or "likely": "South foehn likely: 6 hPa higher at Bolzano than at Innsbruck", in the caution's colour for `Possible` and the warning's for `Likely`, above the sites. Without it Today shows nothing in its place: no line is not "no foehn". A tap opens the view. It changes no site's verdict.
+- **The view, opened on purpose** from that line (and from the map's layer sheet as a link, not a layer): the title; each `FoehnRow` with its title ("Bolzano – Innsbruck"), its words, its badge (`level_label`, coloured by `level`; `Unknown` greyed, `None` plain and never green), `when`, and a small chart of `points` over `chart_title`, zero in the middle, `above_label` and `below_label` at its two sides, the `limits` as four thin lines; the row's `note` as small print; then `explanation`, `caution` in full, and the `credits`. `empty` when there is no row.
+- **Nothing on the map by default,** and no new control on a default screen. Lines between the stations, as Burnair draws them, would be a layer that is off until asked for; not proposed now.
+
+Against an unknown clock the words carry the reading's own time ("South foehn likely at 18:50 UTC: …") and `when` is that time.
+
 ## Icon
 
 The app icon is the design pack's, the thermal spiral over the valley (`design/assets/app-icon`), and no app keeps a copy or a drawing of its own. The iPhone's build takes the pack's `AppIcon.appiconset`, with its tinted variant, into the asset catalogue it gathers (`apps/ios/scripts/build-design.sh`); Android's build copies the pack's launcher icons, adaptive and monochrome, with its other resources; the web serves the pack's favicon, touch icon and manifest as they are.

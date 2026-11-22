@@ -19,6 +19,7 @@ use venti_api_types::v1::{
     Attribution, ErrorCode, ObservationsRequest, ObservationsResponse, Reading, StationsRequest,
     StationsResponse,
 };
+use venti_api_types::v1::{FOEHN_PATH, FoehnResponse, FoehnSide, FoehnUnknown};
 use venti_domain::{BoundingBox, GeoPoint, StationId};
 
 use crate::{Tool, ToolError, source_text};
@@ -55,7 +56,7 @@ const MAX_HOURS: i64 = 24;
 const TOO_OLD_MIN: i64 = 60;
 
 /// The tools that need a Venti server.
-pub const SERVER_TOOLS: [Tool; 2] = [
+pub const SERVER_TOOLS: [Tool; 3] = [
     Tool {
         name: "wind_stations",
         description: "Live wind measured by weather stations around a place. For each station: \
@@ -99,6 +100,19 @@ pub const SERVER_TOOLS: [Tool; 2] = [
             "additionalProperties": false
         }"#,
     },
+    Tool {
+        name: "foehn",
+        description: "Foehn in the Alps, read from the air pressure on both sides of the main \
+            ridge: for each pair of stations the difference in hPa now, which side is higher, \
+            a level (none, possible, likely, or unknown when a reading is missing or older \
+            than an hour) and the differences of the last 24 hours. South foehn, with the \
+            higher pressure in the south, blows in the valleys north of the ridge; north foehn \
+            the other way. Takes no arguments. The level is a sign and not a measurement: \
+            always pass on the caution, never turn `none` or `unknown` into \"no foehn\", and \
+            look at wind_stations near the place as well.",
+        read_only: true,
+        schema: r#"{"type": "object", "properties": {}, "additionalProperties": false}"#,
+    },
 ];
 
 /// Whether a tool is one of [`SERVER_TOOLS`].
@@ -111,6 +125,7 @@ pub fn request(name: &str, input: &Value) -> Result<String, ToolError> {
     match name {
         "wind_stations" => Ok(StationsCall::read(input)?.request().path_and_query()),
         "station_history" => Ok(HistoryCall::read(input)?.request().path_and_query()),
+        "foehn" => Ok(FOEHN_PATH.to_owned()),
         other => Err(ToolError::UnknownTool(other.to_owned())),
     }
 }
@@ -166,8 +181,81 @@ pub fn result(
             let answer: ObservationsResponse = serde_json::from_slice(body).map_err(unreadable)?;
             Ok(station_history(&answer, call.hours, now).to_string())
         }
+        "foehn" => {
+            let answer: FoehnResponse = serde_json::from_slice(body).map_err(unreadable)?;
+            Ok(foehn(&answer).to_string())
+        }
         other => Err(ToolError::UnknownTool(other.to_owned())),
     }
+}
+
+/// The foehn reading as the model gets it: each pair with its difference,
+/// its level and its last 24 hours, and the caution. A pair without two
+/// fresh readings has the level `unknown` and the reason; nothing here
+/// says "no foehn".
+pub fn foehn(answer: &FoehnResponse) -> Value {
+    let pairs: Vec<Value> = answer
+        .pairs
+        .iter()
+        .map(|pair| {
+            let mut entry = json!({
+                "pair": format!("{} (south) and {} (north)", pair.south.name, pair.north.name),
+                "level": pair.level,
+                "where_from": pair.basis,
+            });
+            if let Some(why) = pair.unknown_because {
+                entry["unknown_because"] = json!(match why {
+                    FoehnUnknown::SouthMissing => format!("no pressure from {}", pair.south.name),
+                    FoehnUnknown::NorthMissing => format!("no pressure from {}", pair.north.name),
+                    FoehnUnknown::SouthOld => format!(
+                        "the pressure from {} is older than an hour",
+                        pair.south.name
+                    ),
+                    FoehnUnknown::NorthOld => format!(
+                        "the pressure from {} is older than an hour",
+                        pair.north.name
+                    ),
+                    FoehnUnknown::Apart => "the two readings are too far apart in time".to_owned(),
+                });
+            }
+            if let Some(difference) = pair.difference_hpa {
+                entry["south_minus_north_hpa"] = json!(difference);
+            }
+            if let Some(time) = pair.difference_time {
+                entry["minutes_ago"] = json!((answer.time - time).num_minutes().max(0));
+            }
+            if let Some(higher) = pair.higher {
+                entry["higher_pressure_at"] = json!(match higher {
+                    FoehnSide::South => &pair.south.name,
+                    FoehnSide::North => &pair.north.name,
+                });
+            }
+            if let Some(kind) = pair.foehn {
+                entry["foehn"] = json!(match kind {
+                    FoehnSide::South => "south foehn, in the valleys north of the ridge",
+                    FoehnSide::North => "north foehn, in the valleys south of the ridge",
+                });
+            }
+            entry["last_24_hours"] = pair
+                .series
+                .iter()
+                .map(|point| {
+                    json!({
+                        "hours_ago": tenth((answer.time - point.time).num_minutes() as f64 / 60.0),
+                        "south_minus_north_hpa": point.difference_hpa,
+                    })
+                })
+                .collect();
+            entry
+        })
+        .collect();
+    json!({
+        "pairs": pairs,
+        "possible_from_hpa": answer.possible_from_hpa,
+        "likely_from_hpa": answer.likely_from_hpa,
+        "caution": answer.caution,
+        "credits": answer.attributions.iter().map(|credit| &credit.text).collect::<Vec<_>>(),
+    })
 }
 
 /// What to tell the model about a server's answer that is not what the

@@ -42,6 +42,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 use tsify::{Ts, Tsify};
+use venti_core::FoehnView;
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceHeightFilter, AirspaceImport,
     AirspaceOverPlace, AirspaceShape, Bounds, CableSet, CablesMap, Coordinate, CoreError, Credit,
@@ -1741,6 +1742,27 @@ pub fn station_air(
         .map(from_js)
         .collect::<Result<Vec<_>, _>>()?;
     to_js(&venti_core::station_air(from_js(&station)?, stations))
+}
+
+/// The path to `GET` from the server for the foehn reading.
+#[wasm_bindgen(js_name = foehnPath)]
+pub fn foehn_path() -> String {
+    venti_core::foehn_path()
+}
+
+/// Reads the server's answer to `foehnPath`: the line for Today and the
+/// foehn view. `places` are where the pilot's sites are; `now_unix_s` is
+/// the current time by the server's clock, zero or less when it is not
+/// known.
+#[wasm_bindgen(js_name = foehn)]
+pub fn foehn(
+    status: u16,
+    body: Vec<u8>,
+    places: Vec<Ts<Coordinate>>,
+    now_unix_s: f64,
+) -> Result<Ts<FoehnView>, JsValue> {
+    let places = places.iter().map(from_js).collect::<Result<Vec<_>, _>>()?;
+    to_js(&venti_core::foehn(status, body, places, whole_seconds(now_unix_s)).map_err(thrown)?)
 }
 
 /// The steps of the map's filter of airspace by height, and what to say

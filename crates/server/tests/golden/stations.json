@@ -126,6 +126,24 @@
       }
     },
     {
+      "id": "geosphere-tawes:11150",
+      "source": "geosphere-tawes",
+      "name": "Salzburg-Flughafen",
+      "position": {
+        "lat": 47.7894,
+        "lon": 13.0086
+      },
+      "elevation_m": 430.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 1.2,
+        "wind_gust_ms": 2.1,
+        "wind_direction_deg": 190.0,
+        "temperature_c": 7.8,
+        "pressure_hpa": 949.5
+      }
+    },
+    {
       "id": "geosphere-tawes:11320",
       "source": "geosphere-tawes",
       "name": "INNSBRUCK/UNIVERSITAET",
@@ -143,6 +161,24 @@
         "temperature_c": 7.8,
         "humidity_pct": 84.0,
         "pressure_hpa": 930.9
+      }
+    },
+    {
+      "id": "geosphere-tawes:11331",
+      "source": "geosphere-tawes",
+      "name": "Klagenfurt-Flughafen",
+      "position": {
+        "lat": 46.6483,
+        "lon": 14.3183
+      },
+      "elevation_m": 450.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 1.2,
+        "wind_gust_ms": 2.1,
+        "wind_direction_deg": 190.0,
+        "temperature_c": 7.8,
+        "pressure_hpa": 948.0
       }
     },
     {
@@ -216,7 +252,8 @@
         "wind_gust_ms": 1.7,
         "wind_direction_deg": 69.5,
         "temperature_c": 6.0,
-        "humidity_pct": 90.8
+        "humidity_pct": 90.8,
+        "pressure_sea_level_hpa": 1004.4
       }
     }
   ],

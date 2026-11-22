@@ -155,8 +155,10 @@ async fn stations_lists_the_box_with_latest_readings_and_credits() {
     // takes stations of two sources for one place up to 2.75 km. They are
     // two places: GeoSphere has a station on the airfield as well, which
     // these recordings do not hold. What happens where they do is tested
-    // further down, with a store that has all three.
-    assert_eq!(stations.stations.len(), 12);
+    // further down, with a store that has all three. Two more are made up
+    // for the foehn reading, Klagenfurt's and Salzburg's airfields, with a
+    // pressure, a temperature and a light wind.
+    assert_eq!(stations.stations.len(), 14);
     assert!(!stations.truncated);
     // Every station has a reading, and the newest one of its day.
     let zugspitze = stations
@@ -274,6 +276,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "thermal_hours_wind.json",
         "route_weather.json",
         "radar.json",
+        "foehn.json",
         "live_others.json",
         "error_missing_bbox.json",
         "sign_in.json",

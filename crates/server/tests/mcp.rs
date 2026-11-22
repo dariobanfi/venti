@@ -219,6 +219,7 @@ async fn the_tools_are_the_apps_own_definitions() {
             [
                 "wind_stations",
                 "station_history",
+                "foehn",
                 "airspace_at",
                 "sites_in_box",
                 "site",

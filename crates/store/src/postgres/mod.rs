@@ -176,6 +176,7 @@ fn observation_from(station: StationId, time: Timestamp, row: &Row) -> Observati
         temperature_c: row.get("temperature_c"),
         humidity_pct: row.get("humidity_pct"),
         pressure_hpa: row.get("pressure_hpa"),
+        pressure_sea_level_hpa: row.get("pressure_sea_level_hpa"),
     }
 }
 
@@ -199,9 +200,11 @@ const UPSERT_STATIONS: &str = "
 const UPSERT_OBSERVATIONS: &str = "
     INSERT INTO observations AS o
         (station_id, time, wind_speed_ms, wind_gust_ms, wind_direction_deg,
-         gust_direction_deg, temperature_c, humidity_pct, pressure_hpa)
+         gust_direction_deg, temperature_c, humidity_pct, pressure_hpa,
+         pressure_sea_level_hpa)
     SELECT * FROM unnest($1::text[], $2::timestamptz[], $3::float8[], $4::float8[],
-                         $5::float8[], $6::float8[], $7::float8[], $8::float8[], $9::float8[])
+                         $5::float8[], $6::float8[], $7::float8[], $8::float8[], $9::float8[],
+                         $10::float8[])
     ON CONFLICT (station_id, time) DO UPDATE
     SET wind_speed_ms      = COALESCE(EXCLUDED.wind_speed_ms, o.wind_speed_ms),
         wind_gust_ms       = COALESCE(EXCLUDED.wind_gust_ms, o.wind_gust_ms),
@@ -209,17 +212,20 @@ const UPSERT_OBSERVATIONS: &str = "
         gust_direction_deg = COALESCE(EXCLUDED.gust_direction_deg, o.gust_direction_deg),
         temperature_c      = COALESCE(EXCLUDED.temperature_c, o.temperature_c),
         humidity_pct       = COALESCE(EXCLUDED.humidity_pct, o.humidity_pct),
-        pressure_hpa       = COALESCE(EXCLUDED.pressure_hpa, o.pressure_hpa)
+        pressure_hpa       = COALESCE(EXCLUDED.pressure_hpa, o.pressure_hpa),
+        pressure_sea_level_hpa =
+            COALESCE(EXCLUDED.pressure_sea_level_hpa, o.pressure_sea_level_hpa)
     WHERE (COALESCE(EXCLUDED.wind_speed_ms, o.wind_speed_ms),
            COALESCE(EXCLUDED.wind_gust_ms, o.wind_gust_ms),
            COALESCE(EXCLUDED.wind_direction_deg, o.wind_direction_deg),
            COALESCE(EXCLUDED.gust_direction_deg, o.gust_direction_deg),
            COALESCE(EXCLUDED.temperature_c, o.temperature_c),
            COALESCE(EXCLUDED.humidity_pct, o.humidity_pct),
-           COALESCE(EXCLUDED.pressure_hpa, o.pressure_hpa))
+           COALESCE(EXCLUDED.pressure_hpa, o.pressure_hpa),
+           COALESCE(EXCLUDED.pressure_sea_level_hpa, o.pressure_sea_level_hpa))
           IS DISTINCT FROM
           (o.wind_speed_ms, o.wind_gust_ms, o.wind_direction_deg, o.gust_direction_deg,
-           o.temperature_c, o.humidity_pct, o.pressure_hpa)";
+           o.temperature_c, o.humidity_pct, o.pressure_hpa, o.pressure_sea_level_hpa)";
 
 const UPSERT_RUN: &str = "
     INSERT INTO source_runs
@@ -271,7 +277,8 @@ async fn upsert_run(tx: &Transaction<'_>, run: &RunRecord) -> Result<(), StoreEr
 const STATIONS_IN: &str = "
     SELECT s.id, s.name, s.elevation_m, s.lat, s.lon,
            o.time, o.wind_speed_ms, o.wind_gust_ms, o.wind_direction_deg,
-           o.gust_direction_deg, o.temperature_c, o.humidity_pct, o.pressure_hpa
+           o.gust_direction_deg, o.temperature_c, o.humidity_pct, o.pressure_hpa,
+           o.pressure_sea_level_hpa
     FROM (
         SELECT s.id, s.source, s.name, s.elevation_m,
                ST_Y(s.position::geometry) AS lat, ST_X(s.position::geometry) AS lon
@@ -363,7 +370,7 @@ impl Store for PgStore {
             let ids: Vec<String> = observations.iter().map(|o| o.station.to_string()).collect();
             let times: Vec<Timestamp> = observations.iter().map(|o| o.time).collect();
             // One array per measurement, in the order of `Observation::fields`.
-            let mut columns: [Vec<Option<f64>>; 7] = Default::default();
+            let mut columns: [Vec<Option<f64>>; 8] = Default::default();
             for observation in observations {
                 for (column, (_, value)) in columns.iter_mut().zip(observation.fields()) {
                     column.push(value);
@@ -377,6 +384,7 @@ impl Store for PgStore {
                 temperature,
                 humidity,
                 pressure,
+                pressure_sea_level,
             ] = &columns;
             let statement = tx
                 .prepare_cached(UPSERT_OBSERVATIONS)
@@ -394,6 +402,7 @@ impl Store for PgStore {
                     temperature,
                     humidity,
                     pressure,
+                    pressure_sea_level,
                 ],
             )
             .await

@@ -1618,7 +1618,125 @@ pub async fn recorded_with_its_store(
             ));
         }
     }
+    add_made_up_pressures(&store, now).await?;
     Ok((api, store))
+}
+
+/// Made-up pressures for the foehn reading's two pairs, so that this mode
+/// shows one pair at "likely" and one at "none".
+///
+/// Bolzano's pressure at sea level stands 6.2 hPa above what Innsbruck's
+/// recorded pressure reduces to, after rising against it all day: south
+/// foehn likely. Klagenfurt and Salzburg, two stations the recordings do
+/// not have and that get a light made-up wind with it, stand 0.8 hPa
+/// apart: no sign. Each station gets a value every
+/// two hours of the last day, back from its newest recorded reading and
+/// never after it, so that no station's newest reading becomes one without
+/// a wind. The runs are dated a day and an hour back, behind the recorded
+/// ones, which stay each source's newest.
+async fn add_made_up_pressures(store: &MemoryStore, now: Timestamp) -> Result<(), String> {
+    use std::collections::BTreeMap;
+
+    use venti_domain::{GeoPoint, Observation, SourceId, Station, StationId};
+    use venti_flight::foehn::{PAIRS, reduce_to_sea_level};
+    use venti_store::Store as _;
+
+    const STEPS: i32 = 12;
+    // Stations send their pressure to a tenth of a hectopascal.
+    let tenth = |hpa: f64| (hpa * 10.0).round() / 10.0;
+    // Innsbruck's recorded reading, 930.9 hPa at 578 m and 7.8 °C, reduced
+    // to sea level.
+    let innsbruck_hpa = reduce_to_sea_level(930.9, 578.0, 7.8);
+    // Each station: its name and height where the recordings do not have
+    // it, the pressure at sea level now, and how much lower it was a step
+    // earlier.
+    let made_up = [
+        (PAIRS[0].south, None, innsbruck_hpa + 6.2, 0.4),
+        (PAIRS[0].north, None, innsbruck_hpa, 0.0),
+        (
+            PAIRS[1].south,
+            Some(("Klagenfurt-Flughafen", 450.0)),
+            1001.0,
+            0.05,
+        ),
+        (
+            PAIRS[1].north,
+            Some(("Salzburg-Flughafen", 430.0)),
+            1000.2,
+            0.05,
+        ),
+    ];
+    let mut runs: BTreeMap<SourceId, (Vec<Station>, Vec<Observation>)> = BTreeMap::new();
+    for (place, unknown, hpa_now, fall) in made_up {
+        let id: StationId = place.id.parse().map_err(|e| format!("{}: {e}", place.id))?;
+        let station = match store.station(&id).await.map_err(|e| e.to_string())? {
+            Some(station) => station,
+            None => {
+                let (name, elevation_m) =
+                    unknown.ok_or_else(|| format!("the recordings have no station {id}"))?;
+                Station {
+                    id: id.clone(),
+                    name: name.to_owned(),
+                    position: GeoPoint::new(place.lat, place.lon).map_err(|e| e.to_string())?,
+                    elevation_m: Some(elevation_m),
+                }
+            }
+        };
+        let newest = store
+            .observations(&id, now - Duration::hours(24), now)
+            .await
+            .map_err(|e| e.to_string())?
+            .last()
+            .map_or(now - Duration::minutes(15), |observation| observation.time);
+        let (stations, observations) = runs.entry(id.source().clone()).or_default();
+        for step in 0..STEPS {
+            let mut observation =
+                Observation::empty(id.clone(), newest - Duration::hours(2) * step);
+            let hpa = hpa_now - fall * f64::from(step);
+            if id.source().as_str() == "suedtirol-meteo" {
+                // The province sends its pressure reduced to sea level.
+                observation.pressure_sea_level_hpa = Some(tenth(hpa));
+            } else {
+                // GeoSphere sends the pressure at the station: the one that
+                // reduces to `hpa` at 7.8 °C.
+                let elevation_m = station.elevation_m.unwrap_or_default();
+                observation.temperature_c = Some(7.8);
+                observation.pressure_hpa =
+                    Some(tenth(hpa / reduce_to_sea_level(1.0, elevation_m, 7.8)));
+            }
+            // A station this mode makes up has a wind in its newest
+            // reading, as every recorded one has: light, from the south.
+            if unknown.is_some() && step == 0 {
+                observation.wind_speed_ms = Some(1.2);
+                observation.wind_gust_ms = Some(2.1);
+                observation.wind_direction_deg = Some(190.0);
+            }
+            observations.push(observation);
+        }
+        stations.push(station);
+    }
+    let started_at = now - Duration::hours(25);
+    for (source, (stations, observations)) in runs {
+        let run = venti_store::RunRecord {
+            source,
+            started_at,
+            finished_at: started_at,
+            healthy: true,
+            requests: 0,
+            failed_requests: 0,
+            skipped: 0,
+            rejected: 0,
+            stations: u32::try_from(stations.len()).unwrap_or(u32::MAX),
+            observations: u32::try_from(observations.len()).unwrap_or(u32::MAX),
+            newest_observation: observations.iter().map(|o| o.time).max(),
+            airspaces: 0,
+        };
+        store
+            .save_run(&run, &stations, &observations)
+            .await
+            .map_err(|e| format!("the made-up pressures: {e}"))?;
+    }
+    Ok(())
 }
 
 /// Made-up paragliders with a way behind them, under made-up addresses

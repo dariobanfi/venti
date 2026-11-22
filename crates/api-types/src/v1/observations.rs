@@ -44,6 +44,10 @@ pub struct Reading {
     /// Air pressure at the station's own height, hPa.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pressure_hpa: Option<f64>,
+    /// Air pressure reduced to sea level, hPa, by the provider's own
+    /// reduction. Only from a station whose provider sends it so.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pressure_sea_level_hpa: Option<f64>,
 }
 
 impl From<&Observation> for Reading {
@@ -57,6 +61,7 @@ impl From<&Observation> for Reading {
             temperature_c: observation.temperature_c,
             humidity_pct: observation.humidity_pct,
             pressure_hpa: observation.pressure_hpa,
+            pressure_sea_level_hpa: observation.pressure_sea_level_hpa,
         }
     }
 }

@@ -1743,6 +1743,192 @@
       "flights"
     ]
   },
+  "FoehnPair": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "south": {
+        "$ref": "#/components/schemas/FoehnStation"
+      },
+      "north": {
+        "$ref": "#/components/schemas/FoehnStation"
+      },
+      "level": {
+        "type": "string",
+        "enum": [
+          "unknown",
+          "none",
+          "possible",
+          "likely"
+        ]
+      },
+      "unknown_because": {
+        "type": "string",
+        "enum": [
+          "south_missing",
+          "north_missing",
+          "south_old",
+          "north_old",
+          "apart"
+        ]
+      },
+      "difference_hpa": {
+        "type": "number"
+      },
+      "difference_time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "higher": {
+        "type": "string",
+        "enum": [
+          "south",
+          "north"
+        ]
+      },
+      "foehn": {
+        "type": "string",
+        "enum": [
+          "south",
+          "north"
+        ]
+      },
+      "series": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FoehnPoint"
+        }
+      },
+      "to_verify": {
+        "type": "boolean"
+      },
+      "basis": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "south",
+      "north",
+      "level",
+      "series",
+      "to_verify",
+      "basis"
+    ]
+  },
+  "FoehnPoint": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "difference_hpa": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "time",
+      "difference_hpa"
+    ]
+  },
+  "FoehnPressure": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "sea_level_hpa": {
+        "type": "number"
+      },
+      "reduced_by": {
+        "type": "string",
+        "enum": [
+          "provider",
+          "venti"
+        ]
+      }
+    },
+    "required": [
+      "time",
+      "sea_level_hpa",
+      "reduced_by"
+    ]
+  },
+  "FoehnResponse": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "possible_from_hpa": {
+        "type": "number"
+      },
+      "likely_from_hpa": {
+        "type": "number"
+      },
+      "fresh_for_s": {
+        "type": "integer"
+      },
+      "pairs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FoehnPair"
+        }
+      },
+      "caution": {
+        "type": "string"
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "time",
+      "possible_from_hpa",
+      "likely_from_hpa",
+      "fresh_for_s",
+      "pairs",
+      "caution",
+      "attributions"
+    ]
+  },
+  "FoehnStation": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "elevation_m": {
+        "type": "number"
+      },
+      "pressure": {
+        "$ref": "#/components/schemas/FoehnPressure"
+      }
+    },
+    "required": [
+      "id",
+      "source",
+      "name",
+      "position"
+    ]
+  },
   "ForecastHour": {
     "type": "object",
     "properties": {
@@ -3585,6 +3771,9 @@
       },
       "pressure_hpa": {
         "type": "number"
+      },
+      "pressure_sea_level_hpa": {
+        "type": "number"
       }
     },
     "required": [
@@ -4797,6 +4986,9 @@
             "type": "number"
           },
           "pressure_hpa": {
+            "type": "number"
+          },
+          "pressure_sea_level_hpa": {
             "type": "number"
           }
         },

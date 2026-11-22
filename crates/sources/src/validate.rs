@@ -19,7 +19,7 @@ pub struct Rejection {
 
 /// Plausible limits for each measurement. A value outside its limits is a
 /// sensor or transmission fault, not weather.
-const LIMITS: [(&str, f64, f64); 7] = [
+const LIMITS: [(&str, f64, f64); 8] = [
     ("wind_speed_ms", 0.0, 120.0),
     ("wind_gust_ms", 0.0, 120.0),
     ("wind_direction_deg", 0.0, 360.0),
@@ -27,6 +27,9 @@ const LIMITS: [(&str, f64, f64); 7] = [
     ("temperature_c", -80.0, 60.0),
     ("humidity_pct", 0.0, 100.0),
     ("pressure_hpa", 300.0, 1100.0),
+    // Reduced to sea level, where the air's pressure stays in a narrow band
+    // (to verify: the records are near 870 and 1085 hPa).
+    ("pressure_sea_level_hpa", 850.0, 1100.0),
 ];
 
 /// How far ahead of the run time an observation may be stamped before it is

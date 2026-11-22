@@ -30,7 +30,9 @@
 //! The pressure the service gives (`LD.RED`) is reduced to sea level: on
 //! 2026-11-21 it was between 1015 and 1023 hPa at every one of 59 stations
 //! from 212 m to 2055 m. An observation's pressure is the pressure at the
-//! station's own height, so it is not taken.
+//! station's own height, so it is not put there: it goes into the field of
+//! its own, `pressure_sea_level_hpa`, which the foehn reading compares. How
+//! the province reduces it is not documented: to verify.
 //!
 //! Times are local time with the zone written as `CET` or `CEST`. The
 //! documentation calls the wind speed and direction means and does not say
@@ -61,7 +63,7 @@ struct Sensor {
     set: fn(&mut Observation, f64),
 }
 
-const SENSORS: [Sensor; 5] = [
+const SENSORS: [Sensor; 6] = [
     Sensor {
         code: "WG",
         unit: "m/s",
@@ -86,6 +88,11 @@ const SENSORS: [Sensor; 5] = [
         code: "LF",
         unit: "%",
         set: |o, v| o.humidity_pct = Some(v),
+    },
+    Sensor {
+        code: "LD.RED",
+        unit: "hPa",
+        set: |o, v| o.pressure_sea_level_hpa = Some(v),
     },
 ];
 
@@ -251,7 +258,7 @@ fn parse_sensors(source: &SourceId, body: &[u8]) -> Result<Parsed, SourceError> 
                 .push(Skipped::new(&row.to_string(), "a row without a sensor"));
             continue;
         };
-        // Water levels, rain, snow, sunshine and the pressure at sea level.
+        // Water levels, rain, snow and sunshine.
         let Some(index) = SENSORS.iter().position(|sensor| sensor.code == code) else {
             continue;
         };

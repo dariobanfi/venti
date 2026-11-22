@@ -371,6 +371,7 @@ pub(crate) async fn values_come_back_exactly_as_stored(store: &impl Store) {
         temperature_c: Some(-7.1),
         humidity_pct: Some(100.0),
         pressure_hpa: Some(778.3),
+        pressure_sea_level_hpa: Some(1012.4),
     };
 
     store

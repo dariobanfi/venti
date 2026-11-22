@@ -27,6 +27,12 @@ pub struct Observation {
     pub humidity_pct: Option<f64>,
     /// Air pressure at the station's own height, hPa.
     pub pressure_hpa: Option<f64>,
+    /// Air pressure reduced to sea level, hPa, when the provider sends it so:
+    /// the provider's own reduction, never one worked out here. It is what a
+    /// comparison of two stations at different heights needs, and it is not
+    /// the pressure at the station.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pressure_sea_level_hpa: Option<f64>,
 }
 
 impl Observation {
@@ -42,6 +48,7 @@ impl Observation {
             temperature_c: None,
             humidity_pct: None,
             pressure_hpa: None,
+            pressure_sea_level_hpa: None,
         }
     }
 
@@ -58,7 +65,7 @@ impl Observation {
     /// values on both sides, so the caller can count disagreements.
     pub fn merge(&mut self, other: &Observation) -> usize {
         let mut conflicts = 0;
-        let pairs: [(&mut Option<f64>, Option<f64>); 7] = [
+        let pairs: [(&mut Option<f64>, Option<f64>); 8] = [
             (&mut self.wind_speed_ms, other.wind_speed_ms),
             (&mut self.wind_gust_ms, other.wind_gust_ms),
             (&mut self.wind_direction_deg, other.wind_direction_deg),
@@ -66,6 +73,10 @@ impl Observation {
             (&mut self.temperature_c, other.temperature_c),
             (&mut self.humidity_pct, other.humidity_pct),
             (&mut self.pressure_hpa, other.pressure_hpa),
+            (
+                &mut self.pressure_sea_level_hpa,
+                other.pressure_sea_level_hpa,
+            ),
         ];
         for (mine, theirs) in pairs {
             match (*mine, theirs) {
@@ -78,7 +89,7 @@ impl Observation {
     }
 
     /// The measurements with their field names, for code that treats them uniformly.
-    pub fn fields(&self) -> [(&'static str, Option<f64>); 7] {
+    pub fn fields(&self) -> [(&'static str, Option<f64>); 8] {
         [
             ("wind_speed_ms", self.wind_speed_ms),
             ("wind_gust_ms", self.wind_gust_ms),
@@ -87,11 +98,12 @@ impl Observation {
             ("temperature_c", self.temperature_c),
             ("humidity_pct", self.humidity_pct),
             ("pressure_hpa", self.pressure_hpa),
+            ("pressure_sea_level_hpa", self.pressure_sea_level_hpa),
         ]
     }
 
     /// Mutable access to the measurements with their field names.
-    pub fn fields_mut(&mut self) -> [(&'static str, &mut Option<f64>); 7] {
+    pub fn fields_mut(&mut self) -> [(&'static str, &mut Option<f64>); 8] {
         [
             ("wind_speed_ms", &mut self.wind_speed_ms),
             ("wind_gust_ms", &mut self.wind_gust_ms),
@@ -100,6 +112,7 @@ impl Observation {
             ("temperature_c", &mut self.temperature_c),
             ("humidity_pct", &mut self.humidity_pct),
             ("pressure_hpa", &mut self.pressure_hpa),
+            ("pressure_sea_level_hpa", &mut self.pressure_sea_level_hpa),
         ]
     }
 }

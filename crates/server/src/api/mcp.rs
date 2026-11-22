@@ -602,6 +602,10 @@ impl<S: Store> Api<S> {
                     .map_err(refused)?;
                 Ok(station_history(&answer, call.hours, now).to_string())
             }
+            "foehn" => {
+                let answer = self.foehn().await.map_err(refused)?;
+                Ok(venti_tools::wind::foehn(&answer).to_string())
+            }
             "airspace_at" => {
                 let call = AirspaceCall::read(input)?;
                 let answer = self

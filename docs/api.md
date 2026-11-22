@@ -60,7 +60,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: twelve stations, three of each of four sources, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three of South Tyrol and three airfields with what their services, asked three days later, gave for 18:50 UTC of that evening), and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has both of the first region's sources, two frames of each, recorded on 2026-11-21 within two minutes: DWD's of 13:10 and 13:15 UTC and GeoSphere Austria's analysis of 12:45 and 13:00, and a clock of its own that stands at 13:19, four minutes after DWD's second ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: twelve stations, three of each of four sources, as they were on 2026-11-18 at 19:05 UTC, and two more that are made up for the [foehn reading](#get-v1foehn), Klagenfurt's and Salzburg's airfields, with a pressure, a temperature and a light wind (three German and three Austrian as recorded then; three of South Tyrol and three airfields with what their services, asked three days later, gave for 18:50 UTC of that evening), and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has both of the first region's sources, two frames of each, recorded on 2026-11-21 within two minutes: DWD's of 13:10 and 13:15 UTC and GeoSphere Austria's analysis of 12:45 and 13:00, and a clock of its own that stands at 13:19, four minutes after DWD's second ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 Map regions are the one thing the mode does not carry inside it. It hands out those of a folder it is told, as a real server hands out those of its own, and none otherwise. The repository holds one region, the valley of the sample flight that the apps bundle:
 
@@ -568,6 +568,7 @@ curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.4,11.0,47.5'
 | `latest.wind_speed_ms`, `wind_gust_ms` | Mean wind and strongest gust of the interval |
 | `latest.wind_direction_deg`, `gust_direction_deg` | Where the wind and the strongest gust came from |
 | `latest.temperature_c`, `humidity_pct`, `pressure_hpa` | Air temperature, relative humidity, pressure at the station |
+| `latest.pressure_sea_level_hpa` | The pressure reduced to sea level by the provider's own reduction, hPa. Only from a station whose provider sends it so (South Tyrol's); the [foehn reading](#get-v1foehn) compares it |
 | `truncated` | `true` when the box holds more than 5000 stations. The answer then lists the first 5000 by source and identifier; ask for a smaller box |
 
 Stations are sorted by source and then by identifier.
@@ -581,7 +582,7 @@ The server does not decide what is too old to show. A station that stopped repor
 - *The other is not in the list*, whatever the box: a station at the edge of a box is judged against its neighbour outside it. Nothing of it is copied into the station that is listed, and its source is in `attributions` only if another of its stations is listed. Only in an answer that is `truncated` may both of two show at the box's edge.
 - *It is still there.* The server goes on collecting it, and its [observations](#get-v1stationsidobservationsfromto) answer by its identifier as before. An identifier an app has kept stays good. Which of two is listed can change from one answer to the next, when a station falls silent or is heard again; an app that shows a station by an identifier it kept should therefore not conclude from the list that the station is gone.
 
-In the first region this left out the reports of ten airfields among 435 stations on 2026-11-21. The development mode lists all twelve of its stations: no two of them are one place.
+In the first region this left out the reports of ten airfields among 435 stations on 2026-11-21. The development mode lists all fourteen of its stations: no two of them are one place.
 
 ## `GET /v1/stations/{id}/observations?from=&to=`
 
@@ -4348,6 +4349,242 @@ A frame of a moment does not change, and may be kept for a day (`Cache-Control: 
 | Status | `error.code` | When |
 |---|---|---|
 | `404` | `not_found` | No such source, not the name of a frame, or a frame the server does not hold, or no longer |
+
+## `GET /v1/foehn`
+
+Foehn, read from the air pressure on both sides of the Alps' main ridge: for each pair of stations the difference now, which side is higher, a level, and the differences of the last 24 hours. Public, without an account, and the connector's tool `foehn` answers from it ([mcp.md](mcp.md)). No parameters.
+
+Air is pushed over the ridge from the side with the higher pressure and falls into the valleys of the other side as foehn. With the higher pressure in the south it is south foehn, which blows north of the ridge; the other way it is north foehn. The pairs, the limits and where they are from are in the [decision log](architecture.md#decision-log); the second pair and the limits for south foehn are *to verify with pilots*, which `to_verify` and `basis` say for each pair.
+
+**What it does not say.** A level is a sign, not a measurement: `caution` says so in words to show wherever a level is shown. `none` is "no sign of foehn in the pressure" and `unknown` is "nothing is known"; neither is "no foehn". A pair has a level only from two readings of the last hour (`fresh_for_s`) that are within 30 minutes of each other; else its level is `unknown`, `unknown_because` says why, and it has no difference. The level is of the answer's `time`: a client that shows the answer later judges the two pressures' times against its own clock, as the Venti apps do.
+
+```json
+{
+  "time": "2026-11-18T19:05:00Z",
+  "possible_from_hpa": 3.0,
+  "likely_from_hpa": 6.0,
+  "fresh_for_s": 3600,
+  "pairs": [
+    {
+      "id": "bolzano-innsbruck",
+      "south": {
+        "id": "suedtirol-meteo:83200MS",
+        "source": "suedtirol-meteo",
+        "name": "Bolzano",
+        "position": {
+          "lat": 46.4977,
+          "lon": 11.3128
+        },
+        "elevation_m": 245.0,
+        "pressure": {
+          "time": "2026-11-18T18:50:00Z",
+          "sea_level_hpa": 1004.4,
+          "reduced_by": "provider"
+        }
+      },
+      "north": {
+        "id": "geosphere-tawes:11320",
+        "source": "geosphere-tawes",
+        "name": "Innsbruck",
+        "position": {
+          "lat": 47.26,
+          "lon": 11.3842
+        },
+        "elevation_m": 578.0,
+        "pressure": {
+          "time": "2026-11-18T19:00:00Z",
+          "sea_level_hpa": 998.2,
+          "reduced_by": "venti"
+        }
+      },
+      "level": "likely",
+      "difference_hpa": 6.2,
+      "difference_time": "2026-11-18T18:50:00Z",
+      "higher": "south",
+      "foehn": "south",
+      "series": [
+        {
+          "time": "2026-11-17T20:50:00Z",
+          "difference_hpa": 1.8
+        },
+        {
+          "time": "2026-11-17T22:50:00Z",
+          "difference_hpa": 2.2
+        },
+        {
+          "time": "2026-11-18T00:50:00Z",
+          "difference_hpa": 2.6
+        },
+        {
+          "time": "2026-11-18T02:50:00Z",
+          "difference_hpa": 3.0
+        },
+        {
+          "time": "2026-11-18T04:50:00Z",
+          "difference_hpa": 3.4
+        },
+        {
+          "time": "2026-11-18T06:50:00Z",
+          "difference_hpa": 3.8
+        },
+        {
+          "time": "2026-11-18T08:50:00Z",
+          "difference_hpa": 4.2
+        },
+        {
+          "time": "2026-11-18T10:50:00Z",
+          "difference_hpa": 4.6
+        },
+        {
+          "time": "2026-11-18T12:50:00Z",
+          "difference_hpa": 5.0
+        },
+        {
+          "time": "2026-11-18T14:50:00Z",
+          "difference_hpa": 5.4
+        },
+        {
+          "time": "2026-11-18T16:50:00Z",
+          "difference_hpa": 5.8
+        },
+        {
+          "time": "2026-11-18T18:50:00Z",
+          "difference_hpa": 6.2
+        }
+      ],
+      "to_verify": false,
+      "basis": "The pair and the limits of 3 and 6 hPa are those of the foehn chart of the weather service of the Province of Bolzano, which gives them for north foehn; for south foehn Venti uses the same limits, which no weather service has given."
+    },
+    {
+      "id": "klagenfurt-salzburg",
+      "south": {
+        "id": "geosphere-tawes:11331",
+        "source": "geosphere-tawes",
+        "name": "Klagenfurt",
+        "position": {
+          "lat": 46.6483,
+          "lon": 14.3183
+        },
+        "elevation_m": 450.0,
+        "pressure": {
+          "time": "2026-11-18T18:50:00Z",
+          "sea_level_hpa": 1001.0,
+          "reduced_by": "venti"
+        }
+      },
+      "north": {
+        "id": "geosphere-tawes:11150",
+        "source": "geosphere-tawes",
+        "name": "Salzburg",
+        "position": {
+          "lat": 47.7894,
+          "lon": 13.0086
+        },
+        "elevation_m": 430.0,
+        "pressure": {
+          "time": "2026-11-18T18:50:00Z",
+          "sea_level_hpa": 1000.2,
+          "reduced_by": "venti"
+        }
+      },
+      "level": "none",
+      "difference_hpa": 0.8,
+      "difference_time": "2026-11-18T18:50:00Z",
+      "higher": "south",
+      "series": [
+        {
+          "time": "2026-11-17T20:50:00Z",
+          "difference_hpa": 0.7
+        },
+        {
+          "time": "2026-11-17T22:50:00Z",
+          "difference_hpa": 0.8
+        },
+        {
+          "time": "2026-11-18T00:50:00Z",
+          "difference_hpa": 0.7
+        },
+        {
+          "time": "2026-11-18T02:50:00Z",
+          "difference_hpa": 0.8
+        },
+        {
+          "time": "2026-11-18T04:50:00Z",
+          "difference_hpa": 0.7
+        },
+        {
+          "time": "2026-11-18T06:50:00Z",
+          "difference_hpa": 0.8
+        },
+        {
+          "time": "2026-11-18T08:50:00Z",
+          "difference_hpa": 0.7
+        },
+        {
+          "time": "2026-11-18T10:50:00Z",
+          "difference_hpa": 0.8
+        },
+        {
+          "time": "2026-11-18T12:50:00Z",
+          "difference_hpa": 0.8
+        },
+        {
+          "time": "2026-11-18T14:50:00Z",
+          "difference_hpa": 0.8
+        },
+        {
+          "time": "2026-11-18T16:50:00Z",
+          "difference_hpa": 0.8
+        },
+        {
+          "time": "2026-11-18T18:50:00Z",
+          "difference_hpa": 0.8
+        }
+      ],
+      "to_verify": true,
+      "basis": "Venti's own choice of two airfields on either side of the Tauern, with the limits of the pair Bolzano and Innsbruck. No weather service has given either."
+    }
+  ],
+  "caution": "A pressure difference across the main ridge is a sign of foehn, not a measurement of it. Foehn can blow with a small difference, and with a large one it can stay above a valley's cold air for hours and then break through within minutes. It says nothing about one valley or one take-off: read the wind stations, the forecast and the sky, and when in doubt do not fly.",
+  "attributions": [
+    {
+      "source": "geosphere-tawes",
+      "provider": "GeoSphere Austria",
+      "licence": "CC BY 4.0",
+      "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
+      "url": "https://data.hub.geosphere.at"
+    },
+    {
+      "source": "suedtirol-meteo",
+      "provider": "Autonome Provinz Bozen - Südtirol",
+      "licence": "CC0 1.0",
+      "text": "Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz",
+      "url": "https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `time` | The server's time when it answered: the moment the levels are of |
+| `possible_from_hpa`, `likely_from_hpa` | The limits, 3 and 6 hPa: a pair's level is `possible` or `likely` from a difference of that many whole hectopascals, on either side |
+| `fresh_for_s` | How old a reading may be to count, 3600 seconds |
+| `pairs[].id` | A stable name for the pair |
+| `pairs[].south`, `north` | The station south and the station north of the ridge: its `id` (its readings are at [`/v1/stations/{id}/observations`](#get-v1stationsidobservationsfromto)), `source`, the place's `name` as pilots say it, `position`, and `elevation_m` if the server knows the station |
+| `pairs[].south.pressure`, `north.pressure` | The station's newest pressure at sea level of the last 24 hours, however old: `time`, `sea_level_hpa` to a tenth, and `reduced_by`. Left out when the server holds none |
+| `…pressure.reduced_by` | `provider`: the provider sends the pressure reduced to sea level (South Tyrol). `venti`: the provider sends the pressure at the station, and the server reduced it from the station's height and temperature by the barometric formula, which over a cold valley floor reads a hectopascal or more too high. Only for stations up to 1000 m |
+| `pairs[].level` | `unknown`, `none`, `possible` or `likely`, chosen from the difference in whole hectopascals, halves upwards |
+| `pairs[].unknown_because` | With `unknown` only: `south_missing`, `north_missing` (no pressure that can be compared), `south_old`, `north_old` (older than an hour), `apart` (the two readings are more than 30 minutes apart) |
+| `pairs[].difference_hpa`, `difference_time` | The pressure in the south less the pressure in the north, to a tenth, and the time of the older of the two readings. Left out with `unknown` |
+| `pairs[].higher` | `south` or `north`: the side with the higher pressure. Left out when the difference is under half a hectopascal, and with `unknown` |
+| `pairs[].foehn` | `south` or `north` foehn, with the levels `possible` and `likely` only |
+| `pairs[].series[]` | The last 24 hours, oldest first: `time` and `difference_hpa`, one for each reading of the southern station that has a reading of the northern within 30 minutes |
+| `pairs[].to_verify`, `basis` | Whether the pair or its limits wait for pilots to confirm them, and where they are from, in a sentence |
+| `caution` | What the reading does not say |
+| `attributions[]` | The credit of every source that has a pressure in the answer |
+
+The development mode's pressures are made up, so that one pair stands at `likely` and one at `none`: Bolzano 6.2 hPa above what Innsbruck's recorded 930.9 hPa at 578 m and 7.8 °C reduces to, after rising against it all day; Klagenfurt and Salzburg, two stations the recordings do not have and this mode makes up with a pressure, a temperature and a light wind, 0.8 hPa apart.
 
 ## Maps
 

@@ -59,7 +59,7 @@ Thermalling detection in XCTrack *(official)*: start when heading has changed at
 | Group | XCTrack widgets | Ours |
 |---|---|---|
 | Altitude | GPS altitude, barometric altitude (QNH automatic or manual), above ground, maximum, above takeoff, flight level, QNH, gain in current thermal | v1. Above ground: in the core since 2026-11-20, from the map's elevation tiles, and shown under the altitude in the iPhone's and Android's cockpits since the same day; tested on the tiles that come with the app and not in the air |
-| Vario | Numeric with selectable averaging, colour bar, altitude-over-time graph, netto (external sensor only) | v1. Netto in the engine since 2026-11-22 for a pilot who sets a polar (`f9e8968`), on no screen yet |
+| Vario | Numeric with selectable averaging, colour bar, altitude-over-time graph, netto (external sensor only) | v1. Netto in the engine since 2026-11-22 for a pilot who sets a polar (`f9e8968`), a row of the cockpit's "Details" sheet on both phones since the same night (`38714f0`, `9382b64`; seen on no screen) |
 | Speed and glide | Ground speed with blown-back indication, airspeed (estimated or external), current glide ratio, average XC speed | v1 |
 | Wind | Speed, direction, combined compass and wind, wind and climb by altitude band | v1. Wind and climb by band of 200 m: built on the iPhone and on Android on 2026-11-19, the climb through each band since 2026-11-20, as a list opened from the cockpit's wind (`WindByHeightSheet`); tested by replaying a flight and not flown |
 | Thermal | Thermal assistant: drift-corrected trail coloured by climb, previous thermals, optional airspace and navigation overlays | v1 |
@@ -242,10 +242,10 @@ What follows for the presets: the cross-country numbers belong on the map's page
 
 1. An iPhone app at this level, which does not exist today.
 2. Vario from barometer and accelerometer fusion for pilots without an external vario.
-3. Groups, Open Glider Network traffic and a buddy view. The network's traffic is built since 2026-11-21 (`43d51de`); following another pilot is on the server and in the core since 2026-11-22 (`d3b9855`), on no screen yet.
+3. Groups, Open Glider Network traffic and a buddy view. The network's traffic is built since 2026-11-21 (`43d51de`); following another pilot is on the server and in the core since 2026-11-22 (`d3b9855`) and on the three apps the same night (`641bfde`, `d34c0da`, `e62862c`).
 4. Live wind stations and forecast wind in the cockpit.
 5. Reachable landing fields with public transport home.
-6. A glider polar and speed-to-fly. In the engine and the core since 2026-11-22, unset until a pilot sets one (`f9e8968`); on no screen yet.
+6. A glider polar and speed-to-fly. In the engine and the core since 2026-11-22, unset until a pilot sets one (`f9e8968`); on both phones since the same night a glider class is a setting, none by default, and the speed to fly the climb reading's note (`38714f0`, `9382b64`; seen on no screen). A polar of one's own has no setting.
 7. A voice assistant on the pilot's own AI account.
 8. A Live Activity on the lock screen and, later, a watch companion.
 9. The glide range over the terrain on the cockpit's map, and landings behind a ridge taken out of reach. Built on the iPhone and on Android on 2026-11-20 as a straight glide in every direction; flying around a ridge is not worked out.
@@ -329,7 +329,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 **Airspeed and heading, estimated.**
 - *For the pilot:* an airspeed reading without a probe, and a heading for the compass, the map and the thermal page.
 - *How, publicly:* airspeed is the speed over the ground with the computed wind taken out, so it shows what the pilot does with brake and bar; heading is worked out from the track over the ground and the wind. A compass, the phone's or an instrument's, can be taken for the heading instead; the manual advises against it for its lag and its need of calibration (W-fly, W-nav1, A-p4). The web interface hands out `heading`, `airspeed` and `speedComputed` (X-js).
-- *Venti:* since 2026-11-22 both are readings, each marked as an estimate (`CockpitView::airspeed_ms` and `heading_deg` with their words, from `live/air.rs`), absent without a wind and with one older than twenty minutes. On no screen yet.
+- *Venti:* since 2026-11-22 both are readings, each marked as an estimate (`CockpitView::airspeed_ms` and `heading_deg` with their words, from `live/air.rs`), absent without a wind and with one older than twenty minutes. On both phones since the same night they are rows of the cockpit's "Details" sheet (`38714f0`, `9382b64`), on no page of readings.
 - *Gap:* two readings, each absent without a wind and marked with the wind's age. *Small.*
 
 **Carried backwards.**
@@ -458,7 +458,7 @@ The AIR³ pages also read and found to hold nothing on a computation: the manual
 - *Venti:* `live/vario.rs`, a two-state Kalman filter over altitude that weighs each source by its noise; an instrument's own climb is preferred (`VarioSourceKind`); an average over 20 s.
 - *Gap against XCTrack:* a second average the pilot sets (the owner flies with 2 s). *Small.* Beyond: fusing the phone's accelerometer, item 2 of [Where we go beyond](#where-we-go-beyond). *Large; per-frame work that stays in the shell by the architecture's rule.*
 
-**Netto and total energy.** Netto only as a value an instrument sends (X-log, 0.9.12.4). Total energy is on no page read. Venti: since 2026-11-22 netto for a pilot who set a polar (`f9e8968`), on no screen yet; no total energy. *Medium for total energy.*
+**Netto and total energy.** Netto only as a value an instrument sends (X-log, 0.9.12.4). Total energy is on no page read. Venti: since 2026-11-22 netto for a pilot who set a polar (`f9e8968`), a row of the cockpit's "Details" sheet on both phones (seen on no screen); no total energy. *Medium for total energy.*
 
 **Sources and falling back.** Several sensors at once, each named for what it supplies and put in order; the internal satellite receiver lost for 30 s hands over to the external one, and the flight file is then marked as not complying with CIVL's rules (A-p4). Venti: source fallback for the vario; no mark in the file. *Small, and it matters for a signed file.*
 

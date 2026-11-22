@@ -35,6 +35,17 @@ sealed interface ThermalHoursState {
 }
 
 /**
+ * The hours of every day of a map for one layer, for the map's one line of
+ * time: each day's view where it was read, `null` where not (yet).
+ */
+class ThermalHoursLine(
+    val map: ThermalMap,
+    val layer: ThermalHoursLayer,
+    val heightM: Int?,
+    val days: List<ThermalMapHoursView?>,
+)
+
+/**
  * The forecast map by the hour: for the day, the layer and the level the
  * pilot chose, the server's answer read by the core (`thermalHoursPath`,
  * `ThermalMapHours`), and the hour looked at.
@@ -108,6 +119,10 @@ class ThermalHoursModel(
      * few hundred kilobytes of text for a whole region.
      */
     var shapes: ThermalMapShapes? by mutableStateOf(null)
+        private set
+
+    /** The hours of every day for the layer chosen, for the map's line of time; `null` until read. */
+    var line: ThermalHoursLine? by mutableStateOf(null)
         private set
 
     /** How long the core took for the last hour's shapes, milliseconds: for the tests and the report. */
@@ -200,6 +215,78 @@ class ThermalHoursModel(
         state = ThermalHoursState.There(hours, view)
     }
 
+    /**
+     * Reads the chosen layer of every day of the map, for the line of time
+     * from what was measured to the forecast's last day: from what was
+     * kept, or from the server, day by day, the line growing as each comes.
+     * A day that cannot be had stays out of the line.
+     */
+    suspend fun loadLine(map: ThermalMap, server: String, now: Long, offset: Int) {
+        if (map !== keptFor) forget(map)
+        if (map.layers.isEmpty()) {
+            line = null
+            return
+        }
+        val layer = layer
+        val height = heightM.takeIf { layer == ThermalHoursLayer.WIND }
+        val same = line?.takeIf { it.map === map && it.layer == layer && it.heightM == height }
+        val views: MutableList<ThermalMapHoursView?> = same?.days?.toMutableList() ?: MutableList(map.days.size) { null }
+        if (same == null) line = ThermalHoursLine(map, layer, height, views.toList())
+        for ((index, day) in map.days.withIndex()) {
+            if (views.getOrNull(index) != null) continue
+            val path = try {
+                thermalHoursPath(day.date, layer, height)
+            } catch (error: CoreException) {
+                continue
+            }
+            val key = path to layer
+            val hours = read[key] ?: try {
+                val answer = answers[path] ?: transport(server + path).also { answers[path] = it }
+                val reading = withContext(background) {
+                    ThermalMapHours.read(answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(), answer.body, layer, offset, now)
+                }
+                if (map !== keptFor) {
+                    reading.close()
+                    return
+                }
+                // The day's own asking may have read it meanwhile: one reading is kept.
+                read[key]?.also { reading.close() } ?: reading.also { read[key] = it }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                answers.remove(path)
+                null
+            }
+            // Another layer or height was chosen meanwhile: its own line is asked for.
+            if (this.layer != layer || heightM.takeIf { layer == ThermalHoursLayer.WIND } != height) return
+            views[index] = hours?.view() ?: continue
+            line = ThermalHoursLine(map, layer, height, views.toList())
+        }
+    }
+
+    /**
+     * The pilot chose an hour of a day on the line of time, or on
+     * "Thermals" the day as a whole (`null`): shown at once where that
+     * day's layer is read, else once it is.
+     */
+    fun pick(date: String, hour: Int?) {
+        picked = hour
+        pickedOn = date
+        val there = stateNow as? ThermalHoursState.There ?: return
+        if (there.view.date != date) return
+        val last = there.view.hours.lastIndex
+        val index = hour?.coerceIn(0, last)?.takeIf { last >= 0 }
+        if (index == hourNow) return
+        hourNow = index
+        refreshShapes()
+    }
+
+    /** Forgets the hour the pilot chose: another "what" opens where its line begins. */
+    fun unpick() {
+        picked = null
+        pickedOn = null
+    }
+
     /** Drops what was kept for another map of the days, and closes the core's objects. */
     private fun forget(map: ThermalMap?) {
         read.values.forEach { it.close() }
@@ -207,6 +294,7 @@ class ThermalHoursModel(
         answers.clear()
         keptFor = map
         wanted = null
+        line = null
         state = ThermalHoursState.Days
         if (layer == ThermalHoursLayer.THERMALS) hour = null
         picked = null

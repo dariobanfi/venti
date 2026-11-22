@@ -152,12 +152,12 @@ class VentiUiTest {
     }
 
     /**
-     * The layers that are rows of the layers sheet only. The map's chips
-     * switch four: "layer-forecast", "layer-radar", "layer-wind", "layer-sites";
-     * their rows in the sheet are "layers-forecast" and so on.
+     * The layers that are rows of the layers sheet. The map's chips choose
+     * what the map shows, one at a time: "what-wind", "what-thermals",
+     * "what-rain", "what-cloud"; the wind until the pilot chooses.
      */
     private val SHEET_LAYERS =
-        setOf("layer-airspace", "layer-pilots", "layer-thermals", "layer-cables", "map-aerial", "layer-climbs", "layer-flown")
+        setOf("layer-sites", "layer-airspace", "layer-pilots", "layer-thermals", "layer-cables", "map-aerial", "layer-climbs", "layer-flown", "layer-flights")
 
     private fun exists(what: SemanticsMatcher) = screen.onAllNodes(what).fetchSemanticsNodes().isNotEmpty()
 
@@ -286,16 +286,16 @@ class VentiUiTest {
      * Unfolds "Key and notes" on the forecast map's card, which opens with
      * the key, the model's run and the notes folded away.
      */
-    private fun unfoldTheKeyAndNotes(tag: String = "forecast-key-and-notes") {
+    private fun unfoldTheKeyAndNotes(tag: String = "what-info") {
         val fold = hasTestTag(tag)
         waitFor(fold and saying("Collapsed"))
-        screen.onNode(fold).performScrollTo().performClick()
+        screen.onNode(fold).performClick()
         waitFor(fold and saying("Expanded"))
     }
 
     /** One of the sections in the tab bar; not a day of Today's switch or of the forecast map's, which say "Today" too. */
     private fun tab(name: String) =
-        hasText(name) and isSelectable() and !hasAnyAncestor(hasTestTag("today-days")) and !hasAnyAncestor(hasTestTag("forecast-days"))
+        hasText(name) and isSelectable() and !hasAnyAncestor(hasTestTag("today-days"))
 
     /**
      * The settings or the assistant: pages of the Today tab, opened from
@@ -843,7 +843,7 @@ class VentiUiTest {
         }
         val scenario = checkNotNull(app)
 
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind"))
         // The wind's credit appears with the server's first answer about
         // wind. The airspace's has a line of its own in the same box and
         // may be there before it.
@@ -869,7 +869,7 @@ class VentiUiTest {
         letTheMapDraw(2)
         keepScreenshot("$prefix-wind-2-station-from-the-map")
         tap(hasText("Done"))
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind"))
 
         // The same stations as a list, by name: longer than the screen.
         tapInLayers(described("Wind stations"))
@@ -916,7 +916,7 @@ class VentiUiTest {
         tap(described("Back"))
         scrollToStation("Zugspitze")
         tap(hasText("Done"))
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind"))
 
         // The assistant looks up the same wind on the same server.
         openFromToday("Assistant")
@@ -1656,7 +1656,7 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(tab("Map"))
         tap(tab("Map"))
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind"))
         tapInLayers(described("Wind stations"))
         scrollToStation("Zugspitze")
         tap(described("Zugspitze"))
@@ -1681,7 +1681,7 @@ class VentiUiTest {
         screen.onNode(hasTestTag("alert-save")).performScrollTo().performClick()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("alert-form")) }
         tap(hasText("Done"))
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind"))
 
         // The list has it.
         openFromToday("Settings")
@@ -2670,13 +2670,14 @@ class VentiUiTest {
     }
 
     /**
-     * The forecast map on the map tab: the kind of day square by square,
-     * against the stand-in with a made-up day (`madeUpDayServer`, as for
-     * Today's kinds of day); without it the test is skipped. Its map has
-     * every kind of day in clear patches around 47.5 to 47.9 N and 11.5 to
-     * 12.3 E, and two days; the middle of the map, 47.7 N 11.9 E, is weak
-     * thermals on both. What its screenshots show is made up. The forecast
-     * a square leads to opens on the day the map showed.
+     * The thermals on the map tab: the kind of day square by square on a
+     * day's "Day", against the stand-in with a made-up day
+     * (`madeUpDayServer`, as for Today's kinds of day); without it the test
+     * is skipped. Its map has every kind of day in clear patches around
+     * 47.5 to 47.9 N and 11.5 to 12.3 E; the middle of the map, 47.7 N
+     * 11.9 E, is weak thermals on every day. What its screenshots show is
+     * made up. The forecast a square leads to opens on the day the map
+     * showed.
      */
     @Test
     fun theMapShowsTheKindOfDaySquareBySquare() {
@@ -2684,38 +2685,27 @@ class VentiUiTest {
         assumeTrue("No stand-in with a made-up day was named in the madeUpDayServer argument.", !server.isNullOrEmpty())
         launch { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        waitFor(hasTestTag("layer-wind"))
-        // Nothing else of Venti's under the finger where a square is tapped.
-        // The chips' row scrolls: a chip beyond its edge is scrolled to
-        // first. A test's choices are its own: every launch starts a new
-        // session with the chips as a new phone has them.
-        for (layer in listOf("layer-wind", "layer-sites")) {
-            tapChip(layer)
-            screen.onNode(hasTestTag(layer)).assertIsOff()
-        }
-        // The pilots, a switch of the layers sheet only.
+        // The wind until the pilot chooses; nothing else of Venti's under the
+        // finger where a square is tapped.
+        waitFor(hasTestTag("what-wind") and isOn())
+        switchLayer("layer-sites", on = false)
         switchLayer("layer-pilots", on = false)
         assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
-        // Off until the pilot switches it on, in the layers sheet.
-        switchLayer("layers-forecast", on = true)
+        tapChip("what-thermals")
+        waitFor(hasTestTag("what-thermals") and isOn())
+        assertTrue(exists(hasTestTag("what-wind") and isOff()))
 
-        // The card: the days and, behind "Key and notes", the key from the
-        // best kind of day down to "Not flyable" and the model with its run.
-        waitFor(hasTestTag("forecast-days"))
+        // The panel: one line in words, the line of time on the first day's
+        // "Day", the key as a strip; the whole key and the model's run
+        // behind the "i".
+        val time = hasTestTag("what-time")
+        val line = hasTestTag("what-line")
+        waitFor(time)
+        waitFor(line and hasText(", forecast, ", substring = true))
+        waitFor(hasTestTag("what-key"))
         assertFalse(exists(hasTestTag("forecast-key")))
-        unfoldTheKeyAndNotes()
-        waitFor(hasTestTag("forecast-key"))
-        // A line of the key is read as its words: it has a description and
-        // no text of its own for a test to find.
-        waitForAll(hasTestTag("forecast-days"), described("Big day"), described("Not flyable"), hasTestTag("forecast-map-run"))
-        // The first day the map has is shown first. Its name is the core's,
-        // by the server's clock; the stand-in dates its map from that
-        // clock, so the days are "Today", "Tomorrow" and a third. The test
-        // goes by their place in the switch all the same, since which day
-        // is today also hangs on the emulator's time zone.
-        val days = isSelectable() and hasAnyAncestor(hasTestTag("forecast-days"))
-        waitFor(days)
-        assertTrue(screen.onAllNodes(days)[0].fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected) == true)
+        unfoldTheKeyAndNotes("what-info")
+        waitForAll(hasTestTag("forecast-key"), described("Big day"), described("Not flyable"), hasTestTag("forecast-map-run"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
         }
@@ -2723,14 +2713,15 @@ class VentiUiTest {
         seeInCredits(hasText("Forecast: ", substring = true))
         letTheMapDraw()
         keepScreenshot("map-forecast-1-today")
+        screen.onNode(hasTestTag("what-info")).performClick()
+        waitFor(hasTestTag("what-info") and saying("Collapsed"))
 
-        // Another day swaps the squares: the second the map has.
-        val second = screen.onAllNodes(days)[1]
-        val secondName = checkNotNull(
-            second.fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text },
-        )
-        second.performClick()
-        waitFor(days and hasText(secondName) and isSelected())
+        // Another day's "Day" on the line swaps the squares.
+        val days = dayCells()
+        assertTrue("the line has ${days.size} days", days.size >= 2)
+        val secondName = days[1].second
+        toPlace(days[1].first)
+        waitFor(line and hasText("Thermals, $secondName, forecast, ", substring = true))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
         }
@@ -2759,10 +2750,7 @@ class VentiUiTest {
         keepScreenshot("map-forecast-3-square")
 
         // The square leads to the forecast for its middle, in the same sheet,
-        // on the day the map showed: its second. The stand-in's forecast has
-        // the map's days from its first on, so that is the forecast's second
-        // day too; from anywhere else the forecast opens on today, or on its
-        // first day when it has no today.
+        // on the day the map showed: its second.
         screen.onNode(hasTestTag("forecast-square-forecast")).performScrollTo()
         tap(hasTestTag("forecast-square-forecast"))
         waitFor(hasTestTag("forecast-table"))
@@ -2772,43 +2760,44 @@ class VentiUiTest {
         tap(hasText("Done"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("forecast-table")) }
 
-        // Switched off, the card goes and the squares with it.
-        tapChip("layer-forecast")
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("forecast-map-card")) }
+        // The chosen one pressed again shows nothing: the panel goes and the squares with it.
+        tapChip("what-thermals")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("what-panel")) }
+        assertTrue(exists(hasTestTag("what-wind") and isOff()))
     }
 
-    /** A layer of the forecast map's card, by its name: one of the chips of which one is on. */
-    private fun forecastLayer(name: String) = isSelectable() and hasAnyAncestor(hasTestTag("forecast-layers")) and hasText(name)
-
-    /** Chooses a layer of the forecast map: its chips scroll across the card, so the chip is scrolled to first. */
-    private fun chooseForecastLayer(name: String) {
-        waitFor(forecastLayer(name))
-        screen.onAllNodes(forecastLayer(name)).onFirst().performScrollTo().performClick()
-        waitFor(forecastLayer(name) and isSelected())
+    /** The days' "Day" cells of the thermals' line of time, by their place in it, with the day's name. */
+    private fun dayCells(): List<Pair<Int, String>> {
+        val strip = hasTestTag("what-time")
+        waitFor(strip)
+        return (0 until placesOf("what-time")).mapNotNull { place ->
+            toPlace(place)
+            val said = screen.onNode(strip).fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription).orEmpty()
+            // A day's "Day" is said by the day's name alone; an hour as "Today, 13:00".
+            said.takeIf { "," !in it && it != "Now" }?.let { place to it }
+        }.also { toPlace(0) }
     }
 
-    /** Sets the forecast map's line of hours to a place in it: the strip is one value to adjust. */
-    private fun toHour(place: Int) {
-        screen.onNode(hasTestTag("forecast-hours")).performSemanticsAction(SemanticsActions.SetProgress) { it(place.toFloat()) }
+    /** Sets the map's line of time to a place in it: the strip is one value to adjust. */
+    private fun toPlace(place: Int) {
+        screen.onNode(hasTestTag("what-time")).performSemanticsAction(SemanticsActions.SetProgress) { it(place.toFloat()) }
         screen.waitForIdle()
     }
 
-    /** How many places the forecast map's line of hours has. */
-    private fun placesOfTheHours(): Int = placesOf("forecast-hours")
-
     /**
-     * Steps the forecast map's line of hours to an hour of the pilot's
-     * clock, "13:00". The hours are named by the emulator's clock, so the
-     * place of an hour in the line is looked for, not counted.
+     * Steps the map's line of time to an hour of the pilot's clock,
+     * "13:00", on the first day that has it. The hours are named by the
+     * emulator's clock, so the place of an hour in the line is looked for,
+     * not counted.
      */
     private fun toClock(label: String) {
-        val strip = hasTestTag("forecast-hours")
+        val strip = hasTestTag("what-time")
         waitFor(strip)
-        for (place in 0 until placesOfTheHours()) {
-            toHour(place)
-            if (exists(strip and saying(label))) return
+        for (place in 0 until placesOf("what-time")) {
+            toPlace(place)
+            if (exists(strip and saying(", $label"))) return
         }
-        throw AssertionError("The line of hours has no $label.")
+        throw AssertionError("The line of time has no $label.")
     }
 
     /** Presses something by its action: a menu is a window of its own, where a touch went astray. */
@@ -2829,28 +2818,23 @@ class VentiUiTest {
 
     /**
      * Shows the made-up day's map so that something of every layer stands
-     * clear between the chips and the card. Its grid has its squares
+     * clear between the chips and the panel. Its grid has its squares
      * around 47.5 to 47.9 N and 11.5 to 12.3 E, each a tenth of a degree:
      * every kind of day in patches from west to east, the gusts and the
      * cloud in the east, and the rain in the south-east corner, 47.5 and
-     * 47.6 N, 12.2 and 12.3 E. The view is of 11.6 to 12.4 E, with the
-     * grid's south just above the card; the northernmost row lies under
-     * the chips, and the two westernmost columns outside the view.
+     * 47.6 N, 12.2 and 12.3 E.
      */
     private fun lookAtTheMadeUpDay(scenario: ActivityScenario<MainActivity>) {
         assertTrue(TestDevice.lookAt(scenario, lat = 47.5, lon = 12.0, zoom = 8.6))
     }
 
     /**
-     * The forecast map by the hour, against the made-up day: every layer
-     * of its days, eleven hours each, a wind at each height and none at
-     * 1000 m where its made-up ground lies higher. Everything its
-     * screenshots show is made up. Skipped without the stand-in.
-     *
-     * The layers are looked at at 13:00: late in the day the made-up day
-     * has little cloud and no rain. Its rain and its gusts are in the
-     * hours from 10 to 15 UTC, which 13:00 is on a clock from two hours
-     * behind UTC to three ahead of it.
+     * The forecast by the hour, against the made-up day: each "what" at
+     * 13:00 on its line of time, the wind's gusts and heights, and the key
+     * and notes behind the "i". Everything its screenshots show is made up.
+     * Skipped without the stand-in. Its rain and its gusts are in the hours
+     * from 10 to 15 UTC, which 13:00 is on a clock from two hours behind UTC
+     * to three ahead of it.
      */
     private fun lookAtTheForecastByTheHour(prefix: String, dark: Boolean) {
         val server = InstrumentationRegistry.getArguments().getString("madeUpDayServer")
@@ -2858,81 +2842,77 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
         waitFor(hasTestTag("map-layers"))
-        for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
-            tapChip(layer)
-        }
+        switchLayer("layer-sites", on = false)
+        switchLayer("layer-pilots", on = false)
         lookAtTheMadeUpDay(scenario)
-        tapChip("layer-forecast")
-        waitFor(hasTestTag("forecast-layers"))
-        val strip = hasTestTag("forecast-hours")
-        val said = hasTestTag("forecast-said")
-        val fold = hasTestTag("forecast-key-and-notes")
+        val strip = hasTestTag("what-time")
+        val line = hasTestTag("what-line")
+        val info = hasTestTag("what-info")
         fun drawn(layer: String) = screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, layer) ?: 0) > 0 }
 
-        // "Thermals" opens on the day as a whole: the days' squares. Under
-        // the line of hours the card says what the map shows, on "Day"
-        // with the day's name where an hour's would stand.
-        waitFor(forecastLayer("Thermals") and isSelected())
+        // The wind opens on what the stations measure now.
+        waitFor(line and hasText("Wind, now, measured"))
+        assertTrue(exists(strip and saying("Now")))
+        letTheMapDraw()
+        keepScreenshot("$prefix-map-hours-0-wind-now")
+
+        // The thermals open on the day as a whole: the days' squares.
+        tapChip("what-thermals")
         waitFor(strip)
-        assertTrue(exists(strip and saying("Day")))
-        val days = isSelectable() and hasAnyAncestor(hasTestTag("forecast-days"))
-        val firstDay = checkNotNull(
-            screen.onAllNodes(days)[0].fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text },
-        )
-        waitFor(said and hasText("Thermals, $firstDay"))
-        // The key, the model's run and the notes are folded away when the
-        // card opens, and TalkBack is told so; the height is the wind's.
-        assertTrue(exists(fold and saying("Collapsed")))
+        waitFor(line and hasText("Thermals, ", substring = true) and hasText(", forecast, ", substring = true))
+        assertTrue(exists(info and saying("Collapsed")))
         assertFalse(exists(hasTestTag("forecast-key")))
-        assertFalse(exists(hasTestTag("forecast-map-run")))
         assertFalse(exists(hasTestTag("forecast-level")))
         drawn("forecast-squares")
         letTheMapDraw()
         keepScreenshot("$prefix-map-hours-1-thermals-day")
 
-        // An hour of the thermals: the strip is one value to adjust.
+        // An hour of the thermals.
         toClock("13:00")
         drawn("forecast-hours-squares")
-        assertFalse(exists(strip and saying("Day")))
-        waitFor(said and hasText("Thermals, 13:00"))
+        waitFor(line and hasText("13:00, forecast, ", substring = true))
         letTheMapDraw()
         keepScreenshot("$prefix-map-hours-2-thermals-hour")
 
-        // The other layers keep the hour the pilot chose, also when they
-        // are asked for the first time. The height's menu stands on the
-        // line of the words, with the wind alone.
-        val titles = listOf("Wind" to "Wind at the ground", "Gusts" to "Gusts at the ground", "Cloud" to "Cloud", "Rain" to "Rain")
-        for ((index, layer) in titles.withIndex()) {
-            val (name, title) = layer
-            chooseForecastLayer(name)
-            waitFor(strip and saying("13:00"))
-            waitFor(said and hasText("$title, 13:00"))
+        // Each "what" at 13:00; the height's menu and the gusts with the wind's forecast alone.
+        val whats = listOf("what-wind" to "Wind at the ground", "what-cloud" to "Cloud", "what-rain" to "Rain")
+        for ((index, chosen) in whats.withIndex()) {
+            val (tag, title) = chosen
+            tapChip(tag)
+            toClock("13:00")
+            waitFor(line and hasText("$title, ", substring = true) and hasText("13:00, forecast, ", substring = true))
             drawn("forecast-hours-squares")
-            assertTrue((name == "Wind") == exists(hasTestTag("forecast-level")))
-            assertFalse(exists(hasTestTag("forecast-key")))
+            assertTrue((tag == "what-wind") == exists(hasTestTag("what-gusts")))
             letTheMapDraw()
-            keepScreenshot("$prefix-map-hours-${index + 3}-${name.lowercase()}")
+            keepScreenshot("$prefix-map-hours-${index + 3}-${tag.removePrefix("what-")}")
         }
 
+        // The wind's gusts: a switch of its forecast.
+        tapChip("what-wind")
+        toClock("13:00")
+        tap(hasTestTag("what-gusts"))
+        waitFor(line and hasText("Gusts at the ground, ", substring = true))
+        assertFalse(exists(hasTestTag("forecast-level")))
+        drawn("forecast-hours-squares")
+        letTheMapDraw()
+        keepScreenshot("$prefix-map-hours-6-gusts")
+        tap(hasTestTag("what-gusts"))
+
         // The wind at 2000 m, from the height's menu.
-        chooseForecastLayer("Wind")
         chooseForecastHeight("2000", "2000 m")
-        waitFor(said and hasText("Wind at 2000 m, 13:00"))
+        waitFor(line and hasText("Wind at 2000 m, ", substring = true))
         drawn("forecast-hours-arrows")
-        // The menu stands at the right of the words, clear of them.
-        assertTrue(boundsOf("forecast-said").right <= boundsOf("forecast-level").left)
         letTheMapDraw()
         keepScreenshot("$prefix-map-hours-7-wind-2000")
 
-        // "Key and notes" unfolded: the layer's key, the model with its
-        // run, and the layer's note in the core's words.
-        unfoldTheKeyAndNotes()
+        // Behind the "i": the layer's whole key, the model with its run, and the layer's note.
+        unfoldTheKeyAndNotes("what-info")
         waitForAll(hasTestTag("forecast-key"), described("20 to 30 km/h"), hasTestTag("forecast-map-run"), hasTestTag("forecast-layer-note"))
         assertTrue(exists(hasTestTag("forecast-layer-note") and hasText("The model's mean wind", substring = true)))
         letTheMapDraw(1)
         keepScreenshot("$prefix-map-hours-8-key-and-notes")
-        screen.onNode(fold).performScrollTo().performClick()
-        waitFor(fold and saying("Collapsed"))
+        screen.onNode(info).performClick()
+        waitFor(info and saying("Collapsed"))
         assertFalse(exists(hasTestTag("forecast-key")))
 
         // At 1000 m the made-up ground lies higher under some squares,
@@ -2940,7 +2920,7 @@ class VentiUiTest {
         // 47.8 N 11.9 E has its ground at 1150 m. A tap there still opens
         // the square, which says so.
         chooseForecastHeight("1000", "1000 m")
-        waitFor(said and hasText("Wind at 1000 m, 13:00"))
+        waitFor(line and hasText("Wind at 1000 m, ", substring = true))
         drawn("forecast-hours-squares")
         letTheMapDraw(2)
         TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = 47.8, lon = 11.9)))
@@ -2954,12 +2934,12 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(sheet) }
 
         // How long the core takes for the squares and the arrows of an
-        // hour, as the app's model times it: every hour of the wind at the
-        // ground, each with its arrows. Said in the test's log.
+        // hour, as the app's model times it: every hour of the line, each
+        // with its arrows. Said in the test's log.
         chooseForecastHeight("ground", "Ground")
-        waitFor(said and hasText("Wind at the ground, 13:00"))
-        val steps = (0 until placesOfTheHours()).map { place ->
-            toHour(place)
+        waitFor(line and hasText("Wind at the ground, ", substring = true))
+        val steps = (0 until placesOf("what-time")).map { place ->
+            toPlace(place)
             var took = -1L
             scenario.onActivity { activity ->
                 val session = (activity.application as VentiApplication).testSession as? Session.Ready
@@ -2967,22 +2947,17 @@ class VentiUiTest {
             }
             took
         }
-        assertTrue("A step of an hour took ${steps.max()} ms.", steps.all { it in 0..500 })
+        assertTrue("A step of an hour took ${steps.max()} ms.", steps.all { it in -1..500 })
         TestDevice.say("forecastHourStepMillis", steps.joinToString(" "))
-
-        // Back to the thermals on the day, as a new phone has them.
-        chooseForecastLayer("Thermals")
-        toHour(0)
-        waitFor(strip and saying("Day"))
     }
 
     /**
-     * The forecast map's card while its hours do not come, and when they
-     * are refused. The map of the days comes from the made-up day's
-     * stand-in; its hours pass through a server the test plays in front of
-     * it ([HoursHeldBack]), which first keeps the app waiting, then
-     * answers as a server that is being restarted does, and at last hands
-     * the hours on. Skipped without the stand-in.
+     * The panel while the hours do not come, and when they are refused.
+     * The map of the days comes from the made-up day's stand-in; its hours
+     * pass through a server the test plays in front of it
+     * ([HoursHeldBack]), which first keeps the app waiting, then answers as
+     * a server that is being restarted does, and at last hands the hours
+     * on. Skipped without the stand-in.
      */
     @Test
     fun theForecastMapWaitsForItsHoursAndSaysWhenTheyDoNotCome() {
@@ -2992,40 +2967,32 @@ class VentiUiTest {
             launch { putExtra(LaunchOptions.SERVER, held.address) }
             val scenario = checkNotNull(app)
             waitFor(hasTestTag("map-layers"))
-            for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
-                tapChip(layer)
-            }
+            switchLayer("layer-sites", on = false)
             lookAtTheMadeUpDay(scenario)
-            tapChip("layer-forecast")
+            tapChip("what-cloud")
 
-            // The days are there and their squares are drawn; where the
-            // hours will stand the card says that they are asked for.
+            // The days are there; where the hours will stand the panel says that they are asked for.
             waitFor(hasTestTag("forecast-hours-asking"))
             assertTrue(exists(hasText("Asking Venti for the hours")))
-            waitFor(hasTestTag("forecast-days"))
-            assertFalse(exists(hasTestTag("forecast-hours")))
-            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0 }
+            assertFalse(exists(hasTestTag("what-time")))
             // Kept at once: the app gives a server twenty seconds to answer.
             keepScreenshot("map-hours-0-waiting")
-            assertTrue(exists(hasTestTag("forecast-hours-asking")))
 
-            // Refused: the card says so in the core's words, with "Try
-            // again", and the layer falls back to the day.
+            // Refused: the panel says so in the core's words, with "Try again".
             held.hours = HoursHeldBack.Hours.REFUSED
             val problem = hasTestTag("forecast-hours-problem")
             waitFor(problem)
             assertTrue(exists(hasText("The server is busy or being restarted. Try again in a moment.")))
-            assertFalse(exists(hasTestTag("forecast-hours")))
-            assertTrue((TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0)
             letTheMapDraw(1)
             keepScreenshot("map-hours-0-refused")
 
             // "Try again" asks anew, and the hours come.
             held.hours = HoursHeldBack.Hours.HANDED_ON
             tap(hasText("Try again") and hasAnyAncestor(problem))
-            waitFor(hasTestTag("forecast-hours"))
-            assertTrue(exists(hasTestTag("forecast-hours") and saying("Day")))
+            waitFor(hasTestTag("what-time"))
+            waitFor(hasTestTag("what-line") and hasText("Cloud, ", substring = true))
             assertFalse(exists(problem))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "forecast-hours-squares") ?: 0) > 0 }
         }
     }
 
@@ -3048,21 +3015,20 @@ class VentiUiTest {
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind") and isOn())
         assertFalse(showsARadarLayer(scenario))
         lookAtTheWholeRadar(scenario)
-        // Off until the pilot switches it on, in the layers sheet.
-        switchLayer("layers-radar", on = true)
+        // The rain, one of what the map shows.
+        tapChip("what-rain")
 
-        // The card: two moments, the newest chosen, and its line in the
-        // core's words, which says of the analysis under it what it is of.
-        // The hours are the emulator's clock's, so only their pattern is held.
-        val strip = hasTestTag("radar-frames")
-        val said = hasTestTag("radar-said")
-        waitFor(strip)
-        assertEquals(2, placesOf("radar-frames"))
+        // The panel: the line of time from the radar's two moments, the
+        // newest chosen, to the forecast; the moment's one line in the
+        // core's words. The hours are the emulator's clock's, so only their
+        // pattern is held.
+        val strip = hasTestTag("what-time")
+        val said = hasTestTag("what-line")
         waitFor(strip and saying(", 4 minutes ago"))
-        waitFor(said and worded("""^Rain radar, \d\d:\d\d, 4 minutes ago\. Austria's analysis is of \d\d:\d\d\.$"""))
+        waitFor(said and worded("""^Rain, \d\d:\d\d, measured$"""))
         // Both layers are on the map, each a layer of its own.
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             showsBothRadarLayers(scenario)
@@ -3075,17 +3041,18 @@ class VentiUiTest {
         )
         assertFalse(exists(hasTestTag("radar-key")))
         assertFalse(exists(hasTestTag("radar-stale")))
+        waitFor(hasTestTag("what-key"))
         letTheMapDraw()
         keepScreenshot("map-radar-1-newest")
 
-        // "Key and notes": what the two pictures are, the key from the
-        // most rain down, what was not seen, the note and the credits.
-        unfoldTheKeyAndNotes("radar-key-and-notes")
-        val layers = hasAnyAncestor(hasTestTag("radar-layers"))
+        // Behind the "i": the moment in full, what the two pictures are, the
+        // key from the most rain down, what was not seen, the note and the credits.
+        unfoldTheKeyAndNotes("what-info")
         val credited = hasAnyAncestor(hasTestTag("radar-credit"))
         waitForAll(
-            hasText("Germany's radars, every 5 minutes") and layers,
-            hasText("Austria's analysis of radar and gauges, every 15 minutes") and layers,
+            hasText("Germany's radars, every 5 minutes", substring = true) and hasTestTag("radar-layers"),
+            hasText("Austria's analysis of radar and gauges, every 15 minutes", substring = true) and hasTestTag("radar-layers"),
+            hasTestTag("radar-label") and worded(""", 4 minutes ago\. Austria's analysis is of \d\d:\d\d\.$"""),
             hasText("Deutscher Wetterdienst", substring = true) and credited,
             hasText("GeoSphere Austria", substring = true) and credited,
             hasTestTag("radar-key"),
@@ -3096,20 +3063,22 @@ class VentiUiTest {
         )
         letTheMapDraw(1)
         keepScreenshot("map-radar-2-key")
-        screen.onNode(hasTestTag("radar-key-and-notes")).performScrollTo().performClick()
+        screen.onNode(hasTestTag("what-info")).performClick()
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("radar-key")) }
 
         // A step to the earlier moment swaps the radars' picture and the
         // line; the analysis under it is the same one.
+        val newest = screen.onNode(said).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)?.joinToString()
         screen.onNode(strip).performSemanticsAction(SemanticsActions.SetProgress) { it(0f) }
-        waitFor(said and worded(""", 9 minutes ago\. Austria's analysis is of \d\d:\d\d\.$"""))
+        waitFor(strip and saying(", 9 minutes ago"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(said and hasText(checkNotNull(newest))) }
         assertTrue(showsBothRadarLayers(scenario))
         letTheMapDraw(1)
         keepScreenshot("map-radar-3-earlier-frame")
 
         // Played through, the moments end on the newest, and the button is the one to play again.
         tap(hasTestTag("radar-play"))
-        waitFor(said and hasText(", 4 minutes ago", substring = true))
+        waitFor(strip and saying(", 4 minutes ago"))
         waitFor(described("Play the radar pictures"))
 
         // Closer in, over the Tegernsee: a step of rain stays a step, not smoothed.
@@ -3117,9 +3086,14 @@ class VentiUiTest {
         letTheMapDraw()
         keepScreenshot("map-radar-4-closer")
 
-        // Switched off, the card goes and both pictures with it.
-        tapChip("layer-radar")
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("radar-card")) }
+        // The rain's forecast further along the line: the radar's pictures go.
+        toPlace(placesOf("what-time") - 1)
+        waitFor(said and hasText(", forecast, ", substring = true))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !showsARadarLayer(scenario) }
+
+        // The chosen one pressed again shows nothing: the panel goes and the pictures with it.
+        tapChip("what-rain")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("what-panel")) }
         assertFalse(showsARadarLayer(scenario))
     }
 
@@ -3136,14 +3110,14 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         waitFor(hasTestTag("map-layers"))
         lookAtTheWholeRadar(scenario)
-        tapChip("layer-radar")
-        waitFor(hasTestTag("radar-said"))
+        tapChip("what-rain")
+        waitFor(hasTestTag("what-line") and hasText(", measured", substring = true))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             showsBothRadarLayers(scenario)
         }
         letTheMapDraw()
         keepScreenshot("map-radar-5-dark-map")
-        unfoldTheKeyAndNotes("radar-key-and-notes")
+        unfoldTheKeyAndNotes("what-info")
         waitForAll(hasTestTag("radar-layers"), hasTestTag("radar-key"))
         letTheMapDraw(1)
         keepScreenshot("map-radar-5-dark")
@@ -3167,12 +3141,12 @@ class VentiUiTest {
             val scenario = checkNotNull(app)
             waitFor(hasTestTag("map-layers"))
             lookAtTheWholeRadar(scenario)
-            tapChip("layer-radar")
+            tapChip("what-rain")
 
             val problem = hasTestTag("radar-problem")
             waitFor(problem)
             assertTrue(exists(hasText("This server has no rain radar.")))
-            assertFalse(exists(hasTestTag("radar-frames")))
+            assertFalse(exists(hasTestTag("what-time") and saying("minutes ago")))
             assertFalse(showsARadarLayer(scenario))
             letTheMapDraw(1)
             keepScreenshot("map-radar-6-no-radar")
@@ -3180,7 +3154,7 @@ class VentiUiTest {
             // "Try again" asks anew, and the frames come.
             held.hours = HoursHeldBack.Hours.HANDED_ON
             tap(hasText("Try again") and hasAnyAncestor(problem))
-            waitFor(hasTestTag("radar-frames"))
+            waitFor(hasTestTag("what-line") and hasText(", measured", substring = true))
             assertFalse(exists(problem))
             screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
                 showsBothRadarLayers(scenario)
@@ -3216,12 +3190,12 @@ class VentiUiTest {
     }
 
     /**
-     * The forecast map's card on a screen 360 dp wide with text at 130 %:
-     * the layers' row, four days, the line of hours with "Day" and eleven
-     * hours, and the words with the height's menu beside them. The test
-     * sets the device so and puts it back, whatever happens. Only the
-     * screenshots and that nothing lies over another matter here. Skipped
-     * without the stand-in.
+     * The panel of what the map shows on a screen 360 dp wide with text at
+     * 130 %: the chips, the line in words, the line of time across the
+     * days, the key's strip, and with the wind's forecast the height's menu
+     * and the gusts. The test sets the device so and puts it back, whatever
+     * happens. Only the screenshots and that nothing leaves the panel
+     * matter here. Skipped without the stand-in.
      */
     @Test
     fun theForecastMapByTheHourOnANarrowScreenWithLargeText() {
@@ -3232,43 +3206,33 @@ class VentiUiTest {
             launch { putExtra(LaunchOptions.SERVER, server) }
             val scenario = checkNotNull(app)
             waitFor(hasTestTag("map-layers"))
-            for (layer in listOf("layer-wind", "layer-sites", "layer-pilots")) {
-                tapChip(layer)
-            }
+            switchLayer("layer-sites", on = false)
+            switchLayer("layer-pilots", on = false)
             lookAtTheMadeUpDay(scenario)
-            tapChip("layer-forecast")
-            val strip = hasTestTag("forecast-hours")
-            val said = hasTestTag("forecast-said")
-            waitFor(strip and saying("Day"))
-            assertTrue(screen.onAllNodes(isSelectable() and hasAnyAncestor(hasTestTag("forecast-days"))).fetchSemanticsNodes().size == 4)
-            assertTrue(placesOfTheHours() == 12)
+            waitFor(hasTestTag("what-line") and hasText("Wind, now, measured"))
+            letTheMapDraw()
+            keepScreenshot("narrow-map-what-0-wind-now")
+            tapChip("what-thermals")
+            waitFor(hasTestTag("what-time"))
             screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0 }
             letTheMapDraw()
             keepScreenshot("narrow-map-hours-1-thermals-day")
 
-            // The wind: the words and, at their right, the height's menu.
+            // The wind's forecast: the words, the height's menu and the gusts.
+            tapChip("what-wind")
             toClock("13:00")
-            chooseForecastLayer("Wind")
-            waitFor(said and hasText("Wind at the ground, 13:00"))
-            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "forecast-hours-arrows") ?: 0) > 0 }
-            letTheMapDraw()
-            keepScreenshot("narrow-map-hours-2-wind")
-
+            waitFor(hasTestTag("what-line") and hasText("Wind at the ground, ", substring = true))
             chooseForecastHeight("2000", "2000 m")
-            waitFor(said and hasText("Wind at 2000 m, 13:00"))
-            // Nothing lies over another or leaves the card: the words end
-            // where the menu begins, and both, the days and the hours
-            // stand inside the card.
-            val card = boundsOf("forecast-map-card")
-            assertTrue(boundsOf("forecast-said").right <= boundsOf("forecast-level").left)
-            for (tag in listOf("forecast-said", "forecast-level", "forecast-days", "forecast-hours", "forecast-key-and-notes")) {
+            waitFor(hasTestTag("what-line") and hasText("Wind at 2000 m, ", substring = true))
+            val panel = boundsOf("what-panel")
+            for (tag in listOf("what-line", "what-info", "what-time", "forecast-level", "what-gusts", "what-key")) {
                 val part = boundsOf(tag)
-                assertTrue("$tag leaves the card", part.left >= card.left && part.right <= card.right && part.top >= card.top && part.bottom <= card.bottom)
+                assertTrue("$tag leaves the panel", part.left >= panel.left && part.right <= panel.right && part.top >= panel.top && part.bottom <= panel.bottom)
             }
             letTheMapDraw()
             keepScreenshot("narrow-map-hours-3-wind-2000")
 
-            unfoldTheKeyAndNotes()
+            unfoldTheKeyAndNotes("what-info")
             waitFor(hasTestTag("forecast-layer-note"))
             letTheMapDraw(1)
             keepScreenshot("narrow-map-hours-4-key-and-notes")
@@ -3296,8 +3260,8 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         waitFor(hasTestTag("map-layers"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.9, zoom = 8.6))
-        tapChip("layer-forecast")
-        waitFor(hasTestTag("forecast-days"))
+        tapChip("what-thermals")
+        waitFor(hasTestTag("what-time"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
         }
@@ -3780,7 +3744,7 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         waitFor(described("Show my position"))
         // The wind's arrows and the gliders off, so that the signs are seen.
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         assertTrue(TestDevice.lookAt(scenario, lat = 47.59, lon = 11.845, zoom = 10.0))
         waitForSites()
@@ -4156,7 +4120,7 @@ class VentiUiTest {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind"))
         tapInLayers(described("Wind stations"))
         scrollToStation("Innsbruck/Universitaet")
         tap(described("Innsbruck/Universitaet"))
@@ -4172,7 +4136,7 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-station-1-air")
         tap(hasText("Done"))
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind"))
 
         // Another day: the picker opens on today, the server's, and offers
         // a year back to it; the days after are not offered. Choosing a day
@@ -4212,7 +4176,7 @@ class VentiUiTest {
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        waitFor(hasTestTag("layer-wind"))
+        waitFor(hasTestTag("what-wind"))
         assertTrue(TestDevice.lookAt(scenario, lat = 46.83, lon = 9.81, zoom = 10.0))
         tapInLayers(described("Wind stations"))
         val swiss = described("Weissfluhjoch") and saying("MeteoSwiss")
@@ -5104,7 +5068,7 @@ class VentiUiTest {
         tap(tab("Map"))
         val scenario = checkNotNull(app)
         val page = hasTestTag("site-page")
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(scenario)
         signInFromTheMap(scenario, "c${System.currentTimeMillis() % 1_000_000_000}")
@@ -5164,7 +5128,7 @@ class VentiUiTest {
         scenario.close()
         launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
         val dark = checkNotNull(app)
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(dark)
         openFromTheListOfSites("Musterkogel West")
@@ -5240,7 +5204,7 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         val page = hasTestTag("site-page")
         val form = hasTestTag("site-form")
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(scenario)
 
@@ -5479,7 +5443,7 @@ class VentiUiTest {
         try {
             launch { putExtra(LaunchOptions.SERVER, server) }
             val scenario = checkNotNull(app)
-            tapChip("layer-wind")
+            tapChip("what-wind")
             tapChip("layer-pilots")
             lookAtTheMadeUpSites(scenario)
             TestDevice.longPress(checkNotNull(TestDevice.onScreen(scenario, lat = 47.295, lon = 10.875)))
@@ -5530,7 +5494,7 @@ class VentiUiTest {
             launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
             val scenario = checkNotNull(app)
             val page = hasTestTag("site-page")
-            tapChip("layer-wind")
+            tapChip("what-wind")
             tapChip("layer-pilots")
             lookAtTheMadeUpSites(scenario)
             signInFromTheMap(scenario, "w${System.currentTimeMillis() % 1_000_000_000}")
@@ -5631,7 +5595,7 @@ class VentiUiTest {
             HoursHeldBack(checkNotNull(server), path = path).use { inFront ->
                 launch { putExtra(LaunchOptions.SERVER, inFront.address) }
                 val scenario = checkNotNull(app)
-                tapChip("layer-wind")
+                tapChip("what-wind")
                 tapChip("layer-pilots")
                 lookAtTheMadeUpSites(scenario)
                 showThePlacesFromPilots(scenario)
@@ -5689,7 +5653,7 @@ class VentiUiTest {
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(scenario)
         signInFromTheMap(scenario, "d${System.currentTimeMillis() % 1_000_000_000}")
@@ -5725,7 +5689,7 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         val page = hasTestTag("site-page")
         val fromPilots = "from pilots: not official and not checked by anyone."
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(scenario)
 
@@ -5844,7 +5808,7 @@ class VentiUiTest {
         launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
         val page = hasTestTag("site-page")
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(scenario)
         showThePlacesFromPilots(scenario)
@@ -5886,7 +5850,7 @@ class VentiUiTest {
         launch { putExtra(LaunchOptions.SERVER, server) }
         val scenario = checkNotNull(app)
         val page = hasTestTag("site-page")
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(scenario)
         val handle = "c${System.currentTimeMillis() % 1_000_000_000}"
@@ -6011,7 +5975,7 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
         val page = hasTestTag("site-page")
         val takeoff = "Musterkogel West"
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(scenario)
         signInFromTheMap(scenario, "t${System.currentTimeMillis() % 1_000_000_000}")
@@ -6344,14 +6308,17 @@ class VentiUiTest {
         tap(hasTestTag("credits-close"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(credits) }
 
-        // The sheet: the chips' four in the chips' state, the layers that
-        // have no chip, and the lists.
+        // The chips: the wind, until the pilot chooses another or none.
+        waitForAll(
+            hasTestTag("what-wind") and isOn(),
+            hasTestTag("what-thermals") and isOff(),
+            hasTestTag("what-rain") and isOff(),
+            hasTestTag("what-cloud") and isOff(),
+        )
+        // The sheet: everything laid over what the map shows, and the lists.
         openLayers()
         waitForAll(
-            hasTestTag("layers-wind") and isOn(),
-            hasTestTag("layers-sites") and isOn(),
-            hasTestTag("layers-forecast") and isOff(),
-            hasTestTag("layers-radar") and isOff(),
+            hasTestTag("layer-sites") and isOn(),
             hasTestTag("layer-airspace") and isOff(),
             hasTestTag("layer-pilots") and isOn(),
         )
@@ -6394,7 +6361,7 @@ class VentiUiTest {
 
         // Where thermals have been: the two cells, with the note and the
         // flights' terms under the row. Nothing else under the finger.
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-sites")
         tapChip("layer-pilots")
         switchLayer("layer-climbs", on = false)
@@ -6442,7 +6409,7 @@ class VentiUiTest {
         tap(tab("Map"))
         waitFor(described("Show my position"))
         // Only the sites under the finger.
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         assertTrue(TestDevice.lookAt(scenario, lat = 47.6652, lon = 11.7954, zoom = 13.0))
         waitForSites()
@@ -6514,10 +6481,21 @@ class VentiUiTest {
         val point = checkNotNull(TestDevice.onScreen(scenario, lat = 47.7229503, lon = 11.7111713))
         TestDevice.tap(point)
         waitFor(hasTestTag("cable-sheet"))
+        // The card: what the cable is, and whose the data is as a link; nothing more.
         assertTrue(exists(hasTestTag("cable-words") and hasText("height not mapped", substring = true)))
-        assertTrue(exists(hasTestTag("cable-limits")))
+        assertTrue(exists(hasTestTag("cable-credit") and hasText("© OpenStreetMap contributors")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-cables-2-cable")
+        tap(hasText("Done") and hasAnyAncestor(hasTestTag("cable-sheet")))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cable-sheet")) }
+
+        // What the layer cannot promise stands behind its "i" in the layers sheet.
+        openLayers()
+        screen.onNode(hasTestTag("layer-cables-about")).performScrollTo().performClick()
+        waitFor(hasTestTag("layer-cables-about-text") and hasText("Not every cable is mapped, and few have a height."))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-cables-3-layer-about")
+        closeLayers()
     }
 
     @Test
@@ -6735,7 +6713,7 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(credits) }
 
         openLayers()
-        waitFor(hasTestTag("layers-forecast"))
+        waitFor(hasTestTag("layer-sites"))
         letTheMapDraw(1)
         keepScreenshot("$prefix-sheets-2-layers")
         // Every row under "Lists and plans" can be scrolled to, the last
@@ -6750,7 +6728,7 @@ class VentiUiTest {
         closeLayers()
 
         // A site's page from the map, with what explains it unfolded.
-        tapChip("layer-wind")
+        tapChip("what-wind")
         tapChip("layer-pilots")
         assertTrue(TestDevice.lookAt(scenario, lat = 47.6652, lon = 11.7954, zoom = 13.0))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {

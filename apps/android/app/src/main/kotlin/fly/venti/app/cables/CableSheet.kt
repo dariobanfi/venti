@@ -15,18 +15,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import app.venti.design.VentiSpace
-import fly.venti.app.design.SectionFooter
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalUriHandler
+import app.venti.design.VentiSize
 import fly.venti.core.CableLine
 import fly.venti.core.CablesMap
 import fly.venti.app.design.Common
 
 /**
- * A cable tapped on a map: its words and name as the core gives them, whose
- * it is, and the core's sentence on what the layer does not promise.
+ * A cable tapped on a map: what it is, in the core's words, and whose the
+ * data is, as a link to its credit (owner decision 19). What the layer
+ * cannot promise stands behind the layer's "i" in the layers sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CableSheet(line: CableLine, layer: CablesMap?, onDismiss: () -> Unit) {
+    val links = LocalUriHandler.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(),
@@ -41,11 +45,15 @@ fun CableSheet(line: CableLine, layer: CablesMap?, onDismiss: () -> Unit) {
                 )
                 TextButton(onClick = onDismiss) { Text(Common.words.done) }
             }
-            line.name?.let { name ->
-                Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = VentiSpace.s2))
+            for (credit in layer?.credits.orEmpty()) {
+                TextButton(
+                    onClick = { links.openUri(credit.url) },
+                    enabled = credit.url.isNotEmpty(),
+                    modifier = Modifier.heightIn(min = VentiSize.touch).testTag("cable-credit"),
+                ) {
+                    Text(credit.text, style = MaterialTheme.typography.bodySmall)
+                }
             }
-            layer?.limits?.let { SectionFooter(it, Modifier.padding(top = VentiSpace.s4).testTag("cable-limits")) }
-            layer?.credits.orEmpty().forEach { credit -> SectionFooter(credit.text) }
         }
     }
 }

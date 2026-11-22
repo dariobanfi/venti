@@ -504,16 +504,10 @@ object RadarWords {
     /** A server that answers with a radar of no layers at all. */
     const val NO_LAYER = "Venti has no radar picture."
 
-    /** What TalkBack calls the line of moments. */
-    const val FRAME = "Radar picture"
-
     /** The button that plays the moments through, and the one that stops it. */
     const val PLAY = "Play the radar pictures"
     const val STOP = "Stop"
 
     /** A moment as TalkBack says it on the strip: the line the core writes for it, "Rain radar, 14:15, 4 minutes ago." */
     fun spoken(moment: RadarMoment): String = moment.label
-
-    /** What a cell of the strip holds: the minutes of the moment's time on the clock, "15" of "14:15". */
-    fun minutes(moment: RadarMoment): String = moment.clock.substringAfter(':')
 }

@@ -256,6 +256,68 @@ class ThermalHoursModelTest {
         assertTrue("a step took ${steps.max()} ms", steps.max() < 500)
     }
 
+    /**
+     * The map's one line of time (owner decision of 2026-11-22, "One choice
+     * of what the map shows"): the hours of every day for the layer shown,
+     * today's from the hour that has begun, "Now" where the measured meets
+     * the forecast, and an hour of another day chosen on it shown on that day.
+     */
+    @Test
+    fun theLineOfTimeRunsFromNowThroughEveryDay() = runBlocking {
+        val server = Server()
+        val forecast = model(server)
+        forecast.load()
+        val hours = forecast.hours
+        hours.layer = ThermalHoursLayer.CLOUD
+        forecast.loadLine()
+        val line = checkNotNull(hours.line)
+        assertEquals(2, line.days.size)
+        assertTrue(line.days.all { it != null })
+        val days = checkNotNull(forecast.map).days
+        assertTrue(days.first().today)
+        assertFalse(days.last().today)
+        val cells = fly.venti.app.map.TimeLine.cells(
+            fly.venti.app.map.MapWhat.CLOUD, radar = null, stations = false, days = days, hours = line.days, now = "Now", dayWord = "Day",
+        )
+        val today = checkNotNull(line.days.first())
+        // Today from the hour the core names first, tomorrow whole.
+        assertEquals(today.hours.size - today.firstHour.toInt() + checkNotNull(line.days.last()).hours.size, cells.size)
+        assertEquals("Now", cells.first().over)
+        assertEquals(days.last().name, cells.first { (it.stop as fly.venti.app.map.Stop.Hour).date == TOMORROW }.over)
+        assertTrue(cells.none { it.measured })
+
+        // The thermals have the day as a whole before each day's hours; the
+        // wind has the stations' "Now" first.
+        val thermals = fly.venti.app.map.TimeLine.cells(
+            fly.venti.app.map.MapWhat.THERMALS, null, false, days, line.days, "Now", "Day",
+        )
+        assertEquals(fly.venti.app.map.Stop.Day(TODAY), thermals.first().stop)
+        val wind = fly.venti.app.map.TimeLine.cells(fly.venti.app.map.MapWhat.WIND, null, true, days, line.days, "Now", "Day")
+        assertEquals(fly.venti.app.map.Stop.Stations, wind.first().stop)
+        assertEquals(1, wind.count { it.over == "Now" })
+
+        // An hour of tomorrow chosen on the line: that day opens at it.
+        forecast.choose(TOMORROW)
+        hours.pick(TOMORROW, 4)
+        forecast.showHours()
+        assertEquals(4, hours.hour)
+        assertTrue(hours.isOn)
+    }
+
+    @Test
+    fun theMapShowsTheWindUntilThePilotChooses() {
+        val preferences = fly.venti.app.settings.MemoryPreferences()
+        assertEquals(fly.venti.app.map.MapWhat.WIND, fly.venti.app.map.MapWhat.read(preferences.mapWhat))
+        preferences.mapWhat = fly.venti.app.map.MapWhat.kept(null)
+        assertNull(fly.venti.app.map.MapWhat.read(preferences.mapWhat))
+        preferences.mapWhat = fly.venti.app.map.MapWhat.kept(fly.venti.app.map.MapWhat.RAIN)
+        assertEquals(fly.venti.app.map.MapWhat.RAIN, fly.venti.app.map.MapWhat.read(preferences.mapWhat))
+        // The pilot's own flights, the gusts and the thermal map are off until switched on.
+        assertFalse(preferences.mapShowsMyFlights)
+        assertFalse(preferences.mapShowsGusts)
+        assertFalse(preferences.mapShowsThermals)
+    }
+
     companion object {
         private const val BASE = "http://10.0.2.2:8080"
 

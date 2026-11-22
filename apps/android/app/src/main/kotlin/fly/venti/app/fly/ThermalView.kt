@@ -19,8 +19,8 @@ import androidx.compose.ui.res.painterResource
 import app.venti.design.VentiSize
 import app.venti.design.VentiType
 import fly.venti.app.R
-import fly.venti.core.GroundWindStation
-import fly.venti.core.WindSourceKind
+import fly.venti.core.CockpitWindSource
+import fly.venti.core.CockpitWindView
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,9 +67,9 @@ import kotlin.math.min
  * the climb colours and the thermals left behind with their climb. It is
  * there always, on the ground too (the owner, 2026-11-22). In its upper
  * left corner the wind, large: the pack's arrow pointing where the air
- * moves, the speed, and under it where the wind is from: the flight's own
- * circles or glide, or before the first of them the nearest wind station's
- * reading, with its name. A scale in the lower right corner. Under it the
+ * moves, the speed, and under it where the wind is from, all the core's
+ * (`CockpitView.windShown`): the flight's own, a station's with its name,
+ * or the forecast's. A scale in the lower right corner. Under it the
  * core's words about the centre.
  *
  * What is shown is the core's; [CloseUp] only places it.
@@ -78,8 +78,6 @@ import kotlin.math.min
 fun ThermalView(
     view: CockpitView,
     modifier: Modifier = Modifier,
-    /** The wind station that speaks for the place, as the core picked it: the wind until the flight has one of its own. */
-    ground: GroundWindStation? = null,
 ) {
     val colours = Venti.colours
     val measurer = rememberTextMeasurer()
@@ -169,7 +167,9 @@ fun ThermalView(
                 ownArrow(middle, view.courseDeg)
                 scaleBar(span, scale, measurer, label, colours.text)
             }
-            ThermalWind.of(view, ground)?.let { wind ->
+            // The core's wind, with where it comes from: the flight's own,
+            // a station's, or the forecast's. The shell keeps no rule of its own.
+            view.windShown?.let { wind ->
                 WindMark(wind, Modifier.align(Alignment.TopStart))
             }
         }
@@ -234,49 +234,15 @@ private fun DrawScope.scaleBar(span: Double, scale: Float, measurer: TextMeasure
 }
 
 /**
- * The wind the thermal view shows: the flight's own, from its circles or a
- * turn on its glide, or until there is one the wind station the core puts
- * first, which says so with its name.
- */
-data class ThermalWind(
-    /** Where the air comes from, degrees. */
-    val fromDeg: Double,
-    val speedMs: Double,
-    /** Where this wind is from, in a few words: "From circling", "From the glide · 12 min", a station's name. */
-    val source: String,
-    /** Whether it is a station's on the ground, not the flight's own. */
-    val isStation: Boolean,
-) {
-    companion object {
-        const val CIRCLING = "From circling"
-        const val GLIDE = "From the glide"
-
-        fun of(view: CockpitView, ground: GroundWindStation?): ThermalWind? {
-            view.wind?.let { wind ->
-                val from = when (view.windSource) {
-                    WindSourceKind.GLIDE -> GLIDE
-                    else -> CIRCLING
-                }
-                val age = WindBadgeWords.age(view.windAgeS)
-                return ThermalWind(wind.fromDeg, wind.speedMs, listOfNotNull(from, age).joinToString(" · "), isStation = false)
-            }
-            val station = ground ?: return null
-            val from = station.fromDeg ?: return null
-            return ThermalWind(from, station.speedMs, station.name, isStation = true)
-        }
-    }
-}
-
-/**
  * The wind over the thermal view's corner, large enough to read in flight:
  * the pack's wind arrow, the speed in the instruments' type, and under them
  * where it is from, a station's with the windsock. One element for a
  * screen reader.
  */
 @Composable
-private fun WindMark(wind: ThermalWind, modifier: Modifier = Modifier) {
+private fun WindMark(wind: CockpitWindView, modifier: Modifier = Modifier) {
     val colours = Venti.colours
-    val speed = Format.kilometresPerHour(wind.speedMs)
+    val speed = wind.speedKmh
     Column(
         modifier
             .padding(1.dp)
@@ -285,7 +251,7 @@ private fun WindMark(wind: ThermalWind, modifier: Modifier = Modifier) {
             .testTag("thermal-wind")
             .clearAndSetSemantics {
                 contentDescription = "Wind"
-                stateDescription = "$speed km/h from ${Format.compassPoint(wind.fromDeg)}, ${wind.source}"
+                stateDescription = "$speed km/h from ${Format.compassPoint(wind.fromDeg)}, ${wind.sourceWords}"
             },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -315,7 +281,7 @@ private fun WindMark(wind: ThermalWind, modifier: Modifier = Modifier) {
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (wind.isStation) {
+            if (wind.source == CockpitWindSource.STATION) {
                 Icon(
                     painterResource(R.drawable.venti_windsock),
                     contentDescription = null,
@@ -325,7 +291,7 @@ private fun WindMark(wind: ThermalWind, modifier: Modifier = Modifier) {
                 Spacer(Modifier.width(VentiSpace.s1))
             }
             Text(
-                wind.source,
+                wind.sourceWords,
                 style = fixed(VentiType.label).numbers,
                 color = colours.textSecondary,
                 maxLines = 1,

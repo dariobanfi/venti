@@ -381,7 +381,6 @@ fun CockpitScreen(
                         ThermalView(
                             view,
                             Modifier.weight(THERMAL_VIEW_SHARE).fillMaxHeight().padding(start = VentiSpace.s2, top = VentiSpace.s2, bottom = VentiSpace.s2),
-                            ground = fly.windBelow?.stations?.firstOrNull(),
                         )
                     }
                     Box(Modifier.weight(if (showsThermalView) 1 - THERMAL_VIEW_SHARE else 1f).fillMaxHeight()) {

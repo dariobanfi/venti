@@ -263,6 +263,8 @@ sealed interface Session {
             sites.server = { (wind.server as? WindServer.Usable)?.url }
             // The cockpit's wind on the ground, from the same stations.
             fly.windOnTheGround = { place, landing -> wind.stationsAround(place, landing) }
+            // And the forecast of the glider's place, for the thermal view's wind before the flight has one.
+            fly.forecastAt = { place -> wind.forecast(place) }
             // And the forecasts for the take-offs of the Today tab, whose
             // hours are gone by the server's clock.
             val keptSites = logbook.makeKeptSites()

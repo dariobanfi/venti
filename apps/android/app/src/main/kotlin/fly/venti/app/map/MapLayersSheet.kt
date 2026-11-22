@@ -26,6 +26,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
+import fly.venti.app.forecast.ThermalMapWords
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -63,6 +69,8 @@ class MapLayer(
     val isOn: Boolean,
     /** What the layer says of itself while it is on: how many, why none, whose it is. */
     val notes: List<String> = emptyList(),
+    /** What the layer cannot promise, behind its "i": the core's words, folded until the pilot asks. */
+    val about: String? = null,
     val onChange: (Boolean) -> Unit,
 )
 
@@ -79,8 +87,8 @@ class MapList(
 
 /**
  * The one sheet behind the map's layers button: a switch for every layer
- * the map can draw, the four of the chips among them in the same state,
- * and a row for each list and board the map leads to. What is advanced is
+ * laid over what the map shows (the chips choose that), and a row for each
+ * list and board the map leads to. What is advanced is
  * here and nowhere on the map itself.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,37 +151,65 @@ fun MapLayersSheet(layers: List<MapLayer>, views: List<MapList>, onDismiss: () -
     }
 }
 
-/** One layer: its sign, its name, what it says of itself under it, and its switch. The row is the switch. */
+/**
+ * One layer: its sign, its name, what it says of itself under it, and its
+ * switch. The row is the switch; a layer with something to say about
+ * itself has an "i" beside it, which unfolds that under the row.
+ */
 @Composable
 private fun LayerRow(layer: MapLayer) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(value = layer.isOn, role = Role.Switch, onValueChange = layer.onChange)
-            .testTag(layer.tag)
-            .heightIn(min = VentiSize.touch)
-            .padding(start = VentiSpace.s4, end = VentiSpace.s3, top = VentiSpace.s2, bottom = VentiSpace.s2),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            painterResource(layer.icon),
-            contentDescription = null,
-            modifier = Modifier.size(VentiSize.icon),
-            tint = Venti.colours.textSecondary,
-        )
-        Spacer(Modifier.width(VentiSpace.s3))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
-            Text(layer.title, style = MaterialTheme.typography.bodyLarge)
-            for (note in layer.notes) {
-                Text(
-                    note,
-                    style = MaterialTheme.typography.bodyMedium.numbers,
-                    color = Venti.colours.textSecondary,
+    var showsAbout by remember { mutableStateOf(false) }
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .toggleable(value = layer.isOn, role = Role.Switch, onValueChange = layer.onChange)
+                    .testTag(layer.tag)
+                    .heightIn(min = VentiSize.touch)
+                    .padding(start = VentiSpace.s4, end = if (layer.about == null) VentiSpace.s3 else 0.dp, top = VentiSpace.s2, bottom = VentiSpace.s2),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painterResource(layer.icon),
+                    contentDescription = null,
+                    modifier = Modifier.size(VentiSize.icon),
+                    tint = Venti.colours.textSecondary,
                 )
+                Spacer(Modifier.width(VentiSpace.s3))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+                    Text(layer.title, style = MaterialTheme.typography.bodyLarge)
+                    for (note in layer.notes) {
+                        Text(
+                            note,
+                            style = MaterialTheme.typography.bodyMedium.numbers,
+                            color = Venti.colours.textSecondary,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(VentiSpace.s3))
+                Switch(checked = layer.isOn, onCheckedChange = null)
+            }
+            if (layer.about != null) {
+                IconButton(onClick = { showsAbout = !showsAbout }, modifier = Modifier.size(VentiSize.touch).testTag("${layer.tag}-about")) {
+                    Icon(
+                        painterResource(R.drawable.ic_info),
+                        contentDescription = "${layer.title}: ${ThermalMapWords.KEY_AND_NOTES}",
+                        tint = if (showsAbout) MaterialTheme.colorScheme.primary else Venti.colours.textSecondary,
+                    )
+                }
             }
         }
-        Spacer(Modifier.width(VentiSpace.s3))
-        Switch(checked = layer.isOn, onCheckedChange = null)
+        if (showsAbout && layer.about != null) {
+            Text(
+                layer.about,
+                style = MaterialTheme.typography.bodySmall,
+                color = Venti.colours.textSecondary,
+                modifier = Modifier
+                    .padding(start = VentiSpace.s4 + VentiSize.icon + VentiSpace.s3, end = VentiSpace.s4, bottom = VentiSpace.s2)
+                    .testTag("${layer.tag}-about-text"),
+            )
+        }
     }
 }
 

@@ -34,6 +34,7 @@ import fly.venti.core.liveClimbs
 import fly.venti.core.liveOthers
 import fly.venti.core.CockpitView
 import fly.venti.core.Coordinate
+import fly.venti.core.ForecastView
 import fly.venti.core.FlightSession
 import fly.venti.core.GlideRange
 import fly.venti.core.LandingOption
@@ -53,6 +54,7 @@ import fly.venti.core.Terrain
 import fly.venti.core.ToneView
 import fly.venti.core.WayToTarget
 import fly.venti.core.WaypointView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -392,9 +394,21 @@ class FlySession(
      */
     var windOnTheGround: suspend (Coordinate, Coordinate?) -> WindMap? = { _, _ -> null }
 
+    /**
+     * Asks Venti for the forecast of a place, which the core's thermal view
+     * takes its wind from before the flight has one and no station speaks
+     * for the glider's air. The app sets this; `null` when there is none.
+     */
+    var forecastAt: suspend (Coordinate) -> ForecastView? = { null }
+
     /** When the wind on the ground was last asked for, by the phone's clock, and whether an answer is awaited. */
     private var askedForWindBelow = Double.NEGATIVE_INFINITY
     private var isAskingForWindBelow = false
+
+    /** When and where the forecast was last asked for, and whether an answer is awaited. */
+    private var askedForForecast = Double.NEGATIVE_INFINITY
+    private var forecastAskedAt: Coordinate? = null
+    private var isAskingForForecast = false
 
     /** The station whose strong wind was last said aloud. */
     private var warnedOfWindAt: String? = null
@@ -869,6 +883,9 @@ class FlySession(
         // The wind on the ground is asked for as soon as the glider flies.
         askedForWindBelow = Double.NEGATIVE_INFINITY
         isAskingForWindBelow = false
+        askedForForecast = Double.NEGATIVE_INFINITY
+        forecastAskedAt = null
+        isAskingForForecast = false
         askedForOthers = Double.NEGATIVE_INFINITY
         isAskingForOthers = false
         askedForNetworks = Double.NEGATIVE_INFINITY
@@ -1045,7 +1062,31 @@ class FlySession(
                 val found = windOnTheGround(position, place?.position)
                 isAskingForWindBelow = false
                 if (found == null || this@FlySession.session !== session) return@launch
-                take(groundWind(found.stations, position, place, trimSpeedMs), found.credits)
+                val below = groundWind(found.stations, position, place, trimSpeedMs)
+                // The thermal view's wind is the core's: it takes a station's until the flight has one.
+                session.useGroundWind(below.stations)
+                take(below, found.credits)
+            }
+        }
+        // The forecast for the glider's place, for the thermal view's wind
+        // before the flight has one: when the cockpit opens, every half hour,
+        // and when the glider has gone far from where it was asked for.
+        val movedFar = forecastAskedAt?.let { asked -> position != null && distanceKm(asked, position) >= FORECAST_AGAIN_KM } ?: true
+        if (position != null && !isAskingForForecast && (movedFar || wallClock - askedForForecast >= FORECAST_SECONDS)) {
+            askedForForecast = wallClock
+            forecastAskedAt = position
+            isAskingForForecast = true
+            scope.launch {
+                val forecast = try {
+                    forecastAt(position)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    null
+                }
+                isAskingForForecast = false
+                if (forecast == null || this@FlySession.session !== session) return@launch
+                session.useForecast(forecast)
             }
         }
         // Who else is in the air around the glider, in flight only: on the
@@ -1252,6 +1293,21 @@ class FlySession(
 
         /** How often the wind on the ground is asked for in flight, seconds. */
         const val WIND_BELOW_SECONDS = 120.0
+
+        /** How often the forecast for the glider's place is asked for again, seconds by the phone's clock. */
+        const val FORECAST_SECONDS = 30 * 60.0
+
+        /** How far the glider goes from where the forecast was asked for before it is asked for again, km. */
+        const val FORECAST_AGAIN_KM = 20.0
+
+        /** How far apart two places are, km, near enough for a few tens of kilometres. */
+        fun distanceKm(one: Coordinate, other: Coordinate): Double {
+            val north = (other.lat - one.lat) * KM_PER_DEGREE
+            val east = (other.lon - one.lon) * KM_PER_DEGREE * kotlin.math.cos(Math.toRadians((one.lat + other.lat) / 2))
+            return kotlin.math.hypot(north, east)
+        }
+
+        private const val KM_PER_DEGREE = 111.2
 
         /** How often the other gliders around are asked for in flight, seconds. */
         const val OTHERS_SECONDS = 15.0

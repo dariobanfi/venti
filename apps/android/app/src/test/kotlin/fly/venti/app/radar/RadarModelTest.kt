@@ -4,7 +4,6 @@ import androidx.compose.ui.graphics.toArgb
 import app.venti.design.VentiLight
 import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
-import fly.venti.app.settings.MemoryPreferences
 import fly.venti.core.radarPath
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -97,9 +96,9 @@ class RadarModelTest {
         // A clock behind the server's counts from the server's: the newest moment is four minutes old.
         assertEquals("Rain radar, 14:15, 4 minutes ago. Austria's analysis is of 14:00.", radar.moment?.label)
         assertNull(radar.caution)
-        // What a cell of the strip holds, and what TalkBack says of it.
-        assertEquals(listOf("10", "15"), radar.moments.map(RadarWords::minutes))
+        // What TalkBack says of a moment, and the panel's one line of it.
         assertEquals(radar.moment?.label, RadarWords.spoken(radar.moments.last()))
+        assertEquals("Rain, 14:15, measured", radar.moment?.line)
         // The key from the most rain down, the line for what was not seen, the note.
         assertEquals(6, state.view.key.size)
         assertTrue(state.view.key.first().words.startsWith("Cloudburst"))
@@ -359,14 +358,6 @@ class RadarModelTest {
         assertNull(radar.view)
         assertEquals(0, radar.keptPictures)
         assertTrue(radar.state is RadarState.Failed)
-    }
-
-    @Test
-    fun theLayerIsOffUntilThePilotSwitchesItOn() {
-        val preferences = MemoryPreferences()
-        assertFalse(preferences.mapShowsRadar)
-        preferences.mapShowsRadar = true
-        assertTrue(preferences.mapShowsRadar)
     }
 
     @Test

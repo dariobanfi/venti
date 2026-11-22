@@ -65,8 +65,8 @@ import fly.venti.app.airspace.AirspaceOverSheet
 import fly.venti.app.cables.CableSheet
 import fly.venti.app.cables.CablesModel
 import fly.venti.app.forecast.ForecastSheet
-import fly.venti.app.forecast.ThermalMapCard
 import fly.venti.app.forecast.ThermalMapModel
+import fly.venti.app.forecast.ThermalMapWords
 import fly.venti.app.forecast.ThermalHourSheet
 import fly.venti.app.forecast.ThermalSquareSheet
 import fly.venti.core.ThermalHoursLayer
@@ -87,7 +87,6 @@ import fly.venti.core.liveClimbsEmptyWords
 import kotlinx.coroutines.delay
 import fly.venti.app.live.OtherAircraftSheet
 import fly.venti.app.logbook.LogbookModel
-import fly.venti.app.radar.RadarCard
 import fly.venti.app.radar.RadarModel
 import fly.venti.app.radar.RadarWords
 import kotlinx.coroutines.Job
@@ -172,8 +171,16 @@ fun MapScreen(
     air: AirModel? = null,
 ) {
     val context = LocalContext.current
-    // The layers the chips switch, as the pilot left them.
-    var hidesWind by remember { mutableStateOf(preferences?.mapHidesWind == true) }
+    // What the map shows over the ground, one at a time: the wind until the pilot chooses.
+    var what by remember { mutableStateOf(MapWhat.read(preferences?.mapWhat)) }
+    // The part of the line of time the pilot chose: what was measured, or
+    // the forecast; `null` where the "what" opens, the wind and the rain on
+    // what was measured last, the thermals and the cloud on the forecast.
+    var along by remember { mutableStateOf<Boolean?>(null) }
+    // The wind's forecast as its gusts in place of its mean, as the pilot left it.
+    var gusts by remember { mutableStateOf(preferences?.mapShowsGusts == true) }
+    // The pilot's own flights: off until switched on.
+    var myFlights by remember { mutableStateOf(preferences?.mapShowsMyFlights == true) }
     // Airspace: off until the pilot switches it on, with its round button or its row of the layers sheet.
     var airspaceOn by remember { mutableStateOf(preferences?.mapShowsAirspace == true) }
     var hidesSites by remember { mutableStateOf(preferences?.mapHidesSites == true) }
@@ -188,10 +195,6 @@ fun MapScreen(
     // The thermal map, where the style has it: only with the app's domain set.
     var thermals by remember { mutableStateOf(preferences?.mapShowsThermals == true) }
     val offersThermals = remember { MapSetup.offersThermals(context) }
-    // The forecast map, the kind of day square by square. Off until the pilot switches it on.
-    var forecast by remember { mutableStateOf(preferences?.mapShowsForecast == true) }
-    // The rain radar. Off until the pilot switches it on.
-    var rain by remember { mutableStateOf(preferences?.mapShowsRadar == true) }
     // A square of it the pilot tapped: its sheet shows over the map.
     var square by remember { mutableStateOf<ThermalMapCell?>(null) }
     // A square of the forecast map by the hour, tapped.
@@ -344,29 +347,23 @@ fun MapScreen(
     LaunchedEffect(wind.address, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { wind.keepCurrent() }
     }
-    // The forecast map is asked for when its layer is switched on, and
-    // again once it is half an hour old, while the map is on screen.
+    // The forecast map is asked for while a "what" is chosen, whose line
+    // runs into the forecast, and again once it is half an hour old, while
+    // the map is on screen.
     val hasServer = wind.server is WindServer.Usable
-    val showsForecast = forecast && hasServer && thermalMap != null
-    LaunchedEffect(showsForecast, wind.address, lifecycle) {
-        if (showsForecast && thermalMap != null) {
+    val forecastWanted = what != null && hasServer && thermalMap != null
+    LaunchedEffect(forecastWanted, wind.address, lifecycle) {
+        if (forecastWanted && thermalMap != null) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { thermalMap.keepCurrent() }
         }
     }
-    // The rain radar's frames are asked for when its layer is switched on
-    // and when the map comes back to the front, and again every five
-    // minutes while it is there.
-    val showsRadar = rain && hasServer && radar != null
-    LaunchedEffect(showsRadar, wind.address, lifecycle) {
-        if (showsRadar) {
+    // The rain radar's frames are asked for while the rain is chosen, when
+    // the map comes back to the front, and again every five minutes.
+    val radarWanted = what == MapWhat.RAIN && hasServer && radar != null
+    LaunchedEffect(radarWanted, wind.address, lifecycle) {
+        if (radarWanted) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { radar.keepCurrent() }
         }
-    }
-    // The pictures of the moment looked at: fetched when the moment or
-    // what it draws changes, and again when the pilot asks.
-    var pictureAttempt by remember { mutableIntStateOf(0) }
-    LaunchedEffect(showsRadar, radar?.moment?.timeUnixS, radar?.picturesWanted, pictureAttempt) {
-        if (showsRadar) radar.showFrame()
     }
     // The frames played through, until they end or the pilot stops them.
     var playing by remember { mutableStateOf<Job?>(null) }
@@ -420,8 +417,89 @@ fun MapScreen(
     val flown = air?.flown?.takeIf { showsFlown }
 
     val statusBar = WindowInsets.statusBars.getTop(LocalDensity.current)
-    val outlines = logbook.view.years.flatMap { year -> year.flights.map { it.outline } }
-    val stations = if (hidesWind) emptyList() else wind.stations
+    val ownOutlines = logbook.view.years.flatMap { year -> year.flights.map { it.outline } }
+    val outlines = if (myFlights) ownOutlines else emptyList()
+
+    // The forecast map by the hour: its layer follows the "what", the wind keeping its gusts;
+    // the wind's height as the pilot left it, the hour not.
+    val hours = thermalMap?.hours
+    LaunchedEffect(hours) {
+        if (hours != null && preferences != null) hours.heightM = preferences.mapForecastHeightM
+    }
+    LaunchedEffect(hours, what, gusts) {
+        val chosen = what
+        if (hours != null && chosen != null) hours.layer = chosen.layer(gusts)
+    }
+    var hoursAttempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(forecastWanted, thermalMap?.map, thermalMap?.day?.date, hours?.layer, hours?.heightM, hoursAttempt) {
+        if (forecastWanted) thermalMap?.showHours()
+    }
+    // The hours of every day, for the line of time.
+    LaunchedEffect(forecastWanted, thermalMap?.map, hours?.layer, hours?.heightM, hoursAttempt) {
+        if (forecastWanted) thermalMap?.loadLine()
+    }
+    // The line of time of what is shown, from what was measured to the forecast's days.
+    val shownLine = hours?.line?.takeIf { it.map === thermalMap.map && it.layer == hours.layer }
+    val cells = what?.let { chosen ->
+        TimeLine.cells(
+            chosen,
+            radar = radar?.view?.takeIf { radarWanted },
+            stations = chosen == MapWhat.WIND && hasServer,
+            days = thermalMap?.map?.days.orEmpty().takeIf { forecastWanted }.orEmpty(),
+            hours = shownLine?.days,
+            now = MapWords.core.now.ifEmpty { "Now" },
+            dayWord = ThermalMapWords.DAY,
+        )
+    }.orEmpty()
+    // Whether the line stands on what was measured, or on the forecast.
+    val measured = cells.any { it.measured } &&
+        (cells.none { !it.measured } || along == true || (along == null && what?.opensMeasured == true))
+    // The pictures of the radar's moment the line marks: fetched when the
+    // moment or what it draws changes, and again when the pilot asks.
+    val showsRadar = radarWanted && measured
+    var pictureAttempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(showsRadar, radar?.moment?.timeUnixS, radar?.picturesWanted, pictureAttempt) {
+        if (showsRadar) radar.showFrame()
+    }
+    // Where the line stands, by its cell.
+    val lineAt = run {
+        val stop: Stop? = when {
+            measured && what == MapWhat.RAIN -> radar?.let { Stop.Radar(it.place) }
+            measured -> Stop.Stations
+            else -> thermalMap?.day?.let { day -> hours?.hour?.let { Stop.Hour(day.date, it) } ?: Stop.Day(day.date) }
+        }
+        cells.indexOfFirst { it.stop == stop }.takeIf { it >= 0 }
+            ?: cells.indexOfFirst { it.measured == measured }.coerceAtLeast(0)
+    }
+    // The pilot chose a cell of the line: the radar's moment, the stations, or the forecast's day or hour.
+    val chooseAlong: (Int) -> Unit = { index ->
+        when (val stop = cells.getOrNull(index)?.stop) {
+            is Stop.Radar -> {
+                along = true
+                playing?.cancel()
+                radar?.choose(stop.moment)
+            }
+            Stop.Stations -> along = true
+            is Stop.Day -> {
+                along = false
+                playing?.cancel()
+                thermalMap?.choose(stop.date)
+                hours?.pick(stop.date, null)
+            }
+            is Stop.Hour -> {
+                along = false
+                playing?.cancel()
+                thermalMap?.choose(stop.date)
+                hours?.pick(stop.date, stop.hour)
+            }
+            null -> Unit
+        }
+    }
+    // Whether the map draws the forecast: a "what" on the forecast's part of the line.
+    val showForecast = forecastWanted && !measured
+    // The wind stations show while the map shows the wind as it is measured now.
+    val drawsStations = what == MapWhat.WIND && measured
+    val stations = if (drawsStations) wind.stations else emptyList()
     // The airspace in the part of the map in view. Zoomed far out, a
     // country's airspace is a tangle and is not drawn, so it is not asked
     // for either.
@@ -465,14 +543,14 @@ fun MapScreen(
     // the credit next to the data; the full wording is on each station's
     // and each site's page and on the airspace screen.
     val credits = listOfNotNull(
-        wind.creditLine.takeIf { !hidesWind },
+        wind.creditLine.takeIf { drawsStations },
         airspace.mapCredit.takeIf { showsAirspace && airspaceOn },
         cables?.creditLine?.takeIf { !hidesCables && region?.let { it.north - it.south < CABLES_WITHIN_DEGREES } == true },
         sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true && !hidesSites },
         // Who made the photographs, by name, while they show.
         photos.takeIf { aerial },
         MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
-        thermalMap?.creditLine?.takeIf { showsForecast },
+        thermalMap?.creditLine?.takeIf { showForecast },
     ) +
         // Each of the radar's sources asks for its credit directly at the data.
         radar?.creditLines?.takeIf { showsRadar }.orEmpty() +
@@ -486,32 +564,27 @@ fun MapScreen(
     // is: the credits of the region kept on the phone where the map draws
     // its files, else the core's lines for OpenFreeMap's tiles and the terrain.
     val allCredits = (credits + (drawnFrom?.credits?.takeIf { it.isNotEmpty() } ?: MapWords.baseCredits)).distinct()
-    // The forecast map by the hour: the layer and the level as the pilot
-    // left them, the hour not.
-    val hours = thermalMap?.hours
-    LaunchedEffect(hours) {
-        if (hours != null && preferences != null) {
-            hours.layer = preferences.mapForecastLayer
-                ?.let { name -> ThermalHoursLayer.entries.firstOrNull { it.name == name } }
-                ?: ThermalHoursLayer.THERMALS
-            hours.heightM = preferences.mapForecastHeightM
-        }
-    }
-    var hoursAttempt by remember { mutableIntStateOf(0) }
-    LaunchedEffect(showsForecast, thermalMap?.map, thermalMap?.day?.date, hours?.layer, hours?.heightM, hoursAttempt) {
-        if (showsForecast) thermalMap?.showHours()
-    }
-    val byTheHour = showsForecast && hours?.isOn == true
+    val byTheHour = showForecast && hours?.isOn == true
     val hourShapes = if (byTheHour) hours?.shapes else null
     val hourLegend = thermalMap?.map?.layers?.firstOrNull { it.layer == hours?.layer }?.legend.orEmpty()
-    // The squares of the day the pilot looks at; a day's squares are one
-    // list from the core, handed over whole. Not while an hour is shown.
-    val squares = if (showsForecast && !byTheHour) thermalMap?.day?.cells.orEmpty() else emptyList()
+    // The squares of the kind of day the pilot looks at, on the thermals'
+    // "Day"; a day's squares are one list from the core, handed over whole.
+    val showsDay = showForecast && what == MapWhat.THERMALS && hours?.layer == ThermalHoursLayer.THERMALS && hours.hour == null
+    val squares = if (showsDay) thermalMap?.day?.cells.orEmpty() else emptyList()
 
-    // What the chips and the rows of the layers sheet switch: one state for both.
-    val setWind = { on: Boolean ->
-        hidesWind = !on
-        preferences?.mapHidesWind = !on
+    // A chip pressed: what the map shows, or nothing where the chosen one is pressed again.
+    val chooseWhat = { next: MapWhat ->
+        val chosen = if (what == next) null else next
+        what = chosen
+        preferences?.mapWhat = MapWhat.kept(chosen)
+        along = null
+        square = null
+        hourSquare = null
+        playing?.cancel()
+        // Another "what" opens where its line begins: today, at the hour the core names.
+        thermalMap?.choose(null)
+        hours?.unpick()
+        radar?.choose(radar.view?.firstMoment?.toInt() ?: 0)
     }
     val setAirspace = { on: Boolean ->
         airspaceOn = on
@@ -532,15 +605,14 @@ fun MapScreen(
         hidesPilots = !on
         preferences?.mapHidesPilots = !on
     }
-    val setForecast = { on: Boolean ->
-        forecast = on
-        preferences?.mapShowsForecast = on
-    }
-    val setRadar = { on: Boolean ->
-        rain = on
-        preferences?.mapShowsRadar = on
-        if (!on) playing?.cancel()
-    }
+
+    // What the map can show, along its top: the core's names and the pack's signs.
+    val whats = linkedMapOf(
+        MapWhat.WIND to (MapWords.core.wind to R.drawable.venti_wind),
+        MapWhat.THERMALS to (MapWords.core.thermals to R.drawable.venti_thermal),
+        MapWhat.RAIN to (MapWords.core.rain.ifEmpty { "Rain" } to R.drawable.ic_rainy),
+        MapWhat.CLOUD to (MapWords.core.cloud.ifEmpty { "Cloud" } to R.drawable.venti_forecast),
+    )
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
@@ -597,18 +669,12 @@ fun MapScreen(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = VentiSpace.s4),
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
-                // The four the web and the iPhone have, as quick switches;
-                // every layer, these among them, has its row in the layers
-                // sheet, and airspace and pilots are there only.
-                if (hasServer && thermalMap != null) {
-                    LayerChip(MapWords.core.forecast, R.drawable.venti_forecast, forecast, onChange = setForecast, Modifier.testTag("layer-forecast"))
-                }
-                if (hasServer && radar != null) {
-                    LayerChip(MapWords.core.radar, R.drawable.ic_rainy, rain, onChange = setRadar, Modifier.testTag("layer-radar"))
-                }
+                // What the map shows, one at a time, as the web has them;
+                // everything laid over it is a row of the layers sheet.
                 if (hasServer) {
-                    LayerChip(MapWords.core.wind, R.drawable.venti_wind, !hidesWind, onChange = setWind, Modifier.testTag("layer-wind"))
-                    LayerChip(MapWords.core.sites, R.drawable.venti_site, !hidesSites, onChange = setSites, Modifier.testTag("layer-sites"))
+                    for ((one, chip) in whats) {
+                        LayerChip(chip.first, chip.second, what == one, onChange = { chooseWhat(one) }, Modifier.testTag("what-${one.key}"))
+                    }
                 }
             }
             // Airspace switched on and zoomed out too far to draw it, in the
@@ -621,7 +687,7 @@ fun MapScreen(
             }
             // Gliders and where thermals have been simply appear when the map
             // is close enough: no words for it (owner decision 19).
-            wind.notice?.takeIf { !hidesWind }?.let { text ->
+            wind.notice?.takeIf { drawsStations }?.let { text ->
                 Notice(text, Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4))
             }
             // Over the map in the core's words, while the layer of the places no site names is on:
@@ -654,47 +720,42 @@ fun MapScreen(
                     modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
                 )
             }
-            if (showsRadar) {
-                // The frames and the key of the rain radar, over the
-                // forecast map's card when both layers show.
-                RadarCard(
+            val shownWhat = what
+            if (shownWhat != null && hasServer && !isPlacing) {
+                // The one panel of what the map shows, beside the round buttons and over the credits.
+                WhatPanel(
+                    what = shownWhat,
+                    name = whats.getValue(shownWhat).first,
+                    cells = cells,
+                    at = lineAt,
+                    onChoose = chooseAlong,
+                    measured = measured,
                     radar = radar,
-                    onChoose = { place ->
-                        playing?.cancel()
-                        radar.choose(place)
+                    thermalMap = thermalMap,
+                    gusts = gusts,
+                    onGusts = { on ->
+                        gusts = on
+                        preferences?.mapShowsGusts = on
                     },
+                    onLevel = { height ->
+                        thermalMap?.hours?.heightM = height
+                        preferences?.mapForecastHeightM = height
+                    },
+                    region = region,
                     onPlay = {
                         val job = playing
                         if (job?.isActive == true) {
                             job.cancel()
-                        } else {
+                        } else if (radar != null) {
+                            along = true
                             playing = asking.launch { radar.play() }
                         }
                     },
-                    onTryAgain = { asking.launch { radar.load() } },
+                    onTryAgainRadar = { asking.launch { radar?.load() } },
                     onTryAgainPicture = { pictureAttempt += 1 },
-                    modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
-                )
-            }
-            if (showsForecast && thermalMap != null) {
-                // The days and the key of the forecast map, beside the
-                // round buttons and over the credits.
-                ThermalMapCard(
-                    state = thermalMap.state,
-                    region = region,
-                    onChoose = thermalMap::choose,
-                    onTryAgain = { asking.launch { thermalMap.load() } },
-                    modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
-                    hours = thermalMap.hours,
-                    onLayer = { layer ->
-                        thermalMap.hours.layer = layer
-                        preferences?.mapForecastLayer = layer.name
-                    },
-                    onLevel = { height ->
-                        thermalMap.hours.heightM = height
-                        preferences?.mapForecastHeightM = height
-                    },
+                    onTryAgainMap = { asking.launch { thermalMap?.load() } },
                     onTryAgainHours = { hoursAttempt += 1 },
+                    modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
                 )
             }
             // The (i) alone: every credit, Venti's and the base map's, in
@@ -739,22 +800,8 @@ fun MapScreen(
 
     if (showsLayers) {
         val layers = buildList {
-            // The kind of day first, as on the iPhone and the web.
-            if (hasServer && thermalMap != null) {
-                add(MapLayer(MapWords.core.forecast, R.drawable.venti_forecast, "layers-forecast", forecast, onChange = setForecast))
-            }
-            // What fell in the last hours, beside what is forecast.
-            if (hasServer && radar != null) {
-                add(MapLayer(MapWords.core.radar, R.drawable.ic_rainy, "layers-radar", rain, onChange = setRadar))
-            }
-            if (offersThermals) {
-                add(MapLayer(MapWords.core.thermals, R.drawable.venti_thermal, "layer-thermals", thermals) { on ->
-                    thermals = on
-                    preferences?.mapShowsThermals = on
-                })
-            }
-            // Wind and sites in the chips' state; airspace and pilots, which have no chip.
-            if (hasServer) add(MapLayer(MapWords.core.wind, R.drawable.venti_wind, "layers-wind", !hidesWind, onChange = setWind))
+            // What is laid over what the map shows: the sites first.
+            if (hasServer) add(MapLayer(MapWords.core.sites, R.drawable.venti_site, "layer-sites", !hidesSites, onChange = setSites))
             add(
                 MapLayer(
                     MapWords.core.airspace,
@@ -767,13 +814,27 @@ fun MapScreen(
                 ),
             )
             if (hasServer) {
-                add(MapLayer(MapWords.core.sites, R.drawable.venti_site, "layers-sites", !hidesSites, onChange = setSites))
                 add(MapLayer(MapWords.core.pilots, R.drawable.venti_live, "layer-pilots", !hidesPilots, onChange = setPilots))
             }
             if (hasServer && cables != null) {
-                add(MapLayer(MapWords.core.cables, R.drawable.venti_caution, "layer-cables", !hidesCables) { on ->
+                // What the layer cannot promise, behind its "i".
+                add(MapLayer(MapWords.core.cables, R.drawable.venti_caution, "layer-cables", !hidesCables, about = cables.layer?.limits?.takeIf { it.isNotEmpty() }) { on ->
                     hidesCables = !on
                     preferences?.mapHidesCables = !on
+                })
+            }
+            // The pilot's own flights: off until switched on.
+            if (ownOutlines.isNotEmpty() || myFlights) {
+                add(MapLayer(MapWords.core.myFlights.ifEmpty { "My flights" }, R.drawable.venti_track, "layer-flights", myFlights) { on ->
+                    myFlights = on
+                    preferences?.mapShowsMyFlights = on
+                })
+            }
+            // The thermal map of thermal.kk7.ch: off until switched on.
+            if (offersThermals) {
+                add(MapLayer(MapWords.core.thermalMap.ifEmpty { MapWords.core.thermals }, R.drawable.venti_thermal, "layer-thermals", thermals) { on ->
+                    thermals = on
+                    preferences?.mapShowsThermals = on
                 })
             }
             // The ground under everything: the drawn map, or photographs from above.
@@ -835,7 +896,7 @@ fun MapScreen(
         val lists = buildList {
             // Everything the arrows say, as a list: for reading the
             // numbers side by side, and for pilots who use TalkBack.
-            if (hasServer && !hidesWind) add(MapList(MapWords.core.windStations, R.drawable.venti_wind, open { showsStations = true }))
+            if (hasServer) add(MapList(MapWords.core.windStations, R.drawable.venti_wind, open { showsStations = true }))
             // The signs on the map, as a list.
             if (hasSites) add(MapList(MapWords.core.flyingSites, R.drawable.venti_site, open { showsSites = true }))
             // Which of the sites the map and the list show; the filter's
@@ -1128,11 +1189,11 @@ fun MapScreen(
     val shownSquare = square
     val forecastMap = thermalMap?.map
     val forecastDay = thermalMap?.day
-    if (shownSquare != null && forecastMap != null && forecastDay != null && showsForecast) {
+    if (shownSquare != null && forecastMap != null && forecastDay != null && showsDay) {
         ThermalSquareSheet(forecastMap, forecastDay, shownSquare, wind, onDismiss = { square = null })
     }
     val shownHourSquare = hourSquare
-    if (shownHourSquare != null && thermalMap != null && forecastMap != null && forecastDay != null && showsForecast) {
+    if (shownHourSquare != null && thermalMap != null && forecastMap != null && forecastDay != null && byTheHour) {
         ThermalHourSheet(thermalMap, shownHourSquare.first, shownHourSquare.second, wind, onDismiss = { hourSquare = null })
     }
 

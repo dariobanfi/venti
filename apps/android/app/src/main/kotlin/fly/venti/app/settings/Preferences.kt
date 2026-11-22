@@ -79,9 +79,17 @@ interface Preferences {
      */
     var todayNearPilot: Boolean
 
-    /** The layers of the map tab the pilot has switched off with its chips. All are shown until then. */
-    var mapHidesWind: Boolean
+    /**
+     * What the map tab shows over the ground, by `MapWhat`'s key ("wind",
+     * "thermals", "rain", "cloud", or "none" for nothing); `null` until the
+     * pilot chooses, which is the wind.
+     */
+    var mapWhat: String?
 
+    /** Whether the map tab draws the pilot's own flights: off until the pilot switches it on. */
+    var mapShowsMyFlights: Boolean
+
+    /** The layers of the map tab the pilot has switched off. All are shown until then. */
     /** Whether the map tab draws airspace: off until the pilot switches it on. */
     var mapShowsAirspace: Boolean
     var mapHidesSites: Boolean
@@ -98,20 +106,14 @@ interface Preferences {
      */
     var mapAirspaceCeilingM: Double?
 
-    /** The forecast map's layer by the hour, by the core's name of it ("WIND"); `null` for the thermals. */
-    var mapForecastLayer: String?
+    /** Whether the wind's forecast shows its gusts in place of its mean. Off until the pilot switches it on. */
+    var mapShowsGusts: Boolean
 
     /** The height of its wind, metres above the sea; `null` for the ground. */
     var mapForecastHeightM: Int?
 
     /** Whether the maps show the thermal map of thermal.kk7.ch. Off until the pilot switches it on; one choice for every map. */
     var mapShowsThermals: Boolean
-
-    /** Whether the map tab shows the forecast map, the kind of day square by square. Off until the pilot switches it on. */
-    var mapShowsForecast: Boolean
-
-    /** Whether the map tab shows the rain radar. Off until the pilot switches it on. */
-    var mapShowsRadar: Boolean
 
     /** Whether the map tab shows the places where pilots take off and no site stands. Off until the pilot switches it on. */
     var mapShowsCandidates: Boolean
@@ -243,9 +245,13 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean(TODAY_NEAR_PILOT, false)
         set(value) = store.edit { putBoolean(TODAY_NEAR_PILOT, value) }
 
-    override var mapHidesWind: Boolean
-        get() = store.getBoolean("VentiMapHidesWind", false)
-        set(value) = store.edit { putBoolean("VentiMapHidesWind", value) }
+    override var mapWhat: String?
+        get() = store.getString("VentiMapWhat", null)
+        set(value) = store.edit { putString("VentiMapWhat", value) }
+
+    override var mapShowsMyFlights: Boolean
+        get() = store.getBoolean("VentiMapShowsMyFlights", false)
+        set(value) = store.edit { putBoolean("VentiMapShowsMyFlights", value) }
 
     override var mapShowsAirspace: Boolean
         get() = store.getBoolean("VentiMapShowsAirspace", false)
@@ -267,9 +273,9 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsAerial", false)
         set(value) = store.edit { putBoolean("VentiMapShowsAerial", value) }
 
-    override var mapForecastLayer: String?
-        get() = store.getString("VentiMapForecastLayer", null)
-        set(value) = store.edit { putString("VentiMapForecastLayer", value) }
+    override var mapShowsGusts: Boolean
+        get() = store.getBoolean("VentiMapShowsGusts", false)
+        set(value) = store.edit { putBoolean("VentiMapShowsGusts", value) }
 
     override var mapForecastHeightM: Int?
         get() = if (store.contains("VentiMapForecastHeight")) store.getInt("VentiMapForecastHeight", 0) else null
@@ -287,17 +293,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsThermals", false)
         set(value) = store.edit { putBoolean("VentiMapShowsThermals", value) }
 
-    override var mapShowsForecast: Boolean
-        get() = store.getBoolean("VentiMapShowsForecast", false)
-        set(value) = store.edit { putBoolean("VentiMapShowsForecast", value) }
-
     override var mapShowsCandidates: Boolean
         get() = store.getBoolean("VentiMapShowsCandidates", false)
         set(value) = store.edit { putBoolean("VentiMapShowsCandidates", value) }
 
-    override var mapShowsRadar: Boolean
-        get() = store.getBoolean("VentiMapShowsRadar", false)
-        set(value) = store.edit { putBoolean("VentiMapShowsRadar", value) }
 
     override var mapShowsClimbs: Boolean
         get() = store.getBoolean("VentiMapShowsClimbs", false)
@@ -378,18 +377,17 @@ class MemoryPreferences : Preferences {
     override var dhvxcGlider = ""
     override var dhvxcPublishes = false
     override var todayNearPilot = false
-    override var mapHidesWind = false
+    override var mapWhat: String? = null
+    override var mapShowsMyFlights = false
     override var mapShowsAirspace = false
     override var mapHidesSites = false
     override var mapHidesPilots = false
     override var mapHidesCables = false
     override var mapShowsAerial = false
     override var mapAirspaceCeilingM: Double? = null
-    override var mapForecastLayer: String? = null
+    override var mapShowsGusts = false
     override var mapForecastHeightM: Int? = null
     override var mapShowsThermals = false
-    override var mapShowsForecast = false
-    override var mapShowsRadar = false
     override var mapShowsCandidates = false
     override var mapShowsClimbs = false
     override var mapShowsFlown = false

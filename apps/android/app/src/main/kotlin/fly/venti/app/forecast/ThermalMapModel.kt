@@ -124,9 +124,20 @@ class ThermalMapModel(
     val creditLine: String?
         get() = map?.credits?.takeIf { it.isNotEmpty() }?.let { "Forecast: ${Format.list(it.map { credit -> credit.provider })}" }
 
-    /** Shows another day of the map. */
-    fun choose(date: String) {
+    /** Shows another day of the map; `null` for the first it has. */
+    fun choose(date: String?) {
         chosenDate = date
+    }
+
+    /**
+     * Reads the layer of hours chosen for every day of the map, for the
+     * map's one line of time.
+     */
+    suspend fun loadLine() {
+        val map = map ?: return
+        val server = server() ?: return
+        val now = clock()
+        hours.loadLine(map, server, now, offsetAt(now))
     }
 
     /**
@@ -265,9 +276,6 @@ object ThermalMapWords {
 
     /** The first cell of the hours on "Thermals": the day as a whole. */
     const val DAY = "Day"
-
-    /** What TalkBack calls the line of hours. */
-    const val HOUR = "Hour"
 
     /** The line that unfolds the key, the model's run and the notes. */
     const val KEY_AND_NOTES = "Key and notes"

@@ -131,6 +131,7 @@ import type {
 	FollowList,
 	FollowState,
 	Notifications,
+	PilotsAlarmNumbers,
 	PilotsWords,
 	PlannerWords,
 	RouteFromFile,
@@ -142,6 +143,7 @@ import type {
 import {
 	commonWords,
 	pagesWords,
+	pilotsAlarmNumbers,
 	pilotsWords,
 	plannerWords,
 	routeFromGpx,
@@ -680,6 +682,8 @@ export interface ScreenWords {
 	/** "Done", "Back", "More", "OK", "Cancel", "Try again", "Close". */
 	common: CommonWords;
 	pages: PagesWords;
+	/** What the alarm for pilots in the air starts at and may be. */
+	pilotsAlarm: PilotsAlarmNumbers;
 	/** The route planner's menu: "Export GPX", "Import GPX". */
 	planner: PlannerWords;
 	siteSheet: SiteSheetWords;
@@ -899,6 +903,7 @@ export async function answer<Name extends CallName>(
 		screenWords: () => ({
 			common: commonWords(),
 			pages: pagesWords(),
+			pilotsAlarm: pilotsAlarmNumbers(),
 			planner: plannerWords(),
 			siteSheet: siteSheetWords(),
 			stationSheet: stationSheetWords(),

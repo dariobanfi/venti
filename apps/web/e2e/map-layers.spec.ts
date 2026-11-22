@@ -74,7 +74,7 @@ test('four chips and one sheet switch the map’s layers, and the browser rememb
 	]) {
 		await expect(layerSwitch(page, name)).not.toBeChecked();
 	}
-	for (const name of ['Wind stations', 'Flying sites', 'In the air', 'Plan a route']) {
+	for (const name of ['Wind stations', 'Flying sites', 'Pilots in the air', 'Plan a route']) {
 		await expect(toolRow(page, name)).toBeVisible();
 	}
 	// The two headings are the core's.

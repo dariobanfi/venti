@@ -157,7 +157,7 @@
 				<p>{nothing.says}</p>
 				{#if ranking.problem}
 					<button class="button-plain" type="button" onclick={() => everyone?.rankAgain()}>
-						Try again
+						{app.said?.common.tryAgain}
 					</button>
 				{/if}
 			</div>

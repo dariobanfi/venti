@@ -549,7 +549,9 @@
 			<!-- The list could not be read: why, and the way to ask again. -->
 			<div class="card">
 				<p class="row said" role="alert">{confirmationsProblem}</p>
-				<button class="row link" type="button" onclick={() => (confirmed += 1)}>Try again</button>
+				<button class="row link" type="button" onclick={() => (confirmed += 1)}
+					>{app.said?.common.tryAgain}</button
+				>
 			</div>
 		{:else}
 			<p class="waiting" role="status">Loading…</p>

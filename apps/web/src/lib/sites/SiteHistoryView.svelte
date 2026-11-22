@@ -16,9 +16,12 @@
 	core's words.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { SiteHistory, SiteHistoryOffers, SiteWritten } from '#lib/core/index.ts';
 	import PromptDialog from '#lib/design/PromptDialog.svelte';
 	import { said, type SiteEditsModel } from './edit.svelte';
+
+	const app = getApp();
 
 	interface Props {
 		edits: SiteEditsModel;
@@ -121,7 +124,9 @@
 	{:else if phase.is === 'failed'}
 		<div class="group-card words">
 			<p role="alert">{phase.why}</p>
-			<button class="button-plain" type="button" onclick={() => load(id)}>Try again</button>
+			<button class="button-plain" type="button" onclick={() => load(id)}
+				>{app.said?.common.tryAgain}</button
+			>
 		</div>
 	{:else}
 		{@const history = phase.history}

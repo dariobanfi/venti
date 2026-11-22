@@ -130,7 +130,7 @@
 		flex-direction: column;
 		gap: var(--space-1);
 		margin: 0;
-		padding: 0 1rem 0.625rem;
+		padding: 0 var(--space-4) var(--space-3);
 		color: var(--text-secondary);
 		font-size: var(--footnote);
 	}
@@ -152,8 +152,8 @@
 	/* Compact on a wide screen, as the rest of the map's side. */
 	@media (min-width: 56rem) {
 		.group-card :global(.group-row) {
-			min-height: 2.25rem;
-			padding-block: 0.25rem;
+			min-height: var(--target);
+			padding-block: var(--space-1);
 			font-size: var(--subheadline);
 		}
 	}

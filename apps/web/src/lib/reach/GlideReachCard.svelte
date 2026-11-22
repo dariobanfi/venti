@@ -9,8 +9,11 @@
 	planner's. Every sentence about the glide is the core's.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import { GLIDE_STEP, type GlideReachModel, HEIGHT_STEP_M } from './reach.svelte';
+
+	const app = getApp();
 
 	interface Props {
 		reach: GlideReachModel;
@@ -39,7 +42,12 @@
 <section class="reach" aria-labelledby="reach-title">
 	<header>
 		<h2 id="reach-title">What a glide reaches</h2>
-		<button type="button" aria-label="Close" title="Close" onclick={() => reach.clear()}>
+		<button
+			type="button"
+			aria-label={app.said?.common.close}
+			title={app.said?.common.close}
+			onclick={() => reach.clear()}
+		>
 			<Icon name="close" />
 		</button>
 	</header>

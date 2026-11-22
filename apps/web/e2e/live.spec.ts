@@ -77,7 +77,7 @@ test('the map draws who is in the air, lists them, and follows the flight of one
 	await keep('54-map-live');
 
 	// Everyone on the map as a list: who flies comes first.
-	await mapTool(page, 'In the air');
+	await mapTool(page, 'Pilots in the air');
 	const list = page.getByRole('dialog', { name: 'In the air' });
 	const rows = list.getByRole('listitem');
 	await expect(rows).toHaveCount(2);
@@ -148,7 +148,7 @@ test('a position goes on ageing while the server has nothing new to say', async 
 		if (new URL(response.url()).pathname === '/v1/live') statuses.push(response.status());
 	});
 	await mapAt(context, page, mapDrawn, BETWEEN);
-	await mapTool(page, 'In the air');
+	await mapTool(page, 'Pilots in the air');
 	const flying = page.getByRole('dialog', { name: 'In the air' }).getByRole('listitem').first();
 
 	// The server's clock stands still in its development mode, and its
@@ -175,7 +175,7 @@ test('a tab that nobody looks at asks the server nothing, and catches up when it
 	});
 	await mapAt(context, page, mapDrawn, BETWEEN);
 	// A glider's page is open as well: its flight is asked for every ten seconds.
-	await mapTool(page, 'In the air');
+	await mapTool(page, 'Pilots in the air');
 	const list = page.getByRole('dialog', { name: 'In the air' });
 	await list.getByRole('listitem').first().getByRole('button').click();
 	await expect(page.getByText('Shown for')).toBeVisible();
@@ -259,7 +259,7 @@ test('a glider nothing was heard of for a while is drawn held back, and never ca
 	});
 
 	await mapAt(context, page, mapDrawn, BETWEEN);
-	await mapTool(page, 'In the air');
+	await mapTool(page, 'Pilots in the air');
 	const list = page.getByRole('dialog', { name: 'In the air' });
 	await expect(list.getByRole('listitem').first()).toContainText(
 		/1596 m · \u22121\.0 m\/s · No position for 7 min$/
@@ -296,7 +296,7 @@ test('a flight its pilot stopped showing is said to be gone, in the core’s wor
 	});
 
 	await mapAt(context, page, mapDrawn, BETWEEN);
-	await mapTool(page, 'In the air');
+	await mapTool(page, 'Pilots in the air');
 	const list = page.getByRole('dialog', { name: 'In the air' });
 	await list.getByRole('listitem').first().getByRole('button').click();
 	const glider = gliderPanel(page, wide);
@@ -336,7 +336,7 @@ test('a map of half a continent asks for nobody, and the list says how to get so
 	await map.blur();
 	await expect(shown(page)).toBeHidden();
 
-	await mapTool(page, 'In the air');
+	await mapTool(page, 'Pilots in the air');
 	const list = page.getByRole('dialog', { name: 'In the air' });
 	await expect(list).toContainText('The map shows too much');
 	await expect(list).toContainText(

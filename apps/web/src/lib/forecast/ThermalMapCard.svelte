@@ -20,6 +20,7 @@
 	where the same reading is found for a take-off.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { type Snippet, tick } from 'svelte';
 	import type { ThermalMap, ThermalMapDay, ThermalMapHoursView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
@@ -28,6 +29,8 @@
 	import Segmented from '#lib/design/Segmented.svelte';
 	import HourStrip from './HourStrip.svelte';
 	import { runLine, WORDS } from './thermal-map';
+
+	const app = getApp();
 
 	interface Props {
 		map: ThermalMap | undefined;
@@ -184,7 +187,7 @@
 	{#if problem && !asking}
 		<p class="caption" role="status">
 			{problem}
-			<button class="again" type="button" onclick={onretry}>Try again</button>
+			<button class="again" type="button" onclick={onretry}>{app.said?.common.tryAgain}</button>
 		</p>
 	{/if}
 {/snippet}
@@ -229,7 +232,9 @@
 			{:else if hoursProblem}
 				<p class="caption" role="status">
 					{hoursProblem}
-					<button class="again" type="button" onclick={onretryhours}>Try again</button>
+					<button class="again" type="button" onclick={onretryhours}
+						>{app.said?.common.tryAgain}</button
+					>
 				</p>
 			{/if}
 			<!-- The layer and the hour in words, and at their side the height of
@@ -279,7 +284,7 @@
 	{:else}
 		<div role="status">
 			<p>{problem ?? WORDS.noDays}</p>
-			<button class="again" type="button" onclick={onretry}>Try again</button>
+			<button class="again" type="button" onclick={onretry}>{app.said?.common.tryAgain}</button>
 		</div>
 	{/if}
 </section>

@@ -5,7 +5,10 @@
 	behind the app it says that in one line.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { Snippet } from 'svelte';
+
+	const app = getApp();
 
 	interface Props {
 		id: string;
@@ -48,7 +51,8 @@
 	{:else if problem}
 		<p class="quiet">{problem}</p>
 		{#if again}
-			<button class="button-plain" type="button" onclick={again}>Try again</button>
+			<button class="button-plain" type="button" onclick={again}>{app.said?.common.tryAgain}</button
+			>
 		{/if}
 	{:else if absent}
 		<p class="quiet">Not connected to Venti.</p>

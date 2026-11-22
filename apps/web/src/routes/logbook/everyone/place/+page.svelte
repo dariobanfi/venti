@@ -193,7 +193,7 @@
 										type="button"
 										onclick={() => everyone?.rankPlaceAgain()}
 									>
-										Try again
+										{app.said?.common.tryAgain}
 									</button>
 								{/if}
 							</div>

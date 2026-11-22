@@ -26,6 +26,8 @@
 	import GoogleButton from './GoogleButton.svelte';
 	import type { AccountModel } from './model.svelte';
 
+	const app = getApp();
+
 	interface Props {
 		account: AccountModel;
 		signedIn: AccountView;
@@ -316,7 +318,9 @@
 			>
 				Delete account
 			</button>
-			<button class="choice cancel" type="button" onclick={() => (deleting = false)}>Cancel</button>
+			<button class="choice cancel" type="button" onclick={() => (deleting = false)}
+				>{app.said?.common.cancel}</button
+			>
 		</div>
 	</form>
 </Dialog>

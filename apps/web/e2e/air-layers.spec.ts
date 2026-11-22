@@ -208,7 +208,7 @@ test('a take-off says who flies there now, and an alarm waits for pilots in the 
 		has: page.locator('[data-site-air]')
 	});
 	await expect(site.locator('[data-site-air]')).toHaveText(
-		/^\d+ pilots in the air, \d+ took off in the last hour$/
+		/^\d+ pilots in the air here, \d+ took off in the last hour$/
 	);
 	await keep('263-site-in-the-air');
 

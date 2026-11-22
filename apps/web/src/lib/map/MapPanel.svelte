@@ -7,9 +7,12 @@
 	another arrow or sign on the map fills the same card.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { Snippet } from 'svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
+
+	const app = getApp();
 
 	interface Props {
 		/** What the panel shows, by its identifier. Nothing closes the panel. */
@@ -51,7 +54,12 @@
 		<aside class="card" aria-labelledby="{id}-title" onkeydown={keyed}>
 			<header>
 				<h2 id="{id}-title" tabindex="-1" bind:this={heading}>{title}</h2>
-				<button type="button" aria-label="Close" title="Close" onclick={onclose}>
+				<button
+					type="button"
+					aria-label={app.said?.common.close}
+					title={app.said?.common.close}
+					onclick={onclose}
+				>
 					<Icon name="close" />
 				</button>
 			</header>

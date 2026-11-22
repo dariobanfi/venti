@@ -66,7 +66,8 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 	await keep('271-feed');
 	await page.emulateMedia({ colorScheme: 'dark' });
 	await keep('272-feed-dark');
-	await page.emulateMedia({ colorScheme: 'light' });
+	// Back to the project's own appearance, which may be dark.
+	await page.emulateMedia({ colorScheme: test.info().project.use.colorScheme ?? 'light' });
 
 	// "Everyone" is the list as it was.
 	await page.getByRole('radio', { name: 'Everyone', exact: true }).check();

@@ -4,11 +4,14 @@
 	these are and whose reckoning the distances and points.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { MediaQuery } from 'svelte/reactivity';
 	import Icon from '#lib/design/Icon.svelte';
 	import type { ListState } from './pages';
 	import PublicFlightRow from './PublicFlightRow.svelte';
 	import PublicFlightTable, { type Said } from './PublicFlightTable.svelte';
+
+	const app = getApp();
 
 	interface Props {
 		/** What the list is called, for a screen reader. */
@@ -70,7 +73,9 @@
 		<h2>{nothing.title}</h2>
 		<p>{nothing.says}</p>
 		{#if list.problem}
-			<button class="button-plain" type="button" onclick={onagain}>Try again</button>
+			<button class="button-plain" type="button" onclick={onagain}
+				>{app.said?.common.tryAgain}</button
+			>
 		{/if}
 	</div>
 {/if}

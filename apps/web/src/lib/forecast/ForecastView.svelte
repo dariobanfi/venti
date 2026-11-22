@@ -9,6 +9,7 @@
 	knows none of them.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { type Coordinate, type ForecastView, isInWords } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
@@ -22,6 +23,8 @@
 		THERMALS_NOTE,
 		today
 	} from './table';
+
+	const app = getApp();
 
 	interface Props {
 		/** The place, and what it is called. */
@@ -117,7 +120,9 @@
 		<div class="nothing">
 			<h3>No forecast</h3>
 			<p>{phase.why}</p>
-			<button class="again" type="button" onclick={() => load(place)}>Try again</button>
+			<button class="again" type="button" onclick={() => load(place)}
+				>{app.said?.common.tryAgain}</button
+			>
 		</div>
 	{:else if !model}
 		<div class="nothing">

@@ -4,8 +4,11 @@
 	narrow screen and is a card in the middle of a wide one.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { Snippet } from 'svelte';
 	import Dialog from './Dialog.svelte';
+
+	const app = getApp();
 
 	interface Props {
 		open: boolean;
@@ -24,7 +27,7 @@
 <Dialog {open} presentation="sheet" {half} labelledby="{id}-title" {onclose}>
 	<header>
 		<h2 id="{id}-title">{title}</h2>
-		<button type="button" onclick={onclose}>Done</button>
+		<button type="button" onclick={onclose}>{app.said?.common.done}</button>
 	</header>
 	<div class="body">
 		{@render children()}

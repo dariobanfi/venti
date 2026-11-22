@@ -60,9 +60,16 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 		// The pane at the map's side ends above the credits at the map's foot.
 		await openCredits(page);
 		await expect(page.locator('.credits')).toBeVisible();
-		const pane = (await page.getByRole('complementary', { name: 'Plan a route' }).boundingBox())!;
-		const credits = (await page.locator('.credits').boundingBox())!;
-		expect(pane.y + pane.height).toBeLessThanOrEqual(credits.y);
+		// The pane is fitted once the credits' height has been measured.
+		await expect
+			.poll(async () => {
+				const pane = (await page
+					.getByRole('complementary', { name: 'Plan a route' })
+					.boundingBox())!;
+				const credits = (await page.locator('.credits').boundingBox())!;
+				return credits.y - (pane.y + pane.height);
+			})
+			.toBeGreaterThanOrEqual(0);
 	}
 	await keep('213-route-three-places');
 

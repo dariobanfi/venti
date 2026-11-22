@@ -145,7 +145,7 @@ test('a live track is reported from its glider’s page on the map', async ({
 	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
-	await mapTool(page, 'In the air');
+	await mapTool(page, 'Pilots in the air');
 	await page
 		.getByRole('dialog', { name: 'In the air' })
 		.getByRole('listitem')

@@ -109,7 +109,7 @@
 				<aside class="span-3 side" aria-label="What the flights add up to">
 					<p class="said" role="alert">{pilot.statisticsProblem}</p>
 					<button class="button-plain" type="button" onclick={() => everyone?.addUpAgain()}>
-						Try again
+						{app.said?.common.tryAgain}
 					</button>
 				</aside>
 			{/if}

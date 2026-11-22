@@ -7,7 +7,10 @@
 	pilot can change what was typed and try again.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import Dialog from './Dialog.svelte';
+
+	const app = getApp();
 
 	interface Props {
 		open: boolean;
@@ -100,7 +103,7 @@
 			>
 				{confirm}
 			</button>
-			<button class="choice" type="button" onclick={oncancel}>Cancel</button>
+			<button class="choice" type="button" onclick={oncancel}>{app.said?.common.cancel}</button>
 		</div>
 	</form>
 </Dialog>

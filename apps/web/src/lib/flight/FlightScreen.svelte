@@ -522,7 +522,7 @@
 
 	.said-row :global(svg) {
 		flex: none;
-		font-size: 0.75rem;
+		font-size: var(--caption);
 		color: var(--icon-quiet);
 	}
 

@@ -18,6 +18,7 @@
 	"Key and notes", folded until the pilot asks for them.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import Icon from '#lib/design/Icon.svelte';
@@ -25,6 +26,8 @@
 	import HourStrip from '#lib/forecast/HourStrip.svelte';
 	import type { RadarModel } from './radar.svelte';
 	import { stripCells, UNSEEN_ON_MAP, WORDS } from './radar';
+
+	const app = getApp();
 
 	interface Props {
 		radar: RadarModel;
@@ -95,13 +98,17 @@
 	{#if radar.pictureProblem && !radar.pictureAsking}
 		<p class="caption" role="status">
 			{radar.pictureProblem}
-			<button class="again" type="button" onclick={() => void radar.showMoment()}>Try again</button>
+			<button class="again" type="button" onclick={() => void radar.showMoment()}
+				>{app.said?.common.tryAgain}</button
+			>
 		</p>
 	{/if}
 	{#if radar.problem && !radar.asking}
 		<p class="caption" role="status">
 			{radar.problem}
-			<button class="again" type="button" onclick={() => void radar.load()}>Try again</button>
+			<button class="again" type="button" onclick={() => void radar.load()}
+				>{app.said?.common.tryAgain}</button
+			>
 		</p>
 	{/if}
 {/snippet}
@@ -163,7 +170,9 @@
 	{:else}
 		<div role="status">
 			<p>{radar.problem}</p>
-			<button class="again" type="button" onclick={() => void radar.load()}>Try again</button>
+			<button class="again" type="button" onclick={() => void radar.load()}
+				>{app.said?.common.tryAgain}</button
+			>
 		</div>
 	{/if}
 </section>

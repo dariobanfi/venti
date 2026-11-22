@@ -265,7 +265,7 @@
 				<h2>Today’s forecast could not be fetched</h2>
 				<p>{shown.problem}</p>
 				<button class="button-plain" type="button" onclick={() => today?.again()}>
-					Try again
+					{app.said?.common.tryAgain}
 				</button>
 			</div>
 		{:else if shown.phase === 'loaded' && shown.places.length === 0}
@@ -566,7 +566,7 @@
 					     that every forecast shows its update time. -->
 					<details class="about">
 						<summary>
-							About this forecast
+							{app.said?.pages.aboutForecast}
 							<span class="numeric">· {reading.model} of {text.time(reading.runUnixS)}</span>
 						</summary>
 						<p>{reading.note}</p>

@@ -20,6 +20,8 @@
 	import type { WindModel } from './model.svelte';
 	import WindChart from './WindChart.svelte';
 
+	const app = getApp();
+
 	interface Props {
 		station: WindStation;
 		wind: WindModel;
@@ -246,7 +248,7 @@
 				{:else if dayPhase.is === 'failed'}
 					<p>{dayPhase.why}</p>
 					<button class="again" type="button" onclick={() => chosenDate && loadDay(id, chosenDate)}
-						>Try again</button
+						>{app.said?.common.tryAgain}</button
 					>
 				{:else if dayPhase.day.emptyWords}
 					<p>{dayPhase.day.emptyWords}</p>
@@ -264,7 +266,9 @@
 				<p class="waiting" role="status">Loading…</p>
 			{:else if phase.is === 'failed'}
 				<p>{phase.why}</p>
-				<button class="again" type="button" onclick={() => load(station.id)}>Try again</button>
+				<button class="again" type="button" onclick={() => load(station.id)}
+					>{app.said?.common.tryAgain}</button
+				>
 			{:else if phase.history.readings.length < 2}
 				<p>Venti has no history for this station yet.</p>
 			{:else}

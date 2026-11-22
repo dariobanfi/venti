@@ -1031,12 +1031,21 @@
 		onchange: () => toggle(layer)
 	});
 
+	/** The layers' and the rows' names, the core's; empty until it answered. */
+	const named = $derived<Partial<MapLayersWords>>(layerWords ?? {});
+
 	/** The four layers a pilot switches most: the chips along the map's top. */
 	const chips = $derived<LayerRow[]>([
-		{ key: 'forecast', name: 'Forecast', icon: 'forecast', on: forecast, onchange: setForecast },
-		{ key: 'radar', name: 'Radar', icon: 'rain', on: radarChosen, onchange: setRadar },
-		{ key: 'wind', name: 'Wind', icon: 'wind', ...listed('wind') },
-		{ key: 'sites', name: 'Sites', icon: 'pin', ...listed('sites') }
+		{
+			key: 'forecast',
+			name: named.forecast ?? '',
+			icon: 'forecast',
+			on: forecast,
+			onchange: setForecast
+		},
+		{ key: 'radar', name: named.radar ?? '', icon: 'rain', on: radarChosen, onchange: setRadar },
+		{ key: 'wind', name: named.wind ?? '', icon: 'wind', ...listed('wind') },
+		{ key: 'sites', name: named.sites ?? '', icon: 'pin', ...listed('sites') }
 	]);
 	/**
 	 * Every layer as a row with a switch: the chips' four in the same
@@ -1046,19 +1055,25 @@
 		...(app.account?.hasServer
 			? [
 					...chips,
-					{ key: 'airspace', name: 'Airspace', icon: 'airspace', ...listed('airspace') },
-					{ key: 'pilots', name: 'Pilots', icon: 'glider', ...listed('pilots') },
+					{ key: 'airspace', name: named.airspace ?? '', icon: 'airspace', ...listed('airspace') },
+					{ key: 'pilots', name: named.pilots ?? '', icon: 'glider', ...listed('pilots') },
 					{
 						key: 'slopes',
-						name: 'Slopes',
+						name: named.slopes ?? '',
 						icon: 'mountain',
 						on: slopesChosen,
 						onchange: setSlopes
 					},
-					{ key: 'cables', name: 'Cables', icon: 'warning', ...listed('cables') }
+					{ key: 'cables', name: named.cables ?? '', icon: 'warning', ...listed('cables') }
 				]
 			: []),
-		{ key: 'aerial', name: 'Aerial view', icon: 'layers', on: aerial, onchange: setAerial },
+		{
+			key: 'aerial',
+			name: named.aerialView ?? '',
+			icon: 'layers',
+			on: aerial,
+			onchange: setAerial
+		},
 		...(app.account?.hasServer && layerWords
 			? [
 					{
@@ -1094,25 +1109,25 @@
 			? ([
 					{
 						key: 'stations',
-						name: 'Wind stations',
+						name: named.windStations ?? '',
 						icon: 'wind',
 						onclick: opens(() => (listing = true))
 					},
 					{
 						key: 'sites',
-						name: 'Flying sites',
+						name: named.flyingSites ?? '',
 						icon: 'pin',
 						onclick: opens(() => (listingSites = true))
 					},
 					{
 						key: 'air',
-						name: 'In the air',
+						name: named.pilotsInTheAir ?? '',
 						icon: 'glider',
 						onclick: opens(() => (listingGliders = true))
 					}
 				] satisfies ToolRow[])
 			: []),
-		{ key: 'route', name: 'Plan a route', icon: 'route', onclick: opens(togglePlanner) },
+		{ key: 'route', name: named.planRoute ?? '', icon: 'route', onclick: opens(togglePlanner) },
 		// A site of the pilot's own knowledge, in the core's words for the
 		// tier this account adds to; for someone who has to sign in first,
 		// its sentence about that, which leads to the account.
@@ -1272,8 +1287,8 @@
 							<h3>{thermals.day?.name}</h3>
 							<button
 								type="button"
-								aria-label="Close"
-								title="Close"
+								aria-label={app.said?.common.close}
+								title={app.said?.common.close}
 								onclick={() => (chosenHourSquare = undefined)}
 							>
 								<Icon name="close" />
@@ -1292,8 +1307,8 @@
 							<h3>{thermals.day.name}</h3>
 							<button
 								type="button"
-								aria-label="Close"
-								title="Close"
+								aria-label={app.said?.common.close}
+								title={app.said?.common.close}
 								onclick={() => (chosenSquare = undefined)}
 							>
 								<Icon name="close" />
@@ -1347,8 +1362,8 @@
 							<h2>Filter sites</h2>
 							<button
 								type="button"
-								aria-label="Close"
-								title="Close"
+								aria-label={app.said?.common.close}
+								title={app.said?.common.close}
 								onclick={() => (filtering = false)}
 							>
 								<Icon name="close" />
@@ -1910,14 +1925,14 @@
 	   large text they keep their words and the row scrolls. */
 	@media (max-width: 55.99rem) {
 		.chips {
-			gap: 0.375rem;
+			gap: var(--space-1);
 		}
 
 		.chip {
 			flex: 1 0 auto;
 			justify-content: center;
-			gap: 0.25rem;
-			padding: 0 0.5rem 0 0.375rem;
+			gap: var(--space-1);
+			padding: 0 var(--space-2) 0 var(--space-1);
 		}
 	}
 

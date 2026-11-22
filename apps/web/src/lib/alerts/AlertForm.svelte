@@ -119,17 +119,26 @@
 	const elsewhere = $derived(tried ? faults.filter((fault) => !PLACED.includes(fault.field)) : []);
 
 	/** A whole number from a field, or nothing for an empty one. */
-	function whole(value: string, most: number): number | undefined {
+	function whole(value: string, least: number, most: number): number | undefined {
 		const trimmed = value.trim();
 		if (trimmed === '') return undefined;
 		const number = Number.parseInt(trimmed, 10);
-		return Number.isNaN(number) ? undefined : Math.min(Math.max(number, 0), most);
+		return Number.isNaN(number) ? undefined : Math.min(Math.max(number, least), most);
 	}
+
+	/** What the alarm for pilots in the air starts at and may be, the core's. */
+	const pilotsAlarm = $derived(getApp().said?.pilotsAlarm);
 
 	type Numbered =
 		'minKmh' | 'maxKmh' | 'gustsMaxKmh' | 'fromHour' | 'toHour' | 'minPilots' | 'restHours';
 	function set(field: Numbered, value: string) {
-		draft[field] = whole(value, field.endsWith('Hour') ? 99 : 9999);
+		const [least, most] =
+			field === 'minPilots' && pilotsAlarm
+				? [pilotsAlarm.minPilotsLeast, pilotsAlarm.minPilotsMost]
+				: field === 'restHours' && pilotsAlarm
+					? [pilotsAlarm.restHoursLeast, pilotsAlarm.restHoursMost]
+					: [0, field.endsWith('Hour') ? 99 : 9999];
+		draft[field] = whole(value, least, most);
 	}
 
 	function from(point: number | undefined) {
@@ -213,7 +222,7 @@
 			{#if !id && draft.kind !== 'wind'}
 				<!-- What a new alarm for a place waits for: a day worth flying, or
 				     pilots in the air there. -->
-				<div class="chips kinds" role="group" aria-label="Kind">
+				<div class="chips kinds" role="group" aria-label={getApp().said?.pages.alarmKind}>
 					<button
 						class="chip"
 						type="button"
@@ -237,7 +246,7 @@
 							<input
 								inputmode="numeric"
 								autocomplete="off"
-								placeholder="3"
+								placeholder={pilotsAlarm ? `${pilotsAlarm.minPilotsDefault}` : undefined}
 								value={draft.minPilots ?? ''}
 								oninput={(event) => set('minPilots', event.currentTarget.value)}
 							/>
@@ -247,7 +256,7 @@
 							<input
 								inputmode="numeric"
 								autocomplete="off"
-								placeholder="6"
+								placeholder={pilotsAlarm ? `${pilotsAlarm.restHoursDefault}` : undefined}
 								value={draft.restHours ?? ''}
 								oninput={(event) => set('restHours', event.currentTarget.value)}
 							/>
@@ -447,6 +456,8 @@
 	/* A long name over a short number: the name wraps, the number keeps its room. */
 	.wide-name span {
 		flex: 1 1 auto;
+		/* Room above and below a name that wraps, as large text makes it. */
+		padding-block: var(--space-2);
 	}
 
 	.wide-name input {

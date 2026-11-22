@@ -3,7 +3,10 @@
 	so Enter and Escape both leave things as they are.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import Dialog from './Dialog.svelte';
+
+	const app = getApp();
 
 	interface Props {
 		open: boolean;
@@ -18,7 +21,7 @@
 		oncancel: () => void;
 	}
 
-	let { open, title, message, confirm, cancel = 'Cancel', onconfirm, oncancel }: Props = $props();
+	let { open, title, message, confirm, cancel, onconfirm, oncancel }: Props = $props();
 </script>
 
 <Dialog
@@ -36,7 +39,9 @@
 	<div class="choices">
 		<button class="choice destructive" type="button" onclick={onconfirm}>{confirm}</button>
 		<!-- svelte-ignore a11y_autofocus -->
-		<button class="choice cancel" type="button" autofocus onclick={oncancel}>{cancel}</button>
+		<button class="choice cancel" type="button" autofocus onclick={oncancel}
+			>{cancel ?? app.said?.common.cancel}</button
+		>
 	</div>
 </Dialog>
 

@@ -7,8 +7,11 @@
 	(`googleWords`, `GoogleSignUp`), and so is every refusal.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { GoogleSignUp, GoogleWords } from '#lib/core/index.ts';
 	import type { AccountModel } from './model.svelte';
+
+	const app = getApp();
 
 	interface Props {
 		account: AccountModel;
@@ -94,7 +97,7 @@
 
 	<div class="submit">
 		<button class="button-plain" type="button" disabled={account.working} onclick={oncancel}>
-			Cancel
+			{app.said?.common.cancel}
 		</button>
 		<button class="button-prominent" type="submit" disabled={account.working || handle === ''}>
 			{account.working ? 'Working…' : words.createAccount}

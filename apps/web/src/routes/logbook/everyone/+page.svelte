@@ -355,7 +355,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: var(--space-1);
-		min-height: 2rem;
+		min-height: var(--space-6);
 		padding: 0 var(--space-1) 0 var(--space-3);
 		border-radius: var(--radius-pill);
 		background: var(--accent);

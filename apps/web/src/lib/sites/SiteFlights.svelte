@@ -23,6 +23,8 @@
 	import MonthBars from '#lib/design/MonthBars.svelte';
 	import { said } from './edit.svelte';
 
+	const app = getApp();
+
 	interface Props {
 		/** The site's identifier, of any layer. */
 		id: string;
@@ -114,7 +116,9 @@
 		{:else if problem}
 			<div class="card">
 				<p class="row said" role="alert">{problem}</p>
-				<button class="row link" type="button" onclick={() => (again += 1)}>Try again</button>
+				<button class="row link" type="button" onclick={() => (again += 1)}
+					>{app.said?.common.tryAgain}</button
+				>
 			</div>
 		{:else}
 			<p class="waiting" role="status">Loading…</p>
@@ -139,7 +143,7 @@
 	/* The terms' link: a line of the footnote's size in the link colour. */
 	.terms {
 		align-self: flex-start;
-		min-height: 2rem;
+		min-height: var(--target);
 		padding: 0 var(--space-4);
 		color: var(--link);
 		font-size: var(--footnote);

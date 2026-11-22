@@ -71,7 +71,7 @@ Thermalling detection in XCTrack *(official)*: start when heading has changed at
 | Time | Clock, flight time, sunset, civil twilight | v1 |
 | System | Status line (GPS, sensors, live, battery), brightness, volume, last notification | v1 |
 | Livetracking | Incoming messages | v1 |
-| Buttons | Zoom, next and previous waypoint, vario mute, brightness, phone, camera | v1 for zoom, waypoint, mute |
+| Buttons | Zoom, next and previous waypoint, vario mute, brightness, phone, camera | v1 for zoom and waypoint. No mute: the phone sounds only in flight and only while no external vario is connected (owner decision 23) |
 | Other | Free text; external data fields from the `$XCTOD` sentence; embedded web page with a JavaScript interface to flight data | External data Later. Web page widget: No (no web views) |
 | Head-up displays | Widget sets for ActiveLook and Everysight glasses | Later |
 

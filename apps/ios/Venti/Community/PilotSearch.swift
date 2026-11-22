@@ -71,7 +71,7 @@ final class PilotSearch {
             found = nil
             words = error is CoreError
                 ? error.words
-                : "Venti could not be reached for the pilots. \(error.localizedDescription)"
+                : pilotsWords().unreachable
         }
         isSearching = false
     }

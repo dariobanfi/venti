@@ -54,10 +54,20 @@ final class CommunityModel {
             periods.first { $0.name == season }?.months ?? []
         }
 
-        /// What the ranking is of, in the core's words: "May 2026",
-        /// "2026", "All years".
+        /// What the answer's ranking is of, in the core's words: "May
+        /// 2026", "2026", "All years". Empty before the first answer.
+        var periodTitle = ""
+
+        /// The ranking's heading: the core's title of the answer's
+        /// period, and until it has come the name of what was asked for.
         var title: String {
-            months.first { $0.month == month }?.title ?? season
+            periodTitle.isEmpty ? (months.first { $0.month == month }?.title ?? season) : periodTitle
+        }
+
+        /// The whole of the season shown as the first choice beside its
+        /// months, in the core's words: "All of 2026".
+        var wholeName: String {
+            periods.first { $0.name == season }?.wholeName ?? season
         }
     }
 
@@ -142,7 +152,7 @@ final class CommunityModel {
             }
             problem = error is CoreError
                 ? error.words
-                : "The server could not be reached for other pilots' flights. \(error.localizedDescription)"
+                : pilotsWords().unreachable
         }
     }
 
@@ -172,6 +182,7 @@ final class CommunityModel {
             // Another season's or month's pilots are not this one's.
             ranked.pilots = []
             ranked.rule = ""
+            ranked.periodTitle = ""
         }
         ranked.seasons = offered
         ranked.season = chosen.name
@@ -196,6 +207,7 @@ final class CommunityModel {
             guard server == self.server(), ranked.season == chosen.name, ranked.month == month else { return }
             ranked.pilots = answer.pilots
             ranked.rule = answer.rule
+            ranked.periodTitle = answer.period.title
             ranked.periods = answer.periods
             ranked.seasons = Self.seasons(having: answer.periods, shown: chosen, byTheClock: byTheClock)
             ranked.isLoading = false
@@ -207,7 +219,7 @@ final class CommunityModel {
             }
             ranked.problem = error is CoreError
                 ? error.words
-                : "The server could not be reached for the ranking. \(error.localizedDescription)"
+                : pilotsWords().unreachable
         }
     }
 
@@ -272,6 +284,20 @@ final class CommunityModel {
         }
         let (status, body) = try await transport(url)
         return try pilotPage(status: UInt16(clamping: status), body: body)
+    }
+
+    /// One page of a pilot's public flights that began in a season, the
+    /// newest first: the season's bounds are those of the pilot's totals.
+    /// `after` is the `next` of the page before.
+    func pilot(
+        _ handle: String, fromUnixS: Int64?, toUnixS: Int64?, after: String? = nil
+    ) async throws -> PublicFlights {
+        let path = try pilotFlightsPath(handle: handle, fromUnixS: fromUnixS, toUnixS: toUnixS, after: after)
+        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+            throw URLError(.badURL)
+        }
+        let (status, body) = try await transport(url)
+        return try publicFlights(status: UInt16(clamping: status), body: body)
     }
 
     /// The pilots whose handle or name holds a text, as the core lists

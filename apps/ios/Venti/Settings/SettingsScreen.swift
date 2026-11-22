@@ -1,4 +1,5 @@
 import SwiftUI
+import VentiCore
 
 /// The pilot's settings, and what the app is made of. A page of the Today
 /// tab's stack, opened from its corner: it brings no stack of its own.
@@ -53,7 +54,7 @@ struct SettingsScreen: View {
                     }
                     // The glider, the FAI triangle areas and the
                     // brightness: on a page of their own.
-                    NavigationLink("Glider and cockpit") {
+                    NavigationLink(pagesWords().gliderAndCockpit) {
                         CockpitSettingsScreen()
                     }
                     .accessibilityIdentifier("cockpit-settings-link")

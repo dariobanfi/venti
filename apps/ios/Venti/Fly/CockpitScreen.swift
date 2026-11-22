@@ -957,11 +957,16 @@ private struct StatusLine: View {
                     .accessibilityIdentifier("map-kept")
             }
             // The words of the vario give way first in a narrow line, and
-            // whole: where they do not fit they are not cut short but left
-            // out, a caution sign standing for a vario that fell silent.
+            // whole: where the core's words do not fit, its short form
+            // stands, and where that does not either, a caution sign for
+            // a vario that fell silent. Never cut short.
+            let source = source
             ViewThatFits(in: .horizontal) {
-                Text(varioText)
+                Text(source.words)
                     .fixedSize()
+                Text(source.short)
+                    .fixedSize()
+                    .accessibilityLabel(source.words)
                 Group {
                     if varioIsLost {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -969,7 +974,7 @@ private struct StatusLine: View {
                         Color.clear.frame(width: 1, height: 1)
                     }
                 }
-                .accessibilityLabel(varioText)
+                .accessibilityLabel(source.words)
             }
             .foregroundStyle(.venti(varioIsLost ? .danger : .text))
             .layoutPriority(-1)
@@ -992,21 +997,17 @@ private struct StatusLine: View {
         view.instrument.map { !$0.talking } ?? false
     }
 
-    private var varioText: String {
-        if let instrument = view.instrument {
-            let name = varioName ?? "Vario"
-            guard instrument.talking else { return "\(name) silent" }
-            return instrument.batteryPercent.map { "\(name) \($0)%" } ?? name
-        }
-        // In a replay the pressure is the recording's, not this phone's.
+    /// Where the climb comes from, in the core's words and their short
+    /// form. In a replay the pressure is the recording's, not this
+    /// phone's, which the core is told.
+    private var source: CockpitSourceWords {
+        var isReplay = false
         if case .replay = mode {
-            return "Recorded data"
+            isReplay = true
         }
-        return switch view.varioSource {
-        case .pressure: "Phone barometer"
-        case .satellite: "Satellite vario"
-        case .instrument, nil: "No vario yet"
-        }
+        return cockpitSourceWords(
+            varioSource: view.varioSource, instrument: view.instrument, varioName: varioName, isReplay: isReplay
+        )
     }
 }
 
@@ -1190,7 +1191,7 @@ private struct FlightPage: View {
                 // wind is from, the airspeed, the heading, the altitude's
                 // source, the QNH.
                 Button(action: showDetails) {
-                    Label("Details", systemImage: "list.bullet")
+                    Label(cockpitDetailsWords().title, systemImage: "list.bullet")
                         .frame(maxWidth: .infinity)
                 }
                 .accessibilityIdentifier("cockpit-details")

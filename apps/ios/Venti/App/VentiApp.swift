@@ -160,7 +160,6 @@ enum Session {
             fly.airspace = { airspace.set }
             fly.taskFile = { tasks.file }
             fly.landings = { waypoints.all.filter { $0.kind == .landing } }
-            fly.sitesHeld = { sites.sites }
             // Other pilots in the air around the glider, from the same
             // server as the map tab's.
             fly.others = { place in await live.around(place) }
@@ -173,13 +172,19 @@ enum Session {
             fly.cables = { cables.set }
             // The take-offs around the glider: the pilot's own and those
             // the map holds.
+            let held: () -> SitesMap? = {
+                sites.sites.isEmpty
+                    ? nil
+                    : SitesMap(sites: sites.sites, credits: sites.credits, asOfUnixS: sites.asOfUnixS, isWhole: sites.isWhole)
+            }
             fly.takeoffs = { glider in
-                try? core.cockpitTakeoffs(
-                    glider: glider,
-                    near: sites.sites.isEmpty
-                        ? nil
-                        : SitesMap(sites: sites.sites, credits: sites.credits, asOfUnixS: sites.asOfUnixS, isWhole: sites.isWhole)
-                )
+                try? core.cockpitTakeoffs(glider: glider, near: held())
+            }
+            // And the landing fields the cockpit keeps a reading of: the
+            // core's list, from the same sites, the pilot's own and the
+            // pilot's waypoints.
+            fly.cockpitLandings = { glider in
+                (try? core.cockpitLandings(glider: glider, near: held())) ?? []
             }
             // And the wind on the ground, from the server's wind stations.
             fly.windOnTheGround = { place, landing in await wind.stations(around: place, andAround: landing) }

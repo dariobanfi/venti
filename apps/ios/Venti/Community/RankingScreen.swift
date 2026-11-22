@@ -50,7 +50,7 @@ struct RankingList: View {
                     .accessibilityIdentifier("ranking-season")
                     if !ranked.months.isEmpty {
                         VentiSegmented(
-                            options: [(value: "", name: ranked.season)]
+                            options: [(value: "", name: ranked.wholeName)]
                                 + ranked.months.map { (value: $0.month, name: $0.name) },
                             selection: month
                         )
@@ -106,7 +106,9 @@ struct RankingList: View {
                 ContentUnavailableView(
                     ranked.problem == nil ? "Nobody is ranked" : "The ranking could not be fetched",
                     systemImage: ranked.problem == nil ? "trophy" : "exclamationmark.triangle",
-                    description: Text(ranked.problem ?? Self.nobody(in: ranked.season))
+                    description: Text(
+                        ranked.problem ?? (ranked.month == nil ? Self.nobody(in: ranked.season) : pilotsWords().monthEmpty)
+                    )
                 )
             }
         }

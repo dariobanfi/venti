@@ -587,7 +587,7 @@ private struct TakeoffCard: View {
                 }
                 // The wind near by where it is much stronger: a note under
                 // the day's own reason, and no part of the status.
-                NearbyLine(words: day.nearby)
+                NearbyLine(words: day.nearbyShort)
                 if day.thermals != nil {
                     ThermalLine(day: day)
                 }
@@ -606,8 +606,8 @@ private struct TakeoffCard: View {
                     HourStrip(hours: day.hours)
                     Text(
                         HourStrip.showsThermals(day.hours)
-                            ? "Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not. Under it the climb to expect in thermals, in m/s, with a bar that grows with it."
-                            : "Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not."
+                            ? todayWords().hourStripNoteWithThermals
+                            : todayWords().hourStripNote
                     )
                     .font(.ventiType(.caption))
                     .foregroundStyle(.venti(.textSecondary))
@@ -641,7 +641,7 @@ private struct TakeoffRow: View {
                     .font(.ventiType(.label))
                     .foregroundStyle(.venti(.textSecondary))
                     .lineLimit(2)
-                NearbyLine(words: day?.nearby ?? "")
+                NearbyLine(words: day?.nearbyShort ?? "")
                 if let day, !day.thermalWords.isEmpty {
                     HStack(spacing: VentiSpace.s1) {
                         ThermalMark(climbMs: day.climbMs ?? 0)

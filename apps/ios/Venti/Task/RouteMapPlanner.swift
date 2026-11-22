@@ -2,6 +2,7 @@ import CoreLocation
 import MapLibre
 import SwiftUI
 import VentiCore
+import UniformTypeIdentifiers
 
 /// Draws a route on the map: the pilot taps the places to fly by, in
 /// order, and sees how long each leg is and what the route would score if
@@ -30,6 +31,13 @@ struct RouteMapPlanner: View {
     @State private var room: CGFloat = 0
     /// How high the card's content is, for a card no higher than it.
     @State private var contentHeight: CGFloat = 0
+    /// The route as a GPX file, while the pilot chooses where to save it.
+    @State private var exported: GpxFile?
+    @State private var isExporting = false
+    @State private var isImporting = false
+    /// What a file just read held, in the core's line: said once, in
+    /// place of the route's words, until the route changes.
+    @State private var read: String?
 
     /// How much of the planner's height its card takes at the most, with
     /// the weather open: it scrolls before it covers more of the map.
@@ -84,6 +92,12 @@ struct RouteMapPlanner: View {
             } action: { height in
                 room = height
             }
+            // A GPX file has no type every iPhone knows, so any file can
+            // be picked; the core says whether it holds a route.
+            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.data]) { result in
+                guard case .success(let url) = result else { return }
+                take(fileAt: url)
+            }
             .onAppear {
                 weather.server = { [wind] in wind.server }
                 weather.ground = { [terrain] area in await terrain.ground(covering: area) }
@@ -95,6 +109,22 @@ struct RouteMapPlanner: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                }
+                // What is not on the planner's own screen: the route as a
+                // file, out and in. The words are the core's.
+                ToolbarItem(placement: .primaryAction) {
+                    let words = plannerWords()
+                    Menu(commonWords().more, systemImage: "ellipsis") {
+                        Button(words.exportGpx, systemImage: "square.and.arrow.up") {
+                            exported = GpxFile(text: routeToGpx(points: places))
+                            isExporting = true
+                        }
+                        .disabled(places.count < 2)
+                        Button(words.importGpx, systemImage: "square.and.arrow.down") {
+                            isImporting = true
+                        }
+                    }
+                    .accessibilityIdentifier("route-more")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Keep") {
@@ -128,11 +158,41 @@ struct RouteMapPlanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .ventiFloating(in: .rect(cornerRadius: 28))
         .padding(12)
+        // On another view than the importer: two file dialogs on one
+        // view do not both open.
+        .fileExporter(
+            isPresented: $isExporting, document: exported, contentType: GpxFile.type, defaultFilename: "route"
+        ) { _ in
+            exported = nil
+        }
+    }
+
+    /// Reads a route from a file the pilot picked: its places become the
+    /// route, and the core's line says what was read; a file that holds
+    /// none is refused in the core's words.
+    private func take(fileAt url: URL) {
+        let isScoped = url.startAccessingSecurityScopedResource()
+        defer {
+            if isScoped {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        do {
+            let data = try Data(contentsOf: url)
+            let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: Unicode.ASCII.self)
+            let route = try routeFromGpx(text: text)
+            places = route.points
+            problem = nil
+            read = route.words
+        } catch {
+            read = nil
+            problem = error is CoreError ? error.words : error.localizedDescription
+        }
     }
 
     private func content(of plan: RoutePlan) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(problem ?? plan.words)
+            Text(problem ?? read ?? plan.words)
                 .font(.venti(.subheadline))
                 .foregroundStyle(problem == nil ? Color.venti(.text) : Color.venti(.danger))
                 .fixedSize(horizontal: false, vertical: true)
@@ -159,6 +219,7 @@ struct RouteMapPlanner: View {
                 // between them need the room.
                 Button("Undo", systemImage: "arrow.uturn.backward") {
                     problem = nil
+                    read = nil
                     places.removeLast()
                 }
                 .labelStyle(.iconOnly)
@@ -167,6 +228,7 @@ struct RouteMapPlanner: View {
                 // aiming a finger at the first place.
                 Button {
                     problem = nil
+                    read = nil
                     places.append(places[0])
                 } label: {
                     // The words are what says it: the sign goes first
@@ -180,6 +242,7 @@ struct RouteMapPlanner: View {
                 Spacer(minLength: 0)
                 Button("Clear", systemImage: "trash", role: .destructive) {
                     problem = nil
+                    read = nil
                     places.removeAll()
                 }
                 .labelStyle(.iconOnly)
@@ -205,6 +268,7 @@ struct RouteMapPlanner: View {
     /// before: a finger that taps twice means one place.
     private func add(_ place: Coordinate) {
         problem = nil
+        read = nil
         if let last = places.last {
             let apart = CLLocation(latitude: last.lat, longitude: last.lon)
                 .distance(from: CLLocation(latitude: place.lat, longitude: place.lon))
@@ -215,6 +279,28 @@ struct RouteMapPlanner: View {
 
     /// Two places of a route lie at least this far apart, metres.
     static let apartAtLeastM = 150.0
+}
+
+/// A route as a GPX file, as the core writes it, for the system's sheet
+/// that saves a file.
+struct GpxFile: FileDocument {
+    /// GPX by its ending; XML where the iPhone knows no such type.
+    static let type = UTType(filenameExtension: "gpx") ?? .xml
+    static let readableContentTypes = [type]
+
+    let text: String
+
+    init(text: String) {
+        self.text = text
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        text = String(decoding: configuration.file.regularFileContents ?? Data(), as: UTF8.self)
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: Data(text.utf8))
+    }
 }
 
 /// The map a route is drawn on: the places tapped so far with their

@@ -101,7 +101,7 @@ struct StationScreen: View {
                     showsMoreAir.toggle()
                 } label: {
                     HStack {
-                        Text("More about the air here")
+                        Text(stationSheetWords().moreAirTitle)
                         Spacer(minLength: VentiSpace.s2)
                         Image(systemName: showsMoreAir ? "chevron.up" : "chevron.down")
                             .font(.venti(.footnote))

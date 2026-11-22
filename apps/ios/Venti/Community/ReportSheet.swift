@@ -6,9 +6,15 @@ struct Reported: Identifiable {
     let subject: ReportSubject
     /// The form's title.
     let title: String
+    /// The comment under the flight `subject` names, where a comment is
+    /// what is reported: the core has a request of its own for it.
+    var comment: String?
 
     var id: String {
-        switch subject {
+        if let comment {
+            return "comment \(comment)"
+        }
+        return switch subject {
         case .flight(let id): "flight \(id)"
         case .pilot(let handle): "pilot \(handle)"
         case .liveTrack(let id): "track \(id)"
@@ -43,6 +49,11 @@ struct Reported: Identifiable {
         Reported(subject: .site(id: id), title: siteWords().report)
     }
 
+    /// A comment under a public flight.
+    static func comment(_ id: String, under flight: String) -> Reported {
+        Reported(subject: .flight(id: flight), title: Social.words.commentReportTitle, comment: id)
+    }
+
     static func siteRevision(_ id: String, revision: UInt32) -> Reported {
         Reported(subject: .siteRevision(id: id, revision: revision), title: siteWords().reportRevision)
     }
@@ -69,7 +80,7 @@ struct ReportSheet: View {
     @State private var outcome: String?
 
     private var form: ReportForm {
-        reportFormFor(subject: reported.subject)
+        reported.comment == nil ? reportFormFor(subject: reported.subject) : commentReportForm()
     }
 
     var body: some View {
@@ -189,7 +200,9 @@ struct ReportSheet: View {
         Task {
             defer { isSending = false }
             do {
-                outcome = try await account.report(reported.subject, reason: reason, text: text)
+                outcome = try await account.report(
+                    reported.subject, comment: reported.comment, reason: reason, text: text
+                )
             } catch {
                 problem = AccountModel.words(for: error)
             }

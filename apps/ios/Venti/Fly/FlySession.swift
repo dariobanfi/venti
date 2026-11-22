@@ -108,9 +108,10 @@ final class FlySession {
     /// The pilot's landings, asked for every few seconds in the air. The
     /// app sets this to the waypoints that are places to land.
     @ObservationIgnored var landings: () -> [WaypointView] = { [] }
-    /// The sites the map holds, for the landing fields among them: the
-    /// core keeps a standing reading of the nearest landing within glide.
-    @ObservationIgnored var sitesHeld: () -> [SiteView] = { [] }
+    /// The landing fields around the glider, as the core lists them: the
+    /// core keeps a standing reading of the nearest one within glide. The
+    /// app sets this to the core's `cockpitLandings`.
+    @ObservationIgnored var cockpitLandings: (Coordinate) -> [TargetPlace] = { _ in [] }
     /// The landings last handed to the core's session.
     @ObservationIgnored private var handedLandings: [TargetPlace]?
     /// The address of the pilot's Venti server, if this iPhone is signed
@@ -554,21 +555,12 @@ final class FlySession {
         }
     }
 
-    /// Hands the core the landing fields it keeps a standing reading of:
-    /// those among the cockpit's take-offs and among the sites the map
-    /// holds, and the pilot's own landings. Again only when they have
-    /// changed, since the core begins its reading anew with each.
-    private func handLandings(to session: FlightSession, among found: CockpitTakeoffs?) {
-        var places: [TargetPlace] = []
-        for site in (found?.takeoffs.map(\.site) ?? []) + sitesHeld() where site.uses.contains(.landing) {
-            let place = TargetPlace(name: site.name, position: site.position, elevationM: site.elevationM)
-            if !places.contains(place) {
-                places.append(place)
-            }
-        }
-        for place in landings().map(\.place) where !places.contains(place) {
-            places.append(place)
-        }
+    /// Hands the core's session the landing fields it keeps a standing
+    /// reading of. Which they are is the core's (`cockpitLandings`); here
+    /// they are only handed over, and again only when they have changed,
+    /// since the session begins its reading anew with each.
+    private func handLandings(to session: FlightSession, around glider: Coordinate) {
+        let places = cockpitLandings(glider)
         if places != handedLandings {
             handedLandings = places
             session.useLandings(landings: places)
@@ -737,7 +729,7 @@ final class FlySession {
             if found != takeoffsNear {
                 takeoffsNear = found
             }
-            handLandings(to: session, among: found)
+            handLandings(to: session, around: position)
         }
 
         // The wind on the ground, in flight only: around the glider, and

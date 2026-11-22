@@ -35,61 +35,66 @@ struct MapLayersSheet: View {
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
 
     var body: some View {
+        let words = mapLayersWords()
         NavigationStack {
             VentiList {
                 Section {
                     Toggle(isOn: shown($hidesAirspace)) {
-                        Label("Airspace", image: "icon-airspace")
+                        Label(words.airspace, image: "icon-airspace")
                     }
                     .accessibilityIdentifier("layer-airspace")
                     if offers.hasServer {
                         Toggle(isOn: shown($hidesPilots)) {
-                            Label("Pilots", image: "icon-live")
+                            Label(words.pilots, image: "icon-live")
                         }
                         .accessibilityIdentifier("layer-pilots")
-                        Toggle("Cables", isOn: shown($hidesCables))
+                        Toggle(words.cables, isOn: shown($hidesCables))
                             .accessibilityIdentifier("layer-cables")
                     }
                     // The ground under everything: the drawn map, or
                     // photographs from above.
                     Toggle(isOn: $showsAerial) {
-                        Label("Aerial view", image: "icon-layers")
+                        Label(words.aerialView, image: "icon-layers")
                     }
                     .accessibilityIdentifier("map-aerial")
+                } header: {
+                    Text(words.onTheMap)
                 }
                 Section {
                     if offers.hasServer {
                         // Everything the arrows say, as a list: for reading
                         // the numbers side by side, and for pilots who use
                         // VoiceOver.
-                        row("Wind stations", icon: Image("icon-wind"), opens: .stations)
+                        row(words.windStations, icon: Image("icon-wind"), opens: .stations)
                     }
                     if offers.sites {
                         // The signs on the map, as a list.
-                        row("Flying sites", icon: Image("icon-site"), opens: .sites)
+                        row(words.flyingSites, icon: Image("icon-site"), opens: .sites)
                     }
                     if offers.sitesFilter {
                         // Which of the sites the map and the list show.
-                        row("Filter the sites", icon: Image(systemName: SitesFilterIcon.name), value: filterWords, opens: .sitesFilter)
+                        row(words.filterSites, icon: Image(systemName: SitesFilterIcon.name), value: filterWords, opens: .sitesFilter)
                             .accessibilityIdentifier("sites-filter")
                     }
                     if offers.pilots {
                         // Who is in the air on this part of the map, and
                         // how many in the core's words.
-                        row("Pilots in the air", icon: Image("icon-live"), value: pilotsWords, opens: .pilots)
+                        row(words.pilotsInTheAir, icon: Image("icon-live"), value: pilotsWords, opens: .pilots)
                     }
                     if offers.plans {
                         // Who flies where today and on the days ahead: the
                         // plans of the pilot's groups.
-                        row("Flying plans", icon: Image(systemName: "calendar"), opens: .plans)
+                        row(words.flyingPlans, icon: Image(systemName: "calendar"), opens: .plans)
                     }
+                } header: {
+                    Text(words.listsTitle)
                 }
             }
-            .navigationTitle("Layers")
+            .navigationTitle(words.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }
@@ -152,11 +157,11 @@ struct MapCreditsSheet: View {
     /// Who made the photographs in view, while the aerial view is on.
     var photos = ""
 
-    /// The base map and the terrain, as "Data and licences" names them.
-    private static let map = [
-        "Base map: © OpenStreetMap contributors. Tiles from OpenFreeMap, © OpenMapTiles.",
-        "Terrain: © Mapterhorn.",
-    ]
+    /// The base map and the terrain, in the core's words.
+    private static var map: [String] {
+        let words = mapLayersWords()
+        return [words.baseMapCredit, words.terrainCredit]
+    }
 
     @Environment(\.dismiss) private var dismiss
 
@@ -193,11 +198,11 @@ struct MapCreditsSheet: View {
                     Text("Map")
                 }
             }
-            .navigationTitle("Credits")
+            .navigationTitle(mapLayersWords().creditsTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(commonWords().done) {
                         dismiss()
                     }
                 }

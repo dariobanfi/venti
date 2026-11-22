@@ -14,11 +14,12 @@ struct CockpitDetailsSheet: View {
 
     var body: some View {
         let rows = Self.rows(of: fly.view)
+        let words = cockpitDetailsWords()
         NavigationStack {
             VentiList {
                 Section {
                     if rows.isEmpty {
-                        Text("Nothing to show yet.")
+                        Text(words.noneYet)
                             .foregroundStyle(.venti(.textSecondary))
                             .accessibilityIdentifier("cockpit-details-none")
                     }
@@ -37,12 +38,12 @@ struct CockpitDetailsSheet: View {
                         .accessibilityIdentifier("cockpit-detail")
                     }
                 } footer: {
-                    if rows.contains(where: { $0.name == "Airspeed" }) {
-                        Text("Airspeed and heading are estimates: your way over the ground less the wind last measured.")
+                    if rows.contains(where: { $0.name == words.airspeed }) {
+                        Text(words.note)
                     }
                 }
             }
-            .navigationTitle("Details")
+            .navigationTitle(words.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -57,14 +58,16 @@ struct CockpitDetailsSheet: View {
     /// The rows the view has words for, in a fixed order.
     static func rows(of view: CockpitView?) -> [(name: String, words: String)] {
         guard let view else { return [] }
+        // The names are the core's; it has none for the wind's row.
+        let words = cockpitDetailsWords()
         let all: [(String, String?)] = [
             ("Wind", view.windWords),
-            ("Airspeed", view.airspeedWords),
-            ("Heading", view.headingWords),
-            ("Altitude", view.altitudeSourceWords),
-            ("QNH", view.qnhWords),
-            ("Air", view.nettoWords),
-            ("Speed to fly", view.speedToFly?.words),
+            (words.airspeed, view.airspeedWords),
+            (words.heading, view.headingWords),
+            (words.altitude, view.altitudeSourceWords),
+            (words.qnh, view.qnhWords),
+            (words.air, view.nettoWords),
+            (words.speedToFly, view.speedToFly?.words),
         ]
         return all.compactMap { name, words in
             words.map { (name: name, words: $0) }

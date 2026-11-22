@@ -245,7 +245,7 @@ struct MapScreen: View {
                 Button {
                     showsLayers = true
                 } label: {
-                    Label("Layers", image: "icon-layers")
+                    Label(mapLayersWords().title, image: "icon-layers")
                 }
                 .buttonStyle(.ventiRound)
                 .accessibilityIdentifier("map-layers")
@@ -581,17 +581,18 @@ struct MapScreen: View {
                 // two layers switched most. The other layers are switches
                 // in the layers sheet.
                 if wind.server != nil {
+                    let names = mapLayersWords()
                     // The kind of day, square by square: off until the
                     // pilot switches it on.
-                    VentiChip(title: "Forecast", icon: "icon-forecast", isOn: $showsForecast)
+                    VentiChip(title: names.forecast, icon: "icon-forecast", isOn: $showsForecast)
                         .accessibilityIdentifier("forecast-chip")
-                    VentiChip(title: "Wind", icon: "icon-wind", isOn: shown($hidesWind))
+                    VentiChip(title: names.wind, icon: "icon-wind", isOn: shown($hidesWind))
                         .accessibilityIdentifier("layer-wind")
                     // The rain the radars saw: off until the pilot
                     // switches it on. The pack has no sign for rain.
-                    VentiChip(title: "Radar", isOn: $showsRadar)
+                    VentiChip(title: names.radar, isOn: $showsRadar)
                         .accessibilityIdentifier("radar-chip")
-                    VentiChip(title: "Sites", icon: "icon-site", isOn: shown($hidesSites))
+                    VentiChip(title: names.sites, icon: "icon-site", isOn: shown($hidesSites))
                         .accessibilityIdentifier("layer-sites")
                 }
             }
@@ -721,7 +722,7 @@ struct MapScreen: View {
             Button {
                 showsCredits = true
             } label: {
-                Label("Credits", systemImage: "info.circle")
+                Label(mapLayersWords().creditsTitle, systemImage: "info.circle")
                     .labelStyle(.iconOnly)
                     .font(.venti(.footnote))
                     .foregroundStyle(.venti(.textSecondary))

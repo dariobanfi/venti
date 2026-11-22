@@ -365,6 +365,13 @@ private struct SignedInView: View {
                 }
                 .disabled(signedIn.needsSignIn)
                 .accessibilityIdentifier("alerts-link")
+                // What the pilot was told: who follows them, who cheered
+                // a flight of theirs or wrote under one.
+                NavigationLink(Social.words.notificationsTitle) {
+                    NotificationsScreen()
+                }
+                .disabled(signedIn.needsSignIn)
+                .accessibilityIdentifier("account-notifications")
             }
 
             Section {
@@ -491,6 +498,10 @@ struct ShareFlightSheet: View {
                                 .font(.venti(.footnote))
                                 .textSelection(.enabled)
                             ShareLink("Share the link", item: link)
+                        }
+                        // Whether other pilots can write under it.
+                        if sharing.visibility == .public, !sharing.flightId.isEmpty {
+                            CommentsSwitchSection(flight: sharing.flightId)
                         }
                     }
                 } else {

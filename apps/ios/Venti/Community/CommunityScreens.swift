@@ -58,7 +58,7 @@ struct PublicFlightsList: View {
                 }
             }
         }
-        .searchable(text: $typed, placement: .navigationBarDrawer(displayMode: .always), prompt: "Pilot")
+        .searchable(text: $typed, placement: .navigationBarDrawer(displayMode: .always), prompt: pilotsWords().searchPlaceholder)
         .autocorrectionDisabled()
         .textInputAutocapitalization(.never)
         .onChange(of: typed) { _, typed in
@@ -197,6 +197,12 @@ struct PublicFlightScreen: View {
                     flight: view, analysis: analysis, airspaceCheck: nil,
                     airspace: airspace.shapes(in: view.bounds.grown(by: 0.2), below: airspaceCeilingM)
                 )
+                // Under the head: who cheered, the cheer, and the way to
+                // the comments, between the map's two upper corners.
+                .overlay(alignment: .top) {
+                    FlightSocialBar(flight: flight)
+                        .padding(.horizontal, VentiSize.touch + VentiSpace.s5)
+                }
             }
         }
         .navigationTitle(flight.pilot)
@@ -276,10 +282,16 @@ struct PilotFlightsScreen: View {
     @State private var statistics: PilotStatistics?
     /// The year of the season whose totals are shown; 0 is all years.
     @State private var year: Int32 = 0
+    /// Who follows the pilot and whom they follow, once Venti has said.
+    @State private var follows: FollowList?
+
+    @Environment(AccountModel.self) private var account
+    @Environment(WindModel.self) private var wind
 
     var body: some View {
         VentiList {
-            if let statistics, !flights.isEmpty {
+            FollowSection(handle: pilot.handle, follows: $follows)
+            if let statistics, !flights.isEmpty || year != 0 {
                 PilotTotalsSections(statistics: statistics, year: $year)
             }
             Section {
@@ -308,15 +320,20 @@ struct PilotFlightsScreen: View {
         }
         .listStyle(.insetGrouped)
         .overlay {
-            if flights.isEmpty, !isLoading {
+            if flights.isEmpty, !isLoading, year == 0 {
                 ContentUnavailableView(
                     "No public flights",
                     systemImage: "person",
                     description: Text(problem ?? "This pilot shares no flight with everyone at the moment.")
                 )
+                // Under the counts and the follow button, which a pilot
+                // who shares nothing has too.
+                .padding(.top, follows == nil ? 0 : VentiSize.touch * 2)
             }
         }
-        .navigationTitle(pilot.name)
+        // A page opened by the handle alone has the name once a flight
+        // is read.
+        .navigationTitle(flights.first?.pilot ?? pilot.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -330,16 +347,28 @@ struct PilotFlightsScreen: View {
         .sheet(item: $reporting) { reported in
             ReportSheet(reported: reported)
         }
+        // A season narrows the flights under the totals to its own;
+        // all years are the pilot's page again.
+        .onChange(of: year) {
+            flights = []
+            next = nil
+            Task {
+                await load()
+            }
+        }
         .task(id: pilot.handle) {
             flights = []
             next = nil
             statistics = nil
             year = 0
+            follows = nil
+            async let counts = try? Social(account: account, wind: wind).follows(pilot.handle)
             // The totals beside the flights: the page is the flights'
             // where Venti does not add them up.
             async let totals = try? community.statistics(of: pilot.handle)
             await load()
             statistics = await totals
+            follows = await counts
         }
     }
 
@@ -347,15 +376,28 @@ struct PilotFlightsScreen: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
+        // The season chosen, where it is one: its bounds are the core's.
+        let asked = year
+        let season = statistics?.seasons.first { $0.year == asked }
         do {
-            let page = try await community.pilot(pilot.handle, after: flights.isEmpty ? nil : next)
+            let after = flights.isEmpty ? nil : next
+            let page: (flights: [PublicFlight], next: String?)
+            if let season {
+                let found = try await community.pilot(
+                    pilot.handle, fromUnixS: season.fromUnixS, toUnixS: season.toUnixS, after: after
+                )
+                page = (found.flights, found.next)
+            } else {
+                let found = try await community.pilot(pilot.handle, after: after)
+                page = (found.flights, found.next)
+            }
+            // Another season was chosen while this was under way.
+            guard asked == year else { return }
             flights += page.flights
             next = page.next
             problem = nil
         } catch {
-            problem = error is CoreError
-                ? error.words
-                : "The server could not be reached. \(error.localizedDescription)"
+            problem = error is CoreError ? error.words : pilotsWords().unreachable
         }
     }
 }

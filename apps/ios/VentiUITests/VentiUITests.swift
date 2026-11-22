@@ -2429,13 +2429,180 @@ final class VentiUITests: XCTestCase {
         let ofPilot = labelled(containing: "Flights of", in: app)
         XCTAssertTrue(ofPilot.waitForExistence(timeout: 10))
         ofPilot.tap()
-        XCTAssertTrue(element("pilot-flight-row", in: app).waitForExistence(timeout: 30))
+        // The pilot's totals stand over the flights: the page has come
+        // once a total is there, and the flights are below the screen's
+        // end, where a list has not built them yet.
+        XCTAssertTrue(element("pilot-total", in: app).waitForExistence(timeout: 30))
         sleep(1)
         keepScreenshot("community-3-pilot")
+        let ofTheirs = element("pilot-flight-row", in: app)
+        for _ in 0..<6 where !ofTheirs.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(ofTheirs.waitForExistence(timeout: 10))
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 20))
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
+    }
+
+    /// Pilots among each other, as the development server's demo pilot:
+    /// what the pilot was told, under the account; the demo pilot's own
+    /// flight from one of those lines, with who cheered and the two
+    /// made-up comments, and no cheer button on one's own flight; Timo
+    /// Entwurf's page with its counts and the button that follows him; the
+    /// feed of the pilots the demo pilot follows, with the core's line of
+    /// cheers and comments under a flight; and one of Lena Probe's flights
+    /// cheered and written under. Then the feed in the dark. Skipped
+    /// without a server.
+    func testPilotsFollowCheerAndWriteUnderAFlight() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+
+        // What the pilot was told: a row of the account, the newest line
+        // on top.
+        openTab("Settings", in: app)
+        bring("account-link", into: app).tap()
+        bring("account-notifications", into: app).tap()
+        XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
+        XCTAssertTrue(element("notification", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "Lena Probe (@lena) follows you", in: app).exists)
+        let commented = labelled(containing: "Mara Muster (@mara) commented on your flight", in: app)
+        XCTAssertTrue(commented.exists)
+        XCTAssertTrue(labelled(containing: "Lena Probe (@lena) cheered your flight", in: app).exists)
+        sleep(1)
+        keepScreenshot("social-1-notifications")
+
+        // A line about a flight opens that flight: the pilot's own, so
+        // without a cheer button.
+        commented.tap()
+        let comments = element("flight-comments", in: app)
+        XCTAssertTrue(comments.waitForExistence(timeout: 40))
+        XCTAssertEqual(comments.label, "2 comments")
+        XCTAssertTrue(labelled(containing: "2 pilots cheered", in: app).waitForExistence(timeout: 15))
+        XCTAssertFalse(element("flight-cheer", in: app).exists)
+        sleep(6)
+        keepScreenshot("social-2-own-flight")
+        comments.tap()
+        let count = element("comments-count", in: app)
+        XCTAssertTrue(count.waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Well flown. How was the air above the ridge?", in: app).exists)
+        XCTAssertTrue(labelled(containing: "Mara Muster · ", in: app).exists)
+        // Under one's own flight every comment can be removed, and
+        // another pilot's reported.
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "comment-remove").count, 2)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "comment-report").count, 1)
+        XCTAssertTrue(element("comment-text", in: app).exists)
+        sleep(1)
+        keepScreenshot("social-3-comments")
+        element("comments-close", in: app).tap()
+        XCTAssertTrue(comments.waitForExistence(timeout: 15))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
+
+        // The feed: the flights of the pilots followed, each with what
+        // pilots made of it.
+        openTab("League", in: app)
+        let following = app.buttons["Following"]
+        XCTAssertTrue(following.waitForExistence(timeout: 15))
+        following.tap()
+        let rows = app.descendants(matching: .any).matching(identifier: "feed-row")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 30))
+        let maras = rows.matching(
+            NSPredicate(format: "label CONTAINS 'Mara Muster' AND label CONTAINS 'You and 1 other cheered'")
+        ).firstMatch
+        for _ in 0..<4 where !maras.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(maras.waitForExistence(timeout: 10))
+        XCTAssertTrue(maras.label.contains("1 comment"), maras.label)
+        sleep(1)
+        keepScreenshot("social-4-feed")
+
+        // Another pilot's flight: cheered, and written under.
+        let lenas = rows.matching(NSPredicate(format: "label CONTAINS 'Lena Probe'")).firstMatch
+        for _ in 0..<4 where !isOnScreen(lenas, in: app) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(lenas.waitForExistence(timeout: 10))
+        lenas.tap()
+        let cheer = element("flight-cheer", in: app)
+        XCTAssertTrue(cheer.waitForExistence(timeout: 40))
+        if cheer.label != "Cheered" {
+            cheer.tap()
+        }
+        XCTAssertTrue(
+            app.buttons.matching(NSPredicate(format: "identifier == 'flight-cheer' AND label == 'Cheered'"))
+                .firstMatch.waitForExistence(timeout: 20)
+        )
+        // The pilot alone cheered: the button says it, and no line beside
+        // it says it again.
+        XCTAssertFalse(element("flight-cheers-line", in: app).exists)
+        XCTAssertTrue(comments.waitForExistence(timeout: 15))
+        comments.tap()
+        let text = element("comment-text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 15))
+        text.tap()
+        text.typeText("Nice line along the ridge.")
+        XCTAssertTrue(saying("26 of 500", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(element("comment-notice", in: app).exists)
+        element("comment-send", in: app).tap()
+        XCTAssertTrue(labelled(containing: "Demo Pilot · just now", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(element("comment-remove", in: app).exists)
+        XCTAssertFalse(element("comment-report", in: app).exists)
+        sleep(1)
+        keepScreenshot("social-5-written")
+        element("comments-close", in: app).tap()
+        XCTAssertTrue(comments.waitForExistence(timeout: 15))
+        XCTAssertTrue(comments.label.contains("comment"), comments.label)
+        sleep(4)
+        keepScreenshot("social-6-cheered")
+
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(following.waitForExistence(timeout: 15))
+
+        // A pilot's page, from the field over everyone's flights: the
+        // counts, and the button that follows them.
+        app.buttons["Everyone"].tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap()
+        field.typeText("timo")
+        let timo = labelled(containing: "Timo Entwurf (@timo)", in: app)
+        XCTAssertTrue(timo.waitForExistence(timeout: 30))
+        timo.tap()
+        let follow = element("pilot-follow", in: app)
+        XCTAssertTrue(follow.waitForExistence(timeout: 30))
+        let follows = element("pilot-follows", in: app)
+        XCTAssertTrue(follows.label.contains("Follows"), follows.label)
+        sleep(1)
+        keepScreenshot("social-7-pilot")
+        if follow.label == "Follow" {
+            follow.tap()
+        }
+        XCTAssertTrue(
+            app.buttons.matching(NSPredicate(format: "identifier == 'pilot-follow' AND label == 'Following'"))
+                .firstMatch.waitForExistence(timeout: 20)
+        )
+        XCTAssertTrue(follows.label.contains("1 follower"), follows.label)
+        sleep(1)
+        keepScreenshot("social-8-following")
+
+        // The feed in the dark. A second start is signed out.
+        let dark = launch(bundledMap: true, dark: true, extra: ["--server", server])
+        XCTAssertTrue(dark.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: dark)
+        openTab("League", in: dark)
+        let inTheDark = dark.buttons["Following"]
+        XCTAssertTrue(inTheDark.waitForExistence(timeout: 15))
+        inTheDark.tap()
+        XCTAssertTrue(element("feed-row", in: dark).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("social-9-feed-dark")
     }
 
     /// A long press on the map shows the server's forecast for the place

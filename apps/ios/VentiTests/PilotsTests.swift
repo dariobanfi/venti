@@ -29,7 +29,14 @@ final class PilotsTests: XCTestCase {
                     : (200, Data(PilotsAnswers.statistics.utf8))
             }
             if address.contains("/v1/ranking") {
-                return (200, Data(PilotsAnswers.ranking.utf8))
+                // As Venti does, the answer says the span it counted:
+                // the ranking's heading is the core's title of it.
+                let asked = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                let span = asked
+                    .filter { ["from", "to", "month"].contains($0.name) }
+                    .map { #""\#($0.name)": "\#($0.value ?? "")", "# }
+                    .joined()
+                return (200, Data(PilotsAnswers.ranking.replacingOccurrences(of: #"{"counted""#, with: "{\(span)\"counted\"").utf8))
             }
             return (404, Data())
         }

@@ -573,7 +573,7 @@ struct SiteScreen: View {
             // data it is and under which licence: one tap away, behind a
             // row at the end, in the same words.
             Section {
-                DisclosureGroup("How this is read", isExpanded: $showsHowRead) {
+                DisclosureGroup(siteSheetWords().howReadTitle, isExpanded: $showsHowRead) {
                     VStack(alignment: .leading, spacing: VentiSpace.s3) {
                         // What the layers of the air's picture and the
                         // wind near by are and are not, in the core's

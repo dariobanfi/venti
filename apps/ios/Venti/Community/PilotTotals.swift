@@ -20,6 +20,7 @@ struct PilotTotalsSections: View {
 
     var body: some View {
         let shown = Self.shown(of: statistics, year: year)
+        let words = pilotsWords()
         if !statistics.seasons.isEmpty {
             Section {
                 VentiSegmented(
@@ -28,6 +29,7 @@ struct PilotTotalsSections: View {
                 )
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
+                .accessibilityLabel(words.seasonChoice)
                 .accessibilityIdentifier("pilot-season")
             }
         }
@@ -44,9 +46,14 @@ struct PilotTotalsSections: View {
                     }
                 }
             }
-            if shown.months.contains(where: { $0.flights > 0 }) {
+        }
+        if shown.months.contains(where: { $0.flights > 0 }) {
+            Section {
                 MonthBars(months: shown.months)
                     .padding(.vertical, VentiSpace.s1)
+            } header: {
+                Text(words.monthsTitle)
+                    .textCase(nil)
             }
         }
         Section {
@@ -57,6 +64,11 @@ struct PilotTotalsSections: View {
                     Text(site.words)
                 }
                 .accessibilityIdentifier("pilot-site")
+            }
+        } header: {
+            if !shown.sites.isEmpty {
+                Text(words.sitesTitle)
+                    .textCase(nil)
             }
         } footer: {
             VStack(alignment: .leading, spacing: VentiSpace.s2) {

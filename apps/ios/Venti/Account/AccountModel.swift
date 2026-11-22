@@ -508,11 +508,18 @@ final class AccountModel {
     /// Tells whoever runs the pilot's server that a flight, a pilot's page
     /// or a live track should not be there, and returns in a line what
     /// became of the report. Nothing of it is kept on this iPhone.
-    func report(_ subject: ReportSubject, reason: ReportReason, text: String) async throws -> String {
+    /// A comment is named by its flight (`subject`) and its own address.
+    func report(
+        _ subject: ReportSubject, comment: String? = nil, reason: ReportReason, text: String
+    ) async throws -> String {
         guard let account, isSignedIn else {
             throw URLError(.userAuthenticationRequired)
         }
-        let request = try reportRequest(subject: subject, reason: reason, text: text)
+        let request = if let comment, case .flight(let flight) = subject {
+            try commentReportRequest(flightId: flight, commentId: comment, reason: reason, text: text)
+        } else {
+            try reportRequest(subject: subject, reason: reason, text: text)
+        }
         let (status, body, _) = try await ask(request, of: account.server, timeout: 30)
         return try reportSent(status: status, body: body)
     }

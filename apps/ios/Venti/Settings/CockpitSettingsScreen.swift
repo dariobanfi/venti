@@ -18,16 +18,10 @@ enum GliderChoice {
         }
     }
 
-    /// A class as the menu names it: "None", "EN A", "CCC".
+    /// A class as the menu names it, in the core's words: "None",
+    /// "EN A", "CCC".
     static func name(_ stored: String) -> String {
-        switch stored {
-        case "a": "EN A"
-        case "b": "EN B"
-        case "c": "EN C"
-        case "d": "EN D"
-        case "ccc": "CCC"
-        default: "None"
-        }
+        gliderClassName(class: kind(stored))
     }
 }
 
@@ -43,9 +37,10 @@ struct CockpitSettingsScreen: View {
     @AppStorage(Preferences.cockpitKeepsBrightness) private var keepsBrightness = false
 
     var body: some View {
+        let glider = gliderWords()
         VentiList {
             Section {
-                Picker("Glider class", selection: $gliderClass) {
+                Picker(glider.classTitle, selection: $gliderClass) {
                     ForEach(GliderChoice.stored, id: \.self) { stored in
                         Text(GliderChoice.name(stored)).tag(stored)
                     }
@@ -57,12 +52,15 @@ struct CockpitSettingsScreen: View {
                 Stepper(value: $glideRatio, in: 4...14, step: 0.5) {
                     LabeledContent("Glide ratio", value: Format.glideRatio(glideRatio))
                 }
-                Toggle("Never land (hike and fly)", isOn: $neverLand)
+                Toggle(glider.neverLand, isOn: $neverLand)
                     .accessibilityIdentifier("never-land")
             } header: {
-                Text("Glider")
+                Text(glider.title)
             } footer: {
-                Text("Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit predicts how high you arrive at the place you fly to. The prediction assumes air that neither rises nor sinks on the way. With a glider class the cockpit also says what the air itself does on a glide and when to speed up; its numbers are typical of the class, not your glider's. With \"Never land\" a flight is not ended by itself: landing, walking on and taking off again stay one recording, which you end by hand.")
+                // The first sentences, about the two numbers, are the
+                // app's: the core's footer speaks of the class and of
+                // "Never land".
+                Text("Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit predicts how high you arrive at the place you fly to. The prediction assumes air that neither rises nor sinks on the way. \(glider.footer)")
             }
 
             Section {

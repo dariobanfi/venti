@@ -57,6 +57,11 @@ struct VentiApp: App {
         .backgroundTask(.appRefresh(AlertsModel.refreshTask)) {
             await AlertsModel.refreshInTheBackground()
         }
+        // The home-screen widget's days, brought up to date a few times a
+        // day where the system allows.
+        .backgroundTask(.appRefresh(TakeoffWidgetWriter.refreshTask)) {
+            await TakeoffWidgetWriter.refreshInTheBackground()
+        }
     }
 }
 
@@ -124,6 +129,15 @@ enum Session {
                 }
                 return await wind.serverNowIfRead()
             }
+            // The home-screen widget draws what Today says of the pilot's
+            // own take-offs: written whenever Today has fresh forecasts,
+            // by Today's clock. A test writes nothing into the folder the
+            // widget reads.
+            let widget = TakeoffWidgetWriter(core: core, store: LaunchOptions.isUnderTest ? nil : .shared)
+            widget.server = { wind.server }
+            widget.clock = today.clock
+            today.onLoaded = { Task { await widget.bringUpToDate() } }
+            TakeoffWidgetWriter.running = widget
             // And the forecast map of the map tab.
             let thermals = ThermalMapModel()
             thermals.server = { wind.server }

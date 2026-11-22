@@ -8,6 +8,15 @@
 VENTI_BUNDLE_ID = fly.venti.app
 VENTI_PROFILE =
 
+// The home-screen widget: the profile of its own identifier
+// ($(VENTI_BUNDLE_ID).widget) where signing is manual, and the app group,
+// the folder the app and the widget share (both targets' entitlements and
+// Info.plists name it). A simulator needs neither a team nor a profile for
+// it; a build for an iPhone needs the group on the developer account and in
+// both profiles.
+VENTI_WIDGET_PROFILE =
+VENTI_APP_GROUP = group.$(VENTI_BUNDLE_ID)
+
 // Google's iOS client for "Continue with Google" (the Info.plist's
 // VentiGoogleClientID), and the URL scheme Google sends the pilot back by:
 // the client ID reversed. Not secrets: they ship in every copy of the app.

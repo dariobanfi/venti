@@ -146,6 +146,11 @@ if $unit; then
     grep -E "error: |Executed [0-9]+ tests" "$out/unit.log" | tail -10
     failed=1
   fi
+  # The pictures the unit tests keep (the home-screen widget's face, the
+  # radar's strip) go beside the UI tests' screenshots.
+  if [ -d "$out/unit.xcresult" ]; then
+    xcrun xcresulttool export attachments --path "$out/unit.xcresult" --output-path "$out/attachments-unit" > /dev/null
+  fi
 fi
 
 # Waits until a server answers its health check.
@@ -227,7 +232,7 @@ out, count = pathlib.Path(sys.argv[1]), int(sys.argv[2])
 names = sys.argv[3].strip("|").split("|")[1::2]
 target = out / "screenshots"
 lines, failures = [], 0
-for part in range(1, count + 1):
+for part in ["unit"] + list(range(1, count + 1)):
     source = out / f"attachments-{part}"
     if (source / "manifest.json").exists():
         for test in json.loads((source / "manifest.json").read_text()):

@@ -62,3 +62,16 @@ image "art-valley-strip" "$pack/illustration/valley-strip.svg" original
 image "art-hero-portrait" "$pack/illustration/hero-portrait.svg" original
 
 echo "design: $(find "$catalogue" -name '*.imageset' | wc -l | tr -d ' ') image sets and the app icon in $catalogue"
+
+# The home-screen widget's own catalogue: the three status signs and the
+# sign of a site, which are all it draws of the pack's pictures, under the
+# names the app has them by.
+app="$catalogue"
+catalogue="$root/apps/ios/VentiWidget/Design.xcassets"
+rm -rf "$catalogue"
+mkdir -p "$catalogue"
+cp "$app/Contents.json" "$catalogue/Contents.json"
+for name in good caution danger site; do
+  image "icon-$name" "$pack/icons/$name.svg" template
+done
+echo "design: $(find "$catalogue" -name '*.imageset' | wc -l | tr -d ' ') image sets in $catalogue"

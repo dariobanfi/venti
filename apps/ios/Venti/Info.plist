@@ -87,7 +87,9 @@
 	<string>$(VENTI_GOOGLE_CLIENT_ID)</string>
 	<key>VentiGoogleRedirectScheme</key>
 	<string>$(VENTI_GOOGLE_REDIRECT_SCHEME)</string>
-	<!-- Google sends the pilot back to the app by its reversed client ID. -->
+	<!-- Google sends the pilot back to the app by its reversed client ID.
+	     A tap on the home-screen widget opens the app on Today
+	     (venti://today). -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -98,7 +100,19 @@
 				<string>$(VENTI_GOOGLE_REDIRECT_SCHEME)</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Venti</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>venti</string>
+			</array>
+		</dict>
 	</array>
+	<!-- The folder the app shares with its home-screen widget, from the
+	     build setting VENTI_APP_GROUP (Config/Base.xcconfig). -->
+	<key>VentiAppGroup</key>
+	<string>$(VENTI_APP_GROUP)</string>
 	<!-- The Debug build's Venti, and the tests' servers, are on this Mac
 	     (127.0.0.1) and are reached without encryption. Everything on the
 	     internet is reached over HTTPS only. -->
@@ -121,7 +135,9 @@
 	<false/>
 	<!-- A flight is recorded, the vario sounds and the Bluetooth vario is
 	     heard with the screen off; and the system wakes the app now and
-	     then to fetch what the pilot's alarms fired (AlertsModel). -->
+	     then to fetch what the pilot's alarms fired (AlertsModel) and to
+	     bring the home-screen widget's days up to date
+	     (TakeoffWidgetWriter). -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
@@ -132,6 +148,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).alerts</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).widget-days</string>
 	</array>
 </dict>
 </plist>

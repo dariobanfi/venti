@@ -113,19 +113,23 @@ struct VentiStatus: View {
 
     let kind: Kind
     let word: String
+    /// Lower, for a line among several where a row's height is scarce:
+    /// the home-screen widget's days. The sign, the word and the colours
+    /// are the same.
+    var isCompact = false
 
     var body: some View {
         HStack(spacing: 5) {
             Image(sign)
                 .resizable()
-                .frame(width: 17, height: 17)
+                .frame(width: isCompact ? 14 : 17, height: isCompact ? 14 : 17)
             Text(word)
                 .font(.venti(.subheadline, .semibold))
                 .lineLimit(1)
         }
-        .padding(.leading, 7)
-        .padding(.trailing, 10)
-        .frame(height: 28)
+        .padding(.leading, isCompact ? 5 : 7)
+        .padding(.trailing, isCompact ? 7 : 10)
+        .frame(height: isCompact ? 20 : 28)
         .foregroundStyle(.venti(ink))
         .background(.venti(ground), in: .rect(cornerRadius: VentiRadius.s))
         .accessibilityElement(children: .ignore)

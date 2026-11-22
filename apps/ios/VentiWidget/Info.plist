@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Only what cannot be said as a build setting in project.yml: that this is a
+  WidgetKit extension, the folder it shares with the app, and the design
+  language's typeface. Xcode adds the rest when it builds.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+	<!-- The folder the app writes the widget's days into, from the build
+	     setting VENTI_APP_GROUP (Config/Base.xcconfig). -->
+	<key>VentiAppGroup</key>
+	<string>$(VENTI_APP_GROUP)</string>
+	<!-- The design language's typeface, from design/fonts. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>FiraSans-Regular.ttf</string>
+		<string>FiraSans-Italic.ttf</string>
+		<string>FiraSans-Medium.ttf</string>
+		<string>FiraSans-SemiBold.ttf</string>
+		<string>FiraSans-Bold.ttf</string>
+		<string>FiraSans-BlackItalic.ttf</string>
+	</array>
+</dict>
+</plist>

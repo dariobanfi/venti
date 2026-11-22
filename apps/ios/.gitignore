@@ -6,5 +6,6 @@ Packages/VentiCore/Sources/VentiCore/Generated/
 Packages/VentiCore/.build/
 # Gathered from the design pack (design/) by scripts/build-design.sh.
 Venti/Resources/Design.xcassets/
+VentiWidget/Design.xcassets/
 # Personal signing settings; see Config/Local.example.xcconfig.
 Config/Local.xcconfig

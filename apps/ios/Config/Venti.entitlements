@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The folder the app and its home-screen widget share: the app writes the
+  next days at the pilot's take-offs there, the widget reads them. The
+  group's name follows the bundle identifier (VENTI_APP_GROUP in
+  Base.xcconfig), so it holds no team and no personal data.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(VENTI_APP_GROUP)</string>
+	</array>
+</dict>
+</plist>

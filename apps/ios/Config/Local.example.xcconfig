@@ -22,4 +22,5 @@ VENTI_BUNDLE_ID = fly.venti.app.yourname
 // DEVELOPMENT_TEAM = ABCDE12345
 // CODE_SIGN_IDENTITY = Apple Development
 // VENTI_PROFILE = Name of the provisioning profile
+// VENTI_WIDGET_PROFILE = Name of the profile for the widget (identifier + ".widget")
 // VENTI_BUNDLE_ID = com.example.identifier-in-the-profile

@@ -57,12 +57,17 @@ targets:
         product: VentiCore
       - package: MapLibre
         product: MapLibre
+      # The home-screen widget, carried inside the app.
+      - target: VentiWidget
     settings:
       base:
         # The default, fly.venti.app, is set in Config/Base.xcconfig and is to
         # be confirmed once the venti.fly domain is registered.
         PRODUCT_BUNDLE_IDENTIFIER: $(VENTI_BUNDLE_ID)
         PROVISIONING_PROFILE_SPECIFIER: $(VENTI_PROFILE)
+        # The folder the app and its widget share (VENTI_APP_GROUP, in
+        # Config/Base.xcconfig): the app writes there what the widget draws.
+        CODE_SIGN_ENTITLEMENTS: Config/Venti.entitlements
         # Xcode writes the Info.plist from the keys below and merges in this
         # file, which declares the flight-file type the app opens.
         INFOPLIST_FILE: Venti/Info.plist
@@ -98,6 +103,34 @@ targets:
             echo "error: VENTI_SERVER is empty. The app talks to the Venti it is built with, and this configuration names none: Venti has no public address yet. Set VENTI_SERVER for the configuration in apps/ios/project.yml."
             exit 1
           fi
+  # The home-screen widget "the next days at my take-off". It links no Rust
+  # and asks no server: it draws what the app wrote into the folder the two
+  # share (Venti/Widget/Shared is compiled into both), in the design
+  # language, whose tokens, typeface and four signs it carries
+  # itself (VentiWidget/Design.xcassets, gathered by scripts/build-design.sh).
+  VentiWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: VentiWidget
+      - path: Venti/Widget/Shared
+      - path: Venti/Design/Theme.swift
+      - path: Venti/Design/Components.swift
+      - path: Venti/Design/Format.swift
+      - path: ../../design/tokens/VentiTheme.swift
+      - path: ../../design/fonts
+        includes:
+          - "*.ttf"
+          - "OFL.txt"
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(VENTI_BUNDLE_ID).widget
+        PROVISIONING_PROFILE_SPECIFIER: $(VENTI_WIDGET_PROFILE)
+        INFOPLIST_FILE: VentiWidget/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Venti
+        CODE_SIGN_ENTITLEMENTS: Config/VentiWidget.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
   VentiTests:
     type: bundle.unit-test
     platform: iOS

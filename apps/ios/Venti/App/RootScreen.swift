@@ -92,14 +92,21 @@ struct RootScreen: View {
                 Task { await alerts.sync(notifies: true) }
             } else if phase == .background {
                 alerts.scheduleRefresh()
+                // The home-screen widget, which the pilot may look at next.
+                TakeoffWidgetWriter.running?.leftTheScreen()
             }
         }
         .onChange(of: logbook.view.totals.flights) {
             Task { await account.sync(force: true) }
         }
         // A file opened from Files, Mail or another app: a task, which is
-        // kept and found on the Fly tab, or a flight.
+        // kept and found on the Fly tab, or a flight. Or the widget's tap.
         .onOpenURL { url in
+            // A tap on the home-screen widget: Today.
+            if TakeoffWidget.isTodaysAddress(url) {
+                navigation.tab = .today
+                return
+            }
             if url.pathExtension.lowercased() == "xctsk" {
                 let isKept = tasks.keep(fileAt: url)
                 Self.removeIfInInbox(url)

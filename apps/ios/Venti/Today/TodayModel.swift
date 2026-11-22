@@ -75,6 +75,10 @@ final class TodayModel {
     /// still fetching, and how often.
     @ObservationIgnored var forecastPause = Duration.seconds(5)
     static let forecastTries = 7
+    /// Called when the take-offs have been asked about anew and every
+    /// forecast that came is in: the home-screen widget's days are
+    /// brought up to date then. The app sets this.
+    @ObservationIgnored var onLoaded: () -> Void = {}
 
     @ObservationIgnored private let kept: KeptSitesModel
     @ObservationIgnored private let transport: Transport
@@ -194,6 +198,7 @@ final class TodayModel {
                 }
             }
         }
+        onLoaded()
     }
 
     /// The server's sites for the area the core says Today looks in.
@@ -208,29 +213,51 @@ final class TodayModel {
         )
     }
 
-    /// What the forecast says about a take-off. The first forecast of a
-    /// place is one the server has to fetch: it answers "not yet", and is
-    /// asked again. `nil` when no answer could be read.
+    /// What the forecast says about a take-off. `nil` when no answer could
+    /// be read.
     private func outlook(for site: SiteView, from server: URL, nowUnixS: Int64) async -> SiteOutlook? {
+        guard let answer = await Self.forecastAnswer(
+            for: site, from: server, transport: transport, tries: Self.forecastTries, pause: forecastPause
+        ) else { return nil }
+        return Self.outlook(of: site, in: answer, nowUnixS: nowUnixS)
+    }
+
+    /// The server's answer about the forecast at a take-off. The first
+    /// forecast of a place is one the server has to fetch: it answers
+    /// "not yet", and is asked again, `tries` times in all. `nil` when the
+    /// server could not be asked.
+    nonisolated static func forecastAnswer(
+        for site: SiteView, from server: URL, transport: Transport, tries: Int, pause: Duration
+    ) async -> (status: Int, body: Data)? {
         guard let path = try? forecastPath(lat: site.position.lat, lon: site.position.lon),
               let url = URL(string: server.absoluteString + path)
         else { return nil }
-        var tries = 1
+        var asked = 1
         while true {
             guard let (status, body) = try? await transport(url) else { return nil }
-            if status == 503, tries < Self.forecastTries {
-                tries += 1
-                try? await Task.sleep(for: forecastPause)
+            if status == 503, asked < tries {
+                asked += 1
+                try? await Task.sleep(for: pause)
                 continue
             }
-            let offset = TimeZone.current.secondsFromGMT(for: nowUnixS == 0 ? Date() : Date(timeIntervalSince1970: TimeInterval(nowUnixS)))
-            return try? siteOutlook(
-                status: UInt16(clamping: status), body: body,
-                utcOffsetS: Int32(offset),
-                wind: site.wind, elevationM: site.elevationM,
-                nowUnixS: nowUnixS
-            )
+            return (status, body)
         }
+    }
+
+    /// What the core reads in such an answer about the take-off, from a
+    /// moment on. `nil` when it does not read.
+    nonisolated static func outlook(
+        of site: SiteView, in answer: (status: Int, body: Data), nowUnixS: Int64
+    ) -> SiteOutlook? {
+        let offset = TimeZone.current.secondsFromGMT(
+            for: nowUnixS == 0 ? Date() : Date(timeIntervalSince1970: TimeInterval(nowUnixS))
+        )
+        return try? siteOutlook(
+            status: UInt16(clamping: answer.status), body: answer.body,
+            utcOffsetS: Int32(offset),
+            wind: site.wind, elevationM: site.elevationM,
+            nowUnixS: nowUnixS
+        )
     }
 }
 

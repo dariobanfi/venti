@@ -114,7 +114,7 @@ One family: **Fira Sans** (open licence, files in `fonts/`).
 | Reading | `.v-reading` + `--l`, `--xl` | Value, unit, name |
 | Hour strip | `.v-hours` | Hour, wind arrow, speed, climb bar |
 | Scale legend | `.v-scale` | Next to every coloured layer |
-| Tab bar | `.v-tabs` | Today, Map, Fly, Flights, League |
+| Tab bar | `.v-tabs` | Today, Map, Fly, Flights, Community |
 
 Wind arrows point where the wind **goes**. Text names where it comes **from** ("Wind from W").
 

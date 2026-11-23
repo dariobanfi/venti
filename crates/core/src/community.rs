@@ -90,6 +90,11 @@ pub struct PublicFlight {
     /// one. A shell draws its flag from the code.
     #[uniffi(default = None)]
     pub pilot_country: Option<String>,
+    /// The address of its pilot's picture on the server, relative to it
+    /// (`/v1/pictures/{id}`), if the pilot has one; the shell shows the
+    /// pilot's initials without one.
+    #[uniffi(default = None)]
+    pub pilot_picture: Option<String>,
     /// The class of the glider it was flown on, where it is known; name it
     /// with [`crate::glider_class_name`].
     #[uniffi(default = None)]
@@ -370,6 +375,7 @@ pub(crate) fn row(flight: &Flight) -> PublicFlight {
             .as_deref()
             .and_then(api::country_code),
         pilot_country: flight.pilot.country.as_deref().and_then(api::country_code),
+        pilot_picture: flight.pilot.picture.clone(),
         glider_class: flight
             .glider_class
             .and_then(crate::own_flights::glider_class_kind),

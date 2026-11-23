@@ -11,16 +11,23 @@ cadence_seconds = 86400
 auth = "none"
 # The one answer of a run, every free-flying place of the first region with
 # all its tags and the points of every area, was 276 kB on 2026-11-21. For
-# the box of the three packs of the Alps it was 1.87 MB on 2026-11-22, which
-# is what a server with all three asks for.
+# the box of the three packs of the Alps it was 1.87 MB on 2026-11-22, and
+# 1.86 MB in 46 seconds on 2026-11-23, which is what a server with all three
+# asks for: well inside this bound and the query's 90 seconds.
 max_response_kb = 4096
 
 # The main public instance asks whoever uses it regularly to stay under 100
-# queries a day and to run one at a time. A run needs one request; the
-# budget leaves room for nothing else.
+# queries a day, to run one at a time and to pause after an error. It gives
+# each address two slots ("Rate limit: 2" at /api/status on 2026-11-23) and,
+# to verify on its own pages, answers 429 when both are taken and 504 when
+# it is too busy to take the query; it answered one query in seven with 502
+# on 2026-11-22. A run needs one request; it may ask twice more, one after
+# the other and two minutes apart, after such an answer: three queries on a
+# bad day, one on a good one.
 [rate_limit]
 per_second = 1
-per_hour = 2
+per_hour = 3
+retry_after_seconds = 120
 
 [licence]
 name = "ODbL 1.0"

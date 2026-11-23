@@ -130,6 +130,12 @@ pub struct RateLimit {
     pub per_second: Option<u32>,
     /// Most requests allowed in any one hour.
     pub per_hour: Option<u32>,
+    /// How long to wait, in seconds, before a request the provider answered
+    /// with "come back later" (HTTP 429, 502, 503 or 504) is asked again within
+    /// the same run. Left out, such a request is a failed one at once. The
+    /// retries count against the run's request budget.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_after_seconds: Option<u32>,
 }
 
 /// Licence terms of a source.
@@ -282,6 +288,12 @@ impl Manifest {
         if self.max_response_kb == Some(0) {
             return Err(invalid("max_response_kb is zero; leave it out instead"));
         }
+        if self.rate_limit.retry_after_seconds == Some(0) {
+            return Err(invalid(
+                "rate_limit.retry_after_seconds is zero; a provider that asks to come back \
+                 later is given a pause",
+            ));
+        }
         check_licence(&self.licence, "licence").map_err(|problem| invalid(&problem))?;
         for asset in &self.assets {
             if asset.name.trim().is_empty()
@@ -311,6 +323,14 @@ impl Manifest {
     pub fn max_response_bytes(&self) -> usize {
         let kilobytes = self.max_response_kb.unwrap_or(DEFAULT_MAX_RESPONSE_KB);
         usize::try_from(u64::from(kilobytes) * 1024).unwrap_or(usize::MAX)
+    }
+
+    /// How long a run waits before it asks again what the provider answered
+    /// with "come back later", if the manifest allows asking again.
+    pub fn retry_after(&self) -> Option<std::time::Duration> {
+        self.rate_limit
+            .retry_after_seconds
+            .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
     }
 
     /// The most requests one pipeline run may make without breaking the
@@ -390,6 +410,28 @@ mod tests {
         assert_eq!(manifest.max_response_bytes(), 512 * 1024);
 
         let text = GOOD.replace("auth = \"none\"", "auth = \"none\"\nmax_response_kb = 0");
+        assert!(matches!(
+            Manifest::from_toml(&text),
+            Err(ManifestError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn a_manifest_may_ask_again_after_a_pause() {
+        // Unless it says so, nothing is asked again.
+        let manifest = Manifest::from_toml(GOOD).unwrap();
+        assert_eq!(manifest.retry_after(), None);
+        let written = toml::to_string(&manifest).unwrap();
+        assert!(!written.contains("retry_after_seconds"), "{written}");
+
+        let text = GOOD.replace("per_hour = 240", "per_hour = 240\nretry_after_seconds = 90");
+        let manifest = Manifest::from_toml(&text).unwrap();
+        assert_eq!(
+            manifest.retry_after(),
+            Some(std::time::Duration::from_secs(90))
+        );
+
+        let text = GOOD.replace("per_hour = 240", "per_hour = 240\nretry_after_seconds = 0");
         assert!(matches!(
             Manifest::from_toml(&text),
             Err(ManifestError::Invalid { .. })

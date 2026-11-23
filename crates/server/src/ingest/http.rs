@@ -203,6 +203,10 @@ impl Fetch for HttpFetch {
             last_modified,
         })
     }
+
+    async fn pause(&self, length: Duration) {
+        tokio::time::sleep(length).await;
+    }
 }
 
 /// A request that did not get through, with why. The client's own sentence

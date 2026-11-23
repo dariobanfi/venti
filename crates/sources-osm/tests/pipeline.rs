@@ -4,6 +4,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use chrono::{TimeZone, Utc};
 use serde_json::{Value, json};
@@ -488,6 +489,66 @@ fn an_answer_that_is_not_whole_delivers_nothing() {
     let output = run(&FixtureFetch::new(), &MemoryArchive::default());
     assert!(!output.report.is_healthy());
     assert_eq!(output.report.failures[0].error, "HTTP status 404");
+}
+
+#[test]
+fn a_busy_instance_is_asked_again_two_minutes_on_and_the_run_is_whole() {
+    // The instance has no slot free twice, then answers. The run waits two
+    // minutes before each new try, asks one query at a time, and delivers
+    // what a run that was answered at once delivers.
+    let fetch = FixtureFetch::new()
+        .with_all(fixtures::recorded())
+        .refusing(url(), 429, 2);
+    // (A 502 of an overloaded instance is asked again the same way.)
+    let gateway = FixtureFetch::new()
+        .with_all(fixtures::recorded())
+        .refusing(url(), 502, 1);
+    let answered = run(&gateway, &MemoryArchive::default());
+    assert!(answered.report.is_healthy(), "{:?}", answered.report);
+    assert_eq!(gateway.asked().len(), 2);
+    let output = run(&fetch, &MemoryArchive::default());
+
+    assert!(output.report.is_healthy(), "{:?}", output.report);
+    assert!(output.report.failures.is_empty());
+    assert_eq!(output.report.requests, 3);
+    assert_eq!(fetch.asked(), [url(), url(), url()]);
+    assert_eq!(fetch.pauses(), [Duration::from_secs(120); 2]);
+    assert_eq!(output.sites, recorded_run().sites);
+}
+
+#[test]
+fn an_instance_that_stays_busy_is_asked_three_times_and_the_stored_set_stays() {
+    // Too busy to take the query, three times: the run delivers nothing,
+    // so the sites stored stay as they are, and the report says why.
+    let fetch = FixtureFetch::new()
+        .with_all(fixtures::recorded())
+        .refusing(url(), 504, 3);
+    let output = run(&fetch, &MemoryArchive::default());
+
+    assert!(output.sites.is_empty());
+    assert!(!output.report.is_healthy());
+    assert_eq!(output.report.requests, 3);
+    assert_eq!(fetch.pauses().len(), 2);
+    assert_eq!(output.report.failures.len(), 1);
+    assert_eq!(
+        output.report.failures[0].error,
+        "HTTP status 504, 3 times, 120 s apart"
+    );
+
+    // An answer that is no "come back later" is not asked again.
+    for status in [400, 403, 404] {
+        let fetch = FixtureFetch::new()
+            .with_all(fixtures::recorded())
+            .refusing(url(), status, 1);
+        let output = run(&fetch, &MemoryArchive::default());
+        assert!(output.sites.is_empty(), "{status}");
+        assert_eq!(fetch.asked().len(), 1, "{status}");
+        assert!(fetch.pauses().is_empty(), "{status}");
+        assert_eq!(
+            output.report.failures[0].error,
+            format!("HTTP status {status}")
+        );
+    }
 }
 
 #[test]

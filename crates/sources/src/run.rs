@@ -97,6 +97,10 @@ pub struct RunOutput {
     pub report: RunReport,
 }
 
+/// How often one request is asked in all when its provider keeps answering
+/// "come back later", for a source whose manifest allows asking again.
+const MAX_TRIES: u32 = 3;
+
 /// What the fetching part of a run did.
 pub(crate) struct Fetching {
     pub(crate) requests: usize,
@@ -115,6 +119,13 @@ pub(crate) struct Fetching {
 /// budget derived from the provider's hourly limit, a concurrency cap at
 /// its per-second limit, and the size of one answer that its manifest
 /// allows.
+///
+/// A source whose manifest sets `rate_limit.retry_after_seconds` has a
+/// request that the provider answered with "come back later" (HTTP 429,
+/// 502, 503 or 504) asked again after that pause, as long as the run's budget
+/// has room for it; the last answer is what the report keeps. A run is
+/// still whole or failed: a retry that works delivers the whole answer,
+/// and one that does not is a failed request like any other.
 pub(crate) async fn fetch_all(
     manifest: &Manifest,
     first: Vec<Request>,
@@ -131,10 +142,13 @@ pub(crate) async fn fetch_all(
         .map_or(usize::MAX, |n| n as usize);
     let concurrency = options.concurrency.min(per_second).max(1);
     let max_bytes = manifest.max_response_bytes();
+    let retry_after = manifest.retry_after();
 
     let mut requests = 0;
     let mut budget_exhausted = false;
     let mut failures = Vec::new();
+    // How often each request was answered "come back later", by address.
+    let mut refusals: BTreeMap<String, u32> = BTreeMap::new();
 
     let mut wave = first;
     while !wave.is_empty() {
@@ -157,6 +171,7 @@ pub(crate) async fn fetch_all(
         responses.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut next = Vec::new();
+        let mut again = Vec::new();
         for (request, result) in responses {
             let fail = |error: String| Failure {
                 tag: request.tag.clone(),
@@ -165,6 +180,11 @@ pub(crate) async fn fetch_all(
             };
             let response = match result {
                 Ok(response) => response,
+                Err(error) if retry_after.is_some() && error.asks_to_come_back() => {
+                    *refusals.entry(request.url.clone()).or_default() += 1;
+                    again.push((request, error));
+                    continue;
+                }
                 Err(error) => {
                     failures.push(fail(error.to_string()));
                     continue;
@@ -182,6 +202,30 @@ pub(crate) async fn fetch_all(
             match take(&request, &response) {
                 Ok(follow_up) => next.extend(follow_up),
                 Err(error) => failures.push(fail(error.to_string())),
+            }
+        }
+        // What the provider asked to come back for is asked again after the
+        // pause its manifest names, up to `MAX_TRIES` times in all and if
+        // the budget has room for all of it; otherwise each is a failed
+        // request, with how often it was tried.
+        if let Some(pause) = retry_after.filter(|_| !again.is_empty()) {
+            let tries = |request: &Request| refusals.get(&request.url).copied().unwrap_or(1);
+            let room = again.len() <= budget - requests;
+            if room && again.iter().all(|(request, _)| tries(request) < MAX_TRIES) {
+                fetch.pause(pause).await;
+                next.splice(0..0, again.into_iter().map(|(request, _)| request));
+            } else {
+                for (request, error) in again {
+                    let error = match tries(&request) {
+                        1 => format!("{error}; the run's budget left no request to ask again"),
+                        n => format!("{error}, {n} times, {} s apart", pause.as_secs()),
+                    };
+                    failures.push(Failure {
+                        tag: request.tag,
+                        url: request.url,
+                        error,
+                    });
+                }
             }
         }
         if budget_exhausted {

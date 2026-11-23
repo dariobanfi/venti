@@ -14,10 +14,12 @@ auth = "none"
 # first run against an instance of the operator's own.
 max_response_kb = 131072
 
-# As for the sites: one query at a time, few a day.
+# As for the sites: one query at a time, few a day, and after an answer
+# that asks to come back later one more try, two minutes on.
 [rate_limit]
 per_second = 1
 per_hour = 2
+retry_after_seconds = 120
 
 [licence]
 name = "ODbL 1.0"

@@ -881,7 +881,14 @@ mod tests {
                 .unwrap()
                 .contains("Open Database License")
         );
-        // One request a run, and no second run the same day.
-        assert_eq!(manifest.requests_per_run(), Some(2));
+        // One request a run, and two more at most after the instance asked
+        // to come back later, two minutes apart: never more than three
+        // queries a day, where the main public instance asks for fewer
+        // than 100.
+        assert_eq!(manifest.requests_per_run(), Some(3));
+        assert_eq!(
+            manifest.retry_after(),
+            Some(std::time::Duration::from_secs(120))
+        );
     }
 }

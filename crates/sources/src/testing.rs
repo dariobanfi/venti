@@ -7,6 +7,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::Serialize;
 use venti_domain::{BoundingBox, RADAR_UNSEEN, RadarFrame, Timestamp};
@@ -22,6 +23,13 @@ pub use futures::executor::block_on;
 #[derive(Debug, Default)]
 pub struct FixtureFetch {
     responses: HashMap<String, Fetched>,
+    /// For an address: the status it is refused with, and how many more
+    /// times.
+    refusals: Mutex<HashMap<String, (u16, u32)>>,
+    /// Every request asked, by address, in order.
+    asked: Mutex<Vec<String>>,
+    /// Every pause the pipeline asked for, in order.
+    pauses: Mutex<Vec<Duration>>,
 }
 
 impl FixtureFetch {
@@ -53,6 +61,28 @@ impl FixtureFetch {
         self
     }
 
+    /// Refuses the first `times` requests for a URL with the HTTP status
+    /// `status`, as a provider does that is busy, before it answers with
+    /// what was recorded for it.
+    pub fn refusing(self, url: impl Into<String>, status: u16, times: u32) -> Self {
+        self.refusals
+            .lock()
+            .expect("refusals lock")
+            .insert(url.into(), (status, times));
+        self
+    }
+
+    /// Every request asked so far, by address, in order.
+    pub fn asked(&self) -> Vec<String> {
+        self.asked.lock().expect("asked lock").clone()
+    }
+
+    /// Every pause the pipeline asked for so far, in order. None was
+    /// waited out.
+    pub fn pauses(&self) -> Vec<Duration> {
+        self.pauses.lock().expect("pauses lock").clone()
+    }
+
     /// Records a response for each URL in a list, such as an adapter crate's
     /// `fixtures::recorded()`.
     pub fn with_all<U, B>(self, responses: impl IntoIterator<Item = (U, B)>) -> Self
@@ -68,10 +98,28 @@ impl FixtureFetch {
 
 impl Fetch for FixtureFetch {
     async fn get(&self, request: &Request) -> Result<Fetched, FetchError> {
+        self.asked
+            .lock()
+            .expect("asked lock")
+            .push(request.url.clone());
+        if let Some((status, times)) = self
+            .refusals
+            .lock()
+            .expect("refusals lock")
+            .get_mut(&request.url)
+            .filter(|(_, times)| *times > 0)
+        {
+            *times -= 1;
+            return Err(FetchError::Status(*status));
+        }
         self.responses
             .get(&request.url)
             .cloned()
             .ok_or(FetchError::Status(404))
+    }
+
+    async fn pause(&self, length: Duration) {
+        self.pauses.lock().expect("pauses lock").push(length);
     }
 }
 

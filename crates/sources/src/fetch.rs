@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::time::Duration;
 
 use venti_domain::Timestamp;
 
@@ -25,6 +26,18 @@ pub enum FetchError {
     /// HTTPS, a redirect to another host.
     #[error("not fetched: {0}")]
     Refused(String),
+}
+
+impl FetchError {
+    /// Whether the provider asked to be asked again later: too many
+    /// requests (429), a gateway with nothing behind it for now (502), not
+    /// available for now (503), or a gateway that gave up waiting (504),
+    /// which is how an Overpass instance says that it is too busy to take
+    /// the query. The main public instance answered one query in seven with
+    /// a 502 on 2026-11-22, and the same query a minute later in full.
+    pub fn asks_to_come_back(&self) -> bool {
+        matches!(self, Self::Status(429 | 502 | 503 | 504))
+    }
 }
 
 /// What a provider sent in answer to a request.
@@ -74,5 +87,13 @@ pub trait Fetch: Sync {
             }
             Ok(fetched)
         }
+    }
+
+    /// Waits `length` before a request is asked again. A fetcher that asks
+    /// a network waits here; one that answers from memory has nothing to
+    /// wait for, and by default does not.
+    fn pause(&self, length: Duration) -> impl Future<Output = ()> + Send {
+        let _ = length;
+        async {}
     }
 }

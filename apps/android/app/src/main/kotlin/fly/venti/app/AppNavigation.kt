@@ -62,6 +62,9 @@ enum class SettingsRoute {
     /** Whose data and software the app uses. */
     Credits,
 
+    /** The licences of the software inside the app, a page of "Data and licences". */
+    Licences,
+
     /** The pilot's waypoints. */
     Waypoints,
 
@@ -265,8 +268,13 @@ class AppNavigation {
             true
         }
         tab == AppTab.Today && todayRoute == TodayRoute.Settings && settingsRoute != null -> {
-            // The alarms are a page of the account: back leads there.
-            settingsRoute = if (settingsRoute == SettingsRoute.Alerts) SettingsRoute.Account else null
+            // The alarms are a page of the account, the licences one of the
+            // credits: back leads there.
+            settingsRoute = when (settingsRoute) {
+                SettingsRoute.Alerts -> SettingsRoute.Account
+                SettingsRoute.Licences -> SettingsRoute.Credits
+                else -> null
+            }
             true
         }
         tab == AppTab.Today && todayRoute != null -> {

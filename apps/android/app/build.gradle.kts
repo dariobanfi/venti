@@ -49,6 +49,10 @@ val firebase: Map<String, String> = run {
     )
 }
 
+/** Every version of `gradle/libs.versions.toml`, by its alias: `compose.bom=2026.09.00,…`. */
+val libraryVersions: String = extensions.getByType<VersionCatalogsExtension>().named("libs").let { catalog ->
+    catalog.versionAliases.sorted().joinToString(",") { alias -> "$alias=${catalog.findVersion(alias).get().requiredVersion}" }
+}
 
 android {
     namespace = "fly.venti.app"
@@ -74,6 +78,10 @@ android {
             abiFilters += coreAbis.get()
         }
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
+        // The page "Open-source licences" names each library with the
+        // version it is built with: every version of the catalog, as
+        // "alias=version,…".
+        buildConfigField("String", "LIBRARY_VERSIONS", "\"$libraryVersions\"")
         for (name in listOf("FIREBASE_APP_ID", "FIREBASE_API_KEY", "FIREBASE_PROJECT_ID", "FIREBASE_SENDER_ID")) {
             buildConfigField("String", name, "\"${firebase[name].orEmpty()}\"")
         }
@@ -299,6 +307,10 @@ abstract class SharedAssets : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val fontLicence: RegularFileProperty
 
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val coreNotices: RegularFileProperty
+
     @get:OutputDirectory abstract val assets: DirectoryProperty
 
     @TaskAction
@@ -311,6 +323,9 @@ abstract class SharedAssets : DefaultTask() {
             from(mapRegion) { into("MapDemo") }
             // The licence of the design pack's fonts travels with them.
             from(fontLicence) { into("fonts") }
+            // The notices of the crates compiled into the core, which
+            // "Open-source licences" shows.
+            from(coreNotices) { into("licences") }
             into(assets)
         }
     }
@@ -523,11 +538,12 @@ val designPack = tasks.register<DesignPack>("designPack") {
 // The shared files live in the iOS app's folder, where they were first
 // needed. They are read from there, not copied into the repository again.
 val sharedAssets = tasks.register<SharedAssets>("sharedAssets") {
-    description = "Gathers the sample flight, the map style and the bundled map region."
+    description = "Gathers the sample flight, the map style, the bundled map region and the core's notices."
     sampleFlight = repositoryRoot.file("apps/ios/Venti/Resources/sample.igc")
     mapStyle = repositoryRoot.file("map/style.json")
     mapRegion = repositoryRoot.dir("apps/ios/Venti/Resources/MapDemo")
     fontLicence = repositoryRoot.file("design/fonts/OFL.txt")
+    coreNotices = repositoryRoot.file("licences/core-notices.txt")
     assets = generated.map { it.dir("assets") }
 }
 

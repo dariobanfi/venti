@@ -75,6 +75,7 @@ import fly.venti.app.logbook.TendenciesScreen
 import fly.venti.app.map.MapScreen
 import fly.venti.app.settings.CreditsScreen
 import fly.venti.app.settings.CockpitSettingsScreen
+import fly.venti.app.settings.LicencesScreen
 import fly.venti.app.settings.SettingsScreen
 import fly.venti.app.task.TaskModel
 import fly.venti.app.task.TaskScreen
@@ -519,7 +520,12 @@ private fun Sections(
                     AssistantScreen(session.chat, hasWind = hasServer, bars = bars, onBack = { navigation.back() })
                 }
                 TodayRoute.Settings -> when (navigation.settingsRoute) {
-                    SettingsRoute.Credits -> CreditsScreen(session.wind, onBack = { navigation.back() })
+                    SettingsRoute.Credits -> CreditsScreen(
+                        session.wind,
+                        onLicences = { navigation.settingsRoute = SettingsRoute.Licences },
+                        onBack = { navigation.back() },
+                    )
+                    SettingsRoute.Licences -> LicencesScreen(onBack = { navigation.back() })
                     SettingsRoute.Waypoints -> kept.SaveableStateProvider("waypoints") {
                         WaypointsScreen(session.waypoints, onBack = { navigation.back() })
                     }

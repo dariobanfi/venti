@@ -19,15 +19,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import app.venti.design.VentiSpace
 import fly.venti.app.AppFiles
 import fly.venti.app.AssetFiles
 import fly.venti.app.R
 import fly.venti.app.map.MapStyle
 import fly.venti.app.design.Group
+import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.wind.WindModel
 import fly.venti.app.design.Common
@@ -42,7 +45,7 @@ import fly.venti.app.design.Common
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
+fun CreditsScreen(wind: WindModel, onLicences: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     // The layers of photographs of the shared style, with their wording.
     val photographs = remember {
@@ -189,6 +192,19 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                         "Bridge to the core",
                         "UniFFI, under the Mozilla Public License 2.0.",
                         link = "https://www.mozilla.org/MPL/2.0/",
+                    )
+                }
+            }
+
+            // The licences themselves, with the notices they ask to go
+            // with the app: the core's crates, the map engine, the libraries.
+            Group(Modifier.padding(top = VentiSpace.s5)) {
+                row {
+                    LinkRow(
+                        LicenceWords.TITLE,
+                        R.drawable.ic_chevron_right,
+                        modifier = Modifier.testTag("open-source-licences"),
+                        onClick = onLicences,
                     )
                 }
             }

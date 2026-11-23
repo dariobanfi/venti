@@ -24,6 +24,9 @@ interface AppFiles {
         const val SAMPLE_FLIGHT = "sample.igc"
         const val MAP_STYLE = "style.json"
 
+        /** The notices of the crates compiled into the core (`licences/core-notices.txt` at the repository's root). */
+        const val CORE_NOTICES = "licences/core-notices.txt"
+
         /** The label fonts, and a small map region for tests and offline development. */
         const val MAP_REGION = "MapDemo"
     }

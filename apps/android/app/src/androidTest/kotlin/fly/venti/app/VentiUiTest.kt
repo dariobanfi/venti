@@ -852,6 +852,16 @@ class VentiUiTest {
         waitFor(hasText("©swisstopo", substring = true))
         screen.onNode(hasText("Bayerische Vermessungsverwaltung")).performScrollTo()
         keepScreenshot("$prefix-settings-2b-credits-aerial")
+        // At the foot, the licences of the software inside the app: the
+        // core's crates, the map engine, the libraries, each folded.
+        screen.onNode(hasTestTag("open-source-licences")).performScrollTo()
+        tap(hasTestTag("open-source-licences"))
+        waitForAll(hasTestTag("licences-core"), hasTestTag("licences-maplibre"), hasTestTag("licences-libraries"))
+        tap(hasTestTag("licences-core"))
+        waitFor(hasText("Third-party software in Venti's core"))
+        keepScreenshot("$prefix-settings-2c-licences")
+        tap(described("Back"))
+        waitFor(hasTestTag("open-source-licences"))
         tap(described("Back"))
         waitFor(hasTestTag("kept-sites-link"))
     }

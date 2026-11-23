@@ -123,6 +123,10 @@ android {
         animationsDisabled = true
     }
 
+    // The unit tests compile what the build script takes from buildSrc,
+    // so that its reading of Google's notices is tested.
+    sourceSets.getByName("test").java.srcDir("../buildSrc/src/main/java")
+
     lint {
         // The bridge is generated; its style is not ours to fix.
         checkGeneratedSources = false
@@ -547,8 +551,49 @@ val sharedAssets = tasks.register<SharedAssets>("sharedAssets") {
     assets = generated.map { it.dir("assets") }
 }
 
+/**
+ * The notices Google's libraries carry for what is inside them: every
+ * archive of the release build's libraries that has `third_party_licenses`
+ * gives its notices, and they are written into one file, one entry for each
+ * name (`fly.venti.build.GoogleNotices`, in buildSrc). "Open-source licences"
+ * shows it. A debug build carries the release build's, which are the same
+ * libraries.
+ */
+abstract class GoogleThirdPartyNotices : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val aars: ConfigurableFileCollection
+
+    @get:OutputDirectory abstract val assets: DirectoryProperty
+
+    @TaskAction
+    fun write() {
+        val notices = aars.files.sortedBy { it.name }.flatMap { fly.venti.build.GoogleNotices.read(it) }
+        val folder = assets.get().asFile.resolve("licences")
+        folder.deleteRecursively()
+        folder.mkdirs()
+        folder.resolve("google-third-party.txt").writeText(fly.venti.build.GoogleNotices.write(notices))
+        logger.info("Google's notices: ${fly.venti.build.GoogleNotices.count(notices)} entries")
+    }
+}
+
+val googleNotices = tasks.register<GoogleThirdPartyNotices>("googleNotices") {
+    description = "Gathers the notices Google's libraries carry into one file for the app."
+    aars.from(
+        configurations.named("releaseRuntimeClasspath").map { classpath ->
+            classpath.incoming.artifactView {
+                // Only the Android archives; a plain jar carries no such files.
+                lenient(true)
+                attributes { attribute(Attribute.of("artifactType", String::class.java), "aar") }
+            }.files
+        },
+    )
+    assets = generated.map { it.dir("google-notices") }
+}
+
 androidComponents {
     onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(googleNotices, GoogleThirdPartyNotices::assets)
         variant.sources.jniLibs?.addGeneratedSourceDirectory(coreForAndroid, CoreForAndroid::jniLibs)
         variant.sources.kotlin?.addGeneratedSourceDirectory(coreBindings, CoreBindings::kotlin)
         variant.sources.assets?.addGeneratedSourceDirectory(sharedAssets, SharedAssets::assets)

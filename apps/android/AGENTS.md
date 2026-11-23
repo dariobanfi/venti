@@ -83,13 +83,14 @@ Working notes: what to know before changing the app or its tests. What the app d
 
 ## How the build makes the core
 
-Four tasks in `app/build.gradle.kts` build what the app takes from the rest of the repository; each runs again only when what it reads has changed:
+Five tasks in `app/build.gradle.kts` build what the app takes from the rest of the repository and from its libraries; each runs again only when what it reads has changed:
 
 | Task | What it does |
 |---|---|
 | `coreForAndroid` | `cargo ndk` builds `libventi_core.so` for each ABI in `venti.abis` (`gradle.properties`): `arm64-v8a` and `x86_64`. |
 | `coreBindings` | Builds the core for the build machine and runs UniFFI's generator (the `uniffi-bindgen` program in `tools/uniffi-bindgen-swift`) on it to generate the Kotlin interface, package `fly.venti.core`. Settings in `uniffi.toml`. |
-| `sharedAssets` | Gathers the sample flight, the map style, the bundled map region and the fonts' licence from where the repository keeps them. |
+| `sharedAssets` | Gathers the sample flight, the map style, the bundled map region the fonts' licence and the core's notices (`licences/core-notices.txt`) from where the repository keeps them. |
+| `googleNotices` | Reads `third_party_licenses.txt` and `.json` from every AAR of the release runtime classpath (Google's libraries carry them) and writes one `licences/google-third-party.txt`, one entry for each name. The reading is `GoogleNotices.java` in `buildSrc/` (plain Java, nothing to download), which the unit tests compile too (`GoogleNoticesTest`). |
 | `designPack` | Takes the design pack into the build: its Kotlin tokens, the rest of its tokens as Kotlin, its fonts, its flying icons as vector drawables, the launcher and notification icons. |
 
 Nothing they produce is committed: no generated Kotlin, no compiled core, no second copy of a shared file.
@@ -98,7 +99,7 @@ Nothing they produce is committed: no generated Kotlin, no compiled core, no sec
 
 | Path | What it is |
 |---|---|
-| `app/build.gradle.kts` | The app's build: Android settings, libraries, the four tasks above. Library versions and their licences are in `gradle/libs.versions.toml`. |
+| `app/build.gradle.kts` | The app's build: Android settings, libraries, the five tasks above. Library versions and their licences are in `gradle/libs.versions.toml`. |
 | `uniffi.toml` | How the Kotlin interface of the core is generated. |
 | `app/src/main/AndroidManifest.xml` | Permissions, the one activity and the files it opens, the recording service. |
 | `app/src/main/kotlin/fly/venti/app/` | The entry point (`MainActivity`), what the app holds while it runs (`Session`), its tabs and where the pilot is in them (`RootScreen`, `AppNavigation`), the one place requests to servers leave from (`Http`), and how a secret is kept (`SealedStore`). |

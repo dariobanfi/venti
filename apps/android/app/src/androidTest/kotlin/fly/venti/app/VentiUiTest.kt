@@ -860,6 +860,12 @@ class VentiUiTest {
         tap(hasTestTag("licences-core"))
         waitFor(hasText("Third-party software in Venti's core"))
         keepScreenshot("$prefix-settings-2c-licences")
+        // The notices Google's libraries carry, gathered by the build.
+        tap(hasTestTag("licences-core"))
+        tap(hasTestTag("licences-google"))
+        // The first entry by name; the others are further down the lazy list.
+        waitFor(hasText("Android SDK Platforms"))
+        keepScreenshot("$prefix-settings-2d-licences-google")
         tap(described("Back"))
         waitFor(hasTestTag("open-source-licences"))
         tap(described("Back"))

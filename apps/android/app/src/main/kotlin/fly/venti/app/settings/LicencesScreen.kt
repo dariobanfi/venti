@@ -17,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,32 +39,32 @@ import fly.venti.app.design.Common
 import fly.venti.app.design.DisclosureRow
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionHeader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * "Open-source licences", a page of "Data and licences": the notices the
- * licences of the software inside the app ask to go with it. Three parts,
+ * licences of the software inside the app ask to go with it. Four parts,
  * each folded until opened, so that the short ones are not below the
  * core's long list: the core's crates (the generated file, as it is), the
  * map engine with its licence and copyright lines, and the app's
- * libraries with the full text of each licence once.
+ * libraries with the full text of each licence once, and the notices
+ * Google's libraries carry for what is inside them.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LicencesScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val texts = remember {
-        val files = AssetFiles(context)
-        fun read(path: String) = runCatching { LicenceText.paragraphs(files.text(path)) }.getOrDefault(emptyList())
-        LicenceTexts(
-            core = read(OpenSourceLicences.CORE_NOTICES),
-            mapLibre = read(OpenSourceLicences.MAPLIBRE_TEXT),
-            apache = read(OpenSourceLicences.APACHE_TEXT),
-            bsd3 = read(OpenSourceLicences.BSD_3_TEXT),
-        )
-    }
     var coreOpen by rememberSaveable { mutableStateOf(false) }
     var mapOpen by rememberSaveable { mutableStateOf(false) }
     var librariesOpen by rememberSaveable { mutableStateOf(false) }
+    var googleOpen by rememberSaveable { mutableStateOf(false) }
+    // Each file is read when its part is first opened: Google's is about a
+    // megabyte.
+    val core = rememberParagraphs(OpenSourceLicences.CORE_NOTICES, coreOpen)
+    val mapLibre = rememberParagraphs(OpenSourceLicences.MAPLIBRE_TEXT, mapOpen)
+    val apache = rememberParagraphs(OpenSourceLicences.APACHE_TEXT, librariesOpen)
+    val bsd3 = rememberParagraphs(OpenSourceLicences.BSD_3_TEXT, librariesOpen)
+    val google = rememberParagraphs(OpenSourceLicences.GOOGLE_NOTICES, googleOpen)
     Scaffold(
         topBar = {
             TopAppBar(
@@ -81,36 +82,47 @@ fun LicencesScreen(onBack: () -> Unit) {
             contentPadding = PaddingValues(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s5),
         ) {
             part(LicenceWords.CORE, "licences-core", coreOpen) { coreOpen = it }
-            if (coreOpen) paragraphs(texts.core)
+            if (coreOpen) paragraphs(core)
 
             part(LicenceWords.MAP_ENGINE, "licences-maplibre", mapOpen) { mapOpen = it }
             if (mapOpen) {
                 item { LibraryLine(OpenSourceLicences.mapLibre) }
-                paragraphs(texts.mapLibre)
+                paragraphs(mapLibre)
             }
 
             part(LicenceWords.LIBRARIES, "licences-libraries", librariesOpen) { librariesOpen = it }
             if (librariesOpen) {
                 items(OpenSourceLicences.libraries) { library -> LibraryLine(library) }
                 item { SectionHeader(LicenceWords.APACHE) }
-                paragraphs(texts.apache)
+                paragraphs(apache)
                 item { SectionHeader(LicenceWords.BSD_3) }
-                paragraphs(texts.bsd3)
+                paragraphs(bsd3)
                 item {
                     SectionHeader(LicenceWords.SDK_LICENSE)
                     Link(OpenSourceLicences.SDK_LICENSE_LINK)
                 }
             }
+
+            part(LicenceWords.GOOGLE, "licences-google", googleOpen) { googleOpen = it }
+            if (googleOpen) paragraphs(google)
         }
     }
 }
 
-private class LicenceTexts(
-    val core: List<LicenceParagraph>,
-    val mapLibre: List<LicenceParagraph>,
-    val apache: List<LicenceParagraph>,
-    val bsd3: List<LicenceParagraph>,
-)
+/** A licence file in paragraphs, read off the screen's thread once `wanted`; null until then. */
+@Composable
+private fun rememberParagraphs(path: String, wanted: Boolean): List<LicenceParagraph>? {
+    val files = AssetFiles(LocalContext.current.applicationContext)
+    var paragraphs by remember(path) { mutableStateOf<List<LicenceParagraph>?>(null) }
+    LaunchedEffect(path, wanted) {
+        if (wanted && paragraphs == null) {
+            paragraphs = withContext(Dispatchers.Default) {
+                runCatching { LicenceText.paragraphs(files.text(path)) }.getOrDefault(emptyList())
+            }
+        }
+    }
+    return paragraphs
+}
 
 /** A part's row, which opens and folds it. */
 private fun LazyListScope.part(title: String, tag: String, isOpen: Boolean, onChange: (Boolean) -> Unit) {
@@ -122,8 +134,8 @@ private fun LazyListScope.part(title: String, tag: String, isOpen: Boolean, onCh
 }
 
 /** A licence file, a paragraph to an item: the core's is long. */
-private fun LazyListScope.paragraphs(paragraphs: List<LicenceParagraph>) {
-    items(paragraphs) { paragraph ->
+private fun LazyListScope.paragraphs(paragraphs: List<LicenceParagraph>?) {
+    items(paragraphs.orEmpty()) { paragraph ->
         if (paragraph.isHeading) {
             Text(
                 paragraph.text,

@@ -30,6 +30,13 @@ object OpenSourceLicences {
     const val MAPLIBRE_TEXT = "licences/MapLibre-Native.txt"
     const val CORE_NOTICES = AppFiles.CORE_NOTICES
 
+    /**
+     * The notices Google's libraries carry for what is inside them, gathered
+     * by the build's `googleNotices` task from their `third_party_licenses`
+     * files; never committed.
+     */
+    const val GOOGLE_NOTICES = "licences/google-third-party.txt"
+
     const val APACHE = "Apache-2.0"
     const val BSD_2 = "BSD-2-Clause"
     const val BSD_3 = "BSD-3-Clause"
@@ -84,10 +91,9 @@ object OpenSourceLicences {
         // The copyright line of Protocol Buffers is not in the file the
         // libraries carry: to verify.
         Library("Protocol Buffers, inside Glance and DataStore", null, BSD_3),
-        // Not open source. Google's play-services libraries also carry
-        // third_party_licenses.txt with the notices of what is inside them
-        // (Guava, Protocol Buffers, the Checker Framework …), which the
-        // app does not show yet: to verify what they ask of an app.
+        // Not open source. The notices of what is inside them (Guava,
+        // Protocol Buffers, the Checker Framework …) are the page's fourth
+        // part, [GOOGLE_NOTICES].
         Library("Sign in with Google", versions["googleid"], SDK_LICENSE),
         Library("Google Play services, which Credential Manager and Firebase bring", null, SDK_LICENSE),
     )
@@ -105,6 +111,7 @@ object LicenceWords {
     const val CORE = "Venti's core"
     const val MAP_ENGINE = "MapLibre Native"
     const val LIBRARIES = "Android libraries"
+    const val GOOGLE = "Bundled by Google's libraries"
     const val APACHE = "Apache License 2.0"
     const val BSD_3 = "BSD 3-Clause License"
     const val SDK_LICENSE = "Android Software Development Kit License"

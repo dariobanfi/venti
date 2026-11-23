@@ -35,6 +35,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::process::Command;
 
+/// Data built into a crate that the apps may carry: it fetches nothing and
+/// depends on no crate at all, so it is no way to a provider. The world's
+/// time zones (2026-11-23) give a flight's times by the clock where it was
+/// flown, offline on a phone. Checked below: such a crate has no
+/// dependencies.
+const BUILT_IN_DATA: [&str; 1] = ["venti-sources-timezones"];
+
 /// Crates that assemble the registry and may therefore depend on provider crates.
 const ASSEMBLERS: [&str; 1] = ["venti-server"];
 
@@ -127,7 +134,34 @@ fn workspace_dependencies() -> BTreeMap<String, Vec<String>> {
 }
 
 fn is_provider(name: &str) -> bool {
-    name.starts_with("venti-sources-")
+    name.starts_with("venti-sources-") && !BUILT_IN_DATA.contains(&name)
+}
+
+#[test]
+fn built_in_data_depends_on_nothing() {
+    let output = Command::new(env!("CARGO"))
+        .args(["metadata", "--format-version", "1", "--no-deps"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("cargo metadata runs");
+    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    for package in metadata["packages"].as_array().unwrap() {
+        let name = package["name"].as_str().unwrap();
+        if !BUILT_IN_DATA.contains(&name) {
+            continue;
+        }
+        let normal: Vec<&str> = package["dependencies"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|d| d["kind"].is_null())
+            .map(|d| d["name"].as_str().unwrap())
+            .collect();
+        assert!(
+            normal.is_empty(),
+            "{name} is data the apps carry and must depend on nothing, but depends on {normal:?}"
+        );
+    }
 }
 
 #[test]
@@ -167,8 +201,12 @@ fn crate_dependencies_point_inward() {
                 "venti-leagues",
                 "venti-llm",
                 "venti-tools",
+                // The world's time zones, data built in (`BUILT_IN_DATA`).
+                "venti-sources-timezones",
             ]),
             "venti-core-wasm" => Some(&["venti-core"]),
+            // Data built in depends on nothing (`built_in_data_depends_on_nothing`).
+            data if BUILT_IN_DATA.contains(&data) => Some(&[]),
             // The reader of the HDF5 files that radar products come in
             // stands alone: it knows bytes, no provider and no radar.
             "venti-hdf5" => Some(&[]),

@@ -169,7 +169,7 @@
 					<button
 						class="action"
 						type="button"
-						disabled={account.working || sendingPicture || signedIn.needsSignIn}
+						disabled={account.busy || sendingPicture || signedIn.needsSignIn}
 						onclick={() => picker?.click()}
 					>
 						{sendingPicture ? 'Sending…' : pictureWords.change}
@@ -178,7 +178,7 @@
 						<button
 							class="action destructive"
 							type="button"
-							disabled={account.working || sendingPicture || signedIn.needsSignIn}
+							disabled={account.busy || sendingPicture || signedIn.needsSignIn}
 							onclick={removePicture}
 						>
 							{pictureWords.remove}
@@ -225,7 +225,7 @@
 				<Flag code={signedIn.country} />
 				<select
 					value={signedIn.country ?? ''}
-					disabled={account.working || signedIn.needsSignIn}
+					disabled={account.busy || signedIn.needsSignIn}
 					onchange={(event) => chooseCountry(event.currentTarget.value)}
 				>
 					<option value="">{classes[0]?.name ?? 'None'}</option>
@@ -239,7 +239,7 @@
 			<span>{app.said?.glider.classTitle ?? 'Glider class'}</span>
 			<select
 				value={signedIn.gliderClass ?? ''}
-				disabled={account.working || signedIn.needsSignIn}
+				disabled={account.busy || signedIn.needsSignIn}
 				onchange={(event) => chooseClass(event.currentTarget.value)}
 			>
 				{#each classes as one (one.kind ?? '')}
@@ -273,7 +273,7 @@
 					role="switch"
 					aria-describedby="account-new-flights-line"
 					checked={newFlightsPublic}
-					disabled={account.working || signedIn.needsSignIn}
+					disabled={account.busy || signedIn.needsSignIn}
 					onchange={(event) => switchNewFlights(event.currentTarget.checked)}
 				/>
 			</label>
@@ -289,7 +289,7 @@
 						role="switch"
 						aria-describedby="account-shown-near-line"
 						checked={signedIn.shownNearPlaces ?? true}
-						disabled={account.working || signedIn.needsSignIn}
+						disabled={account.busy || signedIn.needsSignIn}
 						onchange={(event) => switchShownNear(event.currentTarget.checked)}
 					/>
 				</label>
@@ -297,7 +297,7 @@
 			<button
 				class="group-row action"
 				type="button"
-				disabled={account.working || signedIn.needsSignIn}
+				disabled={account.busy || signedIn.needsSignIn}
 				onclick={() => askAllFlights('public')}
 			>
 				{visibilityWords.makeAllPublic}
@@ -305,7 +305,7 @@
 			<button
 				class="group-row action"
 				type="button"
-				disabled={account.working || signedIn.needsSignIn}
+				disabled={account.busy || signedIn.needsSignIn}
 				onclick={() => askAllFlights('private')}
 			>
 				{visibilityWords.makeAllPrivate}
@@ -343,7 +343,7 @@
 				<button
 					class="group-row"
 					type="button"
-					disabled={account.working || signedIn.needsSignIn}
+					disabled={account.busy || signedIn.needsSignIn}
 					onclick={unlinkGoogle}
 				>
 					{words.unlinkGoogle}
@@ -352,7 +352,7 @@
 				<button
 					class="group-row"
 					type="button"
-					disabled={account.working || signedIn.needsSignIn}
+					disabled={account.busy || signedIn.needsSignIn}
 					onclick={() => goToGoogle('link')}
 				>
 					{words.linkGoogle}
@@ -414,7 +414,7 @@
 		<button
 			class="group-row"
 			type="button"
-			disabled={account.working}
+			disabled={account.busy}
 			onclick={() => (confirmingSignOut = true)}
 		>
 			Sign out
@@ -422,7 +422,7 @@
 		<button
 			class="group-row destructive"
 			type="button"
-			disabled={account.working}
+			disabled={account.busy}
 			onclick={askToDelete}
 		>
 			Delete account
@@ -482,7 +482,7 @@
 					<div class="with-google-button">
 						<GoogleButton
 							label={account.googleWords.continueWithGoogle}
-							disabled={account.working}
+							disabled={account.busy}
 							onclick={() => goToGoogle('delete')}
 						/>
 					</div>
@@ -493,11 +493,7 @@
 			{/if}
 		</div>
 		<div class="choices">
-			<button
-				class="choice destructive"
-				type="submit"
-				disabled={account.working || password === ''}
-			>
+			<button class="choice destructive" type="submit" disabled={account.busy || password === ''}>
 				Delete account
 			</button>
 			<button class="choice cancel" type="button" onclick={() => (deleting = false)}

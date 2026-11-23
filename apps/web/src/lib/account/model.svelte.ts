@@ -69,6 +69,12 @@ export class AccountModel {
 
 	/** Whether a request or a sync is under way. */
 	working = $state(false);
+	/** How many changes of the account are on their way to the server. */
+	changing = $state(0);
+	/** Whether a request, a sync or a change is under way: what the account's controls wait for. */
+	get busy(): boolean {
+		return this.working || this.changing > 0;
+	}
 
 	/** Why signing out did not work, in words. */
 	problem = $state.raw<string>();
@@ -277,12 +283,15 @@ export class AccountModel {
 	#changes: Promise<unknown> = Promise.resolve();
 
 	#changeAccount(ask: () => Promise<AccountView | undefined>): Promise<string | undefined> {
+		this.changing += 1;
 		const change = this.#changes.then(async () => {
 			try {
 				this.account = (await ask()) ?? this.account;
 				return undefined;
 			} catch (error) {
 				return words(error);
+			} finally {
+				this.changing -= 1;
 			}
 		});
 		this.#changes = change;

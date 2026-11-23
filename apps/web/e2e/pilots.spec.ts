@@ -150,7 +150,7 @@ test('a pilot’s picture stands beside their name wherever it is, and can be re
 	// On the pilot's page, large, with a report of the picture beside the page's.
 	await page.goto('/logbook/everyone/pilot/?handle=mara');
 	await expect(page.getByRole('heading', { level: 1, name: 'Mara Muster' })).toBeVisible();
-	await expect(page.locator('header .face img')).toHaveAttribute('src', PICTURE);
+	await expect(page.locator('header .face.l img')).toHaveAttribute('src', PICTURE);
 	await keep('64d-pilot-picture');
 	await page.getByRole('button', { name: 'Report picture' }).click();
 	const form = page.getByRole('dialog', { name: 'Report picture' });
@@ -162,7 +162,7 @@ test('a pilot’s picture stands beside their name wherever it is, and can be re
 	// A pilot without a picture has their initials and no such report.
 	await page.goto('/logbook/everyone/pilot/?handle=lena');
 	await expect(page.getByRole('heading', { level: 1, name: 'Lena Probe' })).toBeVisible();
-	await expect(page.locator('header .face')).toHaveText('LP');
+	await expect(page.locator('header .face.l')).toHaveText('LP');
 	await expect(page.getByRole('button', { name: 'Report picture' })).toBeHidden();
 	expect(problems).toEqual([]);
 });

@@ -12,6 +12,7 @@
 	import type { RankedPilot } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import PilotFace from './PilotFace.svelte';
 	import SortHeading from '#lib/design/SortHeading.svelte';
 	import { type Sort, sortBy, sorted } from '#lib/design/sort.ts';
 	import { distance, ordinal, shape } from './words';
@@ -61,7 +62,10 @@
 		{#each rows as pilot (pilot.handle)}
 			<tr>
 				<td class="number place" class:podium={pilot.place <= 3}>{pilot.place}</td>
-				<td class="name"><a href={pilotHref(pilot.handle)}>{pilot.name}</a></td>
+				<td class="name">
+					<PilotFace picture={pilot.picturePath} name={pilot.name} />
+					<a href={pilotHref(pilot.handle)}>{pilot.name}</a>
+				</td>
 				<td class="number">{text.points(pilot.points)}</td>
 				<td class="lesser">{pilot.counted}</td>
 				{#each counts as i (i)}
@@ -133,6 +137,14 @@
 
 	.name a {
 		color: inherit;
+	}
+
+	/* The pilot's face before the name, as small as the row. */
+	.name :global(.face) {
+		width: 1.5rem;
+		height: 1.5rem;
+		margin-right: var(--space-2);
+		vertical-align: middle;
 	}
 
 	.lesser {

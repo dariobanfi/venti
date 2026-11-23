@@ -34,6 +34,7 @@
 	import { NOT_SEARCHED } from '#lib/community/search.ts';
 	import { nothingListed, RECKONING } from '#lib/community/words.ts';
 	import { format } from '#lib/design/format.ts';
+	import ChipTick from '#lib/design/ChipTick.svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import { feedAsList, NO_FEED, saidOf } from '#lib/social/model.svelte.ts';
@@ -185,6 +186,7 @@
 				</button>
 				{#if span}
 					<span class="span numeric">
+						<ChipTick on />
 						{span}
 						<button
 							type="button"
@@ -383,6 +385,10 @@
 		height: 1.75rem;
 		border-radius: 50%;
 		color: inherit;
+	}
+
+	.span :global(.tick) {
+		margin-inline-end: 0;
 	}
 
 	.span button :global(svg) {

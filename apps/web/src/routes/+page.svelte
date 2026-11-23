@@ -309,7 +309,10 @@
 								<tr>
 									<td class="place">{pilot.place}</td>
 									<th scope="row" class="name">
-										<a href={pilotHref(pilot.handle)}>{pilot.name}</a>
+										<span class="named">
+											<PilotFace picture={pilot.picturePath} name={pilot.name} />
+											<a href={pilotHref(pilot.handle)}>{pilot.name}</a>
+										</span>
 									</th>
 									<td class="quiet words">{pilot.counted}</td>
 									<td class="number">{text.points(pilot.points)}</td>

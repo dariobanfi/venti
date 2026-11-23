@@ -80,6 +80,8 @@ test('the pilots are ranked by their best flights, in a year or in all years', a
 	await expect(pilots(page).last()).toContainText('Ines Vorlage');
 	await expect(pilots(page).last()).toContainText('1 flight');
 	await expect(counted(page, 'Demo Pilot')).toHaveCount(1);
+	// Each pilot with their face: the picture, or the initials.
+	await expect(pilots(page).nth(2).locator('.face')).toHaveCount(1);
 	// The rule, and whose reckoning it is, is said under the list.
 	await expect(page.getByText(/best 3 flights shared with everyone, added up/)).toBeVisible();
 	await expect(

@@ -32,6 +32,7 @@
 		SiteWords,
 		SiteWritten
 	} from '#lib/core/index.ts';
+	import ChipTick from '#lib/design/ChipTick.svelte';
 	import { format } from '#lib/design/format.ts';
 	import type { SiteDraft } from './edit.svelte';
 
@@ -191,6 +192,7 @@
 							aria-pressed={draft.uses.includes(use.kind)}
 							onclick={() => toggleUse(use.kind)}
 						>
+							<ChipTick on={draft.uses.includes(use.kind)} />
 							{use.words}
 						</button>
 					{/each}
@@ -236,6 +238,7 @@
 							aria-pressed={draft.windFromDeg.includes(wind.fromDeg)}
 							onclick={() => toggleWind(wind.fromDeg)}
 						>
+							<ChipTick on={draft.windFromDeg.includes(wind.fromDeg)} />
 							{wind.words}
 						</button>
 					{/each}

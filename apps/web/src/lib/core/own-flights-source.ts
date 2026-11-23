@@ -34,9 +34,9 @@ import {
 	ownFlights,
 	ownFlightsRequest,
 	ownHabitsRequest,
+	ownStatistics,
 	ownStatisticsRequest,
 	ownTendencies,
-	pilotStatistics,
 	type PilotStatistics,
 	publicFlight,
 	type ServerRequest,
@@ -165,13 +165,13 @@ export class OwnFlightsSource {
 	}
 
 	/**
-	 * What all the account's flights add up to, the private ones too, as the
-	 * core reads a pilot's statistics. Nothing when this browser is not
-	 * signed in.
+	 * What all the account's flights add up to, the private ones too, with
+	 * the core's note that says so. Nothing when this browser is not signed
+	 * in.
 	 */
 	async statistics(): Promise<PilotStatistics | undefined> {
 		const answer = await this.#ask(ownStatisticsRequest());
-		return answer && pilotStatistics(answer.status, answer.body);
+		return answer && ownStatistics(answer.status, answer.body);
 	}
 
 	/**

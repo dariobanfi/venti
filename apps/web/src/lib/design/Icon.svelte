@@ -28,7 +28,6 @@
 		filter: 'M4 7h16M7 12h10M10 17h4',
 		settings: 'M4 7h8M16 7h4M4 12h2M10 12h10M4 17h10M18 17h2M14 4.5v5M8 9.5v5M16 14.5v5',
 		link: 'M10.5 13.5a4 4 0 0 0 5.66 0l2.84-2.84a4 4 0 0 0-5.66-5.66l-.84.84M13.5 10.5a4 4 0 0 0-5.66 0L5 13.34A4 4 0 0 0 10.66 19l.84-.84',
-		check: 'M5 12.5 10 17.5 19 7',
 		copy: 'M9 8.5h10.5V20H9V8.5ZM15 5H4.5v11.5',
 		person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.5 20a7.5 7.5 0 0 1 15 0',
 		// Lucide's "users": the pack has no icon for pilots among each other.
@@ -69,6 +68,7 @@
 		league: drawing('league'),
 		forecast: drawing('forecast'),
 		good: drawing('good'),
+		check: drawing('check'),
 		danger: drawing('danger'),
 		arrowWind: drawing('arrow-wind'),
 		takeoff: drawing('takeoff'),

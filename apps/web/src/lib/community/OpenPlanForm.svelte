@@ -227,7 +227,7 @@
 					aria-describedby="{id}-who"
 					bind:value={note}></textarea>
 			</div>
-			<p class="group-note" id="{id}-who">{model.publicWords ?? ''}</p>
+			<p class="group-note" id="{id}-who">{editing?.publicWords || model.publicWords || ''}</p>
 			{#if problem}
 				<p class="group-note refusal" role="alert">{problem}</p>
 			{/if}

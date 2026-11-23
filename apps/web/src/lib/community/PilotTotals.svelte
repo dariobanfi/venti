@@ -1,6 +1,7 @@
 <!--
-	What a pilot's public flights add up to, as the core gives it
-	(`pilotStatistics`): the choice of all years or one, the numbers as
+	What a pilot's flights add up to, as the core gives it (`pilotStatistics`
+	for a pilot's public flights, `ownStatistics` for the pilot's own, each
+	with its own note): the choice of all years or one, the numbers as
 	labelled rows (a row about one flight opens that flight), the take-offs
 	flown from most, the twelve months as the bars a site's flights have,
 	and under them what the numbers are made of and the flights' terms.
@@ -27,21 +28,9 @@
 		 * a wide screen the numbers then stand beside the sites and months.
 		 */
 		whole?: boolean;
-		/**
-		 * Whether these are the flights the pilot shares with everyone, which
-		 * the core's note under them says. Not the pilot's own statistics,
-		 * which count the private flights too: the note would be wrong there.
-		 */
-		shared?: boolean;
 	}
 
-	let {
-		statistics,
-		onseason,
-		flightHref = publicFlightHref,
-		whole = false,
-		shared = true
-	}: Props = $props();
+	let { statistics, onseason, flightHref = publicFlightHref, whole = false }: Props = $props();
 
 	/** The headings and the choice's name are the core's (`pilotsWords`). */
 	const said = $derived(getApp().everyone?.pilotsWords);
@@ -115,7 +104,7 @@
 		<MonthBars months={view.months} />
 	</div>
 
-	{#if statistics.note && shared}
+	{#if statistics.note}
 		<p class="footnote">{statistics.note}</p>
 	{/if}
 	<!-- Under what the flights are given: behind the core's title for it. -->

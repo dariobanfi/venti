@@ -11,6 +11,7 @@
 	import type { RankedPilot } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import PilotFace from './PilotFace.svelte';
 	import { distance, shape } from './words';
 
 	interface Props {
@@ -31,6 +32,7 @@
 				<span class="visually-hidden">Place</span>
 				{pilot.place}
 			</span>
+			<PilotFace picture={pilot.picturePath} name={pilot.name} />
 			<div class="who">
 				<div class="head">
 					<span class="name">
@@ -89,7 +91,7 @@
 		content: '';
 		position: absolute;
 		top: 0;
-		left: 3.5rem;
+		left: 6.25rem;
 		right: 0;
 		border-top: 0.5px solid var(--separator);
 	}

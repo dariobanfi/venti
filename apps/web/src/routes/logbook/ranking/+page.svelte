@@ -22,6 +22,7 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
 	import { nothingRanked } from '#lib/community/words.ts';
+	import ChipTick from '#lib/design/ChipTick.svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
 
@@ -115,6 +116,7 @@
 							if (ranking.askedMonth) askMonth(ranking.askedMonth);
 						}}
 					>
+						<ChipTick on={ranking.askedMonth === ''} />
 						{ranking.wholeName}
 					</button>
 				{/if}
@@ -126,6 +128,7 @@
 						aria-label={month.words}
 						onclick={() => askMonth(month.month)}
 					>
+						<ChipTick on={month.month === ranking.askedMonth} />
 						{month.name}
 					</button>
 				{/each}

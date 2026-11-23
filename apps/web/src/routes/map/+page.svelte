@@ -25,6 +25,7 @@
 		SiteWritten,
 		WindStation
 	} from '#lib/core/index.ts';
+	import ChipTick from '#lib/design/ChipTick.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
@@ -1425,6 +1426,7 @@
 					onclick={() => chooseWhat(one.what)}
 				>
 					<Icon name={one.icon} />
+					<ChipTick on={what === one.what} />
 					{one.name}
 				</button>
 			{/each}
@@ -2075,6 +2077,16 @@
 	.chip :global(svg) {
 		width: 1.125rem;
 		height: 1.125rem;
+	}
+
+	/* The tick of an "on" chip: the pack's 16 px, spaced by the chip's gap. */
+	.chip :global(.tick) {
+		margin-inline-end: 0;
+	}
+
+	.chip :global(.tick svg) {
+		width: 1rem;
+		height: 1rem;
 	}
 
 	/* At a phone's width the four share the row and none is cut off; with

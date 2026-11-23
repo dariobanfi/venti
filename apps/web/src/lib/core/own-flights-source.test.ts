@@ -122,7 +122,7 @@ describe('the pilot’s own flights on the server', () => {
 		expect(JSON.parse(server.asked[0].body!)).toMatchObject({ glider_class: expect.anything() });
 	});
 
-	it('add up all the account’s flights, the private ones too, as a pilot’s statistics', async () => {
+	it('add up all the account’s flights, the private ones too, with the core’s note that says so', async () => {
 		const server = played({
 			'GET /v1/account/statistics': () => ok(recorded('account_statistics.json'))
 		});
@@ -131,6 +131,9 @@ describe('the pilot’s own flights on the server', () => {
 		const statistics = await source.statistics();
 
 		expect(statistics?.overall.rows.length).toBeGreaterThan(0);
+		// The core's note is the pilot's own, not a public pilot's.
+		expect(statistics?.note).toMatch(/private ones too/);
+		expect(statistics?.note).not.toMatch(/shared with everyone/);
 		expect(server.asked).toEqual([{ line: 'GET /v1/account/statistics', token: TOKEN }]);
 	});
 

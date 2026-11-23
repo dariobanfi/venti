@@ -59,6 +59,9 @@ test('four chips choose what the map shows, one sheet switches its layers, and t
 	const chips = page.getByRole('group', { name: 'What the map shows' }).getByRole('button');
 	await expect(chips).toHaveText([/Wind/, /Thermals/, /Rain/, /Cloud/]);
 	await expect(chip(page, 'Wind')).toHaveAttribute('aria-pressed', 'true');
+	// An "on" chip carries the tick before its word, never its colour alone.
+	await expect(chip(page, 'Wind').locator('.tick')).toHaveCount(1);
+	await expect(chip(page, 'Thermals').locator('.tick')).toHaveCount(0);
 	await expect(page.locator('.controls > button')).toHaveCount(3);
 	// No banner over the map: the gliders of other networks show when the map is close.
 	await expect(page.getByText(/Zoom in to see the gliders/)).toHaveCount(0);

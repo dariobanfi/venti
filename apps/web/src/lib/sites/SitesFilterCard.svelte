@@ -31,6 +31,7 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import ChipTick from '#lib/design/ChipTick.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import type { SitesModel } from './model.svelte';
 	import SitesFilterLine from './SitesFilterLine.svelte';
@@ -106,6 +107,7 @@
 					onclick={() => sites.choose({ windIs: 'chosen', windFromDeg: undefined })}
 					use:inView
 				>
+					<ChipTick on={choice.windIs === 'chosen' && choice.windFromDeg === undefined} />
 					{choices.anyWind}
 				</button>
 				{#each windsNow as now (now.windIs)}
@@ -116,6 +118,7 @@
 						onclick={() => sites.choose({ windIs: now.windIs, windFromDeg: undefined })}
 						use:inView
 					>
+						<ChipTick on={choice.windIs === now.windIs} />
 						{now.words}
 					</button>
 				{/each}
@@ -127,6 +130,7 @@
 						onclick={() => sites.choose({ windIs: 'chosen', windFromDeg: wind.fromDeg })}
 						use:inView
 					>
+						<ChipTick on={choice.windIs === 'chosen' && choice.windFromDeg === wind.fromDeg} />
 						{wind.words}
 					</button>
 				{/each}

@@ -205,8 +205,8 @@
 					</a>
 				{/if}
 			</div>
-			{#if model.publicWords && !shown.amIn}
-				<p class="group-note">{model.publicWords}</p>
+			{#if shown.publicWords && !shown.amIn}
+				<p class="group-note">{shown.publicWords}</p>
 			{/if}
 		</section>
 

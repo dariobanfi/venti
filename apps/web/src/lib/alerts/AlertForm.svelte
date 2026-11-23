@@ -17,6 +17,7 @@
 	import { untrack } from 'svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { AlertDraft, AlertFaultView } from '#lib/core/index.ts';
+	import ChipTick from '#lib/design/ChipTick.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import type { AlertsModel } from './model.svelte';
 
@@ -227,13 +228,14 @@
 						class="chip"
 						type="button"
 						aria-pressed={draft.kind === 'day'}
-						onclick={() => ofKind('day')}>{dayKind}</button
+						onclick={() => ofKind('day')}><ChipTick on={draft.kind === 'day'} />{dayKind}</button
 					>
 					<button
 						class="chip"
 						type="button"
 						aria-pressed={draft.kind === 'pilots'}
-						onclick={() => ofKind('pilots')}>{words.pilotsKind}</button
+						onclick={() => ofKind('pilots')}
+						><ChipTick on={draft.kind === 'pilots'} />{words.pilotsKind}</button
 					>
 				</div>
 			{/if}
@@ -273,14 +275,16 @@
 							class="chip"
 							type="button"
 							aria-pressed={draft.fromPoint === undefined}
-							onclick={() => from(undefined)}>{words.any}</button
+							onclick={() => from(undefined)}
+							><ChipTick on={draft.fromPoint === undefined} />{words.any}</button
 						>
 						{#each points as point, index (point)}
 							<button
 								class="chip"
 								type="button"
 								aria-pressed={draft.fromPoint === index}
-								onclick={() => from(index)}>{point}</button
+								onclick={() => from(index)}
+								><ChipTick on={draft.fromPoint === index} />{point}</button
 							>
 						{/each}
 					</div>
@@ -292,7 +296,8 @@
 									class="chip"
 									type="button"
 									aria-pressed={draft.toPoint === index}
-									onclick={() => (draft.toPoint = index)}>{point}</button
+									onclick={() => (draft.toPoint = index)}
+									><ChipTick on={draft.toPoint === index} />{point}</button
 								>
 							{/each}
 						</div>
@@ -371,7 +376,8 @@
 								class="chip"
 								type="button"
 								aria-pressed={draft.daysAhead.includes(index)}
-								onclick={() => toggleDay(index)}>{day}</button
+								onclick={() => toggleDay(index)}
+								><ChipTick on={draft.daysAhead.includes(index)} />{day}</button
 							>
 						{/each}
 					</div>
@@ -386,7 +392,8 @@
 								class="chip"
 								type="button"
 								aria-pressed={draft.atLeast === one.kind}
-								onclick={() => (draft.atLeast = one.kind)}>{one.name}</button
+								onclick={() => (draft.atLeast = one.kind)}
+								><ChipTick on={draft.atLeast === one.kind} />{one.name}</button
 							>
 						{/each}
 					</div>

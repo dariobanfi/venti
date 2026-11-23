@@ -10,6 +10,8 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import FaceStack from '#lib/community/FaceStack.svelte';
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import type { CheerList, CommentDraft, CommentList, CommentRow } from '#lib/core/index.ts';
@@ -120,6 +122,8 @@
 				count: state.cheers,
 				line: state.line
 			};
+			// Who cheered is read again, so that the pilot's own face comes or goes.
+			cheers = await social.core.cheers(flightId);
 		} catch (error) {
 			problem = told(error);
 		} finally {
@@ -179,6 +183,7 @@
 						{cheers.button}
 					</button>
 				{/if}
+				<FaceStack pilots={cheers.pilots} />
 				<p class="line numeric" role="status">{cheers.line}</p>
 			</div>
 		{/if}
@@ -189,7 +194,10 @@
 				<ul aria-labelledby="{id}-title">
 					{#each comments.comments as comment (comment.id)}
 						<li>
-							<p class="byline">{comment.byline}</p>
+							<p class="byline">
+								<PilotFace picture={comment.picturePath} name={comment.name} />
+								<span>{comment.byline}</span>
+							</p>
 							<p class="text">{comment.text}</p>
 							{#if signedIn}
 								<p class="acts">
@@ -311,9 +319,22 @@
 	}
 
 	.byline {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		font-size: var(--footnote);
 		color: var(--text-secondary);
 		overflow-wrap: anywhere;
+	}
+
+	.byline span {
+		min-width: 0;
+	}
+
+	/* The author's face before the byline, as small as a row's. */
+	.byline :global(.face) {
+		width: 1.5rem;
+		height: 1.5rem;
 	}
 
 	/* Another pilot's plain text, with its line breaks. */

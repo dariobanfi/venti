@@ -17,6 +17,7 @@
 	import { tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import ChipTick from '#lib/design/ChipTick.svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import { keyColor, NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
 	import { format } from '#lib/design/format.ts';
@@ -236,6 +237,7 @@
 				aria-pressed={gusts}
 				onclick={() => ongusts(!gusts)}
 			>
+				<ChipTick on={gusts} />
 				{gustsName}
 			</button>
 		</div>

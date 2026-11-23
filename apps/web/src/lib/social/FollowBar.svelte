@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import FaceStack from '#lib/community/FaceStack.svelte';
 	import type { FollowList } from '#lib/core/index.ts';
 
 	interface Props {
@@ -79,6 +80,7 @@
 {#if follows}
 	<div class="follow">
 		<p class="counts numeric">
+			<FaceStack pilots={follows.pilots} />
 			<span>{follows.followersLine}</span>
 			<span aria-hidden="true">·</span>
 			<span>{follows.followingLine}</span>
@@ -112,6 +114,7 @@
 	.counts {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: center;
 		gap: var(--space-1) var(--space-2);
 		font-size: var(--subheadline);
 		color: var(--text-secondary);

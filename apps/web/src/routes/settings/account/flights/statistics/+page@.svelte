@@ -1,8 +1,9 @@
 <!--
 	What all the pilot's flights add up to, the private ones too: the
 	account's statistics as the server adds them up and the core reads them
-	(`ownStatisticsRequest`, `pilotStatistics`), shown as a pilot's public
-	totals are (`PilotTotals.svelte`). Every word and number is the core's.
+	(`ownStatisticsRequest`, `ownStatistics`, whose note under them says
+	that the private flights count too), shown as a pilot's public totals
+	are (`PilotTotals.svelte`). Every word and number is the core's.
 
 	It belongs to My flights and is drawn whole-width as it is, out of the
 	settings' frame. A row about one flight opens it among the pilot's own.
@@ -87,8 +88,7 @@
 	</header>
 
 	{#if phase.is === 'loaded'}
-		<p class="said">All your flights, the private ones too.</p>
-		<PilotTotals statistics={phase.statistics} flightHref={myFlightHref} whole shared={false} />
+		<PilotTotals statistics={phase.statistics} flightHref={myFlightHref} whole />
 		<!-- What the flights say about how the pilot flies, on a page of its own. -->
 		<a class="group-card group-row how" href={howYouFlyHref()}>
 			<span>How you fly</span>

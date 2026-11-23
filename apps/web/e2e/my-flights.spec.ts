@@ -202,6 +202,10 @@ test('the statistics add up all the pilot’s flights, the private ones too', as
 	const flights = totals.locator('dl .row').filter({ hasText: /^Flights/ });
 	await expect(flights.locator('dd')).toHaveText('1');
 	await expect(totals.locator('dl .row').filter({ hasText: /^Airtime/ })).toBeVisible();
+	// The core's note under them is the pilot's own.
+	await expect(
+		totals.getByText(/^Of all your flights on the server, the private ones too/)
+	).toBeVisible();
 	await keep('09-my-statistics');
 
 	// The logbook's old address of its statistics leads here.

@@ -5468,6 +5468,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `GET /v1/account/following` | `social:read` |
 | `GET /v1/account/feed` | `social:read` |
 | `GET /v1/account/notifications` | `social:read` |
+| `GET /v1/account/unread` | `social:read` |
+| `PUT /v1/account/unread` | `social:write` |
 | `PUT /v1/flights/{id}/cheer` | `social:write` |
 | `DELETE /v1/flights/{id}/cheer` | `social:write` |
 | `POST /v1/flights/{id}/comments` | `social:write` |
@@ -8039,6 +8041,48 @@ curl http://127.0.0.1:8080/v1/account/notifications \
 | `comment` | For a comment, its identifier. The words are read where the [comments](#get-v1flightsidcommentsafterlimit) are, and are not there once the comment is removed |
 
 A pilot is told when a follow or a cheer is new: following or cheering again while it stands tells nothing, and one that was taken back and is given again tells again. Nobody is told of what they did themselves. What an account was told goes when the account that did it is deleted.
+
+### `GET` and `PUT /v1/account/unread`
+
+Needs a token. How much is new for the pilot, the same on every device: the lines of [`GET /v1/account/notifications`](#get-v1accountnotificationssincelimit) and of [`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit) that came after the account's mark of what the pilot saw, of the 30 days each is kept. An app reads it for a badge when it comes to the front, and moves the mark with `PUT` once the pilot has opened the lists; the mark is kept on the server, so the pilot's other devices show the same. Nothing is pushed.
+
+```bash
+curl http://127.0.0.1:8080/v1/account/unread \
+  -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
+```
+
+The demo account's, before its pilot saw anything:
+
+```json
+{
+  "notifications": 4,
+  "alarms": 1,
+  "total": 5
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `notifications` | New lines of what the account was told |
+| `alarms` | New lines of what its alarms fired. `0` for a token without `alerts:read` |
+| `total` | The two together |
+
+Each count stops at 100, and 100 means 100 or more; an app shows "99+" beyond 99. An account that never moved its mark has seen nothing, so everything kept counts; the accounts there were when the mark came (migration `0033`) began with everything up to then seen.
+
+`PUT` moves the mark and answers the count after it, in the same shape. The body may be left out, and then both lists are seen up to their newest line. With a body, it names up to where the pilot saw each list:
+
+```json
+{
+  "notifications_cursor": "1795026000000000"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `notifications_cursor` | The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown. Left out: up to the newest |
+| `alarms_cursor` | The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown. Left out: up to the newest |
+
+Sending the cursors of what was shown keeps a line that came in between the list's answer and the `PUT` new. The mark only moves forward: a cursor before it changes nothing, and one beyond the newest line is taken as the newest. A cursor that is not one of those answers' gives `400` with `invalid_cursor`. A token needs `social:write`; without `alerts:read` it leaves the alarms' mark where it is. Neither request is counted against a bound of its own: the count reads at most 100 lines of each list.
 
 ## Public flights
 

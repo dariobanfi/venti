@@ -68,7 +68,7 @@ use venti_core::{AllFlightsSet, FlightVisibilityWords};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{
     CheerList, CheerState, CommentDraft, CommentList, CommentPosted, CommentsSwitch, Feed,
-    FollowList, FollowState, Notifications,
+    FollowList, FollowState, Notifications, Unread,
 };
 use venti_core::{
     CockpitDetailsWords, CockpitSourceWords, CommonWords, GliderClassKind, GliderWords,
@@ -3830,6 +3830,31 @@ pub fn notifications(
     now_unix_s: f64,
 ) -> Result<Ts<Notifications>, JsValue> {
     to_js(&venti_core::notifications(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+/// The request for how much is new for the signed-in pilot, the same on
+/// every device. The answer is read by `unread`.
+#[wasm_bindgen(js_name = unreadRequest)]
+pub fn unread_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::unread_request())
+}
+
+/// The request that the pilot saw the notifications and the alarms, up to
+/// the cursors of the answers they were shown, each left out for up to the
+/// newest. The answer is read by `unread`.
+#[wasm_bindgen(js_name = unreadSeenRequest)]
+pub fn unread_seen_request(
+    notifications_cursor: Option<String>,
+    alarms_cursor: Option<String>,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::unread_seen_request(notifications_cursor, alarms_cursor).map_err(thrown)?)
+}
+
+/// Reads the answer to `unreadRequest` and `unreadSeenRequest`: the counts
+/// and the badge, "5" or "99+".
+#[wasm_bindgen]
+pub fn unread(status: u16, body: Vec<u8>) -> Result<Ts<Unread>, JsValue> {
+    to_js(&venti_core::unread(status, body).map_err(thrown)?)
 }
 
 // The pilot's own flights on the server, for a page that keeps no

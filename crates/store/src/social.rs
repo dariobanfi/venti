@@ -183,3 +183,13 @@ pub struct Notices {
     /// The largest number the account's notices have used, zero if none.
     pub latest: i64,
 }
+
+/// How much is new for an account: its notices and what its alarms fired
+/// after the account's mark of what the pilot saw.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Unread {
+    /// Notices after the mark, at most the `most` asked for.
+    pub notices: u32,
+    /// Fired alarms after the mark, at most the `most` asked for.
+    pub fired: u32,
+}

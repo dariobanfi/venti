@@ -4492,6 +4492,20 @@
       "social:write"
     ]
   },
+  "SeenRequest": {
+    "type": "object",
+    "description": "The body of `PUT /v1/account/unread`, which may be left out: up to where the pilot saw each list. A list left out is seen up to its newest line. The mark only moves forward.",
+    "properties": {
+      "notifications_cursor": {
+        "type": "string",
+        "description": "The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown."
+      },
+      "alarms_cursor": {
+        "type": "string",
+        "description": "The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown."
+      }
+    }
+  },
   "Session": {
     "type": "object",
     "properties": {
@@ -6061,6 +6075,29 @@
       "times_s",
       "fixes",
       "every"
+    ]
+  },
+  "UnreadResponse": {
+    "type": "object",
+    "description": "How much is new for the account since the pilot last saw it, the same on every device. Each count stops at 100, which means 100 or more.",
+    "properties": {
+      "notifications": {
+        "type": "integer",
+        "description": "Lines of `GET /v1/account/notifications` after the pilot's mark, of the 30 days they are kept."
+      },
+      "alarms": {
+        "type": "integer",
+        "description": "Lines of `GET /v1/account/alerts/fired` after the pilot's mark, of the 30 days they are kept. Zero for a token without `alerts:read`."
+      },
+      "total": {
+        "type": "integer",
+        "description": "The two together, stopping at 100."
+      }
+    },
+    "required": [
+      "notifications",
+      "alarms",
+      "total"
     ]
   },
   "UpdateAccountRequest": {

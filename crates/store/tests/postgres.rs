@@ -176,7 +176,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         versions,
         [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31, 32
+            25, 26, 27, 28, 29, 30, 31, 32, 33
         ]
     );
 }
@@ -207,6 +207,7 @@ async fn accounts_from_before_the_setting_make_their_new_flights_public() {
          DROP TABLE help_positions;
          DROP TABLE nearby_settings;
          DROP TABLE phone_devices;
+         DROP TABLE seen_marks;
          DELETE FROM schema_migrations WHERE version >= 27;
          INSERT INTO accounts (id, handle, display_name, created_at)
              VALUES ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00');",
@@ -227,6 +228,55 @@ async fn accounts_from_before_the_setting_make_their_new_flights_public() {
         .unwrap();
     assert!(!off.new_flights_public);
     assert_eq!(store.account("dario").await.unwrap(), Some(off));
+}
+
+#[tokio::test]
+async fn accounts_from_before_the_mark_have_seen_what_they_were_told() {
+    let Some(url) = fresh_schema("upgrade_from_32").await else {
+        return;
+    };
+    // A database as the server left it before migration 33, with an
+    // account that was told something and one that was told nothing.
+    drop(PgStore::connect(&url).await.unwrap());
+    let old = look(&url).await;
+    old.batch_execute(
+        "DROP TABLE seen_marks;
+         DELETE FROM schema_migrations WHERE version >= 33;
+         INSERT INTO accounts (id, handle, display_name, created_at) VALUES
+             ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00'),
+             ('0000000000000000000000anna', 'anna', 'Anna', '2026-11-18 09:00+00');
+         INSERT INTO notice_numbers VALUES ('000000000000000000000dario', 7);
+         INSERT INTO notices VALUES
+             ('000000000000000000000dario', 7, '0000000000000000000000anna',
+              '2026-11-18 10:00+00', '{}');",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+    let from = chrono::DateTime::from_timestamp(0, 0).unwrap();
+    let unread = store
+        .unread("000000000000000000000dario", from, from, 100)
+        .await
+        .unwrap();
+    assert_eq!((unread.notices, unread.fired), (0, 0));
+    // What comes after the migration counts.
+    assert!(
+        store
+            .add_notice(
+                "000000000000000000000dario",
+                "0000000000000000000000anna",
+                chrono::DateTime::from_timestamp(1_795_000_000, 0).unwrap(),
+                "{}",
+            )
+            .await
+            .unwrap()
+    );
+    let unread = store
+        .unread("000000000000000000000dario", from, from, 100)
+        .await
+        .unwrap();
+    assert_eq!(unread.notices, 1);
 }
 
 #[tokio::test]

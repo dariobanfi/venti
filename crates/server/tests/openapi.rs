@@ -681,6 +681,8 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         "/v1/flights/{id}/comments",
         Answer(200),
     ),
+    ("unread.json", "get", "/v1/account/unread", Answer(200)),
+    ("seen_request.json", "put", "/v1/account/unread", Request),
     (
         "notifications.json",
         "get",

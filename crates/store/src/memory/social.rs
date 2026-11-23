@@ -353,6 +353,31 @@ impl Social {
         }
     }
 
+    /// How many notices of an account come after `after` and are at or
+    /// after `from`, up to `most`.
+    pub(super) fn count_notices(
+        &self,
+        account_id: &str,
+        after: i64,
+        from: Timestamp,
+        most: u32,
+    ) -> u32 {
+        self.notices.get(account_id).map_or(0, |told| {
+            let found = told
+                .notices
+                .range(after.saturating_add(1)..)
+                .filter(|(_, (_, notice))| notice.at >= from)
+                .take(most as usize)
+                .count();
+            u32::try_from(found).unwrap_or(most)
+        })
+    }
+
+    /// The largest number an account's notices used, zero if none.
+    pub(super) fn latest_notice(&self, account_id: &str) -> i64 {
+        self.notices.get(account_id).map_or(0, |told| told.latest)
+    }
+
     pub(super) fn prune_notices(&mut self, before: Timestamp) -> u64 {
         let mut removed = 0;
         for told in self.notices.values_mut() {

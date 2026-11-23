@@ -112,6 +112,7 @@ mod social;
 mod stations;
 mod takeoffs;
 mod thermals;
+mod unread;
 mod wire;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -877,6 +878,10 @@ impl<S: Store> Api<S> {
             .route(
                 venti_api_types::v1::ACCOUNT_FEED_PATH,
                 get(social::feed::<S>),
+            )
+            .route(
+                venti_api_types::v1::ACCOUNT_UNREAD_PATH,
+                get(unread::show::<S>).put(unread::seen::<S>),
             )
             .route(
                 venti_api_types::v1::ACCOUNT_NOTIFICATIONS_PATH,

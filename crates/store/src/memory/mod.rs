@@ -84,6 +84,9 @@ struct Inner {
     push: push::Push,
     phones: phones::Phones,
     social: social::Social,
+    /// By account: the numbers of the notices and of the fired alarms
+    /// the pilot saw up to.
+    seen: BTreeMap<String, (i64, i64)>,
 }
 
 #[derive(Debug)]
@@ -741,6 +744,7 @@ impl Store for MemoryStore {
         inner.alerts.delete_account(account_id);
         inner.push.delete_account(account_id);
         inner.phones.delete_account(account_id);
+        inner.seen.remove(account_id);
         Ok(())
     }
 
@@ -1285,6 +1289,45 @@ impl Store for MemoryStore {
 
     async fn prune_notices(&self, before: Timestamp) -> Result<u64, StoreError> {
         Ok(self.lock().social.prune_notices(before))
+    }
+
+    async fn unread(
+        &self,
+        account_id: &str,
+        notices_from: Timestamp,
+        fired_from: Timestamp,
+        most: u32,
+    ) -> Result<crate::Unread, StoreError> {
+        let inner = self.lock();
+        let (notices, fired) = inner.seen.get(account_id).copied().unwrap_or_default();
+        Ok(crate::Unread {
+            notices: inner
+                .social
+                .count_notices(account_id, notices, notices_from, most),
+            fired: inner
+                .alerts
+                .count_fired(account_id, fired, fired_from, most),
+        })
+    }
+
+    async fn mark_seen(
+        &self,
+        account_id: &str,
+        notices: Option<i64>,
+        fired: Option<i64>,
+        _now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        let inner = &mut *self.lock();
+        if inner.accounts.by_id(account_id).is_none() {
+            return Ok(false);
+        }
+        let latest_notice = inner.social.latest_notice(account_id);
+        let latest_fired = inner.alerts.latest_fired(account_id);
+        let mark = inner.seen.entry(account_id.to_owned()).or_default();
+        let up_to = |asked: Option<i64>, latest: i64| asked.unwrap_or(latest).min(latest);
+        mark.0 = mark.0.max(up_to(notices, latest_notice));
+        mark.1 = mark.1.max(up_to(fired, latest_fired));
+        Ok(true)
     }
 
     async fn prune_fired_alerts(&self, before: Timestamp) -> Result<u64, StoreError> {

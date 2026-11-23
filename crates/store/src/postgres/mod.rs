@@ -18,6 +18,7 @@ mod pictures;
 mod pilot_sites;
 mod push;
 mod reports;
+mod seen;
 mod sites;
 mod social;
 mod takeoffs;
@@ -1214,6 +1215,33 @@ impl Store for PgStore {
 
     async fn prune_notices(&self, before: Timestamp) -> Result<u64, StoreError> {
         social::prune_notices(&self.client().await?, before).await
+    }
+
+    async fn unread(
+        &self,
+        account_id: &str,
+        notices_from: Timestamp,
+        fired_from: Timestamp,
+        most: u32,
+    ) -> Result<crate::Unread, StoreError> {
+        seen::unread(
+            &self.client().await?,
+            account_id,
+            notices_from,
+            fired_from,
+            most,
+        )
+        .await
+    }
+
+    async fn mark_seen(
+        &self,
+        account_id: &str,
+        notices: Option<i64>,
+        fired: Option<i64>,
+        now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        seen::mark_seen(&self.client().await?, account_id, notices, fired, now).await
     }
 
     async fn prune_fired_alerts(&self, before: Timestamp) -> Result<u64, StoreError> {

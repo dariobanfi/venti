@@ -783,6 +783,15 @@
       }
     }
   },
+  "get /v1/account/unread": {
+    "200": {
+      "unread": {
+        "alarms": 1,
+        "notifications": 4,
+        "total": 5
+      }
+    }
+  },
   "get /v1/airspace": {
     "200": {
       "airspace": {
@@ -8157,6 +8166,13 @@
           "lat": 47.2694,
           "lon": 11.4041
         }
+      }
+    }
+  },
+  "put /v1/account/unread": {
+    "request": {
+      "seen_request": {
+        "notifications_cursor": "1795026000000000"
       }
     }
   },

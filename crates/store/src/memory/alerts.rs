@@ -131,6 +131,30 @@ impl Alerts {
         }
     }
 
+    /// How many fired alarms of an account come after `after` and fired
+    /// at or after `from`, up to `most`.
+    pub(super) fn count_fired(
+        &self,
+        account_id: &str,
+        after: i64,
+        from: Timestamp,
+        most: u32,
+    ) -> u32 {
+        self.fired.get(account_id).map_or(0, |(_, fired)| {
+            let found = fired
+                .range(after.saturating_add(1)..)
+                .filter(|(_, fired)| fired.fired_at >= from)
+                .take(most as usize)
+                .count();
+            u32::try_from(found).unwrap_or(most)
+        })
+    }
+
+    /// The largest number an account's fired alarms used, zero if none.
+    pub(super) fn latest_fired(&self, account_id: &str) -> i64 {
+        self.fired.get(account_id).map_or(0, |(latest, _)| *latest)
+    }
+
     pub(super) fn prune(&mut self, before: Timestamp) -> u64 {
         let mut removed = 0;
         for (_, fired) in self.fired.values_mut() {

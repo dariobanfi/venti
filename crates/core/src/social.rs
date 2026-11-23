@@ -944,6 +944,75 @@ pub fn notifications(
     })
 }
 
+// --- What is new -------------------------------------------------------------
+
+/// The request for how much is new for the signed-in pilot, the same on
+/// every device: notifications and fired alarms after the pilot's mark.
+/// Send it when the app comes to the front; read the answer with
+/// [`unread`].
+#[uniffi::export]
+pub fn unread_request() -> ServerRequest {
+    bare("GET", api::ACCOUNT_UNREAD_PATH.to_owned(), true)
+}
+
+/// The request that the pilot saw the lists: up to the `cursor` of the
+/// last answer of [`notifications_request`] and of the alarms' fetch that
+/// the pilot was shown, each `None` for up to the newest. Send it once
+/// the pilot opened the notifications; read the answer with [`unread`].
+#[uniffi::export]
+pub fn unread_seen_request(
+    notifications_cursor: Option<String>,
+    alarms_cursor: Option<String>,
+) -> Result<ServerRequest, CoreError> {
+    let request = api::SeenRequest {
+        notifications_cursor: cursor(notifications_cursor),
+        alarms_cursor: cursor(alarms_cursor),
+    };
+    json_request("PUT", api::ACCOUNT_UNREAD_PATH, &request, true)
+}
+
+/// How much is new for the pilot, for a badge.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct Unread {
+    /// New notifications.
+    pub notifications: u32,
+    /// New lines of what the alarms fired.
+    pub alarms: u32,
+    /// The two together.
+    pub total: u32,
+    /// What the badge says: "3", "99+"; absent when nothing is new and
+    /// no badge is shown.
+    pub badge: Option<String>,
+    /// What a screen reader says of it: "3 new"; absent with the badge.
+    pub label: Option<String>,
+}
+
+/// The badge of a count: none for nothing, the number up to 99, "99+"
+/// beyond.
+fn badge(count: u32) -> Option<String> {
+    match count {
+        0 => None,
+        1..=99 => Some(count.to_string()),
+        _ => Some("99+".to_owned()),
+    }
+}
+
+/// Reads the answer to [`unread_request`] and to [`unread_seen_request`].
+#[uniffi::export]
+pub fn unread(status: u16, body: Vec<u8>) -> Result<Unread, CoreError> {
+    let response: api::UnreadResponse = answer(status, &body)?;
+    let badge = badge(response.total);
+    Ok(Unread {
+        notifications: response.notifications,
+        alarms: response.alarms,
+        total: response.total,
+        label: badge.as_ref().map(|badge| format!("{badge} new")),
+        badge,
+    })
+}
+
 // --- Words of the screens --------------------------------------------------
 
 /// The words around following, cheers, comments and notifications that
@@ -1323,6 +1392,49 @@ mod tests {
             long.fault.as_deref(),
             Some("A comment has room for 500 characters. Shorten it by 3.")
         );
+    }
+
+    #[test]
+    fn what_is_new_is_a_badge() {
+        let request = unread_request();
+        assert_eq!(
+            (request.method.as_str(), request.path.as_str()),
+            ("GET", "/v1/account/unread")
+        );
+        assert!(request.needs_token);
+        let found = unread(200, recorded("unread.json")).unwrap();
+        assert_eq!((found.notifications, found.alarms, found.total), (4, 1, 5));
+        assert_eq!(found.badge.as_deref(), Some("5"));
+        assert_eq!(found.label.as_deref(), Some("5 new"));
+
+        let none = unread(200, br#"{"notifications":0,"alarms":0,"total":0}"#.to_vec()).unwrap();
+        assert_eq!((none.badge, none.label), (None, None));
+        let many = unread(
+            200,
+            br#"{"notifications":100,"alarms":3,"total":100}"#.to_vec(),
+        )
+        .unwrap();
+        assert_eq!(many.badge.as_deref(), Some("99+"));
+        assert_eq!(many.label.as_deref(), Some("99+ new"));
+        assert!(
+            unread(
+                401,
+                br#"{"error":{"code":"unauthorized","message":"x"}}"#.to_vec()
+            )
+            .is_err()
+        );
+
+        let seen = unread_seen_request(Some("1795026000000000".to_owned()), None).unwrap();
+        assert_eq!(
+            (seen.method.as_str(), seen.path.as_str(), seen.needs_token),
+            ("PUT", "/v1/account/unread", true)
+        );
+        let theirs: serde_json::Value =
+            serde_json::from_slice(&recorded("seen_request.json")).unwrap();
+        let ours: serde_json::Value = serde_json::from_slice(&seen.body.unwrap()).unwrap();
+        assert_eq!(ours, theirs);
+        let all = unread_seen_request(Some(String::new()), None).unwrap();
+        assert_eq!(all.body.as_deref(), Some(&b"{}"[..]));
     }
 
     #[test]

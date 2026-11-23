@@ -52,6 +52,14 @@ pub const FOLLOWS_AND_CHEERS_PER_DAY: u32 = 1000;
 /// For how many days what a pilot was told is kept.
 pub const NOTIFICATIONS_KEPT_DAYS: i64 = 30;
 
+/// `GET`: how much is new for the account, the same on every device;
+/// `PUT`: the pilot saw it.
+pub const ACCOUNT_UNREAD_PATH: &str = "/v1/account/unread";
+
+/// How far [`UnreadResponse`] counts: each count, and the total, stop
+/// here, and this many means this many or more.
+pub const UNREAD_COUNTED_UP_TO: u32 = 100;
+
 /// `PUT` follows the pilot, `DELETE` follows them no more.
 pub fn pilot_follow_path(handle: &str) -> String {
     format!("/v1/pilots/{handle}/follow")
@@ -371,6 +379,51 @@ pub struct NotificationsResponse {
     /// for example after it was restored from a backup, and started again
     /// from the beginning.
     pub reset: bool,
+}
+
+/// The answer of `GET` and `PUT /v1/account/unread`: how much is new for
+/// the account since the pilot last saw it, on any device. Each count
+/// stops at [`UNREAD_COUNTED_UP_TO`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct UnreadResponse {
+    /// Lines of `GET /v1/account/notifications` after the pilot's mark,
+    /// of the days they are kept.
+    pub notifications: u32,
+    /// Lines of `GET /v1/account/alerts/fired` after the pilot's mark, of
+    /// the days they are kept. Zero for a token without `alerts:read`.
+    pub alarms: u32,
+    /// The two together, stopping at [`UNREAD_COUNTED_UP_TO`].
+    pub total: u32,
+}
+
+impl UnreadResponse {
+    /// The answer for two counts, each and their sum cut at
+    /// [`UNREAD_COUNTED_UP_TO`].
+    #[must_use]
+    pub fn of(notifications: u32, alarms: u32) -> Self {
+        let notifications = notifications.min(UNREAD_COUNTED_UP_TO);
+        let alarms = alarms.min(UNREAD_COUNTED_UP_TO);
+        Self {
+            notifications,
+            alarms,
+            total: (notifications + alarms).min(UNREAD_COUNTED_UP_TO),
+        }
+    }
+}
+
+/// The body of `PUT /v1/account/unread`, which may be left out: up to
+/// where the pilot saw each list. A list left out is seen up to its
+/// newest line. The mark only moves forward.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeenRequest {
+    /// The `cursor` of the last answer of `GET /v1/account/notifications`
+    /// that the pilot was shown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notifications_cursor: Option<String>,
+    /// The `cursor` of the last answer of `GET /v1/account/alerts/fired`
+    /// that the pilot was shown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alarms_cursor: Option<String>,
 }
 
 /// `social.json` of the archive: what the pilot gave to other pilots.

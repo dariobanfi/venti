@@ -1,7 +1,7 @@
 //! What every store must do with the alarms pilots set.
 
 use venti_store::{
-    AddingAlert, Alert, AlertCheck, DAY_ALERT, FiredAlerts, NewAlert, Store, WIND_ALERT,
+    AddingAlert, Alert, AlertCheck, DAY_ALERT, FiredAlerts, NewAlert, Store, Unread, WIND_ALERT,
 };
 
 use super::accounts::{create, id};
@@ -218,4 +218,85 @@ pub(crate) async fn what_fired_is_numbered_kept_and_pruned(store: &impl Store) {
         FiredAlerts::default()
     );
     assert_eq!(store.alerts(&dario.id).await.unwrap(), []);
+}
+
+pub(crate) async fn the_unread_count_runs_from_the_pilots_mark(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let alarm = add(store, &dario.id, &wind("w1", "dwd-10min:1"), 0).await;
+    let fire = |minute: u32| AlertCheck {
+        account_id: dario.id.clone(),
+        alert_id: alarm.id.clone(),
+        changed_at: alarm.changed_at,
+        state: format!(r#"{{"minute":{minute}}}"#),
+        fired: Some((at(12, minute), "fired".to_owned())),
+    };
+    let unread = |account: String, from: u32, most: u32| async move {
+        store
+            .unread(&account, at(12, from), at(12, from), most)
+            .await
+            .unwrap()
+    };
+    let count = |unread: Unread| (unread.notices, unread.fired);
+
+    // Nothing yet, and an account that never marked anything saw nothing.
+    assert_eq!(count(unread(dario.id.clone(), 0, 100).await), (0, 0));
+    for minute in 0..3 {
+        assert!(
+            store
+                .add_notice(&dario.id, &anna.id, at(12, minute), "told")
+                .await
+                .unwrap()
+        );
+    }
+    assert!(store.note_alert_check(&fire(1)).await.unwrap());
+    assert_eq!(count(unread(dario.id.clone(), 0, 100).await), (3, 1));
+    // Counted up to `most`, and only what is not older than asked.
+    assert_eq!(count(unread(dario.id.clone(), 0, 2).await), (2, 1));
+    assert_eq!(count(unread(dario.id.clone(), 2, 100).await), (1, 0));
+    // Anna was told nothing.
+    assert_eq!(count(unread(anna.id.clone(), 0, 100).await), (0, 0));
+
+    // Seen up to the second notice, the alarms up to the newest.
+    let told = store.notices(&dario.id, 0, 10).await.unwrap();
+    assert!(
+        store
+            .mark_seen(&dario.id, Some(told.notices[1].number), None, at(13, 0))
+            .await
+            .unwrap()
+    );
+    assert_eq!(count(unread(dario.id.clone(), 0, 100).await), (1, 0));
+    // The mark does not move back.
+    assert!(
+        store
+            .mark_seen(&dario.id, Some(0), Some(0), at(13, 1))
+            .await
+            .unwrap()
+    );
+    assert_eq!(count(unread(dario.id.clone(), 0, 100).await), (1, 0));
+    // A number beyond the latest is the latest: what comes later counts.
+    assert!(
+        store
+            .mark_seen(&dario.id, Some(i64::MAX), None, at(13, 2))
+            .await
+            .unwrap()
+    );
+    assert_eq!(count(unread(dario.id.clone(), 0, 100).await), (0, 0));
+    assert!(store.note_alert_check(&fire(30)).await.unwrap());
+    store
+        .add_notice(&dario.id, &anna.id, at(12, 31), "later")
+        .await
+        .unwrap();
+    assert_eq!(count(unread(dario.id.clone(), 0, 100).await), (1, 1));
+
+    // No such account: nothing is marked.
+    assert!(
+        !store
+            .mark_seen(&id("nobody"), None, None, at(13, 3))
+            .await
+            .unwrap()
+    );
+    // The mark goes with its account.
+    store.delete_account(&dario.id).await.unwrap();
+    assert_eq!(count(unread(dario.id.clone(), 0, 100).await), (0, 0));
 }

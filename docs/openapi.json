@@ -5247,6 +5247,20 @@
           "social:write"
         ]
       },
+      "SeenRequest": {
+        "description": "The body of `PUT /v1/account/unread`, which may be left out: up to where the pilot saw each list. A list left out is seen up to its newest line. The mark only moves forward.",
+        "properties": {
+          "alarms_cursor": {
+            "description": "The `cursor` of the last answer of `GET /v1/account/alerts/fired` the pilot was shown.",
+            "type": "string"
+          },
+          "notifications_cursor": {
+            "description": "The `cursor` of the last answer of `GET /v1/account/notifications` the pilot was shown.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Session": {
         "properties": {
           "created_at": {
@@ -6819,6 +6833,29 @@
           "times_s",
           "fixes",
           "every"
+        ],
+        "type": "object"
+      },
+      "UnreadResponse": {
+        "description": "How much is new for the account since the pilot last saw it, the same on every device. Each count stops at 100, which means 100 or more.",
+        "properties": {
+          "alarms": {
+            "description": "Lines of `GET /v1/account/alerts/fired` after the pilot's mark, of the 30 days they are kept. Zero for a token without `alerts:read`.",
+            "type": "integer"
+          },
+          "notifications": {
+            "description": "Lines of `GET /v1/account/notifications` after the pilot's mark, of the 30 days they are kept.",
+            "type": "integer"
+          },
+          "total": {
+            "description": "The two together, stopping at 100.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "notifications",
+          "alarms",
+          "total"
         ],
         "type": "object"
       },
@@ -9760,6 +9797,114 @@
           "Accounts"
         ],
         "x-venti-docs": "DELETE /v1/account/tokens/{id}"
+      }
+    },
+    "/v1/account/unread": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:read`.",
+        "operationId": "get_account_unread",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "unread": {
+                    "value": {
+                      "alarms": 1,
+                      "notifications": 4,
+                      "total": 5
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:read"
+            ]
+          }
+        ],
+        "summary": "How much is new for the pilot, on every device",
+        "tags": [
+          "Pilots among each other"
+        ],
+        "x-venti-docs": "GET and PUT /v1/account/unread"
+      },
+      "put": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `social:write`.",
+        "operationId": "put_account_unread",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "seen_request": {
+                  "value": {
+                    "notifications_cursor": "1795026000000000"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SeenRequest"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "social:write"
+            ]
+          }
+        ],
+        "summary": "The pilot saw the notifications and the alarms",
+        "tags": [
+          "Pilots among each other"
+        ],
+        "x-venti-docs": "GET and PUT /v1/account/unread"
       }
     },
     "/v1/accounts": {

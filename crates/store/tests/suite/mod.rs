@@ -136,6 +136,7 @@ macro_rules! store_suite {
             an_alarm_is_added_changed_and_removed,
             alarms_are_found_by_station_and_by_kind_when_on,
             what_fired_is_numbered_kept_and_pruned,
+            the_unread_count_runs_from_the_pilots_mark,
             pilots_follow_each_other,
             the_feed_is_what_followed_pilots_share,
             a_flight_is_cheered_once_per_pilot,

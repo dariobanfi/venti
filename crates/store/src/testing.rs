@@ -705,6 +705,26 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn unread(
+        &self,
+        _: &str,
+        _: Timestamp,
+        _: Timestamp,
+        _: u32,
+    ) -> Result<crate::Unread, StoreError> {
+        self.fail().await
+    }
+
+    async fn mark_seen(
+        &self,
+        _: &str,
+        _: Option<i64>,
+        _: Option<i64>,
+        _: Timestamp,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
     async fn prune_fired_alerts(&self, _: Timestamp) -> Result<u64, StoreError> {
         self.fail().await
     }

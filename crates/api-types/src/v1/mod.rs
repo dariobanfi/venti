@@ -36,6 +36,8 @@
 //! | [`alert_path`] | PUT | [`AlertRequest`] | [`AlertResponse`] |
 //! | [`alert_path`] | DELETE | | nothing |
 //! | [`ALERTS_FIRED_PATH`] | GET | [`FiredAlertsRequest`] | [`FiredAlertsResponse`] |
+//! | [`ACCOUNT_UNREAD_PATH`] | GET | | [`UnreadResponse`] |
+//! | [`ACCOUNT_UNREAD_PATH`] | PUT | [`SeenRequest`], or nothing | [`UnreadResponse`] |
 //! | [`FLIGHTS_PATH`] | POST | the flight file | [`UploadResponse`] |
 //! | [`FLIGHTS_PATH`] | GET | [`FlightsRequest`] | [`FlightsResponse`] |
 //! | [`FLIGHTS_PATH`] | PATCH | [`UpdateFlightsRequest`] | [`UpdateFlightsResponse`] |
@@ -311,14 +313,15 @@ pub use sites::{
     VENTI_SITES_LICENCE_URL, VENTI_SITES_SOURCE, parse_site_comment,
 };
 pub use social::{
-    ACCOUNT_FEED_PATH, ACCOUNT_FOLLOWING_PATH, ACCOUNT_NOTIFICATIONS_PATH, ArchiveCheer,
-    ArchiveComment, ArchiveSocial, COMMENTS_PER_DAY, Cheer, CheerResponse, CheersResponse, Comment,
-    CommentError, CommentRequest, CommentResponse, CommentsOpen, CommentsResponse,
-    FOLLOWS_AND_CHEERS_PER_DAY, FeedFlight, FeedResponse, FollowResponse, FollowedPilot,
-    FollowsResponse, MAX_COMMENT_LENGTH, MAX_FOLLOWS, NOTIFICATIONS_KEPT_DAYS, Notification,
-    NotificationKind, NotificationsResponse, NotifiedFlight, feed_path, flight_cheer_path,
-    flight_cheers_path, flight_comment_path, flight_comments_path, notifications_path,
-    parse_comment, pilot_follow_path, pilot_followers_path, pilot_following_path, social_page_path,
+    ACCOUNT_FEED_PATH, ACCOUNT_FOLLOWING_PATH, ACCOUNT_NOTIFICATIONS_PATH, ACCOUNT_UNREAD_PATH,
+    ArchiveCheer, ArchiveComment, ArchiveSocial, COMMENTS_PER_DAY, Cheer, CheerResponse,
+    CheersResponse, Comment, CommentError, CommentRequest, CommentResponse, CommentsOpen,
+    CommentsResponse, FOLLOWS_AND_CHEERS_PER_DAY, FeedFlight, FeedResponse, FollowResponse,
+    FollowedPilot, FollowsResponse, MAX_COMMENT_LENGTH, MAX_FOLLOWS, NOTIFICATIONS_KEPT_DAYS,
+    Notification, NotificationKind, NotificationsResponse, NotifiedFlight, SeenRequest,
+    UNREAD_COUNTED_UP_TO, UnreadResponse, feed_path, flight_cheer_path, flight_cheers_path,
+    flight_comment_path, flight_comments_path, notifications_path, parse_comment,
+    pilot_follow_path, pilot_followers_path, pilot_following_path, social_page_path,
 };
 pub use stations::{Station, StationWithLatest, StationsResponse};
 pub use takeoffs::{

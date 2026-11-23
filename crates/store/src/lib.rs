@@ -120,7 +120,7 @@ pub use report::{
 pub use site::{SiteDelivery, SiteLayer, SiteSet};
 pub use social::{
     Cheering, Comment, Commenting, FlightSocial, FollowCounts, FollowSide, Following, NewComment,
-    Notice, Notices, SocialGiven, SocialKey, SocialPilot,
+    Notice, Notices, SocialGiven, SocialKey, SocialPilot, Unread,
 };
 pub use takeoff::{
     CANDIDATE_ALTITUDE_STEP_M, CANDIDATE_STEPS_PER_DEGREE, CELLS_PER_DEGREE, CandidateRule,
@@ -1318,6 +1318,33 @@ pub trait Store: Send + Sync + 'static {
         &self,
         before: Timestamp,
     ) -> impl Future<Output = Result<u64, StoreError>> + Send;
+
+    // --- What the pilot saw ------------------------------------------------
+
+    /// How much is new for an account: its notices after its mark that
+    /// are at or after `notices_from`, and what its alarms fired after
+    /// its mark at or after `fired_from`, each counted up to `most`. An
+    /// account that never marked anything has seen nothing.
+    fn unread(
+        &self,
+        account_id: &str,
+        notices_from: Timestamp,
+        fired_from: Timestamp,
+        most: u32,
+    ) -> impl Future<Output = Result<Unread, StoreError>> + Send;
+
+    /// Moves an account's mark of what the pilot saw to these numbers of
+    /// its notices and its fired alarms, `None` meaning the latest of
+    /// each, at `now`. A number beyond the latest is taken as the latest;
+    /// the mark never moves back. Returns `false` when there is no such
+    /// account.
+    fn mark_seen(
+        &self,
+        account_id: &str,
+        notices: Option<i64>,
+        fired: Option<i64>,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
 
     // --- Web Push ----------------------------------------------------------
 

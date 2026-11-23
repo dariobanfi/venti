@@ -60,7 +60,7 @@
       "minzoom": 13,
       "maxzoom": 19,
       "bounds": [-5.1413, 41.3335, 9.56, 51.0892],
-      "attribution": "<a href=\"https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO\">IGN – BD ORTHO®</a>"
+      "attribution": "<a href=\"https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO\">IGN – BD ORTHO®</a>, <a href=\"https://www.etalab.gouv.fr/licence-ouverte-open-licence/\">Licence Ouverte / Open Licence 2.0 (Etalab)</a>; border: <a href=\"https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_ADMIN-EXPRESS\">IGN – ADMIN EXPRESS COG 2026</a>, Licence Ouverte 2.0"
     },
     "aerial-austria": {
       "type": "raster",
@@ -68,7 +68,7 @@
       "tileSize": 256,
       "maxzoom": 19,
       "bounds": [9.5307, 46.3723, 17.1608, 49.0205],
-      "attribution": "<a href=\"https://basemap.at\">Datenquelle: basemap.at</a>"
+      "attribution": "<a href=\"https://basemap.at\">Datenquelle: basemap.at</a>; border: Datenquelle: <a href=\"https://www.bev.gv.at\">Bundesamt für Eich- und Vermessungswesen (BEV)</a>, Verwaltungsgrenzen 1:50 000, Stichtag 01.10.2022, <a href=\"https://creativecommons.org/licenses/by/4.0/\">CC BY 4.0</a>; zusammengefasst, nach WGS 84 umgerechnet und vereinfacht"
     },
     "aerial-baden-wuerttemberg": {
       "type": "raster",

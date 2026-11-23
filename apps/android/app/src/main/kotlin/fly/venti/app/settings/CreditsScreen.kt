@@ -15,13 +15,18 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import fly.venti.app.AppFiles
+import fly.venti.app.AssetFiles
 import fly.venti.app.R
+import fly.venti.app.map.MapStyle
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.wind.WindModel
@@ -38,6 +43,11 @@ import fly.venti.app.design.Common
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
+    val context = LocalContext.current
+    // The layers of photographs of the shared style, with their wording.
+    val photographs = remember {
+        runCatching { MapStyle.aerialPhotos(AssetFiles(context).text(AppFiles.MAP_STYLE)) }.getOrDefault(emptyList())
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -77,74 +87,6 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 }
                 row {
                     Credit(
-                        "Aerial view",
-                        "EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025), " +
-                            "CC BY-NC-SA 4.0",
-                        link = "https://cloudless.eox.at",
-                    )
-                }
-                row {
-                    // IGN words no credit: ours, to verify (docs/data-sources.md).
-                    Credit(
-                        "Aerial view in France",
-                        "IGN – BD ORTHO®, Licence Ouverte 2.0",
-                        link = "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO",
-                    )
-                }
-                row {
-                    // Our own wording, until IGN's own is found: to verify.
-                    Credit(
-                        "France's border, for the aerial view",
-                        "IGN – ADMIN EXPRESS COG 2026, Licence Ouverte 2.0",
-                    )
-                }
-                row {
-                    Credit(
-                        "Aerial view in Austria",
-                        "Datenquelle: basemap.at",
-                        link = "https://basemap.at",
-                    )
-                }
-                row {
-                    // Our own wording, until BEV's own is found: to verify.
-                    Credit(
-                        "Austria's border, for the aerial view",
-                        "Datenquelle: Bundesamt für Eich- und Vermessungswesen (BEV), Verwaltungsgrenzen 1:50 000, " +
-                            "Stichtag 01.10.2022, CC BY 4.0; zusammengefasst, nach WGS 84 umgerechnet und vereinfacht",
-                    )
-                }
-                row {
-                    Credit(
-                        "Aerial view in Baden-Württemberg",
-                        "LGL-BW (2026) Datenlizenz Deutschland - Namensnennung - Version 2.0",
-                        link = "https://www.lgl-bw.de",
-                    )
-                }
-                row {
-                    Credit(
-                        "Aerial view in Bavaria",
-                        "© Datenquellen: Bayerische Vermessungsverwaltung, Europäische Union, enthält Copernicus " +
-                            "Sentinel-2 Daten 2018, verarbeitet durch das Bundesamt für Kartographie und Geodäsie (BKG)",
-                        link = "https://www.geodaten.bayern.de",
-                    )
-                }
-                row {
-                    Credit(
-                        "Aerial view in Switzerland",
-                        "©swisstopo. Includes material © (2016-2018) Planet. All rights reserved",
-                        link = "https://www.swisstopo.admin.ch",
-                    )
-                }
-                row {
-                    // Our own wording: the province prescribes none.
-                    Credit(
-                        "Aerial view in South Tyrol",
-                        "© Autonome Provinz Bozen - Südtirol, Orthofoto 2023, CC BY 4.0",
-                        link = "https://natur-raum.provinz.bz.it/de/orthofotos-und-historische-luftbilder",
-                    )
-                }
-                row {
-                    Credit(
                         "Thermal map",
                         "thermal.kk7.ch by M. von Känel, under CC-BY-NC-SA 4.0. Shown only while it is switched on.",
                         link = "https://creativecommons.org/licenses/by-nc-sa/4.0/",
@@ -163,6 +105,24 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                         "MapLibre Native, under the BSD 2-Clause License.",
                         link = "https://maplibre.org",
                     )
+                }
+            }
+
+            // The aerial view's photographs: every provider in the shared
+            // style (`map/style.json`), in its own words, whatever the map
+            // shows, as on the iPhone. A new layer of photographs in the
+            // style is a new row here without a line of Kotlin.
+            SectionHeader("Aerial photographs")
+            Group {
+                for (maker in photographs) {
+                    row {
+                        Credit(
+                            maker.credit,
+                            maker.wording +
+                                (if (maker.layer in WORDING_IS_OURS) OURS_NOTE else ""),
+                            links = maker.links,
+                        )
+                    }
                 }
             }
 
@@ -236,9 +196,25 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
     }
 }
 
+/**
+ * Providers whose credit is worded by Venti, since they prescribe none
+ * (docs/data-sources.md): South Tyrol's.
+ */
+private val WORDING_IS_OURS = setOf("aerial-south-tyrol")
+private const val OURS_NOTE = " Worded by Venti: the province prescribes no credit."
+
+/**
+ * The licence of a provider whose attribution in the shared style names
+ * none: IGN's, by the data set's record (docs/data-sources.md).
+ */
 @Composable
 private fun Credit(title: String, text: String, link: String? = null) {
-    val links = LocalUriHandler.current
+    Credit(title, text, listOfNotNull(link))
+}
+
+@Composable
+private fun Credit(title: String, text: String, links: List<String>) {
+    val opener = LocalUriHandler.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         Text(
@@ -247,15 +223,17 @@ private fun Credit(title: String, text: String, link: String? = null) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
         )
-        if (link == null) return@Column
-        Text(
-            link.toUri().host ?: link,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .clickable(role = Role.Button) { links.openUri(link) }
-                .padding(vertical = 6.dp),
-        )
+        for (link in links) {
+            val host = link.toUri().host ?: continue
+            Text(
+                host,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .clickable(role = Role.Button) { opener.openUri(link) }
+                    .padding(vertical = 6.dp),
+            )
+        }
     }
 }

@@ -201,19 +201,28 @@ object MapStyle {
     }
 
     /**
-     * One layer of photographs of the aerial view, as the short credit line
-     * needs it: whose they are (`venti:credit`), where its source has
-     * tiles (`bounds`; `null` for everywhere) and from which zoom the layer
-     * shows (the higher `minzoom` of the layer and its source; 0 without one).
+     * One layer of photographs of the aerial view: whose they are in a few
+     * words (`venti:credit`), where its source has tiles (`bounds`; `null`
+     * for everywhere) and from which zoom the layer shows (the higher
+     * `minzoom` of the layer and its source; 0 without one), for the short
+     * credit line; and for the credits page the layer's id, its source's
+     * attribution without its markup and the addresses it links to.
      */
-    data class AerialPhotos(val credit: String, val bounds: Bounds?, val minZoom: Double)
+    data class AerialPhotos(
+        val credit: String,
+        val bounds: Bounds?,
+        val minZoom: Double,
+        val layer: String,
+        val wording: String,
+        val links: List<String>,
+    )
 
     /**
-     * The layers of photographs of a prepared style, in the style's order:
-     * those marked `venti:view: aerial`, of type raster, with a
-     * `venti:credit`, whose source the style has. A source left out of the
-     * prepared style (one that asks a server the app has not got) is left
-     * out with its layer.
+     * The layers of photographs of a style, in the style's order: those
+     * marked `venti:view: aerial`, of type raster, with a `venti:credit`,
+     * whose source the style has. A source left out of a prepared style
+     * (one that asks a server the app has not got) is left out with its
+     * layer; the shared file itself has them all.
      */
     fun aerialPhotos(style: String): List<AerialPhotos> {
         val fields = (
@@ -233,15 +242,27 @@ object MapStyle {
             val credit = (metadata["venti:credit"] as? JsonPrimitive)?.content ?: return@mapNotNull null
             val source = sources[(layer["source"] as? JsonPrimitive)?.content] as? JsonObject ?: return@mapNotNull null
             val box = (source["bounds"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content?.toDoubleOrNull() }
+            val attribution = (source["attribution"] as? JsonPrimitive)?.content.orEmpty()
             AerialPhotos(
                 credit = credit,
                 bounds = box?.takeIf { it.size == 4 }?.let { (west, south, east, north) -> Bounds(south, west, north, east) },
                 // A source with a minzoom of its own (France's) has no tiles
                 // below it, whatever the layer's: the higher of the two.
                 minZoom = maxOf(zoomIn(layer), zoomIn(source)),
+                layer = (layer["id"] as? JsonPrimitive)?.content.orEmpty(),
+                wording = plainText(attribution),
+                links = links(attribution),
             )
         }
     }
+
+    /** An attribution's words without its markup: "©swisstopo. Includes material …". */
+    fun plainText(html: String): String =
+        html.replace(Regex("<[^>]+>"), "").replace("&amp;", "&").trim()
+
+    /** The addresses an attribution links to, each once, in its order. */
+    fun links(html: String): List<String> =
+        Regex("href=\"([^\"]+)\"").findAll(html).map { it.groupValues[1] }.distinct().toList()
 
     private fun zoomIn(described: JsonObject): Double =
         (described["minzoom"] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: 0.0

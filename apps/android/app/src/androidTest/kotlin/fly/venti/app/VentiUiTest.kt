@@ -848,6 +848,10 @@ class VentiUiTest {
         tap(hasText("Data and licences"))
         waitFor(hasText("Base map"))
         keepScreenshot("$prefix-settings-2-credits")
+        // The photographs' makers, read from the shared style in its own words.
+        waitFor(hasText("©swisstopo", substring = true))
+        screen.onNode(hasText("Bayerische Vermessungsverwaltung")).performScrollTo()
+        keepScreenshot("$prefix-settings-2b-credits-aerial")
         tap(described("Back"))
         waitFor(hasTestTag("kept-sites-link"))
     }

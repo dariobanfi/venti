@@ -607,6 +607,9 @@ fun MapScreen(
     }
 
     // What the map can show, along its top: the core's names and the pack's signs.
+    // The cloud only where the forecast has it, as on the iPhone and the web:
+    // a forecast map read without a layer of cloud leaves its chip out.
+    val hasCloud = thermalMap?.map?.let { read -> read.layers.any { it.layer == ThermalHoursLayer.CLOUD } } ?: true
     val whats = linkedMapOf(
         MapWhat.WIND to (MapWords.core.wind to R.drawable.venti_wind),
         MapWhat.THERMALS to (MapWords.core.thermals to R.drawable.venti_thermal),
@@ -673,6 +676,7 @@ fun MapScreen(
                 // everything laid over it is a row of the layers sheet.
                 if (hasServer) {
                     for ((one, chip) in whats) {
+                        if (one == MapWhat.CLOUD && !hasCloud) continue
                         LayerChip(chip.first, chip.second, what == one, onChange = { chooseWhat(one) }, Modifier.testTag("what-${one.key}"))
                     }
                 }

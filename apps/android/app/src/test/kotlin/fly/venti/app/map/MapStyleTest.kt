@@ -152,6 +152,37 @@ class MapStyleTest {
     }
 
     @Test
+    fun theCreditsPageNamesEveryMakerOfPhotographsInTheStylesOwnWords() {
+        // The shared file itself, as the credits page reads it: every layer
+        // of photographs, also those that go through Venti.
+        val photos = MapStyle.aerialPhotos(template)
+        assertEquals(
+            listOf(
+                "aerial-world", "aerial-switzerland", "aerial-south-tyrol", "aerial-france", "aerial-austria",
+                "aerial-baden-wuerttemberg", "aerial-bavaria",
+            ),
+            photos.map { it.layer },
+        )
+        val swiss = photos.single { it.layer == "aerial-switzerland" }
+        assertEquals("©swisstopo. Includes material © (2016-2018) Planet. All rights reserved", swiss.wording)
+        assertEquals(listOf("https://www.swisstopo.admin.ch"), swiss.links)
+        val world = photos.single { it.layer == "aerial-world" }
+        assertEquals(
+            "EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025), CC BY-NC-SA 4.0",
+            world.wording,
+        )
+        assertEquals(
+            listOf("https://cloudless.eox.at", "https://eox.at", "https://creativecommons.org/licenses/by-nc-sa/4.0/"),
+            world.links,
+        )
+        for (maker in photos) {
+            assertTrue(maker.layer, maker.wording.isNotBlank() && '<' !in maker.wording)
+        }
+        assertEquals("A & B", MapStyle.plainText(" <a href=\"x\">A</a> &amp; B "))
+        assertEquals(listOf("x", "y"), MapStyle.links("<a href=\"x\">1</a> <a href=\"y\">2</a> <a href=\"x\">3</a>"))
+    }
+
+    @Test
     fun anAppWithoutAServerDoesNotNameThePhotographsItCannotShow() {
         // Without a server the style leaves out France's and Austria's photographs, which go through Venti.
         val photos = MapStyle.aerialPhotos(MapStyle.json(MapStyle.Source.Online, template, region, server = null))

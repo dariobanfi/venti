@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -137,11 +138,15 @@ fun CommunityPage(
     community: CommunityModel,
     social: SocialModel,
     groups: GroupsModel,
+    /** The open plans near the same place as the pilots near. */
+    openPlans: OpenPlansModel,
     account: AccountModel,
     onOpenFlight: (PublicFlight) -> Unit,
     onOpenPilot: (String, String) -> Unit,
     /** Opens the plans' sheet: at a plan, at the form for a new one, or at the groups. */
     onOpenPlans: (PlansOpening) -> Unit,
+    /** Opens an open plan's sheet: at a plan, or at the form for a new one. */
+    onOpenOpenPlan: (OpenPlanOpening) -> Unit,
     /** The whole feed, a page of its own. */
     onOpenFeed: () -> Unit,
     /** Everything the pilot was told, a page of its own. */
@@ -191,6 +196,12 @@ fun CommunityPage(
         }
         community.showNear(phone ?: OverviewMap.lastLookedAt, fromPhone = phone != null, again = nearAsked > 0)
     }
+
+    // The open plans near the same place, for the coming days: asked
+    // again when the pilot signs in or out, since whose a plan is and who
+    // is "You" follow the account.
+    val nearPlace = community.near.place
+    LaunchedEffect(nearPlace, signedIn, own?.handle, nearAsked) { nearPlace?.let { openPlans.showNear(it) } }
 
     // Finding a pilot, as everyone's flights have it.
     var wanted by rememberSaveable { mutableStateOf("") }
@@ -257,6 +268,8 @@ fun CommunityPage(
                 }
             }
 
+            openPlansNear(openPlans, signedIn, own?.displayName, own?.picturePath, onOpenOpenPlan, onSignIn)
+
             // The flights of the pilots followed: the newest of them.
             item(key = "feed-head") {
                 PartHead(social.words.feedFollowing, Modifier.testTag("community-feed")) {
@@ -283,6 +296,8 @@ fun CommunityPage(
                 }
             }
         } else {
+            openPlansNear(openPlans, signedIn, null, null, onOpenOpenPlan, onSignIn)
+
             // Signed out: what needs an account, and the way to one.
             item(key = "signed-out") {
                 Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow, border = BorderStroke(1.dp, Venti.colours.border)) {
@@ -429,6 +444,65 @@ fun CommunityPage(
     }
 }
 
+/**
+ * The open plans near Community's place, for everyone: the core's cards
+ * by day and time, its sentence where there is none, and for a pilot who
+ * is signed in the way to post one.
+ */
+private fun LazyListScope.openPlansNear(
+    model: OpenPlansModel,
+    signedIn: Boolean,
+    myName: String?,
+    myPicture: String?,
+    onOpen: (OpenPlanOpening) -> Unit,
+    onSignIn: () -> Unit,
+) {
+    item(key = "open-plans-head") {
+        PartHead(OpenPlanWords.TITLE, Modifier.testTag("community-open-plans")) {
+            if (signedIn) {
+                TextButton(onClick = { onOpen(OpenPlanOpening.NewPlan) }, modifier = Modifier.testTag("community-new-open-plan")) {
+                    Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(VentiSpace.s5))
+                    Spacer(Modifier.width(VentiSpace.s1))
+                    Text(OpenPlanWords.NEW)
+                }
+            }
+        }
+    }
+    val near = model.near
+    when {
+        near == null && model.problem != null -> item(key = "open-plans-problem") {
+            Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+                Quietly(model.problem.orEmpty(), Modifier.testTag("open-plans-problem"))
+                val scope = rememberCoroutineScope()
+                OutlinedButton(onClick = { scope.launch { model.load() } }, modifier = Modifier.heightIn(min = VentiSize.touch)) { Text(Common.words.tryAgain) }
+            }
+        }
+        near == null -> item(key = "open-plans-loading") { Waiting() }
+        else -> {
+            // The list is from before: the server could not be asked again.
+            model.problem?.let { problem -> item(key = "open-plans-stale") { SectionFooter(problem) } }
+            val plans = near.days.flatMap { day -> day.plans.map { day.day to it } }
+            if (plans.isEmpty()) {
+                item(key = "open-plans-none") { Quietly(near.emptyWords, Modifier.testTag("open-plans-empty")) }
+            }
+            items(plans, key = { (_, plan) -> "open-plan-${plan.id}" }) { (day, plan) ->
+                OpenPlanCard(
+                    plan,
+                    day = PlanWords.title(day, model.today()),
+                    model = model,
+                    myName = myName,
+                    myPicture = myPicture,
+                    onOpen = { onOpen(OpenPlanOpening.Plan(plan.id)) },
+                    onSignIn = onSignIn,
+                )
+            }
+            if (near.isCutShort) {
+                item(key = "open-plans-cut") { SectionFooter(OpenPlanWords.CUT_SHORT) }
+            }
+        }
+    }
+}
+
 /** How the plans' sheet opens from Community. */
 sealed interface PlansOpening {
     data class Plan(val id: String) : PlansOpening
@@ -569,8 +643,11 @@ private fun PlanCard(
 
 /** Who is in, as a row of faces laid a little over each other: the pilot of the phone first, as the core names them. */
 @Composable
-private fun Faces(plan: PlanView, myName: String?, myPicture: String?) {
-    val names = plan.pilotsIn
+private fun Faces(plan: PlanView, myName: String?, myPicture: String?) = Faces(plan.pilotsIn, plan.amIn, myName, myPicture)
+
+/** Who is in, by the names the core gives, the pilot of the phone first where [amIn]. */
+@Composable
+internal fun Faces(names: List<String>, amIn: Boolean, myName: String?, myPicture: String?) {
     if (names.isEmpty()) return
     val room = CommunityPageWords.FACES
     val shown = if (names.size > room) names.take(room - 1) else names
@@ -582,7 +659,7 @@ private fun Faces(plan: PlanView, myName: String?, myPicture: String?) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         shown.forEachIndexed { index, name ->
-            val isMe = plan.amIn && index == 0
+            val isMe = amIn && index == 0
             PilotFace(if (isMe && myName != null) myName else name, if (isMe) myPicture else null, size = FaceSize.Small)
         }
         if (more > 0) {

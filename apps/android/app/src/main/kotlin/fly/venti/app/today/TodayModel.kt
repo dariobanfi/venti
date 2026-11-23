@@ -384,6 +384,17 @@ class TodayModel(
         }
     }
 
+    /**
+     * The take-offs around a place, nearest first, as Today lists them and
+     * without asking a forecast: for the form of an open plan, whose place
+     * can be one of them. Nothing where Venti cannot be asked.
+     */
+    suspend fun takeoffsNear(place: Coordinate): List<fly.venti.core.TodayTakeoff> {
+        val server = server() ?: return emptyList()
+        val map = sitesAround(place, server)
+        return kept.todayTakeoffs(place, map).takeoffs.filter { it.distanceM != null }.sortedBy { it.distanceM }
+    }
+
     /** The server's sites for the area the core asks Today's take-offs of. */
     private suspend fun sitesAround(place: Coordinate, server: String): SitesMap {
         val area = todayArea(place.lat, place.lon)

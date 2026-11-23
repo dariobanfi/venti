@@ -6825,8 +6825,13 @@ class VentiUiTest {
             waitFor(hasTestTag("plan-row") and described(place))
             tap(hasText("Done") and hasClickAction())
             val card = hasTestTag("plan-card") and hasAnyDescendant(described(place))
-            waitFor(card)
-            community.performScrollToNode(card)
+            // Scrolled to before it is looked for: the page is a lazy
+            // list, and the plans the account tests posted for today on
+            // the same server can stand before this one, out of view
+            // (both appearances failed so in a whole run on 2026-11-23).
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                runCatching { community.performScrollToNode(card) }.isSuccess
+            }
             assertTrue(exists(described(place) and saying("Today")))
             val inOnIt = hasTestTag("plan-card-in") and hasAnyAncestor(card)
             // Its author is in from the start, and steps out and in again from the card.
@@ -6912,6 +6917,192 @@ class VentiUiTest {
         TestDevice.narrowWithLargeText()
         try {
             walkTheCommunity("narrow", dark = false)
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
+    }
+
+    /** Scrolls Community to something, once its lazy list has it. */
+    private fun scrollInCommunity(what: SemanticsMatcher) {
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(hasTestTag("community")).performScrollToNode(what) }.isSuccess
+        }
+    }
+
+    /**
+     * Open plans in Community, standing at the made-up Musterkogel West
+     * (`standAt(47.3, 10.9)`): the demo pilot posts one for today from the
+     * form, its place taken from the take-offs near and named anew, two
+     * seats free; a note too long is refused in the core's words; the
+     * plan's page has "Change" and "Delete" for its author, who changes it
+     * to "Looking for company"; it stands as a card among the open plans
+     * near. Then another pilot, a made-up Google account, says "I'm in"
+     * from the card, finds "Report this plan" on its page (looked at, not
+     * sent), and posts a plan of their own and deletes it again. Skipped
+     * without a server.
+     */
+    private fun walkTheOpenPlans(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        TestDevice.allowToRecordAFlight()
+        TestDevice.standAt(47.3, 10.9)
+        try {
+            launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+            signInAsTheDemoPilot()
+            tap(described("Back"))
+            waitFor(tab("League"))
+            tap(tab("League"))
+            waitFor(hasTestTag("league-community") and isSelected())
+
+            // The form, from Community.
+            scrollInCommunity(hasTestTag("community-new-open-plan"))
+            tap(hasTestTag("community-new-open-plan"))
+            waitFor(hasTestTag("open-plan-form"))
+            waitFor(hasTestTag("open-plan-takeoff"))
+            tap(hasTestTag("open-plan-takeoff"))
+            val takeoff = hasTestTag("open-plan-takeoff-choice") and hasText("Musterkogel West")
+            waitFor(takeoff)
+            tap(takeoff)
+            waitFor(hasTestTag("open-plan-place") and hasText("Musterkogel West"))
+            val place = "Musterkogel West, open $prefix"
+            screen.onNode(hasTestTag("open-plan-place")).performTextClearance()
+            screen.onNode(hasTestTag("open-plan-place")).performTextInput(place)
+            // Pressed by their actions, not by touches: the keyboard can lie over them.
+            press(hasTestTag("open-plan-offers-seats"))
+            waitFor(hasTestTag("open-plan-seats") and hasText("1"))
+            press(hasTestTag("open-plan-seats-more"))
+            waitFor(hasTestTag("open-plan-seats") and hasText("2"))
+            // The keyboard put away, so that the picture shows the offer:
+            // a "back" while it shows hides it and leaves the sheet open.
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            waitFor(hasTestTag("open-plan-form"))
+            screen.onNode(hasTestTag("open-plan-seats")).performScrollTo()
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-open-plans-1-form")
+
+            // A note longer than the core takes: its refusal, in its words.
+            screen.onNode(hasTestTag("open-plan-note")).performScrollTo()
+            screen.onNode(hasTestTag("open-plan-note")).performTextInput("x".repeat(281))
+            screen.onNode(hasTestTag("open-plan-save")).performScrollTo()
+            waitFor(hasTestTag("open-plan-save") and isEnabled())
+            screen.onNode(hasTestTag("open-plan-save")).performSemanticsAction(SemanticsActions.OnClick)
+            waitFor(hasTestTag("open-plan-problem") and hasText("The note has room for 280 characters."))
+            assertTrue(exists(hasTestTag("open-plan-public") and hasText("Everyone can read an open plan", substring = true)))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-open-plans-2-refused")
+            screen.onNode(hasTestTag("open-plan-note")).performTextClearance()
+            screen.onNode(hasTestTag("open-plan-note")).performTextInput("A made-up open plan of the tests. From the valley station.")
+            screen.onNode(hasTestTag("open-plan-save")).performScrollTo()
+            waitFor(hasTestTag("open-plan-save") and isEnabled())
+            screen.onNode(hasTestTag("open-plan-save")).performSemanticsAction(SemanticsActions.OnClick)
+
+            // Its page, as its author sees it.
+            waitFor(hasTestTag("open-plan-head") and described(place))
+            waitFor(hasTestTag("open-plan-offer") and hasAnyDescendant(hasText("2 seats free")))
+            assertTrue(exists(hasTestTag("open-plan-pilot") and hasText("You")))
+            assertTrue(exists(hasTestTag("open-plan-change")))
+            assertTrue(exists(hasTestTag("open-plan-delete")))
+            assertFalse(exists(hasTestTag("open-plan-report")))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-open-plans-3-plan")
+
+            // Changed whole: looking for company now.
+            screen.onNode(hasTestTag("open-plan-change")).performScrollTo()
+            tap(hasTestTag("open-plan-change"))
+            waitFor(hasTestTag("open-plan-company"))
+            press(hasTestTag("open-plan-company"))
+            screen.onNode(hasTestTag("open-plan-save")).performScrollTo()
+            waitFor(hasTestTag("open-plan-save") and isEnabled())
+            screen.onNode(hasTestTag("open-plan-save")).performSemanticsAction(SemanticsActions.OnClick)
+            waitFor(hasTestTag("open-plan-offer") and hasAnyDescendant(hasText("Looking for company")))
+            tap(hasTestTag("open-plan-done"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("open-plan")) }
+
+            // A card among the open plans near.
+            val card = hasTestTag("open-plan-card") and hasAnyDescendant(described(place))
+            scrollInCommunity(card)
+            assertTrue(exists(described(place) and saying("Today") and saying("Looking for company")))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-open-plans-4-card")
+
+            // Another pilot: in from the card, and a report on the page.
+            app?.close()
+            launch(dark = dark) {
+                putExtra(LaunchOptions.SERVER, server)
+                putExtra(LaunchOptions.GOOGLE_TEST_ACCOUNT, "open.$prefix@example.com")
+            }
+            openTheGoogleSignIn()
+            tap(hasTestTag("account-google"))
+            waitFor(hasTestTag("account-google-create") or hasText("Sync now"))
+            if (exists(hasTestTag("account-google-create"))) {
+                screen.onNode(hasTestTag("account-google-create")).performScrollTo()
+                tap(hasTestTag("account-google-create"))
+            }
+            waitFor(hasText("Sync now"))
+            tap(described("Back"))
+            waitFor(tab("League"))
+            tap(tab("League"))
+            waitFor(hasTestTag("league-community") and isSelected())
+            scrollInCommunity(card)
+            val inOnIt = hasTestTag("open-plan-card-in") and hasAnyAncestor(card)
+            waitFor(inOnIt and !isSelected())
+            tap(inOnIt)
+            waitFor(inOnIt and isSelected())
+            waitFor(described(place) and saying("You are in."))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-open-plans-5-in")
+            tap(hasAnyAncestor(card) and described(place))
+            waitFor(hasTestTag("open-plan-head") and described(place))
+            waitFor(hasTestTag("open-plan-report"))
+            assertTrue(exists(hasTestTag("open-plan-pilot") and hasText("You")))
+            assertFalse(exists(hasTestTag("open-plan-change")))
+            assertTrue(exists(hasTestTag("open-plan-in") and hasText("I'm out")))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-open-plans-6-others-plan")
+            screen.onNode(hasTestTag("open-plan-report")).performScrollTo()
+            tap(hasTestTag("open-plan-report"))
+            waitFor(hasTestTag("report-reason"))
+            assertTrue(exists(hasTestTag("report-send") and isNotEnabled()))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-open-plans-7-report")
+            tap(hasTestTag("report-close"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-reason")) }
+            tap(hasTestTag("open-plan-done"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("open-plan")) }
+
+            // A plan of their own, posted and deleted again.
+            scrollInCommunity(hasTestTag("community-new-open-plan"))
+            tap(hasTestTag("community-new-open-plan"))
+            waitFor(hasTestTag("open-plan-place"))
+            val own = "Musterwiese, open $prefix"
+            screen.onNode(hasTestTag("open-plan-place")).performTextInput(own)
+            screen.onNode(hasTestTag("open-plan-save")).performScrollTo()
+            waitFor(hasTestTag("open-plan-save") and isEnabled())
+            screen.onNode(hasTestTag("open-plan-save")).performSemanticsAction(SemanticsActions.OnClick)
+            waitFor(hasTestTag("open-plan-head") and described(own))
+            screen.onNode(hasTestTag("open-plan-delete")).performScrollTo()
+            tap(hasTestTag("open-plan-delete"))
+            waitFor(hasTestTag("open-plan-delete-confirm"))
+            tap(hasTestTag("open-plan-delete-confirm"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("open-plan")) }
+            waitFor(hasTestTag("community"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(described(own)) }
+        } finally {
+            TestDevice.noMadeUpPosition()
+        }
+    }
+
+    @Test
+    fun openPlansArePostedJoinedChangedAndDeleted() = walkTheOpenPlans("light", dark = false)
+
+    @Test
+    fun openPlansInDarkAppearance() = walkTheOpenPlans("dark", dark = true)
+
+    @Test
+    fun openPlansOnANarrowScreenWithLargeText() {
+        TestDevice.narrowWithLargeText()
+        try {
+            walkTheOpenPlans("narrow", dark = false)
         } finally {
             TestDevice.asItWasBuilt()
         }

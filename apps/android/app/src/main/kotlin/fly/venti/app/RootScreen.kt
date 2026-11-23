@@ -694,6 +694,7 @@ private fun Sections(
                         onOpenPilot = { handle, name -> navigation.open(LeagueRoute.Pilot(handle, name)) },
                         bars = bars,
                         groups = session.groups,
+                        openPlans = session.openPlans,
                         account = session.account,
                         requests = session.scope,
                         waypoints = session.waypoints,

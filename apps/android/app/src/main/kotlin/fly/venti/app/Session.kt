@@ -28,6 +28,7 @@ import fly.venti.app.assistant.FixedKey
 import fly.venti.app.assistant.ScriptedProvider
 import fly.venti.app.community.CommunityModel
 import fly.venti.app.community.SocialModel
+import fly.venti.app.community.OpenPlansModel
 import fly.venti.app.community.PilotPictures
 import fly.venti.app.design.Format
 import fly.venti.app.fly.FlySession
@@ -96,6 +97,8 @@ sealed interface Session {
         val social: SocialModel,
         val account: AccountModel,
         val groups: GroupsModel,
+        /** The open plans near a place, for everyone flying from there. */
+        val openPlans: OpenPlansModel,
         /** The pilot's alarms and what they fired. */
         val alerts: AlertsModel,
         /** Adding and correcting the sites that pilots make. */
@@ -341,6 +344,12 @@ sealed interface Session {
             // The pilot's groups and their plans for a flying day, asked
             // of the account's server and kept nowhere.
             val groups = logbook.makeGroups(account)
+            // The open plans near a place, read as anyone from Venti and
+            // written with the account's token; the form's take-offs near
+            // are Today's.
+            val openPlans = logbook.makeOpenPlans(account)
+            openPlans.server = { (wind.server as? WindServer.Usable)?.url }
+            openPlans.takeoffsNear = today::takeoffsNear
             // The pilot's alarms, on the account too: what a fetch finds
             // new becomes a notification, whether the app or its periodic
             // check fetched it, and the list is read again. The check is
@@ -423,7 +432,7 @@ sealed interface Session {
             // A league's deadline by Venti's clock; named without calling the flight late while it is unread.
             leagues.clock = { wind.serverTimeOrZero() }
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, social, account, groups, alerts, siteEdit, tasks,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, air, community, social, account, groups, openPlans, alerts, siteEdit, tasks,
                 leagues, maps, ground, today, keptSites, thermalMap, radar, cables, WatchedFolder(AndroidFolders(app), preferences, logbook), preferences, files, scope,
             )
         }

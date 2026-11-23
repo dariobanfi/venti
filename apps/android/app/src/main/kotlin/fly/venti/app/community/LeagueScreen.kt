@@ -103,6 +103,8 @@ fun LeagueScreen(
     bars: PaddingValues,
     /** The groups and their plans, for Community. */
     groups: GroupsModel,
+    /** The open plans near a place, for Community. */
+    openPlans: OpenPlansModel,
     account: AccountModel,
     /** Where requests run, so that one carries on when the sheet is closed. */
     requests: CoroutineScope,
@@ -123,6 +125,8 @@ fun LeagueScreen(
     val shown = showing
     // The plans' sheet, opened from Community.
     var plans by remember { mutableStateOf<PlansOpening?>(null) }
+    // An open plan's sheet, opened from Community.
+    var openPlan by remember { mutableStateOf<OpenPlanOpening?>(null) }
     Scaffold(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
         topBar = {
@@ -166,10 +170,12 @@ fun LeagueScreen(
                     community,
                     social,
                     groups,
+                    openPlans,
                     account,
                     onOpenFlight = onOpenFlight,
                     onOpenPilot = onOpenPilot,
                     onOpenPlans = { plans = it },
+                    onOpenOpenPlan = { openPlan = it },
                     onOpenFeed = onOpenFeed,
                     onOpenNotifications = onOpenNotifications,
                     onOpenFlightById = onOpenFlightById,
@@ -192,6 +198,22 @@ fun LeagueScreen(
             opensNewPlan = opening == PlansOpening.NewPlan,
             opensGroups = opening == PlansOpening.Groups,
         )
+    }
+
+    openPlan?.let { opening ->
+        // A sheet of its own for each plan opened.
+        androidx.compose.runtime.key(opening) {
+            OpenPlanSheet(
+                openPlans,
+                account,
+                requests,
+                opening,
+                onDismiss = { openPlan = null },
+                onSignIn = onSignIn,
+                onOpenPilot = onOpenPilot,
+                wind = wind,
+            )
+        }
     }
 }
 

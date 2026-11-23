@@ -15,6 +15,7 @@ import fly.venti.app.account.AccountTransport
 import fly.venti.app.account.SessionStore
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.groups.GroupsModel
+import fly.venti.app.community.OpenPlansModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.app.task.TaskModel
@@ -295,6 +296,10 @@ class LogbookModel(
      */
     fun makeGroups(account: AccountModel, today: () -> LocalDate = LocalDate::now): GroupsModel =
         GroupsModel(core, account, background, today)
+
+    /** The open plans near a place: asked for and not kept. */
+    fun makeOpenPlans(account: AccountModel, today: () -> LocalDate = LocalDate::now): OpenPlansModel =
+        OpenPlansModel(core, account, background = background, todayIs = today)
 
     /**
      * Adding and correcting the flying sites of Venti's own layers, and

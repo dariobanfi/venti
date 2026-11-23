@@ -2975,6 +2975,7 @@ fn the_operators_guide_shows_the_commands_as_they_are() {
         "remove-plan",
         "remove-group",
         "remove-comment",
+        "remove-picture",
         "site",
         "revert-site",
         "remove-site",

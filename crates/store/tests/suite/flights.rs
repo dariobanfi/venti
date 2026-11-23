@@ -75,6 +75,7 @@ fn stored(new: &NewFlight, account: &Account, change: i64) -> Flight {
         account_id: new.account_id.clone(),
         pilot_handle: account.handle.clone(),
         pilot_name: account.display_name.clone(),
+        pilot_picture: None,
         identity: new.identity.clone(),
         visibility: Visibility::Private,
         uploaded_at: new.uploaded_at,
@@ -96,7 +97,7 @@ pub(crate) async fn put(store: &impl Store, new: &NewFlight) -> (Flight, bool) {
     saved.stored().expect("there is room for anything")
 }
 
-async fn save(store: &impl Store, new: &NewFlight) -> Flight {
+pub(crate) async fn save(store: &impl Store, new: &NewFlight) -> Flight {
     let (flight, created) = put(store, new).await;
     assert!(created, "{} was already there", new.id);
     flight

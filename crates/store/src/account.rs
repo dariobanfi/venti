@@ -34,7 +34,7 @@ pub struct Account {
     /// account is created with `None`.
     pub edits_sites_since: Option<Timestamp>,
     /// Whether a flight the account uploads is public from the start: the
-    /// pilot's own setting ([`crate::Store::set_new_flights_public`]). The
+    /// pilot's own setting ([`crate::Store::update_account_settings`]). The
     /// server creates every account with it on, as owner decision 21
     /// asks; the store keeps what it is given. A suspended account's
     /// uploads, and a flight that comes back taken down, are private
@@ -47,6 +47,16 @@ pub struct Account {
     /// The class of the glider the pilot flies now, if they set it: an
     /// upload takes it into the flight ([`crate::NewFlight::glider_class`]).
     pub glider_class: Option<crate::GliderClass>,
+    /// The identifier of the account's picture, if it has one
+    /// ([`crate::Store::set_picture`]). The store reads it from the
+    /// pictures it keeps and takes no value of it when an account is
+    /// created: a new account has none.
+    pub picture: Option<String>,
+    /// Whether the account is among the pilots near a place
+    /// ([`crate::Store::pilots_near`]): the pilot's own setting, on until
+    /// they switch it off ([`crate::Store::update_account_settings`]). The
+    /// store keeps what it is given at the creation.
+    pub shown_near_places: bool,
 }
 
 /// A change to an account's own settings: a field that is `None` stays as
@@ -59,6 +69,8 @@ pub struct AccountSettings {
     pub country: Option<Option<String>>,
     /// [`Account::glider_class`].
     pub glider_class: Option<Option<crate::GliderClass>>,
+    /// [`Account::shown_near_places`].
+    pub shown_near_places: Option<bool>,
 }
 
 /// What became of suspending an account's publishing.

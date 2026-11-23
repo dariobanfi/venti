@@ -18,6 +18,7 @@ mod kept_sites;
 mod live;
 mod moderation;
 mod oauth;
+mod pictures;
 mod pilot_sites;
 mod push;
 mod sites;
@@ -34,6 +35,7 @@ pub(crate) use kept_sites::*;
 pub(crate) use live::*;
 pub(crate) use moderation::*;
 pub(crate) use oauth::*;
+pub(crate) use pictures::*;
 pub(crate) use pilot_sites::*;
 pub(crate) use push::*;
 pub(crate) use sites::*;
@@ -178,6 +180,8 @@ macro_rules! store_suite {
             the_public_changes_are_told_page_by_page_and_of_a_pilot,
             suspending_and_deleting_an_account_withdraws_flights,
             new_flights_are_public_by_their_pilots_setting,
+            a_picture_is_kept_replaced_and_removed,
+            pilots_near_a_place_are_counted_from_public_flights,
             an_upload_is_private_while_suspended_or_taken_down,
             all_flights_are_made_public_or_private_at_once,
             the_public_flights_that_began_at_a_place_are_counted,

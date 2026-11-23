@@ -121,6 +121,8 @@ mod tests {
                 new_flights_public: false,
                 country: None,
                 glider_class: None,
+                picture: None,
+                shown_near_places: true,
             },
             password_hash: "$argon2id$x".to_owned(),
             invite: Some(invite.hash()),

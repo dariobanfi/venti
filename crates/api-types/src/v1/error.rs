@@ -186,6 +186,12 @@ pub enum ErrorCode {
     FlightNotFound,
     /// No pilot has this handle.
     PilotNotFound,
+    /// The picture sent is not one the server takes: not a JPEG, a PNG or
+    /// a WebP it can read, or too small, too large or of too many pixels.
+    InvalidPicture,
+    /// No picture has this identifier: none ever had, or the pilot has
+    /// another now or none.
+    PictureNotFound,
     /// The uploaded file is not a flight file the server can use.
     InvalidFlight,
     /// The account keeps as many flights, or as many bytes of flight

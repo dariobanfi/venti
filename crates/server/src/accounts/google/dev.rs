@@ -124,7 +124,34 @@ impl DevIssuer {
         }
         self.sign(&claims)
     }
+
+    /// The same, for a Google account with a picture: the token names
+    /// [`DEV_PICTURE`], whose picture the development mode makes up
+    /// instead of fetching it.
+    #[must_use]
+    pub fn id_token_with_picture(&self, email: &str, name: Option<&str>, now: Timestamp) -> String {
+        let mut claims = json!({
+            "iss": "https://accounts.google.com",
+            "aud": CLIENT_ID,
+            "azp": CLIENT_ID,
+            "sub": subject_of(email),
+            "email": email,
+            "email_verified": true,
+            "iat": now.timestamp(),
+            "exp": now.timestamp() + 3600,
+            "picture": DEV_PICTURE,
+        });
+        if let Some(name) = name {
+            claims["name"] = json!(name);
+        }
+        self.sign(&claims)
+    }
 }
+
+/// The address of the made-up Google account's picture, as Google writes
+/// one. Nothing is ever fetched from it: the development mode makes the
+/// picture up.
+pub const DEV_PICTURE: &str = "https://lh3.googleusercontent.com/a/venti-development=s96-c";
 
 impl Default for DevIssuer {
     fn default() -> Self {

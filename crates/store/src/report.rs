@@ -25,6 +25,7 @@ pub(crate) fn check(new: &NewReport) -> Result<(), StoreError> {
     let (group, words) = match &new.subject {
         ReportSubject::Flight(_)
         | ReportSubject::Pilot
+        | ReportSubject::Picture(_)
         | ReportSubject::LiveTrack(_)
         | ReportSubject::Site { .. } => ("", ["", ""]),
         ReportSubject::Group { name, .. } => ("", [name.as_str(), ""]),
@@ -140,6 +141,11 @@ pub enum ReportSubject {
         /// reporter named, or the one the site stood at.
         revision: u32,
     },
+    /// A pilot's picture, by its identifier: the picture the pilot showed
+    /// when the report was made. The report's other account is the
+    /// pilot's. Nothing of the picture is kept with the report: once the
+    /// pilot has another, the one reported is gone.
+    Picture(String),
     /// A comment on a flight. The report's other account is the
     /// comment's author.
     Comment {
@@ -178,6 +184,7 @@ impl ReportSubject {
         match self {
             Self::Flight(_) => "flight",
             Self::Pilot => "pilot",
+            Self::Picture(_) => "picture",
             Self::LiveTrack(_) => "live_track",
             Self::Group { .. } => "group",
             Self::Plan { .. } => "plan",
@@ -191,6 +198,7 @@ impl ReportSubject {
     pub fn id(&self) -> &str {
         match self {
             Self::Flight(id)
+            | Self::Picture(id)
             | Self::LiveTrack(id)
             | Self::Group { id, .. }
             | Self::Plan { id, .. }
@@ -211,7 +219,9 @@ impl ReportSubject {
     /// it.
     pub(crate) fn words(&self) -> ReportedWords {
         match self {
-            Self::Flight(_) | Self::Pilot | Self::LiveTrack(_) => ReportedWords::default(),
+            Self::Flight(_) | Self::Pilot | Self::Picture(_) | Self::LiveTrack(_) => {
+                ReportedWords::default()
+            }
             Self::Group { name, .. } => ReportedWords {
                 name: Some(name.clone()),
                 ..ReportedWords::default()
@@ -249,6 +259,7 @@ impl ReportSubject {
         match kind {
             "flight" => Some(Self::Flight(id.to_owned())),
             "pilot" => Some(Self::Pilot),
+            "picture" => Some(Self::Picture(id.to_owned())),
             "live_track" => Some(Self::LiveTrack(id.to_owned())),
             "group" => Some(Self::Group {
                 id: id.to_owned(),
@@ -409,6 +420,7 @@ mod tests {
         for subject in [
             ReportSubject::Flight("f".to_owned()),
             ReportSubject::Pilot,
+            ReportSubject::Picture("p".to_owned()),
             ReportSubject::LiveTrack("t".to_owned()),
             group("g", "Mustergruppe"),
             plan("p", "Musterberg", None),

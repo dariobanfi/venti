@@ -337,6 +337,32 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn set_picture(&self, _: &crate::NewPicture) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_picture(&self, _: &str) -> Result<Option<crate::Picture>, StoreError> {
+        self.fail().await
+    }
+
+    async fn picture(&self, _: &str) -> Result<Option<crate::Picture>, StoreError> {
+        self.fail().await
+    }
+
+    async fn claim_google_picture(&self, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn pilots_near(
+        &self,
+        _: GeoPoint,
+        _: f64,
+        _: Timestamp,
+        _: usize,
+    ) -> Result<Vec<crate::NearPilot>, StoreError> {
+        self.fail().await
+    }
+
     async fn create_invite(&self, _: &NewInvite) -> Result<(), StoreError> {
         self.fail().await
     }

@@ -683,6 +683,7 @@ pub(crate) mod tests {
             account_id: "account".to_owned(),
             pilot_handle: "dario_b".to_owned(),
             pilot_name: "Dario B.".to_owned(),
+            pilot_picture: None,
             identity: "6c55247b80a34b03fa0bb3bd38173c59".to_owned(),
             visibility: Visibility::Public,
             uploaded_at: start,

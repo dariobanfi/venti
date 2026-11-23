@@ -17,6 +17,7 @@ pub mod google;
 pub mod invite;
 pub mod oauth;
 pub mod password;
+pub mod picture;
 pub mod secret;
 pub mod throttle;
 
@@ -127,6 +128,11 @@ pub struct Limits {
     /// that did it in a loop would fill both. Twenty is more than a pilot
     /// who changes their mind needs (an estimate).
     pub all_flights_changes_per_day: u32,
+    /// Pictures one account may send within a day
+    /// (`PUT /v1/account/picture`), whatever becomes of them. Each is
+    /// read and written anew by the server, which is the expensive part
+    /// ([`venti_api_types::v1::PICTURES_PER_DAY`]).
+    pub pictures_per_day: u32,
     /// Requests to the connector from one address within
     /// [`connector_window`](Self::connector_window). The connector is open
     /// to the internet without sign-in. An assistant's provider sends the
@@ -256,6 +262,7 @@ impl Default for Limits {
             follows_and_cheers_per_day: venti_api_types::v1::FOLLOWS_AND_CHEERS_PER_DAY,
             archives_per_day: 4,
             all_flights_changes_per_day: 20,
+            pictures_per_day: venti_api_types::v1::PICTURES_PER_DAY,
             connector_requests_per_address: 120,
             connector_requests_per_network: 480,
             connector_window: Duration::minutes(1),
@@ -302,6 +309,7 @@ impl Limits {
             follows_and_cheers_per_day: u32::MAX,
             archives_per_day: u32::MAX,
             all_flights_changes_per_day: u32::MAX,
+            pictures_per_day: u32::MAX,
             connector_requests_per_address: u32::MAX,
             connector_requests_per_network: u32::MAX,
             forecast_fetches_per_address: u32::MAX,
@@ -346,6 +354,7 @@ const RESERVED_HANDLES: &[&str] = &[
     "logout",
     "mod",
     "moderator",
+    "near",
     "nobody",
     "null",
     "official",

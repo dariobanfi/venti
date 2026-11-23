@@ -40,6 +40,8 @@ pub(crate) fn account(
         new_flights_public: account.new_flights_public,
         country: account.country.clone(),
         glider_class: account.glider_class.map(glider_class),
+        picture: account.picture.as_deref().map(v1::picture_path),
+        shown_near_places: account.shown_near_places,
     })
 }
 
@@ -131,23 +133,31 @@ fn place(place: &Place) -> v1::FlightPlace {
 }
 
 pub(crate) fn pilot(handle_text: &str, display_name: &str) -> Result<v1::Pilot, ApiError> {
-    Ok(v1::Pilot {
-        handle: handle(handle_text)?,
-        display_name: display_name.to_owned(),
-        country: None,
-    })
+    shown(handle_text, display_name, None, None)
 }
 
-/// A pilot as their flights and their page show them: with their country,
-/// if they set one.
-pub(crate) fn pilot_with_country(
+/// A pilot with their picture, named by its identifier.
+pub(crate) fn pictured(
+    handle_text: &str,
+    display_name: &str,
+    picture: Option<&str>,
+) -> Result<v1::Pilot, ApiError> {
+    shown(handle_text, display_name, None, picture)
+}
+
+/// A pilot with their country and their picture, where the answer names
+/// them.
+pub(crate) fn shown(
     handle_text: &str,
     display_name: &str,
     country: Option<&str>,
+    picture: Option<&str>,
 ) -> Result<v1::Pilot, ApiError> {
     Ok(v1::Pilot {
+        handle: handle(handle_text)?,
+        display_name: display_name.to_owned(),
+        picture: picture.map(v1::picture_path),
         country: country.map(str::to_owned),
-        ..pilot(handle_text, display_name)?
     })
 }
 
@@ -159,10 +169,11 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
             .parse()
             .map_err(|e| damaged("flight address", e))?,
         identity: flight.identity.clone(),
-        pilot: pilot_with_country(
+        pilot: shown(
             &flight.pilot_handle,
             &flight.pilot_name,
             flight.pilot_country.as_deref(),
+            flight.pilot_picture.as_deref(),
         )?,
         visibility: visibility(flight.visibility),
         uploaded_at: flight.uploaded_at,

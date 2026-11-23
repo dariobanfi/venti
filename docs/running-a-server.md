@@ -185,6 +185,7 @@ docker compose exec server venti-server rename-group <GROUP> --name "Flying frie
 docker compose exec server venti-server remove-plan <PLAN>
 docker compose exec server venti-server remove-group <GROUP>
 docker compose exec server venti-server remove-comment <COMMENT>
+docker compose exec server venti-server remove-picture <HANDLE>
 ```
 
 Each command does one thing, takes effect at once, and says what it did and what it did not. One pointed at something that is not there says so and fails. None deletes a flight or an account, and none closes a report: taking a flight down and closing its report are two commands.
@@ -248,6 +249,7 @@ A report is one pilot's word about another. Nothing was done about any of them: 
 | `remove-plan <PLAN>` | Deletes one plan with who was in on it, as its author could | Tells nobody. Does not stop its author from posting it again. Cannot be undone |
 | `remove-group <GROUP>` | Deletes one group with its members' places in it, all its plans and its invite code, as its keeper could | Tells nobody, touches no account, and does not stop anyone from making a group again. Cannot be undone |
 | `remove-comment <COMMENT>` | Deletes one comment under a flight, as its author or the flight's pilot could. `<COMMENT>` is the identifier `reports` prints with a report about a comment | Tells nobody. Does not stop its author from writing again: `suspend-publishing` does, and takes following and cheering from the account as well. Cannot be undone |
+| `remove-picture <HANDLE>` | Deletes the pilot's picture, as the pilot could: every answer shows the pilot without one from then on, and the picture's address answers `404`. A report about a picture names the picture it was about, and `reports` says whether the pilot still shows it | Tells nobody. Does not stop the pilot from sending another: `suspend-publishing` does, since a suspended account sends no picture. Cannot be undone |
 
 - **Look at what was reported before you act.** The server checked nothing of it, and anyone with an account can send one.
 - **What `reports` and `group` print is for your eyes.** `reports` names who reported, and a live track's identifier is the key to where a person is. `group` says who is in a group and where its members mean to be on a day, which nobody outside the group is shown anywhere else. Do not paste either where others read.

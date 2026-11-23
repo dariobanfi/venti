@@ -139,6 +139,20 @@ pub struct AccountView {
     #[uniffi(default = None)]
     #[cfg_attr(feature = "wasm", tsify(optional))]
     pub glider_class: Option<crate::GliderClassKind>,
+    /// The path of the account's picture on the server, to fetch with
+    /// the server's address in front of it, as the server said it last.
+    /// `None` without a picture: a shell shows the pilot's initials.
+    /// Changed with [`Core::picture_request`] and
+    /// [`Core::picture_removal_request`].
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub picture_path: Option<String>,
+    /// Whether the pilot is among the pilots near a place
+    /// ([`crate::pilots_near_path`]): the pilot's own setting, on until
+    /// they switch it off ([`Core::shown_near_places_request`]).
+    #[uniffi(default = true)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub shown_near_places: bool,
 }
 
 /// The words of who sees a pilot's flights, the same on every platform:
@@ -458,6 +472,13 @@ struct Stored {
     /// it last.
     #[serde(default, with = "crate::own_flights::stored_class")]
     glider_class: Option<crate::GliderClassKind>,
+    /// The path of the account's picture, as the server said it last.
+    #[serde(default)]
+    picture: Option<String>,
+    /// Whether the pilot is among the pilots near a place, as the server
+    /// said it last; on for a record an earlier build stored.
+    #[serde(default = "on")]
+    shown_near_places: bool,
 }
 
 /// What a setting that is on unless it was switched off reads as.
@@ -583,6 +604,8 @@ impl Core {
             .account
             .glider_class
             .and_then(crate::own_flights::glider_class_kind);
+        stored.picture = response.account.picture;
+        stored.shown_near_places = response.account.shown_near_places;
         stored.session_id = response.session.id;
         self.store_account(&stored)?;
         Ok(SignedIn {
@@ -791,6 +814,8 @@ impl Core {
                 .account
                 .glider_class
                 .and_then(crate::own_flights::glider_class_kind);
+            stored.picture = response.account.picture;
+            stored.shown_near_places = response.account.shown_near_places;
             self.store_account(&stored)?;
         }
         Ok(Some(self.account_view(&stored)))
@@ -858,6 +883,54 @@ impl Core {
             },
             true,
         )
+    }
+
+    /// The request that sets whether the pilot is among the pilots near a
+    /// place: `PATCH /v1/account`. Its answer is the account, which goes
+    /// to [`Core::account_read`]; the switch shows
+    /// [`AccountView::shown_near_places`] from it.
+    pub fn shown_near_places_request(&self, shown: bool) -> Result<ServerRequest, CoreError> {
+        self.stored_account()?.ok_or_else(not_signed_in)?;
+        json_request(
+            "PATCH",
+            api::ACCOUNT_PATH,
+            &api::UpdateAccountRequest {
+                shown_near_places: Some(shown),
+                ..api::UpdateAccountRequest::default()
+            },
+            true,
+        )
+    }
+
+    /// The request that sends a picture as the pilot's own:
+    /// `PUT /v1/account/picture`, with the picture's bytes as they are and
+    /// its media type, `image/jpeg`, `image/png` or `image/webp`. A shell
+    /// scales a photograph to about 1,000 pixels before (the server cuts
+    /// the middle square and scales it to 256). Its answer is the
+    /// account, which goes to [`Core::account_read`]. A picture the
+    /// server would refuse for its kind or its size is refused here in
+    /// words, before it is sent.
+    pub fn picture_request(
+        &self,
+        picture: Vec<u8>,
+        media_type: String,
+    ) -> Result<ServerRequest, CoreError> {
+        self.stored_account()?.ok_or_else(not_signed_in)?;
+        crate::picture::picture_upload_request(picture, &media_type)
+    }
+
+    /// The request that removes the pilot's picture:
+    /// `DELETE /v1/account/picture`. Its answer is the account, which
+    /// goes to [`Core::account_read`].
+    pub fn picture_removal_request(&self) -> Result<ServerRequest, CoreError> {
+        self.stored_account()?.ok_or_else(not_signed_in)?;
+        Ok(ServerRequest {
+            method: "DELETE".to_owned(),
+            path: api::ACCOUNT_PICTURE_PATH.to_owned(),
+            body: None,
+            content_type: None,
+            needs_token: true,
+        })
     }
 
     /// The request that makes every flight of the account public, or every
@@ -1156,6 +1229,8 @@ impl Core {
             new_flights_public: stored.new_flights_public,
             country: stored.country.clone(),
             glider_class: stored.glider_class,
+            picture_path: stored.picture.clone(),
+            shown_near_places: stored.shown_near_places,
         }
     }
 

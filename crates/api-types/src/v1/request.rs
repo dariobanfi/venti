@@ -782,7 +782,10 @@ impl RankingRequest {
 
 /// Appends the parameters that have a value to a path, which may have a
 /// query string already.
-fn with_query<const N: usize>(mut path: String, parameters: [(&str, Option<String>); N]) -> String {
+pub(super) fn with_query<const N: usize>(
+    mut path: String,
+    parameters: [(&str, Option<String>); N],
+) -> String {
     let mut separator = if path.contains('?') { '&' } else { '?' };
     for (name, value) in parameters {
         if let Some(value) = value {

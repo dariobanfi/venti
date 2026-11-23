@@ -286,6 +286,21 @@ pub struct Account {
     /// Left out while it is not set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub glider_class: Option<super::GliderClass>,
+    /// The path of the account's picture ([`super::picture_path`]), if it
+    /// has one. Left out otherwise, and by an older server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picture: Option<String>,
+    /// Whether the pilot is among the pilots near a place
+    /// (`GET /v1/pilots/near`): the pilot's own setting, on for every
+    /// account until its pilot switches it off ([`UpdateAccountRequest`]).
+    /// The list is made of public flights only. A server from before the
+    /// setting leaves it out, and had no such list.
+    #[serde(default = "yes")]
+    pub shown_near_places: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// The body of `PATCH /v1/account`: the pilot's own settings of the
@@ -314,6 +329,9 @@ pub struct UpdateAccountRequest {
         with = "super::patch"
     )]
     pub glider_class: Option<Option<super::GliderClass>>,
+    /// Whether the pilot is among the pilots near a place.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shown_near_places: Option<bool>,
 }
 
 /// The body of `POST /v1/auth/google`: signs this device in with a Google
@@ -645,6 +663,8 @@ mod tests {
                 new_flights_public: true,
                 country: None,
                 glider_class: None,
+                picture: None,
+                shown_near_places: true,
             },
             session: Session {
                 id: "s".to_owned(),
@@ -672,6 +692,8 @@ mod tests {
             new_flights_public: true,
             country: None,
             glider_class: None,
+            picture: None,
+            shown_near_places: true,
         };
         let json = serde_json::to_value(&account).unwrap();
         assert!(
@@ -705,6 +727,8 @@ mod tests {
             new_flights_public: false,
             country: None,
             glider_class: None,
+            picture: None,
+            shown_near_places: true,
         };
         let mut json = serde_json::to_value(&account).unwrap();
         assert_eq!(json["new_flights_public"], false);

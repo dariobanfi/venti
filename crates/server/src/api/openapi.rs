@@ -89,6 +89,8 @@ enum Takes {
     JsonIfAny(&'static str),
     /// A flight file as it is.
     File,
+    /// A picture as it is: a JPEG, a PNG or a WebP.
+    Picture,
 }
 
 /// What an answer carries when the request succeeds.
@@ -171,6 +173,11 @@ impl Op {
 
     fn takes_a_file(mut self) -> Self {
         self.takes = Takes::File;
+        self
+    }
+
+    fn takes_a_picture(mut self) -> Self {
+        self.takes = Takes::Picture;
         self
     }
 
@@ -662,6 +669,30 @@ fn operations() -> Vec<Op> {
         )
         .with(FlightsRead)
         .json("PilotStatisticsResponse"),
+        get(
+            venti_api_types::v1::PILOTS_NEAR_PATH,
+            "The pilots whose public flights took off near a place",
+        )
+        .docs("GET /v1/pilots/near?lat=&lon=&radius_km=&limit=")
+        .query(&["lat!", "lon!", "radius_km", "limit"])
+        .json("PilotsNearResponse"),
+        put(
+            venti_api_types::v1::ACCOUNT_PICTURE_PATH,
+            "Send the pilot's own picture",
+        )
+        .docs("PUT and DELETE /v1/account/picture")
+        .session()
+        .takes_a_picture()
+        .json("AccountResponse"),
+        delete(
+            venti_api_types::v1::ACCOUNT_PICTURE_PATH,
+            "Remove the pilot's picture",
+        )
+        .docs("PUT and DELETE /v1/account/picture")
+        .session()
+        .json("AccountResponse"),
+        get("/v1/pictures/{id}", "A pilot's picture")
+            .bytes("image/webp", "The picture, 256 by 256 pixels"),
         // Pilots among each other.
         put("/v1/pilots/{handle}/follow", "Follow a pilot")
             .with(SocialWrite)
@@ -978,6 +1009,10 @@ fn query_parameter(spec: &str) -> Value {
             json!({"type": "integer", "minimum": 1, "maximum": 5000}),
         ),
         "pilot" => ("A pilot's handle.", json!({"type": "string"})),
+        "radius_km" => (
+            "How far around the place, in whole kilometres: 1 to 100, 25 if left out.",
+            json!({"type": "integer"}),
+        ),
         "q" => (
             "A part of a pilot's handle or display name, 2 to 60 characters, in any case.",
             json!({"type": "string"}),
@@ -1142,6 +1177,18 @@ fn operation(op: &Op) -> Value {
             "description": "The flight file as it is, of any media type: an IGC file.",
             "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
         })),
+        Takes::Picture => {
+            let binary = json!({"schema": {"type": "string", "format": "binary"}});
+            let content: Map<String, Value> = venti_api_types::v1::PICTURE_MEDIA_TYPES
+                .iter()
+                .map(|media| ((*media).to_owned(), binary.clone()))
+                .collect();
+            Some(json!({
+                "required": true,
+                "description": "The picture as it is: a JPEG, a PNG or a WebP.",
+                "content": content,
+            }))
+        }
     };
     if let Some(body) = body {
         described.insert("requestBody".to_owned(), body);

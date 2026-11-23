@@ -45,6 +45,7 @@ flate2.workspace = true
 futures.workspace = true
 getrandom.workspace = true
 hkdf.workspace = true
+image-webp.workspace = true
 ipnet.workspace = true
 p256.workspace = true
 png.workspace = true
@@ -64,6 +65,8 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 ttf-parser.workspace = true
 unicode-normalization.workspace = true
+zune-core.workspace = true
+zune-jpeg.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

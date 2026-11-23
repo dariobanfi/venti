@@ -12,9 +12,9 @@ use crate::flight::{
 use crate::takeoff::{Cell, Tally, cell_of, cells_of};
 use crate::{
     AllFlightsSet, AllVisibilityChange, DeletedFlight, Derived, Flight, FlightChanges, FlightKey,
-    FlightsFrom, Flown, FoundPilot, GliderClass, Listing, Month, NewFlight, OutdatedFlight, Place,
-    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, ScoreKey, StoreError, Visibility,
-    VisibilityChange, WithdrawnFlight,
+    FlightsFrom, Flown, FoundPilot, GliderClass, Listing, Month, NearPilot, NewFlight,
+    OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, ScoreKey,
+    StoreError, Visibility, VisibilityChange, WithdrawnFlight,
 };
 
 #[derive(Debug, Default)]
@@ -102,6 +102,7 @@ impl Flights {
             flight.pilot_handle.clone_from(&account.handle);
             flight.pilot_name.clone_from(&account.display_name);
             flight.pilot_country.clone_from(&account.country);
+            flight.pilot_picture.clone_from(&account.picture);
         }
         flight
     }
@@ -143,6 +144,7 @@ impl Flights {
                 pilot_handle: String::new(),
                 pilot_name: String::new(),
                 pilot_country: None,
+                pilot_picture: None,
                 identity: new.identity.clone(),
                 visibility: Visibility::Private,
                 uploaded_at: new.uploaded_at,
@@ -375,6 +377,7 @@ impl Flights {
                     FoundPilot {
                         handle: account.handle.clone(),
                         name: account.display_name.clone(),
+                        picture: account.picture.clone(),
                         flights,
                     },
                 ))
@@ -388,6 +391,45 @@ impl Flights {
         });
         found.truncate(limit);
         found.into_iter().map(|(_, pilot)| pilot).collect()
+    }
+
+    pub(super) fn pilots_near(
+        &self,
+        place: GeoPoint,
+        within_m: f64,
+        since: Timestamp,
+        limit: usize,
+        accounts: &Accounts,
+    ) -> Vec<NearPilot> {
+        let mut counts: BTreeMap<&str, u32> = BTreeMap::new();
+        for (entry, takeoff) in self.public_takeoffs() {
+            if entry.flight.derived.start >= since && takeoff.position.distance_m(place) <= within_m
+            {
+                *counts.entry(entry.flight.account_id.as_str()).or_default() += 1;
+            }
+        }
+        let mut near: Vec<NearPilot> = counts
+            .into_iter()
+            .filter_map(|(account_id, flights)| {
+                let account = accounts.by_id(account_id)?;
+                (account.shown_near_places && account.publishing_suspended_at.is_none()).then(
+                    || NearPilot {
+                        account_id: account.id.clone(),
+                        handle: account.handle.clone(),
+                        name: account.display_name.clone(),
+                        picture: account.picture.clone(),
+                        flights,
+                    },
+                )
+            })
+            .collect();
+        near.sort_by(|a, b| {
+            b.flights
+                .cmp(&a.flights)
+                .then_with(|| a.handle.cmp(&b.handle))
+        });
+        near.truncate(limit);
+        near
     }
 
     pub(super) fn flown_by(&self, account_id: &str, listing: Listing) -> Vec<Flown> {

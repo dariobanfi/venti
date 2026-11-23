@@ -3255,6 +3255,7 @@ dependencies = [
  "futures",
  "getrandom 0.4.3",
  "hkdf",
+ "image-webp",
  "ipnet",
  "p256",
  "png",
@@ -3302,6 +3303,8 @@ dependencies = [
  "venti-store",
  "venti-tools",
  "zip",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]

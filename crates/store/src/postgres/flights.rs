@@ -27,7 +27,9 @@ use crate::{
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
 pub(super) const FLIGHT_COLUMNS: &str = "
-    f.id, f.account_id, a.handle, a.display_name, f.identity, f.visibility, f.uploaded_at,
+    f.id, f.account_id, a.handle, a.display_name,
+    (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS pilot_picture,
+    f.identity, f.visibility, f.uploaded_at,
     f.change, f.file_bytes, f.analysis_version, f.started_at, f.airtime_s,
     f.takeoff_at, f.takeoff_lat, f.takeoff_lon, f.takeoff_altitude_m,
     f.landing_at, f.landing_lat, f.landing_lon, f.landing_altitude_m,
@@ -103,6 +105,7 @@ pub(super) fn flight_from(row: &Row) -> Result<Flight, StoreError> {
         pilot_handle: row.get("handle"),
         pilot_name: row.get("display_name"),
         pilot_country: row.get("pilot_country"),
+        pilot_picture: row.get("pilot_picture"),
         identity: row.get("identity"),
         visibility: Visibility::from_name(visibility)
             .ok_or_else(|| corrupt("visibility", visibility))?,
@@ -804,6 +807,7 @@ pub(super) async fn pilots_named(
     let statement = client
         .prepare_cached(
             "SELECT a.handle, a.display_name, count(*) AS public_flights,
+                    (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture_id,
                     (strpos(lower(a.handle), $1) = 1
                      OR strpos(lower(a.display_name), $1) = 1) AS begins
              FROM accounts a JOIN flights f ON f.account_id = a.id
@@ -824,6 +828,7 @@ pub(super) async fn pilots_named(
         .map(|row| FoundPilot {
             handle: row.get("handle"),
             name: row.get("display_name"),
+            picture: row.get("picture_id"),
             flights: u32::try_from(row.get::<_, i64>("public_flights")).unwrap_or(u32::MAX),
         })
         .collect())

@@ -14,7 +14,7 @@ use super::text;
 /// The most characters the text of a report may have.
 pub const MAX_REPORT_TEXT_LENGTH: usize = 1000;
 
-/// What a report is about. Exactly one of the seven.
+/// What a report is about. Exactly one of the eight.
 ///
 /// The list is closed, and a subject travels one way only, from a client
 /// to the server: no answer carries one. A server that is sent a kind of
@@ -30,6 +30,9 @@ pub enum ReportSubject {
     Flight(String),
     /// A pilot's page, by the pilot's handle.
     Pilot(String),
+    /// A pilot's picture, by the pilot's handle: the picture the pilot
+    /// shows when the report is made. Since 2026-11-23.
+    Picture(String),
     /// A live track, by its identifier, which is also the end of its link.
     LiveTrack(String),
     /// A group the reporter is in, by its identifier. What is reported is
@@ -91,7 +94,9 @@ impl ReportSubject {
     pub fn reasons(&self) -> &'static [ReportReason] {
         match self {
             Self::Flight(_) | Self::Pilot(_) | Self::LiveTrack(_) => &ReportReason::ALL,
-            Self::Group(_) | Self::Plan(_) | Self::Comment(_) => &ReportReason::ABOUT_WORDS,
+            Self::Group(_) | Self::Plan(_) | Self::Comment(_) | Self::Picture(_) => {
+                &ReportReason::ABOUT_WORDS
+            }
             Self::Site(_) => &ReportReason::ABOUT_A_SITE,
         }
     }
@@ -147,8 +152,8 @@ impl ReportReason {
         Self::Other,
     ];
 
-    /// The reasons a report about a group or a plan can give: all but the
-    /// one that is about a flight.
+    /// The reasons a report about a group, a plan, a comment or a picture
+    /// can give: all but the one that is about a flight.
     pub const ABOUT_WORDS: [Self; 5] = [
         Self::Offensive,
         Self::Impersonation,

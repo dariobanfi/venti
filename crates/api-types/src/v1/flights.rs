@@ -108,6 +108,11 @@ pub struct Pilot {
     pub handle: Handle,
     /// The name the pilot is shown by.
     pub display_name: String,
+    /// The path of the pilot's picture ([`super::picture_path`]), if they
+    /// have one and the answer names it. Left out otherwise: an app then
+    /// shows the pilot's initials.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picture: Option<String>,
     /// The pilot's country, an ISO 3166-1 alpha-2 code in upper case, if
     /// they set one ([`super::Account::country`]). It is said with their
     /// flights and on their page; left out where the pilot set none, and
@@ -896,6 +901,7 @@ mod tests {
                 handle: Handle::new("demo").unwrap(),
                 display_name: "Demo Pilot".to_owned(),
                 country: None,
+                picture: None,
             },
             visibility: Visibility::Private,
             uploaded_at: start,

@@ -45,7 +45,15 @@ pub(super) fn rounded(points: f64) -> f64 {
 
 fn pilot(ranked: &Ranked) -> Result<RankedPilot, ApiError> {
     Ok(RankedPilot {
-        pilot: wire::pilot(&ranked.pilot_handle, &ranked.pilot_name)?,
+        // The flights that count are the pilot's, and name their picture.
+        pilot: wire::pictured(
+            &ranked.pilot_handle,
+            &ranked.pilot_name,
+            ranked
+                .flights
+                .first()
+                .and_then(|flight| flight.pilot_picture.as_deref()),
+        )?,
         points: rounded(ranked.points),
         scored: ranked.scored,
         flights: wire::flights(&ranked.flights)?,

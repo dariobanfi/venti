@@ -49,6 +49,10 @@
 //! | [`PILOTS_PATH`] | GET | [`PilotsRequest`] | [`PilotsResponse`] |
 //! | [`pilot_statistics_path`] | GET | | [`PilotStatisticsResponse`] |
 //! | [`ACCOUNT_STATISTICS_PATH`] | GET | | [`PilotStatisticsResponse`] |
+//! | [`PILOTS_NEAR_PATH`] | GET | [`PilotsNearRequest`] | [`PilotsNearResponse`] |
+//! | [`ACCOUNT_PICTURE_PATH`] | PUT | a JPEG, PNG or WebP picture | [`AccountResponse`] |
+//! | [`ACCOUNT_PICTURE_PATH`] | DELETE | | [`AccountResponse`] |
+//! | [`picture_path`] | GET | | the picture, WebP |
 //! | [`LIVE_POSITIONS_PATH`] | POST | [`LivePositionsRequest`] | [`LivePositionsResponse`] |
 //! | [`LIVE_PATH`] | GET | [`LiveTracksRequest`] | [`LiveTracksResponse`] |
 //! | [`LIVE_OTHERS_PATH`] | GET | [`LiveOthersRequest`] | [`LiveOthersResponse`] |
@@ -115,6 +119,7 @@ mod live;
 mod maps;
 mod observations;
 mod patch;
+mod pictures;
 mod push;
 mod radar;
 mod report;
@@ -221,6 +226,13 @@ pub use maps::{
     is_map_name, map_file_path,
 };
 pub use observations::{ObservationsResponse, Reading};
+pub use pictures::{
+    ACCOUNT_PICTURE_PATH, DEFAULT_PILOTS_NEAR, DEFAULT_PILOTS_NEAR_RADIUS_KM, MAX_PICTURE_BYTES,
+    MAX_PICTURE_PIXELS, MAX_PICTURE_SIDE, MAX_PILOTS_NEAR, MAX_PILOTS_NEAR_RADIUS_KM,
+    MIN_PICTURE_SIDE, NearPilot, PICTURE_MEDIA_TYPE, PICTURE_MEDIA_TYPES, PICTURE_SIDE,
+    PICTURES_PER_DAY, PILOTS_NEAR_MONTHS, PILOTS_NEAR_PATH, PILOTS_NEAR_TOP_SITES,
+    PilotsNearRequest, PilotsNearResponse, picture_path,
+};
 pub use push::{
     MAX_PUSH_ENDPOINT_LENGTH, MAX_PUSH_SUBSCRIPTIONS, PUSH_KEY_PATH, PUSH_SUBSCRIPTION_PATH,
     PUSH_TTL_SECONDS, PushKeyResponse, PushKeys, PushMessage, PushRemoveRequest,

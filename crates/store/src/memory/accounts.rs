@@ -8,7 +8,8 @@ use venti_domain::Timestamp;
 use crate::flight::next_change;
 use crate::{
     AccessToken, Account, AccountCreation, AccountSettings, GoogleLink, GoogleLinking, NewAccount,
-    NewGoogleAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
+    NewGoogleAccount, NewInvite, NewPicture, Picture, PictureOrigin, SESSION_TOUCH_MINUTES,
+    SecretHash, Session,
 };
 
 #[derive(Debug, Default)]
@@ -38,6 +39,10 @@ struct Entry {
     google: Option<GoogleLink>,
     /// The largest change number the account's flights have used.
     flight_change: i64,
+    /// Its picture.
+    picture: Option<Picture>,
+    /// Whether the picture of its Google account was tried.
+    google_picture_tried: bool,
 }
 
 #[derive(Debug)]
@@ -100,11 +105,14 @@ impl Accounts {
             account: Account {
                 publishing_suspended_at: None,
                 edits_sites_since: None,
+                picture: None,
                 ..account.clone()
             },
             password_hash,
             google,
             flight_change: 0,
+            picture: None,
+            google_picture_tried: false,
         };
         self.accounts.insert(account.id.clone(), entry);
         AccountCreation::Created
@@ -299,6 +307,53 @@ impl Accounts {
             .is_some_and(|account| account.publishing_suspended_at.is_some())
     }
 
+    /// Keeps a picture for an account, in place of the one it has; one
+    /// from Google only where it has none. Whether the account is there.
+    pub(super) fn set_picture(&mut self, new: &NewPicture) -> bool {
+        let Some(entry) = self.accounts.get_mut(&new.account_id) else {
+            return false;
+        };
+        if new.origin == PictureOrigin::Google && entry.picture.is_some() {
+            return true;
+        }
+        entry.account.picture = Some(new.id.clone());
+        entry.picture = Some(Picture {
+            id: new.id.clone(),
+            account_id: new.account_id.clone(),
+            bytes: new.bytes.clone(),
+            origin: new.origin,
+            created_at: new.created_at,
+        });
+        true
+    }
+
+    /// Removes an account's picture, and returns it.
+    pub(super) fn remove_picture(&mut self, account_id: &str) -> Option<Picture> {
+        let entry = self.accounts.get_mut(account_id)?;
+        entry.account.picture = None;
+        entry.picture.take()
+    }
+
+    /// The picture with this identifier.
+    pub(super) fn picture(&self, id: &str) -> Option<Picture> {
+        self.accounts
+            .values()
+            .filter_map(|entry| entry.picture.as_ref())
+            .find(|picture| picture.id == id)
+            .cloned()
+    }
+
+    /// Notes that the picture of an account's Google account is tried, and
+    /// whether this is the time to: the first, with no picture there.
+    pub(super) fn claim_google_picture(&mut self, account_id: &str) -> bool {
+        let Some(entry) = self.accounts.get_mut(account_id) else {
+            return false;
+        };
+        let first = !entry.google_picture_tried && entry.picture.is_none();
+        entry.google_picture_tried |= first;
+        first
+    }
+
     /// Whether a flight an account uploads is public from the start;
     /// `false` for an account that is not there.
     pub(super) fn new_flights_public(&self, account_id: &str) -> bool {
@@ -322,6 +377,9 @@ impl Accounts {
         }
         if let Some(class) = settings.glider_class {
             account.glider_class = class;
+        }
+        if let Some(shown) = settings.shown_near_places {
+            account.shown_near_places = shown;
         }
         Some(account.clone())
     }

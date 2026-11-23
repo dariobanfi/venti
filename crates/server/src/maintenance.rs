@@ -344,6 +344,8 @@ mod tests {
             new_flights_public: false,
             country: None,
             glider_class: None,
+            picture: None,
+            shown_near_places: true,
         };
         let new = NewAccount {
             account: account.clone(),
@@ -424,6 +426,8 @@ mod tests {
             new_flights_public: false,
             country: None,
             glider_class: None,
+            picture: None,
+            shown_near_places: true,
         };
         for handle in ["dario", "anna"] {
             let new = NewAccount {
@@ -502,6 +506,8 @@ mod tests {
             new_flights_public: false,
             country: None,
             glider_class: None,
+            picture: None,
+            shown_near_places: true,
         };
         let new = NewAccount {
             account: account.clone(),

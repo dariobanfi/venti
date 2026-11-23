@@ -6,6 +6,7 @@
     "edits_sites": true,
     "new_flights_public": true,
     "country": "DE",
-    "glider_class": "en_b"
+    "glider_class": "en_b",
+    "shown_near_places": true
   }
 }

@@ -38,6 +38,8 @@ pub(crate) fn account(handle: &str) -> Account {
         new_flights_public: false,
         country: None,
         glider_class: None,
+        picture: None,
+        shown_near_places: true,
     }
 }
 

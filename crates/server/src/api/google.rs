@@ -114,6 +114,7 @@ pub(crate) async fn sign_in<S: Store>(
         let link = link_of(&identity, api.clock.now());
         api.store.link_google(&account.id, &link).await?;
         tracing::info!(account = %account.handle, "signed in with Google");
+        api.take_google_picture(&account, &identity).await;
         let signed_in = api
             .open_session(&account, request.device.as_deref())
             .await?;
@@ -211,6 +212,8 @@ pub(crate) async fn create<S: Store>(
         new_flights_public: true,
         country: None,
         glider_class: None,
+        picture: None,
+        shown_near_places: true,
     };
     let new = NewGoogleAccount {
         account: account.clone(),
@@ -224,6 +227,9 @@ pub(crate) async fn create<S: Store>(
         AccountCreation::GoogleTaken => return Err(google_taken()),
     }
     tracing::info!(account = %account.handle, "account created with Google");
+    api.take_google_picture(&account, &identity).await;
+    // The answer names the picture, if one was taken.
+    let account = api.store.account(&account.handle).await?.unwrap_or(account);
 
     let signed_in = api
         .open_session(&account, request.device.as_deref())
@@ -258,8 +264,14 @@ pub(crate) async fn link<S: Store>(
         GoogleLinking::NoSuchAccount => return Err(ApiError::unauthorized("the account is gone")),
     }
     tracing::info!(account = %signed.account.handle, "Google account linked");
-    let google = api.store.google_link(&signed.account.id).await?;
-    let account = wire::account(&signed.account, google.as_ref())?;
+    api.take_google_picture(&signed.account, &identity).await;
+    let account = api
+        .store
+        .account(&signed.account.handle)
+        .await?
+        .unwrap_or(signed.account);
+    let google = api.store.google_link(&account.id).await?;
+    let account = wire::account(&account, google.as_ref())?;
     Ok(cache::private_json(
         StatusCode::OK,
         &AccountResponse { account },
@@ -296,6 +308,9 @@ pub(crate) async fn unlink<S: Store>(
 pub(crate) struct DevTokenQuery {
     email: Option<String>,
     name: Option<String>,
+    /// `true` for a Google account with a picture, which the development
+    /// mode makes up.
+    picture: Option<String>,
 }
 
 /// `GET /v1/dev/google-id-token?email=…&name=…`: in the development mode,
@@ -322,8 +337,12 @@ pub(crate) async fn dev_id_token<S: Store>(
                 "name the made-up Google account by its email: ?email=anna@example.com",
             )
         })?;
-    let answer = DevGoogleIdTokenResponse {
-        id_token: issuer.id_token(&email, query.name.as_deref(), api.clock.now()),
+    let name = query.name.as_deref();
+    let id_token = if query.picture.as_deref() == Some("true") {
+        issuer.id_token_with_picture(&email, name, api.clock.now())
+    } else {
+        issuer.id_token(&email, name, api.clock.now())
     };
+    let answer = DevGoogleIdTokenResponse { id_token };
     Ok(cache::private_json(StatusCode::OK, &answer))
 }

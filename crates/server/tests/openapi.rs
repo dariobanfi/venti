@@ -748,6 +748,7 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
     ),
     ("ranking.json", "get", "/v1/ranking", Answer(200)),
     ("pilots.json", "get", "/v1/pilots", Answer(200)),
+    ("pilots_near.json", "get", "/v1/pilots/near", Answer(200)),
     (
         "pilot_statistics.json",
         "get",
@@ -793,6 +794,12 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
     ("report_group_request.json", "post", "/v1/reports", Request),
     ("report_plan_request.json", "post", "/v1/reports", Request),
     ("report_site_request.json", "post", "/v1/reports", Request),
+    (
+        "report_picture_request.json",
+        "post",
+        "/v1/reports",
+        Request,
+    ),
     ("report.json", "post", "/v1/reports", Answer(201)),
     ("groups.json", "get", "/v1/groups", Answer(200)),
     ("group.json", "get", "/v1/groups/{id}", Answer(200)),

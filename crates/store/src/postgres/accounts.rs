@@ -22,6 +22,8 @@ fn account_from(row: &Row) -> Account {
         publishing_suspended_at: row.get("publishing_suspended_at"),
         edits_sites_since: row.get("edits_sites_since"),
         new_flights_public: row.get("new_flights_public"),
+        picture: row.get("picture_id"),
+        shown_near_places: row.get("shown_near_places"),
         country: row.get("country"),
         glider_class: row
             .get::<_, Option<&str>>("glider_class")
@@ -42,7 +44,8 @@ fn session_from(row: &Row) -> Session {
 /// The columns [`account_from`] reads, for an `accounts` table named `a`.
 const ACCOUNT_COLUMNS: &str = "a.id AS account_id, a.handle, a.display_name, \
      a.created_at AS account_created_at, a.publishing_suspended_at, a.edits_sites_since, \
-     a.new_flights_public, a.country, a.glider_class";
+     a.new_flights_public, a.country, a.glider_class, a.shown_near_places, \
+     (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture_id";
 
 pub(super) async fn create(
     client: &mut Client,
@@ -105,8 +108,9 @@ async fn create_with(
 
     let inserted = tx
         .execute(
-            "INSERT INTO accounts (id, handle, display_name, created_at, new_flights_public)
-             VALUES ($1, $2, $3, $4, $5)
+            "INSERT INTO accounts
+                 (id, handle, display_name, created_at, new_flights_public, shown_near_places)
+             VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (handle) DO NOTHING",
             &[
                 &account.id,
@@ -114,6 +118,7 @@ async fn create_with(
                 &account.display_name,
                 &account.created_at,
                 &account.new_flights_public,
+                &account.shown_near_places,
             ],
         )
         .await
@@ -596,7 +601,8 @@ pub(super) async fn update_settings(
         "UPDATE accounts a SET
              new_flights_public = COALESCE($2, a.new_flights_public),
              country = CASE WHEN $3 THEN $4 ELSE a.country END,
-             glider_class = CASE WHEN $5 THEN $6 ELSE a.glider_class END
+             glider_class = CASE WHEN $5 THEN $6 ELSE a.glider_class END,
+             shown_near_places = COALESCE($7, a.shown_near_places)
          WHERE a.id = $1
          RETURNING {ACCOUNT_COLUMNS}"
     );
@@ -612,6 +618,7 @@ pub(super) async fn update_settings(
                 &country,
                 &settings.glider_class.is_some(),
                 &class,
+                &settings.shown_near_places,
             ],
         )
         .await
@@ -684,7 +691,8 @@ const USE_SESSION: &str = "
            CASE WHEN s.last_used_at < $4 THEN $2 ELSE s.last_used_at END AS last_used_at,
            a.handle, a.display_name, a.created_at AS account_created_at,
            a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public,
-           a.country, a.glider_class
+           a.country, a.glider_class, a.shown_near_places,
+           (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture_id
     FROM sessions s
     JOIN accounts a ON a.id = s.account_id
     WHERE s.token_hash = $1 AND s.last_used_at >= $3";
@@ -872,7 +880,8 @@ const USE_ACCESS_TOKEN: &str = "
                 ELSE t.last_used_on END AS last_used_on,
            a.handle, a.display_name, a.created_at AS account_created_at,
            a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public,
-           a.country, a.glider_class
+           a.country, a.glider_class, a.shown_near_places,
+           (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture_id
     FROM access_tokens t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.token_hash = $1 AND (t.expires_at IS NULL OR t.expires_at > $2)

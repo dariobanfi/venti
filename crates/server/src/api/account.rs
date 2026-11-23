@@ -327,6 +327,8 @@ pub(crate) async fn create<S: Store>(
         new_flights_public: true,
         country: None,
         glider_class: None,
+        picture: None,
+        shown_near_places: true,
     };
     let new = NewAccount {
         account: account.clone(),
@@ -453,9 +455,10 @@ pub(crate) async fn show<S: Store>(
 /// and answers with the account as `GET /v1/account` does.
 ///
 /// Its settings are those of what the pilot's flights show: whether new
-/// flights are public, the pilot's country and the class of their glider.
-/// A program needs `flights:write`, as it does to change who sees one
-/// flight.
+/// flights are public, the pilot's country and the class of their glider,
+/// and whether the pilot is among the pilots near a place, which is made
+/// of their public flights. A program needs `flights:write`, as it does
+/// to change who sees one flight.
 pub(crate) async fn update<S: Store>(
     State(api): State<Arc<Api<S>>>,
     May(signed, ..): May<WriteFlights>,
@@ -487,6 +490,7 @@ pub(crate) async fn update<S: Store>(
         new_flights_public: request.new_flights_public,
         country,
         glider_class,
+        shown_near_places: request.shown_near_places,
     };
     let mut account = signed.account;
     if settings != AccountSettings::default() {

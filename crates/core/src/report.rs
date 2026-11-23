@@ -50,6 +50,11 @@ pub enum ReportSubject {
         /// The pilot's handle.
         handle: String,
     },
+    /// A pilot's picture, the one they show now.
+    Picture {
+        /// The pilot's handle.
+        handle: String,
+    },
     /// A flight shared while it is under way.
     LiveTrack {
         /// The track's identifier.
@@ -153,13 +158,32 @@ enum Reported {
     Site,
     /// A comment under a flight: its words.
     Comment,
+    /// A pilot's picture.
+    Picture,
 }
 
 /// What a reason is called in a form and what it means there. `None` for
 /// a reason that a report about this kind of thing cannot give.
 fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'static str)> {
-    use Reported::{Comment, Group, Plan, Shared, Site};
+    use Reported::{Comment, Group, Picture, Plan, Shared, Site};
     Some(match (reason, reported) {
+        (ReportReason::Offensive, Picture) => (
+            "Insulting or threatening",
+            "The picture insults, threatens or harasses, or is not fit to show.",
+        ),
+        (ReportReason::Impersonation, Picture) => (
+            "Pretends to be someone else",
+            "The picture passes the pilot off as another person, a club or an organisation.",
+        ),
+        (ReportReason::Privacy, Picture) => (
+            "Shows something private",
+            "The picture shows a person who did not agree to it.",
+        ),
+        // A picture is no flight and no site.
+        (
+            ReportReason::NotAFlight | ReportReason::WrongOrDangerous | ReportReason::NotASite,
+            Picture,
+        ) => return None,
         (ReportReason::Offensive, Shared) => (
             "Insulting or threatening",
             "A name, a glider's name or another text that insults, threatens or harasses.",
@@ -282,6 +306,9 @@ fn form(reported: Reported) -> ReportForm {
         Reported::Plan => {
             "Whoever runs Venti reads the report, with the plan's place and note as they are now, and sees that it came from you. Nobody in the group is told, and no answer comes back."
         }
+        Reported::Picture => {
+            "Whoever runs Venti reads the report, with the picture as it is now, and sees that it came from you. The pilot is not told, and no answer comes back."
+        }
         Reported::Comment => {
             "Whoever runs Venti reads the report, with the comment as it is now, and sees that it came from you. Its author is not told, and no answer comes back."
         }
@@ -315,6 +342,7 @@ pub fn report_form_for(subject: ReportSubject) -> ReportForm {
         ReportSubject::Flight { .. }
         | ReportSubject::Pilot { .. }
         | ReportSubject::LiveTrack { .. } => Reported::Shared,
+        ReportSubject::Picture { .. } => Reported::Picture,
         ReportSubject::Group { .. } => Reported::Group,
         ReportSubject::Plan { .. } => Reported::Plan,
         ReportSubject::Site { .. } | ReportSubject::SiteRevision { .. } => Reported::Site,
@@ -337,6 +365,7 @@ pub fn report_request(
     let subject = match subject {
         ReportSubject::Flight { id } => api::ReportSubject::Flight(id),
         ReportSubject::Pilot { handle } => api::ReportSubject::Pilot(handle),
+        ReportSubject::Picture { handle } => api::ReportSubject::Picture(handle),
         ReportSubject::LiveTrack { id } => api::ReportSubject::LiveTrack(id),
         ReportSubject::Group { id } => api::ReportSubject::Group(id),
         ReportSubject::Plan { group_id, id } => api::ReportSubject::Plan(api::ReportedPlan {
@@ -405,6 +434,7 @@ fn request_about(
     let names_something = match &subject {
         api::ReportSubject::Flight(name)
         | api::ReportSubject::Pilot(name)
+        | api::ReportSubject::Picture(name)
         | api::ReportSubject::LiveTrack(name) => !name.trim().is_empty(),
         api::ReportSubject::Group(id) => id.parse::<GroupId>().is_ok(),
         api::ReportSubject::Plan(plan) => {

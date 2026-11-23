@@ -38,6 +38,7 @@ use crate::{
 };
 use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
+use crate::{NearPilot, NewPicture, Picture};
 
 /// A store that lives in the process and forgets everything when it ends.
 ///
@@ -745,6 +746,35 @@ impl Store for MemoryStore {
         settings: &AccountSettings,
     ) -> Result<Option<Account>, StoreError> {
         Ok(self.lock().accounts.update_settings(account_id, settings))
+    }
+
+    async fn set_picture(&self, picture: &NewPicture) -> Result<bool, StoreError> {
+        Ok(self.lock().accounts.set_picture(picture))
+    }
+
+    async fn remove_picture(&self, account_id: &str) -> Result<Option<Picture>, StoreError> {
+        Ok(self.lock().accounts.remove_picture(account_id))
+    }
+
+    async fn picture(&self, id: &str) -> Result<Option<Picture>, StoreError> {
+        Ok(self.lock().accounts.picture(id))
+    }
+
+    async fn claim_google_picture(&self, account_id: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().accounts.claim_google_picture(account_id))
+    }
+
+    async fn pilots_near(
+        &self,
+        place: GeoPoint,
+        within_m: f64,
+        since: Timestamp,
+        limit: usize,
+    ) -> Result<Vec<NearPilot>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .flights
+            .pilots_near(place, within_m, since, limit, &inner.accounts))
     }
 
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {

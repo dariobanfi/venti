@@ -17,7 +17,9 @@ use venti_domain::{BoundingBox, GeoPoint, Site, SourceId};
 use super::flights::{FLIGHT_COLUMNS, FLIGHT_FROM, flight_from};
 use super::{corrupt, db_error};
 use crate::takeoff::{self, Cell, around, box_of_cells, cells_of, reach_of};
-use crate::{CELLS_PER_DEGREE, CandidateRule, FlightsFrom, StoreError, TakeoffCandidate};
+use crate::{
+    CELLS_PER_DEGREE, CandidateRule, FlightsFrom, NearPilot, StoreError, TakeoffCandidate,
+};
 
 /// The day at the place when a flight `f` started: [`takeoff::solar_day`]
 /// in SQL.
@@ -133,6 +135,54 @@ pub(super) async fn began_at(
         .map_err(db_error)?;
     answer.best = rows.iter().map(flight_from).collect::<Result<_, _>>()?;
     Ok(answer)
+}
+
+/// The pilots whose public flights took off near a place since a moment.
+pub(super) async fn pilots_near(
+    client: &Client,
+    place: GeoPoint,
+    within_m: f64,
+    since: venti_domain::Timestamp,
+    limit: usize,
+) -> Result<Vec<NearPilot>, StoreError> {
+    if within_m.is_nan() || within_m < 0.0 {
+        return Ok(Vec::new());
+    }
+    let [west, south, east, north] = around(place.lat(), place.lon(), within_m);
+    let (lat, lon) = (place.lat(), place.lon());
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let query = format!(
+        "SELECT a.id AS account_id, a.handle, a.display_name,
+                (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture_id,
+                count(*) AS flights
+         FROM flights f JOIN accounts a ON a.id = f.account_id
+         WHERE {} AND f.started_at >= $8
+           AND a.shown_near_places AND a.publishing_suspended_at IS NULL
+         GROUP BY a.id
+         ORDER BY flights DESC, a.handle COLLATE \"C\"
+         LIMIT $9",
+        near()
+    );
+    let rows = client
+        .query(
+            query.as_str(),
+            &[
+                &west, &south, &east, &north, &lat, &lon, &within_m, &since, &limit,
+            ],
+        )
+        .await
+        .map_err(db_error)?;
+    rows.iter()
+        .map(|row| {
+            Ok(NearPilot {
+                account_id: row.get("account_id"),
+                handle: row.get("handle"),
+                name: row.get("display_name"),
+                picture: row.get("picture_id"),
+                flights: count(row.get("flights"), "count of flights")?,
+            })
+        })
+        .collect()
 }
 
 /// The public flights that began in the cells a box touches, added up

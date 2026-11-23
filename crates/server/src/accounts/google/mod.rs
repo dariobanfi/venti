@@ -67,6 +67,43 @@ const LONGEST_KEYS_LIFE: Duration = Duration::from_secs(24 * 3600);
 /// A longer token is not looked at. Google's are about 1,200 bytes.
 const MAX_TOKEN_BYTES: usize = 8 * 1024;
 
+/// How long fetching the picture of a Google account may take.
+const PICTURE_TIMEOUT: Duration = Duration::from_secs(4);
+
+/// The most bytes the picture of a Google account may have. Google's are
+/// some tens of kilobytes.
+const MAX_PICTURE_FETCH_BYTES: usize = 2 * 1024 * 1024;
+
+/// The side, in pixels, the server asks Google's picture in.
+const GOOGLE_PICTURE_SIDE: u32 = 512;
+
+/// The address of a Google account's picture, as the server fetches it,
+/// if `claimed` is one: HTTPS, on Google's host for such pictures, and
+/// asked for at [`GOOGLE_PICTURE_SIDE`] pixels where the address says a
+/// size (Google writes `=s96-c` at the end). Anything else is no picture
+/// the server fetches: the server asks no other host for anything a
+/// token says.
+pub fn picture_address(claimed: &str) -> Option<String> {
+    let rest = claimed.trim().strip_prefix("https://")?;
+    let (host, path) = rest.split_once('/')?;
+    let google = host == "googleusercontent.com" || host.ends_with(".googleusercontent.com");
+    if !google || host.contains(['@', ':']) || claimed.len() > 2048 {
+        return None;
+    }
+    let path = match path.rsplit_once("=s") {
+        Some((stem, size))
+            if size
+                .trim_end_matches("-c")
+                .bytes()
+                .all(|b| b.is_ascii_digit()) =>
+        {
+            format!("{stem}=s{GOOGLE_PICTURE_SIDE}-c")
+        }
+        _ => path.to_owned(),
+    };
+    Some(format!("https://{host}/{path}"))
+}
+
 /// The smallest RSA key taken, in bits. Google's are 2048.
 const MIN_KEY_BITS: u32 = 2048;
 
@@ -90,6 +127,10 @@ pub struct Identity {
     /// The name the Google account gives, if it gives one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// The address of the Google account's picture, if the token names
+    /// one and it is Google's ([`picture_address`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picture: Option<String>,
 }
 
 /// Why an ID token was not taken.
@@ -115,6 +156,9 @@ pub struct GoogleSignIn {
     /// The development mode's own "Google", if this is the development
     /// mode.
     dev: Option<dev::DevIssuer>,
+    /// What fetches the picture of a Google account: Google's servers, or
+    /// in the development mode and the tests a made-up picture.
+    pictures: Option<reqwest::Client>,
 }
 
 enum Keys {
@@ -159,6 +203,13 @@ impl GoogleSignIn {
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|e| format!("cannot create the HTTP client for Google's keys: {e}"))?;
+        let pictures = reqwest::Client::builder()
+            .user_agent(user_agent)
+            .connect_timeout(PICTURE_TIMEOUT)
+            .timeout(PICTURE_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| format!("cannot create the HTTP client for Google's pictures: {e}"))?;
         Self::with_keys(
             client_ids,
             Keys::Google {
@@ -167,6 +218,7 @@ impl GoogleSignIn {
                 cached: Mutex::new(Cached::default()),
             },
             None,
+            Some(pictures),
         )
     }
 
@@ -182,6 +234,7 @@ impl GoogleSignIn {
             vec![dev::CLIENT_ID.to_owned()],
             Keys::Fixed(Arc::new(issuer.keys())),
             Some(issuer),
+            None,
         )
     }
 
@@ -189,6 +242,7 @@ impl GoogleSignIn {
         client_ids: Vec<String>,
         keys: Keys,
         dev: Option<dev::DevIssuer>,
+        pictures: Option<reqwest::Client>,
     ) -> Result<Self, String> {
         let mut key = [0_u8; 16];
         getrandom::fill(&mut key).map_err(|_| "no randomness for the sealing key".to_owned())?;
@@ -198,7 +252,43 @@ impl GoogleSignIn {
             keys,
             sealer,
             dev,
+            pictures,
         })
+    }
+
+    /// The picture at the address of a Google account's picture
+    /// ([`Identity::picture`]), as Google sends it: fetched once, within
+    /// [`PICTURE_TIMEOUT`] and [`MAX_PICTURE_FETCH_BYTES`]. In the
+    /// development mode and the tests, a made-up picture, and nothing is
+    /// fetched.
+    pub async fn fetch_picture(&self, address: &str) -> Result<Vec<u8>, String> {
+        let Some(http) = &self.pictures else {
+            let seed = address.bytes().fold(0_u8, u8::wrapping_add);
+            return Ok(super::picture::made_up_png(96, 96, seed));
+        };
+        let mut answer = http
+            .get(address)
+            .send()
+            .await
+            .map_err(|e| format!("Google's picture could not be fetched: {e}"))?;
+        if !answer.status().is_success() {
+            return Err(format!(
+                "Google answered {} for the picture",
+                answer.status()
+            ));
+        }
+        let mut bytes = Vec::new();
+        while let Some(chunk) = answer
+            .chunk()
+            .await
+            .map_err(|e| format!("Google's picture broke off: {e}"))?
+        {
+            if bytes.len() + chunk.len() > MAX_PICTURE_FETCH_BYTES {
+                return Err("Google's picture is larger than the server takes".to_owned());
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(bytes)
     }
 
     /// The development mode's "Google", if this is the development mode.
@@ -248,6 +338,7 @@ impl GoogleSignIn {
             subject: claims.sub.clone(),
             email,
             name: claims.name.clone().filter(|name| !name.trim().is_empty()),
+            picture: claims.picture.as_deref().and_then(picture_address),
         })
     }
 
@@ -451,6 +542,8 @@ struct Claims {
     email_verified: Verified,
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    picture: Option<String>,
 }
 
 /// `email_verified`, which Google writes as `true` and has written as
@@ -580,6 +673,7 @@ mod tests {
                 subject: "110169484474386276334".to_owned(),
                 email: "anna@example.com".to_owned(),
                 name: Some("Anna Alpin".to_owned()),
+                picture: None,
             }
         );
         // Google's own way of writing the issuer, and of writing a flag.
@@ -691,6 +785,7 @@ mod tests {
             subject: "1".to_owned(),
             email: "anna@example.com".to_owned(),
             name: None,
+            picture: None,
         };
         let token = google.signup_token(&identity, at()).unwrap();
         assert!(!token.contains("anna"));
@@ -715,6 +810,7 @@ mod tests {
                 subject: "1".to_owned(),
                 email: email.to_owned(),
                 name: name.map(str::to_owned),
+                picture: None,
             })
         };
         assert_eq!(

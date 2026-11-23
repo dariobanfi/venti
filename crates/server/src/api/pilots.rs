@@ -103,10 +103,11 @@ pub(crate) async fn show<S: Store>(
         return Err(no_such_pilot());
     }
     let answer = PilotResponse {
-        pilot: wire::pilot_with_country(
+        pilot: wire::shown(
             &account.handle,
             &account.display_name,
             account.country.as_deref(),
+            account.picture.as_deref(),
         )?,
         flights: api.shown_flights(&flights).await?,
         next,
@@ -153,7 +154,7 @@ pub(crate) async fn search<S: Store>(
             .iter()
             .map(|found| {
                 Ok(FoundPilot {
-                    pilot: wire::pilot(&found.handle, &found.name)?,
+                    pilot: wire::pictured(&found.handle, &found.name, found.picture.as_deref())?,
                     flights: found.flights,
                 })
             })
@@ -169,12 +170,12 @@ fn tenths(distance_m: f64) -> f64 {
 }
 
 /// A site a flight took off from, with where the site stands.
-type Placed = (FlightSite, GeoPoint);
+pub(super) type Placed = (FlightSite, GeoPoint);
 
 /// What some of a pilot's public flights add up to. The flights come
 /// newest first, each with the site it took off from; of two that are as
 /// long or as high, the newer is named.
-fn totals(flights: &[(&Flown, Option<&Placed>)]) -> Result<PilotTotals, ApiError> {
+pub(super) fn totals(flights: &[(&Flown, Option<&Placed>)]) -> Result<PilotTotals, ApiError> {
     let address = |flown: &Flown| flown.id.parse().map_err(|_| ApiError::internal());
     let mut by_month = [0_u32; 12];
     let mut airtime_s = 0_i64;
@@ -257,7 +258,10 @@ impl<S: Store> Api<S> {
     /// The site each of some flights took off from, in their order, as a
     /// flight's `takeoff_site` names one, with the take-off taken on the
     /// grid of [`on_the_grid`].
-    async fn sites_flown_from(&self, flights: &[Flown]) -> Result<Vec<Option<Placed>>, ApiError> {
+    pub(super) async fn sites_flown_from(
+        &self,
+        flights: &[Flown],
+    ) -> Result<Vec<Option<Placed>>, ApiError> {
         let mut cells: BTreeMap<(i64, i64), usize> = BTreeMap::new();
         let mut places: Vec<GeoPoint> = Vec::new();
         for takeoff in flights.iter().filter_map(|flown| flown.takeoff) {
@@ -319,10 +323,11 @@ impl<S: Store> Api<S> {
             years.entry(flight.0.start.year()).or_default().push(flight);
         }
         Ok(PilotStatisticsResponse {
-            pilot: wire::pilot_with_country(
+            pilot: wire::shown(
                 &account.handle,
                 &account.display_name,
                 account.country.as_deref(),
+                account.picture.as_deref(),
             )?,
             counted: u32::try_from(RANKING_COUNTED).unwrap_or(u32::MAX),
             overall: totals(&all)?,

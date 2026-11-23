@@ -116,9 +116,17 @@
             "description": "Whether a flight the pilot uploads is public from the start: the pilot's own setting, on until they switch it off. A suspended account's uploads are private whatever it says. Left out by a server from before the setting, which made new flights private.",
             "type": "boolean"
           },
+          "picture": {
+            "description": "The path of the account's picture, if it has one: GET /v1/pictures/{id}.",
+            "type": "string"
+          },
           "publishing_suspended_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "shown_near_places": {
+            "description": "Whether the pilot is among the pilots near a place (GET /v1/pilots/near): the pilot's own setting, on until they switch it off. Left out by a server from before the setting, which had no such list.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1329,6 +1337,8 @@
           "comment_not_found",
           "flight_not_found",
           "pilot_not_found",
+          "invalid_picture",
+          "picture_not_found",
           "invalid_flight",
           "account_full",
           "flight_taken_down",
@@ -3360,6 +3370,34 @@
         ],
         "type": "object"
       },
+      "NearPilot": {
+        "description": "A pilot whose public flights took off near a place.",
+        "properties": {
+          "flights": {
+            "description": "How many of their public flights took off within the radius in the months counted.",
+            "type": "integer"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "season": {
+            "$ref": "#/components/schemas/PilotSeason"
+          },
+          "takeoffs": {
+            "description": "The take-off sites within the radius they flew from most in those months, at most three.",
+            "items": {
+              "$ref": "#/components/schemas/FlownSite"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "pilot",
+          "flights",
+          "takeoffs"
+        ],
+        "type": "object"
+      },
       "NearbyHour": {
         "properties": {
           "gust": {
@@ -3607,6 +3645,10 @@
           },
           "handle": {
             "type": "string"
+          },
+          "picture": {
+            "description": "The path of the pilot's picture, a square WebP of 256 pixels that anyone may fetch and every cache may keep: GET it with the server's address in front. Left out for a pilot without one, and where an answer does not name it.",
+            "type": "string"
           }
         },
         "required": [
@@ -3767,6 +3809,32 @@
           "kind",
           "place",
           "place_name"
+        ],
+        "type": "object"
+      },
+      "PilotsNearResponse": {
+        "description": "The pilots whose public flights took off near a place in the last months.",
+        "properties": {
+          "months": {
+            "description": "How many months back a flight counts.",
+            "type": "integer"
+          },
+          "pilots": {
+            "description": "The one with the most public flights from near the place first, then by handle.",
+            "items": {
+              "$ref": "#/components/schemas/NearPilot"
+            },
+            "type": "array"
+          },
+          "radius_km": {
+            "description": "How far around the place they were looked for, in kilometres.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pilots",
+          "radius_km",
+          "months"
         ],
         "type": "object"
       },
@@ -4464,6 +4532,10 @@
             "type": "string"
           },
           "group": {
+            "type": "string"
+          },
+          "picture": {
+            "description": "A pilot's picture, by the pilot's handle: the picture they show when the report is made.",
             "type": "string"
           },
           "plan": {
@@ -6306,6 +6378,10 @@
           "new_flights_public": {
             "description": "Whether a flight the pilot uploads from now on is public from the start. Left out, it stays as it is.",
             "type": "boolean"
+          },
+          "shown_near_places": {
+            "description": "Whether the pilot is among the pilots near a place. Left out, it stays as it is.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -7412,6 +7488,96 @@
         ],
         "summary": "Change the password",
         "x-venti-docs": "PUT /v1/account/password"
+      }
+    },
+    "/v1/account/picture": {
+      "delete": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "delete_account_picture",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Remove the pilot's picture",
+        "x-venti-docs": "PUT and DELETE /v1/account/picture"
+      },
+      "put": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "put_account_picture",
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "description": "The picture as it is: a JPEG, a PNG or a WebP.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Send the pilot's own picture",
+        "x-venti-docs": "PUT and DELETE /v1/account/picture"
       }
     },
     "/v1/account/push": {
@@ -10574,6 +10740,43 @@
         "x-venti-docs": "GET /v1/openapi.json"
       }
     },
+    "/v1/pictures/{id}": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_pictures_id",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "description": "The picture, 256 by 256 pixels",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "A pilot's picture",
+        "x-venti-docs": "GET /v1/pictures/{id}"
+      }
+    },
     "/v1/pilots": {
       "get": {
         "description": "Anyone; no token.",
@@ -10618,6 +10821,70 @@
         "security": [],
         "summary": "The pilots with public flights whose handle or name holds a text",
         "x-venti-docs": "GET /v1/pilots?q=&limit="
+      }
+    },
+    "/v1/pilots/near": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_pilots_near",
+        "parameters": [
+          {
+            "description": "Latitude in WGS84 degrees.",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "description": "Longitude in WGS84 degrees.",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "description": "How far around the place, in whole kilometres: 1 to 100, 25 if left out.",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "The most entries one answer carries, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PilotsNearResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The pilots whose public flights took off near a place",
+        "x-venti-docs": "GET /v1/pilots/near?lat=&lon=&radius_km=&limit="
       }
     },
     "/v1/pilots/{handle}": {

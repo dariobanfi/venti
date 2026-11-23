@@ -1,0 +1,153 @@
+{
+  "pilots": [
+    {
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "flights": 3,
+      "takeoffs": [
+        {
+          "site": {
+            "id": "venti:0000000000000000000000s001",
+            "name": "Musterkogel West"
+          },
+          "position": {
+            "lat": 47.3,
+            "lon": 10.9
+          },
+          "flights": 2
+        }
+      ],
+      "season": {
+        "year": 2026,
+        "totals": {
+          "flights": 3,
+          "scored": 3,
+          "distance_m": 28191.0,
+          "points": 28.19,
+          "airtime_s": 3865,
+          "longest": {
+            "id": "ww5qkxhxaedefvypb3wy3v6m3m",
+            "distance_m": 12007.4
+          },
+          "highest": {
+            "id": "hwj4105bnzcgcavngacrzjt3s4",
+            "max_altitude_m": 2117
+          },
+          "sites": [
+            {
+              "site": {
+                "id": "venti:0000000000000000000000s001",
+                "name": "Musterkogel West"
+              },
+              "position": {
+                "lat": 47.3,
+                "lon": 10.9
+              },
+              "flights": 2
+            }
+          ],
+          "by_month": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "pilot": {
+        "handle": "ines",
+        "display_name": "Ines Vorlage"
+      },
+      "flights": 1,
+      "takeoffs": [],
+      "season": {
+        "year": 2026,
+        "totals": {
+          "flights": 1,
+          "scored": 1,
+          "distance_m": 6321.7,
+          "points": 6.32,
+          "airtime_s": 808,
+          "longest": {
+            "id": "tb696s7gw0yc74a1ymhb0rpeer",
+            "distance_m": 6321.7
+          },
+          "highest": {
+            "id": "tb696s7gw0yc74a1ymhb0rpeer",
+            "max_altitude_m": 2117
+          },
+          "sites": [],
+          "by_month": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "pilot": {
+        "handle": "timo",
+        "display_name": "Timo Entwurf"
+      },
+      "flights": 1,
+      "takeoffs": [],
+      "season": {
+        "year": 2026,
+        "totals": {
+          "flights": 1,
+          "scored": 1,
+          "distance_m": 5817.4,
+          "points": 5.82,
+          "airtime_s": 707,
+          "longest": {
+            "id": "w4hfn2pa70h3w9bf1cqmm6xfr4",
+            "distance_m": 5817.4
+          },
+          "highest": {
+            "id": "w4hfn2pa70h3w9bf1cqmm6xfr4",
+            "max_altitude_m": 2117
+          },
+          "sites": [],
+          "by_month": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    }
+  ],
+  "radius_km": 25,
+  "months": 12
+}

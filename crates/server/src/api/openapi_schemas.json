@@ -86,6 +86,14 @@
       },
       "glider_class": {
         "$ref": "#/components/schemas/GliderClass"
+      },
+      "picture": {
+        "type": "string",
+        "description": "The path of the account's picture, if it has one: GET /v1/pictures/{id}."
+      },
+      "shown_near_places": {
+        "type": "boolean",
+        "description": "Whether the pilot is among the pilots near a place (GET /v1/pilots/near): the pilot's own setting, on until they switch it off. Left out by a server from before the setting, which had no such list."
       }
     },
     "required": [
@@ -1191,6 +1199,8 @@
       "comment_not_found",
       "flight_not_found",
       "pilot_not_found",
+      "invalid_picture",
+      "picture_not_found",
       "invalid_flight",
       "account_full",
       "flight_taken_down",
@@ -3222,6 +3232,10 @@
       "country": {
         "type": "string",
         "description": "The pilot's country, if they set one. Said with flights and on the pilot's page only."
+      },
+      "picture": {
+        "type": "string",
+        "description": "The path of the pilot's picture, a square WebP of 256 pixels that anyone may fetch and every cache may keep: GET it with the server's address in front. Left out for a pilot without one, and where an answer does not name it."
       }
     },
     "required": [
@@ -3923,6 +3937,10 @@
           "flight",
           "id"
         ]
+      },
+      "picture": {
+        "type": "string",
+        "description": "A pilot's picture, by the pilot's handle: the picture they show when the report is made."
       }
     }
   },
@@ -5716,6 +5734,10 @@
             "type": "null"
           }
         ]
+      },
+      "shown_near_places": {
+        "type": "boolean",
+        "description": "Whether the pilot is among the pilots near a place. Left out, it stays as it is."
       }
     }
   },
@@ -6486,6 +6508,60 @@
       "cursor",
       "more",
       "reset"
+    ]
+  },
+  "PilotsNearResponse": {
+    "description": "The pilots whose public flights took off near a place in the last months.",
+    "type": "object",
+    "properties": {
+      "pilots": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NearPilot"
+        },
+        "description": "The one with the most public flights from near the place first, then by handle."
+      },
+      "radius_km": {
+        "type": "integer",
+        "description": "How far around the place they were looked for, in kilometres."
+      },
+      "months": {
+        "type": "integer",
+        "description": "How many months back a flight counts."
+      }
+    },
+    "required": [
+      "pilots",
+      "radius_km",
+      "months"
+    ]
+  },
+  "NearPilot": {
+    "description": "A pilot whose public flights took off near a place.",
+    "type": "object",
+    "properties": {
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "flights": {
+        "type": "integer",
+        "description": "How many of their public flights took off within the radius in the months counted."
+      },
+      "takeoffs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlownSite"
+        },
+        "description": "The take-off sites within the radius they flew from most in those months, at most three."
+      },
+      "season": {
+        "$ref": "#/components/schemas/PilotSeason"
+      }
+    },
+    "required": [
+      "pilot",
+      "flights",
+      "takeoffs"
     ]
   }
 }

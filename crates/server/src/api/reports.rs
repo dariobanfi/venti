@@ -93,7 +93,7 @@ pub(crate) async fn create<S: Store>(
         ));
     }
 
-    // What is reported, as the reporter may see it. Each of the seven is
+    // What is reported, as the reporter may see it. Each of the eight is
     // found as the endpoint that shows it finds it, and what that endpoint
     // would not show is not there to report. A group and a plan are shown
     // to the members of the group and to nobody else.
@@ -108,6 +108,21 @@ pub(crate) async fn create<S: Store>(
             let account = api.pilot_with_a_page(handle).await?;
             let subject = venti_store::ReportSubject::Pilot;
             (Some(account.id), subject, pilots::no_such_pilot())
+        }
+        ReportSubject::Picture(handle) => {
+            // A picture is reported where it is shown: on a pilot's page.
+            // A pilot without a picture shows none, and has none to
+            // report.
+            let account = api.pilot_with_a_page(handle).await?;
+            let picture = account
+                .picture
+                .ok_or_else(super::pictures::no_such_picture)?;
+            let subject = venti_store::ReportSubject::Picture(picture);
+            (
+                Some(account.id),
+                subject,
+                super::pictures::no_such_picture(),
+            )
         }
         ReportSubject::LiveTrack(id) => {
             let track = api.live_track(id, now).await?;

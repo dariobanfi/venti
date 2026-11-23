@@ -12,6 +12,7 @@ mod live;
 mod migrate;
 mod oauth;
 mod partitions;
+mod pictures;
 mod pilot_sites;
 mod push;
 mod reports;
@@ -50,6 +51,7 @@ use crate::{
 };
 use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
+use crate::{NearPilot, NewPicture, Picture};
 
 /// Connections kept to the database. The API's queries take milliseconds,
 /// so a few connections serve many requests.
@@ -794,6 +796,32 @@ impl Store for PgStore {
         settings: &AccountSettings,
     ) -> Result<Option<Account>, StoreError> {
         accounts::update_settings(&self.client().await?, account_id, settings).await
+    }
+
+    async fn set_picture(&self, picture: &NewPicture) -> Result<bool, StoreError> {
+        pictures::set_picture(&self.client().await?, picture).await
+    }
+
+    async fn remove_picture(&self, account_id: &str) -> Result<Option<Picture>, StoreError> {
+        pictures::remove_picture(&self.client().await?, account_id).await
+    }
+
+    async fn picture(&self, id: &str) -> Result<Option<Picture>, StoreError> {
+        pictures::picture(&self.client().await?, id).await
+    }
+
+    async fn claim_google_picture(&self, account_id: &str) -> Result<bool, StoreError> {
+        pictures::claim_google_picture(&self.client().await?, account_id).await
+    }
+
+    async fn pilots_near(
+        &self,
+        place: GeoPoint,
+        within_m: f64,
+        since: Timestamp,
+        limit: usize,
+    ) -> Result<Vec<NearPilot>, StoreError> {
+        takeoffs::pilots_near(&self.client().await?, place, within_m, since, limit).await
     }
 
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {

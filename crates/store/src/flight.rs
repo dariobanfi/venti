@@ -255,6 +255,8 @@ pub struct Flight {
     /// That account's country, if its pilot set one
     /// ([`crate::Account::country`]).
     pub pilot_country: Option<String>,
+    /// The identifier of that account's picture, if it has one.
+    pub pilot_picture: Option<String>,
     /// The flight's identity: the hash of its fixes.
     pub identity: String,
     /// Who may see it.
@@ -617,6 +619,8 @@ pub struct FoundPilot {
     pub handle: String,
     /// The pilot's display name, as the account is now.
     pub name: String,
+    /// The identifier of the pilot's picture, if they have one.
+    pub picture: Option<String>,
     /// How many public flights the pilot has.
     pub flights: u32,
 }

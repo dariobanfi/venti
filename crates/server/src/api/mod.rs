@@ -94,6 +94,7 @@ mod mcp;
 mod oauth;
 mod observations;
 mod openapi;
+mod pictures;
 mod pilots;
 mod push;
 mod radar;
@@ -293,6 +294,12 @@ pub struct Api<S> {
     follows_and_cheers: Throttle,
     /// Times all of an account's flights were set at once, by account.
     all_flights_changes: Throttle,
+    /// Pictures sent, by account.
+    picture_uploads: Throttle,
+    /// The one turn at reading a picture.
+    picture_turns: crate::accounts::picture::Turns,
+    /// The answers about pilots near a place, as they were made last.
+    near_answers: pictures::NearAnswers,
     /// Archives asked for, by account, and the one turn at making one.
     archives: archive::Archives,
     /// Uploads under way.
@@ -436,6 +443,13 @@ impl<S: Store> Api<S> {
                 chrono::Duration::days(1),
                 limits.watched_keys,
             ),
+            picture_uploads: Throttle::new(
+                "accounts that sent pictures",
+                chrono::Duration::days(1),
+                limits.watched_keys,
+            ),
+            picture_turns: crate::accounts::picture::Turns::default(),
+            near_answers: pictures::NearAnswers::default(),
             archives: archive::Archives::new(limits.watched_keys),
             uploading: flights::Uploading::new(),
             pictures: share::Pictures::default(),
@@ -795,6 +809,11 @@ impl<S: Store> Api<S> {
             .route("/v1/flights/{id}/igc", get(flights::file::<S>))
             .route("/v1/flights/{id}/track", get(flights::track::<S>))
             .route(PILOTS_PATH, get(pilots::search::<S>))
+            .route(
+                venti_api_types::v1::PILOTS_NEAR_PATH,
+                get(pictures::near::<S>),
+            )
+            .route("/v1/pictures/{id}", get(pictures::show::<S>))
             .route("/v1/pilots/{handle}", get(pilots::show::<S>))
             .route(
                 "/v1/pilots/{handle}/statistics",
@@ -888,6 +907,20 @@ impl<S: Store> Api<S> {
             .done()
             .layer(RequestBodyLimitLayer::new(MAX_LIVE_BODY_BYTES))
             .layer(deadline(DEADLINE));
+
+        // A pilot's picture: larger than a JSON body, far smaller than a
+        // flight file, and read by the server itself.
+        let picture = Routes::new(&mut routes)
+            .route(
+                venti_api_types::v1::ACCOUNT_PICTURE_PATH,
+                put(pictures::put::<S>).delete(pictures::remove::<S>),
+            )
+            .done()
+            .layer(DefaultBodyLimit::disable())
+            .layer(RequestBodyLimitLayer::new(
+                venti_api_types::v1::MAX_PICTURE_BYTES,
+            ))
+            .layer(deadline(UPLOAD_DEADLINE));
 
         let upload = Routes::new(&mut routes)
             .route(FLIGHTS_PATH, post(flights::upload::<S>))
@@ -983,6 +1016,7 @@ impl<S: Store> Api<S> {
             .merge(ordinary)
             .merge(positions)
             .merge(upload)
+            .merge(picture)
             .fallback(error::not_found)
             .layer(axum::middleware::from_fn_with_state(
                 api.clone(),

@@ -560,6 +560,7 @@ mod tests {
             handle: Handle::new(handle).unwrap(),
             display_name: handle.to_owned(),
             country: None,
+            picture: None,
         };
         let plan = Plan {
             id: "0123456789abcdefghjkmnpqrs".parse().unwrap(),

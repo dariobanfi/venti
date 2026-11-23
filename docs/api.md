@@ -4861,7 +4861,8 @@ The answer is `201`. This is the development mode's, with the token and the sess
     "display_name": "Demo Pilot",
     "created_at": "2026-11-18T19:05:00Z",
     "edits_sites": true,
-    "new_flights_public": true
+    "new_flights_public": true,
+    "shown_near_places": true
   },
   "session": {
     "id": "3kq9x2m7r4t8v1w6y0a5b3c2d4",
@@ -4886,6 +4887,8 @@ A wrong password and a handle nobody has get the same answer after the same time
 Where `google_sign_in` in [`GET /v1/health`](#get-v1health) is `true`, a pilot signs in with their Google account. The app gets an **ID token** from Google (the web app with Google Identity Services, the Android app with Credential Manager, the iPhone app with Google's authorization code flow; [design.md](design.md) says which) for one of the server's client IDs, and sends it here. The server checks it as Google says to: signed by one of Google's keys, issued by Google, for one of this server's client IDs, not expired (with a minute's grace), for a Google account whose email Google has verified. It needs no client secret, and the app keeps the ID token no longer than this request.
 
 A first sign-in with a Google account makes no account yet: the pilot chooses a handle first. The account then keeps Google's identifier of the Google account and its email; the email is shown to the pilot (`google_email` in `GET /v1/account` and in [the archive](#get-v1accountarchive)) and to nobody else. An account made with Google has no password: where a request asks for the password (deleting the account, making a token for a program) it sends `google_id_token`, a fresh ID token of the same Google account, in its place. Changing the password is not for it.
+
+**The Google account's picture is taken once.** At the first sign-in with Google, the first account made with Google, or the first linking of a Google account, that finds the account without a [picture](#put-and-delete-v1accountpicture), the server fetches the picture the ID token names (`picture`), from Google's own host for pictures and no other, at most 2 MB within 4 seconds, and keeps its own copy as it keeps one a pilot sends. A pilot's page never makes a reader's browser ask Google. Whatever goes wrong only leaves the account without a picture; the sign-in goes on. A pilot who removes the picture does not get it back at the next sign-in.
 
 These requests are for the pilot's own sign-in: no token for a program makes them.
 
@@ -4964,7 +4967,7 @@ curl 'http://127.0.0.1:8080/v1/dev/google-id-token?email=ui.test@example.com&nam
 # {"id_token":"eyJ…"}
 ```
 
-The key it signs with is a test-only key that is published in the source; a server that is not in the development mode never takes it. `email` is needed; `name` may be left out.
+The key it signs with is a test-only key that is published in the source; a server that is not in the development mode never takes it. `email` is needed; `name` may be left out. With `picture=true` the token names a picture, which the development mode makes up instead of fetching it from Google.
 
 ### `GET /v1/sessions`
 
@@ -5009,7 +5012,8 @@ Needs a token. The account the token belongs to.
     "display_name": "Demo Pilot",
     "created_at": "2026-11-18T19:05:00Z",
     "edits_sites": true,
-    "new_flights_public": true
+    "new_flights_public": true,
+    "shown_near_places": true
   }
 }
 ```
@@ -5021,6 +5025,8 @@ Needs a token. The account the token belongs to.
 | `publishing_suspended_at` | Since when the account may publish nothing, because whoever runs the server [suspended its publishing](#what-whoever-runs-the-server-can-do). Left out for every account that may, which is nearly every account |
 | `google_email` | The email of the Google account the account [signs in with](#sign-in-with-google), if it is linked to one. Only the account itself sees it. Left out otherwise |
 | `edits_sites` | `true` for an account whoever runs the server named as a [partner for flying sites](#sites-that-ventis-partners-and-pilots-add): it adds to the partners' layer `venti` and corrects sites of both layers. Left out for every other account, which is nearly every account. A token with `account:read` reads it too. The demo account of the development mode is one |
+| `picture` | The path of the account's [picture](#put-and-delete-v1accountpicture), `/v1/pictures/` and its identifier, if it has one. Left out otherwise |
+| `shown_near_places` | Whether the pilot is among [the pilots near a place](#get-v1pilotsnearlatlonradius_kmlimit): the pilot's own setting, changed with [`PATCH /v1/account`](#patch-v1account), `true` for every account until its pilot switches it off. A server from before the setting (2026-11-23) leaves it out, and had no such list |
 | `new_flights_public` | Whether a flight the pilot [uploads](#post-v1flights) is public from the start. The pilot's own setting, changed with [`PATCH /v1/account`](#patch-v1account): `true` for every account until its pilot switches it off, accounts made before the setting (2026-11-22) included. While `publishing_suspended_at` is there an upload is private whatever this says. Always there; a server from before the setting leaves it out, and made every new flight private |
 | `country` | The pilot's own country, an ISO 3166-1 alpha-2 code in upper case (`DE`), if they set one with [`PATCH /v1/account`](#patch-v1account). It is said with their name on their flights and their [page](#pilots) (`pilot.country`), and nowhere while it is not set. An app draws the flag from the code. Left out while it is not set |
 | `glider_class` | The class of the glider the pilot flies now: `en_a`, `en_b`, `en_c`, `en_d` or `ccc`, if they set it. A flight they [upload](#post-v1flights) from then on takes it as its own `glider_class`. Left out while it is not set; a value a client does not know is to be read as none |
@@ -5035,7 +5041,8 @@ The answers to creating an account and to signing in carry the same `account`. T
     "created_at": "2026-11-18T19:05:00Z",
     "publishing_suspended_at": "2026-11-18T19:05:00Z",
     "edits_sites": true,
-    "new_flights_public": true
+    "new_flights_public": true,
+    "shown_near_places": true
   }
 }
 ```
@@ -5059,7 +5066,8 @@ This is the development mode's answer to that body:
     "display_name": "Demo Pilot",
     "created_at": "2026-11-18T19:05:00Z",
     "edits_sites": true,
-    "new_flights_public": false
+    "new_flights_public": false,
+    "shown_near_places": true
   }
 }
 ```
@@ -5069,6 +5077,7 @@ This is the development mode's answer to that body:
 | `new_flights_public` | Whether a flight the pilot uploads from now on is public from the start. It changes no flight the account has: [`PATCH /v1/flights`](#patch-v1flights) makes all of them public or private at once |
 | `country` | The pilot's country: two letters, an ISO 3166-1 alpha-2 code, in either case; it is kept in upper case. `null` clears it. Whether ISO has assigned the code is not checked |
 | `glider_class` | The class of the glider the pilot flies now, `en_a`, `en_b`, `en_c`, `en_d` or `ccc`; `null` clears it. It changes no flight the account has: [`PATCH /v1/flights/{id}`](#patch-v1flightsid) sets one flight's |
+| `shown_near_places` | Whether the pilot is among [the pilots near a place](#get-v1pilotsnearlatlonradius_kmlimit), which is made of their public flights. Off, the pilot is in no such list from the next answer that is made, within ten minutes; their flights stay as they are |
 
 The pilot's country and glider class, set in one request:
 
@@ -5090,12 +5099,62 @@ and the development mode's answer:
     "edits_sites": true,
     "new_flights_public": true,
     "country": "DE",
-    "glider_class": "en_b"
+    "glider_class": "en_b",
+    "shown_near_places": true
   }
 }
 ```
 
 A field of the wrong kind, a country that is not two letters and a class that is none of the five are `400` with `invalid_request`. An app shows the setting as a switch where the pilot chooses who sees their flights, with the two buttons of `PATCH /v1/flights` beside it; the core has the words for both (`flight_visibility_words`).
+
+### `PUT and DELETE /v1/account/picture`
+
+The pilot's picture: one per account, public, shown wherever the pilot is named with it (`picture` on [the account](#get-v1account), on the pilot of every flight, on [a pilot's page](#get-v1pilotshandleafterlimit) and totals, in [the search](#get-v1pilotsqlimit) and among [the pilots near a place](#get-v1pilotsnearlatlonradius_kmlimit)). Since 2026-11-23. **The pilot's own sign-in only**: a session's token; no token for a program sends or removes one (`403` with `session_required`).
+
+`PUT` sends a picture in place of the one the account has. The body is the picture as it is, a JPEG, a PNG or a WebP, and `Content-Type` says which:
+
+```bash
+curl -X PUT http://127.0.0.1:8080/v1/account/picture \
+  -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000' \
+  -H 'Content-Type: image/jpeg' --data-binary @me.jpg
+```
+
+The answer is `200` with the account, as [`GET /v1/account`](#get-v1account) has it, `picture` naming the new one:
+
+```json
+{
+  "account": {
+    "handle": "demo",
+    "display_name": "Demo Pilot",
+    "created_at": "2026-11-18T19:05:00Z",
+    "edits_sites": true,
+    "new_flights_public": true,
+    "picture": "/v1/pictures/7m2k9q4r8t1v6w0y5a3b2c4d6e",
+    "shown_near_places": true
+  }
+}
+```
+
+**What the server keeps is its own copy.** It reads the picture (telling the three kinds apart by their first bytes, whatever `Content-Type` said), turns a photograph upright as its EXIF orientation says, cuts the largest square out of its middle, scales it to 256 by 256 pixels and writes it anew as a WebP. Nothing of what was sent is kept: no metadata (where and when a camera took it, the camera's name), no colour profile. A new picture has a new address, and the old one answers `404` from then on.
+
+**Bounds.** 8 MB of body; 32 to 10,000 pixels a side and 24 million pixels in all, read from the file's header before anything is decoded; 10 pictures a day per account, whatever becomes of them. A shell scales a photograph to about 1,000 pixels before it sends it: a few hundred kilobytes. The server reads one picture at a time.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_picture` | The body is no JPEG, PNG or WebP the server can read, a WebP that moves, or a picture of too few or too many pixels. `message` says which |
+| 403 | `session_required` | A token for a program |
+| 403 | `publishing_suspended` | Whoever runs the server [suspended the account's publishing](#what-whoever-runs-the-server-can-do): a picture is public |
+| 413 | `payload_too_large` | More than 8 MB |
+| 415 | `unsupported_media_type` | `Content-Type` is not `image/jpeg`, `image/png` or `image/webp` |
+| 429 | `rate_limited` | The account has sent 10 pictures today |
+
+`DELETE` removes it: `200` with the account, without `picture`; the same for an account that had none. A suspended account may remove its picture.
+
+`venti_core::Core::picture_request` and `picture_removal_request` build both requests, and `picture_words` has the words around them.
+
+### `GET /v1/pictures/{id}`
+
+A pilot's picture, as the `picture` of an account or a pilot names it: `200`, `image/webp`, 256 by 256 pixels. Anyone may ask, without a token. An address names one picture for good, so the answer carries `Cache-Control: public, max-age=31536000, immutable` and the identifier as its `ETag`. A picture that was replaced or removed, and an identifier no picture had, answer `404` with `picture_not_found`.
 
 ### `GET /v1/account/archive`
 
@@ -5399,6 +5458,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `DELETE /v1/sessions/{id}` | the session only |
 | `PUT /v1/account/password` | the session only |
 | `DELETE /v1/account` | the session only |
+| `PUT /v1/account/picture` | the session only |
+| `DELETE /v1/account/picture` | the session only |
 | `GET /v1/account/archive` | the session only |
 | `POST /v1/account/tokens` | the session only |
 | `GET /v1/account/tokens` | the session only |
@@ -6418,7 +6479,7 @@ Needs a token. The account's flights, newest first by the start of the flight.
 }
 ```
 
-Each entry of `flights` is a flight as `GET /v1/flights/{id}` shows it. `next` is left out on the last page. Treat it as an opaque value: pass it back as it came. A value that did not come from the server gives `400` with `invalid_cursor`, a bad `limit` gives `invalid_limit`.
+`pilot` carries `picture`, the path of the pilot's [picture](#put-and-delete-v1accountpicture), when they have one, as the pilot of every flight does. Each entry of `flights` is a flight as `GET /v1/flights/{id}` shows it. `next` is left out on the last page. Treat it as an opaque value: pass it back as it came. A value that did not come from the server gives `400` with `invalid_cursor`, a bad `limit` gives `invalid_limit`.
 
 ### `GET /v1/flights/changes?since=&limit=`
 
@@ -6877,6 +6938,214 @@ The pilots whose handle or display name holds a text: the search of a list of fl
 curl 'http://127.0.0.1:8080/v1/pilots?q=le'
 ```
 
+```json
+{
+  "pilots": [
+    {
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "flights": 3
+    }
+  ]
+}
+```
+
+**Who is found.** A pilot with at least one public flight, as on a pilot's page: an account that shares nothing publicly is found by no text, its own handle included. The text is looked for anywhere in the handle and in the name, whatever the case of either (`q=PROBE` finds Lena Probe). Case is folded as Unicode folds it; for letters outside ASCII a database may fold a few differently (to verify against the production database's locale).
+
+**The order.** The pilots of whom the handle or the name begins with the text come first, then the pilot with the most public flights, then by handle. `flights` is the number of the pilot's public flights. The answer has no `next`: a search is narrowed by typing more, not read page by page.
+
+**To list a pilot's flights**, ask [the list of public flights](#public-flights) with `pilot=<handle>`; what they add up to is below.
+
+**The bound.** A search counts as a read of public flights for the address that asks: [600 an hour](#how-often-an-address-may-read). A page that searches as its reader types should wait for a pause in the typing. `Cache-Control: public, no-cache` and an `ETag`, as for a pilot's page.
+
+### `GET /v1/pilots/near?lat=&lon=&radius_km=&limit=`
+
+The pilots whose public flights took off near a place in the last 12 months, the one with the most such flights first, then by handle: for "pilots near me", or near a take-off. Anyone may ask, without a token, and the answer is the same for everyone. Since 2026-11-23.
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `lat`, `lon` | The place, in WGS84 degrees. The server takes it to the nearest 0.01° (about a kilometre) and works with nothing finer | Required |
+| `radius_km` | How far around it, in whole kilometres, 1 to 100 | 25 |
+| `limit` | How many pilots, 1 to 50 | 20 |
+
+```bash
+curl 'http://127.0.0.1:8080/v1/pilots/near?lat=47.3&lon=10.9&limit=3'
+```
+
+This is the development mode's answer:
+
+```json
+{
+  "pilots": [
+    {
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "flights": 3,
+      "takeoffs": [
+        {
+          "site": {
+            "id": "venti:0000000000000000000000s001",
+            "name": "Musterkogel West"
+          },
+          "position": {
+            "lat": 47.3,
+            "lon": 10.9
+          },
+          "flights": 2
+        }
+      ],
+      "season": {
+        "year": 2026,
+        "totals": {
+          "flights": 3,
+          "scored": 3,
+          "distance_m": 28191.0,
+          "points": 28.19,
+          "airtime_s": 3865,
+          "longest": {
+            "id": "ww5qkxhxaedefvypb3wy3v6m3m",
+            "distance_m": 12007.4
+          },
+          "highest": {
+            "id": "hwj4105bnzcgcavngacrzjt3s4",
+            "max_altitude_m": 2117
+          },
+          "sites": [
+            {
+              "site": {
+                "id": "venti:0000000000000000000000s001",
+                "name": "Musterkogel West"
+              },
+              "position": {
+                "lat": 47.3,
+                "lon": 10.9
+              },
+              "flights": 2
+            }
+          ],
+          "by_month": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "pilot": {
+        "handle": "ines",
+        "display_name": "Ines Vorlage"
+      },
+      "flights": 1,
+      "takeoffs": [],
+      "season": {
+        "year": 2026,
+        "totals": {
+          "flights": 1,
+          "scored": 1,
+          "distance_m": 6321.7,
+          "points": 6.32,
+          "airtime_s": 808,
+          "longest": {
+            "id": "tb696s7gw0yc74a1ymhb0rpeer",
+            "distance_m": 6321.7
+          },
+          "highest": {
+            "id": "tb696s7gw0yc74a1ymhb0rpeer",
+            "max_altitude_m": 2117
+          },
+          "sites": [],
+          "by_month": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "pilot": {
+        "handle": "timo",
+        "display_name": "Timo Entwurf"
+      },
+      "flights": 1,
+      "takeoffs": [],
+      "season": {
+        "year": 2026,
+        "totals": {
+          "flights": 1,
+          "scored": 1,
+          "distance_m": 5817.4,
+          "points": 5.82,
+          "airtime_s": 707,
+          "longest": {
+            "id": "w4hfn2pa70h3w9bf1cqmm6xfr4",
+            "distance_m": 5817.4
+          },
+          "highest": {
+            "id": "w4hfn2pa70h3w9bf1cqmm6xfr4",
+            "max_altitude_m": 2117
+          },
+          "sites": [],
+          "by_month": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    }
+  ],
+  "radius_km": 25,
+  "months": 12
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `pilots` | The pilots, each with `pilot` (handle, display name and [`picture`](#put-and-delete-v1accountpicture), if they have one) |
+| `pilots[].flights` | How many of their public flights took off within the radius in the months counted |
+| `pilots[].takeoffs` | The take-off sites within the radius they flew from most in those months, at most three, as the [`sites`](#get-v1pilotshandlestatistics) of a pilot's totals: a flight that took off where no site with a name stands is in none |
+| `pilots[].season` | What their public flights of this year add up to, everywhere, as a season of [their totals](#get-v1pilotshandlestatistics). Left out for a pilot who has not flown this year |
+| `radius_km`, `months` | How far around the place and how many months back the list was made |
+
+**Who is listed.** A pilot with at least one public flight that took off within the radius in the last 12 months, whose own setting [`shown_near_places`](#patch-v1account) is on, which it is until they switch it off, and whose publishing is not suspended. The list is made of public flights only (owner decision 16): a private flight, or one shared by link, counts for nobody. Nothing a phone says of where it is, or where a pilot lives, goes into it; the place asked about is nowhere kept but in the answer kept below.
+
+**The bound.** It counts as a read of public flights for the address that asks: [600 an hour](#how-often-an-address-may-read). The server keeps an answer for ten minutes and hands it out again for the same place, radius and limit: a pilot who switches the setting off, or a flight made private, leaves the list within that time. `Cache-Control: public, no-cache` and an `ETag`.
+
+A place that is not one is `400` with `invalid_position`; a `radius_km` or a `limit` out of bounds is `400` with `invalid_request`. `venti_core::pilots_near_path` and `pilots_near` ask for it and read it into lines.
+
 ## Pilots among each other
 
 A signed-in pilot follows other pilots, reads their public flights as one list, cheers a public flight ("well flown") and writes under it. Since 2026-11-22. What a client has to know:
@@ -6937,19 +7206,36 @@ curl http://127.0.0.1:8080/v1/pilots/demo/followers
         "handle": "lena",
         "display_name": "Lena Probe"
       },
-      "flights": 3
+      "since": "2026-11-18T17:35:00Z"
+    },
+    {
+      "pilot": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "since": "2026-11-18T09:55:00Z"
+    },
+    {
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "since": "2026-11-18T09:35:00Z"
     }
-  ]
+  ],
+  "followers": 3,
+  "following": 3
 }
 ```
 
-**Who is found.** A pilot with at least one public flight, as on a pilot's page: an account that shares nothing publicly is found by no text, its own handle included. The text is looked for anywhere in the handle and in the name, whatever the case of either (`q=PROBE` finds Lena Probe). Case is folded as Unicode folds it; for letters outside ASCII a database may fold a few differently (to verify against the production database's locale).
+| Field | Meaning |
+|---|---|
+| `pilots` | One page of the followers who have a page, each with `since`, the moment they began to follow |
+| `followers`, `following` | How many accounts follow the pilot and how many the pilot follows, those the lists do not name included |
+| `you_follow` | Whether the account that asks follows the pilot. Only in an answer to a request with a session, or with a token that has `social:read`; such an answer is made for that account and kept by nobody |
+| `next` | Pass it as `after` for the next page. Left out on the last one |
 
-**The order.** The pilots of whom the handle or the name begins with the text come first, then the pilot with the most public flights, then by handle. `flights` is the number of the pilot's public flights. The answer has no `next`: a search is narrowed by typing more, not read page by page.
-
-**To list a pilot's flights**, ask [the list of public flights](#public-flights) with `pilot=<handle>`; what they add up to is below.
-
-**The bound.** A search counts as a read of public flights for the address that asks: [600 an hour](#how-often-an-address-may-read). A page that searches as its reader types should wait for a pause in the typing. `Cache-Control: public, no-cache` and an `ETag`, as for a pilot's page.
+A handle without a page gives `404` with `pilot_not_found`.
 
 ### `GET /v1/pilots/{handle}/statistics`
 
@@ -7204,36 +7490,6 @@ This is the development mode's answer for the demo account, whose three flights 
   }
 }
 ```
-      "since": "2026-11-18T17:35:00Z"
-    },
-    {
-      "pilot": {
-        "handle": "jonas",
-        "display_name": "Jonas Beispiel"
-      },
-      "since": "2026-11-18T09:55:00Z"
-    },
-    {
-      "pilot": {
-        "handle": "mara",
-        "display_name": "Mara Muster"
-      },
-      "since": "2026-11-18T09:35:00Z"
-    }
-  ],
-  "followers": 3,
-  "following": 3
-}
-```
-
-| Field | Meaning |
-|---|---|
-| `pilots` | One page of the followers who have a page, each with `since`, the moment they began to follow |
-| `followers`, `following` | How many accounts follow the pilot and how many the pilot follows, those the lists do not name included |
-| `you_follow` | Whether the account that asks follows the pilot. Only in an answer to a request with a session, or with a token that has `social:read`; such an answer is made for that account and kept by nobody |
-| `next` | Pass it as `after` for the next page. Left out on the last one |
-
-A handle without a page gives `404` with `pilot_not_found`.
 
 ### `GET /v1/pilots/{handle}/following?after=&limit=`
 
@@ -7576,7 +7832,8 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
       "identity": "57096780ebf49faa9e60b4ed78bfdcf6",
       "pilot": {
         "handle": "mara",
-        "display_name": "Mara Muster"
+        "display_name": "Mara Muster",
+        "picture": "/v1/pictures/0000000000000000000000p001"
       },
       "visibility": "public",
       "uploaded_at": "2026-11-18T19:05:00Z",
@@ -7689,7 +7946,8 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
       "identity": "5782b33df19716953603d69bacb63a14",
       "pilot": {
         "handle": "mara",
-        "display_name": "Mara Muster"
+        "display_name": "Mara Muster",
+        "picture": "/v1/pictures/0000000000000000000000p001"
       },
       "visibility": "public",
       "uploaded_at": "2026-11-18T19:05:00Z",
@@ -7944,7 +8202,8 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
     {
       "pilot": {
         "handle": "mara",
-        "display_name": "Mara Muster"
+        "display_name": "Mara Muster",
+        "picture": "/v1/pictures/0000000000000000000000p001"
       },
       "points": 23.42,
       "scored": 2,
@@ -7954,7 +8213,8 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
           "identity": "5782b33df19716953603d69bacb63a14",
           "pilot": {
             "handle": "mara",
-            "display_name": "Mara Muster"
+            "display_name": "Mara Muster",
+            "picture": "/v1/pictures/0000000000000000000000p001"
           },
           "visibility": "public",
           "uploaded_at": "2026-11-18T19:05:00Z",
@@ -8005,7 +8265,8 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
           "identity": "57096780ebf49faa9e60b4ed78bfdcf6",
           "pilot": {
             "handle": "mara",
-            "display_name": "Mara Muster"
+            "display_name": "Mara Muster",
+            "picture": "/v1/pictures/0000000000000000000000p001"
           },
           "visibility": "public",
           "uploaded_at": "2026-11-18T19:05:00Z",
@@ -9428,9 +9689,10 @@ The body of that request:
 
 | Field | Meaning |
 |---|---|
-| `subject` | What is reported: an object with exactly one of the seven members below |
+| `subject` | What is reported: an object with exactly one of the eight members below |
 | `subject.flight` | A flight, by its address: the `id` of the flight, which is the end of its share link |
 | `subject.pilot` | A pilot's page, by the pilot's handle, in upper or lower case |
+| `subject.picture` | A pilot's [picture](#put-and-delete-v1accountpicture), by the pilot's handle: the picture they show when the report is made, which the server notes. The reasons are those of a group and a plan. A pilot without a page, or without a picture, has none to report: `404` with `pilot_not_found` or `picture_not_found`. Since 2026-11-23 |
 | `subject.live_track` | A live track, by its identifier, which is the end of its link |
 | `subject.group` | A group the reporter is in, by its `id` |
 | `subject.plan` | A plan of a group the reporter is in: an object with `group`, the group's `id`, and `id`, the plan's. A plan is named with its group here as in every path about a plan, and the `plan` of every answer carries both |
@@ -9464,6 +9726,18 @@ A report about a group, and one about a plan. The first is sent by `jonas`, the 
 }
 ```
 
+A report about a pilot's picture, by the demo account about the development mode's pilot Mara, who has one:
+
+```json
+{
+  "subject": {
+    "picture": "mara"
+  },
+  "reason": "offensive",
+  "text": "Not a picture to show."
+}
+```
+
 A report about a site that pilots made, as it stands. With `"revision": 2` beside `id` it is about that revision:
 
 ```json
@@ -9489,7 +9763,7 @@ A report about a site that pilots made, as it stands. With `"revision": 2` besid
 | `wrong_or_dangerous` | A site is at the wrong place, or says something wrong that can hurt a pilot: a wind direction, a height, a landing that is none. A reason for a site only |
 | `not_a_site` | The place is no flying site: nobody takes off or lands there, or nobody may. A reason for a site only |
 
-The list is short on purpose and is the server's: a reason that is not on it is refused, so a client offers the first six for a flight, a page or a live track and no field for another. For a group or a plan it offers five: `not_a_flight` is about a flight, and the server refuses it for words. For a site it offers six, in this order: `wrong_or_dangerous`, `not_a_site`, `offensive`, `privacy`, `spam`, `other`; a site is nobody's account and no flight, so `impersonation` and `not_a_flight` are refused for it, and the two reasons of a site are refused for everything else. There is no reason for "flew through airspace": a report is about what should not be shown, not about how someone flew. `venti_api_types::v1::ReportSubject::reasons` is the list a report about one kind of subject can give, in the order a form shows it.
+The list is short on purpose and is the server's: a reason that is not on it is refused, so a client offers the first six for a flight, a page or a live track and no field for another. For a group, a plan, a comment or a picture it offers five: `not_a_flight` is about a flight, and the server refuses it for words and for a picture. For a site it offers six, in this order: `wrong_or_dangerous`, `not_a_site`, `offensive`, `privacy`, `spam`, `other`; a site is nobody's account and no flight, so `impersonation` and `not_a_flight` are refused for it, and the two reasons of a site are refused for everything else. There is no reason for "flew through airspace": a report is about what should not be shown, not about how someone flew. `venti_api_types::v1::ReportSubject::reasons` is the list a report about one kind of subject can give, in the order a form shows it.
 
 **The text** is cleaned before it is kept and never refused for what stands in it: line breaks stay, every other control character goes, and so do the characters that hide text or turn its direction round; white space at both ends goes. What is left is counted, and more than 1,000 characters is refused. `venti_api_types::v1::parse_report_text` does the same on the device, for a client that wants to count while the pilot types. The text is read by whoever runs the server and by nobody else.
 
@@ -9529,7 +9803,7 @@ The answer carries `Cache-Control: no-store`, like every answer to a request wit
 
 ## What whoever runs the server can do
 
-The person who runs a server reads the reports and can do seven things about what is shared on it, three of them in a group. They do them by hand, with commands on the server's own machine ([running-a-server.md](running-a-server.md#reports-and-taking-things-down)); the API offers none of them, and the server does none of them by itself. This is what each looks like from an app.
+The person who runs a server reads the reports and can do eight things about what is shared on it, three of them in a group. They do them by hand, with commands on the server's own machine ([running-a-server.md](running-a-server.md#reports-and-taking-things-down)); the API offers none of them, and the server does none of them by itself. This is what each looks like from an app.
 
 **Take a flight down.** The flight becomes `private` and stays so until the operator releases it.
 
@@ -9617,7 +9891,9 @@ This is the demo account's public flight after it was taken down, as its pilot r
 
 The three in a group differ from a flight that was taken down in one thing: the server says nothing about them, not even that they happened. A flight that was taken down stays its pilot's, and the pilot runs into a refusal that has to say what stands in the way. A plan or a group that is removed leaves nothing behind that could say anything, the server keeps no record of who was in a group that is gone, and a group tells its members of nothing that happens in it, whoever did it: a client asks. An app that finds a group renamed or gone cannot tell who did it, and should not guess.
 
-None of the seven deletes a flight or an account, and none tells anyone anything beyond what is said here.
+**Remove a pilot's picture.** The account has no picture from that moment, exactly as if its pilot had removed it: every answer shows the pilot without one, and the picture's address answers `404` with `picture_not_found`. The pilot can send another; a suspended account cannot.
+
+None of the eight deletes a flight or an account, and none tells anyone anything beyond what is said here.
 
 ## The page a shared flight has
 

@@ -976,6 +976,8 @@ pub async fn add_demo_takeoffs(store: &MemoryStore, password_cost: Cost) -> Resu
             new_flights_public: true,
             country: None,
             glider_class: None,
+            picture: None,
+            shown_near_places: true,
         };
         add_pilot(store, &account, flights, password_cost).await?;
     }
@@ -983,6 +985,33 @@ pub async fn add_demo_takeoffs(store: &MemoryStore, password_cost: Cost) -> Resu
 }
 
 /// Puts an account with the demo password and its flights into the store.
+/// The identifier of the picture of the development mode's pilot Mara:
+/// the same at every start, so that the answers that name it are too.
+pub const DEMO_PICTURE_ID: &str = "0000000000000000000000p001";
+
+/// A picture for Mara, made up and made as an upload would be: so that a
+/// pilot with a picture and pilots without one can be seen and tested.
+async fn add_demo_picture(
+    store: &MemoryStore,
+    pilot: &Account,
+    now: Timestamp,
+) -> Result<(), String> {
+    let made_up = crate::accounts::picture::made_up_png(320, 240, 40);
+    let bytes = crate::accounts::picture::square(&made_up).map_err(|e| e.0)?;
+    let new = venti_store::NewPicture {
+        id: DEMO_PICTURE_ID.to_owned(),
+        account_id: pilot.id.clone(),
+        bytes,
+        origin: venti_store::PictureOrigin::Upload,
+        created_at: now,
+    };
+    store
+        .set_picture(&new)
+        .await
+        .map_err(|error| format!("the demo picture could not be kept: {error}"))?;
+    Ok(())
+}
+
 async fn add_pilot(
     store: &MemoryStore,
     account: &Account,
@@ -1088,6 +1117,8 @@ async fn add_demo_account(
         new_flights_public: true,
         country: None,
         glider_class: None,
+        picture: None,
+        shown_near_places: true,
     };
     add_pilot(store, &account, demo_flights(), password_cost).await?;
     // The demo account is this mode's one partner for flying sites: it
@@ -1109,10 +1140,13 @@ async fn add_demo_account(
             new_flights_public: true,
             country: None,
             glider_class: None,
+            picture: None,
+            shown_near_places: true,
         };
         add_pilot(store, &further, flights, password_cost).await?;
         pilots.push(further);
     }
+    add_demo_picture(store, &pilots[1], now).await?;
     withdraw_a_flight(store, &pilots[1], now).await?;
     add_demo_groups(store, &pilots, now).await?;
     add_demo_sites(store, &pilots, now).await?;
@@ -1296,6 +1330,7 @@ async fn add_demo_social(store: &MemoryStore, now: Timestamp) -> Result<(), Stri
                 .map_err(|_| "a made-up handle is none")?,
             display_name: pilot.name.to_owned(),
             country: None,
+            picture: None,
         })
     };
     let flight = NotifiedFlight {

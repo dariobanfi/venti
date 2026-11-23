@@ -147,6 +147,7 @@ fn report(report: venti_store::Report) -> Option<ArchiveReport> {
     let subject = match report.subject {
         Stored::Flight(id) => ReportSubject::Flight(id),
         Stored::Pilot => ReportSubject::Pilot(report.about?.handle),
+        Stored::Picture(_) => ReportSubject::Picture(report.about?.handle),
         Stored::LiveTrack(id) => ReportSubject::LiveTrack(id),
         // The words the report kept of a group or a plan are another
         // pilot's, and are not handed out with it.

@@ -16,6 +16,7 @@
 //!   `rename-group` gives it another name, `remove-plan` removes one of
 //!   its plans and `remove-group` the group with everything in it;
 //! - `remove-comment` removes one comment under a flight;
+//! - `remove-picture` removes a pilot's picture;
 //! - `site` shows one site of Venti's own two layers with its whole
 //!   history, `revert-site` puts it back to what an earlier revision
 //!   said, and `remove-site` takes it down;
@@ -145,6 +146,11 @@ pub enum Action {
     RemoveComment {
         /// The comment's identifier.
         comment: String,
+    },
+    /// Remove a pilot's picture.
+    RemovePicture {
+        /// The account's handle.
+        handle: String,
     },
     /// Remove a group, with its members' places in it and all its plans.
     RemoveGroup {
@@ -720,6 +726,24 @@ pub async fn perform(
                 on_one_line(&removed.flight_id),
                 quoted(&removed.text),
                 on_one_line(&removed.author_handle),
+            )))
+        }
+        Action::RemovePicture { handle } => {
+            let Some(account) = account(store, handle).await.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_account(handle)));
+            };
+            let pilot = who(&account.handle, &account.display_name);
+            let Some(removed) = store.remove_picture(&account.id).await.map_err(failed)? else {
+                return Ok(Outcome::nothing(format!(
+                    "{pilot} has no picture. Nothing was changed."
+                )));
+            };
+            Ok(Outcome::found(format!(
+                "The picture {} of {pilot} is removed. To everyone it is as if the pilot had                  removed it: every answer shows the pilot without one, and its address is gone.\n\
+                 Nobody is told. It does not stop the pilot from sending another: \
+                 `venti-server suspend-publishing {}` does. No report was closed.",
+                removed.id,
+                on_one_line(&account.handle),
             )))
         }
         Action::RemoveGroup { group } => {
@@ -1479,6 +1503,26 @@ async fn described(
                 ""
             };
             (format!("the page of {about}{now}"), None)
+        }
+        ReportSubject::Picture(id) => {
+            let handle = report.about.as_ref().map_or("", |about| &about.handle);
+            let now = match store.account(handle).await? {
+                Some(account) if account.picture.as_deref() == Some(id.as_str()) => {
+                    "still the pilot's picture"
+                }
+                Some(account) if account.picture.is_some() => "replaced by another since",
+                _ => "gone",
+            };
+            labelled(&mut kept, "Now:", now);
+            labelled(
+                &mut kept,
+                "Remove it:",
+                &format!("venti-server remove-picture {}", on_one_line(handle)),
+            );
+            (
+                format!("the picture {} of {about}", on_one_line(id)),
+                link(venti_api_types::v1::picture_path(id)),
+            )
         }
         ReportSubject::LiveTrack(id) => {
             let now = match store.live_track(id).await? {

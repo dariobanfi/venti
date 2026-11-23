@@ -519,6 +519,7 @@ mod tests {
                 handle: Handle::new("demo").unwrap(),
                 display_name: "Demo Pilot".to_owned(),
                 country: None,
+                picture: None,
             },
             visibility: LiveVisibility::Public,
             landed: false,

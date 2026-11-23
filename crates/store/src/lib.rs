@@ -44,6 +44,7 @@ mod live;
 mod memory;
 mod month;
 mod oauth;
+mod picture;
 mod pilot_site;
 mod postgres;
 mod push;
@@ -94,6 +95,7 @@ pub use oauth::{
     AuthorizationCode, AuthorizationRequest, NewGrant, OauthClient, Redeemed, Refreshed,
     RequestState, Rotation, StoredCode, TokenClient,
 };
+pub use picture::{NearPilot, NewPicture, Picture, PictureOrigin};
 pub use pilot_site::{
     Given, NewPilotSite, NewSiteConfirmation, PARTNERS_LAYER, PilotSite, PilotSiteChanges,
     RevisionKind, SiteAct, SiteConfirmation, SiteConfirmed, SiteConfirming, SitePilot,
@@ -739,8 +741,9 @@ pub trait Store: Send + Sync + 'static {
     /// Changes the account's own settings, those that `settings` names:
     /// whether a flight it uploads from now on is public from the start
     /// ([`Account::new_flights_public`]), the pilot's country and the class
-    /// of their glider. Returns the account as it then is; `None` if there
-    /// is no such account.
+    /// of their glider, and whether it is among the pilots near a place
+    /// ([`Account::shown_near_places`]). Returns the account as it then
+    /// is; `None` if there is no such account.
     ///
     /// It changes no flight the account has: [`Store::set_all_visibility`]
     /// and [`Store::set_glider_class`] do that.
@@ -749,6 +752,53 @@ pub trait Store: Send + Sync + 'static {
         account_id: &str,
         settings: &AccountSettings,
     ) -> impl Future<Output = Result<Option<Account>, StoreError>> + Send;
+
+    // --- Pictures ---------------------------------------------------------
+
+    /// Keeps a picture for an account, in place of the one it has, which
+    /// is gone with its identifier. A picture from Google
+    /// ([`PictureOrigin::Google`]) is kept only where the account has
+    /// none: it never replaces one. Whether there is such an account.
+    fn set_picture(
+        &self,
+        picture: &NewPicture,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Removes an account's picture, and returns the one it was. `None`
+    /// if the account had none or is not there.
+    fn remove_picture(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Option<Picture>, StoreError>> + Send;
+
+    /// The picture with this identifier, if it is still some account's.
+    fn picture(&self, id: &str)
+    -> impl Future<Output = Result<Option<Picture>, StoreError>> + Send;
+
+    /// Notes that the server tries to take the picture of the account's
+    /// Google account, and whether it is to: `true` once for an account,
+    /// at the first call that finds it without a picture. Every later
+    /// call, and one for an account that has a picture or is not there,
+    /// is `false`: a pilot who removes the picture does not get it back.
+    fn claim_google_picture(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The pilots whose public flights took off within `within_m` metres
+    /// of `place` (that far included) and began at `since` or later: the
+    /// one with the most such flights first, then by handle, byte by
+    /// byte; at most `limit`. A pilot who switched
+    /// [`Account::shown_near_places`] off is not among them, and neither
+    /// is one whose publishing is suspended. A flight that is private or
+    /// unlisted is in no count.
+    fn pilots_near(
+        &self,
+        place: GeoPoint,
+        within_m: f64,
+        since: Timestamp,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<NearPilot>, StoreError>> + Send;
 
     /// Stores an invite that one account can be created with.
     fn create_invite(

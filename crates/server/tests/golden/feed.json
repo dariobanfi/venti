@@ -106,7 +106,8 @@
         "identity": "5782b33df19716953603d69bacb63a14",
         "pilot": {
           "handle": "mara",
-          "display_name": "Mara Muster"
+          "display_name": "Mara Muster",
+          "picture": "/v1/pictures/0000000000000000000000p001"
         },
         "visibility": "public",
         "uploaded_at": "2026-11-18T19:05:00Z",

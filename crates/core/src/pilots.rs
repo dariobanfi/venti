@@ -43,6 +43,11 @@ pub struct FoundPilotLine {
     /// How many public flights the pilot has.
     #[uniffi(default = 0)]
     pub flights: u32,
+    /// The path of the pilot's picture, to fetch with the server's address
+    /// in front. `None` without one.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub picture_path: Option<String>,
     /// The line: "Lena Probe (@lena), 3 public flights".
     #[uniffi(default = "")]
     pub words: String,
@@ -98,6 +103,7 @@ pub fn pilots_found(status: u16, body: Vec<u8>) -> Result<PilotsFound, CoreError
                 handle: found.pilot.handle.to_string(),
                 name,
                 flights: found.flights,
+                picture_path: found.pilot.picture.clone(),
             }
         })
         .collect();
@@ -201,6 +207,11 @@ pub struct PilotStatistics {
     /// The name the pilot is shown by, on one line.
     #[uniffi(default = "")]
     pub name: String,
+    /// The path of the pilot's picture, to fetch with the server's address
+    /// in front. `None` without one.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub picture_path: Option<String>,
     /// All public flights together.
     pub overall: PilotTotalsView,
     /// Each year the pilot has a public flight in, the newest first.
@@ -325,7 +336,12 @@ fn kilometres(metres: f64) -> String {
     format!("{:.1} km", metres / 1000.0)
 }
 
-fn totals(name: String, year: i32, counted: u32, totals: &PilotTotals) -> PilotTotalsView {
+pub(crate) fn totals(
+    name: String,
+    year: i32,
+    counted: u32,
+    totals: &PilotTotals,
+) -> PilotTotalsView {
     let row = |label: &str, value: String| PilotTotalRow {
         label: label.to_owned(),
         value,
@@ -368,23 +384,7 @@ fn totals(name: String, year: i32, counted: u32, totals: &PilotTotals) -> PilotT
         from_unix_s,
         to_unix_s,
         rows,
-        sites: totals
-            .sites
-            .iter()
-            .map(|flown| {
-                let name = one_line(&flown.site.name, 60);
-                FlownSiteLine {
-                    id: flown.site.id.to_string(),
-                    words: format!("{name}, {}", count(flown.flights, "flight", "flights")),
-                    name,
-                    flights: flown.flights,
-                    position: flown.position.map(|at| Coordinate {
-                        lat: at.lat(),
-                        lon: at.lon(),
-                    }),
-                }
-            })
-            .collect(),
+        sites: site_lines(&totals.sites),
         months: months(&totals.by_month),
         words: if totals.scored > 0 {
             format!(
@@ -395,6 +395,26 @@ fn totals(name: String, year: i32, counted: u32, totals: &PilotTotals) -> PilotT
             format!("{flights}, {in_the_air} in the air")
         },
     }
+}
+
+/// Take-off sites as lines: "Musterkogel West, 2 flights".
+pub(crate) fn site_lines(sites: &[api::FlownSite]) -> Vec<FlownSiteLine> {
+    sites
+        .iter()
+        .map(|flown| {
+            let name = one_line(&flown.site.name, 60);
+            FlownSiteLine {
+                id: flown.site.id.to_string(),
+                words: format!("{name}, {}", count(flown.flights, "flight", "flights")),
+                name,
+                flights: flown.flights,
+                position: flown.position.map(|at| Coordinate {
+                    lat: at.lat(),
+                    lon: at.lon(),
+                }),
+            }
+        })
+        .collect()
 }
 
 /// Reads the server's answer to [`pilot_statistics_path`]. A pilot the
@@ -412,6 +432,7 @@ pub fn pilot_statistics(status: u16, body: Vec<u8>) -> Result<PilotStatistics, C
     Ok(PilotStatistics {
         handle: response.pilot.handle.to_string(),
         name: one_line(&response.pilot.display_name, 40),
+        picture_path: response.pilot.picture.clone(),
         overall: totals(ALL_YEARS.to_owned(), 0, counted, &response.overall),
         seasons: response
             .seasons

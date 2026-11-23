@@ -367,6 +367,7 @@ mod tests {
             account_id: "00000000000000000000000001".to_owned(),
             pilot_handle: "dario".to_owned(),
             pilot_name: "Dario".to_owned(),
+            pilot_picture: None,
             identity: day.to_owned(),
             visibility,
             uploaded_at: crate::adapters::recorded_at(),

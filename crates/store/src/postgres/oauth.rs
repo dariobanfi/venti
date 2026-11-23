@@ -503,7 +503,8 @@ pub(super) async fn refresh_grant(
                     t.expires_at, t.client_id, t.resource, t.access_until,
                     a.handle, a.display_name, a.created_at AS account_created_at,
                     a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public,
-                    a.country, a.glider_class
+                    a.country, a.glider_class, a.shown_near_places,
+                    (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture_id
              FROM access_tokens t JOIN accounts a ON a.id = t.account_id
              WHERE t.id = $1",
             &[&token_id],

@@ -757,6 +757,44 @@ impl Core {
         to_js(&request)
     }
 
+    /// The request that sets whether the pilot is among the pilots near a
+    /// place. Its answer is the account, for `accountRead`.
+    #[wasm_bindgen(js_name = shownNearPlacesRequest)]
+    pub fn shown_near_places_request(&self, shown: bool) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .call(|core| core.shown_near_places_request(shown))
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// The request that sends a picture as the pilot's own: its bytes as
+    /// they are and its media type (`image/jpeg`, `image/png` or
+    /// `image/webp`). Its answer is the account, for `accountRead`.
+    #[wasm_bindgen(js_name = pictureRequest)]
+    pub fn picture_request(
+        &self,
+        picture: Vec<u8>,
+        media_type: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .call(|core| core.picture_request(picture, media_type))
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// The request that removes the pilot's picture. Its answer is the
+    /// account, for `accountRead`.
+    #[wasm_bindgen(js_name = pictureRemovalRequest)]
+    pub fn picture_removal_request(&self) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .call(venti_core::Core::picture_removal_request)
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
     /// The request that makes every flight of the account public, or
     /// every one private. Ask `allFlightsQuestion` first; the answer goes
     /// to `allFlightsSet`.
@@ -3190,6 +3228,27 @@ pub fn pilots_search_path(text: String) -> Result<String, JsValue> {
 #[wasm_bindgen(js_name = pilotsFound)]
 pub fn pilots_found(status: u16, body: Vec<u8>) -> Result<Ts<PilotsFound>, JsValue> {
     to_js(&venti_core::pilots_found(status, body).map_err(thrown)?)
+}
+
+/// The path and query to `GET` for the pilots who fly near a place,
+/// within `radiusKm` (1 to 100; absent, 25).
+#[wasm_bindgen(js_name = pilotsNearPath)]
+pub fn pilots_near_path(lat: f64, lon: f64, radius_km: Option<u32>) -> Result<String, JsValue> {
+    venti_core::pilots_near_path(lat, lon, radius_km).map_err(thrown)
+}
+
+/// Reads the server's answer to `pilotsNearPath`: a line for each pilot,
+/// with their picture's path, their take-offs near the place and their
+/// season.
+#[wasm_bindgen(js_name = pilotsNear)]
+pub fn pilots_near(status: u16, body: Vec<u8>) -> Result<Ts<venti_core::PilotsNear>, JsValue> {
+    to_js(&venti_core::pilots_near(status, body).map_err(thrown)?)
+}
+
+/// The words of a pilot's picture and of the pilots near a place.
+#[wasm_bindgen(js_name = pictureWords)]
+pub fn picture_words() -> Result<Ts<venti_core::PictureWords>, JsValue> {
+    to_js(&venti_core::picture_words())
 }
 
 /// The path to `GET` for what a pilot's public flights add up to.

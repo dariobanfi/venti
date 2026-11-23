@@ -36,6 +36,7 @@ struct CockpitSettingsScreen: View {
     @AppStorage(Preferences.showsFaiAreas) private var showsFaiAreas = false
     @AppStorage(Preferences.cockpitKeepsBrightness) private var keepsBrightness = false
     @AppStorage(Preferences.cockpitShowsClimbs) private var showsClimbs = false
+    @Environment(AccountModel.self) private var account
 
     var body: some View {
         let glider = gliderWords()
@@ -47,6 +48,10 @@ struct CockpitSettingsScreen: View {
                     }
                 }
                 .accessibilityIdentifier("glider-class")
+                // The account takes the class too, so that uploads carry it.
+                .onChange(of: gliderClass) { _, chosen in
+                    Task { await account.gliderClassChanged(GliderChoice.kind(chosen)) }
+                }
                 Stepper(value: $trimSpeed, in: 25...60, step: 1) {
                     LabeledContent("Trim speed", value: "\(Format.metres(trimSpeed)) km/h")
                 }

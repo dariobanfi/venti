@@ -264,6 +264,9 @@ enum Session {
             account.onLogbookChanged = { logbook.refresh() }
             // The pilot's own take-offs follow the account.
             account.keepsInStep(own)
+            // A flight sent to Venti carries the class the app's glider
+            // setting has.
+            account.gliderClass = { GliderChoice.kind(UserDefaults.standard.string(forKey: Preferences.gliderClass)) }
             // A flight shared while it is under way goes to the pilot's
             // server, with the account's token.
             fly.server = { account.isSignedIn ? account.account?.server : nil }

@@ -221,6 +221,9 @@ final class AccountModel {
             }
             account = signedIn.account
         }
+        // Uploads carry the class of the glider the app is set to: the
+        // account is told it before the first sync sends the logbook.
+        await mirrorGliderClass()
         await runSync()
         onAccountChanged()
     }
@@ -239,6 +242,7 @@ final class AccountModel {
         saveToken(nil)
         account = nil
         lastSync = nil
+        allFlights = nil
         onKeptSitesSynced(false)
         onAccountChanged()
     }
@@ -292,6 +296,92 @@ final class AccountModel {
             saveToken(nil)
         }
         account = read
+        if isSignedIn {
+            await mirrorGliderClass()
+        }
+    }
+
+    // MARK: Who sees the pilot's flights, and what is said with them
+
+    /// The class of the glider the pilot flies, as the app's own glider
+    /// setting has it ("Glider and cockpit"). The account is told it at
+    /// sign-in, when the account is read and whenever it changes
+    /// (`gliderClassChanged`), so that a flight sent to Venti carries it.
+    @ObservationIgnored var gliderClass: () -> GliderClassKind? = { nil }
+
+    /// How the account's flights stood after the last "Make all public"
+    /// or "Make all private"; its `line` is said under the two buttons.
+    private(set) var allFlights: AllFlightsSet?
+
+    /// "New flights are public": whether a flight sent from now on is
+    /// public from the start. The switch shows the account's answer.
+    func setNewFlightsPublic(_ isPublic: Bool) async {
+        await changeAccount { try core.newFlightsPublicRequest(public: isPublic) }
+    }
+
+    /// The pilot's country, an ISO 3166-1 alpha-2 code, or `nil` for none.
+    func setCountry(_ country: String?) async {
+        await changeAccount { try core.countryRequest(country: country) }
+    }
+
+    /// The app's glider setting changed: the account takes the class,
+    /// quietly. Without an answer it is told again at the next read.
+    func gliderClassChanged(_ kind: GliderClassKind?) async {
+        guard isSignedIn, account?.gliderClass != kind else { return }
+        await sendGliderClass(kind)
+    }
+
+    /// Tells the account the glider's class where the iPhone has one set
+    /// and the account says another. An iPhone without a class leaves the
+    /// account's as it is: the pilot may have set it on another device.
+    private func mirrorGliderClass() async {
+        guard let kind = gliderClass(), account?.gliderClass != kind else { return }
+        await sendGliderClass(kind)
+    }
+
+    private func sendGliderClass(_ kind: GliderClassKind?) async {
+        guard let server = account?.server,
+              let request = try? core.gliderClassRequest(class: kind),
+              let (status, body, _) = try? await ask(request, of: server, timeout: 20),
+              let read = try? core.accountRead(status: status, body: body)
+        else { return }
+        account = read
+    }
+
+    /// "Make all public" or "Make all private", after the pilot answered
+    /// the core's question (`allFlightsQuestion`): every flight Venti has
+    /// of the account, at once. Then a sync brings each changed flight as
+    /// it is. A refusal is the `problem`.
+    func setAllFlights(_ visibility: FlightVisibility) async {
+        guard let server = account?.server, !isWorking else { return }
+        isWorking = true
+        do {
+            let request = try core.allFlightsRequest(visibility: visibility)
+            let (status, body, _) = try await ask(request, of: server, timeout: 30)
+            allFlights = try core.allFlightsSet(status: status, body: body)
+        } catch {
+            isWorking = false
+            problem = Self.words(for: error)
+            return
+        }
+        isWorking = false
+        await sync(force: true)
+    }
+
+    /// Sends one of the core's changes of the account and keeps the
+    /// account its answer holds.
+    private func changeAccount(_ request: () throws -> ServerRequest) async {
+        guard let server = account?.server, !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let (status, body, _) = try await ask(try request(), of: server, timeout: 30)
+            if let read = try core.accountRead(status: status, body: body) {
+                account = read
+            }
+        } catch {
+            problem = Self.words(for: error)
+        }
     }
 
     // MARK: Flying sites

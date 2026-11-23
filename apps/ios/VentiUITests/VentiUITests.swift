@@ -4676,14 +4676,16 @@ extension VentiUITests {
     /// Makes an account on the development server, over its own API, and
     /// returns what it signs in with. The password is made up here, for
     /// this run's server, which is stopped when the run ends.
-    private func makeAccount(on server: String) async throws -> (handle: String, password: String) {
-        let handle = "sites\(Int.random(in: 100_000...999_999))"
+    private func makeAccount(
+        on server: String, named name: String = "Site Tester", handlePrefix: String = "sites"
+    ) async throws -> (handle: String, password: String) {
+        let handle = "\(handlePrefix)\(Int.random(in: 100_000...999_999))"
         let password = "made-up-\(UUID().uuidString.lowercased())"
         var request = URLRequest(url: try XCTUnwrap(URL(string: server + "/v1/accounts")))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(
-            withJSONObject: ["handle": handle, "display_name": "Site Tester", "password": password]
+            withJSONObject: ["handle": handle, "display_name": name, "password": password]
         )
         let (_, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -5966,6 +5968,152 @@ extension VentiUITests {
         XCTAssertTrue(says("Nothing to send or fetch").waitForExistence(timeout: 30))
         sleep(1)
         keepScreenshot("account-last-sync-nothing")
+    }
+
+    /// Who sees the pilot's flights, and what is said with them, on the
+    /// account's page: an account the test makes, signed in with five
+    /// sample flights and the app's glider set to EN B (the launch
+    /// argument sets the preference for this launch only), which the
+    /// account takes before the flights go up. The switch for new flights
+    /// is switched off and on again; "Make all private" and "Make all
+    /// public" ask the core's question and say the answer's line; the
+    /// pilot's country is chosen from the searchable list. The pilot's
+    /// page among everyone's flights then shows the flag by the name and
+    /// the class beside the glider, and so does a flight's head. At the
+    /// end all flights are private again, so that the tests after it on
+    /// the same server see everyone's flights as they were. Then the
+    /// account and the list of countries in the dark, and the account
+    /// with larger text.
+    func testThePilotChoosesWhoSeesTheirFlightsAndTheirCountry() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let pilot = try await makeAccount(on: server, named: "Flag Tester", handlePrefix: "flags")
+        let gliderB = ["-VentiGliderClass", "b"]
+        let app = launch(bundledMap: true, extra: ["--server", server, "--sample-logbook"] + gliderB)
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        signIn(pilot, in: app)
+
+        openAccount(in: app)
+        XCTAssertTrue(app.buttons["Sync now"].waitForExistence(timeout: 60))
+        XCTAssertTrue(labelled(containing: "Flights on Venti", in: app).waitForExistence(timeout: 10))
+        // The sentence that flights stay private until shared is gone.
+        XCTAssertFalse(labelled(containing: "until you share", in: app).exists)
+        let newFlights = app.switches["account-new-flights-public"]
+        _ = bring("account-new-flights-public", into: app)
+        XCTAssertTrue(isOn(newFlights))
+        XCTAssertTrue(labelled(containing: "Switch off to keep new flights to yourself.", in: app).exists)
+        sleep(1)
+        keepScreenshot("who-sees-1-account")
+
+        // Off, as Venti answers, and on again.
+        set(newFlights, on: false)
+        sleep(2)
+        XCTAssertFalse(isOn(newFlights))
+        keepScreenshot("who-sees-2-new-flights-private")
+        set(newFlights, on: true)
+        sleep(2)
+        XCTAssertTrue(isOn(newFlights))
+
+        // All private: the core's question, then the answer's line.
+        bring("account-all-private", into: app).tap()
+        let question = app.alerts.firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        XCTAssertTrue(question.label.contains("Make all 5 flights private?"), question.label)
+        sleep(1)
+        keepScreenshot("who-sees-3-question")
+        question.buttons["Make all private"].firstMatch.tap()
+        let line = element("account-all-flights-line", in: app)
+        XCTAssertTrue(line.waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "5 flights are private", in: app).exists)
+        sleep(1)
+        keepScreenshot("who-sees-4-all-private")
+
+        // The pilot's country, found by part of its name.
+        bring("account-country", into: app, down: true).tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        XCTAssertTrue(element("country-none", in: app).exists)
+        sleep(1)
+        keepScreenshot("who-sees-5-countries")
+        field.tap()
+        field.typeText("Germ")
+        let germany = element("country-DE", in: app)
+        XCTAssertTrue(germany.waitForExistence(timeout: 10))
+        keepScreenshot("who-sees-6-country-found")
+        germany.tap()
+        let country = element("account-country", in: app)
+        XCTAssertTrue(country.waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Germany", in: app).waitForExistence(timeout: 20))
+
+        // All public again, for everyone's flights to show.
+        bring("account-all-public", into: app).tap()
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        XCTAssertTrue(question.label.contains("Make all 5 flights public?"), question.label)
+        question.buttons["Make all public"].firstMatch.tap()
+        XCTAssertTrue(labelled(containing: "5 flights are public", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("who-sees-7-all-public")
+
+        // The pilot's page among everyone's flights: the flag by the
+        // name, which VoiceOver reads as the country, and the class.
+        openTab("League", in: app)
+        app.buttons["Everyone"].tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 15))
+        search.tap()
+        search.typeText("Flag Tester")
+        let found = labelled(containing: "Flag Tester (@\(pilot.handle))", in: app)
+        XCTAssertTrue(found.waitForExistence(timeout: 30))
+        found.tap()
+        // The flights stand under the pilot's totals.
+        XCTAssertTrue(element("pilot-total", in: app).waitForExistence(timeout: 30))
+        let row = bring("pilot-flight-row", into: app)
+        XCTAssertTrue(row.label.contains("Germany"), row.label)
+        XCTAssertTrue(row.label.contains("EN B"), row.label)
+        sleep(1)
+        keepScreenshot("who-sees-8-pilots-page")
+        row.tap()
+        XCTAssertTrue(element("public-flight-pilot", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(element("public-flight-pilot-country", in: app).exists)
+        XCTAssertTrue(labelled(containing: "EN B", in: app).exists)
+        sleep(3)
+        keepScreenshot("who-sees-9-flight")
+
+        // Private again, as everyone's flights were before. The flight's
+        // page hides the tab bar: back to the pilot's page first.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.tabBars.buttons["Today"].waitForExistence(timeout: 15))
+        openAccount(in: app)
+        bring("account-all-private", into: app).tap()
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        question.buttons["Make all private"].firstMatch.tap()
+        XCTAssertTrue(labelled(containing: "5 flights are private", in: app).waitForExistence(timeout: 30))
+
+        // The account and the countries in the dark, then the account with
+        // larger text: each a fresh start, signed out, that signs in again.
+        for (dark, larger, prefix) in [(true, false, "who-sees-dark"), (false, true, "who-sees-larger")] {
+            app.terminate()
+            let again = launch(
+                bundledMap: true, dark: dark,
+                extra: ["--server", server] + gliderB + (larger ? Self.largerText : [])
+            )
+            XCTAssertTrue(again.buttons["Show my position"].waitForExistence(timeout: 90))
+            signIn(pilot, in: again)
+            openAccount(in: again)
+            XCTAssertTrue(labelled(containing: "Germany", in: again).waitForExistence(timeout: 30))
+            sleep(1)
+            keepScreenshot("\(prefix)-1-account")
+            _ = bring("account-all-private", into: again)
+            sleep(1)
+            keepScreenshot("\(prefix)-2-who-sees")
+            if dark {
+                bring("account-country", into: again, down: true).tap()
+                XCTAssertTrue(again.searchFields.firstMatch.waitForExistence(timeout: 15))
+                sleep(1)
+                keepScreenshot("\(prefix)-3-countries")
+            }
+        }
     }
 
     /// A tap on a notification of what an alarm fired opens "Alerts",

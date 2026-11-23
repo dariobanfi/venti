@@ -123,13 +123,18 @@ struct PublicFlightRow: View {
         HStack(spacing: 12) {
             TrackThumbnail(outline: flight.outline)
             VStack(alignment: .leading, spacing: 2) {
-                Text(flight.pilot)
-                    .font(.venti(.headline))
-                    .lineLimit(1)
+                // The pilot's country by their name, once they set one.
+                HStack(spacing: VentiSpace.s1) {
+                    Text(flight.pilot)
+                        .lineLimit(1)
+                    Flag(code: flight.pilotCountry)
+                }
+                .font(.venti(.headline))
                 Text(Self.detail(of: flight))
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .accessibilityLabel(Self.spokenDetail(of: flight))
                 if !note.isEmpty {
                     Text(note)
                         .font(.venti(.footnote))
@@ -157,14 +162,46 @@ struct PublicFlightRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// "15 Aug 2026 · Wallberg · Sample Wing": the day, the site the
-    /// server says the flight took off from, and the glider. Without the
-    /// weekday: the glider's name is the part that would be cut off.
+    /// "15 Aug 2026 · 🇦🇹 Wallberg · Sample Wing · EN B": the day, the
+    /// site the server says the flight took off from with its country's
+    /// flag, and the glider with its class. Without the weekday: the
+    /// glider's name is the part that would be cut off.
     static func detail(of flight: PublicFlight) -> String {
-        [Format.dayShort(unixSeconds: flight.startUnixS), flight.takeoffName, flight.glider]
+        [Format.dayShort(unixSeconds: flight.startUnixS), place(of: flight), glider(of: flight)]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
+
+    /// The detail as VoiceOver reads it: the take-off's country by its
+    /// name, after the take-off.
+    static func spokenDetail(of flight: PublicFlight) -> String {
+        [
+            Format.dayShort(unixSeconds: flight.startUnixS), flight.takeoffName,
+            flight.takeoffCountry.map(Countries.name), glider(of: flight),
+        ]
+        .compactMap { $0 }
+        .filter { !$0.isEmpty }
+        .joined(separator: ", ")
+    }
+
+    /// The take-off, with its country's flag before it; the flag alone
+    /// where the site has no name.
+    static func place(of flight: PublicFlight) -> String? {
+        let place = [Countries.flag(flight.takeoffCountry), flight.takeoffName]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return place.isEmpty ? nil : place
+    }
+
+    /// The glider and its class in the core's name: "Sample Wing · EN B";
+    /// either alone.
+    static func glider(of flight: PublicFlight) -> String? {
+        let glider = [flight.glider, flight.gliderClass.map { gliderClassName(class: $0) }]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
+        return glider.isEmpty ? nil : glider
     }
 }
 
@@ -222,13 +259,39 @@ struct PublicFlightScreen: View {
             // gets ground of its own to be read on, as the buttons beside
             // it have.
             ToolbarItem(placement: .principal) {
-                Text(flight.pilot)
+                // The pilot with their country's flag, and under them the
+                // take-off with its flag and the glider with its class,
+                // where the server names them.
+                let line = [PublicFlightRow.place(of: flight), PublicFlightRow.glider(of: flight)]
+                    .compactMap { $0 }
+                    .joined(separator: " · ")
+                VStack(spacing: 0) {
+                    HStack(spacing: VentiSpace.s1) {
+                        Text(flight.pilot)
+                            .lineLimit(1)
+                            .accessibilityIdentifier("public-flight-pilot")
+                            .accessibilityAddTraits(.isHeader)
+                        Flag(code: flight.pilotCountry)
+                            .accessibilityIdentifier("public-flight-pilot-country")
+                    }
                     .font(.venti(.headline))
-                    .lineLimit(1)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .ventiFloating(in: .capsule)
-                    .accessibilityAddTraits(.isHeader)
+                    if !line.isEmpty {
+                        Text(line)
+                            .font(.venti(.caption))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .accessibilityLabel(
+                                [flight.takeoffName, flight.takeoffCountry.map(Countries.name), PublicFlightRow.glider(of: flight)]
+                                    .compactMap { $0 }
+                                    .filter { !$0.isEmpty }
+                                    .joined(separator: ", ")
+                            )
+                            .accessibilityIdentifier("public-flight-line")
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, line.isEmpty ? 8 : 4)
+                .ventiFloating(in: .capsule)
             }
             ToolbarItem(placement: .primaryAction) {
                 VentiBarMenu(title: "More") {

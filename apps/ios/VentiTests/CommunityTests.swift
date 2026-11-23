@@ -76,6 +76,15 @@ final class CommunityTests: XCTestCase {
         named.takeoffName = nil
         XCTAssertEqual(PublicFlightRow.detail(of: named), PublicFlightRow.detail(of: row))
         XCTAssertEqual(row.score?.kind, .freeFlight)
+        // The take-off's flag before its name, the class after the glider,
+        // and VoiceOver hears the country's name in place of the flag.
+        named.takeoffName = "Wallberg"
+        named.takeoffCountry = "AT"
+        named.gliderClass = .b
+        XCTAssertTrue(PublicFlightRow.detail(of: named).hasSuffix("· 🇦🇹 Wallberg · Sample Wing · EN B"))
+        XCTAssertTrue(PublicFlightRow.spokenDetail(of: named).hasSuffix(", Wallberg, Austria, Sample Wing · EN B"))
+        named.takeoffName = nil
+        XCTAssertTrue(PublicFlightRow.detail(of: named).hasSuffix("· 🇦🇹 · Sample Wing · EN B"))
 
         // Asked for again, it is there already.
         await community.loadIfNeeded()
@@ -163,6 +172,24 @@ final class CommunityTests: XCTestCase {
         } catch {
             XCTAssertTrue(CommunityModel.words(for: error).contains("no longer public"))
         }
+    }
+
+    /// A country's flag is drawn from its two letters and its name is
+    /// `Locale`'s in English; the list to choose from has the countries
+    /// and none of the continents.
+    func testCountriesHaveFlagsAndNames() {
+        XCTAssertEqual(Countries.flag("DE"), "🇩🇪")
+        XCTAssertEqual(Countries.flag(" at "), "🇦🇹")
+        XCTAssertNil(Countries.flag(nil))
+        XCTAssertNil(Countries.flag("DEU"))
+        XCTAssertNil(Countries.flag("1A"))
+        XCTAssertEqual(Countries.name("de"), "Germany")
+        XCTAssertEqual(Countries.named("CH"), "🇨🇭 Switzerland")
+        XCTAssertTrue(Countries.all.contains { $0.code == "FR" && $0.name == "France" })
+        XCTAssertFalse(Countries.all.contains { $0.code == "150" })
+        XCTAssertTrue(Countries.all.count > 200)
+        XCTAssertEqual(Countries.finding("germ").map(\.code), ["DE"])
+        XCTAssertEqual(Countries.finding("it").first { $0.code == "IT" }?.name, "Italy")
     }
 }
 

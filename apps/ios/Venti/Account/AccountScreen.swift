@@ -67,7 +67,7 @@ private struct SignInForm: View {
     var body: some View {
         VentiList {
             Section {
-                Text("With an account, your flights are copied to Venti. They appear on your other devices, and you can share one with a link. A flight stays private until you share it.")
+                Text("With an account, your flights are copied to Venti. They appear on your other devices, and you can share one with a link.")
             }
 
             if server.server != nil, !server.hasAskedStatus {
@@ -129,7 +129,7 @@ private struct SignInForm: View {
                     Text(address.host() ?? address.absoluteString)
                 } footer: {
                     if isNew {
-                        Text("A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters; a few words in a row are easy to remember. A forgotten password cannot be recovered: Venti knows no email address. Handle and name are public once you share a flight.")
+                        Text("A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters; a few words in a row are easy to remember. A forgotten password cannot be recovered: Venti knows no email address. Handle and name are shown with your public flights.")
                     }
                 }
 
@@ -294,6 +294,18 @@ private struct SignedInView: View {
                     LabeledContent("Google", value: email)
                         .accessibilityIdentifier("account-google-email")
                 }
+                // Said with the pilot's name on their public flights, once set.
+                if account.isSignedIn {
+                    NavigationLink {
+                        CountryScreen(chosen: signedIn.country)
+                    } label: {
+                        LabeledContent(AccountWords.country) {
+                            Text(signedIn.country.map(Countries.named) ?? AccountWords.noCountry)
+                                .accessibilityLabel(signedIn.country.map(Countries.name) ?? AccountWords.noCountry)
+                        }
+                    }
+                    .accessibilityIdentifier("account-country")
+                }
             }
 
             // Google, shown to the pilot and to nobody else.
@@ -353,7 +365,11 @@ private struct SignedInView: View {
             } header: {
                 Text("Logbook")
             } footer: {
-                Text("Venti syncs by itself when you open the app and after a flight. Your flights stay private on Venti until you share one.")
+                Text("Venti syncs by itself when you open the app and after a flight.")
+            }
+
+            if account.isSignedIn {
+                WhoSeesFlights(signedIn: signedIn)
             }
 
             // What other makers' programs may do for the pilot: with a
@@ -442,6 +458,144 @@ private struct SignedInView: View {
             account.problem = AccountModel.words(for: error)
             return nil
         }
+    }
+}
+
+/// What the account's page says that is not the core's to say.
+enum AccountWords {
+    static let country = "Country"
+    static let noCountry = "None"
+    static let findCountry = "Find a country"
+}
+
+/// Who sees the pilot's flights: the switch for new ones with its line,
+/// and the two buttons that change all of them, each asking the core's
+/// question first. The answer's line stands under them. All the words are
+/// the core's.
+private struct WhoSeesFlights: View {
+    let signedIn: AccountView
+
+    @Environment(AccountModel.self) private var account
+
+    /// What the pilot asked the switch for, until Venti has answered.
+    @State private var switchedTo: Bool?
+    /// Which of the two buttons asks its question.
+    @State private var asking: FlightVisibility?
+
+    private let words = flightVisibilityWords()
+
+    /// The switch: the account's setting, or what the pilot just asked for.
+    private var newFlightsPublic: Binding<Bool> {
+        Binding(
+            get: { switchedTo ?? signedIn.newFlightsPublic },
+            set: { isPublic in
+                switchedTo = isPublic
+                Task {
+                    await account.setNewFlightsPublic(isPublic)
+                    switchedTo = nil
+                }
+            }
+        )
+    }
+
+    var body: some View {
+        Section {
+            Toggle(isOn: newFlightsPublic) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(words.newFlightsPublic)
+                    Text(words.newFlightsPublicLine)
+                        .font(.venti(.footnote))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityIdentifier("account-new-flights-public")
+            Button(words.makeAllPublic) {
+                asking = .public
+            }
+            .accessibilityIdentifier("account-all-public")
+            Button(words.makeAllPrivate) {
+                asking = .private
+            }
+            .accessibilityIdentifier("account-all-private")
+        } footer: {
+            if let line = account.allFlights?.line {
+                Text(line)
+                    .accessibilityIdentifier("account-all-flights-line")
+            }
+        }
+        .disabled(account.isWorking || signedIn.needsSignIn)
+        .alert(
+            asking.map { allFlightsQuestion(flights: signedIn.flightsOnServer, visibility: $0) } ?? "",
+            isPresented: Binding(
+                get: { asking != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        asking = nil
+                    }
+                }
+            ),
+            presenting: asking
+        ) { visibility in
+            Button(visibility == .public ? words.makeAllPublic : words.makeAllPrivate) {
+                Task { await account.setAllFlights(visibility) }
+            }
+            .accessibilityIdentifier("account-all-confirm")
+            Button(commonWords().cancel, role: .cancel) {}
+        }
+    }
+}
+
+/// The pilot's country, chosen from every country `Locale` knows, by its
+/// name with its flag, or none. The field over the list finds one by its
+/// name or its code.
+private struct CountryScreen: View {
+    let chosen: String?
+
+    @Environment(AccountModel.self) private var account
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var text = ""
+
+    var body: some View {
+        VentiList {
+            if text.trimmingCharacters(in: .whitespaces).isEmpty {
+                row(code: nil, name: AccountWords.noCountry)
+            }
+            ForEach(Countries.finding(text), id: \.code) { country in
+                row(code: country.code, name: country.name)
+            }
+        }
+        .searchable(
+            text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: AccountWords.findCountry
+        )
+        .navigationTitle(AccountWords.country)
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("country-list")
+    }
+
+    /// One country: its flag, its name, and a check where it is the one chosen.
+    private func row(code: String?, name: String) -> some View {
+        let isChosen = code?.caseInsensitiveCompare(chosen ?? "") == .orderedSame || (code == nil && chosen == nil)
+        return Button {
+            Task { await account.setCountry(code) }
+            dismiss()
+        } label: {
+            HStack {
+                Text([Countries.flag(code), name].compactMap { $0 }.joined(separator: " "))
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel(name)
+                Spacer(minLength: VentiSpace.s2)
+                if isChosen {
+                    Image(systemName: "checkmark")
+                        .font(.venti(.body, .semibold))
+                        .foregroundStyle(Palette.accent)
+                }
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isChosen ? "Chosen" : "")
+        .accessibilityIdentifier("country-\(code ?? "none")")
     }
 }
 

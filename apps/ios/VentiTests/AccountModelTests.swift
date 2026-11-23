@@ -485,10 +485,174 @@ final class AccountModelTests: XCTestCase {
         XCTAssertTrue(ReportSheet.same("https://venti.example.org", "https://Venti.example.org/"))
         XCTAssertFalse(ReportSheet.same("https://venti.example.org", "https://other.example.org"))
     }
+
+    /// A server that keeps the account's settings as the development
+    /// server answers them: its golden answers to a change of the account
+    /// and of all flights at once.
+    private func settingsServer(noting sent: Sent) -> AccountModel.Transport {
+        { request in
+            await sent.add(request)
+            let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            switch (request.httpMethod ?? "", request.url?.path ?? "") {
+            case ("POST", "/v1/sessions"):
+                return (201, Data(ServerAnswers.signInNow.utf8), nil)
+            case ("GET", "/v1/flights/changes"):
+                return (200, Data(ServerAnswers.noChanges.utf8), nil)
+            case ("GET", "/v1/account/kept-sites/changes"):
+                return (200, Data(ServerAnswers.noKeptSites.utf8), nil)
+            case ("PATCH", "/v1/account") where body.contains("new_flights_public"):
+                return (200, Data(ServerAnswers.accountSettings.utf8), nil)
+            case ("PATCH", "/v1/account"):
+                return (200, Data(ServerAnswers.accountDetails.utf8), nil)
+            case ("PATCH", "/v1/flights"):
+                return (200, Data(ServerAnswers.flightsVisibility.utf8), nil)
+            default:
+                return (404, Data(#"{"error": {"code": "not_found", "message": "x"}}"#.utf8), nil)
+            }
+        }
+    }
+
+    /// A request's body as JSON, to hold against a golden request.
+    private func json(of request: URLRequest?) throws -> NSDictionary {
+        let body = try XCTUnwrap(request?.httpBody)
+        return try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? NSDictionary)
+    }
+
+    private func json(_ text: String) throws -> NSDictionary {
+        try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(text.utf8)) as? NSDictionary)
+    }
+
+    func testThePilotSwitchesNewFlightsOffAndMakesAllPublic() async throws {
+        let core = try makeCore()
+        let (sent, box) = (Sent(), TokenBox())
+        let account = AccountModel(
+            core: core, transport: settingsServer(noting: sent),
+            readToken: { box.token }, saveToken: { box.token = $0 }
+        )
+        let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
+        await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
+        // On for every account until the pilot says otherwise.
+        XCTAssertEqual(account.account?.newFlightsPublic, true)
+        XCTAssertNil(account.allFlights)
+
+        // The switch: the golden request, and the account its answer holds.
+        await account.setNewFlightsPublic(false)
+        XCTAssertNil(account.problem)
+        let switched = await sent.requests.last
+        XCTAssertEqual(switched?.httpMethod, "PATCH")
+        XCTAssertEqual(switched?.url?.path, "/v1/account")
+        XCTAssertEqual(switched?.value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
+        XCTAssertEqual(try json(of: switched), try json(ServerAnswers.accountSettingsRequest))
+        XCTAssertEqual(account.account?.newFlightsPublic, false)
+        XCTAssertFalse(account.isWorking)
+
+        // All public at once: the core's question first, then the golden
+        // request, the answer's line, and a sync after it.
+        XCTAssertEqual(allFlightsQuestion(flights: 3, visibility: .public), "Make all 3 flights public?")
+        let before = await sent.requests.count
+        await account.setAllFlights(.public)
+        XCTAssertNil(account.problem)
+        let requests = await sent.requests
+        let all = requests[before]
+        XCTAssertEqual(all.httpMethod, "PATCH")
+        XCTAssertEqual(all.url?.path, "/v1/flights")
+        XCTAssertEqual(try json(of: all), try json(ServerAnswers.flightsVisibilityRequest))
+        XCTAssertEqual(account.allFlights?.line, "3 flights are public")
+        XCTAssertEqual(account.allFlights?.changed, 2)
+        XCTAssertTrue(requests.dropFirst(before + 1).contains { $0.url?.path == "/v1/flights/changes" })
+
+        // Signed out, the line goes with the account.
+        await account.signOut()
+        XCTAssertNil(account.allFlights)
+    }
+
+    func testThePilotsCountryIsSetAndTheGliderClassFollowsTheApp() async throws {
+        let core = try makeCore()
+        let (sent, box) = (Sent(), TokenBox())
+        let account = AccountModel(
+            core: core, transport: settingsServer(noting: sent),
+            readToken: { box.token }, saveToken: { box.token = $0 }
+        )
+        // The app's glider setting says EN B: the account is told so at
+        // the sign-in, before the logbook is sent.
+        var appClass: GliderClassKind? = .b
+        account.gliderClass = { appClass }
+        let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
+        await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
+        let golden = try json(ServerAnswers.accountDetailsRequest)
+        var requests = await sent.requests
+        XCTAssertEqual(requests.map { $0.httpMethod ?? "" }, ["POST", "PATCH", "GET", "GET"])
+        XCTAssertEqual(try json(of: requests[1]), NSDictionary(dictionary: ["glider_class": golden["glider_class"] as Any]))
+        XCTAssertEqual(account.account?.gliderClass, .b)
+
+        // The same class again is not sent again.
+        await account.gliderClassChanged(.b)
+        await account.read()
+        requests = await sent.requests
+        XCTAssertEqual(requests.filter { $0.httpMethod == "PATCH" }.count, 1)
+
+        // The country: the core writes the code in capitals.
+        await account.setCountry("de")
+        XCTAssertNil(account.problem)
+        let country = await sent.requests.last
+        XCTAssertEqual(country?.url?.path, "/v1/account")
+        XCTAssertEqual(try json(of: country), NSDictionary(dictionary: ["country": "DE"]))
+        XCTAssertEqual((golden["country"] as? String)?.uppercased(), "DE")
+        XCTAssertEqual(account.account?.country, "DE")
+        // Text that is no code is the core's to refuse, in words, and
+        // nothing is sent.
+        let count = await sent.requests.count
+        await account.setCountry("Germany")
+        XCTAssertEqual(account.problem, "A country is two letters, such as DE or AT.")
+        account.problem = nil
+        let after = await sent.requests.count
+        XCTAssertEqual(after, count)
+
+        // The app's class changed: the account takes it. An iPhone with
+        // no class set leaves the account's as it is.
+        await account.gliderClassChanged(.c)
+        let changed = await sent.requests.last
+        XCTAssertEqual(try json(of: changed), NSDictionary(dictionary: ["glider_class": "en_c"]))
+        appClass = nil
+        let patches = await sent.requests.filter { $0.httpMethod == "PATCH" }.count
+        await account.signOut()
+        await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
+        let again = await sent.requests.filter { $0.httpMethod == "PATCH" }.count
+        XCTAssertEqual(again, patches)
+    }
 }
 
 /// Answers of the Venti server, in its own format.
 private enum ServerAnswers {
+    /// `sign_in.json` as the server answers now, with the setting for new
+    /// flights, and the token the other answers here have.
+    static let signInNow = """
+        {"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z",
+                     "edits_sites": true, "new_flights_public": true},
+         "session": {"id": "session0000000000000000000a", "created_at": "2026-11-18T19:05:00Z",
+                     "last_used_at": "2026-11-18T19:05:00Z", "current": true},
+         "token": "venti_test_token"}
+        """
+
+    /// `crates/server/tests/golden/account_settings.json` and the request
+    /// it answers.
+    static let accountSettings = """
+        {"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z",
+          "edits_sites": true, "new_flights_public": false}}
+        """
+    static let accountSettingsRequest = #"{"new_flights_public": false}"#
+
+    /// `account_details.json` and its request.
+    static let accountDetails = """
+        {"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z",
+          "edits_sites": true, "new_flights_public": true, "country": "DE", "glider_class": "en_b"}}
+        """
+    static let accountDetailsRequest = #"{"country": "de", "glider_class": "en_b"}"#
+
+    /// `flights_visibility.json` and its request.
+    static let flightsVisibility = #"{"visibility": "public", "flights": 3, "changed": 2, "taken_down": 0}"#
+    static let flightsVisibilityRequest = #"{"visibility": "public"}"#
+
     static let signIn = """
         {"account": {"handle": "demo", "display_name": "Demo Pilot", "created_at": "2026-11-18T19:05:00Z"},
          "session": {"id": "session0000000000000000000a", "created_at": "2026-11-18T19:05:00Z",

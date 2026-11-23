@@ -180,6 +180,8 @@ struct LogbookScreen: View {
             }
             .buttonStyle(.venti(.quiet))
         }
+        // An import that has found no flight yet: its bar counts the files.
+        .disabled(logbook.importProgress != nil)
     }
 
     /// The totals at the top, then the flights by day, newest first: each

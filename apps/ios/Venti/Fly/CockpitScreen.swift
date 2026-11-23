@@ -195,10 +195,12 @@ struct CockpitScreen: View {
                     .layoutPriority(-1)
                 CockpitRule()
                 if page == .map {
-                    // The airspace that matters next, large, while the
-                    // cockpit has airspace to warn from.
-                    if fly.airspaceCheck != .noAirspace {
-                        AirspaceProximityStrip(proximity: view.airspaceProximity) {
+                    // The airspace that matters next, large, while there
+                    // is a reading: without one the strip goes and the map
+                    // has its room. No airspace at all is said by the top
+                    // line's sign, as on Android.
+                    if let proximity = view.airspaceProximity {
+                        AirspaceProximityStrip(proximity: proximity) {
                             isShowingAirspace = true
                         }
                         CockpitRule()

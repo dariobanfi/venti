@@ -19,6 +19,9 @@ final class LogbookModel {
     private(set) var view: LogbookView
     /// Set while files are being imported, for a screen to show.
     private(set) var importProgress: ImportProgress?
+    /// A pause after each file of an import, set by a UI test alone
+    /// (`--import-folder`) so that it can see the list fill. Nil otherwise.
+    var pauseAfterEachFile: Duration?
     /// The folder the core keeps its data in. The cockpit records into it.
     let folder: URL
     private let core: Core
@@ -85,7 +88,7 @@ final class LogbookModel {
         }
         importProgress = ImportProgress(done: 0, total: urls.count)
         defer { importProgress = nil }
-        let core = self.core
+        let (core, pause) = (self.core, pauseAfterEachFile)
         let report = await Task.detached(priority: .userInitiated) { [weak self] () -> ImportReport in
             // Files and folders picked in the Files app are only readable
             // inside this pair, and a folder's pair covers what is in it.
@@ -97,6 +100,12 @@ final class LogbookModel {
             }
             let files = LogbookModel.flightFiles(in: urls)
             var report = ImportReport()
+            // The list is read again as flights come in: at once for the
+            // first, so that an empty logbook shows it, then at most once
+            // a second, since reading a long logbook takes its time.
+            let clock = ContinuousClock()
+            var shownAt: ContinuousClock.Instant?
+            var addedSinceShown = false
             for (index, url) in files.enumerated() {
                 do {
                     let imported = try core.importFlight(igcText: try LogbookModel.text(at: url))
@@ -104,16 +113,24 @@ final class LogbookModel {
                         report.alreadyThere.append(imported.id)
                     } else {
                         report.added.append(imported.id)
+                        addedSinceShown = true
                     }
                 } catch {
                     report.failures.append(
                         ImportReport.Failure(file: url.lastPathComponent, reason: error.words)
                     )
                 }
-                // The count after every file; the list every so often.
-                let done = index + 1
-                let showsList = done % 20 == 0
-                await self?.imported(done, of: files.count, showingList: showsList)
+                // The count after every file; the list when it has news.
+                let showsList = addedSinceShown
+                    && (shownAt.map { $0.duration(to: clock.now) >= .seconds(1) } ?? true)
+                if showsList {
+                    shownAt = clock.now
+                    addedSinceShown = false
+                }
+                await self?.imported(index + 1, of: files.count, showingList: showsList)
+                if let pause {
+                    try? await Task.sleep(for: pause)
+                }
             }
             return report
         }.value

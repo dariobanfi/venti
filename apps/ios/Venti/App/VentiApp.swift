@@ -95,6 +95,13 @@ enum Session {
                 _ = try? core.importFlight(igcText: text)
             }
             let logbook = LogbookModel(core: core, folder: folder)
+            // A UI test of an import of many files (`--import-folder`).
+            if let flights = LaunchOptions.importFolder() {
+                logbook.pauseAfterEachFile = .seconds(4)
+                Task {
+                    _ = await logbook.importFiles(at: [flights])
+                }
+            }
             // The folder new flights come in from by themselves, looked
             // into whenever the app comes to the front (`RootScreen`). A
             // UI test starts with none, whatever an earlier one left, and
@@ -624,6 +631,29 @@ enum LaunchOptions {
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try FileManager.default.copyItem(at: sample, to: folder.appendingPathComponent("2026-07-04-sample.igc"))
+        } catch {
+            return nil
+        }
+        return folder
+    }
+
+    /// `--import-folder`: a folder "Flights" with the sample flight on
+    /// five days of July 2026 (those of `--sample-logbook`), made in the
+    /// app's own temporary folder, for the logbook to import at launch as
+    /// a picked folder would be, slowly, so that a UI test sees the list
+    /// fill while the import runs. `nil` without the argument.
+    static func importFolder() -> URL? {
+        guard isUITesting, arguments.contains("--import-folder") else { return nil }
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("venti-ui-test-import-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Flights", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for (index, text) in sampleLogbook().enumerated() {
+                try text.write(
+                    to: folder.appendingPathComponent("flight-\(index + 1).igc"), atomically: true, encoding: .utf8
+                )
+            }
         } catch {
             return nil
         }

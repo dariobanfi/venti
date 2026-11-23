@@ -140,7 +140,6 @@ struct CreditsScreen: View {
                     credit(
                         maker.credit,
                         maker.wording
-                            + (Self.licenceBesides[maker.layer].map { ", " + $0 } ?? "")
                             + (Self.wordingIsOurs.contains(maker.layer) ? Self.oursNote : ""),
                         links: maker.links
                     )
@@ -212,12 +211,6 @@ struct CreditsScreen: View {
     /// none (docs/data-sources.md): South Tyrol's.
     private static let wordingIsOurs: Set<String> = ["aerial-south-tyrol"]
     private static let oursNote = " Worded by Venti: the province prescribes no credit."
-
-    /// The licence of a provider whose attribution in the shared style
-    /// names none: IGN's, by the data set's record (docs/data-sources.md).
-    private static let licenceBesides: [String: String] = [
-        "aerial-france": "Licence Ouverte / Open Licence 2.0 (Etalab)"
-    ]
 
     private func credit(_ title: String, _ text: String, link: String) -> some View {
         credit(title, text, links: [link])

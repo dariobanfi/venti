@@ -222,9 +222,19 @@ final class MapStyleTests: XCTestCase {
             "EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025), CC BY-NC-SA 4.0"
         )
         XCTAssertEqual(byLayer["aerial-world"]?.links.last, "https://creativecommons.org/licenses/by-nc-sa/4.0/")
-        XCTAssertEqual(byLayer["aerial-france"]?.wording, "IGN – BD ORTHO®")
+        // France's licence and the border's credit are in the style's own
+        // attribution: the credits screen adds nothing to them.
         XCTAssertEqual(
-            byLayer["aerial-france"]?.links, ["https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO"]
+            byLayer["aerial-france"]?.wording,
+            "IGN – BD ORTHO®, Licence Ouverte / Open Licence 2.0 (Etalab); border: IGN – ADMIN EXPRESS COG 2026, Licence Ouverte 2.0"
+        )
+        XCTAssertEqual(
+            byLayer["aerial-france"]?.links,
+            [
+                "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO",
+                "https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
+                "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_ADMIN-EXPRESS",
+            ]
         )
         XCTAssertEqual(
             byLayer["aerial-baden-wuerttemberg"]?.wording,

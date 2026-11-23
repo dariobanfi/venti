@@ -4248,9 +4248,7 @@ final class VentiUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
 
         // The cockpit, waiting for the take-off, has that airspace to warn
-        // from: the reading of the airspace that matters next stands on
-        // its map page only while the session checks airspace, and the
-        // map names whose it is.
+        // from, and the map names whose it is.
         XCTAssertTrue(app.navigationBars["Settings"].appears(timeout: 15))
         app.navigationBars["Settings"].buttons["Done"].tap()
         XCTAssertTrue(element("cockpit-end", in: app).appears(timeout: 30))
@@ -4267,10 +4265,14 @@ final class VentiUITests: XCTestCase {
             }
         }
         XCTAssertFalse(unchecked.exists, "The cockpit does not check airspace while it waits for the take-off.")
+        // The development server's airspace lies farther than the reading's
+        // five kilometres from the take-off: the map page has no reading,
+        // and without one no strip (as on Android), the map its room.
         nextPage(in: app)
-        XCTAssertTrue(element("airspace-proximity-map", in: app).appears(timeout: 30))
+        XCTAssertTrue(element("target-strip", in: app).appears(timeout: 30))
         put(metresNorth: 0, altitude: Self.takeoffGroundM, speed: 0)
         usleep(400_000)
+        XCTAssertFalse(element("airspace-proximity-map", in: app).exists)
         keepScreenshot("airspace-3-cockpit-before-takeoff")
         endTheCockpit(in: app)
 
@@ -6043,6 +6045,30 @@ extension VentiUITests {
         XCTAssertFalse(app.buttons["Stop bringing in from Tracklogs"].exists)
         usleep(400_000)
         keepScreenshot("watched-2-menu-stopped")
+    }
+
+    /// An import of many files fills the list as it runs. A test cannot
+    /// drive the system's picker, so the app starts importing a folder of
+    /// its own (`--import-folder`: five copies of the sample flight on
+    /// other days, four seconds apart): the bar counts the files, and the
+    /// first flight is in the list while the import still runs, in place
+    /// of "No flights yet".
+    func testTheLogbookFillsWhileAnImportRuns() {
+        let app = launch(bundledMap: true, extra: ["--import-folder"])
+        openTab("Logbook", in: app)
+        let progress = element("import-progress", in: app)
+        XCTAssertTrue(progress.appears(timeout: 30))
+        XCTAssertTrue((progress.value as? String)?.contains("of 5") == true, "\(String(describing: progress.value))")
+        XCTAssertTrue(element("logbook-row", in: app).appears(timeout: 10))
+        XCTAssertTrue(progress.exists, "The import ended before the list was seen filling.")
+        let counted = progress.value as? String ?? ""
+        XCTAssertFalse(counted.hasPrefix("5 of"), "The list was first seen with the last file: \(counted)")
+        XCTAssertFalse(app.staticTexts["No flights yet"].exists)
+        usleep(400_000)
+        keepScreenshot("logbook-import-filling")
+
+        XCTAssertTrue(progress.vanishes(timeout: 30))
+        XCTAssertTrue(element("logbook-row", in: app).exists)
     }
 
     /// A watched folder that is gone: the app starts with the folder of

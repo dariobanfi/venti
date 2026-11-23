@@ -103,67 +103,56 @@ struct AirspaceProximityBadge: View {
 /// The large reading under the map of the second page: the name, where
 /// and how high as two readings side by side, the airspace's class and
 /// limits, the doubt when there is one, and beside them the height line.
-/// A tap lists the warnings, as a tap on the band does. With no reading
-/// it shows two dashes: no reading is not "clear".
+/// A tap lists the warnings, as a tap on the band does. Shown only with a
+/// reading: without one the cockpit leaves it out, as Android does.
 struct AirspaceProximityStrip: View {
-    let proximity: AirspaceProximity?
+    let proximity: AirspaceProximity
     let open: () -> Void
 
     var body: some View {
         Button(action: open) {
             HStack(alignment: .top, spacing: VentiSpace.s3) {
-                if let proximity {
-                    AirspaceHeightLine(scale: AirspaceHeightScale(proximity), ink: proximity.ink)
-                        .frame(width: VentiSpace.s6, height: VentiSpace.s8)
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: VentiSpace.s2) {
-                            ProximitySign(silenced: proximity.silenced, size: VentiSize.icon)
-                            Text(proximity.name)
-                                .font(.ventiType(.heading))
-                                .lineLimit(1)
-                        }
-                        HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s4) {
-                            Text(proximity.placeWords)
-                            if !proximity.insideOutline || proximity.inHeight != .atHeight {
-                                Text(proximity.heightWords)
-                            }
-                        }
-                        .font(.ventiType(.instrumentM))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        Text(proximity.detail)
-                            .font(.ventiType(.label))
+                AirspaceHeightLine(scale: AirspaceHeightScale(proximity), ink: proximity.ink)
+                    .frame(width: VentiSpace.s6, height: VentiSpace.s8)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: VentiSpace.s2) {
+                        ProximitySign(silenced: proximity.silenced, size: VentiSize.icon)
+                        Text(proximity.name)
+                            .font(.ventiType(.heading))
                             .lineLimit(1)
-                        if let uncertain = proximity.uncertain {
-                            Text(uncertain)
-                                .font(.ventiType(.label))
-                                .fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s4) {
+                        Text(proximity.placeWords)
+                        if !proximity.insideOutline || proximity.inHeight != .atHeight {
+                            Text(proximity.heightWords)
                         }
                     }
-                    Spacer(minLength: 0)
-                } else {
-                    ProximitySign(silenced: false, size: VentiSize.icon)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("– –")
-                            .font(.ventiType(.instrumentM))
-                        Text("Airspace")
+                    .font(.ventiType(.instrumentM))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    Text(proximity.detail)
+                        .font(.ventiType(.label))
+                        .lineLimit(1)
+                    if let uncertain = proximity.uncertain {
+                        Text(uncertain)
                             .font(.ventiType(.label))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer(minLength: 0)
                 }
+                Spacer(minLength: 0)
             }
-            .foregroundStyle(.venti(proximity?.ink ?? .text))
+            .foregroundStyle(.venti(proximity.ink))
             .padding(.horizontal, VentiSpace.s4)
             .padding(.vertical, VentiSpace.s2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.venti(proximity?.ground ?? .bg))
+            .background(.venti(proximity.ground))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Airspace")
-        .accessibilityValue(proximity?.spoken ?? "not available")
+        .accessibilityValue(proximity.spoken)
         .accessibilityHint("Shows all warnings")
         .accessibilityIdentifier("airspace-proximity-map")
     }

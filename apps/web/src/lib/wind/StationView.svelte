@@ -12,7 +12,7 @@
 		type StationHistory,
 		type WindStation
 	} from '#lib/core/index.ts';
-	import { age, compassPoint, format } from '#lib/design/format.ts';
+	import { compassPoint, format } from '#lib/design/format.ts';
 	import AlertMe from '#lib/alerts/AlertMe.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { windDraft } from '#lib/alerts/model.svelte.ts';
@@ -131,14 +131,23 @@
 	const reading = $derived(station.latest);
 	const dash = '–';
 
-	/** How old the reading is, and what that means if it is old. */
-	const ageText = $derived.by(() => {
-		if (!reading) return 'Venti has no reading from this station.';
-		// Without Venti's clock the core counts no age: the reading's own time stands there.
-		if (station.ageMin === undefined) return `Measured at ${text.time(reading.timeUnixS)}.`;
-		const measured = `Measured ${age(station.ageMin)}.`;
-		return station.isOld ? `${measured} Too old to say what the wind is doing now.` : measured;
+	/**
+	 * How old the reading is, and what that means if it is old, in the
+	 * core's words; asked again with every new reading.
+	 */
+	let ageText = $state('');
+	$effect(() => {
+		const now = station;
+		wind.measuredWords(now).then(
+			(said) => {
+				if (now === station) ageText = said;
+			},
+			() => {}
+		);
 	});
+
+	/** The core's sentence in place of a chart, when the station has no history. */
+	const noHistory = $derived(phase.is === 'ready' ? phase.history.emptyWords : undefined);
 
 	/** The source's credit: the history's own, or the one that came with the map. */
 	const credit = $derived(
@@ -196,7 +205,7 @@
 						dayPhase.day.startUnixS
 					)}{:else if chosenDate}A past day{:else}Last 24 hours{/if}
 			</h3>
-			{#if days}
+			{#if days && !noHistory}
 				<!-- What the picker reaches back to is its own help: said under
 				     a pointer and to a screen reader, not as a paragraph. -->
 				<label class="pick" title={days.note}>
@@ -212,7 +221,7 @@
 				</label>
 			{/if}
 		</div>
-		{#if days}<p class="visually-hidden" id="history-days-note">{days.note}</p>{/if}
+		{#if days && !noHistory}<p class="visually-hidden" id="history-days-note">{days.note}</p>{/if}
 		<div class="card history">
 			{#if chosenDate}
 				{#if dayPhase.is === 'loading'}
@@ -241,8 +250,8 @@
 				<button class="again" type="button" onclick={() => load(station.id)}
 					>{app.said?.common.tryAgain}</button
 				>
-			{:else if phase.history.readings.length < 2}
-				<p>Venti has no history for this station yet.</p>
+			{:else if noHistory}
+				<p>{noHistory}</p>
 			{:else}
 				<WindChart readings={phase.history.readings} />
 			{/if}

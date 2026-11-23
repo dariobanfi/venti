@@ -229,18 +229,6 @@ export function compassPoint(degrees: number): string {
 	return points[Math.floor((((degrees % 360) + 360 + 22.5) % 360) / 45)];
 }
 
-/**
- * How long ago something was measured: "just now", "25 minutes ago",
- * "3 hours ago", "2 days ago".
- */
-export function age(minutes: number): string {
-	if (minutes < 1) return 'just now';
-	if (minutes === 1) return '1 minute ago';
-	if (minutes < 90) return `${minutes} minutes ago`;
-	if (minutes < 36 * 60) return `${Math.floor((minutes + 30) / 60)} hours ago`;
-	return `${Math.floor((minutes + 720) / 1440)} days ago`;
-}
-
 let shared: Format | undefined;
 
 /** The formatters for whoever is looking at the page, in their time zone. */

@@ -226,6 +226,40 @@ describe('wind from the server', () => {
 		expect(history.credits).toHaveLength(1);
 	});
 
+	it('says how old a reading is in the core’s words, or its time without the server’s clock', async () => {
+		// This device's clock is three hours fast; the server's is what counts.
+		const wind = new WindSource(server().get, () => SERVER_NOW + 3 * 3_600_000);
+		const zugspitze = (await wind.windMap(ALPS))!.stations.find(
+			(station) => station.name === 'Zugspitze'
+		)!;
+
+		expect(await wind.measuredWords(zugspitze, 3600)).toBe('Measured 45 minutes ago.');
+
+		// Measured at 18:20 UTC, 19:20 an hour east of it.
+		const without = new WindSource(
+			server({ '/v1/health': { status: 503, body: new Uint8Array() } }).get,
+			() => SERVER_NOW
+		);
+		expect(await without.measuredWords(zugspitze, 3600)).toBe('Measured at 19:20.');
+	});
+
+	it('gives the core’s sentence in place of a chart for a station without history', async () => {
+		const empty = new TextEncoder().encode(
+			JSON.stringify({
+				...JSON.parse(new TextDecoder().decode(recorded('observations.json'))),
+				observations: []
+			})
+		);
+		const wind = new WindSource(
+			server({ '/v1/stations/dwd-10min:05792/observations': { status: 200, body: empty } }).get,
+			() => SERVER_NOW
+		);
+
+		const history = await wind.stationHistory('dwd-10min:05792');
+
+		expect(history.emptyWords).toBe('Venti has no history for this station yet.');
+	});
+
 	it('refuses a station identifier that is none, without asking the server', async () => {
 		const { asked, get } = server();
 

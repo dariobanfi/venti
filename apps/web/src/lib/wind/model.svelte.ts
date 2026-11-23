@@ -78,6 +78,11 @@ export class WindModel {
 		return this.#core.stationAir(station, this.state.stations);
 	}
 
+	/** What a station's page says under its newest reading, by the reader's clock. */
+	measuredWords(station: WindStation): Promise<string> {
+		return this.#core.stationMeasuredWords(station, readerOffsetS());
+	}
+
 	/** The days a station's readings can be asked for, by the reader's clock. */
 	days(): Promise<StationDays> {
 		return this.#core.stationDays(readerOffsetS());

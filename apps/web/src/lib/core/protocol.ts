@@ -247,6 +247,12 @@ export interface Calls {
 	 * stations on the wind map.
 	 */
 	stationAir: { given: { station: WindStation; stations: WindStation[] }; answer: StationAir };
+	/**
+	 * What a station's page says under its newest reading: its age by
+	 * Venti's clock, or the time it was measured, by the reader's offset
+	 * from UTC in seconds.
+	 */
+	stationMeasuredWords: { given: { station: WindStation; utcOffsetS: number }; answer: string };
 	/** Given the reader's offset from UTC in seconds: the days a station can be asked about. */
 	stationDays: { given: number; answer: StationDays };
 	/** One day of a station's readings, by its date as `stationDays` names dates. */
@@ -871,6 +877,7 @@ export async function answer<Name extends CallName>(
 		wind: (box) => wind.windMap(box),
 		stationHistory: (id) => wind.stationHistory(id),
 		stationAir: ({ station, stations }) => wind.air(station, stations),
+		stationMeasuredWords: ({ station, utcOffsetS }) => wind.measuredWords(station, utcOffsetS),
 		stationDays: (utcOffsetS) => wind.days(utcOffsetS),
 		stationDay: ({ stationId, date, utcOffsetS }) => wind.day(stationId, date, utcOffsetS),
 		sites: ({ box, filter }) => sites.sites(box, filter),

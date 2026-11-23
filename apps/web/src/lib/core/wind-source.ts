@@ -29,6 +29,7 @@ import {
 	stationHistory,
 	type StationHistory,
 	stationHistoryPath,
+	stationMeasuredWords,
 	type WindStation,
 	windMap,
 	type WindMap,
@@ -170,6 +171,15 @@ export class WindSource {
 	 */
 	air(station: WindStation, stations: WindStation[]): StationAir {
 		return stationAir(station, stations);
+	}
+
+	/**
+	 * What a station's page says under its newest reading, in the core's
+	 * words: its age by the server's clock, or the time it was measured
+	 * while that clock is not known.
+	 */
+	async measuredWords(station: WindStation, utcOffsetS: number): Promise<string> {
+		return stationMeasuredWords(station, await this.serverNow(), utcOffsetS);
 	}
 
 	/** The days a station's readings can be asked for, by Venti's clock and the reader's offset from UTC. */

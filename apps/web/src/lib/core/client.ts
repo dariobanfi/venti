@@ -178,6 +178,11 @@ export class CoreClient {
 		return this.#call('stationAir', { station, stations });
 	}
 
+	/** What a station's page says under its newest reading, in the core's words. */
+	stationMeasuredWords(station: WindStation, utcOffsetS: number) {
+		return this.#call('stationMeasuredWords', { station, utcOffsetS });
+	}
+
 	/** The days a station's readings can be asked for, by the reader's offset from UTC. */
 	stationDays(utcOffsetS: number) {
 		return this.#call('stationDays', utcOffsetS);

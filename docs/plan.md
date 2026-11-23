@@ -254,6 +254,7 @@ Each step's state is what the repository showed on 2026-11-22, with the commits 
 14. The cockpit's "End": held two-thirds as long as now (the owner: "at least two-thirds"), on both phones.
 15. The cockpit before its first readings (the owner: "this dash before starting when there is no data yet … makes the UI look a bit ugly"): in place of "– –" each reading shows a quiet placeholder bar of the number's size in the muted colour until its first value comes; no made-up zero; the top line's "No GPS" keeps saying why; both phones.
 16. The cockpit's pages slide with the finger (the owner: "if I slide with the finger, there is no animation switching between pages"): a swipe moves the pages along under the finger and settles on the next one, as a paged view does, on both phones; the dots follow; nothing jumps.
+17. No airspace banner before take-off (the owner: "no need to display the airspace warning … the new airspace assigned before takeoff"): the sentence "Airspace is not being checked yet: no position with a height" is not shown on the ground before the first fix; the top line's "No GPS" says it. In flight, the banner for a lost position ("Airspace is not being checked: no position") stays. Both phones.
 
 **Left open by the sessions on 2026-11-22**, found that day and not yet built; none waits for the owner:
 

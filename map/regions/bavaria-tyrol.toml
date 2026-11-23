@@ -1,0 +1,12 @@
+# The Bavarian Alps and Tyrol together: the Allgäu to Berchtesgaden, North
+# and East Tyrol, and the foothills to the Kochelsee and the south of the
+# Chiemsee. Munich lies north of the Alps extract and is not in the box.
+
+id = "bavaria-tyrol"
+name = "Bavarian Alps and Tyrol"
+
+[bounds]
+south = 46.65
+west = 10.1
+north = 47.8
+east = 13.0

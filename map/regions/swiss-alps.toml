@@ -1,0 +1,15 @@
+# The Swiss Alps: the Valais, the Bernese Oberland, central Switzerland,
+# Glarus, the Säntis, Graubünden and Ticino, with the neighbours' valleys
+# that lie in the box. Not the whole country: the Alps extract ends north
+# of the mountains, so the box's north-west corner (Bern, Fribourg, Lake
+# Neuchâtel) has terrain but no streets or places, and Basel and Zurich are
+# outside it.
+
+id = "swiss-alps"
+name = "Swiss Alps"
+
+[bounds]
+south = 45.8
+west = 6.8
+north = 47.3
+east = 10.5

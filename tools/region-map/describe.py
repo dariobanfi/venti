@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""What build.sh needs to know about a region pack, and the map.toml it ends with.
+"""What build.sh needs to know about a region, and the map.toml it ends with.
 
     describe.py box <region.toml>
-        Prints the pack's identifier and its box as west,south,east,north:
-        what the map tools are told to build.
+        Prints the region's identifier and its box as west,south,east,north:
+        what the map tools are told to build. A region is a file of
+        map/regions/ or a region pack's region.toml: both have an id, a name
+        and a box.
+
+    describe.py outline <extract.poly | ->
+        Prints the box around an extract, west,south,east,north, widened to
+        the next hundredth of a degree: from the outline Geofabrik publishes
+        beside it (Osmosis's .poly), or from `pmtiles show --header-json` of
+        the base map on standard input.
 
     describe.py write <region.toml> <folder> <version>
         Writes <folder>/map.toml for the two archives in the folder,
@@ -16,6 +24,7 @@ Needs Python 3.11 or later, for its reader of TOML.
 
 import hashlib
 import json
+import math
 import pathlib
 import sys
 import tomllib
@@ -74,6 +83,26 @@ def box(region):
     print(pack(region)["id"], edges)
 
 
+def outline(path):
+    if path == "-":
+        west, south, east, north = json.load(sys.stdin)["bounds"]
+    else:
+        # A name, then rings: a name line, a "longitude latitude" line per
+        # point, and END; the file ends with one more END.
+        points = []
+        for line in pathlib.Path(path).read_text(encoding="utf-8").splitlines()[1:]:
+            words = line.split()
+            if len(words) == 2:
+                points.append((float(words[0]), float(words[1])))
+        west = min(lon for lon, _ in points)
+        east = max(lon for lon, _ in points)
+        south = min(lat for _, lat in points)
+        north = max(lat for _, lat in points)
+    down = lambda value: math.floor(value * 100) / 100
+    up = lambda value: math.ceil(value * 100) / 100
+    print(f"{down(west)},{down(south)},{up(east)},{up(north)}")
+
+
 def write(region, folder, version):
     region = pack(region)
     folder = pathlib.Path(folder)
@@ -108,6 +137,8 @@ def main(arguments):
     match arguments:
         case ["box", region]:
             box(region)
+        case ["outline", path]:
+            outline(path)
         case ["write", region, folder, version]:
             write(region, folder, version)
         case _:

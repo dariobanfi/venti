@@ -32,8 +32,8 @@ archive_dir = "var/archive"
 # Folder of the map regions the server hands out for     VENTI_MAPS_DIR
 # apps to draw without a network: one folder in it for each region, with
 # the region's files and a map.toml that describes them.
-# tools/region-map/build.sh builds one, and docs/running-a-server.md says where
-# it goes and how it is renewed. The server reads the folder when it
+# tools/region-map/build.sh builds them, and docs/running-a-server.md says
+# where they go and how they are renewed. The server reads the folder when it
 # starts, and lists a region once it has read its files and found the
 # hashes map.toml states. There is no default: without it the server
 # hands out no maps.

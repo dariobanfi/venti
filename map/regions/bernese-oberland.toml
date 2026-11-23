@@ -1,0 +1,11 @@
+# The Bernese Oberland: Lake Thun and Lake Brienz, Interlaken, the Niesen,
+# Grindelwald, Lauterbrunnen and the Jungfrau.
+
+id = "bernese-oberland"
+name = "Bernese Oberland"
+
+[bounds]
+south = 46.4
+west = 7.5
+north = 46.8
+east = 8.25

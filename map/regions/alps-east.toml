@@ -1,0 +1,13 @@
+# The eastern third of the Alps: the Chiemgau and Berchtesgaden, Salzburg,
+# Carinthia, Styria, Upper and Lower Austria's mountains, the Dolomites'
+# east, Friuli and Slovenia. One of three parts of "The Alps"; see
+# alps-west.toml.
+
+id = "alps-east"
+name = "Eastern Alps"
+
+[bounds]
+south = 42.69
+west = 12.4
+north = 48.41
+east = 16.77

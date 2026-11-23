@@ -438,26 +438,56 @@ data/maps/
 
 The server must be able to read them: `chmod -R a+rX data/maps`.
 
-**Build a region** with `tools/region-map/build.sh`, outside `data/maps`. The script's header says what it needs. It has not built a real region yet *(to verify)*.
+**Which regions.** The files in `map/regions/`, an id, a name and a box each. Built on 2026-11-23 from OpenStreetMap of 2026-11-21, as the files a phone downloads:
+
+| Region | Box (west, south, east, north) | Base map | Terrain | Together |
+|---|---|---|---|---|
+| `innsbruck`, Inn valley around Innsbruck | 10.95, 47.05, 11.95, 47.45 | 26 MB | 20 MB | 46 MB |
+| `chiemgau`, Chiemgau | 12.2, 47.55, 12.95, 47.95 | 23 MB | 14 MB | 37 MB |
+| `bernese-oberland`, Bernese Oberland | 7.5, 46.4, 8.25, 46.8 | 19 MB | 16 MB | 35 MB |
+| `bavaria-tyrol`, Bavarian Alps and Tyrol | 10.1, 46.65, 13.0, 47.8 | 180 MB | 135 MB | 314 MB |
+| `swiss-alps`, Swiss Alps | 6.8, 45.8, 10.5, 47.3 | 290 MB | 215 MB | 506 MB |
+| `alps-west`, Western Alps | 4.84, 42.69, 8.0, 48.41 | 549 MB | 442 MB | 990 MB |
+| `alps-central`, Central Alps | 7.8, 42.69, 12.6, 48.41 | 656 MB | 610 MB | 1.27 GB |
+| `alps-east`, Eastern Alps | 12.4, 42.69, 16.77, 48.41 | 507 MB | 485 MB | 992 MB |
+| `alps`, The Alps | 4.84, 42.69, 16.77, 48.41 | 1.65 GB | 1.45 GB | 3.10 GB |
+
+All nine are 7.3 GB on the server's disk. The data ends at the outline of Geofabrik's extract of the Alps, which follows the mountains: where a box reaches beyond it (Bern and Fribourg in the Swiss Alps, the Po plain, Munich, Vienna) the map has the terrain and the coarse layers of the first zooms, and no streets or places. A region is added by adding a file there; Switzerland north of the Alps or another country needs another extract (`OSM_URL`, the script's header).
+
+**Build them** with `tools/region-map/build.sh`, outside `data/maps`. It downloads Geofabrik's extract of the Alps (2.2 GB) and Planetiler's other sources (1.3 GB) once, makes a base map of the whole extract with Planetiler, takes Mapterhorn's terrain for the extract's box (1.4 GB), and cuts each region out of the two. It needs Java 21 or later, Python 3.11 or later, curl, and `pmtiles` (go-pmtiles: a release from <https://github.com/protomaps/go-pmtiles/releases>, Homebrew's `pmtiles`, or Go, with which the script installs it). On a Mac with 18 cores the whole run took 7 minutes and the cutting of all nine regions 9 seconds; Planetiler asked for 11 GB of temporary disk and used under 4 GB of the 8 GB of memory it may take (`JAVA_MEMORY`). Count on some 25 GB of free disk for the run, beside the regions. A machine of the smallest size above cannot build them; build elsewhere and copy the folders over.
 
 ```bash
 cd /opt/venti
-tools/region-map/build.sh regions/alps-de-at/region.toml /opt/venti-maps/alps-de-at
+tools/region-map/build.sh /opt/venti-maps/next          # every region of map/regions
+tools/region-map/build.sh /opt/venti-maps/next map/regions/innsbruck.toml   # or some
 ```
 
-**Put it in place, or renew it.** A region is replaced whole, under a new `version`, which the script writes. Never change a region's files in place.
+**Put them in place, or renew them.** A region is replaced whole, under a new `version`, which the script writes (the day). Never change a region's files in place.
 
 ```bash
 cd /opt/venti/deploy
-mkdir -p data/maps
-mv data/maps/alps-de-at /opt/venti-maps/alps-de-at.old    # when renewing: two folders with one id are both left out
-mv /opt/venti-maps/alps-de-at data/maps/alps-de-at
+mkdir -p data/maps /opt/venti-maps/old
+for region in /opt/venti-maps/next/*/; do
+  id=$(basename "$region")
+  rm -rf "/opt/venti-maps/old/$id"
+  [ -d "data/maps/$id" ] && mv "data/maps/$id" "/opt/venti-maps/old/$id"   # two folders with one id are both left out
+  mv "$region" "data/maps/$id"
+done
+chmod -R a+rX data/maps
 docker compose restart server
 docker compose logs --since 5m server | grep 'maps:'
 curl -s http://localhost/v1/maps
 ```
 
-After its start the server reads every file once, and lists a region when each file has the hash its `map.toml` states. A region it leaves out has a line in the log that says why. The restart breaks off the downloads that are under way; the apps go on with them afterwards, or start again when the version is new. Remove the old folder once the list shows the new version.
+After its start the server reads every file once, and lists a region when each file has the hash its `map.toml` states: the 7.3 GB of the nine regions took the server's debug build 99 seconds on the Mac, and on a server they take about as long as its disk needs to read them *(to verify)*. A region it leaves out has a line in the log that says why. The restart breaks off the downloads that are under way; the apps go on with them afterwards, or start again when the version is new. Remove the old folders once the list shows the new versions.
+
+**Monthly.** OpenStreetMap changes every day, and every renewal makes every pilot who keeps a region download all of it again, so renew once a month. The script downloads the extract again when the one it has is more than 25 days old, and builds the base map and the terrain again when the extract is newer than they are: run it, then the swap above, on the first of the month, by hand or from cron:
+
+```
+0 3 1 * *  cd /opt/venti && tools/region-map/build.sh /opt/venti-maps/next > /opt/venti-maps/build.log 2>&1
+```
+
+The swap and the restart stay a step of their own, so that a build that failed renews nothing.
 
 ## What the web app's pages may do
 

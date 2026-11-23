@@ -1,0 +1,12 @@
+# The middle third of the Alps: most of Switzerland, Lombardy's and
+# Trentino's mountains, South Tyrol, Tyrol and the Bavarian Alps to the
+# Inn. One of three parts of "The Alps"; see alps-west.toml.
+
+id = "alps-central"
+name = "Central Alps"
+
+[bounds]
+south = 42.69
+west = 7.8
+north = 48.41
+east = 12.6

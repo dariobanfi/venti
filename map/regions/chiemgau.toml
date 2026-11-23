@@ -1,0 +1,11 @@
+# The Chiemgau: the Chiemsee, the Kampenwand, the Hochfelln and the
+# mountains of Ruhpolding and Reit im Winkl.
+
+id = "chiemgau"
+name = "Chiemgau"
+
+[bounds]
+south = 47.55
+west = 12.2
+north = 47.95
+east = 12.95

@@ -1,0 +1,14 @@
+# The western third of the Alps: the French Alps from the sea to Lake
+# Geneva, the Valais as far as Zermatt, the Aosta valley and Piedmont's
+# mountains. One of three parts of "The Alps" for phones that would rather
+# not keep all of it; the parts overlap by a fifth of a degree, so that a
+# place on a seam is in both.
+
+id = "alps-west"
+name = "Western Alps"
+
+[bounds]
+south = 42.69
+west = 4.84
+north = 48.41
+east = 8.0

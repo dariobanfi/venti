@@ -1,0 +1,11 @@
+# The Inn valley around Innsbruck: from Telfs to Schwaz, with the
+# Nordkette, the Stubai and the mouth of the Zillertal.
+
+id = "innsbruck"
+name = "Inn valley around Innsbruck"
+
+[bounds]
+south = 47.05
+west = 10.95
+north = 47.45
+east = 11.95

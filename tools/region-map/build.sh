@@ -1,117 +1,136 @@
 #!/usr/bin/env bash
-# Builds one map region for a server to hand out: the vector base map and
-# the terrain of a region pack's box, as two PMTiles archives, and the
-# map.toml that describes them. The result is one folder for the server's
-# maps folder (maps_dir, VENTI_MAPS_DIR). docs/running-a-server.md says where that
-# is and how a region is renewed.
+# Builds the map regions a server hands out: for each region, the vector
+# base map and the terrain of its box, as two PMTiles archives, and the
+# map.toml that describes them, in a folder of its own. The folders go into
+# the server's maps folder (maps_dir, VENTI_MAPS_DIR); docs/running-a-server.md,
+# "Map regions", says where that is and how regions are renewed.
 #
-# THIS SCRIPT HAS NOT BUILT A REGION YET. It was written on 2026-11-20 in a
-# session that had neither the disk nor the memory for one. What was tried
-# there: the script from its first line to its last with stand-ins for its
-# three heavy steps (the download of OpenStreetMap, Planetiler, the terrain
-# extract), and the folder it wrote, which `venti-server dev --maps` then
-# listed. Every size below is an estimate or somebody else's figure, to
-# verify with the first real run. How long a run takes is not known.
+# The regions are the files in map/regions/: an id, a name and a box each
+# (a region pack's region.toml has the same three and works too). They are
+# all cut from two archives that are built once for the whole extract:
 #
-# It does what tools/demo-map/build.sh does, which built the region the
-# apps bundle: the stock OpenMapTiles profile of Planetiler for the base
-# map, and Mapterhorn's elevation tiles up to zoom 12 for the terrain. The
-# project's own profile, contours and finer terrain are not built
+# - the base map: OpenStreetMap through Planetiler's stock OpenMapTiles
+#   profile, from Geofabrik's extract of the Alps, limited to the extract's
+#   outline, to zoom 14;
+# - the terrain: Mapterhorn's elevation tiles over the outline's box, to
+#   zoom 12, the level Mapterhorn has for the whole world.
+#
+# This is what tools/demo-map/build.sh does for the region the apps bundle.
+# The project's own profile, contours and finer terrain are not built
 # (docs/architecture.md, "Maps and terrain").
 #
-# Needs Java 21 or later, Go, curl and Python 3.11 or later. Run from the
-# repository root:
+# A region's box should lie inside the extract's outline. Where it does
+# not, the region has terrain (as far as the outline's box) and the coarse
+# layers of the first zooms, and no streets or places.
 #
-#   tools/region-map/build.sh [region.toml] [folder]
+# Needs Java 21 or later, curl, Python 3.11 or later, and go-pmtiles: the
+# `pmtiles` on the PATH (Homebrew's formula `pmtiles`), or else Go, with
+# which it is installed. Run from the repository root:
 #
-#   region.toml  the region pack whose box is built. Unless given,
-#                regions/alps-de-at/region.toml
-#   folder       the region's folder, which is made. Unless given,
-#                var/maps/<the pack's id>
+#   tools/region-map/build.sh <folder> [region.toml ...]
+#
+#   folder       where the regions' folders are made, <folder>/<id>. A
+#                region whose folder is already there is refused: a region
+#                is renewed by swapping folders, never in place.
+#   region.toml  the regions to build. Unless given, all of map/regions/.
 #
 # Settings, as environment variables:
 #
-#   OSM_PBF      an OpenStreetMap extract (.osm.pbf) on this machine that
-#                covers the whole box. Unless given, the extract of Europe
-#                is downloaded, once.
-#   JAVA_MEMORY  the memory Planetiler's Java may take. Unless given, 18g.
-#   VERSION      the version of the region. Unless given, the day (UTC).
+#   OSM_URL      the extract to download. Unless given, Geofabrik's Alps,
+#                https://download.geofabrik.de/europe/alps/alps-latest.osm.pbf.
+#                Its outline is the same address with .poly for -latest.osm.pbf.
+#   OSM_PBF      an extract on this machine to use instead, and OSM_POLY its
+#                outline (optional). Nothing is downloaded for them.
+#   JAVA         the java to run. Unless given, the one on the PATH.
+#   JAVA_MEMORY  the memory Planetiler's Java may take. Unless given, 8g.
+#   VERSION      the version of the regions. Unless given, the day (UTC).
 #
-# What a run takes, all to verify:
+# The downloaded extract is kept in target/region-map and downloaded again
+# when it is more than 25 days old, so a monthly run renews the map; the two
+# archives of the whole extract are built again whenever the extract is newer
+# than they are. Delete target/region-map/source to build them again anyway.
 #
-# - OpenStreetMap. The extract of Europe on the mirror that this script
-#   and the demo script download from was 35.5 GB on 2026-11-19, by the
-#   mirror's own listing, read on 2026-11-20. Planetiler's README (read the
-#   same day) says "Give the JVM about 0.5x the size of the input .osm.pbf
-#   file" and asks for "at least 1GB of free SSD disk space plus 5-10x the
-#   size of the .osm.pbf file". For Europe that makes 18 GB of memory for
-#   Java, and between 180 and 360 GB of disk beside the 35.5 GB of the
-#   file itself. Whether Planetiler needs as much when it is told to build
-#   a box only, as it is here, is not known.
-#   A smaller extract that covers the box makes all of that smaller in
-#   proportion. Geofabrik publishes extracts of single countries; whether
-#   it has one that covers the first region's box, which reaches from Lake
-#   Constance to east of Vienna and into eight countries, was not checked:
-#   download.geofabrik.de could not be reached from the session that wrote
-#   this. An extract that covers the box in part gives a map that ends
-#   where the extract ends, and no error.
-# - Planetiler's other sources, which it downloads itself: about 1 GB. The
-#   demo script's notes speak of roughly 6 GB of downloads, of which the
-#   extract of Germany was 4.9 GB by the same listing.
-# - The two archives. Scaled up by area from the region the apps bundle
-#   (3.2 MB and 4.2 MB for 0.035 square degrees), the first region's box
-#   of 17 square degrees would come to about 1.6 GB of base map and 2.1 GB
-#   of terrain. That is arithmetic, not a measurement: towns weigh more
-#   than the valley the demo covers and high mountains less.
-# - Mapterhorn. The terrain is cut out of its archive of the whole planet
-#   over the network: this downloads about as much as the terrain archive
-#   holds. Mapterhorn's terms for use at this volume, and for a server
-#   that hands an extract on to many pilots, are to verify with that
-#   project before a public release: docs/architecture.md says the same of
-#   its tile service.
+# What a run took on the owner's Mac, with each region's sizes, is in
+# deploy/AGENTS.md, "Map regions".
 set -euo pipefail
 
-region="${1:-regions/alps-de-at/region.toml}"
 here="$(dirname "$0")"
-read -r id bounds < <(python3 "$here/describe.py" box "$region")
-out="${2:-var/maps/$id}"
+maps="${1:?Usage: tools/region-map/build.sh <folder> [region.toml ...]}"
+shift
+if [ "$#" -eq 0 ]; then set -- map/regions/*.toml; fi
 version="${VERSION:-$(date -u +%Y-%m-%d)}"
 work="target/region-map"
-build="$work/$id"
-mkdir -p "$work/bin" "$build"
-echo "Building the map of $id ($bounds), version $version, into $out"
+source="$work/source"
+mkdir -p "$work/bin" "$work/osm" "$source" "$maps"
+
+for region in "$@"; do
+  read -r id _ < <(python3 "$here/describe.py" box "$region")
+  if [ -e "$maps/$id" ]; then
+    echo "$maps/$id is already there. Build into another folder and swap the two." >&2
+    exit 1
+  fi
+done
 
 # Tools, as the demo script fetches them.
 [ -f "$work/planetiler.jar" ] || curl -fL -o "$work/planetiler.jar" \
   https://github.com/onthegomap/planetiler/releases/latest/download/planetiler.jar
-[ -x "$work/bin/go-pmtiles" ] || GOBIN="$PWD/$work/bin" go install github.com/protomaps/go-pmtiles@latest
+pmtiles="$(command -v pmtiles || true)"
+if [ -z "$pmtiles" ]; then
+  [ -x "$work/bin/go-pmtiles" ] || GOBIN="$PWD/$work/bin" go install github.com/protomaps/go-pmtiles@latest
+  pmtiles="$work/bin/go-pmtiles"
+fi
 
-# Terrain: an extract of the Mapterhorn elevation tiles, to the zoom it
-# has for the whole world.
-"$work/bin/go-pmtiles" extract https://download.mapterhorn.com/planet.pmtiles \
-  "$build/terrain.pmtiles" --bbox="$bounds" --maxzoom=12
+# The extract and its outline.
+if [ -n "${OSM_PBF:-}" ]; then
+  osm="$OSM_PBF"
+  poly="${OSM_POLY:-}"
+else
+  url="${OSM_URL:-https://download.geofabrik.de/europe/alps/alps-latest.osm.pbf}"
+  osm="$work/osm/$(basename "$url")"
+  poly="$work/osm/$(basename "${url%-latest.osm.pbf}").poly"
+  if [ ! -f "$osm" ] || [ -n "$(find "$osm" -mtime +25)" ]; then
+    curl -fL -o "$osm.part" "$url"
+    mv "$osm.part" "$osm"
+  fi
+  [ -f "$poly" ] || curl -fL -o "$poly" "${url%-latest.osm.pbf}.poly"
+fi
 
-# Vector base map: OpenStreetMap through Planetiler's OpenMapTiles profile.
-# The extract of Europe comes from a mirror of Geofabrik's extracts.
-osm="${OSM_PBF:-$work/europe.osm.pbf}"
-[ -f "$osm" ] || curl -fL -o "$osm" \
-  https://ftp5.gwdg.de/pub/misc/openstreetmap/download.geofabrik.de/europe-latest.osm.pbf
-java "-Xmx${JAVA_MEMORY:-18g}" -jar "$work/planetiler.jar" \
-  --osm-path="$osm" --download --tmpdir="$work/tmp" \
-  --download_dir="$work/sources" \
-  --bounds="$bounds" --maxzoom=14 \
-  --output="$build/basemap.pmtiles" --force
+# The two archives of the whole extract, built when the extract is newer.
+if [ ! -f "$source/basemap.pmtiles" ] || [ "$osm" -nt "$source/basemap.pmtiles" ]; then
+  "${JAVA:-java}" "-Xmx${JAVA_MEMORY:-8g}" -jar "$work/planetiler.jar" \
+    --osm-path="$osm" ${poly:+--polygon="$poly"} --download --tmpdir="$work/tmp" \
+    --download_dir="$work/sources" --maxzoom=14 \
+    --output="$source/basemap.pmtiles" --force
+fi
+if [ ! -f "$source/terrain.pmtiles" ] || [ "$osm" -nt "$source/terrain.pmtiles" ]; then
+  if [ -n "$poly" ]; then
+    outline="$(python3 "$here/describe.py" outline "$poly")"
+  else
+    outline="$("$pmtiles" show "$source/basemap.pmtiles" --header-json | python3 "$here/describe.py" outline -)"
+  fi
+  "$pmtiles" extract https://download.mapterhorn.com/planet.pmtiles \
+    "$source/terrain.part.pmtiles" --bbox="$outline" --maxzoom=12 --download-threads=8
+  mv "$source/terrain.part.pmtiles" "$source/terrain.pmtiles"
+fi
 
-# The description, with the hash of each archive as it now is. Then the
-# three files go to their folder, the description last: a server that is
-# started while they are on their way finds no region there, not half of
-# one.
-python3 "$here/describe.py" write "$region" "$build" "$version"
-mkdir -p "$out"
-mv "$build/basemap.pmtiles" "$build/terrain.pmtiles" "$out/"
-mv "$build/map.toml" "$out/map.toml"
+# Each region, cut from the two. The three files go to their folder, the
+# description last: a server that is started while they are on their way
+# finds no region there, not half of one.
+for region in "$@"; do
+  read -r id bounds < <(python3 "$here/describe.py" box "$region")
+  build="$work/build/$id"
+  rm -rf "$build"
+  mkdir -p "$build"
+  echo "Cutting $id ($bounds), version $version"
+  for file in basemap terrain; do
+    "$pmtiles" extract "$source/$file.pmtiles" "$build/$file.pmtiles" --bbox="$bounds" --quiet
+  done
+  python3 "$here/describe.py" write "$region" "$build" "$version"
+  mkdir -p "$maps/$id"
+  mv "$build/basemap.pmtiles" "$build/terrain.pmtiles" "$maps/$id/"
+  mv "$build/map.toml" "$maps/$id/map.toml"
+  ls -l "$maps/$id"
+done
 
-ls -l "$out"
-echo "Done. A server lists the region after its next start, once it has read"
-echo "the files and found these hashes. If $out is the folder of a region the"
-echo "server is handing out now, it stops handing that one out until then."
+echo "Done. A server lists the regions after its next start, once it has read"
+echo "their files and found the hashes their map.toml states."

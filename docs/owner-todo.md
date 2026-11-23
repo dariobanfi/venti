@@ -22,6 +22,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 ## Decide, yes or no (what is built stands until you say otherwise)
 
 
+- [ ] **Map regions to download:** nine are built from the Alps extract (Inn valley around Innsbruck 46 MB, Chiemgau 37 MB, Bernese Oberland 35 MB, Bavarian Alps and Tyrol 314 MB, Swiss Alps 506 MB, the Alps in three thirds of 1.0 to 1.3 GB, and the whole Alps 3.1 GB), listed in `map/regions/` ([running-a-server.md](running-a-server.md#map-regions)). Keep the whole Alps beside its thirds, or not? Other valleys you fly are one small file each. Your stack lists them once their folders are in `deploy/data/maps` and the server is restarted (2026-11-23).
 
 - [ ] **One place shown once:** where two sources describe the same take-off within 150 m, the map shows one, taken in the order Venti's own > the FFVL > OpenStreetMap > pilots' suggestions (2026-11-23). In the French Alps about 590 of the FFVL's 1,004 places meet an OpenStreetMap one.
 

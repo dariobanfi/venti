@@ -1,0 +1,15 @@
+# The whole of the Alps: the box around Geofabrik's extract of the Alps,
+# which is what every region in this folder is cut from. The extract
+# follows the mountains, so the box takes in land the extract does not: the
+# Po plain, Provence's coast, Munich and Vienna. There the map shows the
+# terrain and the coarse layers of the first zooms, and no streets or
+# places (tools/region-map/build.sh).
+
+id = "alps"
+name = "The Alps"
+
+[bounds]
+south = 42.69
+west = 4.84
+north = 48.41
+east = 16.77

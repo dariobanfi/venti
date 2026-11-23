@@ -5,6 +5,7 @@ import fly.venti.app.Session
 import fly.venti.app.TestSupport
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.core.FlightVisibility
+import fly.venti.core.GliderClassKind
 import fly.venti.core.ReportReason
 import fly.venti.core.ReportSubject
 import fly.venti.core.ServerRequest
@@ -14,6 +15,7 @@ import fly.venti.core.syncSummaryInWords
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -610,6 +612,150 @@ class AccountModelTest {
         itsAccount.signOut()
         assertEquals(1, there.all(null)?.sites?.size)
         assertTrue(checkNotNull(there.all(null)).note.startsWith("Kept on this device only"))
+    }
+
+    /** The fields of a request's JSON body. */
+    private fun fields(sent: Sent): JsonObject = Json.parseToJsonElement(checkNotNull(sent.body).decodeToString()).jsonObject
+
+    /** A server that answers a change of the account with `answer`, and the change of all flights with the recorded one. */
+    private fun withSettings(server: Server, answer: () -> String) {
+        server.instead = { sent ->
+            when {
+                sent.method == "PATCH" && sent.path == "/v1/account" -> HttpAnswer(200, recorded(answer()))
+                sent.method == "PATCH" && sent.path == "/v1/flights" -> HttpAnswer(200, recorded("flights_visibility.json"))
+                else -> null
+            }
+        }
+    }
+
+    @Test
+    fun newFlightsAreKeptToThePilotByTheSwitch() = runBlocking {
+        val server = Server()
+        val account = model(logbook(), server)
+        account.signIn(SERVER, "demo", "a password of the test")
+        // On for every account until the pilot switches it off.
+        assertTrue(checkNotNull(account.account).newFlightsPublic)
+        withSettings(server) { "account_settings.json" }
+
+        account.setNewFlightsPublic(false)
+
+        assertNull(account.problem)
+        val sent = server.sent.last()
+        assertEquals("PATCH", sent.method)
+        assertEquals("/v1/account", sent.path)
+        assertEquals("Bearer $TOKEN", sent.headers["Authorization"])
+        // What the server's own test sends.
+        assertEquals(fields(Sent("", "", emptyMap(), recorded("account_settings_request.json"), 0)), fields(sent))
+        assertFalse(checkNotNull(account.account).newFlightsPublic)
+        assertFalse(account.isWorking)
+    }
+
+    @Test
+    fun theCountryIsSetAndCleared() = runBlocking {
+        val server = Server()
+        val account = model(logbook(), server)
+        account.signIn(SERVER, "demo", "a password of the test")
+        assertNull(checkNotNull(account.account).country)
+        withSettings(server) { "account_details.json" }
+
+        account.setCountry("de")
+
+        assertNull(account.problem)
+        assertEquals("de", fields(server.sent.last())["country"]?.jsonPrimitive?.content?.lowercase())
+        assertEquals("DE", account.account?.country)
+        // The server's answer says the glider's class too.
+        assertEquals(GliderClassKind.B, account.account?.gliderClass)
+
+        // None clears it: the field is sent as null.
+        account.setCountry(null)
+        assertEquals(JsonNull, fields(server.sent.last())["country"])
+
+        // What is no code is refused by the core, in words, and not sent.
+        val asked = server.sent.size
+        account.setCountry("Germany")
+        assertEquals(asked, server.sent.size)
+        assertEquals("A country is two letters, such as DE or AT.", account.problem)
+    }
+
+    @Test
+    fun theGlidersClassFollowsTheAppsSettingFromTheSignIn() = runBlocking {
+        val server = Server()
+        val account = model(logbook(), server)
+        var setting: GliderClassKind? = GliderClassKind.B
+        account.gliderClass = { setting }
+        withSettings(server) { "account_details.json" }
+
+        account.signIn(SERVER, "demo", "a password of the test")
+
+        // The sign-in's account has no class: the app's is sent at once.
+        val told = server.sent.filter { it.method == "PATCH" && it.path == "/v1/account" }
+        assertEquals(1, told.size)
+        assertEquals("en_b", fields(told.single())["glider_class"]?.jsonPrimitive?.content)
+        assertEquals(GliderClassKind.B, account.account?.gliderClass)
+
+        // Read again with the same class, nothing is sent.
+        server.instead = { sent ->
+            if (sent.method == "GET" && sent.path == "/v1/account") HttpAnswer(200, recorded("account_details.json")) else null
+        }
+        account.refresh()
+        assertEquals(1, server.sent.count { it.method == "PATCH" && it.path == "/v1/account" })
+
+        // The pilot chooses none in the settings: the account is told so.
+        setting = null
+        withSettings(server) { "account_settings.json" }
+        account.gliderClassChanged(null)
+        val cleared = server.sent.last()
+        assertEquals("/v1/account", cleared.path)
+        assertEquals(JsonNull, fields(cleared)["glider_class"])
+        assertNull(account.account?.gliderClass)
+        // Told it again, nothing more is sent.
+        account.gliderClassChanged(null)
+        assertEquals(cleared, server.sent.last())
+    }
+
+    @Test
+    fun aPhoneWithoutAClassLeavesTheAccountsAlone() = runBlocking {
+        val server = Server()
+        val account = model(logbook(), server)
+        account.signIn(SERVER, "demo", "a password of the test")
+        assertTrue(server.sent.none { it.method == "PATCH" })
+    }
+
+    @Test
+    fun allFlightsAreMadePublicAtOnceAndThenSynced() = runBlocking {
+        val server = Server()
+        val account = model(logbook(), server)
+        account.signIn(SERVER, "demo", "a password of the test")
+        withSettings(server) { "account_settings.json" }
+        val before = server.sent.size
+
+        account.setAllFlights(FlightVisibility.PUBLIC)
+
+        assertNull(account.problem)
+        val change = server.sent[before]
+        assertEquals("PATCH", change.method)
+        assertEquals("/v1/flights", change.path)
+        assertEquals(fields(Sent("", "", emptyMap(), recorded("flights_visibility_request.json"), 0)), fields(change))
+        val set = checkNotNull(account.allFlights)
+        assertEquals(FlightVisibility.PUBLIC, set.visibility)
+        assertEquals(2u, set.changed)
+        assertEquals("3 flights are public", set.line)
+        // A sync follows, which brings each changed flight as it is.
+        assertTrue(server.sent.drop(before + 1).any { it.method == "GET" && it.path == "/v1/flights/changes" })
+        // The question asked before it is the core's.
+        assertEquals("Make all 101 flights public?", fly.venti.core.allFlightsQuestion(101u, FlightVisibility.PUBLIC))
+
+        // A refusal is said, and the line stays.
+        server.instead = { sent ->
+            if (sent.method == "PATCH" && sent.path == "/v1/flights") refusal(403, "publishing_suspended") else null
+        }
+        account.setAllFlights(FlightVisibility.PUBLIC)
+        assertTrue(account.problem != null)
+        assertEquals("3 flights are public", account.allFlights?.line)
+
+        // Signed out, the line is gone with the account.
+        account.signOut()
+        assertNull(account.allFlights)
     }
 
     @Test

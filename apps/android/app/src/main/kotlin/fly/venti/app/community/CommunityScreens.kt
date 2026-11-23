@@ -69,6 +69,7 @@ import fly.venti.app.logbook.groupedShape
 import fly.venti.core.FlownSiteLine
 import fly.venti.core.FoundPilotLine
 import fly.venti.core.PublicFlight
+import fly.venti.core.gliderClassName
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.RouteKind
 import fly.venti.core.pilotsWords
@@ -92,11 +93,20 @@ object CommunityWords {
     }
 
     /**
-     * The day, the site it took off from where the server names one, and
-     * the glider: "Sat, 15 Aug 2026 · Brauneck · Sample Wing".
+     * The day, the site it took off from where the server names one with
+     * the flag of its country, and the glider with its class:
+     * "Sat, 15 Aug 2026 · 🇦🇹 Brauneck · Sample Wing · EN B".
      */
     fun detail(flight: PublicFlight): String =
-        listOfNotNull(Format.day(flight.startUnixS), flight.takeoffName, flight.glider).joinToString(" · ")
+        listOfNotNull(Format.day(flight.startUnixS), place(flight), glider(flight)).joinToString(" · ")
+
+    /** The take-off, with its country's flag before it; the flag alone where the site has no name. */
+    fun place(flight: PublicFlight): String? =
+        listOfNotNull(Countries.flag(flight.takeoffCountry), flight.takeoffName).joinToString(" ").ifEmpty { null }
+
+    /** The glider and its class in the core's name: "Sample Wing · EN B"; either alone. */
+    fun glider(flight: PublicFlight): String? =
+        listOfNotNull(flight.glider, flight.gliderClass?.let { gliderClassName(it) }).joinToString(" · ").ifEmpty { null }
 
     /** The scored distance, or the length of the track of a flight too short to score. */
     fun distance(flight: PublicFlight): String =
@@ -113,7 +123,16 @@ object CommunityWords {
 
     /** A row for someone who cannot see it. */
     fun spoken(flight: PublicFlight): String =
-        listOfNotNull(detail(flight), distance(flight), triangle(flight), "${airtime(flight)} in the air").joinToString(", ")
+        listOfNotNull(
+            flight.pilotCountry?.let(Countries::name),
+            Format.day(flight.startUnixS),
+            flight.takeoffName,
+            flight.takeoffCountry?.let(Countries::name),
+            glider(flight),
+            distance(flight),
+            triangle(flight),
+            "${airtime(flight)} in the air",
+        ).joinToString(", ")
 }
 
 /**
@@ -511,12 +530,20 @@ internal fun PublicFlightRow(
                 TrackThumbnail(flight.outline)
                 Spacer(Modifier.width(VentiSpace.s3))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        flight.pilot,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    // The pilot's country by their name, once they set one.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            flight.pilot,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (flight.pilotCountry != null) {
+                            Spacer(Modifier.width(VentiSpace.s1))
+                            Flag(flight.pilotCountry, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
                     Text(
                         CommunityWords.detail(flight),
                         style = MaterialTheme.typography.bodyMedium,

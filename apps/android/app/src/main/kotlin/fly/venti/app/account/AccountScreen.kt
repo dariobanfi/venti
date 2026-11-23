@@ -1,5 +1,13 @@
 package fly.venti.app.account
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import fly.venti.app.R
+import fly.venti.app.community.Countries
 import fly.venti.app.community.NotificationsScreen
 import fly.venti.app.community.SocialModel
 import fly.venti.app.alerts.AlertWords
@@ -68,6 +77,9 @@ import fly.venti.app.design.ValueRow
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.core.AccountView
+import fly.venti.core.FlightVisibility
+import fly.venti.core.allFlightsQuestion
+import fly.venti.core.flightVisibilityWords
 import fly.venti.core.GoogleSignUp
 import fly.venti.core.Registration
 import fly.venti.core.googleWords
@@ -113,6 +125,19 @@ fun AccountScreen(
         TokensScreen(account, onBack = { showsTokens = false })
         return
     }
+    // So is the choice of the pilot's country.
+    var choosesCountry by rememberSaveable { mutableStateOf(false) }
+    if (choosesCountry && account.isSignedIn) {
+        CountryScreen(
+            chosen = account.account?.country,
+            onChoose = { code ->
+                choosesCountry = false
+                scope.launch { account.setCountry(code) }
+            },
+            onBack = { choosesCountry = false },
+        )
+        return
+    }
     // So is "Notifications".
     var showsNotifications by rememberSaveable { mutableStateOf(false) }
     if (showsNotifications && social != null && account.isSignedIn) {
@@ -150,6 +175,7 @@ fun AccountScreen(
                     wind,
                     scope,
                     onTokens = { showsTokens = true },
+                    onCountry = { choosesCountry = true },
                     onAlerts = onAlerts,
                     notifications = social?.words?.notificationsTitle,
                     onNotifications = { showsNotifications = true },
@@ -200,7 +226,7 @@ private fun SignInForm(
 
     Text(
         "With an account, your flights are copied to Venti. They appear on your other devices, " +
-            "and you can share one with a link. A flight stays private until you share it.",
+            "and you can share one with a link.",
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
     )
@@ -428,6 +454,8 @@ private fun SignedIn(
     wind: WindModel,
     scope: CoroutineScope,
     onTokens: () -> Unit,
+    /** Opens the list of countries to choose the pilot's from. */
+    onCountry: () -> Unit,
     onAlerts: () -> Unit,
     /** The core's name of the row that opens what the pilot was told; `null` for no such row. */
     notifications: String?,
@@ -445,6 +473,18 @@ private fun SignedIn(
         // The Google account it signs in with, shown to the pilot alone.
         signedIn.googleEmail?.let { email ->
             row { ValueRow("Google", email, Modifier.testTag("account-google-email")) }
+        }
+        // Said with the pilot's name on their public flights, once set.
+        if (account.isSignedIn) {
+            row {
+                LinkRow(
+                    AccountWords.COUNTRY,
+                    R.drawable.ic_chevron_right,
+                    Modifier.testTag("account-country"),
+                    value = signedIn.country?.let(Countries::named) ?: AccountWords.NO_COUNTRY,
+                    onClick = onCountry,
+                )
+            }
         }
     }
     if (account.isSignedIn && (signedIn.googleEmail != null || wind.googleSignIn)) {
@@ -521,9 +561,12 @@ private fun SignedIn(
         }
     }
     SectionFooter(
-        "Venti syncs by itself when you open the app and after a flight. Your flights stay private on the " +
-            "Venti until you share one.",
+        "Venti syncs by itself when you open the app and after a flight.",
     )
+
+    if (account.isSignedIn) {
+        WhoSeesFlights(signedIn, account, scope)
+    }
 
     if (account.isSignedIn) {
         // What other programs may do for the pilot: the core's name for it.
@@ -670,4 +713,183 @@ private fun DeleteAccountDialog(onDelete: (String) -> Unit, withGoogle: (() -> U
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(Common.words.cancel) } },
     )
+}
+
+/** What the account's page says that is not the core's to say. */
+object AccountWords {
+    const val COUNTRY = "Country"
+    const val NO_COUNTRY = "None"
+    const val FIND_COUNTRY = "Find a country"
+}
+
+/**
+ * Who sees the pilot's flights: the switch for new ones with its line, and
+ * the two buttons that change all of them, each asking the core's question
+ * first. The answer's line stands under them. All words are the core's.
+ */
+@Composable
+private fun WhoSeesFlights(signedIn: AccountView, account: AccountModel, scope: CoroutineScope) {
+    val words = remember { flightVisibilityWords() }
+    var asking by remember { mutableStateOf<FlightVisibility?>(null) }
+    Spacer(Modifier.height(VentiSpace.s5))
+    Group {
+        row {
+            SwitchLineRow(
+                words.newFlightsPublic,
+                words.newFlightsPublicLine,
+                isOn = signedIn.newFlightsPublic,
+                enabled = !account.isWorking,
+                modifier = Modifier.testTag("account-new-flights-public"),
+            ) { public -> scope.launch { account.setNewFlightsPublic(public) } }
+        }
+        row {
+            ActionRow(
+                words.makeAllPublic,
+                MaterialTheme.colorScheme.primary,
+                Modifier.testTag("account-all-public"),
+                enabled = !account.isWorking,
+            ) { asking = FlightVisibility.PUBLIC }
+        }
+        row {
+            ActionRow(
+                words.makeAllPrivate,
+                MaterialTheme.colorScheme.primary,
+                Modifier.testTag("account-all-private"),
+                enabled = !account.isWorking,
+            ) { asking = FlightVisibility.PRIVATE }
+        }
+    }
+    account.allFlights?.let { set ->
+        SectionFooter(set.line, Modifier.testTag("account-all-flights-line"))
+    }
+
+    asking?.let { visibility ->
+        AlertDialog(
+            onDismissRequest = { asking = null },
+            text = { Text(allFlightsQuestion(signedIn.flightsOnServer, visibility), style = MaterialTheme.typography.bodyLarge) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        asking = null
+                        scope.launch { account.setAllFlights(visibility) }
+                    },
+                    modifier = Modifier.testTag("account-all-confirm"),
+                ) {
+                    Text(if (visibility == FlightVisibility.PUBLIC) words.makeAllPublic else words.makeAllPrivate)
+                }
+            },
+            dismissButton = { TextButton(onClick = { asking = null }) { Text(Common.words.cancel) } },
+        )
+    }
+}
+
+/** A row with a switch and one line under its title; pressing anywhere on it flips the switch. */
+@Composable
+private fun SwitchLineRow(
+    title: String,
+    line: String,
+    isOn: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .toggleable(value = isOn, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .heightIn(min = VentiSize.touch)
+            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(line, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(VentiSpace.s3))
+        Switch(checked = isOn, onCheckedChange = null, enabled = enabled)
+    }
+}
+
+/**
+ * The pilot's country, chosen from every country `java.util.Locale` knows,
+ * by its name with its flag, or none. A field over the list finds one by
+ * its name or its code.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CountryScreen(chosen: String?, onChoose: (String?) -> Unit, onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
+    var query by rememberSaveable { mutableStateOf("") }
+    val found = remember(query) {
+        val text = query.trim()
+        if (text.isEmpty()) {
+            Countries.all
+        } else {
+            Countries.all.filter { (code, name) -> name.contains(text, ignoreCase = true) || code.equals(text, ignoreCase = true) }
+        }
+    }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(AccountWords.COUNTRY) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .imePadding()
+                .testTag("country-list"),
+            contentPadding = PaddingValues(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s6),
+        ) {
+            item(key = "find") {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text(AccountWords.FIND_COUNTRY) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_search), contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = VentiSpace.s2).testTag("country-find"),
+                )
+            }
+            if (query.isBlank()) {
+                item(key = "none") {
+                    CountryRow(null, AccountWords.NO_COUNTRY, isChosen = chosen == null) { onChoose(null) }
+                }
+            }
+            items(found, key = { it.first }) { (code, name) ->
+                CountryRow(code, name, isChosen = code.equals(chosen, ignoreCase = true)) { onChoose(code) }
+            }
+        }
+    }
+}
+
+/** One country of the list: its flag, its name, and a check where it is the one chosen. */
+@Composable
+private fun CountryRow(code: String?, name: String, isChosen: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("country-${code ?: "none"}")
+            .selectable(selected = isChosen, role = Role.Button, onClick = onClick)
+            .heightIn(min = VentiSize.touch)
+            .padding(horizontal = VentiSpace.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            listOfNotNull(Countries.flag(code), name).joinToString(" "),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        if (isChosen) {
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        }
+    }
 }

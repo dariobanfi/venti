@@ -6,6 +6,7 @@ import fly.venti.app.design.Format
 import fly.venti.core.pilotsWords
 import fly.venti.core.Bounds
 import fly.venti.core.PublicFlightsOrder
+import fly.venti.core.GliderClassKind
 import fly.venti.core.RouteKind
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.cancelAndJoin
@@ -343,7 +344,16 @@ class CommunityModelTest {
         assertEquals("12.0 km", CommunityWords.distance(row))
         assertEquals("0:29 h", CommunityWords.airtime(row))
         assertNull(CommunityWords.triangle(row))
-        assertEquals("${CommunityWords.detail(row)}, 12.0 km, 0:29 h in the air", CommunityWords.spoken(row))
+        assertEquals("${Format.day(row.startUnixS)}, Sample Wing, 12.0 km, 0:29 h in the air", CommunityWords.spoken(row))
+        // The take-off's country as a flag before its name, the pilot's said first, the class beside the glider.
+        val said = row.copy(takeoffName = "Hafelekar", takeoffCountry = "AT", pilotCountry = "DE", gliderClass = GliderClassKind.B)
+        assertEquals("${Format.day(row.startUnixS)} · \uD83C\uDDE6\uD83C\uDDF9 Hafelekar · Sample Wing · EN B", CommunityWords.detail(said))
+        assertEquals(
+            "Germany, ${Format.day(row.startUnixS)}, Hafelekar, Austria, Sample Wing · EN B, 12.0 km, 0:29 h in the air",
+            CommunityWords.spoken(said),
+        )
+        assertEquals("\uD83C\uDDE6\uD83C\uDDF9", CommunityWords.place(said.copy(takeoffName = null)))
+        assertEquals("EN B", CommunityWords.glider(said.copy(glider = null)))
         assertEquals(row, community.flight(row.id))
         assertNull(community.flight("no such flight"))
         // A triangle is named, and a flight too short to score is listed by the length of its track.

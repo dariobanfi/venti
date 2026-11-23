@@ -47,6 +47,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import fly.venti.app.radar.RadarLayer
+import fly.venti.core.flightVisibilityWords
 import fly.venti.core.readTask
 import fly.venti.core.siteConfirmationsPath
 import org.junit.Assert.assertEquals
@@ -1376,7 +1377,7 @@ class VentiUiTest {
         }
         openTheAccount()
         // The form says what an account does before it asks for anything.
-        assertTrue(exists(hasText("A flight stays private until you share it.", substring = true)))
+        assertTrue(exists(hasText("your flights are copied to Venti", substring = true)))
         keepScreenshot("$prefix-account-1-sign-in")
 
         // The demo pilot of the server's development mode; neither the
@@ -6136,8 +6137,116 @@ class VentiUiTest {
         assertTrue(exists(hasText("No take-offs of your own yet")))
     }
 
-    /** Makes a new account from the form that is open, and opens "Programs with access" from its page. */
-    private fun makeAnAccountAndOpenTheProgramsWithAccess(handle: String) {
+    /**
+     * Who sees the pilot's flights, and what is said with them. On a new
+     * account: the switch for new flights, on until switched off, with its
+     * line; "Make all private" with the core's question and the answer's
+     * line; the country chosen from the list. Then the demo pilot's
+     * country, whose flag stands by the name on the League tab and over a
+     * flight. Every word of the switch and the buttons is the core's. The
+     * demo pilot's country stays set on the server, which no other test
+     * minds. Skipped without a server.
+     */
+    private fun chooseWhoSeesTheFlights(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        openTheAccount()
+        makeAnAccount("v${System.currentTimeMillis() % 1_000_000_000}")
+        val words = flightVisibilityWords()
+
+        // New flights are public until the pilot switches it off.
+        val switch = hasTestTag("account-new-flights-public")
+        screen.onNode(hasTestTag("account-all-private")).performScrollTo()
+        waitFor(switch and isOn())
+        assertTrue(exists(hasText(words.newFlightsPublicLine, substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-visibility-1-account")
+        tap(switch)
+        waitFor(switch and isOff())
+        tap(switch)
+        waitFor(switch and isOn())
+
+        // All flights at once, after the core's question.
+        tap(hasTestTag("account-all-private"))
+        waitFor(hasText("private?", substring = true))
+        assertTrue(exists(hasTestTag("account-all-confirm") and hasText(words.makeAllPrivate)))
+        keepScreenshot("$prefix-visibility-2-question")
+        tap(hasTestTag("account-all-confirm"))
+        waitFor(hasTestTag("account-all-flights-line") and hasText("are private", substring = true))
+        screen.onNode(hasTestTag("account-all-flights-line")).performScrollTo()
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-visibility-3-all-private")
+
+        // The country, none until chosen.
+        screen.onNode(hasTestTag("account-country")).performScrollTo()
+        assertTrue(exists(hasTestTag("account-country") and hasText("None", substring = true)))
+        chooseTheCountry("Austria", "AT", screenshot = "$prefix-visibility-4-countries")
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-visibility-5-country")
+
+        // The demo pilot's country, said by the name in everyone's flights.
+        screen.onNode(hasTestTag("account-sign-out")).performScrollTo()
+        tap(hasTestTag("account-sign-out"))
+        waitFor(hasTestTag("account-sign-out-confirm"))
+        tap(hasTestTag("account-sign-out-confirm"))
+        waitForThePasswordForm()
+        screen.onNode(hasTestTag("account-handle")).performTextInput("demo")
+        screen.onNode(hasTestTag("account-password")).performTextInput("demo-pilot-password")
+        tap(hasTestTag("account-submit"))
+        waitFor(hasText("@demo"))
+        screen.onNode(hasTestTag("account-country")).performScrollTo()
+        chooseTheCountry("Germany", "DE", screenshot = null)
+        tap(described("Back"))
+        waitFor(tab("League"))
+        tap(tab("League"))
+        val demo = hasTestTag("public-flight-row") and described("Demo Pilot")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(hasTestTag("public-flights")).performScrollToNode(demo) }.isSuccess
+        }
+        waitFor(demo and saying("Germany"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-visibility-6-league")
+        tap(demo)
+        waitFor(hasTestTag("public-flight-pilot") and hasText("Demo Pilot"))
+        waitFor(hasTestTag("public-flight-pilot-country") and described("Germany"))
+        letTheMapDraw(6)
+        keepScreenshot("$prefix-visibility-7-flight")
+    }
+
+    /** Chooses a country on the account's list, found by its name, and waits until the account says it. */
+    private fun chooseTheCountry(name: String, code: String, screenshot: String?) {
+        tap(hasTestTag("account-country"))
+        waitFor(hasTestTag("country-find"))
+        waitFor(hasTestTag("country-none"))
+        if (screenshot != null) {
+            letTheMapDraw(1)
+            keepScreenshot(screenshot)
+        }
+        screen.onNode(hasTestTag("country-find")).performTextInput(name)
+        waitFor(hasTestTag("country-$code"))
+        tap(hasTestTag("country-$code"))
+        waitFor(hasTestTag("account-country") and hasText(name, substring = true))
+    }
+
+    @Test
+    fun thePilotChoosesWhoSeesTheirFlights() = chooseWhoSeesTheFlights("light", dark = false)
+
+    @Test
+    fun whoSeesTheFlightsInDarkAppearance() = chooseWhoSeesTheFlights("dark", dark = true)
+
+    @Test
+    fun whoSeesTheFlightsOnANarrowScreenWithLargeText() {
+        TestDevice.narrowWithLargeText()
+        try {
+            chooseWhoSeesTheFlights("narrow", dark = false)
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
+    }
+
+    /** Makes a new account from the form that is open, and stays on its page. */
+    private fun makeAnAccount(handle: String) {
         tap(hasTestTag("account-new"))
         waitFor(hasTestTag("account-invite"))
         screen.onNode(hasTestTag("account-handle")).performTextInput(handle)
@@ -6147,6 +6256,11 @@ class VentiUiTest {
         tap(hasTestTag("account-submit"))
         waitFor(hasText("@$handle"))
         waitFor(hasText("Sync now"))
+    }
+
+    /** Makes a new account from the form that is open, and opens "Programs with access" from its page. */
+    private fun makeAnAccountAndOpenTheProgramsWithAccess(handle: String) {
+        makeAnAccount(handle)
         screen.onNode(hasTestTag("account-tokens")).performScrollTo()
         assertTrue(exists(hasTestTag("account-tokens") and hasText("Programs with access")))
         tap(hasTestTag("account-tokens"))

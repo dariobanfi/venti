@@ -50,6 +50,8 @@ import fly.venti.app.community.ReportSheet
 import fly.venti.app.community.Reported
 import fly.venti.app.wind.grown
 import fly.venti.core.PublicFlight
+import fly.venti.app.community.CommunityWords
+import fly.venti.app.community.Flag
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import fly.venti.app.design.Common
@@ -147,17 +149,29 @@ fun PublicFlightScreen(
                             Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text(
-                                flight.pilot,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .testTag("public-flight-pilot")
-                                    .semantics { heading() },
-                            )
-                            // The site it took off from, where the server names one.
-                            flight.takeoffName?.let { takeoff ->
+                            // The pilot's country by their name, once they set one.
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    flight.pilot,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .weight(1f, fill = false)
+                                        .testTag("public-flight-pilot")
+                                        .semantics { heading() },
+                                )
+                                if (flight.pilotCountry != null) {
+                                    Spacer(Modifier.width(VentiSpace.s1))
+                                    Flag(flight.pilotCountry, Modifier.testTag("public-flight-pilot-country"), MaterialTheme.typography.titleMedium)
+                                }
+                            }
+                            // The site it took off from with its country's flag, and the
+                            // glider with its class, where the server names them.
+                            listOfNotNull(CommunityWords.place(flight), CommunityWords.glider(flight))
+                                .joinToString(" · ")
+                                .takeIf { it.isNotEmpty() }
+                                ?.let { takeoff ->
                                 Text(
                                     takeoff,
                                     style = MaterialTheme.typography.bodyMedium,

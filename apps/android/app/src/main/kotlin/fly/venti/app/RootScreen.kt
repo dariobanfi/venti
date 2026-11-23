@@ -431,7 +431,12 @@ private fun Sections(
                         onBack = { navigation.back() },
                     )
                     SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
-                    SettingsRoute.GliderAndCockpit -> CockpitSettingsScreen(session.preferences, onBack = { navigation.back() })
+                    SettingsRoute.GliderAndCockpit -> CockpitSettingsScreen(
+                        session.preferences,
+                        onBack = { navigation.back() },
+                        // The account takes the class too, so that uploads carry it.
+                        onGliderClass = { kind -> session.scope.launch { session.account.gliderClassChanged(kind) } },
+                    )
                     SettingsRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
                     SettingsRoute.Account -> kept.SaveableStateProvider("account") {
                         AccountScreen(

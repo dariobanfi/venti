@@ -40,6 +40,7 @@ import fly.venti.app.live.LiveModel
 import fly.venti.app.live.AirModel
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.map.MapSetup
+import fly.venti.app.settings.GliderWords
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
@@ -320,6 +321,8 @@ sealed interface Session {
             // client ID; a UI test asks the development server instead.
             account.google = googleTestAccount?.let { DevelopmentGoogle(it, name = LaunchOptions.GOOGLE_TEST_NAME) }
                 ?: CredentialManagerGoogle(BuildConfig.GOOGLE_CLIENT_ID)
+            // A flight sent to the server carries the class the app's glider setting has.
+            account.gliderClass = { GliderWords.kind(preferences.gliderClass) }
             // Pilots among each other, asked of the same Venti: with the
             // account's token where a request needs one.
             // Its ages are counted by Venti's clock alone: 0 until that

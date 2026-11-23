@@ -53,7 +53,12 @@ import fly.venti.core.pagesWords
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CockpitSettingsScreen(preferences: Preferences, onBack: () -> Unit) {
+fun CockpitSettingsScreen(
+    preferences: Preferences,
+    onBack: () -> Unit,
+    /** Called with the glider's class after the pilot chose one. */
+    onGliderClass: (GliderClassKind?) -> Unit = {},
+) {
     var trimSpeed by remember { mutableStateOf(preferences.trimSpeed) }
     var glideRatio by remember { mutableStateOf(preferences.glideRatio) }
     var showsFaiAreas by remember { mutableStateOf(preferences.showsFaiAreas) }
@@ -88,6 +93,7 @@ fun CockpitSettingsScreen(preferences: Preferences, onBack: () -> Unit) {
                     GliderClassRow(gliderClass) { chosen ->
                         gliderClass = chosen
                         preferences.gliderClass = GliderWords.kept(chosen)
+                        onGliderClass(chosen)
                     }
                 }
                 row {

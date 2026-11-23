@@ -8,11 +8,13 @@ import fly.venti.app.Http
 import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.core.AccountView
+import fly.venti.core.AllFlightsSet
 import fly.venti.core.Core
 import fly.venti.core.CoreException
 import fly.venti.core.FiredLine
 import fly.venti.core.FlightSharing
 import fly.venti.core.FlightVisibility
+import fly.venti.core.GliderClassKind
 import fly.venti.core.GoogleSignUp
 import fly.venti.core.ReportReason
 import fly.venti.core.ReportSubject
@@ -271,6 +273,8 @@ class AccountModel(
         }
         isSessionLost = false
         account = signedIn.account
+        // Uploads carry the class of the glider the app is set to.
+        mirrorGliderClass()
         runSync()
     }
 
@@ -348,6 +352,7 @@ class AccountModel(
         }
         account = null
         lastSync = null
+        allFlights = null
         isSessionLost = false
     }
 
@@ -371,6 +376,101 @@ class AccountModel(
             throw error
         } catch (_: Exception) {
             // What the phone knows of the account stays.
+            return
+        }
+        if (isSignedIn) mirrorGliderClass()
+    }
+
+    // Who sees the pilot's flights, and what is said with them
+
+    /**
+     * The class of the glider the pilot flies, as the app's own glider
+     * setting has it ("Glider and cockpit"). The account is told it at
+     * sign-in, when the account is read, and whenever it changes
+     * ([gliderClassChanged]), so that a flight sent to the server carries it.
+     */
+    var gliderClass: () -> GliderClassKind? = { null }
+
+    /** How the account's flights stood after the last "Make all public" or "Make all private". */
+    var allFlights: AllFlightsSet? by mutableStateOf(null)
+        private set
+
+    /** "New flights are public": whether a flight sent from now on is public from the start. */
+    suspend fun setNewFlightsPublic(public: Boolean) {
+        changeAccount { core.newFlightsPublicRequest(public) }
+    }
+
+    /** The pilot's country, an ISO 3166-1 alpha-2 code, or `null` to say none. */
+    suspend fun setCountry(country: String?) {
+        changeAccount { core.countryRequest(country) }
+    }
+
+    /**
+     * The app's glider setting changed: the account takes the class, quietly.
+     * A phone without an answer tells it again at the next read of the account.
+     */
+    suspend fun gliderClassChanged(kind: GliderClassKind?) {
+        if (!isSignedIn || account?.gliderClass == kind) return
+        sendGliderClass(kind)
+    }
+
+    /**
+     * Tells the account the glider's class where the phone has one set and
+     * the account says another. A phone without a class set leaves the
+     * account's as it is: the pilot may have set it on another device.
+     */
+    private suspend fun mirrorGliderClass() {
+        val kind = gliderClass() ?: return
+        if (account?.gliderClass == kind) return
+        sendGliderClass(kind)
+    }
+
+    private suspend fun sendGliderClass(kind: GliderClassKind?) {
+        val server = account?.server ?: return
+        quietly {
+            val answer = ask(withContext(background) { core.gliderClassRequest(kind) }, server, answerWithinMilliseconds = ANSWER_TO_OTHERS_WITHIN_MILLISECONDS)
+            withContext(background) { core.accountRead(answer.status16, answer.body) }?.let { account = it }
+        }
+    }
+
+    /**
+     * "Make all public" or "Make all private", after the pilot answered the
+     * core's question: every flight the server has, at once. Then a sync
+     * brings each changed flight as it is. The answer's line stands in
+     * [allFlights]; a refusal is the [problem].
+     */
+    suspend fun setAllFlights(visibility: FlightVisibility) {
+        val server = account?.server ?: return
+        if (isWorking) return
+        isWorking = true
+        try {
+            val answer = ask(withContext(background) { core.allFlightsRequest(visibility) }, server, answerWithinMilliseconds = ANSWER_TO_OTHERS_WITHIN_MILLISECONDS)
+            allFlights = withContext(background) { core.allFlightsSet(answer.status16, answer.body) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            problem = words(error)
+            return
+        } finally {
+            isWorking = false
+        }
+        sync(force = true)
+    }
+
+    /** Sends one of the core's changes of the account and keeps the account its answer holds. */
+    private suspend fun changeAccount(request: () -> ServerRequest) {
+        val server = account?.server ?: return
+        if (isWorking) return
+        isWorking = true
+        try {
+            val answer = ask(withContext(background) { request() }, server, answerWithinMilliseconds = ANSWER_TO_OTHERS_WITHIN_MILLISECONDS)
+            withContext(background) { core.accountRead(answer.status16, answer.body) }?.let { account = it }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            problem = words(error)
+        } finally {
+            isWorking = false
         }
     }
 

@@ -479,11 +479,23 @@ struct PilotFlightsScreen: View {
             async let counts = try? Social(account: account, wind: wind).follows(pilot.handle)
             // The totals beside the flights: the page is the flights'
             // where Venti does not add them up.
-            async let totals = try? community.statistics(of: pilot.handle)
+            async let totals = try? totals()
             await load()
             statistics = await totals
             follows = await counts
         }
+    }
+
+    /// What the pilot's flights add up to. On the pilot's own page all
+    /// of their flights, the private ones too, with the core's note that
+    /// says so (`ownStatistics`); on another's the public ones.
+    private func totals() async throws -> PilotStatistics {
+        let social = Social(account: account, wind: wind)
+        guard social.isSignedIn, social.ownHandle == pilot.handle else {
+            return try await community.statistics(of: pilot.handle)
+        }
+        let answer = try await account.answer(to: ownStatisticsRequest())
+        return try ownStatistics(status: answer.status, body: answer.body)
     }
 
     /// The first page, or the one after what is listed.

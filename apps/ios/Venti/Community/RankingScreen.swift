@@ -141,6 +141,8 @@ private struct RankedPilotHead: View {
                 // The first three are the ones looked for.
                 .foregroundStyle(pilot.place <= 3 ? Palette.accent : Color.venti(.textSecondary))
                 .frame(minWidth: 26)
+            PilotFace(name: pilot.name, picturePath: pilot.picturePath, size: VentiSpace.s6)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] * 0.7 }
             VStack(alignment: .leading, spacing: 2) {
                 Text(pilot.name)
                     .font(.venti(.headline))

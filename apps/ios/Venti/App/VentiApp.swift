@@ -18,7 +18,7 @@ struct VentiApp: App {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
                 let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar,
-                let candidates, let alerts, let cables, let air, let watched
+                let candidates, let alerts, let cables, let air, let watched, let openPlans
             ):
                 RootScreen()
                     .environment(logbook)
@@ -44,6 +44,7 @@ struct VentiApp: App {
                     .environment(cables)
                     .environment(air)
                     .environment(watched)
+                    .environment(openPlans)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
                     .onAppear(perform: LaunchOptions.quickenAnimations)
@@ -74,7 +75,7 @@ enum Session {
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
         TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
         ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel, CablesModel, AirModel,
-        WatchedFolder
+        WatchedFolder, OpenPlansModel
     )
     case failed(String)
 
@@ -275,6 +276,11 @@ enum Session {
             // Groups and their plans for a flying day, on the pilot's
             // server, with the account's token.
             let groups = GroupsModel(core: core, account: account)
+            // Open plans, which everyone reads, on the Venti the lists are
+            // read from; the form's take-offs near are Today's.
+            let openPlans = OpenPlansModel(core: core, account: account)
+            openPlans.server = { wind.server }
+            openPlans.takeoffsNear = { place in await today.takeoffs(around: place) }
             // The pilot's alarms, on the account: fetched after signing in
             // and cleared after signing out. Their notifications show also
             // while the app is in front.
@@ -290,7 +296,7 @@ enum Session {
             }
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps, today, thermals, own, radar, candidates, alerts, cables, air, watched
+                groups, maps, today, thermals, own, radar, candidates, alerts, cables, air, watched, openPlans
             )
         } catch {
             return .failed(error.words)

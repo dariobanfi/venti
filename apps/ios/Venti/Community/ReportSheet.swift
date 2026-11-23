@@ -48,6 +48,11 @@ struct Reported: Identifiable {
         Reported(subject: .plan(groupId: groupId, id: id), title: "Report this plan")
     }
 
+    /// An open plan, which everyone reads.
+    static func openPlan(_ id: String) -> Reported {
+        Reported(subject: .openPlan(id: id), title: "Report this open plan")
+    }
+
     /// A pilot's picture, by their handle.
     static func picture(_ handle: String) -> Reported {
         Reported(subject: .picture(handle: handle), title: pictureWords().report)

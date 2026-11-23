@@ -315,15 +315,20 @@ private struct SocialPill: View {
     var isOn = false
 
     var body: some View {
-        Text(words)
-            .font(.ventiType(.label))
-            .lineLimit(1)
-            .padding(.horizontal, 14)
-            .frame(height: 36)
-            .foregroundStyle(.venti(isOn ? .onPrimary : .text))
-            .ventiFloating(in: .capsule, ground: isOn ? .primary : .surface)
-            .frame(minHeight: VentiSize.touch)
-            .contentShape(.rect)
+        HStack(spacing: 6) {
+            if isOn {
+                ChipTick()
+            }
+            Text(words)
+                .font(.ventiType(.label))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 36)
+        .foregroundStyle(.venti(isOn ? .onPrimary : .text))
+        .ventiFloating(in: .capsule, ground: isOn ? .primary : .surface)
+        .frame(minHeight: VentiSize.touch)
+        .contentShape(.rect)
     }
 }
 
@@ -524,9 +529,13 @@ private struct CommentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: VentiSpace.s1) {
-            Text(verbatim: comment.byline)
-                .font(.venti(.footnote))
-                .foregroundStyle(.venti(.textSecondary))
+            // Who wrote it, with their face where Venti names a picture.
+            HStack(spacing: VentiSpace.s2) {
+                PilotFace(name: comment.name, picturePath: comment.picturePath)
+                Text(verbatim: comment.byline)
+                    .font(.venti(.footnote))
+                    .foregroundStyle(.venti(.textSecondary))
+            }
             Text(verbatim: comment.text)
                 .fixedSize(horizontal: false, vertical: true)
             if comment.canRemove || canReport {

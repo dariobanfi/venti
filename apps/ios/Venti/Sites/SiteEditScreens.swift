@@ -417,15 +417,21 @@ private struct SiteChoices: View {
                 Button {
                     toggle(index)
                 } label: {
-                    Text(choice.words)
-                        .font(.ventiType(.label))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .padding(.horizontal, VentiSpace.s1)
-                        .frame(maxWidth: .infinity, minHeight: VentiSize.touch - VentiSpace.s2)
-                        .foregroundStyle(.venti(choice.isOn ? .onPrimary : .textSecondary))
-                        .background(.venti(choice.isOn ? .primary : .surfaceRaised), in: .capsule)
-                        .contentShape(.capsule)
+                    // Ticked, the pack's tick before the words.
+                    HStack(spacing: VentiSpace.s1) {
+                        if choice.isOn {
+                            ChipTick()
+                        }
+                        Text(choice.words)
+                            .font(.ventiType(.label))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .padding(.horizontal, VentiSpace.s1)
+                    .frame(maxWidth: .infinity, minHeight: VentiSize.touch - VentiSpace.s2)
+                    .foregroundStyle(.venti(choice.isOn ? .onPrimary : .textSecondary))
+                    .background(.venti(choice.isOn ? .primary : .surfaceRaised), in: .capsule)
+                    .contentShape(.capsule)
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(choice.isOn ? .isSelected : [])

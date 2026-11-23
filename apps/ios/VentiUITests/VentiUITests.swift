@@ -3863,6 +3863,77 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("community-hub-larger-2-feed")
     }
 
+    /// An open plan for everyone, posted from Community as the demo pilot
+    /// at a place named at random, where the map is: first refused for a
+    /// place without a name in the core's words, then a card among the
+    /// open plans near, its page with what only its author may do, and
+    /// deleted again. Light and dark. The development server's own open
+    /// plans are for 19 and 20 November and so past by the iPhone's
+    /// clock; the core's tests and the server's hold who may do what.
+    func testAnOpenPlanIsPostedSeenAndDeleted() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        signIn(("demo", "demo-pilot-password"), in: app)
+        openTab("Community", in: app)
+
+        let add = bring("community-new-open-plan", into: app)
+        XCTAssertTrue(add.appears(timeout: 30))
+        add.tap()
+        let place = element("open-plan-place", in: app)
+        XCTAssertTrue(place.appears(timeout: 10))
+        // Without a name the core refuses, in its own words.
+        let post = element("open-plan-save", in: app)
+        post.tap()
+        let refused = element("open-plan-problem", in: app)
+        XCTAssertTrue(refused.appears(timeout: 10))
+        XCTAssertTrue(refused.label.contains("Say where"), refused.label)
+
+        place.tap()
+        let name = "Kampen \(Int.random(in: 100...999))"
+        place.typeText(name)
+        XCTAssertTrue(refused.vanishes(timeout: 5))
+        app.buttons["Looking for company"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Looking for company"].firstMatch.isSelected)
+        XCTAssertTrue(element("open-plan-position", in: app).exists)
+        usleep(400_000)
+        keepScreenshots(light: "open-plans-1-form", dark: "open-plans-dark-1-form")
+        post.tap()
+
+        // The card, by the place's name, with the core's offer.
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'open-plan-card' AND label == %@", name)).firstMatch
+        XCTAssertTrue(card.appears(timeout: 30))
+        XCTAssertTrue(card.value.map { "\($0)" }?.contains("Looking for company") ?? false)
+        let isIn = app.buttons
+            .matching(NSPredicate(format: "identifier == 'open-plan-card-in' AND value == %@", name)).firstMatch
+        XCTAssertTrue(isIn.appears(timeout: 10))
+        // Its author is in from the start.
+        XCTAssertTrue(isIn.isSelected)
+        for _ in 0..<8 where !isOnScreen(card, in: app) {
+            card.frame.minY < app.windows.firstMatch.frame.midY ? app.swipeDown() : app.swipeUp()
+            usleep(400_000)
+        }
+        usleep(400_000)
+        keepScreenshots(light: "open-plans-2-cards", dark: "open-plans-dark-2-cards")
+
+        // Its page: the author changes and deletes it.
+        card.tap()
+        XCTAssertTrue(element("open-plan-change", in: app).appears(timeout: 10))
+        XCTAssertTrue(element("open-plan-public", in: app).exists)
+        XCTAssertFalse(element("open-plan-report", in: app).exists)
+        usleep(400_000)
+        keepScreenshots(light: "open-plans-3-page", dark: "open-plans-dark-3-page")
+        let delete = bring("open-plan-delete", into: app)
+        delete.tap()
+        let confirm = element("open-plan-delete-confirm", in: app)
+        XCTAssertTrue(confirm.appears(timeout: 10))
+        confirm.tap()
+        XCTAssertTrue(card.vanishes(timeout: 20))
+    }
+
     /// A route of the pilot's own waypoints: tapped in the order to fly
     /// them and kept as the task.
     func testARouteIsPlannedFromWaypoints() {

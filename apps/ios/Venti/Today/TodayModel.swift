@@ -201,6 +201,14 @@ final class TodayModel {
         onLoaded()
     }
 
+    /// The take-offs around a place as the core lists them for Today,
+    /// the pilot's own first: an open plan's form offers them as its
+    /// place. Empty where Venti gives none.
+    func takeoffs(around place: Coordinate) async -> [TodayTakeoff] {
+        guard let server = server(), let near = try? await sites(around: place, from: server) else { return [] }
+        return (try? await kept.todayTakeoffs(place: place, near: near))?.takeoffs ?? []
+    }
+
     /// The server's sites for the area the core says Today looks in.
     private func sites(around place: Coordinate, from server: URL) async throws -> SitesMap {
         let area = try todayArea(lat: place.lat, lon: place.lon)

@@ -225,14 +225,21 @@ struct VentiSegmented<Value: Hashable>: View {
                 Button {
                     selection = option.value
                 } label: {
-                    Text(option.name)
-                        .font(.ventiType(.label))
-                        .lineLimit(1)
-                        .padding(.horizontal, sharingTheWidth ? VentiSpace.s1 : VentiSpace.s4)
-                        .frame(maxWidth: sharingTheWidth ? .infinity : nil, minHeight: 38)
-                        .foregroundStyle(.venti(isChosen ? .onPrimary : .textSecondary))
-                        .background(.venti(isChosen ? .primary : .surfaceRaised), in: .capsule)
-                        .contentShape(.capsule)
+                    // The chosen one carries the pack's tick before its
+                    // word: on and off never rest on colour alone.
+                    HStack(spacing: VentiSpace.s1) {
+                        if isChosen {
+                            ChipTick()
+                        }
+                        Text(option.name)
+                            .font(.ventiType(.label))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, sharingTheWidth ? VentiSpace.s1 : VentiSpace.s4)
+                    .frame(maxWidth: sharingTheWidth ? .infinity : nil, minHeight: 38)
+                    .foregroundStyle(.venti(isChosen ? .onPrimary : .textSecondary))
+                    .background(.venti(isChosen ? .primary : .surfaceRaised), in: .capsule)
+                    .contentShape(.capsule)
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isChosen ? .isSelected : [])
@@ -367,8 +374,23 @@ struct VentiBarMenu<Content: View>: View {
     }
 }
 
+/// The pack's `check` sign before the word of a chip or a pill that is
+/// on: on and off never rest on colour alone (the owner, 2026-11-23). It
+/// takes the ink of the word beside it and grows with the text size.
+struct ChipTick: View {
+    @ScaledMetric(relativeTo: .subheadline) private var side = VentiSpace.s4
+
+    var body: some View {
+        Image("icon-check")
+            .resizable()
+            .frame(width: side, height: side)
+            .accessibilityHidden(true)
+    }
+}
+
 /// The pack's chip (`.v-chip`): switches a layer of the map on and off.
-/// Drawn 36 high, with room above and below it for the finger.
+/// Drawn 36 high, with room above and below it for the finger; on, the
+/// tick before its word.
 struct VentiChip: View {
     let title: String
     /// The name of one of the pack's icons; none for a chip of words alone.
@@ -380,6 +402,11 @@ struct VentiChip: View {
             isOn.toggle()
         } label: {
             HStack(spacing: 6) {
+                // On, the pack's tick stands before the word, in every
+                // theme (design/DESIGN.md, Chip).
+                if isOn {
+                    ChipTick()
+                }
                 if let icon {
                     Image(icon)
                         .resizable()
@@ -389,7 +416,7 @@ struct VentiChip: View {
                     .font(.ventiType(.label))
                     .lineLimit(1)
             }
-            .padding(.leading, icon == nil ? 14 : 10)
+            .padding(.leading, icon == nil && !isOn ? 14 : 10)
             .padding(.trailing, 14)
             .frame(height: 36)
             .foregroundStyle(.venti(isOn ? .onPrimary : .text))

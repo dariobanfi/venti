@@ -19,6 +19,7 @@ struct CommunityHub: View {
     @Environment(WindModel.self) private var wind
     @Environment(GroupsModel.self) private var groups
     @Environment(CommunityModel.self) private var community
+    @Environment(OpenPlansModel.self) private var openPlans
 
     @State private var typed = ""
     @State private var search = PilotSearch()
@@ -34,6 +35,7 @@ struct CommunityHub: View {
     @State private var nearIsAroundMe = false
     @State private var position = PilotPosition()
     @State private var isAddingPlan = false
+    @State private var isAddingOpenPlan = false
 
     /// How many of the feed's flights and of the lines told stand here;
     /// the rest are a tap away.
@@ -62,9 +64,11 @@ struct CommunityHub: View {
                 } else {
                     if isSignedIn {
                         plans
+                        openPlansNear(isSignedIn: true)
                         following
                     } else {
                         signIn
+                        openPlansNear(isSignedIn: false)
                     }
                     pilotsNear
                     if isSignedIn {
@@ -98,6 +102,9 @@ struct CommunityHub: View {
         }
         .sheet(isPresented: $isAddingPlan) {
             PlanForm(editing: nil)
+        }
+        .sheet(isPresented: $isAddingOpenPlan) {
+            OpenPlanForm(editing: nil, startingAt: openPlans.place)
         }
         .refreshable {
             await load(isSignedIn: isSignedIn)
@@ -173,6 +180,59 @@ struct CommunityHub: View {
                 HubProblem(words: problem) {
                     Task { await groups.load() }
                 }
+            } else {
+                HubLoading()
+            }
+        }
+    }
+
+    // MARK: Open plans
+
+    /// The open plans near the place the pilots near are of, for the
+    /// coming days: everyone's to read, and for a pilot signed in the way
+    /// to post one.
+    @ViewBuilder private func openPlansNear(isSignedIn: Bool) -> some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            HubHeader(title: OpenPlanWords.title) {
+                if isSignedIn {
+                    Button(OpenPlanWords.new) {
+                        isAddingOpenPlan = true
+                    }
+                    .accessibilityIdentifier("community-new-open-plan")
+                }
+            }
+            if let near = openPlans.near {
+                // The list is from before: Venti could not be asked again.
+                if let problem = openPlans.problem {
+                    HubLine(words: problem)
+                }
+                let cards = near.days.flatMap(\.plans)
+                if cards.isEmpty {
+                    HubLine(words: near.emptyWords)
+                        .accessibilityIdentifier("open-plans-empty")
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .top, spacing: VentiSpace.s3) {
+                            ForEach(cards, id: \.id) { plan in
+                                OpenPlanCard(plan: plan, myName: account.account?.displayName)
+                                    .containerRelativeFrame(.horizontal) { width, _ in
+                                        cards.count == 1 ? width : width * 0.82
+                                    }
+                            }
+                        }
+                        .scrollTargetLayout()
+                    }
+                    .scrollTargetBehavior(.viewAligned)
+                    .scrollClipDisabled()
+                }
+                if near.isCutShort {
+                    HubLine(words: OpenPlanWords.cutShort)
+                }
+            } else if let problem = openPlans.problem {
+                HubProblem(words: problem) {
+                    Task { await openPlans.load() }
+                }
+                .accessibilityIdentifier("open-plans-problem")
             } else {
                 HubLoading()
             }
@@ -266,19 +326,23 @@ struct CommunityHub: View {
     }
 
     /// The pilots near the iPhone, where it may say where it is; else near
-    /// the middle of the map as the map tab last showed it.
+    /// the middle of the map as the map tab last showed it. The open plans
+    /// near the same place beside them.
     private func loadNear() async {
         let mine = position.isAllowed ? position.place : nil
         let place = mine ?? wind.mapCentre
+        async let plans: Void = openPlans.show(near: place)
         do {
             near = try await community.pilotsNear(place)
             nearIsAroundMe = mine != nil
             nearProblem = nil
         } catch is CancellationError {
         } catch {
-            if (error as? URLError)?.code == .cancelled { return }
-            nearProblem = error is CoreError ? error.words : pilotsWords().unreachable
+            if (error as? URLError)?.code != .cancelled {
+                nearProblem = error is CoreError ? error.words : pilotsWords().unreachable
+            }
         }
+        await plans
     }
 
     // MARK: Notifications
@@ -501,7 +565,7 @@ struct PlanCard: View {
                     Text("I am in")
                 } icon: {
                     if plan.amIn {
-                        Image(systemName: "checkmark")
+                        ChipTick()
                     }
                 }
                 .frame(maxWidth: .infinity)

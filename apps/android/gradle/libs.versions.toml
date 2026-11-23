@@ -31,6 +31,11 @@
 # cache name no licence of their own (auto-value-annotations and guava's
 # listenablefuture, both published as Apache-2.0: to verify). No ML Kit and
 # no Play services: camera-mlkit-vision is not taken.
+#
+# A pilot's picture (2026-11-23): androidx.exifinterface, which reads which
+# way up a chosen photo was taken, is Apache-2.0 and came into the app
+# already with CameraX (1.3.2, the version CameraX brings); it is named
+# here because the app now uses it itself.
 
 [versions]
 agp = "9.5.1"
@@ -47,6 +52,7 @@ credentials = "1.6.0"
 googleid = "1.1.1"
 zxing = "3.5.3"
 camera = "1.5.1"
+exifinterface = "1.3.2"
 junit = "4.13.2"
 test-core = "1.7.0"
 test-runner = "1.7.0"
@@ -69,6 +75,7 @@ androidx-credentials = { module = "androidx.credentials:credentials", version.re
 androidx-credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
 googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camera" }
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camera" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camera" }

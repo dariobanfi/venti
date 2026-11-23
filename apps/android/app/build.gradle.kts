@@ -119,6 +119,8 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    // Which way up a photo chosen as the pilot's picture was taken.
+    implementation(libs.androidx.exifinterface)
     // The generated bridge calls the core through JNA. On a phone that is
     // the Android archive, with JNA's own native library for each ABI.
     implementation(libs.jna) { artifact { type = "aar" } }

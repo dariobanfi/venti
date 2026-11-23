@@ -71,11 +71,17 @@ class CredentialManagerGoogle(private val serverClientId: String) : GoogleIdToke
  * ([fly.venti.app.LaunchOptions.GOOGLE_TEST_ACCOUNT]); a server that is not
  * in the development mode does not answer it.
  */
-class DevelopmentGoogle(private val email: String, private val name: String?) : GoogleIdTokens {
+class DevelopmentGoogle(
+    private val email: String,
+    private val name: String?,
+    /** A Google account with a picture, which the development server makes up. */
+    private val withPicture: Boolean = false,
+) : GoogleIdTokens {
     override suspend fun idToken(context: Context, server: String): String {
         val query = buildString {
             append("email=").append(URLEncoder.encode(email, "UTF-8"))
             name?.let { append("&name=").append(URLEncoder.encode(it, "UTF-8").replace("+", "%20")) }
+            if (withPicture) append("&picture=true")
         }
         val answer = Http.send("GET", "$server/v1/dev/google-id-token?$query", listOf("Accept" to "application/json"), null, 20_000)
         if (answer.status != 200) throw IOException("The development server gave no Google token (${answer.status}).")

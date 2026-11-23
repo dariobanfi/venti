@@ -58,6 +58,9 @@ data class Reported(
 
         fun pilot(handle: String) = Reported(ReportSubject.Pilot(handle), "Report this pilot")
 
+        /** A pilot's picture, the one they show now, under the core's words for it. */
+        fun picture(handle: String) = Reported(ReportSubject.Picture(handle), PilotPictures.words.report)
+
         fun liveTrack(id: String) = Reported(ReportSubject.LiveTrack(id), "Report this track")
 
         fun group(id: String) = Reported(ReportSubject.Group(id), "Report this group")

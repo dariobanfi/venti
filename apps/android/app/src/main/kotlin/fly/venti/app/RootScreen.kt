@@ -54,7 +54,9 @@ import fly.venti.app.alerts.LocalAlerts
 import fly.venti.app.live.LocalAir
 import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
+import fly.venti.app.community.FeedScreen
 import fly.venti.app.community.LeagueScreen
+import fly.venti.app.community.NotificationsScreen
 import fly.venti.app.community.PilotFlightsScreen
 import fly.venti.app.flight.FlightScreen
 import fly.venti.app.flight.PublicFlightScreen
@@ -372,6 +374,21 @@ private fun Sections(
         onPlanRoute = { site -> routeFrom = site.position },
         onStartFlight = { navigation.startFlight() },
     )
+    // A public flight a notification is about, by its address on the
+    // server: it opens on the League tab, unless it is no longer public.
+    val openPublicFlightById: (String) -> Unit = { id ->
+        session.scope.launch {
+            try {
+                session.community.publicFlightById(id)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // No longer public: nothing opens.
+                return@launch
+            }
+            navigation.showPublic(id)
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -447,19 +464,7 @@ private fun Sections(
                             onBack = { navigation.back() },
                             social = session.social,
                             // What a notification is about opens on the League tab.
-                            onOpenFlight = { id ->
-                                session.scope.launch {
-                                    try {
-                                        session.community.publicFlightById(id)
-                                    } catch (error: CancellationException) {
-                                        throw error
-                                    } catch (_: Exception) {
-                                        // No longer public: nothing opens.
-                                        return@launch
-                                    }
-                                    navigation.showPublic(id)
-                                }
-                            },
+                            onOpenFlight = openPublicFlightById,
                             onOpenPilot = { handle -> navigation.showPilot(handle) },
                         )
                     }
@@ -688,8 +693,31 @@ private fun Sections(
                         onOpenFlight = { navigation.open(LeagueRoute.PublicFlight(it.id)) },
                         onOpenPilot = { handle, name -> navigation.open(LeagueRoute.Pilot(handle, name)) },
                         bars = bars,
+                        groups = session.groups,
+                        account = session.account,
+                        requests = session.scope,
+                        waypoints = session.waypoints,
+                        wind = session.wind,
+                        onOpenFeed = { navigation.open(LeagueRoute.Feed) },
+                        onOpenNotifications = { navigation.open(LeagueRoute.Notifications) },
+                        onOpenFlightById = openPublicFlightById,
+                        onSignIn = { navigation.showAccount() },
                     )
                 }
+                LeagueRoute.Feed -> kept.SaveableStateProvider("feed") {
+                    FeedScreen(
+                        session.social,
+                        session.community,
+                        onOpen = { navigation.open(LeagueRoute.PublicFlight(it.id)) },
+                        onBack = { navigation.back() },
+                    )
+                }
+                LeagueRoute.Notifications -> NotificationsScreen(
+                    session.social,
+                    onOpenFlight = openPublicFlightById,
+                    onOpenPilot = { handle -> navigation.open(LeagueRoute.Pilot(handle, "@$handle")) },
+                    onBack = { navigation.back() },
+                )
                 is LeagueRoute.PublicFlight -> {
                     val flight = session.community.flight(route.id)
                     if (flight == null) {

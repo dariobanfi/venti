@@ -692,7 +692,7 @@ fun NotificationsScreen(
 
 /** One thing the pilot was told, and how long ago. */
 @Composable
-private fun Notification(line: NotificationLine, onOpen: () -> Unit) {
+internal fun Notification(line: NotificationLine, onOpen: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

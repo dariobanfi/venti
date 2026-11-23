@@ -50,11 +50,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
+import androidx.compose.foundation.layout.heightIn
 import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.design.Format
@@ -95,7 +98,7 @@ object CommunityWords {
     /**
      * The day, the site it took off from where the server names one with
      * the flag of its country, and the glider with its class:
-     * "Sat, 15 Aug 2026 · 🇦🇹 Brauneck · Sample Wing · EN B".
+     * "Sat, 15 Aug 2026 · 🇦🇹 Brauneck · EN B · Sample Wing".
      */
     fun detail(flight: PublicFlight): String =
         listOfNotNull(Format.day(flight.startUnixS), place(flight), glider(flight)).joinToString(" · ")
@@ -104,9 +107,13 @@ object CommunityWords {
     fun place(flight: PublicFlight): String? =
         listOfNotNull(Countries.flag(flight.takeoffCountry), flight.takeoffName).joinToString(" ").ifEmpty { null }
 
-    /** The glider and its class in the core's name: "Sample Wing · EN B"; either alone. */
+    /**
+     * The glider's class in the core's name and the glider: "EN B · Sample
+     * Wing"; either alone. The class first, so that a long name cut at the
+     * row's end still leaves it to read.
+     */
     fun glider(flight: PublicFlight): String? =
-        listOfNotNull(flight.glider, flight.gliderClass?.let { gliderClassName(it) }).joinToString(" · ").ifEmpty { null }
+        listOfNotNull(flight.gliderClass?.let { gliderClassName(it) }, flight.glider).joinToString(" · ").ifEmpty { null }
 
     /** The scored distance, or the length of the track of a flight too short to score. */
     fun distance(flight: PublicFlight): String =
@@ -199,11 +206,11 @@ private fun PilotsFound(search: CommunityModel.PilotSearch?, onOpenPilot: (Strin
                 Group {
                     for (line in pilots) {
                         row {
-                            LinkRow(
-                                line.words,
-                                R.drawable.ic_chevron_right,
+                            PilotLine(
+                                line.name,
+                                line.picturePath,
+                                title = line.words,
                                 modifier = Modifier.testTag("pilot-found"),
-                                leading = R.drawable.ic_person,
                                 onClick = { onOpenPilot(line.handle, line.name) },
                             )
                         }
@@ -352,6 +359,8 @@ fun PilotFlightsScreen(
     val pilot = community.pilot?.takeIf { it.handle == handle }
     val flights = pilot?.flights.orEmpty()
     val totals = community.pilotTotals?.takeIf { it.handle == handle }
+    // The picture as the pilot's totals name it, or as another list did before they came.
+    val picture = totals?.statistics?.let { it.picturePath } ?: PilotPictures.of(handle)
     // The year the totals are of: 0 for all years, as the core numbers them.
     var year by rememberSaveable(handle) { mutableIntStateOf(0) }
     // The flights under the totals are that season's too, by the bounds the core gives it.
@@ -398,6 +407,19 @@ fun PilotFlightsScreen(
                                     reporting = report
                                 },
                             )
+                            // The picture alone, where the pilot shows one.
+                            if (picture != null) {
+                                val reportPicture = Reported.picture(handle)
+                                DropdownMenuItem(
+                                    text = { Text(reportPicture.title) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_flag), contentDescription = null) },
+                                    onClick = {
+                                        isShowingMenu = false
+                                        reporting = reportPicture
+                                    },
+                                    modifier = Modifier.testTag("pilot-report-picture"),
+                                )
+                            }
                         }
                     }
                 },
@@ -408,7 +430,18 @@ fun PilotFlightsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).testTag("pilot-flights"),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
         ) {
-            item(key = "handle") { SectionHeader("@$handle") }
+            item(key = "face") {
+                val shownName = totals?.statistics?.name ?: name
+                Row(
+                    Modifier.fillMaxWidth().padding(top = VentiSpace.s2).testTag("pilot-face"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(VentiSpace.s4),
+                ) {
+                    PilotFace(shownName, picture, size = FaceSize.Large)
+                    Text("@$handle", style = MaterialTheme.typography.titleMedium, color = Venti.colours.textSecondary)
+                }
+            }
+            item(key = "handle") { Spacer(Modifier.size(VentiSpace.s2)) }
             item(key = "follows") {
                 FollowLine(handle, social, requests, Modifier.padding(horizontal = VentiSpace.s1).padding(bottom = VentiSpace.s3))
             }
@@ -530,8 +563,10 @@ internal fun PublicFlightRow(
                 TrackThumbnail(flight.outline)
                 Spacer(Modifier.width(VentiSpace.s3))
                 Column(Modifier.weight(1f)) {
-                    // The pilot's country by their name, once they set one.
+                    // The pilot's face and country by their name, once they set one.
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        PilotFace(flight.pilot, flight.pilotPicture, size = FaceSize.Small)
+                        Spacer(Modifier.width(VentiSpace.s2))
                         Text(
                             flight.pilot,
                             style = MaterialTheme.typography.titleMedium,
@@ -544,11 +579,12 @@ internal fun PublicFlightRow(
                             Flag(flight.pilotCountry, style = MaterialTheme.typography.titleMedium)
                         }
                     }
+                    // Two lines, so that the glider and its class are not cut off.
                     Text(
                         CommunityWords.detail(flight),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -583,5 +619,42 @@ internal fun PublicFlightRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * A pilot in a list: their face, the title and the core's line under it
+ * where there is one, opening their page. One element for a screen reader,
+ * which reads its words.
+ */
+@Composable
+internal fun PilotLine(
+    name: String,
+    picturePath: String?,
+    title: String,
+    modifier: Modifier = Modifier,
+    line: String? = null,
+    initials: String? = null,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = VentiSize.touch)
+            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PilotFace(name, picturePath, size = FaceSize.Medium, initials = initials)
+        Spacer(Modifier.width(VentiSpace.s3))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            if (!line.isNullOrEmpty()) {
+                Text(line, style = MaterialTheme.typography.bodyMedium, color = Venti.colours.textSecondary)
+            }
+        }
+        Spacer(Modifier.width(VentiSpace.s2))
+        Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, tint = Venti.colours.textSecondary)
     }
 }

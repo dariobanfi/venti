@@ -1,6 +1,19 @@
 package fly.venti.app.account
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.text.style.TextAlign
+import fly.venti.app.community.FaceSize
+import fly.venti.app.community.PilotFace
+import fly.venti.app.community.PilotPictures
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -466,6 +479,9 @@ private fun SignedIn(
     var isConfirmingSignOut by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
 
+    if (account.isSignedIn) {
+        PictureSection(signedIn, account, scope)
+    }
     Group {
         row { ValueRow("Handle", "@${signedIn.handle}") }
         row { ValueRow("Name", signedIn.displayName) }
@@ -715,6 +731,73 @@ private fun DeleteAccountDialog(onDelete: (String) -> Unit, withGoogle: (() -> U
     )
 }
 
+/**
+ * The pilot's picture at the head of the account: round, the initials where
+ * there is none, with "Change picture" (Android's photo picker, then the
+ * photo made ready and sent) and "Remove picture", and the core's line that
+ * everyone sees it. A picture taken from Google at sign-in is one like any.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PictureSection(signedIn: AccountView, account: AccountModel, scope: CoroutineScope) {
+    val context = LocalContext.current
+    val words = PilotPictures.words
+    var isPreparing by remember { mutableStateOf(false) }
+    // What lines without a picture's path show for the pilot's own flights.
+    LaunchedEffect(signedIn.handle, signedIn.picturePath) { PilotPictures.know(signedIn.handle, signedIn.picturePath) }
+    val choose = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { photo ->
+        if (photo == null) return@rememberLauncherForActivityResult
+        isPreparing = true
+        scope.launch {
+            try {
+                val prepared = withContext(Dispatchers.IO) { runCatching { PictureFile.prepare(context, photo) }.getOrNull() }
+                if (prepared == null) {
+                    account.problem = PictureFile.UNREADABLE
+                } else {
+                    account.setPicture(prepared.first, prepared.second)
+                }
+            } finally {
+                isPreparing = false
+            }
+        }
+    }
+    val isBusy = account.isWorking || isPreparing
+    Column(
+        Modifier.fillMaxWidth().padding(top = VentiSpace.s2, bottom = VentiSpace.s4).testTag("account-picture"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            PilotFace(signedIn.displayName, signedIn.picturePath, size = FaceSize.Large)
+            if (isPreparing) CircularProgressIndicator()
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(VentiSpace.s1),
+        ) {
+            OutlinedButton(
+                onClick = { choose.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                enabled = !isBusy,
+                modifier = Modifier.heightIn(min = VentiSize.touch).testTag("account-picture-change"),
+            ) { Text(words.change) }
+            if (signedIn.picturePath != null) {
+                TextButton(
+                    onClick = { scope.launch { account.removePicture() } },
+                    enabled = !isBusy,
+                    modifier = Modifier.heightIn(min = VentiSize.touch).testTag("account-picture-remove"),
+                ) { Text(words.remove) }
+            }
+        }
+        Text(
+            words.publicLine,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.testTag("account-picture-line"),
+        )
+    }
+}
+
 /** What the account's page says that is not the core's to say. */
 object AccountWords {
     const val COUNTRY = "Country"
@@ -730,6 +813,7 @@ object AccountWords {
 @Composable
 private fun WhoSeesFlights(signedIn: AccountView, account: AccountModel, scope: CoroutineScope) {
     val words = remember { flightVisibilityWords() }
+    val pictures = PilotPictures.words
     var asking by remember { mutableStateOf<FlightVisibility?>(null) }
     Spacer(Modifier.height(VentiSpace.s5))
     Group {
@@ -741,6 +825,15 @@ private fun WhoSeesFlights(signedIn: AccountView, account: AccountModel, scope: 
                 enabled = !account.isWorking,
                 modifier = Modifier.testTag("account-new-flights-public"),
             ) { public -> scope.launch { account.setNewFlightsPublic(public) } }
+        }
+        row {
+            SwitchLineRow(
+                pictures.shownNearPlaces,
+                pictures.shownNearPlacesLine,
+                isOn = signedIn.shownNearPlaces,
+                enabled = !account.isWorking,
+                modifier = Modifier.testTag("account-shown-near"),
+            ) { shown -> scope.launch { account.setShownNearPlaces(shown) } }
         }
         row {
             ActionRow(

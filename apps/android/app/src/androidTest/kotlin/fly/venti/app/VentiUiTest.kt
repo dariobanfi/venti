@@ -294,6 +294,25 @@ class VentiUiTest {
         waitFor(fold and saying("Expanded"))
     }
 
+    /** Everyone's flights, the League tab's second list: Community is its first. */
+    private fun showEveryonesFlights() {
+        waitFor(hasTestTag("league-everyone"))
+        tap(hasTestTag("league-everyone"))
+        waitFor(hasTestTag("league-everyone") and isSelected())
+    }
+
+    /** The whole feed of the pilots followed, from Community's "All". */
+    private fun openTheFeed() {
+        waitFor(hasTestTag("league-community"))
+        tap(hasTestTag("league-community"))
+        val all = hasTestTag("community-feed-all")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(hasTestTag("community")).performScrollToNode(all) }.isSuccess && exists(all)
+        }
+        tap(all)
+        waitFor(hasTestTag("feed-row"))
+    }
+
     /** One of the sections in the tab bar; not a day of Today's switch or of the forecast map's, which say "Today" too. */
     private fun tab(name: String) =
         hasText(name) and isSelectable() and !hasAnyAncestor(hasTestTag("today-days"))
@@ -1446,6 +1465,7 @@ class VentiUiTest {
         // second report about the same flight is not a new one, so the two
         // appearances report two pilots' flights.
         tap(tab("League"))
+        showEveryonesFlights()
         val theirs = hasTestTag("public-flight-row") and described(if (dark) "Mara Muster" else "Jonas Beispiel")
         waitFor(theirs)
         screen.onAllNodes(theirs).onFirst().performClick()
@@ -2090,7 +2110,7 @@ class VentiUiTest {
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("plans-signed-out")) }
         tap(tab("League"))
-        waitFor(hasTestTag("league-everyone") and isSelected())
+        showEveryonesFlights()
 
         // The newest first: the one of September, then August's.
         val row = hasTestTag("public-flight-row")
@@ -2220,7 +2240,7 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
         waitFor(described("Show my position"))
         tap(tab("League"))
-        waitFor(hasTestTag("league-everyone") and isSelected())
+        showEveryonesFlights()
         val field = hasTestTag("pilot-search")
         waitFor(field)
         waitFor(hasTestTag("public-flight-row"))
@@ -6200,6 +6220,7 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(tab("League"))
         tap(tab("League"))
+        showEveryonesFlights()
         val demo = hasTestTag("public-flight-row") and described("Demo Pilot")
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             runCatching { screen.onNode(hasTestTag("public-flights")).performScrollToNode(demo) }.isSuccess
@@ -6689,7 +6710,7 @@ class VentiUiTest {
         tap(described("Back"))
 
         // A pilot's page: the counts, and the button that follows them.
-        waitFor(hasTestTag("league-following"))
+        showEveryonesFlights()
         val field = hasTestTag("pilot-search")
         waitFor(field)
         screen.onNode(field).performTextInput("timo")
@@ -6711,9 +6732,7 @@ class VentiUiTest {
         tap(described("Clear the search"))
 
         // The feed: the flights of the pilots followed, each with what pilots made of it.
-        tap(hasTestTag("league-following"))
-        waitFor(hasTestTag("league-following") and isSelected())
-        waitFor(hasTestTag("feed-row"))
+        openTheFeed()
         val feed = screen.onNode(hasTestTag("feed"))
         val maras = hasTestTag("feed-row") and described("Mara Muster") and saying("You and 1 other cheered")
         feed.performScrollToNode(maras)
@@ -6764,11 +6783,204 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(tab("League"))
         tap(tab("League"))
-        waitFor(hasTestTag("league-following"))
-        tap(hasTestTag("league-following"))
-        waitFor(hasTestTag("feed-row"))
+        openTheFeed()
         letTheMapDraw(1)
         keepScreenshot("dark-social-feed")
+    }
+
+    /**
+     * Community, the League tab's first list, as the development server's
+     * demo pilot standing at the made-up Musterkogel West: a plan posted
+     * for today as a card with its day, place, faces and "I am in", which
+     * steps out and in again from the card; the feed of the pilots
+     * followed as cards; the pilots who fly near the phone's position
+     * (Lena, Ines and Timo there); finding Mara, whose made-up picture is
+     * on her page with "Report picture" in its menu; and what the pilot
+     * was told. Skipped without a server.
+     */
+    private fun walkTheCommunity(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        TestDevice.allowToRecordAFlight()
+        TestDevice.standAt(47.3, 10.9)
+        try {
+            launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+            signInAsTheDemoPilot()
+            tap(described("Back"))
+            waitFor(tab("League"))
+            tap(tab("League"))
+            waitFor(hasTestTag("league-community") and isSelected())
+            val community = screen.onNode(hasTestTag("community"))
+
+            // A plan for today, posted from Community: the demo group's
+            // made-up plans are for the days around the server's clock.
+            waitFor(hasTestTag("community-new-plan"))
+            tap(hasTestTag("community-new-plan"))
+            waitFor(hasTestTag("plan-place"))
+            val place = "Musterkogel $prefix"
+            screen.onNode(hasTestTag("plan-place")).performTextInput(place)
+            screen.onNode(hasTestTag("plan-save")).performScrollTo()
+            waitFor(hasTestTag("plan-save") and isEnabled())
+            screen.onNode(hasTestTag("plan-save")).performSemanticsAction(SemanticsActions.OnClick)
+            waitFor(hasTestTag("plan-row") and described(place))
+            tap(hasText("Done") and hasClickAction())
+            val card = hasTestTag("plan-card") and hasAnyDescendant(described(place))
+            waitFor(card)
+            community.performScrollToNode(card)
+            assertTrue(exists(described(place) and saying("Today")))
+            val inOnIt = hasTestTag("plan-card-in") and hasAnyAncestor(card)
+            // Its author is in from the start, and steps out and in again from the card.
+            waitFor(inOnIt and isSelected())
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-community-1-plans")
+            tap(inOnIt)
+            waitFor(inOnIt and !isSelected())
+            tap(inOnIt)
+            waitFor(inOnIt and isSelected())
+
+            // The flights of the pilots followed, as cards.
+            val feedCard = hasTestTag("feed-card")
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                runCatching { community.performScrollToNode(feedCard) }.isSuccess
+            }
+            assertTrue(exists(hasTestTag("community-feed-all")))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-community-2-feed")
+
+            // The pilots who fly near the phone.
+            val lena = hasTestTag("near-pilot") and hasText("Lena Probe")
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                runCatching { community.performScrollToNode(lena) }.isSuccess
+            }
+            waitFor(hasTestTag("pilots-near-words") and hasText("Around your position", substring = true))
+            assertTrue(exists(hasTestTag("near-pilot") and hasText("Timo Entwurf")))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-community-3-near")
+
+            // Finding a pilot: Mara, with her picture.
+            community.performScrollToNode(hasTestTag("community-find"))
+            screen.onNode(hasTestTag("community-find")).performTextInput("mara")
+            val mara = hasTestTag("pilot-found") and hasText("Mara Muster", substring = true)
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                runCatching { community.performScrollToNode(mara) }.isSuccess
+            }
+            // The face is a part of the row's one element: looked for in the tree before it is merged.
+            val face = hasTestTag("pilot-face-picture") and hasAnyAncestor(hasTestTag("pilot-found"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                screen.onAllNodes(face, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-community-4-found")
+            tap(mara)
+            waitFor(hasTestTag("pilot-face") and hasAnyDescendant(hasTestTag("pilot-face-picture")))
+            tap(described("More"))
+            waitFor(hasTestTag("pilot-report-picture"))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-community-5-pilot")
+            // The picture is reported with the core's form for a picture; looked at, not sent.
+            tap(hasTestTag("pilot-report-picture"))
+            waitFor(hasTestTag("report-reason"))
+            assertTrue(exists(hasText("Report picture")))
+            assertTrue(exists(hasTestTag("report-send") and isNotEnabled()))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-community-6-report-picture")
+            tap(hasTestTag("report-close"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-reason")) }
+            tap(described("Back"))
+
+            // What the pilot was told, the newest lines.
+            waitFor(hasTestTag("community"))
+            val told = hasTestTag("notification")
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                runCatching { screen.onNode(hasTestTag("community")).performScrollToNode(told) }.isSuccess
+            }
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-community-7-told")
+        } finally {
+            TestDevice.noMadeUpPosition()
+        }
+    }
+
+    @Test
+    fun theCommunityGathersPlansFlightsAndPilots() = walkTheCommunity("light", dark = false)
+
+    @Test
+    fun theCommunityInDarkAppearance() = walkTheCommunity("dark", dark = true)
+
+    @Test
+    fun theCommunityOnANarrowScreenWithLargeText() {
+        TestDevice.narrowWithLargeText()
+        try {
+            walkTheCommunity("narrow", dark = false)
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
+    }
+
+    /**
+     * The pilot's picture: taken from the made-up Google account at the
+     * sign-up, shown round at the head of the account with "Change
+     * picture" and "Remove picture" and the core's line, then removed,
+     * which leaves the initials. The switch "Show me among pilots near a
+     * place" goes off and on. "Change picture" opens Android's photo
+     * picker, which a test cannot answer: it is not pressed. Skipped
+     * without a server.
+     */
+    private fun thePictureOfTheAccount(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) {
+            putExtra(LaunchOptions.SERVER, server)
+            putExtra(LaunchOptions.GOOGLE_TEST_ACCOUNT, "picture.$prefix@example.com")
+            putExtra(LaunchOptions.GOOGLE_TEST_PICTURE, true)
+        }
+        openTheGoogleSignIn()
+        tap(hasTestTag("account-google"))
+        waitFor(hasTestTag("account-google-create") or hasText("Sync now"))
+        if (exists(hasTestTag("account-google-create"))) {
+            screen.onNode(hasTestTag("account-google-create")).performScrollTo()
+            tap(hasTestTag("account-google-create"))
+        }
+        waitFor(hasText("Sync now"))
+        val picture = hasTestTag("account-picture")
+        waitFor(picture and hasAnyDescendant(hasTestTag("pilot-face-picture")))
+        assertTrue(exists(hasTestTag("account-picture-change") and hasText("Change picture")))
+        assertTrue(exists(hasTestTag("account-picture-line") and hasText("Everyone sees it", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-picture-1-from-google")
+
+        tap(hasTestTag("account-picture-remove"))
+        waitFor(picture and hasAnyDescendant(hasTestTag("pilot-face-initials")))
+        assertFalse(exists(hasTestTag("account-picture-remove")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-picture-2-removed")
+
+        // Among the pilots near a place, or not.
+        val near = hasTestTag("account-shown-near")
+        screen.onNode(near).performScrollTo()
+        waitFor(near and isOn() and hasText("Show me among pilots near a place"))
+        tap(near)
+        waitFor(near and isOff())
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-picture-3-not-near")
+        tap(near)
+        waitFor(near and isOn())
+    }
+
+    @Test
+    fun aPictureFromGoogleIsShownAndRemoved() = thePictureOfTheAccount("light", dark = false)
+
+    @Test
+    fun thePictureOfTheAccountInDarkAppearance() = thePictureOfTheAccount("dark", dark = true)
+
+    @Test
+    fun thePictureOfTheAccountOnANarrowScreenWithLargeText() {
+        TestDevice.narrowWithLargeText()
+        try {
+            thePictureOfTheAccount("narrow", dark = false)
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
     }
 
     /**
@@ -6926,7 +7138,7 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("comments")) }
         tap(described("Back"))
 
-        waitFor(hasTestTag("league-following"))
+        showEveryonesFlights()
         val field = hasTestTag("pilot-search")
         waitFor(field)
         screen.onNode(field).performTextInput("timo")
@@ -6941,9 +7153,7 @@ class VentiUiTest {
         waitFor(timo)
         tap(described("Clear the search"))
 
-        tap(hasTestTag("league-following"))
-        waitFor(hasTestTag("league-following") and isSelected())
-        waitFor(hasTestTag("feed-row"))
+        openTheFeed()
         letTheMapDraw(1)
         keepScreenshot("$prefix-social-5-feed")
 

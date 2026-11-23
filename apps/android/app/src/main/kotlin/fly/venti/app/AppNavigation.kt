@@ -48,6 +48,12 @@ sealed interface LeagueRoute {
 
     /** A pilot's public flights: the pilot's handle, and the name to show until the server has said it. */
     data class Pilot(val handle: String, val name: String) : LeagueRoute
+
+    /** The whole feed of the pilots one follows, from Community. */
+    data object Feed : LeagueRoute
+
+    /** Everything the pilot was told, from Community. */
+    data object Notifications : LeagueRoute
 }
 
 /** A screen reached from the settings. */
@@ -266,6 +272,8 @@ class AppNavigation {
         private const val FLIGHT = "flight:"
         private const val PUBLIC_FLIGHT = "public-flight:"
         private const val PILOT = "pilot:"
+        private const val FEED = "feed"
+        private const val NOTIFICATIONS = "notifications"
 
         /** Keeps the pilot's place when Android rebuilds the screen. */
         val Saver = listSaver<AppNavigation, String>(
@@ -288,6 +296,8 @@ class AppNavigation {
                             is LeagueRoute.PublicFlight -> PUBLIC_FLIGHT + route.id
                             // A handle has no space in it; a name may.
                             is LeagueRoute.Pilot -> "$PILOT${route.handle} ${route.name}"
+                            LeagueRoute.Feed -> FEED
+                            LeagueRoute.Notifications -> NOTIFICATIONS
                         }
                     }
             },
@@ -301,6 +311,8 @@ class AppNavigation {
                         when {
                             route == STATISTICS -> logbookPath += LogbookRoute.Statistics
                             route == TENDENCIES -> logbookPath += LogbookRoute.Tendencies
+                            route == FEED -> leaguePath += LeagueRoute.Feed
+                            route == NOTIFICATIONS -> leaguePath += LeagueRoute.Notifications
                             route.startsWith(PUBLIC_FLIGHT) -> leaguePath += LeagueRoute.PublicFlight(route.removePrefix(PUBLIC_FLIGHT))
                             route.startsWith(PILOT) -> route.removePrefix(PILOT).let { pilot ->
                                 leaguePath += LeagueRoute.Pilot(pilot.substringBefore(' '), pilot.substringAfter(' ', ""))

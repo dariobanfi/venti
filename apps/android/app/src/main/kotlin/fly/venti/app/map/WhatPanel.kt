@@ -198,6 +198,7 @@ fun WhatPanel(
                     tag = "what-time",
                     over = cells.map { it.over },
                     measured = cells.map { it.measured },
+                    startsDay = cells.map { it.startsDay },
                 )
             }
 

@@ -63,6 +63,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -195,6 +198,8 @@ internal fun Strip(
     over: List<String?> = emptyList(),
     /** Which cells were measured, not forecast: their bars are drawn apart. */
     measured: List<Boolean> = emptyList(),
+    /** The cells a day begins at: a little gap before each. */
+    startsDay: List<Boolean> = emptyList(),
 ) {
     val colours = Venti.colours
     if (written.isEmpty()) return
@@ -210,35 +215,50 @@ internal fun Strip(
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val gapPx = with(density) { gap.roundToPx() }
-        val cell = ((constraints.maxWidth - gapPx * last) / written.size).coerceAtLeast(1)
+        val dayGap = VentiSpace.s2
+        val dayGapPx = with(density) { dayGap.roundToPx() }
+        val apart = { place: Int -> startsDay.getOrNull(place) == true }
+        val days = written.indices.count(apart)
+        val cell = ((constraints.maxWidth - gapPx * last - dayGapPx * days) / written.size).coerceAtLeast(1)
+        // Where each cell begins, from the strip's left edge.
+        val starts = remember(written.size, cell, gapPx, dayGapPx, startsDay) {
+            var before = 0
+            written.indices.map { place ->
+                if (apart(place)) before += 1
+                place * (cell + gapPx) + before * dayGapPx
+            }
+        }
         // Every cell, every other, every third: as many as two digits are wide.
         val every = (twoDigits + gapPx + cell + gapPx - 1) / (cell + gapPx)
-        // The words over the cells, each from its cell's left edge; one that
-        // would run into the one before it is left out.
+        // The words over the cells, each from its cell's left edge and held
+        // to the room up to the next word, which it never runs into; the
+        // last reaches as far as it needs.
         val overStyle = MaterialTheme.typography.labelSmall
-        val overShown = remember(over, cell, overStyle, density) {
-            var end = Int.MIN_VALUE
+        val rooms = remember(over, starts) {
             over.mapIndexed { place, words ->
                 if (words.isNullOrEmpty()) return@mapIndexed null
-                val start = place * (cell + gapPx)
-                if (start < end) return@mapIndexed null
-                end = start + measurer.measure(words, overStyle).size.width + with(density) { VentiSpace.s1.roundToPx() }
-                words
+                val next = (place + 1..last).firstOrNull { !over.getOrNull(it).isNullOrEmpty() }
+                next?.let { starts[it] - starts[place] - gapPx }
             }
         }
         Column {
-        if (overShown.any { it != null }) {
+        if (over.any { !it.isNullOrEmpty() }) {
             Row(Modifier.fillMaxWidth().clearAndSetSemantics {}, horizontalArrangement = Arrangement.spacedBy(gap)) {
                 for (place in written.indices) {
+                    if (apart(place)) Spacer(Modifier.width(dayGap - gap))
                     Box(Modifier.weight(1f)) {
-                        overShown.getOrNull(place)?.let { words ->
+                        over.getOrNull(place)?.takeIf { it.isNotEmpty() }?.let { words ->
+                            val room = rooms.getOrNull(place)
                             Text(
                                 words,
                                 style = overStyle,
                                 color = colours.textSecondary,
                                 maxLines = 1,
                                 softWrap = false,
-                                modifier = Modifier.wrapContentWidth(Alignment.Start, unbounded = true),
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .wrapContentWidth(Alignment.Start, unbounded = true)
+                                    .then(if (room != null) Modifier.widthIn(max = with(density) { room.coerceAtLeast(0).toDp() }) else Modifier),
                             )
                         }
                     }
@@ -258,8 +278,8 @@ internal fun Strip(
                         true
                     }
                 }
-                .pointerInput(written.size) {
-                    fun place(x: Float) = (x / size.width * written.size).toInt().coerceIn(0, last)
+                .pointerInput(written.size, starts) {
+                    fun place(x: Float) = starts.indexOfLast { it <= x }.coerceIn(0, last)
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         choose(place(down.position.x))
@@ -272,6 +292,8 @@ internal fun Strip(
             horizontalArrangement = Arrangement.spacedBy(gap),
         ) {
             written.forEachIndexed { place, words ->
+                // A day begins a little apart from the one before.
+                if (apart(place)) Spacer(Modifier.width(dayGap - gap))
                 val isChosen = place == at
                 val isWritten = (if (fromTheEnd) last - place else place) % every == 0
                 Column(

@@ -9,6 +9,10 @@ import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.wind.WindTransport
 import fly.venti.core.Bounds
+import fly.venti.core.Coordinate
+import fly.venti.core.PilotsNear
+import fly.venti.core.pilotsNear
+import fly.venti.core.pilotsNearPath
 import fly.venti.core.CoreException
 import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightView
@@ -182,6 +186,54 @@ class CommunityModel(
     /** The totals of the pilot last looked at. */
     var pilotTotals: PilotTotals? by mutableStateOf(null)
         private set
+
+    /** The pilots who fly near a place, as the core read them. */
+    data class Near(
+        /** The place they were asked for, and where it came from. */
+        val place: Coordinate? = null,
+        val fromPhone: Boolean = false,
+        val pilots: PilotsNear? = null,
+        val isLoading: Boolean = false,
+        /** Why they are missing, in words. */
+        val problem: String? = null,
+    )
+
+    /** The pilots near the place last asked for. */
+    var near: Near by mutableStateOf(Near())
+        private set
+
+    /**
+     * Asks for the pilots who fly near a place: the phone's position where
+     * the pilot allowed it, else the middle of the map. Asked again only
+     * for another place or when `again`.
+     */
+    suspend fun showNear(place: Coordinate, fromPhone: Boolean, again: Boolean = false) {
+        val shown = near
+        if (!again && shown.place == place && (shown.pilots != null || shown.isLoading)) return
+        val server = server()
+        if (server == null) {
+            near = Near(place, fromPhone, problem = pilotsWords().unreachable)
+            return
+        }
+        near = shown.copy(place = place, fromPhone = fromPhone, isLoading = true, problem = null)
+        near = try {
+            val answer = transport(server + withContext(background) { pilotsNearPath(place.lat, place.lon, null) })
+            val read = withContext(background) { pilotsNear(answer.status16, answer.body) }
+            read.pilots.forEach { PilotPictures.know(it.handle, it.picturePath) }
+            Near(place, fromPhone, read)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Near(
+                place,
+                fromPhone,
+                problem = when (error) {
+                    is CoreException -> error.pilotMessage
+                    else -> pilotsWords().unreachable
+                },
+            )
+        }
+    }
 
     /** What to ask the next page with. */
     private var next: String? = null
@@ -378,6 +430,7 @@ class CommunityModel(
             val answer = transport(server + path)
             val found = withContext(background) { pilotsFound(answer.status16, answer.body) }
             if (search.text != text) return
+            found.pilots.forEach { PilotPictures.know(it.handle, it.picturePath) }
             search = PilotSearch(text, found.pilots, found.words)
         } catch (error: CancellationException) {
             throw error
@@ -405,6 +458,7 @@ class CommunityModel(
             val server = server() ?: throw NoLongerPublic()
             val answer = transport(server + withContext(background) { pilotStatisticsPath(handle) })
             PilotTotals(handle, withContext(background) { pilotStatistics(answer.status16, answer.body) })
+                .also { read -> read.statistics?.let { PilotPictures.know(handle, it.picturePath) } }
         } catch (error: CancellationException) {
             // Whoever asked has left the page. The next to look at it asks again.
             if (pilotTotals?.handle == handle) pilotTotals = null

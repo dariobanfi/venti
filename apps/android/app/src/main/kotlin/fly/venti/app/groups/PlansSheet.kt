@@ -122,8 +122,21 @@ fun PlansSheet(
     wind: WindModel? = null,
     /** A plan to open at once, as a mark on the map is tapped. */
     startAt: String? = null,
+    /** Opens the form for a new plan at once, as Community's "New plan" does. */
+    opensNewPlan: Boolean = false,
+    /** Opens the groups at once, as Community's "Groups" does. */
+    opensGroups: Boolean = false,
 ) {
-    var path by remember { mutableStateOf(listOfNotNull<Page>(Page.Board, startAt?.let { Page.Plan(it) })) }
+    var path by remember {
+        mutableStateOf(
+            listOfNotNull(
+                Page.Board,
+                startAt?.let { Page.Plan(it) },
+                Page.Form(editing = null).takeIf { opensNewPlan },
+                Page.Groups.takeIf { opensGroups },
+            ),
+        )
+    }
     // A group or a plan being reported, with its form open.
     var reporting by remember { mutableStateOf<Reported?>(null) }
     val page = path.last()

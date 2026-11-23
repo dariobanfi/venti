@@ -304,6 +304,52 @@ class ThermalHoursModelTest {
         assertTrue(hours.isOn)
     }
 
+    /**
+     * The words over the line in the evening, as the web's `timeline.ts`
+     * has them since 23a3577f: today with one hour left gives its name to
+     * "Now", each day begins a little apart, and a today whose hours are
+     * all past is left out with its day as a whole.
+     */
+    @Test
+    fun theWordsOverTheLineKeepApartInTheEvening() = runBlocking {
+        val server = Server()
+        val forecast = model(server)
+        forecast.load()
+        forecast.hours.layer = ThermalHoursLayer.CLOUD
+        forecast.loadLine()
+        val line = checkNotNull(forecast.hours.line)
+        val days = checkNotNull(forecast.map).days
+        val today = checkNotNull(line.days.first())
+        val tomorrow = checkNotNull(line.days.last())
+        // Today with its last hour left, tomorrow with two hours.
+        val evening = listOf(today.copy(firstHour = (today.hours.size - 1).toUInt()), tomorrow.copy(hours = tomorrow.hours.take(2)))
+        val tomorrowName = days.last().name
+        fun words(cells: List<fly.venti.app.map.LineCell>) = cells.map { it.over.orEmpty() }
+
+        // The wind: "Now" over the stations, today's name gives way to it.
+        val wind = fly.venti.app.map.TimeLine.cells(fly.venti.app.map.MapWhat.WIND, null, true, days, evening, "Now", "Day")
+        assertEquals(listOf("Now", "", tomorrowName, ""), words(wind))
+        // Each day begins a little apart, which leaves "Now" room before the next name.
+        assertEquals(listOf(false, true, true, false), wind.map { it.startsDay })
+
+        val thermals = fly.venti.app.map.TimeLine.cells(fly.venti.app.map.MapWhat.THERMALS, null, false, days, evening, "Now", "Day")
+        assertEquals(listOf("", "Now", tomorrowName, "", ""), words(thermals))
+        assertEquals("Day", thermals.first().short)
+        assertEquals("Day", thermals[2].short)
+        assertFalse(thermals.first().startsDay)
+
+        // A today whose hours are all past is left out, its day as a whole too.
+        val past = listOf(today.copy(firstHour = today.hours.size.toUInt()), evening.last())
+        val night = fly.venti.app.map.TimeLine.cells(fly.venti.app.map.MapWhat.THERMALS, null, false, days, past, "Now", "Day")
+        assertEquals(3, night.size)
+        assertEquals(fly.venti.app.map.Stop.Day(TOMORROW), night.first().stop)
+        assertEquals(tomorrowName, night.first().over)
+        assertFalse(night.first().startsDay)
+        // Hours not read yet are not hours past: the day stays.
+        val reading = fly.venti.app.map.TimeLine.cells(fly.venti.app.map.MapWhat.THERMALS, null, false, days, null, "Now", "Day")
+        assertEquals(listOf(days.first().name, tomorrowName), reading.map { it.over })
+    }
+
     @Test
     fun theMapShowsTheWindUntilThePilotChooses() {
         val preferences = fly.venti.app.settings.MemoryPreferences()

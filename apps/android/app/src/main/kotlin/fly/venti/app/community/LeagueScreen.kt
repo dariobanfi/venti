@@ -64,6 +64,14 @@ import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
 import fly.venti.app.logbook.groupedShape
+import androidx.compose.material3.IconButton
+import fly.venti.app.account.AccountModel
+import fly.venti.app.design.Common
+import fly.venti.app.groups.GroupsModel
+import fly.venti.app.groups.PlansSheet
+import fly.venti.app.waypoints.WaypointsModel
+import fly.venti.app.wind.WindModel
+import kotlinx.coroutines.CoroutineScope
 import fly.venti.core.PublicFlight
 import fly.venti.core.RankedPilot
 import fly.venti.core.RouteKind
@@ -71,11 +79,15 @@ import fly.venti.core.pilotsWords
 import kotlinx.coroutines.launch
 
 /**
- * The League tab: what the pilots of Venti share with everyone, and the
- * ranking of those pilots. The design language's fifth tab.
+ * The League tab: pilots among each other, what the pilots of Venti share
+ * with everyone, and the ranking of those pilots. The design language's
+ * fifth tab.
  *
- * The lists are the community's own; this screen is the tab around them
- * and the switch between the two.
+ * Its first list is Community (`CommunityPage`): the groups' plans, the
+ * feed of the pilots one follows, the pilots near, finding a pilot and
+ * what the pilot was told, in one place. Then everyone's flights and the
+ * ranking, as before. This screen is the tab around them and the switch
+ * between the three.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,12 +101,28 @@ fun LeagueScreen(
     /** Opens a pilot's public flights: the handle, and the name to show until the server has said it. */
     onOpenPilot: (String, String) -> Unit,
     bars: PaddingValues,
+    /** The groups and their plans, for Community. */
+    groups: GroupsModel,
+    account: AccountModel,
+    /** Where requests run, so that one carries on when the sheet is closed. */
+    requests: CoroutineScope,
+    /** The pilot's waypoints and the wind's server, for a plan's form and its forecast. */
+    waypoints: WaypointsModel?,
+    wind: WindModel?,
+    /** The whole feed, a page of its own. */
+    onOpenFeed: () -> Unit,
+    /** Everything the pilot was told, a page of its own. */
+    onOpenNotifications: () -> Unit,
+    /** A public flight by its address on the server, from a notification. */
+    onOpenFlightById: (String) -> Unit,
+    onSignIn: () -> Unit,
 ) {
-    // Which list shows: everyone's flights, those of the pilots one follows, or the ranking.
-    var showing by rememberSaveable { mutableStateOf(LeagueList.Everyone) }
-    // The feed is a signed-in pilot's: signed out there is no such choice.
-    val lists = LeagueList.entries.filter { it != LeagueList.Following || social.isSignedIn }
-    val shown = showing.takeIf { it in lists } ?: LeagueList.Everyone
+    // Which list shows: Community, everyone's flights, or the ranking.
+    var showing by rememberSaveable { mutableStateOf(LeagueList.Community) }
+    val lists = LeagueList.entries
+    val shown = showing
+    // The plans' sheet, opened from Community.
+    var plans by remember { mutableStateOf<PlansOpening?>(null) }
     Scaffold(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
         topBar = {
@@ -103,21 +131,26 @@ fun LeagueScreen(
                 if (hasServer) {
                     PrimaryTabRow(selectedTabIndex = lists.indexOf(shown), containerColor = MaterialTheme.colorScheme.surface) {
                         for (list in lists) {
+                            // The tab's whole width for its name, without the
+                            // padding of Material's text tab: "Community" then
+                            // fits a third of a phone 360 dp wide at text of 130 %.
                             Tab(
                                 selected = list == shown,
                                 onClick = { showing = list },
-                                text = {
-                                    Text(
-                                        when (list) {
-                                            LeagueList.Everyone -> social.words.feedEveryone
-                                            LeagueList.Following -> social.words.feedFollowing
-                                            LeagueList.Ranking -> social.words.feedRanking
-                                        },
-                                        maxLines = 1,
-                                    )
-                                },
-                                modifier = Modifier.testTag("league-${list.name.lowercase()}"),
-                            )
+                                modifier = Modifier.heightIn(min = VentiSize.touch).testTag("league-${list.name.lowercase()}"),
+                            ) {
+                                Text(
+                                    when (list) {
+                                        LeagueList.Community -> LeagueWords.COMMUNITY
+                                        LeagueList.Everyone -> social.words.feedEveryone
+                                        LeagueList.Ranking -> social.words.feedRanking
+                                    },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = VentiSpace.s1, vertical = VentiSpace.s3),
+                                )
+                            }
                         }
                     }
                 }
@@ -129,22 +162,76 @@ fun LeagueScreen(
             when {
                 !hasServer -> Unconnected()
                 shown == LeagueList.Ranking -> RankingList(community, onOpenFlight, onOpenPilot)
-                shown == LeagueList.Following -> FollowingFeed(social, community, onOpen = onOpenFlight)
+                shown == LeagueList.Community -> CommunityPage(
+                    community,
+                    social,
+                    groups,
+                    account,
+                    onOpenFlight = onOpenFlight,
+                    onOpenPilot = onOpenPilot,
+                    onOpenPlans = { plans = it },
+                    onOpenFeed = onOpenFeed,
+                    onOpenNotifications = onOpenNotifications,
+                    onOpenFlightById = onOpenFlightById,
+                    onSignIn = onSignIn,
+                )
                 else -> PublicFlightsList(community, onOpen = onOpenFlight, onOpenPilot = onOpenPilot)
             }
+        }
+    }
+
+    plans?.let { opening ->
+        PlansSheet(
+            groups,
+            account,
+            requests,
+            onDismiss = { plans = null },
+            waypoints = waypoints,
+            wind = wind,
+            startAt = (opening as? PlansOpening.Plan)?.id,
+            opensNewPlan = opening == PlansOpening.NewPlan,
+            opensGroups = opening == PlansOpening.Groups,
+        )
+    }
+}
+
+/**
+ * The whole feed, the flights of the pilots one follows: a page of its
+ * own, reached from Community's "All".
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FeedScreen(social: SocialModel, community: CommunityModel, onOpen: (PublicFlight) -> Unit, onBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(social.words.feedFollowing) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = Common.words.back)
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            FollowingFeed(social, community, onOpen)
         }
     }
 }
 
 /** What the League tab says that is not the core's to say. */
 object LeagueWords {
+    /** The first list's name: pilots among each other, as the web's section is called. */
+    const val COMMUNITY = "Community"
+
     /** While Venti cannot be asked: as the maps for flying say it (`OfflineMapsWords.NO_SERVER`). */
     const val NO_SERVER_TITLE = "Venti could not be reached"
     const val NO_SERVER = "Everyone's flights and the ranking come from Venti, which could not be reached."
 }
 
 /** The lists of the League tab, in the order of its switch. */
-private enum class LeagueList { Everyone, Following, Ranking }
+private enum class LeagueList { Community, Everyone, Ranking }
 
 /**
  * Without Venti there is nothing to list, and the screen says so. Venti's

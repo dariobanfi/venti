@@ -406,6 +406,25 @@ class AccountModel(
     }
 
     /**
+     * Sends a picture as the pilot's own: its bytes and media type, made
+     * ready by [PictureFile]. The core refuses one the server would refuse,
+     * before it is sent; the refusal is the [problem].
+     */
+    suspend fun setPicture(picture: ByteArray, mediaType: String) {
+        changeAccount { core.pictureRequest(picture, mediaType) }
+    }
+
+    /** Removes the pilot's picture: the initials show in its place. */
+    suspend fun removePicture() {
+        changeAccount { core.pictureRemovalRequest() }
+    }
+
+    /** "Show me among pilots near a place": whether the pilot is in those lists. */
+    suspend fun setShownNearPlaces(shown: Boolean) {
+        changeAccount { core.shownNearPlacesRequest(shown) }
+    }
+
+    /**
      * The app's glider setting changed: the account takes the class, quietly.
      * A phone without an answer tells it again at the next read of the account.
      */

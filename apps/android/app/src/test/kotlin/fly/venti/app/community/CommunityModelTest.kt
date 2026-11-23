@@ -75,6 +75,7 @@ class CommunityModelTest {
                         HttpAnswer(200, recorded("pilot.json"))
                     }
                 "/v1/ranking" in url -> HttpAnswer(200, recorded("ranking.json"))
+                "/v1/pilots/near?" in url -> HttpAnswer(200, recorded("pilots_near.json"))
                 // The search by name: the one pilot the recording found, or nobody.
                 "/v1/pilots?q=" in url ->
                     if (url.endsWith("q=zz")) HttpAnswer(200, """{"pilots": []}""".toByteArray()) else HttpAnswer(200, recorded("pilots.json"))
@@ -155,6 +156,42 @@ class CommunityModelTest {
         assertTrue(slow.search.isLoading)
         typing.cancelAndJoin()
         assertEquals(asked, server.asked.size)
+    }
+
+    @Test
+    fun thePilotsNearAPlaceAreAskedOnceForThePlace() = runBlocking {
+        val server = Server()
+        val community = model(server)
+        val place = fly.venti.core.Coordinate(lat = 47.3, lon = 10.9)
+        community.showNear(place, fromPhone = true)
+        assertEquals(listOf("$BASE/v1/pilots/near?lat=47.3&lon=10.9"), server.asked.toList())
+        val near = checkNotNull(community.near.pilots)
+        assertTrue(community.near.fromPhone)
+        assertEquals("lena", near.pilots.first().handle)
+        assertEquals("LP", near.pilots.first().initials)
+        assertTrue(near.words.startsWith("Within 25 km"))
+        // What the core said of each pilot's picture is known for the lines that name the pilot without it.
+        for (pilot in near.pilots) assertEquals(pilot.picturePath, PilotPictures.of(pilot.handle))
+
+        // The same place is not asked again, unless the pilot asks.
+        community.showNear(place, fromPhone = true)
+        assertEquals(1, server.asked.size)
+        community.showNear(place, fromPhone = true, again = true)
+        assertEquals(2, server.asked.size)
+
+        // A server that cannot be reached is said in words.
+        server.isReachable = false
+        community.showNear(fly.venti.core.Coordinate(lat = 47.0, lon = 11.0), fromPhone = false)
+        assertEquals(pilotsWords().unreachable, community.near.problem)
+        assertNull(community.near.pilots)
+    }
+
+    @Test
+    fun aFacesInitialsAreThoseTheCoreMakes() {
+        assertEquals("LP", PilotPictures.initials("Lena  Probe"))
+        assertEquals("M", PilotPictures.initials("Mara"))
+        assertEquals("JB", PilotPictures.initials("Jonas Beispiel Dritter"))
+        assertEquals("", PilotPictures.initials("  "))
     }
 
     @Test
@@ -345,11 +382,11 @@ class CommunityModelTest {
         assertEquals("0:29 h", CommunityWords.airtime(row))
         assertNull(CommunityWords.triangle(row))
         assertEquals("${Format.day(row.startUnixS)}, Sample Wing, 12.0 km, 0:29 h in the air", CommunityWords.spoken(row))
-        // The take-off's country as a flag before its name, the pilot's said first, the class beside the glider.
+        // The take-off's country as a flag before its name, the pilot's said first, the class before the glider.
         val said = row.copy(takeoffName = "Hafelekar", takeoffCountry = "AT", pilotCountry = "DE", gliderClass = GliderClassKind.B)
-        assertEquals("${Format.day(row.startUnixS)} · \uD83C\uDDE6\uD83C\uDDF9 Hafelekar · Sample Wing · EN B", CommunityWords.detail(said))
+        assertEquals("${Format.day(row.startUnixS)} · \uD83C\uDDE6\uD83C\uDDF9 Hafelekar · EN B · Sample Wing", CommunityWords.detail(said))
         assertEquals(
-            "Germany, ${Format.day(row.startUnixS)}, Hafelekar, Austria, Sample Wing · EN B, 12.0 km, 0:29 h in the air",
+            "Germany, ${Format.day(row.startUnixS)}, Hafelekar, Austria, EN B · Sample Wing, 12.0 km, 0:29 h in the air",
             CommunityWords.spoken(said),
         )
         assertEquals("\uD83C\uDDE6\uD83C\uDDF9", CommunityWords.place(said.copy(takeoffName = null)))

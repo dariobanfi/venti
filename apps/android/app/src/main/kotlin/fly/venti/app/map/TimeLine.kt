@@ -67,6 +67,8 @@ data class LineCell(
     val measured: Boolean,
     /** What stands over the cell: a day's name over its first, a radar's full hour, "Now". */
     val over: String? = null,
+    /** Whether a day of the forecast begins at the cell, after other cells: a gap before it. */
+    val startsDay: Boolean = false,
 )
 
 /**
@@ -119,8 +121,10 @@ object TimeLine {
             // Today from the hour that has begun: what came before it was
             // measured or is past. Which day is today the core says.
             val from = if (day.today) (view?.firstHour?.toInt() ?: 0).coerceAtLeast(0) else 0
+            var hoursLeft = 0
             view?.hours?.forEachIndexed { hour, mark ->
                 if (hour < from) return@forEachIndexed
+                hoursLeft += 1
                 // "Now" where the measured meets the forecast: over the stations for the wind.
                 val isNow = day.today && hour == from && !withStations
                 ofDay += LineCell(
@@ -131,9 +135,21 @@ object TimeLine {
                     over = now.takeIf { isNow },
                 )
             }
-            // A day's name over its first cell, where "Now" does not stand on it.
-            if (ofDay.isNotEmpty() && ofDay.none { it.over == now }) {
+            // A today whose hours are all past has nothing left to show, its
+            // day as a whole neither: its name would stand over one cell
+            // beside the next day's. Hours not read yet are not hours past.
+            if (day.today && view != null && hoursLeft == 0) return@forEachIndexed
+            // A day's name over its first cell. Today's gives way to "Now"
+            // where that stands on today's line or right before it, over the
+            // wind stations: the two would crowd each other and the next
+            // day's name.
+            val nowBefore = day.today && withStations
+            if (ofDay.isNotEmpty() && !nowBefore && ofDay.none { it.over == now }) {
                 ofDay[0] = ofDay[0].copy(over = day.name)
+            }
+            // Each day begins a little apart from what stands before it.
+            if (ofDay.isNotEmpty() && measured.size + forecast.size > 0) {
+                ofDay[0] = ofDay[0].copy(startsDay = true)
             }
             forecast += ofDay
         }

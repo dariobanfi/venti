@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
@@ -51,6 +52,8 @@ import fly.venti.app.community.Reported
 import fly.venti.app.wind.grown
 import fly.venti.core.PublicFlight
 import fly.venti.app.community.CommunityWords
+import fly.venti.app.community.FaceSize
+import fly.venti.app.community.PilotFace
 import fly.venti.app.community.Flag
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -149,8 +152,10 @@ fun PublicFlightScreen(
                             Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            // The pilot's country by their name, once they set one.
+                            // The pilot's face and country by their name, once they set one.
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                PilotFace(flight.pilot, flight.pilotPicture, size = FaceSize.Small)
+                                Spacer(Modifier.width(VentiSpace.s2))
                                 Text(
                                     flight.pilot,
                                     style = MaterialTheme.typography.titleMedium,
@@ -176,8 +181,9 @@ fun PublicFlightScreen(
                                     takeoff,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
+                                    maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
                                     modifier = Modifier.testTag("public-flight-takeoff"),
                                 )
                             }

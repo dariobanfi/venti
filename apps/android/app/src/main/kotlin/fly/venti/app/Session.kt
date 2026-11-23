@@ -28,6 +28,7 @@ import fly.venti.app.assistant.FixedKey
 import fly.venti.app.assistant.ScriptedProvider
 import fly.venti.app.community.CommunityModel
 import fly.venti.app.community.SocialModel
+import fly.venti.app.community.PilotPictures
 import fly.venti.app.design.Format
 import fly.venti.app.fly.FlySession
 import fly.venti.app.fly.PhoneSensors
@@ -159,6 +160,7 @@ sealed interface Session {
             lostWatchedFolder: Boolean = false,
             /** A UI test's Google account, for the development server's made-up Google; `null` for Google itself. */
             googleTestAccount: String? = null,
+            googleTestPicture: Boolean = false,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -311,6 +313,8 @@ sealed interface Session {
             // The ranking's years by Venti's clock, or the core's all years while it is unread.
             community.clock = { wind.serverTimeOrZero() }
             community.server = { (wind.server as? WindServer.Usable)?.url }
+            // The pilots' pictures come from the same Venti.
+            PilotPictures.server = { (wind.server as? WindServer.Usable)?.url }
             // The pilot's account on that server, if there is one. A test
             // starts signed out, and its token stays out of the keystore.
             val account = logbook.makeAccount(
@@ -319,7 +323,7 @@ sealed interface Session {
             )
             // "Continue with Google" asks Google on the phone, for Venti's
             // client ID; a UI test asks the development server instead.
-            account.google = googleTestAccount?.let { DevelopmentGoogle(it, name = LaunchOptions.GOOGLE_TEST_NAME) }
+            account.google = googleTestAccount?.let { DevelopmentGoogle(it, name = LaunchOptions.GOOGLE_TEST_NAME, withPicture = googleTestPicture) }
                 ?: CredentialManagerGoogle(BuildConfig.GOOGLE_CLIENT_ID)
             // A flight sent to the server carries the class the app's glider setting has.
             account.gliderClass = { GliderWords.kind(preferences.gliderClass) }
@@ -456,6 +460,7 @@ class VentiApplication : Application() {
             lostWatchedFolder = options.watchesALostFolder,
             slowGlider = options.usesSlowGlider,
             googleTestAccount = options.googleTestAccount,
+            googleTestPicture = options.googleTestPicture,
         ).also { testSession = it }
     }
 }
@@ -515,6 +520,8 @@ data class LaunchOptions(
      * sheet, so that the sign-in can be tested without a Google account.
      */
     val googleTestAccount: String? = null,
+    /** That made-up Google account has a picture, which the development server makes up. */
+    val googleTestPicture: Boolean = false,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
@@ -528,6 +535,7 @@ data class LaunchOptions(
         const val SLOW_GLIDER = "slow-glider"
         const val LOST_WATCHED_FOLDER = "lost-watched-folder"
         const val GOOGLE_TEST_ACCOUNT = "google-test-account"
+        const val GOOGLE_TEST_PICTURE = "google-test-picture"
 
         /** The watched folder of [watchesALostFolder]: one the app holds no permission for, and its name. */
         const val LOST_FOLDER = "content://com.android.externalstorage.documents/tree/primary%3AXCTrack%2FTracklogs"
@@ -598,6 +606,7 @@ data class LaunchOptions(
                 usesSlowGlider = intent.getBooleanExtra(SLOW_GLIDER, false),
                 watchesALostFolder = intent.getBooleanExtra(LOST_WATCHED_FOLDER, false),
                 googleTestAccount = intent.getStringExtra(GOOGLE_TEST_ACCOUNT),
+                googleTestPicture = intent.getBooleanExtra(GOOGLE_TEST_PICTURE, false),
             )
         }
     }

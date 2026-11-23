@@ -196,6 +196,11 @@ sealed interface Session {
                 } else {
                     FlySession.REFRESH_MILLISECONDS
                 },
+                clock = if (isUnderTest) {
+                    { System.currentTimeMillis() / 1000.0 + TestClock.aheadSeconds }
+                } else {
+                    { System.currentTimeMillis() / 1000.0 }
+                },
             )
 
             // A flight that was being recorded when the app last stopped.
@@ -619,4 +624,15 @@ data class LaunchOptions(
             )
         }
     }
+}
+
+/**
+ * For a UI test: how many seconds the cockpit's clock runs ahead of the
+ * phone's, so that a test need not wait out what the core times by the
+ * clock, such as the two minutes between a landing and the save. Only a
+ * test's session reads it.
+ */
+object TestClock {
+    @Volatile
+    var aheadSeconds = 0.0
 }

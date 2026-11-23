@@ -20,12 +20,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
@@ -51,12 +56,10 @@ class MainActivity : ComponentActivity() {
         // The app draws behind the status bar and the navigation bar, so a
         // map can fill the screen. In a forced appearance the bars' icons
         // follow it, not the phone.
-        val bars = when (options.forcedDark) {
-            true -> SystemBarStyle.dark(Color.TRANSPARENT)
-            false -> SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-            null -> SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
-        }
-        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+        // A UI test may change the forced appearance while the app runs;
+        // a screen Android rebuilt keeps what the test chose.
+        if (savedInstanceState == null) ForcedAppearance.dark = options.forcedDark
+        showBars(ForcedAppearance.dark)
         super.onCreate(savedInstanceState)
 
         val app = application as VentiApplication
@@ -76,18 +79,32 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            VentiTheme(dark = options.forcedDark ?: isSystemInDarkTheme()) {
-                when (session) {
-                    is Session.Ready -> RootScreen(
-                        session,
-                        incoming,
-                        onImported = { incoming = emptyList() },
-                        opensAlerts = opensAlerts,
-                        onAlertsOpened = { opensAlerts = false },
-                        opensToday = opensToday,
-                        onTodayOpened = { opensToday = false },
-                    )
-                    is Session.Failed -> DataFailure(session.message)
+            val forced = ForcedAppearance.dark
+            LaunchedEffect(forced) { showBars(forced) }
+            // A UI test's look at a phone 360 dp wide with text at 130 %,
+            // without Android making the screen anew.
+            val density = if (ForcedAppearance.narrowWithLargeText) {
+                Density(
+                    density = LocalWindowInfo.current.containerSize.width / ForcedAppearance.NARROW_DP,
+                    fontScale = ForcedAppearance.LARGE_TEXT,
+                )
+            } else {
+                LocalDensity.current
+            }
+            CompositionLocalProvider(LocalDensity provides density) {
+                VentiTheme(dark = forced ?: isSystemInDarkTheme()) {
+                    when (session) {
+                        is Session.Ready -> RootScreen(
+                            session,
+                            incoming,
+                            onImported = { incoming = emptyList() },
+                            opensAlerts = opensAlerts,
+                            onAlertsOpened = { opensAlerts = false },
+                            opensToday = opensToday,
+                            onTodayOpened = { opensToday = false },
+                        )
+                        is Session.Failed -> DataFailure(session.message)
+                    }
                 }
             }
         }
@@ -100,6 +117,15 @@ class MainActivity : ComponentActivity() {
         incoming = flightFiles(intent)
         opensAlerts = intent.getBooleanExtra(AlertNotifications.OPENS_WHAT_FIRED, false)
         opensToday = intent.getBooleanExtra(TakeoffWidget.OPENS_TODAY, false)
+    }
+
+    private fun showBars(forcedDark: Boolean?) {
+        val bars = when (forcedDark) {
+            true -> SystemBarStyle.dark(Color.TRANSPARENT)
+            false -> SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+            null -> SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
+        }
+        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
     }
 
     /** The files an intent brings: one opened with Venti, or one or more shared to it. */
@@ -142,4 +168,25 @@ private fun DataFailure(message: String) {
             )
         }
     }
+}
+
+/**
+ * The appearance a UI test forced ([LaunchOptions.DARK]), null to follow
+ * the phone. A test changes it while the app runs, to keep a picture of a
+ * screen in the other appearance without walking to it again. Always null
+ * in a release build, which ignores launch options.
+ */
+object ForcedAppearance {
+    var dark: Boolean? by mutableStateOf(null)
+
+    /**
+     * The app laid out as on a phone [NARROW_DP] wide with text at
+     * [LARGE_TEXT] times its size, what `design/AGENTS.md` asks every
+     * screen to be looked at with: Compose's density, not Android's, so
+     * that nothing is made anew. The map draws at the phone's own density.
+     */
+    var narrowWithLargeText: Boolean by mutableStateOf(false)
+
+    const val NARROW_DP = 360f
+    const val LARGE_TEXT = 1.3f
 }

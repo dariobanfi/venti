@@ -17,7 +17,7 @@ enum class AppTab(val title: String, @param:DrawableRes val icon: Int) {
     Map("Map", R.drawable.venti_map),
     Fly("Fly", R.drawable.venti_wing),
     Logbook("Logbook", R.drawable.venti_track),
-    League("League", R.drawable.venti_league),
+    League("Community", R.drawable.venti_league),
 }
 
 /** A page of the Today tab, opened from its corner. */

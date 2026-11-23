@@ -131,7 +131,7 @@ fun LeagueScreen(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
         topBar = {
             Column {
-                TopAppBar(title = { Text("League") })
+                TopAppBar(title = { Text(LeagueWords.COMMUNITY) })
                 if (hasServer) {
                     PrimaryTabRow(selectedTabIndex = lists.indexOf(shown), containerColor = MaterialTheme.colorScheme.surface) {
                         for (list in lists) {

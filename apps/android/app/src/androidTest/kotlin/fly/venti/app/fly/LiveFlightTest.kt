@@ -31,6 +31,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import fly.venti.app.LaunchOptions
 import fly.venti.app.MainActivity
+import fly.venti.app.TestClock
 import fly.venti.app.TestDevice
 import org.junit.After
 import org.junit.Assert.assertTrue
@@ -97,6 +98,7 @@ class LiveFlightTest {
     @After
     fun stop() {
         isFlying = false
+        TestClock.aheadSeconds = 0.0
         app?.close()
         runCatching { locations.removeTestProvider(LocationManager.GPS_PROVIDER) }
     }
@@ -296,8 +298,11 @@ class LiveFlightTest {
         TestDevice.keepScreenshot("light-self-4-landed")
 
         // Two minutes after it came to rest the flight is in the logbook,
-        // and its page is open.
-        waitFor(hasContentDescription("Flight details"), seconds = 240)
+        // and its page is open. The two minutes are the core's rule, which
+        // its own tests hold: the cockpit's clock is put two minutes ahead
+        // rather than waited out.
+        TestClock.aheadSeconds = 120.0
+        waitFor(hasContentDescription("Flight details"))
         isFlying = false
         screen.waitForIdle()
         TestDevice.keepScreenshot("light-self-5-saved")

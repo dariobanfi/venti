@@ -376,12 +376,13 @@ class CommunityModelTest {
 
         // A row: who flew, the day and the glider, how far and how long.
         val row = community.flights.first()
-        assertEquals("${Format.day(row.startUnixS)} · Sample Wing", CommunityWords.detail(row))
+        // The development data takes off in Germany, known since Natural Earth's outlines.
+        assertEquals("${Format.day(row.startUnixS)} · \uD83C\uDDE9\uD83C\uDDEA · Sample Wing", CommunityWords.detail(row))
         assertEquals(RouteKind.FREE_FLIGHT, row.score?.kind)
         assertEquals("12.0 km", CommunityWords.distance(row))
         assertEquals("0:29 h", CommunityWords.airtime(row))
         assertNull(CommunityWords.triangle(row))
-        assertEquals("${Format.day(row.startUnixS)}, Sample Wing, 12.0 km, 0:29 h in the air", CommunityWords.spoken(row))
+        assertEquals("${Format.day(row.startUnixS)}, Germany, Sample Wing, 12.0 km, 0:29 h in the air", CommunityWords.spoken(row))
         // The take-off's country as a flag before its name, the pilot's said first, the class before the glider.
         val said = row.copy(takeoffName = "Hafelekar", takeoffCountry = "AT", pilotCountry = "DE", gliderClass = GliderClassKind.B)
         assertEquals("${Format.day(row.startUnixS)} · \uD83C\uDDE6\uD83C\uDDF9 Hafelekar · EN B · Sample Wing", CommunityWords.detail(said))
@@ -398,7 +399,7 @@ class CommunityModelTest {
         assertEquals("FAI triangle", CommunityWords.triangle(triangle))
         assertEquals("Triangle", CommunityWords.triangle(row.copy(score = triangle.score?.copy(kind = RouteKind.FREE_TRIANGLE))))
         assertEquals("3.4 km", CommunityWords.distance(row.copy(score = null, trackLengthM = 3_400.0)))
-        assertEquals(Format.day(row.startUnixS), CommunityWords.detail(row.copy(glider = null)))
+        assertEquals(Format.day(row.startUnixS), CommunityWords.detail(row.copy(glider = null, takeoffCountry = null)))
 
         // Looked at again, nothing is asked: the list is there.
         community.loadIfNeeded()

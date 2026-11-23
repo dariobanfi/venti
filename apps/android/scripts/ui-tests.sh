@@ -20,7 +20,9 @@
 # is the owner's and is never touched. Everything the run makes is under
 # target/android/ui-tests/<run>/: a log for each test, the servers' and
 # emulators' logs, and every screenshot in screenshots/. It ends with one
-# line for each test and exits with 1 if any test failed.
+# line for each test and exits with 1 if any test failed. A test that fails
+# is run once more, alone; one that passes then is counted as flaky, with
+# both logs kept. The whole run is never repeated.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -58,7 +60,7 @@ while [ $# -gt 0 ]; do
     -n|--emulators) count="$2"; shift 2 ;;
     --stop) stop=true; shift ;;
     --no-build) build=false; shift ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     -*) echo "unknown argument: $1" >&2; exit 2 ;;
     *) named+=("$1"); shift ;;
   esac
@@ -268,8 +270,27 @@ take() {
   rmdir "$queue.lock"
 }
 
-# One emulator works through the queue: each test in an instrumentation of
-# its own, against this emulator's servers.
+# One test in an instrumentation of its own, against this emulator's
+# servers; its log in the file named. Prints what came of it.
+run_one() {
+  local serial="$1" port="$2" test="$3" log="$4"
+  adb -s "$serial" shell am instrument -w -r --no-window-animation \
+    -e class "$test" \
+    -e ventiServer "http://10.0.2.2:$port" \
+    -e madeUpDayServer "http://10.0.2.2:$((port + 1))" \
+    "$runner" >"$log" 2>&1 || true
+  if grep -q "^INSTRUMENTATION_STATUS_CODE: -4" "$log"; then
+    echo "skipped"
+  # "OK (1 test)", or "OK (2 tests)" for a class named alone.
+  elif grep -Eq "^OK \([0-9]+ tests?\)" "$log"; then
+    echo "passed"
+  else
+    echo "FAILED"
+  fi
+}
+
+# One emulator works through the queue. A test that fails is run once more,
+# alone, straight after; the run as a whole is never repeated.
 work() {
   local serial="$1" port="$2"
   local test name begun seconds result
@@ -278,20 +299,12 @@ work() {
     [ -n "$test" ] || break
     name="${test##*#}"
     begun=$(date +%s)
-    adb -s "$serial" shell am instrument -w -r --no-window-animation \
-      -e class "$test" \
-      -e ventiServer "http://10.0.2.2:$port" \
-      -e madeUpDayServer "http://10.0.2.2:$((port + 1))" \
-      "$runner" >"$out/logs/$name.log" 2>&1 || true
-    seconds=$(($(date +%s) - begun))
-    if grep -q "^INSTRUMENTATION_STATUS_CODE: -4" "$out/logs/$name.log"; then
-      result="skipped"
-    # "OK (1 test)", or "OK (2 tests)" for a class named alone.
-    elif grep -Eq "^OK \([0-9]+ tests?\)" "$out/logs/$name.log"; then
-      result="passed"
-    else
-      result="FAILED"
+    result="$(run_one "$serial" "$port" "$test" "$out/logs/$name.log")"
+    if [ "$result" = "FAILED" ]; then
+      result="$(run_one "$serial" "$port" "$test" "$out/logs/$name-again.log")"
+      [ "$result" = "passed" ] && result="flaky"
     fi
+    seconds=$(($(date +%s) - begun))
     printf '%-58s %-7s %4ss  %s\n' "$name" "$result" "$seconds" "$serial" >>"$out/results"
     printf '%-58s %-7s %4ss  %s\n' "$name" "$result" "$seconds" "$serial"
     echo "$test $seconds" >>"$out/timed"
@@ -324,11 +337,12 @@ mv "$timings.new" "$timings"
 echo
 LC_ALL=C sort "$out/results"
 passed=$(grep -c " passed " "$out/results" || true)
+flaky=$(grep -c " flaky " "$out/results" || true)
 skipped=$(grep -c " skipped " "$out/results" || true)
 failed=$(grep -c " FAILED " "$out/results" || true)
 wall=$(($(date +%s) - started))
 echo
-echo "$passed passed, $failed failed, $skipped skipped of $total, in $((wall / 60)) min $((wall % 60)) s on ${#serials[@]} emulators."
+echo "$passed passed, $flaky passed only when run again, $failed failed, $skipped skipped of $total, in $((wall / 60)) min $((wall % 60)) s on ${#serials[@]} emulators."
 echo "Screenshots: $out/screenshots ($(ls "$out/screenshots" | wc -l | tr -d ' '))"
 echo "Logs: $out/logs"
 if $stop; then

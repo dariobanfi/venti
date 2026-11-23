@@ -477,6 +477,12 @@ class FlySession(
 
     private var session: FlightSession? = null
     private var replay: Replay? = null
+
+    /** Where the replay began, seconds since 1970: the moment of its first fix. */
+    private var replayBegan = 0.0
+
+    /** Seconds of the replay to let pass at the next refresh besides its own step: [replayTo]. */
+    private var replayLeap = 0.0
     private var ticker: Job? = null
 
     /** Refreshes of the screen since the score was last asked for. */
@@ -778,7 +784,23 @@ class FlySession(
             problem = error.pilotMessage
             return
         }
+        replayBegan = replay?.now() ?: 0.0
+        replayLeap = 0.0
         begin(FlightSession(dataFolder.path), Mode.Replay(speed))
+    }
+
+    /**
+     * For a UI test: the replay leaps on to so many seconds after its first
+     * fix at the next refresh, every fix on the way handed to the core as
+     * a replay hands them, so that the cockpit then shows what it shows at
+     * that moment of the flight without the test waiting for it. Nothing
+     * happens where the replay is there already. The app's screens never
+     * call it.
+     */
+    @Synchronized
+    fun replayTo(secondsIntoFlight: Double) {
+        val replay = replay ?: return
+        replayLeap = maxOf(0.0, replayBegan + secondsIntoFlight - replay.now())
     }
 
     /**
@@ -940,7 +962,8 @@ class FlySession(
         val replay = replay
         val mode = mode
         val now = if (replay != null && mode is Mode.Replay) {
-            replay.advance(session, replayStep(elapsed, mode.speed))
+            replay.advance(session, replayStep(elapsed, mode.speed) + replayLeap)
+            replayLeap = 0.0
             replay.now()
         } else {
             clock()

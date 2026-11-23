@@ -907,6 +907,93 @@
       "at_least"
     ]
   },
+  "FlightHabits": {
+    "description": "How one flight was flown, in the counts and sums of the flight engine's rules (docs/api.md says them).",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "start": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "ended_from_start_m": {
+        "type": "number"
+      },
+      "thermals_left": {
+        "type": "integer"
+      },
+      "thermals_right": {
+        "type": "integer"
+      },
+      "thermals_both_ways": {
+        "type": "integer"
+      },
+      "circling_left_s": {
+        "type": "integer"
+      },
+      "circling_right_s": {
+        "type": "integer"
+      },
+      "thermals_measured": {
+        "type": "integer"
+      },
+      "thermals_ended_weak": {
+        "type": "integer"
+      },
+      "after_the_top_s": {
+        "type": "integer"
+      },
+      "below_the_top_m": {
+        "type": "integer"
+      },
+      "height_gained_m": {
+        "type": "integer"
+      },
+      "thermalling_s": {
+        "type": "integer"
+      },
+      "best_climb_ms": {
+        "type": "number"
+      },
+      "glides": {
+        "type": "integer"
+      },
+      "glide_distance_m": {
+        "type": "number"
+      },
+      "glide_height_lost_m": {
+        "type": "integer"
+      },
+      "gliding_s": {
+        "type": "integer"
+      },
+      "airtime_s": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "id",
+      "start",
+      "thermals_left",
+      "thermals_right",
+      "thermals_both_ways",
+      "circling_left_s",
+      "circling_right_s",
+      "thermals_measured",
+      "thermals_ended_weak",
+      "after_the_top_s",
+      "below_the_top_m",
+      "height_gained_m",
+      "thermalling_s",
+      "glides",
+      "glide_distance_m",
+      "glide_height_lost_m",
+      "gliding_s",
+      "airtime_s"
+    ]
+  },
   "GliderClass": {
     "description": "The class a paraglider is certified in: EN A to EN D, and CCC, the competition class.",
     "type": "string",
@@ -916,6 +1003,26 @@
       "en_c",
       "en_d",
       "ccc"
+    ]
+  },
+  "HabitsResponse": {
+    "description": "How each of the pilot's own flights was flown, in figures, the private ones too, the newest first. The figures are counts and sums, so that those of any flights add up to those of all of them.",
+    "type": "object",
+    "properties": {
+      "flights": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlightHabits"
+        }
+      },
+      "not_yet": {
+        "type": "integer",
+        "description": "Flights of the account without figures yet: worked out by an older analysis, which the server runs again by itself."
+      }
+    },
+    "required": [
+      "flights",
+      "not_yet"
     ]
   },
   "PilotsAlert": {

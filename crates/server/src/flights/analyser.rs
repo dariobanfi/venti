@@ -259,6 +259,7 @@ struct Wire {
     glider: Option<String>,
     outline: Vec<[f64; 2]>,
     profile: Vec<[i32; 2]>,
+    habits: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -303,6 +304,7 @@ impl From<Derivation> for Wire {
             glider: derived.glider,
             outline: derived.outline,
             profile: derived.profile,
+            habits: derived.habits,
         }
     }
 }
@@ -342,6 +344,7 @@ impl TryFrom<Wire> for Derivation {
                 glider: wire.glider,
                 outline: wire.outline,
                 profile: wire.profile,
+                habits: wire.habits,
             },
         })
     }

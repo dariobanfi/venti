@@ -52,7 +52,11 @@ const COUNTED_GLIDE_M: f64 = 1000.0;
 
 /// How a flight was flown, in counts and sums. Add the figures of several
 /// flights with `+=` for the figures of all of them.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+///
+/// The server keeps them with each flight as JSON of these field names
+/// (`venti-store`): a field renamed here is a flight's figures lost until
+/// its analysis is run again.
+#[derive(Debug, Clone, Copy, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct FlightHabits {
     /// Thermals circled to the left, by the rule of [`ONE_WAY_TURN_DEG`]
     /// and [`ONE_WAY_SHARE`].

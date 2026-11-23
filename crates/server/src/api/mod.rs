@@ -127,8 +127,8 @@ use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
-    ACCOUNT_ARCHIVE_PATH, ACCOUNT_GOOGLE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
-    ACCOUNT_STATISTICS_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
+    ACCOUNT_ARCHIVE_PATH, ACCOUNT_GOOGLE_PATH, ACCOUNT_HABITS_PATH, ACCOUNT_PASSWORD_PATH,
+    ACCOUNT_PATH, ACCOUNT_STATISTICS_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
     AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, Attribution, CABLES_PATH, DEV_GOOGLE_ID_TOKEN_PATH,
     DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FLOWN_THERMALS_PATH, FORECAST_PATH,
     GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_CLIMBS_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
@@ -741,6 +741,7 @@ impl<S: Store> Api<S> {
             )
             .route(ACCOUNT_PASSWORD_PATH, put(account::change_password::<S>))
             .route(ACCOUNT_STATISTICS_PATH, get(pilots::own_statistics::<S>))
+            .route(ACCOUNT_HABITS_PATH, get(pilots::own_habits::<S>))
             .route(
                 ACCOUNT_TOKENS_PATH,
                 post(account::create_token::<S>).get(account::tokens::<S>),

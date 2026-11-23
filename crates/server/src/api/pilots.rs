@@ -15,10 +15,10 @@ use axum::response::Response;
 use chrono::Datelike;
 use serde::Deserialize;
 use venti_api_types::v1::{
-    ErrorCode, FlightSite, FlightTerms, FlownSite, FoundPilot, Handle, HighestFlight,
-    LongestFlight, PILOT_SEARCH_MAX_CHARS, PILOT_SEARCH_MIN_CHARS, PILOT_SITE_STEP_DEG,
-    PILOT_TOP_SITES, PilotResponse, PilotSeason, PilotStatisticsResponse, PilotTotals,
-    PilotsResponse, RANKING_COUNTED,
+    ErrorCode, FlightHabits, FlightSite, FlightTerms, FlownSite, FoundPilot, HabitsResponse,
+    Handle, HighestFlight, LongestFlight, PILOT_SEARCH_MAX_CHARS, PILOT_SEARCH_MIN_CHARS,
+    PILOT_SITE_STEP_DEG, PILOT_TOP_SITES, PilotResponse, PilotSeason, PilotStatisticsResponse,
+    PilotTotals, PilotsResponse, RANKING_COUNTED,
 };
 use venti_domain::{GeoPoint, SiteId};
 use venti_store::{Account, Flown, Listing, Store};
@@ -379,6 +379,64 @@ pub(crate) async fn own_statistics<S: Store>(
     Ok(cache::private_json(StatusCode::OK, &answer))
 }
 
+/// `GET /v1/account/habits`: how each of the account's flights was flown,
+/// in the figures the pilot's own "How you fly" adds up, the private ones
+/// too, the newest first. For the pilot themself: a session, or a token
+/// with `flights:read`. A flight that an older analysis worked out has no
+/// figures until the server's refresh reaches it, and is counted in
+/// `not_yet`.
+pub(crate) async fn own_habits<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    May(signed, ..): May<ReadFlights>,
+) -> Result<Response, ApiError> {
+    let flown = api.store.flown_by(&signed.account.id, Listing::All).await?;
+    let answer = habits_of(&flown)?;
+    Ok(cache::private_json(StatusCode::OK, &answer))
+}
+
+/// The figures of these flights, in their order.
+fn habits_of(flown: &[Flown]) -> Result<HabitsResponse, ApiError> {
+    let mut flights = Vec::with_capacity(flown.len());
+    let mut not_yet = 0_u32;
+    for flight in flown {
+        // Written by this server's analysis (`flights::derive`); one it
+        // cannot read is worked out again by the next analysis version.
+        let Some(habits) = flight
+            .habits
+            .as_deref()
+            .and_then(|text| serde_json::from_str::<venti_flight::habits::FlightHabits>(text).ok())
+        else {
+            not_yet = not_yet.saturating_add(1);
+            continue;
+        };
+        flights.push(FlightHabits {
+            id: flight.id.parse().map_err(|_| ApiError::internal())?,
+            start: flight.start,
+            ended_from_start_m: flight
+                .ended_from_start_m
+                .map(|metres| (metres * 10.0).round() / 10.0),
+            thermals_left: habits.thermals_left,
+            thermals_right: habits.thermals_right,
+            thermals_both_ways: habits.thermals_both_ways,
+            circling_left_s: habits.circling_left_s,
+            circling_right_s: habits.circling_right_s,
+            thermals_measured: habits.thermals_measured,
+            thermals_ended_weak: habits.thermals_ended_weak,
+            after_the_top_s: habits.after_the_top_s,
+            below_the_top_m: habits.below_the_top_m,
+            height_gained_m: habits.height_gained_m,
+            thermalling_s: habits.thermalling_s,
+            best_climb_ms: habits.best_climb_ms,
+            glides: habits.glides,
+            glide_distance_m: habits.glide_distance_m,
+            glide_height_lost_m: habits.glide_height_lost_m,
+            gliding_s: habits.gliding_s,
+            airtime_s: habits.airtime_s,
+        });
+    }
+    Ok(HabitsResponse { flights, not_yet })
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -393,6 +451,8 @@ mod tests {
             score,
             max_altitude_m: high,
             takeoff: None,
+            habits: None,
+            ended_from_start_m: None,
         }
     }
 

@@ -1,0 +1,502 @@
+{
+  "description": "Every data source Venti's server has an adapter of, from its manifest (manifest.toml in each crates/sources-*), with its licence and the credit it asks for; docs/data-sources.md says more of each. Written by crates/server/tests/sources.rs.",
+  "sources": [
+    {
+      "countries": [
+        "IT"
+      ],
+      "id": "arpa-lombardia",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "ARPA - Regione Lombardia",
+        "link": "https://www.dati.lombardia.it/d/647i-nhxk",
+        "name": "CC0 1.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-22"
+      },
+      "manifest": "crates/sources-arpalombardia/manifest.toml",
+      "provider": "ARPA Lombardia (Regione Lombardia)"
+    },
+    {
+      "countries": [
+        "SI"
+      ],
+      "id": "arso-ams",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Vir: ARSO (Source: Slovenian Environment Agency)",
+        "link": "https://meteo.arso.gov.si/uploads/meteo/help/sl/copyright.html",
+        "name": "ARSO terms of reuse (Pogoji ponovne uporabe)",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-22"
+      },
+      "manifest": "crates/sources-arso/manifest.toml",
+      "provider": "Slovenian Environment Agency ARSO"
+    },
+    {
+      "countries": [
+        "AT",
+        "CH",
+        "DE",
+        "FR",
+        "HR",
+        "HU",
+        "IT",
+        "SI"
+      ],
+      "id": "awc-metar",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Data source: Aviation Weather Center, aviationweather.gov",
+        "link": "https://aviationweather.gov/data/api/",
+        "name": "Public domain, U.S. Government",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-21"
+      },
+      "manifest": "crates/sources-awc/manifest.toml",
+      "provider": "Aviation Weather Center"
+    },
+    {
+      "assets": [
+        {
+          "licence": {
+            "commercial": true,
+            "credit": "Datenquelle: Bundesamt für Eich- und Vermessungswesen (BEV), Verwaltungsgrenzen 1:50 000, Stichtag 01.10.2022, CC BY 4.0; zusammengefasst, nach WGS 84 umgerechnet und vereinfacht",
+            "link": "https://www.data.gv.at/katalog/dataset/6d731e6e-7dcf-4bde-8061-d0e195f62f6c",
+            "name": "CC BY 4.0",
+            "redistribution": true,
+            "share_alike": false,
+            "verified_on": "2026-11-20"
+          },
+          "name": "Austria's outline",
+          "provider": "Bundesamt für Eich- und Vermessungswesen (BEV)"
+        }
+      ],
+      "countries": [
+        "AT"
+      ],
+      "id": "basemap-at",
+      "kinds": [
+        "imagery"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Datenquelle: basemap.at",
+        "link": "https://basemap.at/",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-20"
+      },
+      "manifest": "crates/sources-basemapat/manifest.toml",
+      "provider": "basemap.at (Stadt Wien for the Austrian provinces)"
+    },
+    {
+      "countries": [
+        "DE"
+      ],
+      "id": "dwd-10min",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Quelle: Deutscher Wetterdienst",
+        "link": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-18"
+      },
+      "manifest": "crates/sources-dwd/manifest.toml",
+      "provider": "Deutscher Wetterdienst"
+    },
+    {
+      "countries": [
+        "DE"
+      ],
+      "id": "dwd-radar-ry",
+      "kinds": [
+        "radar"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben",
+        "link": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-21"
+      },
+      "manifest": "crates/sources-dwd-radar/manifest.toml",
+      "provider": "Deutscher Wetterdienst"
+    },
+    {
+      "countries": [
+        "FR"
+      ],
+      "id": "ffvl-sites",
+      "kinds": [
+        "sites"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Fédération Française de Vol Libre (FFVL), terrains de pratique, Licence Ouverte 2.0",
+        "link": "https://www.data.gouv.fr/datasets/terrains-de-pratique-de-la-ffvl-federation-francaise-de-vol-libre",
+        "name": "Licence Ouverte 2.0 (Etalab)",
+        "notice": "Data of the Fédération Française de Vol Libre, published on data.gouv.fr under the Licence Ouverte / Open Licence 2.0 (Etalab), https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/. The date of its last update is the layer's as_of.",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-22"
+      },
+      "manifest": "crates/sources-ffvl/manifest.toml",
+      "provider": "Fédération Française de Vol Libre (FFVL)"
+    },
+    {
+      "countries": [
+        "AT"
+      ],
+      "id": "geosphere-inca-rr",
+      "kinds": [
+        "radar"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
+        "link": "https://data.hub.geosphere.at",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-21"
+      },
+      "manifest": "crates/sources-geosphere-radar/manifest.toml",
+      "provider": "GeoSphere Austria"
+    },
+    {
+      "countries": [
+        "AT"
+      ],
+      "id": "geosphere-tawes",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
+        "link": "https://data.hub.geosphere.at",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-18"
+      },
+      "manifest": "crates/sources-geosphere/manifest.toml",
+      "provider": "GeoSphere Austria"
+    },
+    {
+      "assets": [
+        {
+          "licence": {
+            "commercial": true,
+            "credit": "IGN – ADMIN EXPRESS COG 2026, Licence Ouverte; régions réunies et simplifiées",
+            "link": "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_ADMIN-EXPRESS",
+            "name": "Licence Ouverte / Open Licence 2.0 (Etalab)",
+            "redistribution": true,
+            "share_alike": false,
+            "verified_on": "2026-11-22"
+          },
+          "name": "The outline of metropolitan France",
+          "provider": "IGN, Institut national de l'information géographique et forestière"
+        }
+      ],
+      "countries": [
+        "FR"
+      ],
+      "id": "ign-ortho",
+      "kinds": [
+        "imagery"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "IGN – BD ORTHO®",
+        "link": "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO",
+        "name": "Licence Ouverte / Open Licence 2.0 (Etalab)",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-22"
+      },
+      "manifest": "crates/sources-ign/manifest.toml",
+      "provider": "IGN, Institut national de l'information géographique et forestière (Géoplateforme)"
+    },
+    {
+      "countries": [
+        "CH",
+        "LI"
+      ],
+      "id": "meteoswiss-smn",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Source: MeteoSwiss",
+        "link": "https://opendatadocs.meteoswiss.ch/general/terms-of-use",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-22"
+      },
+      "manifest": "crates/sources-meteoswiss/manifest.toml",
+      "provider": "Federal Office of Meteorology and Climatology MeteoSwiss"
+    },
+    {
+      "countries": [
+        "IT"
+      ],
+      "id": "meteotrentino",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Dati: Provincia Autonoma di Trento - Meteotrentino, CC BY 4.0",
+        "link": "https://dati.trentino.it/dataset/dati-recenti-delle-stazioni-meteo",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-22"
+      },
+      "manifest": "crates/sources-meteotrentino/manifest.toml",
+      "provider": "Provincia Autonoma di Trento - Meteotrentino"
+    },
+    {
+      "countries": [
+        "AT",
+        "BA",
+        "CH",
+        "DE",
+        "FR",
+        "HR",
+        "HU",
+        "IT",
+        "LI",
+        "MC",
+        "SI",
+        "SK",
+        "SM"
+      ],
+      "id": "ogn",
+      "kinds": [
+        "live"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Positions: Open Glider Network, glidernet.org (ODbL)",
+        "link": "https://www.glidernet.org/ogn-data-usage/",
+        "name": "ODbL 1.0",
+        "notice": "Positions of the Open Glider Network, available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Not every aircraft sends its position, and a position may be late or wrong: never use it to avoid a collision.",
+        "redistribution": true,
+        "share_alike": true,
+        "verified_on": "2026-11-21"
+      },
+      "manifest": "crates/sources-ogn/manifest.toml",
+      "provider": "Open Glider Network"
+    },
+    {
+      "countries": [
+        "AT",
+        "CH",
+        "DE",
+        "HR",
+        "HU",
+        "IT",
+        "LI",
+        "SI",
+        "SK"
+      ],
+      "id": "open-meteo",
+      "kinds": [
+        "forecasts"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+        "link": "https://open-meteo.com/",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-19"
+      },
+      "manifest": "crates/sources-openmeteo/manifest.toml",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst"
+    },
+    {
+      "countries": [
+        "DE",
+        "AT",
+        "CH",
+        "FR",
+        "IT",
+        "SI",
+        "HR",
+        "BA",
+        "HU",
+        "SK"
+      ],
+      "id": "openaip",
+      "kinds": [
+        "airspace"
+      ],
+      "licence": {
+        "commercial": false,
+        "credit": "Data used comes from openAIP and is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License. Visit https://www.openaip.net and contribute to better aviation data, free for everyone to use and share.",
+        "link": "https://www.openaip.net",
+        "name": "CC BY-NC 4.0",
+        "notice": "OpenAIP data is not certified and must not be used for primary navigation or flight planning. Never rely on openAIP data! OpenAIP data contains errors.",
+        "redistribution": true,
+        "share_alike": true,
+        "verified_on": "2026-11-19"
+      },
+      "manifest": "crates/sources-openaip/manifest.toml",
+      "provider": "openAIP"
+    },
+    {
+      "countries": [
+        "AT",
+        "CH",
+        "DE",
+        "HR",
+        "HU",
+        "IT",
+        "LI",
+        "SI",
+        "SK"
+      ],
+      "id": "osm-cables",
+      "kinds": [
+        "cables"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "© OpenStreetMap contributors",
+        "link": "https://www.openstreetmap.org/copyright",
+        "name": "ODbL 1.0",
+        "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap",
+        "redistribution": true,
+        "share_alike": true,
+        "verified_on": "2026-11-19"
+      },
+      "manifest": "crates/sources-osm/manifest-cables.toml",
+      "provider": "OpenStreetMap contributors"
+    },
+    {
+      "countries": [
+        "AT",
+        "BA",
+        "CH",
+        "DE",
+        "FR",
+        "HR",
+        "HU",
+        "IT",
+        "LI",
+        "MC",
+        "SI",
+        "SK",
+        "SM"
+      ],
+      "id": "osm-free-flying",
+      "kinds": [
+        "sites"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "© OpenStreetMap contributors",
+        "link": "https://www.openstreetmap.org/copyright",
+        "name": "ODbL 1.0",
+        "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap",
+        "redistribution": true,
+        "share_alike": true,
+        "verified_on": "2026-11-19"
+      },
+      "manifest": "crates/sources-osm/manifest.toml",
+      "provider": "OpenStreetMap contributors"
+    },
+    {
+      "countries": [
+        "FR",
+        "CH",
+        "IT",
+        "DE",
+        "AT"
+      ],
+      "id": "pioupiou",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Wind data (c) contributors of the OpenWindMap wind network <https://openwindmap.org>",
+        "link": "https://openwindmap.org",
+        "name": "Pioupiou Community License",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-22"
+      },
+      "manifest": "crates/sources-pioupiou/manifest.toml",
+      "provider": "OpenWindMap (Pioupiou wind network)"
+    },
+    {
+      "countries": [
+        "CH",
+        "LI"
+      ],
+      "id": "slf-imis",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Data source: WSL Institute for Snow and Avalanche Research SLF - www.slf.ch",
+        "link": "https://www.slf.ch",
+        "name": "CC BY 4.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-22"
+      },
+      "manifest": "crates/sources-slf/manifest.toml",
+      "provider": "WSL Institute for Snow and Avalanche Research SLF"
+    },
+    {
+      "countries": [
+        "IT"
+      ],
+      "id": "suedtirol-meteo",
+      "kinds": [
+        "observations"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz",
+        "link": "https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche",
+        "name": "CC0 1.0",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-21"
+      },
+      "manifest": "crates/sources-suedtirol/manifest.toml",
+      "provider": "Autonome Provinz Bozen - Südtirol"
+    }
+  ]
+}

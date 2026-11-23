@@ -334,6 +334,14 @@ Owner decision 20 left the website without a logbook of its own, and its "My fli
 
 Not built in this piece: an outline of every country (a public-domain one, Natural Earth's for instance, licence to verify on its own page, would give every take-off its country; until then a take-off in Germany, Switzerland or Italy has none); the take-off country from the nearest site, since no site record has a country; "How you fly" over the server's flights, which needs each flight's figures of thermals and glides (`venti_flight::habits`) kept at the upload and a read of them; a screen in any app; the connector's `list_flights` saying the class.
 
+Built on the same day after it ([architecture.md](architecture.md#decision-log)):
+
+- **"How you fly" over the server's flights.** Each flight's figures of `venti_flight::habits` are kept with it (`flights.habits`, migration `0030`, analysis version 2, which the refresh fills in for older flights), and `GET /v1/account/habits` hands them out to the pilot themself, a flight a row of counts and sums ([api.md](api.md#get-v1accounthabits)). The core says the tendencies with its rules (`own_habits_request`, `own_tendencies`; `ownHabitsRequest`, `ownTendencies` in the browser). No public answer has them: how a pilot flies is theirs.
+- **The take-off's name on the phones** from the sites the pilot keeps, by the rule the server names a flight's site with, now one function in `venti-api-types` (`takeoff_site`).
+- **Files for the developer pages:** groups (`tags`) and examples (the golden answers) in `docs/openapi.json`; `docs/mcp-tools.json`, the connector's tools; `docs/sources.json`, every manifest's licence and credit.
+
+Still not built: the outline of every country. Natural Earth's countries are in the public domain by its own terms (read 2026-11-23), and an adapter of them is ready to be added once its file is downloaded (*for the owner*); a take-off in Germany, Switzerland or Italy has no country until then.
+
 ## A pilot's picture and the pilots near a place: what stands (2026-11-23)
 
 Items 7 and 10 of the owner's testing session of 2026-11-22 ([plan.md](plan.md#where-the-work-stands-and-what-comes-next)), on the server and in the core. [api.md](api.md#put-and-delete-v1accountpicture) has it for the maker of another program, the decision log of [architecture.md](architecture.md#decision-log) why.

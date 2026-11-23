@@ -10,10 +10,12 @@
 //! is safe. An observation is made only when there is enough flying behind
 //! it; the minimums below are to verify with pilots.
 
+use venti_api_types::v1::{self as api, HabitsResponse};
 use venti_flight::habits::FlightHabits;
 
-use crate::Core;
 use crate::logbook::FlightWithHabits;
+use crate::server::answer;
+use crate::{Core, CoreError, ServerRequest};
 
 /// Which way the pilot circles is said from this many thermals on.
 const MIN_THERMALS: u32 = 10;
@@ -111,6 +113,61 @@ impl Core {
     pub fn tendencies(&self) -> Tendencies {
         tendencies(&self.logbook.habits())
     }
+}
+
+/// The request for how each of the pilot's flights on the server was
+/// flown, the private ones too, for a shell that keeps no logbook of its
+/// own: the website (owner decision 20). The answer is read by
+/// [`own_tendencies`].
+#[uniffi::export]
+pub fn own_habits_request() -> ServerRequest {
+    ServerRequest {
+        method: "GET".to_owned(),
+        path: api::ACCOUNT_HABITS_PATH.to_owned(),
+        body: None,
+        content_type: None,
+        needs_token: true,
+    }
+}
+
+/// What the pilot's flights on the server say about how they fly, from
+/// the answer to [`own_habits_request`], by the same rules and in the
+/// same words as [`Core::tendencies`] over a logbook on the device. A
+/// flight the server has not worked out yet is not counted.
+#[uniffi::export]
+pub fn own_tendencies(status: u16, body: Vec<u8>) -> Result<Tendencies, CoreError> {
+    let response: HabitsResponse = answer(status, &body)?;
+    let mut flights: Vec<FlightWithHabits> = response
+        .flights
+        .into_iter()
+        .map(|flight| FlightWithHabits {
+            id: flight.id.to_string(),
+            start_unix_s: flight.start.timestamp(),
+            habits: FlightHabits {
+                thermals_left: flight.thermals_left,
+                thermals_right: flight.thermals_right,
+                thermals_both_ways: flight.thermals_both_ways,
+                circling_left_s: flight.circling_left_s,
+                circling_right_s: flight.circling_right_s,
+                thermals_measured: flight.thermals_measured,
+                thermals_ended_weak: flight.thermals_ended_weak,
+                after_the_top_s: flight.after_the_top_s,
+                below_the_top_m: flight.below_the_top_m,
+                height_gained_m: flight.height_gained_m,
+                thermalling_s: flight.thermalling_s,
+                best_climb_ms: flight.best_climb_ms,
+                glides: flight.glides,
+                glide_distance_m: flight.glide_distance_m,
+                glide_height_lost_m: flight.glide_height_lost_m,
+                gliding_s: flight.gliding_s,
+                airtime_s: flight.airtime_s,
+            },
+            ended_from_start_m: flight.ended_from_start_m,
+        })
+        .collect();
+    // Newest first, as the logbook's are, whatever order the answer has.
+    flights.sort_by(|a, b| (b.start_unix_s, &b.id).cmp(&(a.start_unix_s, &a.id)));
+    Ok(tendencies(&flights))
 }
 
 /// The tendencies of these flights.
@@ -542,6 +599,91 @@ mod tests {
             .observations
             .iter()
             .find(|observation| observation.kind == kind)
+    }
+
+    /// The server's answer for these flights of a logbook, each under a
+    /// made-up address of the server's: the address of the logbook's
+    /// `n`-th flight is `n` in 26 digits.
+    fn server_answer(flights: &[FlightWithHabits]) -> Vec<u8> {
+        let flights: Vec<api::FlightHabits> = flights
+            .iter()
+            .enumerate()
+            .map(|(n, flight)| {
+                let habits = flight.habits;
+                api::FlightHabits {
+                    id: format!("{n:026}").parse().unwrap(),
+                    start: chrono::DateTime::from_timestamp(flight.start_unix_s, 0).unwrap(),
+                    ended_from_start_m: flight.ended_from_start_m,
+                    thermals_left: habits.thermals_left,
+                    thermals_right: habits.thermals_right,
+                    thermals_both_ways: habits.thermals_both_ways,
+                    circling_left_s: habits.circling_left_s,
+                    circling_right_s: habits.circling_right_s,
+                    thermals_measured: habits.thermals_measured,
+                    thermals_ended_weak: habits.thermals_ended_weak,
+                    after_the_top_s: habits.after_the_top_s,
+                    below_the_top_m: habits.below_the_top_m,
+                    height_gained_m: habits.height_gained_m,
+                    thermalling_s: habits.thermalling_s,
+                    best_climb_ms: habits.best_climb_ms,
+                    glides: habits.glides,
+                    glide_distance_m: habits.glide_distance_m,
+                    glide_height_lost_m: habits.glide_height_lost_m,
+                    gliding_s: habits.gliding_s,
+                    airtime_s: habits.airtime_s,
+                }
+            })
+            .rev()
+            .collect();
+        serde_json::to_vec(&HabitsResponse {
+            flights,
+            not_yet: 0,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn the_flights_on_the_server_say_what_the_same_flights_on_the_device_say() {
+        let (_folder, core, _, _) = five_flights();
+        let on_device = core.tendencies();
+        let kept = core.logbook.habits();
+        assert!(!on_device.observations.is_empty());
+
+        // Given oldest first, read newest first as the logbook is.
+        let mut on_server = own_tendencies(200, server_answer(&kept)).unwrap();
+        for observation in &mut on_server.observations {
+            if let Some(id) = &observation.flight_id {
+                let n: usize = id.parse().unwrap();
+                observation.flight_id = Some(kept[n].id.clone());
+            }
+        }
+        assert_eq!(on_server, on_device);
+
+        let request = own_habits_request();
+        assert_eq!(
+            (request.method.as_str(), request.path.as_str()),
+            ("GET", "/v1/account/habits")
+        );
+        assert!(request.needs_token);
+    }
+
+    #[test]
+    fn the_server_s_answer_for_the_demo_account_is_read() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../server/tests/golden/account_habits.json"
+        );
+        let tendencies = own_tendencies(200, std::fs::read(path).unwrap()).unwrap();
+        // Three flights are too few to say anything of.
+        assert_eq!(tendencies.flights, 3);
+        assert!(tendencies.thermals > 0);
+        assert!(
+            own_tendencies(
+                401,
+                br#"{"error":"unauthorized","message":"Sign in."}"#.to_vec()
+            )
+            .is_err()
+        );
     }
 
     #[test]

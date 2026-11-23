@@ -117,6 +117,12 @@ pub struct Derived {
     /// The altitude over time for a small chart: seconds since `start` and
     /// metres, for a hundred or two points.
     pub profile: Vec<[i32; 2]>,
+    /// How the flight was flown: the counts and sums of the flight
+    /// engine's `venti_flight::habits`, as JSON that the server writes and
+    /// reads, which the store keeps as it is (the store depends on no
+    /// crate but `venti-domain`). `None` for a flight worked out before
+    /// the server kept them, until its analysis is run again.
+    pub habits: Option<String>,
 }
 
 /// The most one account may keep.
@@ -656,6 +662,19 @@ pub struct Flown {
     pub max_altitude_m: i32,
     /// Where the glider took off, if the recording shows it flying.
     pub takeoff: Option<GeoPoint>,
+    /// How it was flown, as [`Derived::habits`].
+    pub habits: Option<String>,
+    /// How far from where it began the flight ended, metres: a straight
+    /// line between the first and the last point of its outline, which are
+    /// the flown part's own, as the apps' logbooks measure it.
+    pub ended_from_start_m: Option<f64>,
+}
+
+/// How far apart the first and the last point of an outline are, metres.
+pub(crate) fn ended_from_start_m(outline: &[[f64; 2]]) -> Option<f64> {
+    let point = |[lat, lon]: [f64; 2]| GeoPoint::new(lat, lon).ok();
+    let (first, last) = (point(*outline.first()?)?, point(*outline.last()?)?);
+    Some(first.distance_m(last))
 }
 
 impl Flown {
@@ -671,6 +690,8 @@ impl Flown {
                 .map(|score| (score.distance_m, score.points)),
             max_altitude_m: flight.derived.max_altitude_m,
             takeoff: flight.derived.takeoff.map(|takeoff| takeoff.position),
+            habits: flight.derived.habits.clone(),
+            ended_from_start_m: ended_from_start_m(&flight.derived.outline),
         }
     }
 }

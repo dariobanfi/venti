@@ -566,6 +566,12 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         Answer(200),
     ),
     (
+        "account_habits.json",
+        "get",
+        "/v1/account/habits",
+        Answer(200),
+    ),
+    (
         "flight_glider_class_request.json",
         "patch",
         "/v1/flights/{id}",
@@ -1084,6 +1090,89 @@ async fn every_golden_answer_is_valid_against_its_schema() {
     assert_eq!(
         not_reached, SCHEMAS_NO_GOLDEN_FILE_REACHES,
         "the schemas no golden file reaches"
+    );
+}
+
+/// The examples in the description are the golden files: each request
+/// body and answer of the table, under its operation and part, by the
+/// name of its file. Rewritten with VENTI_UPDATE_GOLDEN=1, as the golden
+/// files are; the server includes the file when it is built, so after a
+/// rewrite a second run writes `docs/openapi.json` with the new examples.
+#[test]
+fn the_examples_are_the_golden_answers() {
+    let mut examples = serde_json::Map::new();
+    for (file, method, path, part) in GOLDEN {
+        let part = match part {
+            Request => "request".to_owned(),
+            Answer(status) => status.to_string(),
+            // Every operation has the one shape of an error, described
+            // once.
+            Error => continue,
+        };
+        let text = std::fs::read_to_string(golden(file)).unwrap();
+        let value: Value = serde_json::from_str(&text).unwrap();
+        let name = file.strip_suffix(".json").unwrap();
+        examples
+            .entry(format!("{method} {path}"))
+            .or_insert_with(|| serde_json::json!({}))
+            .as_object_mut()
+            .unwrap()
+            .entry(part)
+            .or_insert_with(|| serde_json::json!({}))
+            .as_object_mut()
+            .unwrap()
+            .insert(name.to_owned(), value);
+    }
+    assert_golden(
+        &repository_file("crates/server/src/api/openapi_examples.json"),
+        &Value::Object(examples),
+    );
+}
+
+/// Every operation is in a group of the description's `tags`, which name
+/// each group once.
+#[tokio::test]
+async fn every_operation_is_in_a_named_group() {
+    let (router, _) = router_and_routes().await;
+    let document = served(&router).await;
+    let groups: Vec<&str> = document["tags"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tag| tag["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        groups.iter().collect::<BTreeSet<_>>().len(),
+        groups.len(),
+        "{groups:?}"
+    );
+    let mut used = BTreeSet::new();
+    for (path, methods) in document["paths"].as_object().unwrap() {
+        for (method, operation) in methods.as_object().unwrap() {
+            let tags = operation["tags"].as_array();
+            let tag = tags
+                .and_then(|tags| tags.first())
+                .and_then(Value::as_str)
+                .unwrap_or_else(|| panic!("{method} {path} is in no group"));
+            assert!(groups.contains(&tag), "{method} {path}: {tag}");
+            used.insert(tag);
+        }
+    }
+    assert_eq!(used.len(), groups.len(), "a group without operations");
+    // The groups are as the paths have them.
+    let tag = |method: &str, path: &str| document["paths"][path][method]["tags"][0].clone();
+    assert_eq!(tag("get", "/v1/account/habits"), "Flights");
+    assert_eq!(
+        tag("put", "/v1/pilots/{handle}/follow"),
+        "Pilots among each other"
+    );
+    assert_eq!(tag("get", "/v1/pilots/{handle}"), "Public flights");
+    assert_eq!(tag("get", "/v1/account"), "Accounts");
+    // And an answer has its examples.
+    assert!(
+        document["paths"]["/v1/health"]["get"]["responses"]["200"]["content"]
+            ["application/json"]["examples"]["health"]["value"]
+            .is_object()
     );
 }
 

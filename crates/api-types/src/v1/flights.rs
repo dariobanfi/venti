@@ -303,6 +303,55 @@ impl FlightTerms {
 /// ([`SITE_FLIGHTS_WITHIN_M`](super::SITE_FLIGHTS_WITHIN_M)).
 pub const TAKEOFF_SITE_WITHIN_M: f64 = super::SITE_FLIGHTS_WITHIN_M;
 
+/// Whether a site is one to take off from, by its own record: on foot or
+/// on a tow line, or it names no use at all. A landing field and a
+/// training slope are not.
+pub fn is_a_takeoff(site: &venti_domain::Site) -> bool {
+    use venti_domain::SiteUse;
+    site.uses.is_empty()
+        || site
+            .uses
+            .iter()
+            .any(|usage| matches!(usage, SiteUse::Takeoff | SiteUse::Towing))
+}
+
+/// The site a flight took off from at `takeoff`, of these sites: of those
+/// within [`TAKEOFF_SITE_WITHIN_M`] that are take-offs and have a name, a
+/// partner's (`venti`) before a place from pilots (`venti-pilots`) before
+/// a source's (OpenStreetMap's, a federation's), and of one layer the
+/// nearest; of two as near, the smaller identifier.
+///
+/// The one rule for it: the server names a flight's site with it, and the
+/// core a flight of a logbook on a phone with the sites the pilot keeps.
+pub fn takeoff_site<'a>(
+    takeoff: GeoPoint,
+    sites: impl IntoIterator<Item = &'a venti_domain::Site>,
+) -> Option<&'a venti_domain::Site> {
+    use super::{VENTI_PILOTS_SITES_SOURCE, VENTI_SITES_SOURCE};
+    let layer = |site: &venti_domain::Site| match site.id.source().as_str() {
+        VENTI_SITES_SOURCE => 0,
+        VENTI_PILOTS_SITES_SOURCE => 1,
+        _ => 2,
+    };
+    sites
+        .into_iter()
+        .filter(|site| is_a_takeoff(site))
+        .filter(|site| {
+            site.name
+                .as_deref()
+                .is_some_and(|name| !name.trim().is_empty())
+        })
+        .map(|site| (site, site.position.distance_m(takeoff)))
+        .filter(|(_, distance)| *distance <= TAKEOFF_SITE_WITHIN_M)
+        .min_by(|(a, a_m), (b, b_m)| {
+            layer(a)
+                .cmp(&layer(b))
+                .then(a_m.total_cmp(b_m))
+                .then_with(|| a.id.cmp(&b.id))
+        })
+        .map(|(site, _)| site)
+}
+
 /// The site a flight took off from, by its identifier and its name.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FlightSite {
@@ -980,4 +1029,76 @@ mod tests {
         assert_eq!(country_code("DEU"), None);
         assert_eq!(country_code("D1"), None);
     }
+}
+
+/// The answer of `GET /v1/account/habits`: how each of the pilot's own
+/// flights was flown, in figures, the private ones too, the newest first.
+///
+/// The figures are counts and sums, never averages, so that a program adds
+/// those of any flights it likes to have the figures of all of them. They
+/// are worked out from each flight's file by the rules of the flight
+/// engine (`venti_flight::habits` in the repository), when the file is
+/// uploaded and again when the analysis improves.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HabitsResponse {
+    /// The flights whose figures there are, the newest first.
+    pub flights: Vec<FlightHabits>,
+    /// How many of the account's flights have no figures yet: worked out
+    /// by an older analysis, which the server runs again by itself.
+    pub not_yet: u32,
+}
+
+/// How one flight was flown, in figures.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FlightHabits {
+    /// The flight's address.
+    pub id: FlightId,
+    /// When the flown part of the recording begins.
+    pub start: Timestamp,
+    /// How far from where it began the flight ended, in metres: a straight
+    /// line between the first and the last point of its outline. Absent
+    /// for a flight with no outline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_from_start_m: Option<f64>,
+    /// Thermals circled to the left: a net turn of at least one full
+    /// circle, with at least two thirds of all the turning that way.
+    pub thermals_left: u32,
+    /// Thermals circled to the right, by the same rule.
+    pub thermals_right: u32,
+    /// Thermals circled both ways, or turned too little to say.
+    pub thermals_both_ways: u32,
+    /// Seconds in the thermals circled to the left.
+    pub circling_left_s: i64,
+    /// Seconds in the thermals circled to the right.
+    pub circling_right_s: i64,
+    /// Thermals whose end was measured: two minutes or longer, climbing
+    /// 0.5 m/s or more on average.
+    pub thermals_measured: u32,
+    /// Of those, the ones whose last minute climbed at less than a third
+    /// of their average.
+    pub thermals_ended_weak: u32,
+    /// Over the measured thermals, the seconds between reaching each one's
+    /// highest point and leaving it, together.
+    pub after_the_top_s: i64,
+    /// Over the measured thermals, the height between each one's highest
+    /// point and its exit, metres, together.
+    pub below_the_top_m: i64,
+    /// Height gained in thermals, metres.
+    pub height_gained_m: i64,
+    /// Seconds in thermals.
+    pub thermalling_s: i64,
+    /// The best average climb of a thermal of at least a minute, metres per
+    /// second. Absent if there was no such thermal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub best_climb_ms: Option<f64>,
+    /// Glides of at least a kilometre in a straight line that lost height.
+    pub glides: u32,
+    /// Their distances together, metres, each in a straight line.
+    pub glide_distance_m: f64,
+    /// The height they lost together, metres.
+    pub glide_height_lost_m: i64,
+    /// Seconds on glides, all of them.
+    pub gliding_s: i64,
+    /// Seconds in the air.
+    pub airtime_s: i64,
 }

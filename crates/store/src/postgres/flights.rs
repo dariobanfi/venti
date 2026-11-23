@@ -14,8 +14,8 @@ use venti_domain::{GeoPoint, Timestamp};
 use super::takeoffs::distance;
 use super::{corrupt, db_error};
 use crate::flight::{
-    Kept, PublicEffect, Room, Saved, cut, cut_public, may_be_set, next_change, next_public_change,
-    ranked_order, sought, uploaded_visibility,
+    Kept, PublicEffect, Room, Saved, cut, cut_public, ended_from_start_m, may_be_set, next_change,
+    next_public_change, ranked_order, sought, uploaded_visibility,
 };
 use crate::takeoff::around;
 use crate::{
@@ -36,7 +36,7 @@ pub(super) const FLIGHT_COLUMNS: &str = "
     f.track_length_m, f.max_altitude_m, f.max_climb_ms,
     f.score_kind, f.score_closed, f.score_distance_m, f.score_points,
     f.glider, f.outline, f.profile, f.taken_down_at, f.published_at, f.public_change,
-    a.country AS pilot_country, f.glider_class";
+    a.country AS pilot_country, f.glider_class, f.habits";
 
 pub(super) const FLIGHT_FROM: &str = "FROM flights f JOIN accounts a ON a.id = f.account_id";
 
@@ -124,6 +124,7 @@ pub(super) fn flight_from(row: &Row) -> Result<Flight, StoreError> {
             glider: row.get("glider"),
             outline: pairs(&outline, "flight outline")?,
             profile: pairs(&profile, "flight profile")?,
+            habits: habits_from(row)?,
         },
         change: row.get("change"),
         taken_down_at: row.get("taken_down_at"),
@@ -136,18 +137,24 @@ pub(super) fn flight_from(row: &Row) -> Result<Flight, StoreError> {
     })
 }
 
+/// A flight's figures of how it was flown, kept as JSON text.
+fn habits_from(row: &Row) -> Result<Option<String>, StoreError> {
+    Ok(row.get("habits"))
+}
+
 /// The derived values that need converting before they fit their columns.
-struct DerivedValues {
+struct DerivedValues<'a> {
     version: i32,
     takeoff: PlaceValues,
     landing: PlaceValues,
     score_kind: Option<&'static str>,
     outline: Vec<f64>,
     profile: Vec<i32>,
+    habits: Option<&'a str>,
 }
 
 /// The columns that hold what is worked out from the file.
-const DERIVED_COLUMNS: [&str; 20] = [
+const DERIVED_COLUMNS: [&str; 21] = [
     "analysis_version",
     "started_at",
     "airtime_s",
@@ -168,10 +175,11 @@ const DERIVED_COLUMNS: [&str; 20] = [
     "score_points",
     "glider",
     "outline",
+    "habits",
 ];
 
-impl DerivedValues {
-    fn of(derived: &Derived) -> Self {
+impl<'a> DerivedValues<'a> {
+    fn of(derived: &'a Derived) -> Self {
         Self {
             version: i32::try_from(derived.version).unwrap_or(i32::MAX),
             takeoff: PlaceValues::of(derived.takeoff),
@@ -179,6 +187,7 @@ impl DerivedValues {
             score_kind: derived.score.map(|score| score.kind.as_str()),
             outline: derived.outline.iter().flatten().copied().collect(),
             profile: derived.profile.iter().flatten().copied().collect(),
+            habits: derived.habits.as_deref(),
         }
     }
 }
@@ -420,9 +429,9 @@ pub(super) async fn save(
         "INSERT INTO flights
              (id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
               {}, profile, taken_down_at, published_at, public_change, glider_class)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, {}, $29, $30, $31, $32, $33)",
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, {}, $30, $31, $32, $33, $34)",
         DERIVED_COLUMNS.join(", "),
-        (9..29)
+        (9..30)
             .map(|n| format!("${n}"))
             .collect::<Vec<_>>()
             .join(", "),
@@ -459,6 +468,7 @@ pub(super) async fn save(
             &derived.score.map(|score| score.points),
             &derived.glider,
             &values.outline,
+            &values.habits,
             &values.profile,
             &taken_down_at,
             &published_at,
@@ -849,7 +859,9 @@ pub(super) async fn flown_by(
     let statement = client
         .prepare_cached(&format!(
             "SELECT f.id, f.started_at, f.airtime_s, f.score_distance_m, f.score_points,
-                    f.max_altitude_m, f.takeoff_lat, f.takeoff_lon
+                    f.max_altitude_m, f.takeoff_lat, f.takeoff_lon, f.habits,
+                    f.outline[1:2] AS outline_first,
+                    f.outline[cardinality(f.outline) - 1:cardinality(f.outline)] AS outline_last
              FROM flights f
              WHERE f.account_id = $1 {which}
              ORDER BY f.started_at DESC, f.id DESC"
@@ -866,6 +878,10 @@ pub(super) async fn flown_by(
             let points: Option<f64> = row.get("score_points");
             let lat: Option<f64> = row.get("takeoff_lat");
             let lon: Option<f64> = row.get("takeoff_lon");
+            let ends: Vec<[f64; 2]> = [row.get("outline_first"), row.get("outline_last")]
+                .into_iter()
+                .filter_map(|pair: Vec<f64>| Some([*pair.first()?, *pair.get(1)?]))
+                .collect();
             Ok(Flown {
                 id: row.get("id"),
                 start: row.get("started_at"),
@@ -877,6 +893,8 @@ pub(super) async fn flown_by(
                     .map(|(lat, lon)| GeoPoint::new(lat, lon))
                     .transpose()
                     .map_err(|e| corrupt("flight position", e))?,
+                habits: habits_from(row)?,
+                ended_from_start_m: ended_from_start_m(&ends),
             })
         })
         .collect()
@@ -1503,6 +1521,7 @@ pub(super) async fn set_derived(
                 &derived.score.map(|score| score.points),
                 &derived.glider,
                 &values.outline,
+                &values.habits,
             ],
         )
         .await

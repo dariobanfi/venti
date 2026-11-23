@@ -16,13 +16,16 @@ use venti_domain::GeoPoint;
 use venti_flight::analysis::{self, Moment};
 use venti_flight::igc::{self, Fix, IgcError};
 use venti_flight::scoring::RouteKind;
-use venti_flight::{summarise, track};
+use venti_flight::{habits, summarise, track};
 use venti_store::{Derived, Place, Score, ScoreKind};
 
 /// The version of this analysis. Raise it when a change here or in
 /// `venti-flight` changes what a file gives; the server then works every
 /// stored flight out again.
-pub const ANALYSIS_VERSION: u32 = 1;
+///
+/// Version 2 (2026-11-23) keeps how each flight was flown
+/// ([`venti_flight::habits`]), for the pilot's own "How you fly".
+pub const ANALYSIS_VERSION: u32 = 2;
 
 /// The most fixes a file may hold: more than a day at one fix a second.
 /// A file within the size limit can hold only a few more, so this refuses
@@ -95,6 +98,7 @@ pub fn derive(file: &[u8]) -> Result<Derivation, Unusable> {
     let analysis = analysis::analyse(&recording.fixes);
     let flown = analysis::flown_part(&recording.fixes);
     let summary = summarise(flown).ok_or(Unusable::NoFixes)?;
+    let figures = rounded(habits::habits(flown, &analysis));
     // A flight file gives positions to a thousandth of a minute, under two
     // metres. Six decimals of a degree keep all of that.
     let place = |moment: &Moment| Place {
@@ -138,6 +142,8 @@ pub fn derive(file: &[u8]) -> Result<Derivation, Unusable> {
                     [seconds, point.altitude_m]
                 })
                 .collect(),
+            // Counts and sums of finite numbers, which JSON always holds.
+            habits: serde_json::to_string(&figures).ok(),
         },
     })
 }
@@ -191,6 +197,14 @@ pub(super) fn text_of(file: &[u8]) -> std::borrow::Cow<'_, str> {
 /// in the last bit.
 pub(super) fn round(value: f64, scale: f64) -> f64 {
     (value * scale).round() / scale
+}
+
+/// The figures of how a flight was flown with their two fractions rounded,
+/// for the reason [`round`] gives.
+fn rounded(mut figures: habits::FlightHabits) -> habits::FlightHabits {
+    figures.best_climb_ms = figures.best_climb_ms.map(|climb| round(climb, 100.0));
+    figures.glide_distance_m = round(figures.glide_distance_m, 10.0);
+    figures
 }
 
 /// The simplified track, rounded to about a metre.

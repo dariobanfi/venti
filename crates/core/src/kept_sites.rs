@@ -966,6 +966,41 @@ mod tests {
     }
 
     #[test]
+    fn a_flight_of_the_logbook_is_named_after_the_kept_take_off_it_began_at() {
+        let folder = crate::testing::TempFolder::new();
+        let core = Core::new(folder.path().to_str().unwrap().to_owned()).unwrap();
+        let flight = venti_flight::igc::write(&venti_flight::testing::synthetic_flight());
+        core.import_flight(flight).unwrap();
+        let name = |core: &Core| core.logbook().years[0].flights[0].takeoff_name.clone();
+        assert_eq!(name(&core), None);
+
+        // A landing nearer than any take-off, a take-off without a name,
+        // one 300 m away, one 450 m away and one beyond 500 m.
+        let map = made_up(&format!(
+            r#"{{"id": "osm-free-flying:node/1", "name": "Landing",
+                 "position": {{"lat": 47.6643, "lon": 11.7967}}, "uses": ["landing"]}},
+               {}, {}, {}, {}"#,
+            takeoff(2, None, 0.05, ""),
+            takeoff(3, Some("Wallberg Nord"), 0.45, ""),
+            takeoff(4, Some("Wallberg Süd"), 0.3, ""),
+            takeoff(5, Some("Setzberg"), 0.6, ""),
+        ));
+        for id in [1, 2, 3, 5] {
+            keep(&core, &map, &format!("osm-free-flying:node/{id}"));
+        }
+        // Of those within 500 m, the one 450 m away.
+        assert_eq!(name(&core).as_deref(), Some("Wallberg Nord"));
+        keep(&core, &map, "osm-free-flying:node/4");
+        // The nearest.
+        assert_eq!(name(&core).as_deref(), Some("Wallberg Süd"));
+        // The site statistics name the place so too.
+        assert_eq!(
+            core.site_statistics()[0].name.as_deref(),
+            Some("Wallberg Süd")
+        );
+    }
+
+    #[test]
     fn the_cockpit_map_has_the_take_offs_around_the_glider_nearest_first() {
         on_every_storage(|backing| {
             let core = Core::with_storage(backing.open()).unwrap();

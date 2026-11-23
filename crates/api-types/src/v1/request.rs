@@ -463,6 +463,11 @@ impl PilotsRequest {
 /// for the pilot themself.
 pub const ACCOUNT_STATISTICS_PATH: &str = "/v1/account/statistics";
 
+/// Path of how every flight of the account a request is signed in to was
+/// flown, in figures: the private ones too, for the pilot's own "How you
+/// fly".
+pub const ACCOUNT_HABITS_PATH: &str = "/v1/account/habits";
+
 /// Path of what a pilot's public flights add up to.
 pub fn pilot_statistics_path(pilot: &Handle) -> String {
     format!("/v1/pilots/{pilot}/statistics")

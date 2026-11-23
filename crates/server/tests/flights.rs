@@ -12,13 +12,13 @@ use axum::http::{Method, StatusCode, header};
 use chrono::Duration;
 use futures::StreamExt;
 use venti_api_types::v1::{
-    ACCOUNT_PATH, ACCOUNT_STATISTICS_PATH, AccountResponse, ErrorCode, FLIGHT_CHANGES_PATH,
-    FLIGHTS_PATH, Flight, FlightChangesRequest, FlightChangesResponse, FlightId, FlightResponse,
-    FlightsRequest, FlightsResponse, GliderClass, Handle, MAX_FLIGHT_FILE_BYTES,
-    PUBLIC_FLIGHTS_PATH, PilotRequest, PilotResponse, PilotStatisticsResponse, RouteKind,
-    UpdateAccountRequest, UpdateFlightRequest, UpdateFlightsRequest, UpdateFlightsResponse,
-    UploadResponse, Visibility, flight_file_path, flight_path, pilot_path, share_image_path,
-    share_path,
+    ACCOUNT_HABITS_PATH, ACCOUNT_PATH, ACCOUNT_STATISTICS_PATH, AccountResponse, ErrorCode,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, Flight, FlightChangesRequest, FlightChangesResponse,
+    FlightId, FlightResponse, FlightsRequest, FlightsResponse, GliderClass, HabitsResponse, Handle,
+    MAX_FLIGHT_FILE_BYTES, PUBLIC_FLIGHTS_PATH, PilotRequest, PilotResponse,
+    PilotStatisticsResponse, RouteKind, UpdateAccountRequest, UpdateFlightRequest,
+    UpdateFlightsRequest, UpdateFlightsResponse, UploadResponse, Visibility, flight_file_path,
+    flight_path, pilot_path, share_image_path, share_path,
 };
 use venti_server::accounts::Limits;
 use venti_server::api::Settings;
@@ -517,6 +517,32 @@ async fn the_pilots_country_and_glider_class_go_with_their_flights() {
     assert!(public.overall.flights < own.overall.flights);
     assert_eq!(own.pilot.country.as_deref(), Some("DE"));
     get(&router, ACCOUNT_STATISTICS_PATH)
+        .await
+        .error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
+
+    // How each of the pilot's flights was flown, the private ones too, for
+    // the core's "How you fly".
+    let habits: HabitsResponse = ask(Method::GET, ACCOUNT_HABITS_PATH)
+        .token(DEMO_TOKEN)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert_golden(&golden("account_habits.json"), &habits);
+    assert_eq!(habits.flights.len(), 3);
+    assert_eq!(habits.not_yet, 0);
+    assert!(
+        habits
+            .flights
+            .windows(2)
+            .all(|pair| pair[0].start >= pair[1].start)
+    );
+    assert!(
+        habits.flights.iter().any(|flight| flight.thermals_left
+            + flight.thermals_right
+            + flight.thermals_both_ways
+            > 0)
+    );
+    get(&router, ACCOUNT_HABITS_PATH)
         .await
         .error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
 

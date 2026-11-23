@@ -3678,6 +3678,21 @@ pub fn own_statistics_request() -> Result<Ts<ServerRequest>, JsValue> {
     to_js(&venti_core::own_statistics_request())
 }
 
+/// The request for how each of the pilot's flights on the server was
+/// flown, the private ones too. Read the answer with `ownTendencies`.
+#[wasm_bindgen(js_name = ownHabitsRequest)]
+pub fn own_habits_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::own_habits_request())
+}
+
+/// Reads the answer to `ownHabitsRequest`: what the pilot's flights on
+/// the server say about how they fly, in the words and by the rules of a
+/// logbook's `tendencies`.
+#[wasm_bindgen(js_name = ownTendencies)]
+pub fn own_tendencies(status: u16, body: Vec<u8>) -> Result<Ts<Tendencies>, JsValue> {
+    to_js(&venti_core::own_tendencies(status, body).map_err(thrown)?)
+}
+
 /// A flight file fetched from the server, with the name the logbook would
 /// save it under.
 #[wasm_bindgen(js_name = flightFileFromText)]

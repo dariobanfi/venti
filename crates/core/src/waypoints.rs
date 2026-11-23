@@ -269,10 +269,35 @@ impl Core {
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = waypoints;
     }
 
-    /// The name of the place a flight began at, if the pilot has a
-    /// waypoint there: a take-off within a kilometre, or failing that any
-    /// waypoint close by.
+    /// The name of the place a flight began at: the pilot's own waypoint
+    /// there (a take-off within a kilometre, or failing that any waypoint
+    /// close by), or failing that a flying site the pilot keeps, by the
+    /// rule the server names a flight's site with
+    /// ([`venti_api_types::v1::takeoff_site`]: a take-off with a name
+    /// within 500 m, a partner's before a place from pilots before a
+    /// source's, and the nearest).
     pub(crate) fn place_name(&self, position: Coordinate) -> Option<String> {
+        self.waypoint_name(position)
+            .or_else(|| self.kept_site_name(position))
+    }
+
+    /// The name of the kept site a flight began at, by the server's rule.
+    /// Kept sites that storage has yet to fetch name nothing this time.
+    fn kept_site_name(&self, position: Coordinate) -> Option<String> {
+        let here = GeoPoint::new(position.lat, position.lon).ok()?;
+        let layers = self.kept_layers().ok()?;
+        let site = venti_api_types::v1::takeoff_site(
+            here,
+            layers
+                .iter()
+                .flat_map(|layer| &layer.sites)
+                .map(|kept| &kept.site),
+        )?;
+        Some(site.name.as_deref()?.trim().to_owned())
+    }
+
+    /// The name of the pilot's waypoint a flight began at.
+    fn waypoint_name(&self, position: Coordinate) -> Option<String> {
         let here = GeoPoint::new(position.lat, position.lon).ok()?;
         let waypoints = self.stored_waypoints().ok()?;
         let nearest = |wanted: fn(&Waypoint) -> bool, within_m: f64| {

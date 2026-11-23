@@ -92,7 +92,7 @@
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1,
+      "analysis_version": 2,
       "published_at": "2026-11-18T19:05:00Z"
     },
     {
@@ -183,7 +183,7 @@
         ]
       ],
       "file_bytes": 64678,
-      "analysis_version": 1
+      "analysis_version": 2
     },
     {
       "id": "7fvpx515951prsvkemfbvgkd3w",
@@ -249,7 +249,7 @@
         ]
       ],
       "file_bytes": 29380,
-      "analysis_version": 1
+      "analysis_version": 2
     }
   ]
 }

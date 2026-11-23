@@ -255,6 +255,29 @@ async fn the_tools_are_the_apps_own_definitions() {
     }
 }
 
+/// `docs/mcp-tools.json` is the list of tools the connector serves, as
+/// the newest revision lists them: each tool's name, title, description,
+/// input schema and annotations, for the developer pages and for anyone
+/// who reads the repository. Rewritten with VENTI_UPDATE_GOLDEN=1, as the
+/// golden answers are.
+#[tokio::test]
+async fn the_list_of_tools_in_the_repository_is_the_one_the_connector_serves() {
+    let router = recorded().await;
+    let answer = in_revision(NEWEST, "tools/list", json!({}))
+        .send(&router)
+        .await;
+    let result = result_of(&answer);
+    let tools = json!({
+        "description": "The tools of Venti's connector (MCP) at /mcp, as the server lists \
+                        them to an assistant; docs/mcp.md says how to connect and what each \
+                        returns. Written by crates/server/tests/mcp.rs.",
+        "tools": result["tools"],
+    });
+    assert!(!tools["tools"].as_array().unwrap().is_empty());
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/mcp-tools.json");
+    assert_golden(std::path::Path::new(path), &tools);
+}
+
 #[tokio::test]
 async fn a_tool_answers_with_the_text_the_apps_assistant_reads() {
     let router = recorded().await;

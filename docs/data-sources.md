@@ -838,6 +838,7 @@ Geometry is available from Bavarian and Austrian state geoportals and OpenStreet
 | swisstopo | Swiss maps and imagery | Free with credit, swisstopo's own terms | Open; the orthophoto SWISSIMAGE is in use for the aerial view |
 | Autonome Provinz Bozen - Südtirol | Orthophoto of 2023 at 20 cm | CC BY 4.0 | Open; in use for the aerial view |
 | Sentinel-2 cloudless 2016 | 10 m imagery fallback | CC BY 4.0 (later years are non-commercial share-alike) | Open; in use for the aerial view |
+| Natural Earth | The outlines of the countries, Admin 0 at 1:10m, for the country a flight took off in | Public domain: "All versions of Natural Earth raster + vector map data found on this website are in the public domain." "Crediting the authors is unnecessary." (<https://www.naturalearthdata.com/about/terms-of-use/>, read 2026-11-23) | Use. An adapter crate (`sources-naturalearth`: the countries of Europe as an asset, with its manifest, its notice and the tool that makes it) is written and waits for its file, `ne_10m_admin_0_countries.zip` from naciscdn.org, to be downloaded (*for the owner*); until then the take-off's country is Austria's and France's only ([data-platform.md](data-platform.md#the-pilots-own-flights-from-the-server-what-stands-2026-11-23)) |
 | OpenTopoMap | Raster server shut down in January 2026 | | Skip |
 
 #### The aerial view's photographs

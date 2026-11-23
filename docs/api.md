@@ -15,7 +15,7 @@ Everything here is version 1. It has four parts:
 
 For the maker of a program that is not one of Venti's apps: a page, a script, another app, in any language. It needs HTTP and JSON and nothing of this repository's code. This part says where each thing is; the sections it links to say it in full.
 
-**The description.** [`GET /v1/openapi.json`](#get-v1openapijson) is an OpenAPI 3.1 document of everything under `/v1`: every path and method, its parameters, the shape of its answer and of its body, the one shape every error has, and for each request whether it needs nothing, the pilot's own sign-in, or a token with which scope. The same document is in the repository as [openapi.json](openapi.json). A client can be generated from it. What it does not say is here: what a field means, when which error comes, the bounds.
+**The description.** [`GET /v1/openapi.json`](#get-v1openapijson) is an OpenAPI 3.1 document of everything under `/v1`: every path and method, its parameters, the shape of its answer and of its body, the one shape every error has, and for each request whether it needs nothing, the pilot's own sign-in, or a token with which scope. The same document is in the repository as [openapi.json](openapi.json). Every operation is in one of the groups the document's `tags` list, and request bodies and answers have `examples`, which are the development mode's answers that the tests keep. A client can be generated from it. What it does not say is here: what a field means, when which error comes, the bounds. Beside it the repository has two more files for programs, each written by a test and held to the server: [mcp-tools.json](mcp-tools.json), the tools the connector at `/mcp` lists, with their descriptions, input schemas and annotations ([mcp.md](mcp.md)); and [sources.json](sources.json), every data source the server has an adapter of, from its manifest, with its licence, its credit and the notice it asks for.
 
 **Reading without a key.** Everything anyone may read needs no account, no key and no registration: [stations](#get-v1stationsbboxwestsoutheastnorth) and [their observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth) with [their history](#get-v1sitesidhistoryafterlimit), [who confirmed them](#get-v1sitesidconfirmations) and [what public flights say about them](#what-public-flights-say-about-a-site), [forecasts](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the rain radar](#get-v1radar), [public flights](#public-flights) with [their tracks](#get-v1flightsidtrack), [a pilot's page](#pilots), [the search for pilots](#get-v1pilotsqlimit) and [a pilot's totals](#get-v1pilotshandlestatistics), [the ranking](#ranking), [public live tracks](#live-tracks). Send no token with such a request: an answer to a request with a token is made for one account and is kept by nobody. From a browser, a page on any site may make these reads; [Browsers](#rules-that-hold-for-every-endpoint) says what exactly.
 
@@ -5402,6 +5402,7 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `PATCH /v1/account` | `flights:write` |
 | `GET /v1/flights` | `flights:read` |
 | `GET /v1/account/statistics` | `flights:read` |
+| `GET /v1/account/habits` | `flights:read` |
 | `GET /v1/flights/changes` | `flights:read` |
 | `GET /v1/flights/{id}`, `GET /v1/flights/{id}/igc`, `GET /v1/flights/{id}/track` | Nothing for a flight that is public or shared by link. `flights:read` for the pilot's own private flight |
 | `POST /v1/flights` | `flights:write` |
@@ -6441,7 +6442,7 @@ The answer is `201` when the upload created the flight, and `200` when the accou
       ]
     ],
     "file_bytes": 64678,
-    "analysis_version": 1,
+    "analysis_version": 2,
     "published_at": "2026-11-18T19:05:00Z"
   },
   "created": true
@@ -6541,7 +6542,7 @@ Needs a token. What happened to the account's flights since the device last aske
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1,
+      "analysis_version": 2,
       "published_at": "2026-11-18T19:05:00Z"
     },
     {
@@ -6584,7 +6585,7 @@ Needs a token. What happened to the account's flights since the device last aske
         ]
       ],
       "file_bytes": 64678,
-      "analysis_version": 1
+      "analysis_version": 2
     }
   ],
   "deleted": [],
@@ -6716,7 +6717,7 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
       ]
     ],
     "file_bytes": 68008,
-    "analysis_version": 1,
+    "analysis_version": 2,
     "published_at": "2026-11-18T19:05:00Z"
   },
   "terms": {
@@ -7491,6 +7492,102 @@ This is the development mode's answer for the demo account, whose three flights 
 }
 ```
 
+### `GET /v1/account/habits`
+
+How each flight of the account was flown, in figures, the private ones and those shared by link too, the newest first: what the pilot's own "How you fly" is said from. Needs a token, with `flights:read` for a program. `Cache-Control: private, no-store`. It is not counted as a read of public flights, and there is no public one: how a pilot circles and leaves thermals is theirs.
+
+The figures are worked out from each flight's file when it arrives, by the rules of the flight engine (`crates/flight/src/habits.rs`), and kept with the flight; they are counts and sums, never averages, so that a program adds those of any flights it likes for the figures of all of them, and the "flight that shows it most" is the one with the highest figure. A flight that an older analysis worked out has none until the server has worked it out again, which it does by itself after an upgrade (analysis version 2); `not_yet` counts those.
+
+| Field | What it is |
+|---|---|
+| `ended_from_start_m` | How far from where it began the flight ended, in a straight line between the first and the last point of its outline, metres to a tenth. Absent for a flight with no outline |
+| `thermals_left`, `thermals_right` | Thermals circled one way: a net turn of at least one full circle, with at least two thirds of all the turning that way. Fixes closer than 15 m count as one place |
+| `thermals_both_ways` | The other thermals: flown back and forth, or turned too little to say |
+| `circling_left_s`, `circling_right_s` | Seconds in the thermals circled each way |
+| `thermals_measured` | Thermals of two minutes or more that climbed 0.5 m/s or more on average: those whose end is measured |
+| `thermals_ended_weak` | Of those, the ones whose last minute climbed at less than a third of the thermal's average |
+| `after_the_top_s`, `below_the_top_m` | Over the measured thermals together, the seconds and the metres between each one's highest point and leaving it |
+| `height_gained_m`, `thermalling_s` | Height gained in thermals (one that lost height adds nothing) and the seconds in them |
+| `best_climb_ms` | The best average climb of a thermal of at least a minute, to a hundredth. Absent without one |
+| `glides`, `glide_distance_m`, `glide_height_lost_m` | Glides of at least a kilometre in a straight line that lost height, their distances together to a tenth of a metre and the height they lost |
+| `gliding_s`, `airtime_s` | Seconds on all glides, and in the air |
+
+Venti's core says the tendencies from it with the rules it uses over a logbook on a phone (`own_habits_request` and `own_tendencies`; `ownHabitsRequest` and `ownTendencies` in the browser). This is the development mode's answer for the demo account:
+
+```json
+{
+  "flights": [
+    {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "start": "2026-08-15T10:30:00Z",
+      "ended_from_start_m": 3802.4,
+      "thermals_left": 0,
+      "thermals_right": 2,
+      "thermals_both_ways": 0,
+      "circling_left_s": 0,
+      "circling_right_s": 410,
+      "thermals_measured": 2,
+      "thermals_ended_weak": 0,
+      "after_the_top_s": 0,
+      "below_the_top_m": 0,
+      "height_gained_m": 835,
+      "thermalling_s": 410,
+      "best_climb_ms": 2.35,
+      "glides": 1,
+      "glide_distance_m": 4156.5,
+      "glide_height_lost_m": 404,
+      "gliding_s": 1342,
+      "airtime_s": 1752
+    },
+    {
+      "id": "7cf5ytrw45b0aeb5tcr8wet2km",
+      "start": "2026-07-04T10:30:00Z",
+      "ended_from_start_m": 3802.4,
+      "thermals_left": 0,
+      "thermals_right": 2,
+      "thermals_both_ways": 0,
+      "circling_left_s": 0,
+      "circling_right_s": 410,
+      "thermals_measured": 2,
+      "thermals_ended_weak": 0,
+      "after_the_top_s": 0,
+      "below_the_top_m": 0,
+      "height_gained_m": 835,
+      "thermalling_s": 410,
+      "best_climb_ms": 2.35,
+      "glides": 1,
+      "glide_distance_m": 4156.5,
+      "glide_height_lost_m": 404,
+      "gliding_s": 1334,
+      "airtime_s": 1744
+    },
+    {
+      "id": "7fvpx515951prsvkemfbvgkd3w",
+      "start": "2025-06-21T10:30:00Z",
+      "ended_from_start_m": 4229.0,
+      "thermals_left": 0,
+      "thermals_right": 1,
+      "thermals_both_ways": 0,
+      "circling_left_s": 0,
+      "circling_right_s": 251,
+      "thermals_measured": 1,
+      "thermals_ended_weak": 0,
+      "after_the_top_s": 0,
+      "below_the_top_m": 0,
+      "height_gained_m": 591,
+      "thermalling_s": 251,
+      "best_climb_ms": 2.35,
+      "glides": 1,
+      "glide_distance_m": 3958.3,
+      "glide_height_lost_m": 384,
+      "gliding_s": 456,
+      "airtime_s": 707
+    }
+  ],
+  "not_yet": 0
+}
+```
+
 ### `GET /v1/pilots/{handle}/following?after=&limit=`
 
 Whom the pilot follows, the newest first: the same answer, with the followed pilots who have a page in `pilots`.
@@ -7824,7 +7921,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1,
+      "analysis_version": 2,
       "published_at": "2026-11-18T19:05:00Z"
     },
     {
@@ -7868,7 +7965,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
         ]
       ],
       "file_bytes": 55650,
-      "analysis_version": 1,
+      "analysis_version": 2,
       "published_at": "2026-11-18T19:05:00Z"
     }
   ],
@@ -7938,7 +8035,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1,
+      "analysis_version": 2,
       "published_at": "2026-11-18T19:05:00Z"
     },
     {
@@ -7990,7 +8087,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1,
+      "analysis_version": 2,
       "published_at": "2026-11-18T19:05:00Z"
     }
   ],
@@ -8095,7 +8192,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003&lim
         ]
       ],
       "file_bytes": 68008,
-      "analysis_version": 1,
+      "analysis_version": 2,
       "published_at": "2026-11-18T19:05:00Z"
     }
   ],
@@ -8257,7 +8354,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             ]
           ],
           "file_bytes": 68008,
-          "analysis_version": 1,
+          "analysis_version": 2,
           "published_at": "2026-11-18T19:05:00Z"
         },
         {
@@ -8301,7 +8398,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             ]
           ],
           "file_bytes": 55650,
-          "analysis_version": 1,
+          "analysis_version": 2,
           "published_at": "2026-11-18T19:05:00Z"
         }
       ]
@@ -8362,7 +8459,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             ]
           ],
           "file_bytes": 68008,
-          "analysis_version": 1,
+          "analysis_version": 2,
           "published_at": "2026-11-18T19:05:00Z"
         }
       ]
@@ -9865,7 +9962,7 @@ This is the demo account's public flight after it was taken down, as its pilot r
       ]
     ],
     "file_bytes": 68008,
-    "analysis_version": 1,
+    "analysis_version": 2,
     "taken_down_at": "2026-11-18T19:05:00Z"
   }
 }

@@ -724,6 +724,7 @@ pub(crate) mod tests {
                     [47.6831, 11.7604],
                 ],
                 profile: vec![[0, 1620], [1800, 2817], [6000, 1900], [8040, 742]],
+                habits: None,
             },
             change: 1,
         }

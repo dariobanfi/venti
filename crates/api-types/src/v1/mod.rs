@@ -53,6 +53,7 @@
 //! | [`ACCOUNT_PICTURE_PATH`] | PUT | a JPEG, PNG or WebP picture | [`AccountResponse`] |
 //! | [`ACCOUNT_PICTURE_PATH`] | DELETE | | [`AccountResponse`] |
 //! | [`picture_path`] | GET | | the picture, WebP |
+//! | [`ACCOUNT_HABITS_PATH`] | GET | | [`HabitsResponse`] |
 //! | [`LIVE_POSITIONS_PATH`] | POST | [`LivePositionsRequest`] | [`LivePositionsResponse`] |
 //! | [`LIVE_PATH`] | GET | [`LiveTracksRequest`] | [`LiveTracksResponse`] |
 //! | [`LIVE_OTHERS_PATH`] | GET | [`LiveOthersRequest`] | [`LiveOthersResponse`] |
@@ -184,13 +185,13 @@ pub use flights::{
     MAX_TRACK_POINTS, Pilot, PilotResponse, PublicFlightChangesResponse, RANKING_COUNTED,
     RankedPilot, RankingResponse, RouteKind, TAKEOFF_SITE_WITHIN_M, TrackLine, TrackProperties,
     UpdateFlightRequest, UpdateFlightsRequest, UpdateFlightsResponse, UploadResponse, Visibility,
-    WithdrawnFlight, country_code,
+    WithdrawnFlight, country_code, is_a_takeoff, takeoff_site,
 };
 pub use flights::{
-    FlownSite, FoundPilot, HighestFlight, LongestFlight, PILOT_SEARCH_MAX_CHARS,
-    PILOT_SEARCH_MIN_CHARS, PILOT_SITE_STEP_DEG, PILOT_TOP_SITES, PilotSeason,
-    PilotStatisticsResponse, PilotTotals, PilotsResponse, RankingMonth, RankingYear, YearMonth,
-    YearMonthError,
+    FlightHabits, FlownSite, FoundPilot, HabitsResponse, HighestFlight, LongestFlight,
+    PILOT_SEARCH_MAX_CHARS, PILOT_SEARCH_MIN_CHARS, PILOT_SITE_STEP_DEG, PILOT_TOP_SITES,
+    PilotSeason, PilotStatisticsResponse, PilotTotals, PilotsResponse, RankingMonth, RankingYear,
+    YearMonth, YearMonthError,
 };
 pub use foehn::{
     FOEHN_PATH, FoehnLevel, FoehnPair, FoehnPoint, FoehnPressure, FoehnReducedBy, FoehnResponse,
@@ -247,23 +248,24 @@ pub use report::{
     ReportTextError, ReportedComment, ReportedPlan, ReportedSite, parse_report_text,
 };
 pub use request::{
-    ACCOUNT_GOOGLE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_STATISTICS_PATH,
-    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH,
-    AirspaceRequest, BboxError, DEV_GOOGLE_ID_TOKEN_PATH, DayError, FLIGHT_CHANGES_PATH,
-    FLIGHTS_PATH, FORECAST_PATH, FlightChangesRequest, FlightSort, FlightSortError, FlightsRequest,
-    ForecastRequest, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
-    LIVE_POSITIONS_PATH, LiveOthersRequest, LiveTrackRequest, LiveTracksRequest,
-    ObservationsRequest, PILOTS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
-    PUBLIC_FLIGHTS_PATH, PilotRequest, PilotsRequest, PlanBoardRequest, PlanDays, PlansRequest,
-    PositionError, PublicFlightChangesRequest, PublicFlightsRequest, RANKING_PATH, REPORTS_PATH,
-    RankingRequest, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH,
-    STATIONS_PATH, SitesRequest, StationsRequest, TimeError, account_token_path, flight_file_path,
-    flight_path, flight_track_path, format_bbox, format_day, format_time, group_invite_path,
-    group_keeper_path, group_member_path, group_path, group_plans_path, live_page_path,
-    live_track_path, observations_path, parse_bbox, parse_day, parse_position, parse_time,
-    pilot_path, pilot_statistics_path, plan_in_path, plan_path, session_path, share_image_path,
-    share_path, site_candidates_path, site_confirmation_path, site_confirmations_path,
-    site_flights_path, site_history_path, site_path, site_revisions_path, sites_path,
+    ACCOUNT_GOOGLE_PATH, ACCOUNT_HABITS_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
+    ACCOUNT_STATISTICS_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
+    AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, AirspaceRequest, BboxError,
+    DEV_GOOGLE_ID_TOKEN_PATH, DayError, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
+    FlightChangesRequest, FlightSort, FlightSortError, FlightsRequest, ForecastRequest,
+    GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
+    LiveOthersRequest, LiveTrackRequest, LiveTracksRequest, ObservationsRequest, PILOTS_PATH,
+    PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, PilotRequest, PilotsRequest,
+    PlanBoardRequest, PlanDays, PlansRequest, PositionError, PublicFlightChangesRequest,
+    PublicFlightsRequest, RANKING_PATH, REPORTS_PATH, RankingRequest, SESSIONS_PATH,
+    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, SitesRequest,
+    StationsRequest, TimeError, account_token_path, flight_file_path, flight_path,
+    flight_track_path, format_bbox, format_day, format_time, group_invite_path, group_keeper_path,
+    group_member_path, group_path, group_plans_path, live_page_path, live_track_path,
+    observations_path, parse_bbox, parse_day, parse_position, parse_time, pilot_path,
+    pilot_statistics_path, plan_in_path, plan_path, session_path, share_image_path, share_path,
+    site_candidates_path, site_confirmation_path, site_confirmations_path, site_flights_path,
+    site_history_path, site_path, site_revisions_path, sites_path,
 };
 pub use route::{
     ROUTE_POINTS_AT_MOST, ROUTE_WEATHER_PATH, RoutePointsError, RouteWeatherHour,

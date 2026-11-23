@@ -50,11 +50,9 @@ use venti_api_types::v1::{
     SITE_FLIGHTS_WITHIN_M, SiteBestFlight, SiteCandidate, SiteCandidatesResponse,
     SiteFlightsResponse, TAKEOFF_SITE_WITHIN_M, parse_bbox,
 };
-use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SiteUse, SourceId};
+use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SourceId};
 use venti_sources::Kind;
 use venti_store::{CandidateRule, Flight, FlightsFrom, Near, Store, Visibility, solar_day};
-
-use crate::pilot_sites::Layer;
 
 use super::budget::Reader;
 use super::cache::Keeper;
@@ -66,54 +64,21 @@ const BBOX_HELP: &str =
     "give bbox as west,south,east,north in degrees, for example bbox=11.6,47.55,12.0,47.85";
 
 /// The site a flight took off from, of the standing sites near where it
-/// took off ([`TAKEOFF_SITE_WITHIN_M`]): of those that are take-offs and
-/// have a name, a partner's (`venti`) before a place from pilots
-/// (`venti-pilots`) before a source's (OpenStreetMap's), and of one
-/// layer the nearest; of two as near, the smaller identifier.
-/// It comes with where the site stands.
+/// took off, by the one rule of [`v1::takeoff_site`], with where the site
+/// stands.
 fn takeoff_site(takeoff: GeoPoint, near: &[Site]) -> Option<(FlightSite, GeoPoint)> {
-    let layer = |site: &Site| match Layer::of(&site.id) {
-        Some(Layer::Partners) => 0,
-        Some(Layer::Pilots) => 1,
-        None => 2,
-    };
-    near.iter()
-        .filter(|site| is_a_takeoff(site))
-        .filter_map(|site| {
-            let name = site.name.as_deref().map(str::trim)?;
-            (!name.is_empty()).then_some((site, name))
-        })
-        .min_by(|(a, _), (b, _)| {
-            layer(a)
-                .cmp(&layer(b))
-                .then(
-                    a.position
-                        .distance_m(takeoff)
-                        .total_cmp(&b.position.distance_m(takeoff)),
-                )
-                .then_with(|| a.id.cmp(&b.id))
-        })
-        .map(|(site, name)| {
-            (
-                FlightSite {
-                    id: site.id.clone(),
-                    name: name.to_owned(),
-                },
-                site.position,
-            )
-        })
+    v1::takeoff_site(takeoff, near).and_then(|site| {
+        Some((
+            FlightSite {
+                id: site.id.clone(),
+                name: site.name.as_deref()?.trim().to_owned(),
+            },
+            site.position,
+        ))
+    })
 }
 
-/// Whether a site is one to take off from, by its own record: on foot or
-/// on a tow line, or it names no use at all. A landing field and a
-/// training slope are not.
-pub(super) fn is_a_takeoff(site: &Site) -> bool {
-    site.uses.is_empty()
-        || site
-            .uses
-            .iter()
-            .any(|usage| matches!(usage, SiteUse::Takeoff | SiteUse::Towing))
-}
+pub(super) use v1::is_a_takeoff;
 
 impl<S: Store> Api<S> {
     /// Flights as an answer shows them, each with the site it took off

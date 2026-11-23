@@ -41,7 +41,23 @@ fn derived(start: Timestamp) -> Derived {
         glider: Some("Sample Wing".to_owned()),
         outline: vec![[47.6642, 11.7967], [47.7, 11.75], [47.683_33, 11.76]],
         profile: vec![[0, 1620], [342, 2117], [1744, 786]],
+        habits: Some(habits()),
     }
+}
+
+/// How the short flight of [`derived`] was flown, as the server writes
+/// it, with figures that do not survive rounding: the store keeps the text
+/// as it is.
+fn habits() -> String {
+    r#"{"thermals_left":3,"thermals_right":1,"best_climb_ms":0.30000000000000004,"glide_distance_m":2345.6789012345}"#
+        .to_owned()
+}
+
+/// How far apart the ends of [`derived`]'s outline are, metres.
+fn ended_from_start_m() -> f64 {
+    GeoPoint::new(47.6642, 11.7967)
+        .unwrap()
+        .distance_m(GeoPoint::new(47.683_33, 11.76).unwrap())
 }
 
 /// Flight number `n` of an account, starting at `start`. The identity
@@ -158,6 +174,7 @@ pub(crate) async fn a_flight_is_stored_private_and_read_back_exactly(store: &imp
             glider: None,
             outline: Vec::new(),
             profile: Vec::new(),
+            habits: None,
             ..derived(at(12, 0))
         },
         ..new_flight(&dario, 2, at(12, 0))
@@ -743,6 +760,7 @@ pub(crate) async fn derived_values_can_be_worked_out_again(store: &impl Store) {
         glider: None,
         outline: vec![[47.0, 11.0], [47.1, 11.1]],
         profile: vec![[0, 1000]],
+        habits: Some(r#"{"thermals_left":0}"#.to_owned()),
         ..derived(at(11, 30))
     };
     assert!(
@@ -2192,6 +2210,8 @@ pub(crate) async fn flown_by_has_public_flights(store: &impl Store) {
     // One that never shows the glider flying and is too short to score.
     let mut ground = flown(&dario, 2, at(12, 0), WALLBERG, None);
     ground.derived.takeoff = None;
+    ground.derived.habits = None;
+    ground.derived.outline = Vec::new();
     ground.derived.airtime_s = 61;
     ground.derived.max_altitude_m = 801;
     publish(store, &ground).await;
@@ -2210,6 +2230,8 @@ pub(crate) async fn flown_by_has_public_flights(store: &impl Store) {
                 score: None,
                 max_altitude_m: 801,
                 takeoff: None,
+                habits: None,
+                ended_from_start_m: None,
             },
             Flown {
                 id: scored.id.clone(),
@@ -2218,6 +2240,8 @@ pub(crate) async fn flown_by_has_public_flights(store: &impl Store) {
                 score: Some((42_500.0, 42.5)),
                 max_altitude_m: 2117,
                 takeoff: Some(GeoPoint::new(BRAUNECK.0, BRAUNECK.1).unwrap()),
+                habits: Some(habits()),
+                ended_from_start_m: Some(ended_from_start_m()),
             },
         ]
     );

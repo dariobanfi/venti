@@ -32,11 +32,11 @@ use axum::response::Response;
 use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
     ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_FEED_PATH, ACCOUNT_FOLLOWING_PATH,
-    ACCOUNT_GOOGLE_PATH, ACCOUNT_NOTIFICATIONS_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
-    ACCOUNT_STATISTICS_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH,
-    ALERTS_PATH, ARCHIVE_MEDIA_TYPE, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, CABLES_PATH,
-    CSV_MEDIA_TYPE, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
-    FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
+    ACCOUNT_GOOGLE_PATH, ACCOUNT_HABITS_PATH, ACCOUNT_NOTIFICATIONS_PATH, ACCOUNT_PASSWORD_PATH,
+    ACCOUNT_PATH, ACCOUNT_STATISTICS_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
+    ALERTS_FIRED_PATH, ALERTS_PATH, ARCHIVE_MEDIA_TYPE, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH,
+    CABLES_PATH, CSV_MEDIA_TYPE, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH,
+    FLIGHTS_PATH, FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
     LIVE_POSITIONS_PATH, MAPS_PATH, PILOTS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
     PUBLIC_FLIGHTS_PATH, PUSH_KEY_PATH, PUSH_SUBSCRIPTION_PATH, RADAR_PATH, RANKING_PATH,
@@ -53,6 +53,156 @@ pub const OPENAPI_PATH: &str = "/v1/openapi.json";
 /// The schemas of the records that go over the wire, by the name of
 /// their type in `venti-api-types`.
 const SCHEMAS: &str = include_str!("openapi_schemas.json");
+
+/// The examples of request bodies and answers, by operation (`get
+/// /v1/health`) and part (`request`, or the status), each by the name of
+/// the golden file it is. Written by the test
+/// `the_examples_are_the_golden_answers` in `crates/server/tests/openapi.rs`
+/// from the golden files and the table that names each one's operation,
+/// so that every example is an answer the development mode gave.
+const EXAMPLES: &str = include_str!("openapi_examples.json");
+
+/// The groups the operations are shown in, in order, each with what it
+/// holds and the beginnings of the paths that are its. An operation is in
+/// the group whose beginning of a path is the longest that its path
+/// begins with.
+const TAGS: &[(&str, &str, &[&str])] = &[
+    (
+        "Server",
+        "How the server and its sources are doing, and this description.",
+        &["/v1/health", "/v1/openapi.json", "/v1/dev/"],
+    ),
+    (
+        "Weather",
+        "Stations, forecasts, thermals, the weather along a route, rain radar and foehn.",
+        &[
+            "/v1/stations",
+            "/v1/forecast",
+            "/v1/thermals",
+            "/v1/route/weather",
+            "/v1/radar",
+            "/v1/foehn",
+        ],
+    ),
+    (
+        "Airspace and cables",
+        "Airspace and the cables hung in the air, in layers by source.",
+        &["/v1/airspace", "/v1/cables"],
+    ),
+    (
+        "Sites",
+        "Flying sites of every layer, those of Venti's partners and pilots with their history, \
+         what public flights say of a site, and the dumps of Venti's own layers.",
+        &["/v1/sites", "/v1/dumps"],
+    ),
+    (
+        "Maps",
+        "Map files for regions and map imagery.",
+        &["/v1/maps", "/v1/imagery"],
+    ),
+    (
+        "Accounts",
+        "Accounts, sign-in, sessions, pilots' pictures, tokens for other programs, an \
+         assistant's agreement and everything a pilot gave.",
+        &[
+            "/v1/accounts",
+            "/v1/account",
+            "/v1/sessions",
+            "/v1/auth",
+            "/v1/oauth",
+            "/v1/pictures",
+        ],
+    ),
+    (
+        "Flights",
+        "The pilot's own flights: the logbook on the account, its changes, statistics and how \
+         each flight was flown; one flight, its file and its track.",
+        &[
+            "/v1/flights",
+            "/v1/account/statistics",
+            "/v1/account/habits",
+        ],
+    ),
+    (
+        "Public flights",
+        "Everyone's public flights as data, pilots' pages and statistics, and the ranking.",
+        &["/v1/flights/public", "/v1/pilots", "/v1/ranking"],
+    ),
+    (
+        "Pilots among each other",
+        "Following pilots, cheers and comments, the feed and notifications.",
+        &[
+            "/v1/pilots/{handle}/follow",
+            "/v1/flights/{id}/cheer",
+            "/v1/flights/{id}/comments",
+            "/v1/account/feed",
+            "/v1/account/following",
+            "/v1/account/notifications",
+        ],
+    ),
+    (
+        "Kept sites",
+        "The sites a pilot keeps, in step across their devices.",
+        &["/v1/account/kept-sites"],
+    ),
+    (
+        "Alarms",
+        "Alarms for wind and pilots, and Web Push.",
+        &["/v1/account/alerts", "/v1/account/push", "/v1/push"],
+    ),
+    (
+        "Live tracks",
+        "Live positions in the air, and what they say about climbs and sites.",
+        &["/v1/live"],
+    ),
+    (
+        "Groups and plans",
+        "Groups of pilots and their plans for a flying day.",
+        &["/v1/groups"],
+    ),
+    (
+        "Reports",
+        "Telling whoever runs the server of something that should not be there.",
+        &["/v1/reports"],
+    ),
+];
+
+/// The group of an operation on this path. `None` only for a path no
+/// group begins, which a test rules out.
+fn tag_of(path: &str) -> Option<&'static str> {
+    TAGS.iter()
+        .flat_map(|(tag, _, beginnings)| beginnings.iter().map(move |begins| (*tag, *begins)))
+        .filter(|(_, begins)| path.starts_with(begins))
+        .max_by_key(|(_, begins)| begins.len())
+        .map(|(tag, _)| tag)
+}
+
+/// The examples of one part of an operation, as the media type's
+/// `examples` holds them, if there are any.
+fn examples_of(examples: &Value, op: &Op, part: &str) -> Option<Value> {
+    let found = examples
+        .get(format!("{} {}", op.method, op.path))?
+        .get(part)?
+        .as_object()?;
+    Some(Value::Object(
+        found
+            .iter()
+            .map(|(name, value)| (name.clone(), json!({"value": value})))
+            .collect(),
+    ))
+}
+
+/// The examples, read once.
+fn examples() -> &'static Value {
+    static EXAMPLE_FILE: LazyLock<Value> = LazyLock::new(|| {
+        serde_json::from_str(EXAMPLES).unwrap_or_else(|error| {
+            // The file is part of the program; a test writes it.
+            tracing::error!(%error, "the examples of the API's description cannot be read");
+            json!({})
+        })
+    });
+    &EXAMPLE_FILE
+}
 
 /// `GET /v1/openapi.json`: the description, the same for everyone.
 pub(crate) async fn show(headers: HeaderMap) -> Response {
@@ -693,6 +843,12 @@ fn operations() -> Vec<Op> {
         .json("AccountResponse"),
         get("/v1/pictures/{id}", "A pilot's picture")
             .bytes("image/webp", "The picture, 256 by 256 pixels"),
+        get(
+            ACCOUNT_HABITS_PATH,
+            "How each of the account's flights was flown, in figures, the private ones too",
+        )
+        .with(FlightsRead)
+        .json("HabitsResponse"),
         // Pilots among each other.
         put("/v1/pilots/{handle}/follow", "Follow a pilot")
             .with(SocialWrite)
@@ -1131,10 +1287,11 @@ fn operation(op: &Op) -> Value {
                 )),
             };
             if let Some((media_type, schema)) = content {
-                response.insert(
-                    "content".to_owned(),
-                    json!({media_type: {"schema": schema}}),
-                );
+                let mut described = json!({"schema": schema});
+                if let Some(found) = examples_of(examples(), op, &status.to_string()) {
+                    described["examples"] = found;
+                }
+                response.insert("content".to_owned(), json!({media_type: described}));
             }
         }
         responses.insert(status.to_string(), Value::Object(response));
@@ -1155,6 +1312,9 @@ fn operation(op: &Op) -> Value {
     );
 
     let mut described = Map::new();
+    if let Some(tag) = tag_of(op.path) {
+        described.insert("tags".to_owned(), json!([tag]));
+    }
     described.insert("summary".to_owned(), json!(op.summary));
     described.insert("description".to_owned(), json!(who));
     described.insert("operationId".to_owned(), json!(operation_id(op)));
@@ -1190,7 +1350,13 @@ fn operation(op: &Op) -> Value {
             }))
         }
     };
-    if let Some(body) = body {
+    if let Some(mut body) = body {
+        if let (Some(found), Some(json)) = (
+            examples_of(examples(), op, "request"),
+            body.pointer_mut("/content/application~1json"),
+        ) {
+            json["examples"] = found;
+        }
         described.insert("requestBody".to_owned(), body);
     }
     described.insert("responses".to_owned(), Value::Object(responses));
@@ -1265,6 +1431,10 @@ fn build() -> Value {
             ),
         },
         "servers": [{"url": "/", "description": "The server the description was read from"}],
+        "tags": TAGS
+            .iter()
+            .map(|(name, description, _)| json!({"name": name, "description": description}))
+            .collect::<Vec<_>>(),
         "paths": paths,
         "components": {
             "schemas": schemas,

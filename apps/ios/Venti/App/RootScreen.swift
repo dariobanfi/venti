@@ -1,4 +1,5 @@
 import SwiftUI
+import VentiCore
 
 /// The app's sections, as the design language's tab bar has them. The
 /// assistant and the settings are not among them: they open from the
@@ -51,6 +52,15 @@ final class AppNavigation {
         tab = .logbook
         logbookPath = NavigationPath([FlightRoute(id: id)])
     }
+
+    /// What a tapped push names, shown over the Community tab: a call for
+    /// help or an open plan.
+    var pushed: PhoneTarget?
+
+    func show(pushed target: PhoneTarget) {
+        tab = .community
+        pushed = target
+    }
 }
 
 struct RootScreen: View {
@@ -60,6 +70,7 @@ struct RootScreen: View {
     @Environment(TaskModel.self) private var tasks
     @Environment(WatchedFolder.self) private var watched
     @Environment(FlySession.self) private var fly
+    @Environment(NearbyModel.self) private var nearby
     @Environment(\.scenePhase) private var scenePhase
     @State private var navigation = AppNavigation()
     @State private var notice: ImportNotice?
@@ -104,6 +115,12 @@ struct RootScreen: View {
                 // And what the alarms fired since, each new line a
                 // notification: Venti sends nothing by itself.
                 Task { await alerts.sync(notifies: true) }
+                // And what pilots nearby do: the settings, which decide
+                // whether the position is told, and the calls that stand.
+                Task {
+                    await nearby.loadSettings()
+                    await nearby.loadHelp()
+                }
                 // And the flight files that are new in the folder the
                 // pilot has Venti watch: without a word, the flights are
                 // in the logbook.
@@ -129,6 +146,28 @@ struct RootScreen: View {
                 AlertNotices.taps.opensAlerts = false
                 navigation.showAlerts()
             }
+        }
+        // A tap on a push from Venti: a call for help, or an open plan.
+        .onChange(of: AlertNotices.taps.opens, initial: true) { _, target in
+            if let target {
+                AlertNotices.taps.opens = nil
+                navigation.show(pushed: target)
+            }
+        }
+        // A call for help or an answer pushed while the app is in front.
+        .onChange(of: AlertNotices.taps.helpArrived) {
+            Task { await nearby.loadHelp() }
+        }
+        .sheet(item: $navigation.pushed) { target in
+            PushedScreen(target: target)
+                .environment(navigation)
+        }
+        // While the pilot may be asked for help and the app is in front,
+        // Venti is told roughly where the iPhone is: now, and every ten
+        // minutes. Never in the background.
+        .task(id: scenePhase == .active && account.isSignedIn && nearby.mayBeAskedForHelp) {
+            guard scenePhase == .active, account.isSignedIn, nearby.mayBeAskedForHelp else { return }
+            await tellPositionWhileInFront()
         }
         // The cockpit closed: the watch for the next take-off begins anew,
         // while the app is in front.
@@ -190,6 +229,26 @@ struct RootScreen: View {
             }
         }
         .importNotice($notice)
+    }
+
+    /// Tells Venti where the iPhone is, roughly, now and every ten minutes,
+    /// for as long as the task runs. The position is read only where the
+    /// pilot has allowed it; nothing is asked here.
+    private func tellPositionWhileInFront() async {
+        let position = PilotPosition()
+        while !Task.isCancelled {
+            position.readIfAllowed()
+            for _ in 0..<30 where position.place == nil && !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+            if let place = position.place {
+                await nearby.tellPosition(at: place)
+                try? await Task.sleep(for: NearbyModel.positionEvery)
+            } else {
+                // Not allowed yet, or no fix: looked at again shortly.
+                try? await Task.sleep(for: .seconds(5))
+            }
+        }
     }
 
     /// The system hands a file opened from another app over as a copy in the

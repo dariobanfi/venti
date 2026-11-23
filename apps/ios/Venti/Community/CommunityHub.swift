@@ -20,6 +20,7 @@ struct CommunityHub: View {
     @Environment(GroupsModel.self) private var groups
     @Environment(CommunityModel.self) private var community
     @Environment(OpenPlansModel.self) private var openPlans
+    @Environment(NearbyModel.self) private var nearby
 
     @State private var typed = ""
     @State private var search = PilotSearch()
@@ -36,6 +37,7 @@ struct CommunityHub: View {
     @State private var position = PilotPosition()
     @State private var isAddingPlan = false
     @State private var isAddingOpenPlan = false
+    @State private var isAskingForHelp = false
 
     /// How many of the feed's flights and of the lines told stand here;
     /// the rest are a tap away.
@@ -63,6 +65,11 @@ struct CommunityHub: View {
                     found
                 } else {
                     if isSignedIn {
+                        // Pilots nearby who landed and asked this pilot for
+                        // help: first, while their calls stand.
+                        if !nearby.asked.isEmpty {
+                            helpAsked
+                        }
                         plans
                         openPlansNear(isSignedIn: true)
                         following
@@ -73,6 +80,7 @@ struct CommunityHub: View {
                     pilotsNear
                     if isSignedIn {
                         notifications
+                        helpAfterLanding
                     }
                 }
             }
@@ -106,6 +114,9 @@ struct CommunityHub: View {
         .sheet(isPresented: $isAddingOpenPlan) {
             OpenPlanForm(editing: nil, startingAt: openPlans.place)
         }
+        .sheet(isPresented: $isAskingForHelp) {
+            HelpAskSheet(landedAt: nil)
+        }
         .refreshable {
             await load(isSignedIn: isSignedIn)
         }
@@ -126,7 +137,8 @@ struct CommunityHub: View {
             async let board: Void = groups.load()
             async let feed: Void = loadFeed()
             async let told: Void = loadTold()
-            _ = await (board, feed, told)
+            async let help: Void = nearby.loadHelp()
+            _ = await (board, feed, told, help)
         } else {
             feed = nil
             told = nil
@@ -419,6 +431,96 @@ struct CommunityHub: View {
         } catch {
             if (error as? URLError)?.code == .cancelled { return }
             toldProblem = Social.words(for: error)
+        }
+    }
+
+    // MARK: Help after landing
+
+    /// The calls for help the pilot was asked that stand: who asks, the
+    /// note and how far, each opening the call.
+    @ViewBuilder private var helpAsked: some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            HubHeader(title: HelpWords.asked) {}
+                .accessibilityIdentifier("community-help-asked")
+            HubRows {
+                ForEach(Array(nearby.asked.enumerated()), id: \.element.id) { index, call in
+                    if index > 0 {
+                        HubDivider()
+                    }
+                    NavigationLink {
+                        HelpScreen(id: call.id, first: call)
+                    } label: {
+                        HStack(spacing: VentiSpace.s3) {
+                            PilotFace(name: call.pilot.name, size: VentiSpace.s6)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(call.pilot.name)
+                                    .font(.venti(.headline))
+                                    .foregroundStyle(.venti(.text))
+                                if let note = call.note, !note.isEmpty {
+                                    Text(note)
+                                        .foregroundStyle(.venti(.text))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Text(call.line)
+                                    .font(.venti(.footnote))
+                                    .foregroundStyle(.venti(.textSecondary))
+                            }
+                            .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            HubChevron()
+                        }
+                        .padding(.horizontal, VentiSpace.s4)
+                        .padding(.vertical, VentiSpace.s3)
+                        .frame(minHeight: VentiSize.touch)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("community-help-request")
+                }
+            }
+        }
+    }
+
+    /// The way to ask the pilots nearby for a lift or a hand, at the
+    /// page's foot: a view the pilot opens on purpose (owner decision 15),
+    /// with the line of their own call while it stands.
+    private var helpAfterLanding: some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            HubHeader(title: HelpWords.title) {}
+            HubRows {
+                Button {
+                    isAskingForHelp = true
+                } label: {
+                    HStack(spacing: VentiSpace.s3) {
+                        Image("icon-landing")
+                            .resizable()
+                            .frame(width: VentiSize.icon, height: VentiSize.icon)
+                            .foregroundStyle(.venti(.textMuted))
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(HelpWords.entry)
+                                .foregroundStyle(.venti(.text))
+                            if let mine = nearby.mine {
+                                Text(mine.line)
+                                    .font(.venti(.footnote))
+                                    .foregroundStyle(.venti(.textSecondary))
+                                    .accessibilityIdentifier("community-help-mine")
+                            }
+                        }
+                        .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        HubChevron()
+                    }
+                    .padding(.horizontal, VentiSpace.s4)
+                    .padding(.vertical, VentiSpace.s3)
+                    .frame(minHeight: VentiSize.touch)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("community-help")
+            }
         }
     }
 

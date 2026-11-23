@@ -42,6 +42,9 @@ final class AccountModel {
     @ObservationIgnored var onKeptSitesSynced: (_ changedHere: Bool) -> Void = { _ in }
     /// Called after signing in and out: the alarms follow the account.
     @ObservationIgnored var onAccountChanged: () -> Void = {}
+    /// Called before signing out, while the session still holds: the
+    /// iPhone's push token comes off the account.
+    @ObservationIgnored var beforeSigningOut: () async -> Void = {}
     @ObservationIgnored private var lastAutomaticSync: Date?
     /// Set when a sync was asked for while one was under way: the logbook
     /// changed again, and another run follows the present one.
@@ -233,6 +236,7 @@ final class AccountModel {
         guard !isWorking else { return }
         isWorking = true
         defer { isWorking = false }
+        await beforeSigningOut()
         // The server is told if it can be reached; the iPhone forgets the
         // session either way.
         if let account, let request = try? core.signOutRequest() {

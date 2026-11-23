@@ -293,7 +293,6 @@ private struct SignedInView: View {
             Section {
                 LabeledContent("Handle", value: "@\(signedIn.handle)")
                 LabeledContent("Name", value: signedIn.displayName)
-                LabeledContent("Server", value: URL(string: signedIn.server)?.host() ?? signedIn.server)
                 if let email = signedIn.googleEmail {
                     LabeledContent("Google", value: email)
                         .accessibilityIdentifier("account-google-email")
@@ -375,6 +374,10 @@ private struct SignedInView: View {
             if account.isSignedIn {
                 WhoSeesFlights(signedIn: signedIn)
                 ShownNearSection(signedIn: signedIn)
+                // What pilots nearby do: new open plans near a place, and
+                // being asked for help after a landing. Both off until
+                // turned on.
+                NearbySection()
             }
 
             // What other makers' programs may do for the pilot: with a

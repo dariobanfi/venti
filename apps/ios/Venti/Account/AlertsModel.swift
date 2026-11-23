@@ -296,6 +296,9 @@ enum AlertNotices {
         let centre = UNUserNotificationCenter.current()
         guard await centre.notificationSettings().authorizationStatus == .notDetermined else { return }
         _ = try? await centre.requestAuthorization(options: [.alert, .sound])
+        // And with Apple's push, once allowed: what fires reaches the
+        // iPhone without the app (docs/api.md, "Push to the phone apps").
+        await PhonePush.shared.registerIfAllowed()
     }
 
     /// What a tap on a notification asks of the screens, until they have
@@ -308,6 +311,13 @@ enum AlertNotices {
         /// page is to come to the front (`RootScreen`, which takes this
         /// back).
         var opensAlerts = false
+        /// What a tapped push from Venti names: an open plan or a call for
+        /// help (`RootScreen` opens it and takes this back). What fired is
+        /// `opensAlerts`.
+        var opens: PhoneTarget?
+        /// Counts the calls for help and their answers pushed while the
+        /// app was in front: the lists are read again.
+        var helpArrived = 0
     }
 
     @MainActor static let taps = Taps()
@@ -318,6 +328,26 @@ enum AlertNotices {
     static func tapped(identifier: String, action: String) {
         guard action == UNNotificationDefaultActionIdentifier, identifier.hasPrefix(prefix) else { return }
         taps.opensAlerts = true
+    }
+
+    /// A tap on a push from Venti, by the `kind` and `id` it carries
+    /// beside `aps`: what the core says it opens.
+    @MainActor
+    static func tapped(kind: String, id: String, action: String) {
+        guard action == UNNotificationDefaultActionIdentifier,
+              let target = phoneMessageTarget(kind: kind, id: id)
+        else { return }
+        if case .alert = target {
+            taps.opensAlerts = true
+        } else {
+            taps.opens = target
+        }
+    }
+
+    /// The `kind` and `id` a push from Venti carries, if it is one.
+    nonisolated static func pushed(_ info: [AnyHashable: Any]) -> (kind: String, id: String)? {
+        guard let kind = info["kind"] as? String, let id = info["id"] as? String else { return nil }
+        return (kind, id)
     }
 
     /// The app's delegate at the notification centre: shows the
@@ -331,7 +361,12 @@ enum AlertNotices {
         func userNotificationCenter(
             _ center: UNUserNotificationCenter, willPresent notification: UNNotification
         ) async -> UNNotificationPresentationOptions {
-            [.banner, .list, .sound]
+            if let pushed = AlertNotices.pushed(notification.request.content.userInfo),
+               pushed.kind.hasPrefix("help")
+            {
+                await MainActor.run { AlertNotices.taps.helpArrived += 1 }
+            }
+            return [.banner, .list, .sound]
         }
 
         func userNotificationCenter(
@@ -339,7 +374,11 @@ enum AlertNotices {
         ) async {
             let identifier = response.notification.request.identifier
             let action = response.actionIdentifier
-            await AlertNotices.tapped(identifier: identifier, action: action)
+            if let pushed = AlertNotices.pushed(response.notification.request.content.userInfo) {
+                await AlertNotices.tapped(kind: pushed.kind, id: pushed.id, action: action)
+            } else {
+                await AlertNotices.tapped(identifier: identifier, action: action)
+            }
         }
     }
 }

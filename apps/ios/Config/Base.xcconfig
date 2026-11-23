@@ -17,6 +17,14 @@ VENTI_PROFILE =
 VENTI_WIDGET_PROFILE =
 VENTI_APP_GROUP = group.$(VENTI_BUNDLE_ID)
 
+// Apple's push service (the app's entitlement aps-environment): a Debug
+// build registers with the sandbox and tells Venti so, a Release build
+// with production. A build for an iPhone needs Push Notifications on the
+// App ID ($(VENTI_BUNDLE_ID)) and in its profile; a simulator needs
+// neither, and without the owner's APNs key on the server nothing is sent.
+VENTI_APS_ENVIRONMENT = development
+VENTI_APS_ENVIRONMENT[config=Release] = production
+
 // Google's iOS client for "Continue with Google" (the Info.plist's
 // VentiGoogleClientID), and the URL scheme Google sends the pilot back by:
 // the client ID reversed. Not secrets: they ship in every copy of the app.

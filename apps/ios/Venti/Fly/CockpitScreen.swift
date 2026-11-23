@@ -74,7 +74,12 @@ struct CockpitScreen: View {
     @Environment(OfflineMapsModel.self) private var maps
     @Environment(CablesModel.self) private var cables
     @Environment(WindModel.self) private var wind
+    @Environment(AccountModel.self) private var account
+    @Environment(NearbyModel.self) private var nearby
     @State private var page = CockpitPage.instruments
+    /// "Ask pilots nearby for help" after the landing, from where it was.
+    @State private var isAskingForHelp = false
+    @State private var landedAt: Coordinate?
     @State private var isShowingSettings = false
     @State private var isShowingTask = false
     @State private var isChoosingTarget = false
@@ -340,6 +345,17 @@ struct CockpitScreen: View {
                 .presentationDetents([.medium, .large])
                 .ventiFlightThemed()
             }
+            .sheet(isPresented: $isAskingForHelp) {
+                HelpAskSheet(landedAt: landedAt)
+                    .presentationDetents([.large])
+                    .ventiFlightThemed()
+            }
+            // Landed: where the pilot may be asked for help, Venti hears
+            // where the landing was, for a call from a pilot near it.
+            .onChange(of: view.phase == .landed) { _, landed in
+                guard landed, !isReplay, let at = view.position else { return }
+                Task { await nearby.tellPosition(at: at) }
+            }
             .sheet(isPresented: $isChoosingTarget) {
                 TargetPicker(
                     position: view.position,
@@ -384,6 +400,19 @@ struct CockpitScreen: View {
             }
             if let notice = PhaseNotice(view: view, isReplay: isReplay) {
                 notice
+            }
+            // After a landing, the way to ask the pilots nearby for a lift
+            // or a hand; not in a replay, whose place is not the pilot's.
+            if view.phase == .landed, !isReplay, account.isSignedIn {
+                Button {
+                    landedAt = view.position
+                    isAskingForHelp = true
+                } label: {
+                    Text(HelpWords.entry)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.venti(.quiet))
+                .accessibilityIdentifier("cockpit-help")
             }
             // Something that went wrong while the cockpit is open is said
             // here, among its notices, and put away with a tap. A box over

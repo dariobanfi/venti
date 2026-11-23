@@ -6345,6 +6345,256 @@ extension VentiUITests {
     }
 }
 
+/// What pilots nearby do for each other: the account's two settings, and
+/// help after landing between two pilots, one in the app and one over the
+/// development server's API (docs/design.md, "Help after landing"). What
+/// the server decides (whom a call goes to, who sees where) is held by the
+/// server's tests (`crates/server/tests/help.rs`) and the answers' words by
+/// the core's (`phones.rs`); these only see the screens show them.
+extension VentiUITests {
+    /// Where the simulated iPhone stands: by the Inn at Völs.
+    private static let vols = CLLocation(latitude: 47.2731, longitude: 11.3962)
+
+    /// Makes an account over the API and returns its handle, password and
+    /// session token. Made up here, for this run's server.
+    private func makePilot(on server: String, named name: String) async throws -> (handle: String, password: String, token: String) {
+        let handle = "help\(Int.random(in: 100_000...999_999))"
+        let password = "made-up-\(UUID().uuidString.lowercased())"
+        let answer = try await call(
+            server, "POST", "/v1/accounts", body: ["handle": handle, "display_name": name, "password": password]
+        )
+        XCTAssertTrue((200..<300).contains(answer.status), "The development server made no account: \(answer.status)")
+        let token = try XCTUnwrap(answer.json["token"] as? String)
+        return (handle, password, token)
+    }
+
+    /// One request to the development server's API, with a pilot's token
+    /// where one is given.
+    @discardableResult
+    private func call(
+        _ server: String, _ method: String, _ path: String, token: String? = nil, body: [String: Any]? = nil
+    ) async throws -> (status: Int, json: [String: Any]) {
+        var request = URLRequest(url: try XCTUnwrap(URL(string: server + path)))
+        request.httpMethod = method
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+        return ((response as? HTTPURLResponse)?.statusCode ?? 0, json)
+    }
+
+    /// Answers what the system asks while a switch is turned on: whether
+    /// Venti may know where the iPhone is, and may notify.
+    private func allowWhatTheSystemAsks() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for _ in 0..<3 {
+            let position = springboard.buttons["Allow While Using App"]
+            let notify = springboard.buttons["Allow"]
+            if position.appears(timeout: 3) {
+                position.tap()
+            } else if notify.exists {
+                notify.tap()
+            } else {
+                return
+            }
+            usleep(500_000)
+        }
+    }
+
+    /// Turns a switch of "Pilots nearby" on or off: one tap, what the system
+    /// asks answered, and the switch as Venti kept it, which comes only
+    /// once Venti has answered.
+    private func switchNearby(_ toggle: XCUIElement, on: Bool) {
+        if isOn(toggle) != on {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        }
+        allowWhatTheSystemAsks()
+        XCTAssertTrue(waitUntil(timeout: 20) { self.isOn(toggle) == on }, toggle.identifier)
+    }
+
+    /// Opens the account's page and brings "Pilots nearby" in.
+    private func openPilotsNearby(in app: XCUIApplication) -> XCUIElement {
+        openAccount(in: app)
+        let help = bring("nearby-help", into: app)
+        XCTAssertTrue(help.appears(timeout: 20))
+        return help
+    }
+
+    /// The two settings: both off for a new account; "New open plans near"
+    /// on shows where (the map's middle) and how far, a distance chosen is
+    /// kept by Venti; "Pilots nearby may ask me for help" on asks for the
+    /// position and to notify. Light and dark.
+    func testTheSettingsForPilotsNearby() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        XCUIDevice.shared.location = XCUILocation(location: Self.vols)
+        let pilot = try await makePilot(on: server, named: "Nearby Tester")
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.27,11.39,10"])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        signIn((pilot.handle, pilot.password), in: app)
+
+        let help = openPilotsNearby(in: app)
+        let plans = element("nearby-open-plans", in: app)
+        XCTAssertTrue(plans.exists)
+        XCTAssertFalse(isOn(help))
+        XCTAssertFalse(isOn(plans))
+        XCTAssertTrue(labelled(containing: "Pilots nearby may ask me for help", in: app).exists)
+        usleep(400_000)
+        keepScreenshot("nearby-1-settings-off")
+
+        switchNearby(plans, on: true)
+        let place = element("nearby-place", in: app)
+        XCTAssertTrue(place.appears(timeout: 20))
+        XCTAssertTrue(place.label.hasPrefix("Around 47.2"), place.label)
+        app.buttons["50 km"].firstMatch.tap()
+        sleep(2)
+        // The place and the distances pushed the second switch down.
+        _ = bring("nearby-help", into: app)
+        switchNearby(help, on: true)
+        _ = bring("nearby-help", into: app)
+        usleep(400_000)
+        keepScreenshots(light: "nearby-2-settings-on", dark: "nearby-3-settings-on-dark")
+
+        // Venti keeps them whole.
+        let kept = try await call(server, "GET", "/v1/account/nearby", token: pilot.token)
+        XCTAssertEqual(kept.json["may_be_asked_for_help"] as? Bool, true)
+        let circle = try XCTUnwrap(kept.json["open_plans_near"] as? [String: Any])
+        XCTAssertEqual(circle["radius_km"] as? Int, 50)
+
+        // Off again, both.
+        switchNearby(help, on: false)
+        _ = bring("nearby-open-plans", into: app, down: true)
+        switchNearby(plans, on: false)
+        XCTAssertTrue(place.vanishes(timeout: 20))
+        app.resetAuthorizationStatus(for: .location)
+    }
+
+    /// Help after landing between two pilots. The pilot in the app may be
+    /// asked; a pilot over the API, near by, asks: the call is in
+    /// Community, with "I can help", after which the app shows where the
+    /// caller is, and the caller sees who can help. Then the pilot in the
+    /// app asks from Community, with a note, and is answered over the API:
+    /// the helper's name stands on the call, and "I'm fine, close" ends it.
+    /// Light and dark.
+    func testPilotsNearbyAskForHelpAndAnswer() async throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        XCUIDevice.shared.location = XCUILocation(location: Self.vols)
+        let anna = try await makePilot(on: server, named: "Anna Caller")
+        let bert = try await makePilot(on: server, named: "Bert Helper")
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", "47.27,11.39,10"])
+        XCTAssertTrue(app.buttons["Show my position"].appears(timeout: 90))
+        signIn((bert.handle, bert.password), in: app)
+
+        // Bert may be asked: the app tells Venti where the iPhone is.
+        let help = openPilotsNearby(in: app)
+        switchNearby(help, on: true)
+
+        // Anna landed a few kilometres away and asks. Bert's position comes
+        // within half a minute of the switch.
+        var asked = 0
+        var call: [String: Any] = [:]
+        for _ in 0..<20 where asked == 0 {
+            sleep(2)
+            // A call nobody could be asked of is closed and asked again.
+            if let id = call["id"] as? String {
+                try await self.call(server, "DELETE", "/v1/help/\(id)", token: anna.token)
+            }
+            let answer = try await self.call(
+                server, "POST", "/v1/help", token: anna.token,
+                body: ["position": ["lat": 47.29, "lon": 11.42], "note": "Landed by the Inn, anyone driving to Innsbruck?"]
+            )
+            XCTAssertEqual(answer.status, 201)
+            call = answer.json["request"] as? [String: Any] ?? [:]
+            asked = call["asked"] as? Int ?? 0
+        }
+        XCTAssertEqual(asked, 1, "Bert was not asked: the app told no position.")
+        let annasCall = try XCTUnwrap(call["id"] as? String)
+
+        // In Community, first: who asks, the note, how far.
+        openTab("Community", in: app)
+        let row = element("community-help-request", in: app)
+        for _ in 0..<6 where !row.exists {
+            app.swipeDown()
+            usleep(1_500_000)
+        }
+        XCTAssertTrue(row.appears(timeout: 20))
+        XCTAssertTrue(row.label.contains("Anna Caller"), row.label)
+        usleep(400_000)
+        keepScreenshot("help-1-community-asked")
+        row.tap()
+        XCTAssertTrue(element("help-emergency", in: app).appears(timeout: 15))
+        XCTAssertTrue(element("help-emergency", in: app).label.contains("112"))
+        let line = element("help-line", in: app)
+        XCTAssertTrue(line.appears(timeout: 15))
+        XCTAssertTrue(line.label.contains("km") || line.label.contains("kilometre"), line.label)
+        XCTAssertFalse(element("help-where", in: app).exists)
+        usleep(400_000)
+        keepScreenshot("help-2-asked")
+
+        // "I can help": where Anna is, and the way there.
+        element("help-can", in: app).tap()
+        XCTAssertTrue(element("help-where", in: app).appears(timeout: 15))
+        XCTAssertTrue(element("help-directions", in: app).exists)
+        XCTAssertEqual(line.label, "You said you can help")
+        usleep(400_000)
+        keepScreenshots(light: "help-3-can-help", dark: "help-4-can-help-dark")
+        let seen = try await self.call(server, "GET", "/v1/help/\(annasCall)", token: anna.token)
+        let helpers = (seen.json["request"] as? [String: Any])?["helpers"] as? [[String: Any]] ?? []
+        XCTAssertEqual(helpers.first?["handle"] as? String, bert.handle)
+        try await self.call(server, "DELETE", "/v1/help/\(annasCall)", token: anna.token)
+
+        // Now Bert asks. Anna may be asked, and is near.
+        try await self.call(
+            server, "PUT", "/v1/account/nearby", token: anna.token,
+            body: ["open_plans_near": NSNull(), "may_be_asked_for_help": true]
+        )
+        try await self.call(
+            server, "PUT", "/v1/account/position", token: anna.token,
+            body: ["position": ["lat": 47.29, "lon": 11.42]]
+        )
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let entry = bring("community-help", into: app)
+        entry.tap()
+        let note = element("help-note", in: app)
+        XCTAssertTrue(note.appears(timeout: 15))
+        XCTAssertTrue(element("help-call", in: app).exists)
+        XCTAssertTrue(element("help-place", in: app).appears(timeout: 30))
+        usleep(400_000)
+        keepScreenshots(light: "help-5-ask", dark: "help-6-ask-dark")
+        note.tap()
+        note.typeText("By the river at Völs, a lift to Innsbruck?")
+        element("help-ask", in: app).tap()
+        let mine = element("help-line", in: app)
+        XCTAssertTrue(mine.appears(timeout: 20))
+        XCTAssertEqual(mine.label, "Asked 1 pilot nearby")
+
+        // Anna can help: her name stands on Bert's call.
+        let list = try await self.call(server, "GET", "/v1/help", token: anna.token)
+        let bertsCall = try XCTUnwrap(((list.json["asked"] as? [[String: Any]])?.first)?["id"] as? String)
+        try await self.call(server, "PUT", "/v1/help/\(bertsCall)/answer", token: anna.token, body: ["can_help": true])
+        // The call is read again every 15 s while it stands.
+        let helper = element("help-helper", in: app)
+        XCTAssertTrue(helper.appears(timeout: 40))
+        XCTAssertTrue(helper.label.contains("Anna Caller"), helper.label)
+        XCTAssertEqual(mine.label, "Asked 1 pilot nearby · 1 can help")
+        usleep(400_000)
+        keepScreenshots(light: "help-7-mine-answered", dark: "help-8-mine-answered-dark")
+
+        // "I'm fine, close": it has ended.
+        bring("help-close", into: app).tap()
+        XCTAssertTrue(element("help-ended", in: app).appears(timeout: 15))
+        app.resetAuthorizationStatus(for: .location)
+    }
+}
+
 @MainActor
 extension XCUIElement {
     /// Whether the element is there, or comes within `timeout` seconds. In

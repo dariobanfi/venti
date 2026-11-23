@@ -281,10 +281,16 @@ final class PilotPosition: NSObject, @preconcurrency CLLocationManagerDelegate {
 
     @ObservationIgnored private let manager = CLLocationManager()
 
-    override init() {
+    /// How near the position is to be: to a kilometre for the take-offs
+    /// around; `.best` for a call for help, which tells where to come.
+    enum Accuracy {
+        case kilometre, best
+    }
+
+    init(accuracy: Accuracy = .kilometre) {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        manager.desiredAccuracy = accuracy == .best ? kCLLocationAccuracyBest : kCLLocationAccuracyKilometer
     }
 
     /// Whether the app may read the position without asking.

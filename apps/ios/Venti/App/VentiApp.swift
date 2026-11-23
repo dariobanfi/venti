@@ -5,6 +5,8 @@ import VentiCore
 @main
 struct VentiApp: App {
     @State private var session = Session.start()
+    /// What SwiftUI does not hand over: the token of Apple's push service.
+    @UIApplicationDelegateAdaptor(VentiAppDelegate.self) private var delegate
 
     init() {
         // The bars are UIKit's: their type and ink are set once, before
@@ -18,7 +20,7 @@ struct VentiApp: App {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
                 let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar,
-                let candidates, let alerts, let cables, let air, let watched, let openPlans
+                let candidates, let alerts, let cables, let air, let watched, let openPlans, let nearby
             ):
                 RootScreen()
                     .environment(logbook)
@@ -45,6 +47,7 @@ struct VentiApp: App {
                     .environment(air)
                     .environment(watched)
                     .environment(openPlans)
+                    .environment(nearby)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
                     .onAppear(perform: LaunchOptions.quickenAnimations)
@@ -75,7 +78,7 @@ enum Session {
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
         TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
         ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel, CablesModel, AirModel,
-        WatchedFolder, OpenPlansModel
+        WatchedFolder, OpenPlansModel, NearbyModel
     )
     case failed(String)
 
@@ -285,7 +288,24 @@ enum Session {
             // and cleared after signing out. Their notifications show also
             // while the app is in front.
             let alerts = AlertsModel(core: core, account: account)
-            account.onAccountChanged = { Task { await alerts.sync() } }
+            // What pilots nearby do for each other: the account's two
+            // settings and the calls for help, by Venti's clock.
+            let nearby = NearbyModel(account: account, wind: wind)
+            // Apple's push: the token goes to the account on sign-in and
+            // comes off it before signing out.
+            let push = PhonePush.shared
+            push.send = { try await account.answer(to: $0) }
+            push.isSignedIn = { account.isSignedIn }
+            account.beforeSigningOut = { await push.removeBeforeSigningOut() }
+            account.onAccountChanged = {
+                Task { await alerts.sync() }
+                Task { await push.accountChanged() }
+                Task {
+                    await nearby.loadSettings()
+                    await nearby.loadHelp()
+                }
+            }
+            Task { await push.registerIfAllowed() }
             AlertsModel.running = alerts
             UNUserNotificationCenter.current().delegate = AlertNotices.centre
             if LaunchOptions.wasOpenedByAnAlert {
@@ -294,9 +314,13 @@ enum Session {
                     action: UNNotificationDefaultActionIdentifier
                 )
             }
+            if let pushed = LaunchOptions.tappedPush {
+                AlertNotices.tapped(kind: pushed.kind, id: pushed.id, action: UNNotificationDefaultActionIdentifier)
+            }
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps, today, thermals, own, radar, candidates, alerts, cables, air, watched, openPlans
+                groups, maps, today, thermals, own, radar, candidates, alerts, cables, air, watched, openPlans,
+                nearby
             )
         } catch {
             return .failed(error.words)
@@ -570,6 +594,16 @@ enum LaunchOptions {
     /// of what an alarm fired, which a UI test cannot post and tap
     /// reliably: the tap's own handler is called with such a notification.
     static let wasOpenedByAnAlert = isUITesting && arguments.contains("--tapped-alert")
+
+    /// `--tapped-push <kind> <id>`: the app starts as if by a tap on a
+    /// push from Venti that carries this `kind` and `id` (a call for help,
+    /// an open plan), through the tap's own handler. Under UI tests only.
+    static var tappedPush: (kind: String, id: String)? {
+        guard isUITesting, let flag = arguments.firstIndex(of: "--tapped-push"),
+              arguments.indices.contains(flag + 2)
+        else { return nil }
+        return (arguments[flag + 1], arguments[flag + 2])
+    }
 
     /// `--watched-folder-gone`: the same folder, deleted once the logbook
     /// has its flight, for the notice of a watched folder that is lost.

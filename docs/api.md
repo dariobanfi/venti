@@ -280,6 +280,14 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 403 | `comments_off` | The flight's pilot takes no comments on the flight |
 | 404 | `comment_not_found` | The flight has no comment with this identifier, or none that is the caller's to remove |
 | 409 | `too_many_push_subscriptions` | The account has as many [browsers subscribed to Web Push](#web-push) as it may |
+| 400 | `invalid_device` | A [phone's token](#post-and-delete-v1accountdevices) is empty, longer than 512 bytes, or not of the form its platform gives; `sandbox` for an Android phone. `message` names the field |
+| 409 | `too_many_devices` | The account has as many [phones registered](#push-to-the-phone-apps) as it may: 10 |
+| 400 | `invalid_nearby` | The [settings for what pilots nearby do](#get-and-put-v1accountnearby) name a radius that is not 1 to 100 km |
+| 409 | `help_not_offered` | A [position](#put-and-delete-v1accountposition) was sent while the pilot may not be asked for help |
+| 400 | `invalid_help_request` | A [request for help](#help-after-landing) has a note of more than 280 characters |
+| 409 | `help_request_open` | The account's last [request for help](#help-after-landing) still stands: close it first |
+| 404 | `help_request_not_found` | No [request for help](#help-after-landing) has this identifier that the caller may read: none ever, one removed a day after it ended, or one they were not sent |
+| 409 | `help_request_ended` | The [request for help](#help-after-landing) ended or was closed: it takes no answer |
 | 409 | `too_many_tokens` | The account holds as many [tokens for programs](#tokens-for-other-programs) as it may |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
 | 410 | `site_gone` | The [site](#sites-that-ventis-partners-and-pilots-add) was removed, or taken down. Its identifier is not used again |
@@ -338,6 +346,10 @@ How the server and each of its data sources are doing.
   "forecasts": "available",
   "registration": "open",
   "google_sign_in": true,
+  "phone_push": {
+    "apns": false,
+    "fcm": false
+  },
   "sites_from_pilots": "open",
   "thermal_map": {
     "source": "open-meteo",
@@ -520,6 +532,7 @@ How the server and each of its data sources are doing.
 | `client_addresses` | For whoever runs the server; an app ignores it. `seen` when requests arrive from addresses of their own. `hidden` when, in the last hour, twenty or more requests and at least a tenth of all came from one private address and from no other private one: a proxy or a container network is hiding the visitors, and the server counts them as one ([running-a-server.md](running-a-server.md#the-visitors-address)). Left out while fewer than twenty requests have arrived |
 | `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server that was not told where its forecast service is. Such a server answers `/v1/forecast` with `501` and asks nobody else. Left out by a server older than forecasts, which has none |
 | `registration` | Who may create an account here: `open` (anyone), `invite` (whoever has an invite code, which `POST /v1/accounts` then needs) or `closed` (nobody; existing accounts sign in as before). An app shows the field for the invite code, or says that the server takes no new accounts, by this. Left out by a server older than this field, which may ask for a code: an app that reads nothing here offers the field. The development mode says `open` |
+| `phone_push` | To which phones the server [sends push messages](#push-to-the-phone-apps): `apns` is `true` where it has an Apple push key, `fcm` where it has a Firebase service account. An app registers its phone either way; it is told nothing while its platform's is `false`. Both `false` on a server that was given neither, and in the development mode. Left out by an older server, which sends to no phone |
 | `sites_from_pilots` | Whether the server takes [sites from pilots](#sites-that-ventis-partners-and-pilots-add): `open` (a signed-in pilot can add a site to the crowdsourced layer `venti-pilots`, correct one of it and confirm a site, inside the regions the server serves) or `closed` (every such write is `403` with `sites_closed`). An app offers "add a site", "correct this site" and "I took off here" to a pilot only where this says `open`, so that nobody fills in a form to be refused. It says nothing of the partners' layer, which an account named as a partner writes to whatever this says: [`GET /v1/account`](#get-v1account) tells such an account. Reading the sites of either layer is never off, and an account whose publishing is suspended is refused on an open server too: that is the account's, and is not said here. Left out by a server older than this field (before 2026-11-21), which takes none or does not say: an app that reads nothing here offers neither. The development mode says `open` |
 | `thermal_map` | For whoever runs the server; an app asks for the map itself ([`GET /v1/thermals`](#get-v1thermals)). Where the server's thermal map stands. Left out by a server that makes none, which is one without forecasts, and by an older server |
 | `thermal_map.source` | The forecast source the map is made from |
@@ -5468,6 +5481,17 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `PUT /v1/account/picture` | the session only |
 | `DELETE /v1/account/picture` | the session only |
 | `GET /v1/account/archive` | the session only |
+| `POST /v1/account/devices` | the session only |
+| `DELETE /v1/account/devices` | the session only |
+| `GET /v1/account/nearby` | the session only |
+| `PUT /v1/account/nearby` | the session only |
+| `PUT /v1/account/position` | the session only |
+| `DELETE /v1/account/position` | the session only |
+| `GET /v1/help` | the session only |
+| `POST /v1/help` | the session only |
+| `GET /v1/help/{id}` | the session only |
+| `DELETE /v1/help/{id}` | the session only |
+| `PUT /v1/help/{id}/answer` | the session only |
 | `POST /v1/account/tokens` | the session only |
 | `GET /v1/account/tokens` | the session only |
 | `DELETE /v1/account/tokens/{id}` | the session only |
@@ -6071,7 +6095,7 @@ Needs a token. Forgets a site. The answer is `204` with no body, also when the a
 
 ## Alarms
 
-A pilot sets alarms on the account: "tell me when the wind at the Patscherkofel station is from the north at 10 to 20 km/h", "tell me when a day of the next three is a cross-country day at the Nordkette". An alarm is a fixed rule over data the server has, and the server checks it where the data arrives: a wind alarm against every reading of its station, a day alarm against every run of the [thermal map](#get-v1thermals), a pilots alarm once a minute against the live positions. What fired is kept on the account, and the pilot's apps fetch it ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)). A browser the pilot subscribed is also told at once, by [Web Push](#web-push); the phone apps fetch. No mail.
+A pilot sets alarms on the account: "tell me when the wind at the Patscherkofel station is from the north at 10 to 20 km/h", "tell me when a day of the next three is a cross-country day at the Nordkette". An alarm is a fixed rule over data the server has, and the server checks it where the data arrives: a wind alarm against every reading of its station, a day alarm against every run of the [thermal map](#get-v1thermals), a pilots alarm once a minute against the live positions. What fired is kept on the account, and the pilot's apps fetch it ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)). A browser the pilot subscribed is also told at once, by [Web Push](#web-push), and a phone the pilot registered by [its platform's push service](#push-to-the-phone-apps). No mail.
 
 - **It is private.** Every request here acts for the account of its token. [Deleting the account](#delete-v1account) removes its alarms and what they fired.
 - **Three kinds**, told apart by `rule.kind`, and more to come: a client keeps a kind it does not know as it is.
@@ -6324,7 +6348,7 @@ A browser can be told when an alarm fires even while no Venti page is open, by t
 - **A browser is of one account.** One endpoint is of the account that subscribed it last: a pilot who signs in on a browser that another subscribed takes it over. A push service that answers `404` or `410` has ended the subscription, and the server removes it; a new subscription of the browser is a new `POST`.
 - **The server's key** is made when the server first starts with its database and kept there. A new database, or a key removed from it, ends every subscription: the browsers subscribe again with the new key.
 - **Bounds.** At most 10 browsers per account; an endpoint of at most 1024 bytes. A token for a program needs `alerts:write`.
-- **The phone apps** fetch what fired, as before ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)): Google's and Apple's push for the apps is not decided.
+- **The phone apps** are told through Apple's and Google's own push services instead ([Push to the phone apps](#push-to-the-phone-apps)), and fetch what fired as before ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)).
 
 ### `GET /v1/push/key`
 
@@ -6358,6 +6382,172 @@ Needs a token. Subscribes a browser: the body is the browser's `PushSubscription
 ### `DELETE /v1/account/push`
 
 Needs a token. Removes a browser's subscription, by its endpoint: `{"endpoint": "https://fcm.googleapis.com/fcm/send/dXJxQ:APA91bE"}`. The answer is `204` with no body, also when the account did not have it.
+
+## Push to the phone apps
+
+The iPhone and the Android app are told what concerns their pilot through their platforms' own push services: Apple's (APNs) for an iPhone, Google's Firebase Cloud Messaging (FCM, HTTP v1) for Android (owner decision 24). Neither bills by use. A phone registers the token its platform gave the app; the server sends to it when an alarm of the pilot fires, when an open plan is posted in a circle the pilot chose, when a pilot nearby asks for help after landing, and when someone answers the pilot's own call for help.
+
+- **What arrives.** A notification with a title and a line, which the system shows as they are, and what it is about: `kind` (`alert`, `open_plan`, `help_request` or `help_answer`), `id` (the alarm's, the plan's or the request's) and `sent_at`. On an iPhone the title and line are `aps.alert` and the three are keys beside `aps`; on Android they are the message's `notification` and its `data`. An app opens what `kind` and `id` name when the pilot taps it. A call for help and its answer are sent at once (`apns-priority: 10`, FCM `HIGH`); the rest when the phone has a good moment (`5`, `NORMAL`). A push service holds a message 6 hours for a phone that is off.
+- **A phone is of the sign-in that registered it.** Signing out of the phone, or the session ending in any other way, removes it: the phone is told nothing more. One token is of one account at a time, the one that registered it last. A push service that says a token is no more (APNs `410` or `BadDeviceToken`, FCM `404`) has it removed; the app registers its new token when the platform gives one.
+- **Where the server has no key**, nothing reaches that platform's phones; [`GET /v1/health`](#get-v1health) says so in `phone_push`. Registering works either way. Where the keys go is in [running-a-server.md](running-a-server.md#push-to-the-phone-apps).
+- **Two settings, both off** until the pilot turns them on (owner decision 15): a circle to be told of new open plans in, and whether pilots nearby may ask them for help ([`GET` and `PUT /v1/account/nearby`](#get-and-put-v1accountnearby)).
+- **All of it is the pilot's own sign-in's.** A token for a program can do none of it: a phone and a position are the device's, and asking or answering for help is the pilot's own word to people near them.
+- **Bounds.** At most 10 phones per account; a token of at most 512 bytes. The browsers' push is [Web Push](#web-push), which is apart from this.
+
+### `POST` and `DELETE /v1/account/devices`
+
+Needs the session of the pilot's own sign-in. `POST` registers this phone: `platform` is `apns` or `fcm`, `token` the platform's token (on an iPhone the device token in hexadecimal, on Android the FCM registration token), and `sandbox` is `true` for an iPhone app built for development, whose token is of Apple's sandbox. The answer is `204` with no body; the same phone again is not counted twice. `DELETE` takes `platform` and `token` and removes the phone, `204` also when the account did not have it. An app sends `DELETE` before signing out, though signing out removes it as well.
+
+```json
+{
+  "platform": "apns",
+  "token": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "sandbox": true
+}
+```
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `invalid_device` | A token that is empty, longer than 512 bytes, not hexadecimal for `apns`, not of letters, digits and `-_:` for `fcm`; `sandbox` for `fcm`. `message` names the field |
+| 409 | `too_many_devices` | The account has 10 phones registered already |
+
+### `GET` and `PUT /v1/account/nearby`
+
+Needs the session of the pilot's own sign-in. The account's settings for what pilots nearby do; `PUT` sends them whole and is answered with them as kept. For an account that never set them both are off: `open_plans_near` is `null` and `may_be_asked_for_help` is `false`.
+
+- `open_plans_near`: a circle, `position` and `radius_km` from 1 to 100, in which the pilot wants to be told of each new open plan; `null` for nowhere. The plan's author is not told of their own, and a change to a plan tells nobody.
+- `may_be_asked_for_help`: whether pilots nearby who have landed may [ask this pilot for help](#help-after-landing). While it is on, the app tells the server a coarse position now and then ([`PUT /v1/account/position`](#put-and-delete-v1accountposition)). Turning it off forgets the position at once.
+
+```json
+{
+  "open_plans_near": {
+    "position": {
+      "lat": 47.6,
+      "lon": 11.7
+    },
+    "radius_km": 30
+  },
+  "may_be_asked_for_help": true
+}
+```
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `invalid_nearby` | A radius that is not 1 to 100 km |
+
+### `PUT` and `DELETE /v1/account/position`
+
+Needs the session of the pilot's own sign-in. `PUT` tells where the phone is, for being asked for help; `DELETE` forgets it. The answer is `204` with no body.
+
+The server takes the position to a grid of 0.05° (some 5.5 km north to south, 3.7 km east to west in the Alps) and keeps the middle of its square, with the time it was told. It reads it for an hour, to choose whom a call for help goes to and to tell a pilot who was asked how far the caller is, and removes it within the next hour. It is shown to nobody and is in no answer, export or dump. An app sends it while the setting is on and the app is in use, at most every few minutes, never in the background unless the pilot allowed that on the phone.
+
+```json
+{
+  "position": {
+    "lat": 47.2694,
+    "lon": 11.4041
+  }
+}
+```
+
+| Status | `code` | When |
+|---|---|---|
+| 409 | `help_not_offered` | `may_be_asked_for_help` is off: nothing is kept |
+
+## Help after landing
+
+A pilot who has landed asks the pilots nearby for a lift or a hand: "Landed by the Inn at Völs, anyone driving to Innsbruck?". **It is not an emergency service**, and every screen of it says first, before anything else: "Injured, or someone else is? Call 112 first. This asks pilots nearby for a lift or a hand, and is no emergency service." (`HELP_EMERGENCY_WORDS` in the shared types).
+
+- **Who is asked.** The pilots who said they may be asked ([`may_be_asked_for_help`](#get-and-put-v1accountnearby)) and whose phone told a position in the last hour within 30 km of the caller, nearest first, at most 30, never the caller. Their phones are told at once: "Pilot anna has landed nearby and asks for help", with the note, or "A lift or a hand. Open to answer." where there is none.
+- **Who sees what.** The caller sees everything: where they are, how many were asked (`asked`) and who can help (`helpers`). A pilot who was asked sees the note, who asks, and how far it is from the position their phone last told (`distance_km`, whole kilometres, while that is kept). **Where the caller is** (`position`) is shown to a pilot who was asked only once they answered that they can help, and only while the request stands. To everyone else a request is not there: `404` with `help_request_not_found`.
+- **"I can help".** [`PUT /v1/help/{id}/answer`](#put-v1helpidanswer) with `can_help: true`: the caller's phones are told "Pilot bert can help", and the helper sees where the caller is. `false` takes it back. Calls and arrangements are then between the two: the server carries no chat.
+- **How long.** A request stands for 4 hours, or until its caller closes it ([`DELETE /v1/help/{id}`](#get-and-delete-v1helpid)), which an app offers as "I'm fine, close". It is then read, without where, by those it was sent to for a day, and removed with everything about it.
+- **Bounds.** One request standing per account; 3 a day; a note of at most 280 characters; 30 pilots asked; a radius of 30 km. An account whose publishing is suspended asks none. A request can be reported by one it was sent to (`help_request` in [reports](#reports)), and the report keeps its note and not its position.
+
+### `POST /v1/help`
+
+Needs the session of the pilot's own sign-in. Asks the pilots nearby. The body is where the pilot is and, if they like, a note. The answer is `201` with the request as its caller sees it.
+
+```json
+{
+  "position": {
+    "lat": 47.2731,
+    "lon": 11.3962
+  },
+  "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?"
+}
+```
+
+```json
+{
+  "request": {
+    "id": "4bq6x0vd5cwm2b9r8y1hzk3tns",
+    "pilot": {
+      "handle": "anna",
+      "display_name": "Pilot anna"
+    },
+    "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+    "created_at": "2026-11-18T19:05:00Z",
+    "ends_at": "2026-11-18T23:05:00Z",
+    "mine": true,
+    "position": {
+      "lat": 47.2731,
+      "lon": 11.3962
+    },
+    "asked": 2
+  }
+}
+```
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `invalid_help_request` | A note of more than 280 characters |
+| 403 | `publishing_suspended` | Whoever runs the server has suspended the account's publishing |
+| 409 | `help_request_open` | The account's last request still stands: close it first |
+| 429 | `rate_limited` | The account has asked 3 times today |
+
+### `GET /v1/help`
+
+Needs the session of the pilot's own sign-in. The requests that stand: `mine`, the account's own, and `asked`, those it was sent; the newest first, each as the reader may see it. An app asks for it when it opens and when it is told of a request.
+
+### `GET` and `DELETE /v1/help/{id}`
+
+Needs the session of the pilot's own sign-in. `GET` is one request, as the reader may see it: here, as one who was asked and has not answered.
+
+```json
+{
+  "request": {
+    "id": "4bq6x0vd5cwm2b9r8y1hzk3tns",
+    "pilot": {
+      "handle": "anna",
+      "display_name": "Pilot anna"
+    },
+    "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+    "created_at": "2026-11-18T19:05:00Z",
+    "ends_at": "2026-11-18T23:05:00Z",
+    "mine": false,
+    "distance_km": 2,
+    "can_help": false
+  }
+}
+```
+
+`DELETE` closes the account's own request: `204`, and it takes no more answers. One that is not the account's, or no longer stands, is `404` with `help_request_not_found`.
+
+### `PUT /v1/help/{id}/answer`
+
+Needs the session of the pilot's own sign-in, of a pilot the request was sent to. Says whether they can help; the answer is the request as they now see it, with `position` where they can. The caller is told the first time a pilot says they can.
+
+```json
+{
+  "can_help": true
+}
+```
+
+| Status | `code` | When |
+|---|---|---|
+| 404 | `help_request_not_found` | No such request, or the account was not asked |
+| 409 | `help_request_ended` | The request ended or was closed |
 
 ## Flights
 
@@ -10019,6 +10209,7 @@ The body of that request:
 | `subject.group` | A group the reporter is in, by its `id` |
 | `subject.plan` | A plan of a group the reporter is in: an object with `group`, the group's `id`, and `id`, the plan's. A plan is named with its group here as in every path about a plan, and the `plan` of every answer carries both |
 | `subject.open_plan` | An [open plan](#open-plans), by its `id`. Anyone signed in may report one, since everyone reads it. What is reported is its place and its note, which the server keeps with the report as for a group's plan; the reasons are those of a group and a plan; the report is about the plan's author. `404` with `plan_not_found` for one that is not there. Since 2026-11-23 |
+| `subject.help_request` | A [request for help](#help-after-landing), by its `id`, that the reporter was sent. What is reported is its note, which the server keeps with the report; never its position. The reasons are those of a group and a plan; the report is about the pilot who asked. `404` with `help_request_not_found` for one the reporter may not read. Since 2026-11-23 |
 | `subject.site` | A site that pilots made: an object with `id`, the site's identifier (`venti:` or `venti-pilots:` and 26 characters: a site of either layer is reported the same way), and, if the report is about one revision of it, `revision`, that revision's number. Without `revision` the report is about the site as it stands, and the server notes the revision it stands at |
 | `subject.comment` | A [comment](#pilots-among-each-other) under a public flight: an object with `flight`, the address of the flight, and `id`, the comment's. What is reported is its words, which the server keeps with the report as they stood: its author or the flight's pilot can remove it a moment later. The reasons are those of a group and a plan. The report is about the comment's author |
 | `reason` | Why; one of the values below |

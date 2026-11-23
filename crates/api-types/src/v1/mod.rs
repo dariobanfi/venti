@@ -121,12 +121,14 @@ mod foehn;
 mod forecast;
 mod groups;
 mod health;
+mod help;
 mod kept_sites;
 mod live;
 mod maps;
 mod observations;
 mod open_plans;
 mod patch;
+mod phones;
 mod pictures;
 mod push;
 mod radar;
@@ -214,8 +216,15 @@ pub use groups::{
     parse_group_name, parse_plan_note, parse_plan_place,
 };
 pub use health::{
-    ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, RadarHealth,
-    RegistrationMode, SitesFromPilots, SourceHealth, ThermalMapHealth, ThermalMapModelHealth,
+    ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth,
+    PhonePushHealth, RadarHealth, RegistrationMode, SitesFromPilots, SourceHealth,
+    ThermalMapHealth, ThermalMapModelHealth,
+};
+pub use help::{
+    HELP_EMERGENCY_WORDS, HELP_OPEN_HOURS, HELP_PATH, HELP_RADIUS_KM, HELP_REQUESTS_PER_DAY,
+    HelpAnswerBody, HelpListResponse, HelpRequest, HelpRequestBody, HelpResponse,
+    MAX_HELP_NOTE_LENGTH, MAX_HELP_RECIPIENTS, help_answer_path, help_answer_words, help_path,
+    help_request_words, parse_help_note,
 };
 pub use kept_sites::{
     KEPT_SITE_CHANGES_PATH, KEPT_SITES_PATH, KeepSiteRequest, KeptSite, KeptSiteChangesRequest,
@@ -238,7 +247,14 @@ pub use open_plans::{
     ACCOUNT_OPEN_PLANS_PATH, DEFAULT_OPEN_PLANS_RADIUS_KM, MAX_OPEN_PLAN_NOTE_LENGTH,
     MAX_OPEN_PLAN_SEATS, MAX_OPEN_PLANS, MAX_OPEN_PLANS_RADIUS_KM, OPEN_PLAN_DAYS_AHEAD,
     OPEN_PLANS_DAYS, OPEN_PLANS_PATH, OpenPlan, OpenPlanRequest, OpenPlanResponse,
-    OpenPlansRequest, OpenPlansResponse, open_plan_in_path, open_plan_path, parse_open_plan_note,
+    OpenPlansRequest, OpenPlansResponse, open_plan_in_path, open_plan_path, open_plan_words,
+    parse_open_plan_note,
+};
+pub use phones::{
+    DEFAULT_NEARBY_RADIUS_KM, DEVICES_PATH, DeviceRemoveRequest, DeviceRequest,
+    MAX_DEVICE_TOKEN_LENGTH, MAX_DEVICES, MAX_NEARBY_RADIUS_KM, NEARBY_PATH, NearbyCircle,
+    NearbySettings, PHONE_PUSH_TTL_SECONDS, POSITION_GRID_DEG, POSITION_KEPT_MINUTES,
+    POSITION_PATH, PhoneMessage, PhoneMessageKind, PositionRequest, PushPlatform, coarse_position,
 };
 pub use pictures::{
     ACCOUNT_PICTURE_PATH, DEFAULT_PILOTS_NEAR, DEFAULT_PILOTS_NEAR_RADIUS_KM, MAX_PICTURE_BYTES,

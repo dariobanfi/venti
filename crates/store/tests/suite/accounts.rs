@@ -77,7 +77,13 @@ fn session(name: &str, account: &Account, used: Timestamp) -> Session {
 }
 
 /// Signs a device in at `used` with a token whose hash is `token`.
-async fn sign_in(store: &impl Store, name: &str, account: &Account, used: Timestamp, token: u8) {
+pub(crate) async fn sign_in(
+    store: &impl Store,
+    name: &str,
+    account: &Account,
+    used: Timestamp,
+    token: u8,
+) {
     store
         .create_session(&session(name, account, used), &secret(token), 100)
         .await

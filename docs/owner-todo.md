@@ -4,7 +4,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 
 ## Only you can do these
 
-- [ ] **Push notifications** (your choice of 2026-11-23: Apple's and Google's): make an APNs key (.p8) in your Apple developer account for the app's bundle identifier, and a Firebase project with Cloud Messaging for `fly.venti.app` (its `google-services.json` and a service account for the server). Keep them out of the repository; the server reads them from its own files.
+- [ ] **Push notifications** (your choice of 2026-11-23: Apple's and Google's): make an APNs key (.p8) in your Apple developer account for the app's bundle identifier, and a Firebase project with Cloud Messaging for `fly.venti.app` (its `google-services.json` and a service account for the server). Put the files in `deploy/data/push/` (ignored by git) and point `VENTI_APNS_KEY_FILE`, `VENTI_APNS_KEY_ID`, `VENTI_APNS_TEAM_ID` and `VENTI_FCM_SERVICE_ACCOUNT_FILE` in `deploy/.env` at them ([running-a-server.md](running-a-server.md#push-to-the-phone-apps)). The server side is built; until the keys exist nothing is sent.
 
 
 - [ ] **Météo-France:** make a free account at its API portal and a key, so its stations can be collected (16). The adapter is not written until then.

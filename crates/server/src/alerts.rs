@@ -28,7 +28,8 @@
 //!   least as many as it asks, and then rests for the hours it names.
 //!
 //! What fired is written down, and on a server that sends Web Push handed
-//! to [`Pusher::fired`], which does not wait ([`crate::push`]).
+//! to [`Pusher::fired`], which does not wait ([`crate::push`]), and to the
+//! account's phones by [`Phones::tell`].
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -41,6 +42,7 @@ use venti_api_types::v1::{
     ALERT_READING_FRESH_MINUTES, ALERT_REST_HOURS, AlertReading, AlertRule, DayAlert, FiredAlert,
     FiredBecause, ThermalMapResponse, alert_day,
 };
+use venti_api_types::v1::{PhoneMessage, PhoneMessageKind, PushMessage};
 use venti_domain::{Observation, StationId, Timestamp};
 use venti_store::{Alert, AlertCheck, DAY_ALERT, PILOTS_ALERT, Store};
 
@@ -48,6 +50,7 @@ use crate::clock::Clock;
 use crate::live::air::{self, Flyer, Trails};
 use crate::live::network::Network;
 use crate::push::Pusher;
+use crate::push::phones::Phones;
 
 /// How often the alarms about pilots in the air are checked.
 pub const AIR_CHECK_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
@@ -67,6 +70,8 @@ pub struct Checks<S> {
     clock: Arc<dyn Clock>,
     /// Who tells the account's browsers, on a server that sends Web Push.
     push: Option<Pusher>,
+    /// Who tells the account's phones, on a server that has the keys.
+    phones: Phones,
 }
 
 /// What the server notes of an alarm between two checks.
@@ -106,7 +111,15 @@ impl<S: Store> Checks<S> {
             store,
             clock,
             push: None,
+            phones: Phones::off(),
         }
+    }
+
+    /// The checks, telling the account's phones what fired by `phones`.
+    #[must_use]
+    pub fn with_phones(mut self, phones: Phones) -> Self {
+        self.phones = phones;
+        self
     }
 
     /// The checks, telling the account's browsers what fired by `push`.
@@ -343,6 +356,19 @@ impl<S: Store> Checks<S> {
             let this = self.write(&check).await;
             if let (true, Some(push)) = (this, &self.push) {
                 push.fired(&alert.account_id, &fired);
+            }
+            if this {
+                let words = PushMessage::of(&fired);
+                self.phones.tell(
+                    vec![alert.account_id.clone()],
+                    PhoneMessage {
+                        title: words.title,
+                        body: words.line,
+                        kind: PhoneMessageKind::Alert,
+                        id: fired.alert_id.clone(),
+                        sent_at: now,
+                    },
+                );
             }
             written &= this;
         }

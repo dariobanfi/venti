@@ -907,6 +907,42 @@
       "at_least"
     ]
   },
+  "DeviceRemoveRequest": {
+    "type": "object",
+    "properties": {
+      "platform": {
+        "$ref": "#/components/schemas/PushPlatform"
+      },
+      "token": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "platform",
+      "token"
+    ]
+  },
+  "DeviceRequest": {
+    "description": "A phone's token from its platform's push service.",
+    "type": "object",
+    "properties": {
+      "platform": {
+        "$ref": "#/components/schemas/PushPlatform"
+      },
+      "token": {
+        "type": "string",
+        "description": "On an iPhone the device token in hexadecimal; on Android the FCM registration token. At most 512 bytes."
+      },
+      "sandbox": {
+        "type": "boolean",
+        "description": "An iPhone app built for development, whose token is of Apple's sandbox. Left out for every other."
+      }
+    },
+    "required": [
+      "platform",
+      "token"
+    ]
+  },
   "FlightHabits": {
     "description": "How one flight was flown, in the counts and sums of the flight engine's rules (docs/api.md says them).",
     "type": "object",
@@ -1023,6 +1059,180 @@
     "required": [
       "flights",
       "not_yet"
+    ]
+  },
+  "HelpAnswerBody": {
+    "type": "object",
+    "properties": {
+      "can_help": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "can_help"
+    ]
+  },
+  "HelpListResponse": {
+    "type": "object",
+    "properties": {
+      "mine": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/HelpRequest"
+        }
+      },
+      "asked": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/HelpRequest"
+        }
+      }
+    },
+    "required": [
+      "mine",
+      "asked"
+    ]
+  },
+  "HelpRequest": {
+    "description": "A request for help, as the one reading it may see it.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "note": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "ends_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "closed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "mine": {
+        "type": "boolean",
+        "description": "Whether the reader is the pilot who asks."
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "distance_km": {
+        "type": "integer",
+        "description": "To a pilot who was asked: how far, in whole kilometres, from the coarse position their phone last told."
+      },
+      "can_help": {
+        "type": "boolean",
+        "description": "To a pilot who was asked: their own answer."
+      },
+      "asked": {
+        "type": "integer",
+        "description": "To the pilot who asks: how many pilots it was sent to."
+      },
+      "helpers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Pilot"
+        },
+        "description": "To the pilot who asks: who can help, the first first."
+      }
+    },
+    "required": [
+      "id",
+      "pilot",
+      "created_at",
+      "ends_at",
+      "mine"
+    ]
+  },
+  "HelpRequestBody": {
+    "type": "object",
+    "properties": {
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "note": {
+        "type": "string",
+        "description": "What the pilot needs, at most 280 characters."
+      }
+    },
+    "required": [
+      "position"
+    ]
+  },
+  "HelpResponse": {
+    "type": "object",
+    "properties": {
+      "request": {
+        "$ref": "#/components/schemas/HelpRequest"
+      }
+    },
+    "required": [
+      "request"
+    ]
+  },
+  "NearbyCircle": {
+    "description": "A circle on the map.",
+    "type": "object",
+    "properties": {
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "radius_km": {
+        "type": "integer",
+        "description": "1 to 100."
+      }
+    },
+    "required": [
+      "position",
+      "radius_km"
+    ]
+  },
+  "NearbySettings": {
+    "description": "What pilots nearby do: both off until the pilot turns them on.",
+    "type": "object",
+    "properties": {
+      "open_plans_near": {
+        "description": "Where the pilot wants to be told of a new open plan; null for nowhere.",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/NearbyCircle"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "may_be_asked_for_help": {
+        "type": "boolean",
+        "description": "Whether pilots nearby who have landed may ask this pilot for help."
+      }
+    }
+  },
+  "PhonePushHealth": {
+    "description": "To which phones the server sends push messages.",
+    "type": "object",
+    "properties": {
+      "apns": {
+        "type": "boolean",
+        "description": "iPhones, through Apple's push service: the server has an APNs key."
+      },
+      "fcm": {
+        "type": "boolean",
+        "description": "Android phones, through Firebase Cloud Messaging: the server has a Firebase service account."
+      }
+    },
+    "required": [
+      "apns",
+      "fcm"
     ]
   },
   "PilotsAlert": {
@@ -1298,6 +1508,14 @@
       "alert_not_found",
       "invalid_push_subscription",
       "too_many_push_subscriptions",
+      "invalid_device",
+      "too_many_devices",
+      "invalid_nearby",
+      "help_not_offered",
+      "invalid_help_request",
+      "help_request_open",
+      "help_request_not_found",
+      "help_request_ended",
       "invalid_follow",
       "too_many_follows",
       "invalid_cheer",
@@ -2464,6 +2682,9 @@
       "google_sign_in": {
         "type": "boolean",
         "description": "Whether the server offers signing in with Google."
+      },
+      "phone_push": {
+        "$ref": "#/components/schemas/PhonePushHealth"
       }
     },
     "required": [
@@ -2802,6 +3023,25 @@
       "cell_deg",
       "layers",
       "attributions"
+    ]
+  },
+  "PositionRequest": {
+    "type": "object",
+    "properties": {
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      }
+    },
+    "required": [
+      "position"
+    ]
+  },
+  "PushPlatform": {
+    "description": "Whose push service a phone's token is of.",
+    "type": "string",
+    "enum": [
+      "apns",
+      "fcm"
     ]
   },
   "SiteAir": {
@@ -4054,6 +4294,10 @@
       "open_plan": {
         "type": "string",
         "description": "An open plan, by its identifier."
+      },
+      "help_request": {
+        "type": "string",
+        "description": "A request for help the reporter was asked, by its identifier."
       }
     }
   },

@@ -49,6 +49,33 @@ fn number(parts: &[&str]) -> BoxedUint {
     BoxedUint::from_be_slice_vartime(&bytes)
 }
 
+fn test_private_key() -> RsaPrivateKey {
+    RsaPrivateKey::from_p_q(number(P), number(Q), BoxedUint::from(65_537_u32))
+        .expect("the test-only key is a good key")
+}
+
+/// The test-only key in PKCS #8, as a Firebase service account's file
+/// holds its own: for the tests of push to Android phones, whose fake
+/// service account it is. Published on purpose, like the key itself.
+///
+/// # Panics
+///
+/// Never: the key is fixed and good.
+#[must_use]
+pub fn test_private_key_pem() -> String {
+    use rsa::pkcs8::EncodePrivateKey as _;
+    test_private_key()
+        .to_pkcs8_pem(rsa::pkcs8::LineEnding::LF)
+        .expect("the test-only key is written")
+        .to_string()
+}
+
+/// The public half of the test-only key.
+#[must_use]
+pub fn test_public_key() -> RsaPublicKey {
+    test_private_key().to_public_key()
+}
+
 /// Signs ID tokens as Google would, with the test-only key.
 #[derive(Debug, Clone)]
 pub struct DevIssuer {
@@ -64,8 +91,7 @@ impl DevIssuer {
     /// Never: the primes are fixed and good.
     #[must_use]
     pub fn new() -> Self {
-        let private = RsaPrivateKey::from_p_q(number(P), number(Q), BoxedUint::from(65_537_u32))
-            .expect("the test-only key is a good key");
+        let private = test_private_key();
         let public = private.to_public_key();
         Self {
             key: SigningKey::new(private),

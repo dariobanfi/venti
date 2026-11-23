@@ -19,6 +19,7 @@ mod live;
 mod moderation;
 mod oauth;
 mod open_plans;
+mod phones;
 mod pictures;
 mod pilot_sites;
 mod push;
@@ -37,6 +38,7 @@ pub(crate) use live::*;
 pub(crate) use moderation::*;
 pub(crate) use oauth::*;
 pub(crate) use open_plans::*;
+pub(crate) use phones::*;
 pub(crate) use pictures::*;
 pub(crate) use pilot_sites::*;
 pub(crate) use push::*;
@@ -136,6 +138,10 @@ macro_rules! store_suite {
             a_browser_is_subscribed_bounded_and_removed,
             a_browser_is_of_the_account_that_subscribed_it_last,
             the_first_push_key_kept_is_the_one,
+            a_phone_is_registered_bounded_and_goes_with_its_session,
+            nearby_settings_start_off_and_hold_a_position,
+            a_request_for_help_goes_to_the_nearest_who_may_be_asked,
+            help_is_answered_closed_and_pruned,
             tokens_for_programs_are_withdrawn_one_by_one,
             an_account_holds_only_so_many_tokens_for_programs,
             the_oldest_unused_program_makes_room_for_a_new_one,

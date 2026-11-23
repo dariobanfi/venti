@@ -483,6 +483,11 @@ impl Accounts {
         sessions
     }
 
+    /// Whether a session with this identifier stands.
+    pub(super) fn has_session(&self, session_id: &str) -> bool {
+        self.sessions.contains_key(session_id)
+    }
+
     pub(super) fn delete_session(&mut self, account_id: &str, session_id: &str) -> bool {
         let owned = self
             .sessions

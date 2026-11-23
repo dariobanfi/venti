@@ -8,8 +8,9 @@
 //! A plan meant for friends goes to a group ([`crate::groups`]). The core
 //! puts the requests together, refuses before sending what the server
 //! would refuse, and reads the answers into what a screen shows. Nothing
-//! of it is kept on the device, and nothing tells a pilot of a new plan or
-//! of someone coming in: notifications are not built.
+//! of it is kept on the device. The server pushes a new plan to the phones
+//! of pilots whose circle holds it ([`crate::phones`]); someone coming in
+//! tells nobody.
 
 use venti_api_types::v1::{
     self as api, GroupTextError, OpenPlan, OpenPlanRequest, OpenPlanResponse, OpenPlansRequest,

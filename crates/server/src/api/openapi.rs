@@ -151,6 +151,17 @@ const TAGS: &[(&str, &str, &[&str])] = &[
         &["/v1/account/alerts", "/v1/account/push", "/v1/push"],
     ),
     (
+        "Phones and help",
+        "Phones registered for push, open plans and help near the pilot, and asking pilots \
+         nearby for a lift after landing.",
+        &[
+            "/v1/account/devices",
+            "/v1/account/nearby",
+            "/v1/account/position",
+            "/v1/help",
+        ],
+    ),
+    (
         "Live tracks",
         "Live positions in the air, and what they say about climbs and sites.",
         &["/v1/live"],
@@ -743,6 +754,76 @@ fn operations() -> Vec<Op> {
             .takes("PushRemoveRequest")
             .nothing(),
         get(PUSH_KEY_PATH, "The server's public key for Web Push").json("PushKeyResponse"),
+        // Phones, what pilots nearby do, and help after landing.
+        post(
+            venti_api_types::v1::DEVICES_PATH,
+            "Register this phone for push through APNs or FCM",
+        )
+        .docs("POST and DELETE /v1/account/devices")
+        .session()
+        .takes("DeviceRequest")
+        .nothing(),
+        delete(venti_api_types::v1::DEVICES_PATH, "Remove a phone")
+            .docs("POST and DELETE /v1/account/devices")
+            .session()
+            .takes("DeviceRemoveRequest")
+            .nothing(),
+        get(
+            venti_api_types::v1::NEARBY_PATH,
+            "The settings for open plans nearby and being asked for help",
+        )
+        .docs("GET and PUT /v1/account/nearby")
+        .session()
+        .json("NearbySettings"),
+        put(
+            venti_api_types::v1::NEARBY_PATH,
+            "Set the settings for open plans nearby and being asked for help",
+        )
+        .docs("GET and PUT /v1/account/nearby")
+        .session()
+        .takes("NearbySettings")
+        .json("NearbySettings"),
+        put(
+            venti_api_types::v1::POSITION_PATH,
+            "Tell the phone's coarse position, for being asked for help",
+        )
+        .docs("PUT and DELETE /v1/account/position")
+        .session()
+        .takes("PositionRequest")
+        .nothing(),
+        delete(
+            venti_api_types::v1::POSITION_PATH,
+            "Forget the phone's position",
+        )
+        .docs("PUT and DELETE /v1/account/position")
+        .session()
+        .nothing(),
+        post(
+            venti_api_types::v1::HELP_PATH,
+            "Ask the pilots nearby for a lift or a hand after landing",
+        )
+        .session()
+        .takes("HelpRequestBody")
+        .statuses(&[201])
+        .json("HelpResponse"),
+        get(
+            venti_api_types::v1::HELP_PATH,
+            "The pilot's own requests for help and those they were asked",
+        )
+        .session()
+        .json("HelpListResponse"),
+        get("/v1/help/{id}", "One request for help")
+            .docs("GET and DELETE /v1/help/{id}")
+            .session()
+            .json("HelpResponse"),
+        delete("/v1/help/{id}", "Close the pilot's own request for help")
+            .docs("GET and DELETE /v1/help/{id}")
+            .session()
+            .nothing(),
+        put("/v1/help/{id}/answer", "Say whether the pilot can help")
+            .session()
+            .takes("HelpAnswerBody")
+            .json("HelpResponse"),
         // Flights.
         post(
             FLIGHTS_PATH,

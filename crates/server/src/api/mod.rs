@@ -91,12 +91,14 @@ mod log;
 mod logbook;
 mod maps;
 mod mcp;
+mod nearby;
 mod oauth;
 mod observations;
 mod open_plans;
 mod openapi;
 mod pictures;
 mod pilots;
+pub use nearby::HELP_KEPT_HOURS;
 mod push;
 mod radar;
 mod ranking;
@@ -368,6 +370,10 @@ pub struct Api<S> {
     /// The public half of the server's key for Web Push, base64url, for
     /// `GET /v1/push/key`.
     push_key: Option<String>,
+    /// Who tells pilots' phones, on a server that has the keys.
+    phones: crate::push::phones::Phones,
+    /// Requests for help, by account.
+    help_requests: Throttle,
     /// Signing in with Google, on a server that was given client IDs.
     google: Option<Arc<GoogleSignIn>>,
 }
@@ -507,6 +513,12 @@ impl<S: Store> Api<S> {
             push_key: crate::push::ServerKey::generate()
                 .ok()
                 .map(|key| key.public_text()),
+            phones: crate::push::phones::Phones::off(),
+            help_requests: Throttle::new(
+                "accounts that asked pilots nearby for help",
+                chrono::Duration::days(1),
+                limits.watched_keys,
+            ),
             google: None,
         }
     }
@@ -526,6 +538,16 @@ impl<S: Store> Api<S> {
     #[must_use]
     pub fn with_push_key(mut self, key: &crate::push::ServerKey) -> Self {
         self.push_key = Some(key.public_text());
+        self
+    }
+
+    /// The same API, telling pilots' phones through `phones`.
+    ///
+    /// Without this nothing reaches a phone, and the health answer says
+    /// so.
+    #[must_use]
+    pub fn with_phones(mut self, phones: crate::push::phones::Phones) -> Self {
+        self.phones = phones;
         self
     }
 
@@ -780,6 +802,27 @@ impl<S: Store> Api<S> {
                 post(push::subscribe::<S>).delete(push::unsubscribe::<S>),
             )
             .route(venti_api_types::v1::PUSH_KEY_PATH, get(push::key::<S>))
+            .route(
+                venti_api_types::v1::DEVICES_PATH,
+                post(nearby::add_device::<S>).delete(nearby::remove_device::<S>),
+            )
+            .route(
+                venti_api_types::v1::NEARBY_PATH,
+                get(nearby::nearby::<S>).put(nearby::set_nearby::<S>),
+            )
+            .route(
+                venti_api_types::v1::POSITION_PATH,
+                put(nearby::set_position::<S>).delete(nearby::forget_position::<S>),
+            )
+            .route(
+                venti_api_types::v1::HELP_PATH,
+                get(nearby::list::<S>).post(nearby::ask::<S>),
+            )
+            .route(
+                "/v1/help/{id}",
+                get(nearby::one::<S>).delete(nearby::close::<S>),
+            )
+            .route("/v1/help/{id}/answer", put(nearby::answer::<S>))
             .route(
                 SESSIONS_PATH,
                 post(account::sign_in::<S>)

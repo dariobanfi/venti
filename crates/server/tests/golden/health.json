@@ -5,6 +5,10 @@
   "forecasts": "available",
   "registration": "open",
   "google_sign_in": true,
+  "phone_push": {
+    "apns": false,
+    "fcm": false
+  },
   "sites_from_pilots": "open",
   "thermal_map": {
     "source": "open-meteo",

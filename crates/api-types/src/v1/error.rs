@@ -168,6 +168,29 @@ pub enum ErrorCode {
     /// The account has as many browsers subscribed as it may. Remove one
     /// first.
     TooManyPushSubscriptions,
+    /// A phone's push token cannot be kept: empty, too long, or not of
+    /// the form its platform gives. The message names the field.
+    InvalidDevice,
+    /// The account has as many phones registered as it may. Remove one
+    /// first.
+    TooManyDevices,
+    /// The settings for what pilots nearby do cannot be kept: a radius
+    /// out of its bounds. The message names the field.
+    InvalidNearby,
+    /// The pilot's position is kept only while pilots nearby may ask
+    /// them for help, which is off: turn it on first.
+    HelpNotOffered,
+    /// A request for help cannot be kept: a note too long. The message
+    /// names the field.
+    InvalidHelpRequest,
+    /// The account has a request for help that still stands: close it
+    /// first.
+    HelpRequestOpen,
+    /// No request for help has this identifier that the caller may read:
+    /// none ever, one that ended, or one they were not asked.
+    HelpRequestNotFound,
+    /// The request for help has ended or was closed: it takes no answer.
+    HelpRequestEnded,
     /// A pilot does not follow themselves.
     InvalidFollow,
     /// The account follows as many pilots as it may. Stop following one

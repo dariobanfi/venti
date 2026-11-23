@@ -176,7 +176,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         versions,
         [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31
+            25, 26, 27, 28, 29, 30, 31, 32
         ]
     );
 }
@@ -202,6 +202,11 @@ async fn accounts_from_before_the_setting_make_their_new_flights_public() {
          ALTER TABLE flights DROP COLUMN habits;
          DROP TABLE open_plan_pilots;
          DROP TABLE open_plans;
+         DROP TABLE help_recipients;
+         DROP TABLE help_requests;
+         DROP TABLE help_positions;
+         DROP TABLE nearby_settings;
+         DROP TABLE phone_devices;
          DELETE FROM schema_migrations WHERE version >= 27;
          INSERT INTO accounts (id, handle, display_name, created_at)
              VALUES ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00');",

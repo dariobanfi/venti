@@ -156,3 +156,24 @@ report_days = 90
 # day is kept for this many days after that day and then removed, with
 # who was in. The day ends by the server's clock in UTC.
 plan_days = 2
+
+[push]
+# Push to the phone apps, through Apple's and Google's own services. Each
+# is a secret file of whoever runs the server, kept outside the repository
+# and readable by the server alone. Left out, the server tells no phone
+# anything, and /v1/health says so in "phone_push". A file that is named
+# and cannot be read stops the server at start. docs/running-a-server.md,
+# "Push to the phone apps", says where each comes from.
+#
+# The APNs key from Apple's developer site (Certificates, IDs & Profiles,
+# Keys, with "Apple Push Notifications service"): the .p8 file, its key
+# ID and the team ID. All three, or none.
+# apns_key_file = "/etc/venti/push/AuthKey_ABC123DEFG.p8"   VENTI_APNS_KEY_FILE
+# apns_key_id = "ABC123DEFG"                                VENTI_APNS_KEY_ID
+# apns_team_id = "TEAM456789"                               VENTI_APNS_TEAM_ID
+# The iPhone app's bundle ID. Left out: fly.venti.app.      VENTI_APNS_TOPIC
+# apns_topic = "fly.venti.app"
+#
+# The JSON key of the Firebase project's service account   VENTI_FCM_SERVICE_ACCOUNT_FILE
+# (Project settings, Service accounts, Generate new private key).
+# fcm_service_account_file = "/etc/venti/push/firebase-service-account.json"

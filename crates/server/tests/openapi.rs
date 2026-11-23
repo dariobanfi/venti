@@ -837,6 +837,40 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
     ("open_plan_request.json", "post", "/v1/open-plans", Request),
     ("open_plan.json", "post", "/v1/open-plans", Answer(201)),
     (
+        "device_request.json",
+        "post",
+        "/v1/account/devices",
+        Request,
+    ),
+    (
+        "device_remove_request.json",
+        "delete",
+        "/v1/account/devices",
+        Request,
+    ),
+    (
+        "nearby_settings.json",
+        "put",
+        "/v1/account/nearby",
+        Answer(200),
+    ),
+    (
+        "position_request.json",
+        "put",
+        "/v1/account/position",
+        Request,
+    ),
+    ("help_ask_request.json", "post", "/v1/help", Request),
+    ("help_asked.json", "post", "/v1/help", Answer(201)),
+    ("help_seen.json", "get", "/v1/help/{id}", Answer(200)),
+    (
+        "help_answer_request.json",
+        "put",
+        "/v1/help/{id}/answer",
+        Request,
+    ),
+    ("report_help_request.json", "post", "/v1/reports", Request),
+    (
         "report_open_plan_request.json",
         "post",
         "/v1/reports",
@@ -861,6 +895,9 @@ const SCHEMAS_NO_GOLDEN_FILE_REACHES: &[&str] = &[
     "Frequency",
     "GoogleSignInRequest",
     "HandOverGroupRequest",
+    // The tests read the list of requests for help in Rust and keep no
+    // file of it; its records are those of `help_asked.json`.
+    "HelpListResponse",
     "LinkGoogleRequest",
     "OperatingHours",
     "RemoveSiteRequest",

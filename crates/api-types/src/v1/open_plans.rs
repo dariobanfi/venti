@@ -67,6 +67,29 @@ pub fn parse_open_plan_note(text: &str) -> Result<Option<String>, GroupTextError
     Ok((!kept.is_empty()).then_some(kept))
 }
 
+/// The title and line a phone shows a pilot whose circle holds a new
+/// open plan: "Open plan: Saturday 28 November at Wallberg" and "Anna has
+/// 2 seats free".
+#[must_use]
+pub fn open_plan_words(
+    day: NaiveDate,
+    place: &str,
+    seats: Option<u8>,
+    author: &str,
+) -> (String, String) {
+    let title = format!(
+        "Open plan: {} {} at {place}",
+        super::weekday_name(day),
+        day.format("%-d %B")
+    );
+    let body = match seats {
+        Some(1) => format!("{author} has 1 seat free"),
+        Some(seats) => format!("{author} has {seats} seats free"),
+        None => format!("{author} is looking for company"),
+    };
+    (title, body)
+}
+
 /// What an open plan says: the body of `POST /v1/open-plans` and of
 /// `PUT /v1/open-plans/{plan}`, sent whole.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -183,6 +206,22 @@ impl OpenPlansRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_plan_is_told_in_a_line() {
+        let day = NaiveDate::from_ymd_opt(2026, 11, 28).unwrap();
+        assert_eq!(
+            open_plan_words(day, "Wallberg", Some(2), "Anna"),
+            (
+                "Open plan: Saturday 28 November at Wallberg".to_owned(),
+                "Anna has 2 seats free".to_owned()
+            )
+        );
+        assert_eq!(
+            open_plan_words(day, "W", None, "Anna").1,
+            "Anna is looking for company"
+        );
+    }
 
     #[test]
     fn a_request_for_open_plans_names_the_place_and_what_it_was_given() {

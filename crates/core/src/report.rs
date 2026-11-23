@@ -79,6 +79,12 @@ pub enum ReportSubject {
         /// The plan's identifier.
         id: String,
     },
+    /// A request for help after landing that the pilot was asked. What
+    /// is reported is its note; never where its pilot is.
+    HelpRequest {
+        /// The request's identifier.
+        id: String,
+    },
     /// A site that pilots made on Venti, as it stands. What is reported
     /// is what it says: its place, its name and its texts. A site of
     /// another source is not reported: it is corrected at its source.
@@ -162,6 +168,8 @@ enum Reported {
     Plan,
     /// An open plan: its place and its note, for everyone to read.
     OpenPlan,
+    /// A request for help: its note.
+    HelpRequest,
     /// A site that pilots made: its place, its name and its texts.
     Site,
     /// A comment under a flight: its words.
@@ -176,7 +184,7 @@ fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'s
     use Reported::{Comment, Group, Picture, Plan, Shared, Site};
     // An open plan is reported for what a group's plan is.
     let reported = match reported {
-        Reported::OpenPlan => Plan,
+        Reported::OpenPlan | Reported::HelpRequest => Plan,
         other => other,
     };
     Some(match (reason, reported) {
@@ -277,7 +285,7 @@ fn choice(reason: ReportReason, reported: Reported) -> Option<(&'static str, &'s
         // A group and a plan are words and no flight.
         (ReportReason::NotAFlight, Group | Plan | Comment) => return None,
         // Read as a group's plan above.
-        (_, Reported::OpenPlan) => return None,
+        (_, Reported::OpenPlan | Reported::HelpRequest) => return None,
         (ReportReason::Spam, _) => (
             "Advertising",
             "Advertising, or something that has nothing to do with flying.",
@@ -324,6 +332,9 @@ fn form(reported: Reported) -> ReportForm {
         Reported::OpenPlan => {
             "Whoever runs Venti reads the report, with the plan's place and note as they are now, and sees that it came from you. Its author is not told, and no answer comes back."
         }
+        Reported::HelpRequest => {
+            "Whoever runs Venti reads the report, with the request's note, and sees that it came from you. The pilot who asked is not told, and no answer comes back."
+        }
         Reported::Picture => {
             "Whoever runs Venti reads the report, with the picture as it is now, and sees that it came from you. The pilot is not told, and no answer comes back."
         }
@@ -364,6 +375,7 @@ pub fn report_form_for(subject: ReportSubject) -> ReportForm {
         ReportSubject::Group { .. } => Reported::Group,
         ReportSubject::Plan { .. } => Reported::Plan,
         ReportSubject::OpenPlan { .. } => Reported::OpenPlan,
+        ReportSubject::HelpRequest { .. } => Reported::HelpRequest,
         ReportSubject::Site { .. } | ReportSubject::SiteRevision { .. } => Reported::Site,
     })
 }
@@ -392,6 +404,7 @@ pub fn report_request(
             id,
         }),
         ReportSubject::OpenPlan { id } => api::ReportSubject::OpenPlan(id),
+        ReportSubject::HelpRequest { id } => api::ReportSubject::HelpRequest(id),
         ReportSubject::Site { id } => {
             api::ReportSubject::Site(api::ReportedSite { id, revision: None })
         }
@@ -458,6 +471,9 @@ fn request_about(
         | api::ReportSubject::LiveTrack(name) => !name.trim().is_empty(),
         api::ReportSubject::Group(id) => id.parse::<GroupId>().is_ok(),
         api::ReportSubject::OpenPlan(id) => id.parse::<PlanId>().is_ok(),
+        api::ReportSubject::HelpRequest(id) => {
+            id.len() == 26 && id.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        }
         api::ReportSubject::Plan(plan) => {
             plan.group.parse::<GroupId>().is_ok() && plan.id.parse::<PlanId>().is_ok()
         }

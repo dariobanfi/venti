@@ -27,6 +27,13 @@ pub struct HealthResponse {
     /// older server, which does not.
     #[serde(default)]
     pub google_sign_in: bool,
+    /// To which phones the server sends push messages: iPhones where it
+    /// has an APNs key, Android phones where it has a Firebase service
+    /// account. An app registers its phone either way; it is told nothing
+    /// while its platform's is `false`. Left out by an older server, which
+    /// sends to no phone.
+    #[serde(default)]
+    pub phone_push: PhonePushHealth,
     /// Whether the server takes flying sites from pilots: whether a
     /// signed-in pilot can add a site and correct one. An app offers
     /// neither where this is not `open`. Left out by a server older than
@@ -352,4 +359,13 @@ mod tests {
             r#""not_configured""#
         );
     }
+}
+
+/// To which phones the server sends push messages.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PhonePushHealth {
+    /// iPhones, through Apple's push service.
+    pub apns: bool,
+    /// Android phones, through Firebase Cloud Messaging.
+    pub fcm: bool,
 }

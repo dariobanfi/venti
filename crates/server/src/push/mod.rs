@@ -23,8 +23,14 @@
 //!   the account anyway, for the apps to fetch.
 //! - **The key.** The server's key pair is made when it first starts
 //!   with a database, and kept in it ([`key_of`]). It is never logged.
+//!
+//! The phone apps are told through their platforms' own services instead:
+//! [`phones`], with [`apns`] and [`fcm`].
 
+pub mod apns;
 pub mod crypto;
+pub mod fcm;
+pub mod phones;
 
 use std::sync::Arc;
 use std::time::Duration;

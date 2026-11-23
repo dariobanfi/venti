@@ -157,6 +157,7 @@ fn report(report: venti_store::Report) -> Option<ArchiveReport> {
             id,
         }),
         Stored::OpenPlan { id, .. } => ReportSubject::OpenPlan(id),
+        Stored::HelpRequest { id, .. } => ReportSubject::HelpRequest(id),
         Stored::Site { id, revision } => ReportSubject::Site(ReportedSite {
             id,
             revision: Some(revision),

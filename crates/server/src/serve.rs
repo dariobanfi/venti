@@ -115,10 +115,36 @@ pub async fn serve(config: Config) -> Result<(), String> {
         crate::push::PushSettings::new(&config.user_agent, contact),
     )?;
 
+    // Push to the phone apps, through Apple's and Google's services, for
+    // the platforms whose keys the configuration names.
+    let phones = crate::push::phones::Phones::start(
+        store.clone(),
+        clock.clone(),
+        crate::push::phones::keys_from(&config.push)?,
+        crate::push::phones::PhoneSettings::new(&config.user_agent),
+    )?;
+    match (phones.apple(), phones.google()) {
+        (false, false) => tracing::info!(
+            "no push to phones: neither an APNs key nor a Firebase service account is configured"
+        ),
+        (apple, google) => tracing::info!(
+            "push to phones: iPhones {}, Android {}",
+            if apple { "yes" } else { "no (no APNs key)" },
+            if google {
+                "yes"
+            } else {
+                "no (no Firebase service account)"
+            }
+        ),
+    }
+
     // The alarms pilots set, checked where the data arrives: after each
     // run of stations, and after each map made with a new run.
-    let air_checks =
-        Arc::new(crate::alerts::Checks::new(store.clone(), clock.clone()).with_push(pusher));
+    let air_checks = Arc::new(
+        crate::alerts::Checks::new(store.clone(), clock.clone())
+            .with_push(pusher)
+            .with_phones(phones.clone()),
+    );
     let checks: Arc<dyn crate::alerts::Watch> = air_checks.clone();
 
     // The thermal map of the forecast source, made with each run of its
@@ -178,7 +204,8 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let mut api = Api::new(store.clone(), clock.clone(), manifests, settings)
         .with_station_priority(plan::station_priority(&packs))
         .with_site_priority(plan::site_priority(&packs))
-        .with_push_key(&push_key);
+        .with_push_key(&push_key)
+        .with_phones(phones);
     if let Some(radar) = &radar {
         api = api.with_radar(radar.clone());
     }

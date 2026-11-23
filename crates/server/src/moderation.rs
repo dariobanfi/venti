@@ -1468,6 +1468,26 @@ async fn described(
                 None,
             )
         }
+        ReportSubject::HelpRequest { id, note } => {
+            if let Some(note) = note {
+                labelled(&mut kept, "Note then:", note);
+            }
+            let now = match store.help_request(id).await? {
+                Some(request) => match request.closed_at {
+                    Some(closed) => format!("closed by its pilot at {}", closed.to_rfc3339()),
+                    None => format!("ends by itself at {}", request.ends_at.to_rfc3339()),
+                },
+                None => "gone: ended a day ago or more, or gone with its pilot".to_owned(),
+            };
+            labelled(&mut kept, "Now:", &now);
+            (
+                format!(
+                    "request for help {} of {about}, sent to pilots nearby",
+                    on_one_line(id)
+                ),
+                None,
+            )
+        }
         ReportSubject::Comment {
             id,
             flight_id,

@@ -77,6 +77,7 @@ use venti_core::{
 };
 use venti_core::{FlownThermals, LiveClimbs, SitesAir};
 use venti_core::{GoogleSignIn, GoogleWords};
+use venti_core::{HelpLists, HelpView, NearbyChoice, PhonePlatform};
 use venti_core::{OwnFlight, OwnFlights, UploadedFlight};
 use venti_core::{PilotStatistics, PilotsFound, PilotsWords, RouteFromFile};
 use venti_core::{
@@ -1690,6 +1691,137 @@ pub fn push_unsubscribe_request(endpoint: String) -> Result<Ts<ServerRequest>, J
 #[wasm_bindgen(js_name = pushSaved)]
 pub fn push_saved(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
     venti_core::push_saved(status, body).map_err(thrown)
+}
+
+// Push to the phone apps, what pilots nearby do, and help after landing
+// (`docs/api.md`, "Push to the phone apps" and "Help after landing"). The
+// web app has no phone of its own to register; it can show the settings,
+// read and answer a call for help, and ask for one.
+
+/// Reads an answer that carries nothing: throws the server's refusal in
+/// words.
+#[wasm_bindgen(js_name = phoneRequestDone)]
+pub fn phone_request_done(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
+    venti_core::phone_request_done(status, body).map_err(thrown)
+}
+
+/// The request that registers a phone's push token on the account.
+#[wasm_bindgen(js_name = deviceRegisterRequest)]
+pub fn device_register_request(
+    platform: Ts<PhonePlatform>,
+    token: String,
+    sandbox: bool,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let platform = from_js(&platform)?;
+    to_js(&venti_core::device_register_request(platform, token, sandbox).map_err(thrown)?)
+}
+
+/// The request that removes a phone from the account.
+#[wasm_bindgen(js_name = deviceRemoveRequest)]
+pub fn device_remove_request(
+    platform: Ts<PhonePlatform>,
+    token: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let platform = from_js(&platform)?;
+    to_js(&venti_core::device_remove_request(platform, token).map_err(thrown)?)
+}
+
+/// The request for the settings for what pilots nearby do.
+#[wasm_bindgen(js_name = nearbySettingsRequest)]
+pub fn nearby_settings_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::nearby_settings_request())
+}
+
+/// The request that sets them, whole.
+#[wasm_bindgen(js_name = nearbySettingsChangeRequest)]
+pub fn nearby_settings_change_request(
+    choice: Ts<NearbyChoice>,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let choice = from_js(&choice)?;
+    to_js(&venti_core::nearby_settings_change_request(choice).map_err(thrown)?)
+}
+
+/// Reads the answer to `nearbySettingsRequest` or
+/// `nearbySettingsChangeRequest`.
+#[wasm_bindgen(js_name = nearbySettings)]
+pub fn nearby_settings(status: u16, body: Vec<u8>) -> Result<Ts<NearbyChoice>, JsValue> {
+    to_js(&venti_core::nearby_settings(status, body).map_err(thrown)?)
+}
+
+/// The words of the two settings: a title and a line for each.
+#[wasm_bindgen(js_name = nearbySettingsWords)]
+pub fn nearby_settings_words() -> Vec<String> {
+    venti_core::nearby_settings_words()
+}
+
+/// The request that tells where the device is, for being asked for help.
+#[wasm_bindgen(js_name = positionRequest)]
+pub fn position_request(at: Ts<Coordinate>) -> Result<Ts<ServerRequest>, JsValue> {
+    let at = from_js(&at)?;
+    to_js(&venti_core::position_request(at).map_err(thrown)?)
+}
+
+/// The request that has the server forget it.
+#[wasm_bindgen(js_name = positionForgetRequest)]
+pub fn position_forget_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::position_forget_request())
+}
+
+/// The first words of every screen of help after landing.
+#[wasm_bindgen(js_name = helpEmergencyWords)]
+pub fn help_emergency_words() -> String {
+    venti_core::help_emergency_words()
+}
+
+/// The request that asks the pilots nearby for help.
+#[wasm_bindgen(js_name = helpAskRequest)]
+pub fn help_ask_request(at: Ts<Coordinate>, note: String) -> Result<Ts<ServerRequest>, JsValue> {
+    let at = from_js(&at)?;
+    to_js(&venti_core::help_ask_request(at, note).map_err(thrown)?)
+}
+
+/// The request for the requests for help that stand.
+#[wasm_bindgen(js_name = helpListRequest)]
+pub fn help_list_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::help_list_request())
+}
+
+/// The request for one request for help.
+#[wasm_bindgen(js_name = helpOneRequest)]
+pub fn help_one_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::help_one_request(id))
+}
+
+/// The request that closes the pilot's own request.
+#[wasm_bindgen(js_name = helpCloseRequest)]
+pub fn help_close_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::help_close_request(id))
+}
+
+/// The request that says whether the pilot can help.
+#[wasm_bindgen(js_name = helpAnswerRequest)]
+pub fn help_answer_request(id: String, can_help: bool) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::help_answer_request(id, can_help).map_err(thrown)?)
+}
+
+/// Reads the answer to `helpAskRequest`, `helpOneRequest` or
+/// `helpAnswerRequest`; `nowMs` is `Date.now()`.
+#[wasm_bindgen(js_name = helpRequest)]
+pub fn help_request(status: u16, body: Vec<u8>, now_ms: f64) -> Result<Ts<HelpView>, JsValue> {
+    to_js(&venti_core::help_request(status, body, millis(now_ms)).map_err(thrown)?)
+}
+
+/// Reads the answer to `helpListRequest`; `nowMs` is `Date.now()`.
+#[wasm_bindgen(js_name = helpRequests)]
+pub fn help_requests(status: u16, body: Vec<u8>, now_ms: f64) -> Result<Ts<HelpLists>, JsValue> {
+    to_js(&venti_core::help_requests(status, body, millis(now_ms)).map_err(thrown)?)
+}
+
+/// Milliseconds from JavaScript's clock, whole.
+fn millis(now_ms: f64) -> i64 {
+    #[allow(clippy::cast_possible_truncation)]
+    let whole = now_ms.round() as i64;
+    whole
 }
 
 // The tokens a pilot gives to other programs, for a screen "Programs with

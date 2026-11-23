@@ -115,6 +115,10 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
             Registration::Closed => RegistrationMode::Closed,
         }),
         google_sign_in: api.google.is_some(),
+        phone_push: venti_api_types::v1::PhonePushHealth {
+            apns: api.phones.apple(),
+            fcm: api.phones.google(),
+        },
         sites_from_pilots: Some(if api.pilot_sites.accepts() {
             SitesFromPilots::Open
         } else {

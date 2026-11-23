@@ -119,7 +119,47 @@ fn plans_answer(mut plans: Vec<OpenPlan>) -> Result<OpenPlansResponse, ApiError>
     })
 }
 
+/// The most pilots one new open plan is told to.
+const MOST_WATCHERS: usize = 500;
+
 impl<S: Store> Api<S> {
+    /// Tells the phones of the pilots whose circle holds a new open plan.
+    /// A store that cannot say who they are tells nobody: the plan is
+    /// posted all the same.
+    async fn tell_watchers(&self, plan: &OpenPlan, now: Timestamp) {
+        let watchers = match self
+            .store
+            .open_plan_watchers(
+                plan.details.position,
+                &plan.author.account_id,
+                MOST_WATCHERS,
+            )
+            .await
+        {
+            Ok(watchers) => watchers,
+            Err(error) => {
+                tracing::warn!("open plans: whom to tell of a new plan could not be read: {error}");
+                return;
+            }
+        };
+        let (title, body) = v1::open_plan_words(
+            plan.details.day,
+            &plan.details.place,
+            plan.details.seats,
+            &plan.author.display_name,
+        );
+        self.phones.tell(
+            watchers,
+            v1::PhoneMessage {
+                title,
+                body,
+                kind: v1::PhoneMessageKind::OpenPlan,
+                id: plan.id.clone(),
+                sent_at: now,
+            },
+        );
+    }
+
     /// How many open plans an account may hold and how many pilots one
     /// may have in at `now`, as the store is told.
     fn open_plan_room(&self, now: Timestamp) -> OpenPlanRoom {
@@ -340,7 +380,10 @@ pub(crate) async fn post<S: Store>(
     };
     let room = api.open_plan_room(now);
     match api.store.save_open_plan(&new, &room).await? {
-        OpenPlanSaving::Stored(plan) => plan_answer(StatusCode::CREATED, &plan),
+        OpenPlanSaving::Stored(plan) => {
+            api.tell_watchers(&plan, now).await;
+            plan_answer(StatusCode::CREATED, &plan)
+        }
         OpenPlanSaving::TooMany => Err(ApiError::forbidden(
             ErrorCode::TooManyOpenPlans,
             format!(

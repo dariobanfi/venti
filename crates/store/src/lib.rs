@@ -45,6 +45,7 @@ mod memory;
 mod month;
 mod oauth;
 mod open_plan;
+mod phone;
 mod picture;
 mod pilot_site;
 mod postgres;
@@ -99,6 +100,10 @@ pub use oauth::{
 pub use open_plan::{
     NewOpenPlan, OpenPlan, OpenPlanArea, OpenPlanChange, OpenPlanDetails, OpenPlanRemoval,
     OpenPlanRoom, OpenPlanSaving,
+};
+pub use phone::{
+    AddingDevice, Circle, HelpAnswering, HelpCreation, HelpReach, HelpRequest, NearbySettings,
+    NewHelpRequest, PhoneDevice,
 };
 pub use picture::{NearPilot, NewPicture, Picture, PictureOrigin};
 pub use pilot_site::{
@@ -1346,6 +1351,148 @@ pub trait Store: Send + Sync + 'static {
         key: &str,
         now: Timestamp,
     ) -> impl Future<Output = Result<String, StoreError>> + Send;
+
+    // --- Phones, and what pilots nearby do ----------------------------------
+
+    /// Registers a phone on an account, with the session that registers
+    /// it, unless the account has `most` already. A token that is there is
+    /// taken over, by this account and session, and is not counted
+    /// against it.
+    fn add_device(
+        &self,
+        device: &PhoneDevice,
+        most: usize,
+    ) -> impl Future<Output = Result<AddingDevice, StoreError>> + Send;
+
+    /// Removes a phone of an account. Returns whether it had it.
+    fn remove_device(
+        &self,
+        account_id: &str,
+        platform: &str,
+        token: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Removes a phone, whoever's it is: its push service said the token
+    /// is no more. Returns whether it was there.
+    fn drop_device(
+        &self,
+        platform: &str,
+        token: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// The phones of some accounts whose sessions still stand, by account
+    /// and then the oldest first.
+    fn devices_of(
+        &self,
+        account_ids: &[String],
+    ) -> impl Future<Output = Result<Vec<PhoneDevice>, StoreError>> + Send;
+
+    /// An account's settings for what pilots nearby do; both off for one
+    /// that never set them, or that is not there.
+    fn nearby_settings(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<NearbySettings, StoreError>> + Send;
+
+    /// Sets an account's settings, whole. Turning being asked for help off
+    /// forgets the account's position. Returns whether the account is
+    /// there.
+    fn set_nearby_settings(
+        &self,
+        account_id: &str,
+        settings: &NearbySettings,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Keeps an account's coarse position, told at `now`, in place of the
+    /// one it had. Kept only while the account may be asked for help:
+    /// returns whether it was kept.
+    fn keep_position(
+        &self,
+        account_id: &str,
+        position: GeoPoint,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Forgets an account's position.
+    fn forget_position(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// An account's position, if it was told at `since` or later and the
+    /// account may still be asked.
+    fn position_of(
+        &self,
+        account_id: &str,
+        since: Timestamp,
+    ) -> impl Future<Output = Result<Option<GeoPoint>, StoreError>> + Send;
+
+    /// The accounts whose circle for open plans holds `position`, but
+    /// `except`, at most `most`, in no particular order.
+    fn open_plan_watchers(
+        &self,
+        position: GeoPoint,
+        except: &str,
+        most: usize,
+    ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;
+
+    /// Stores a request for help, sent to the accounts that may be asked
+    /// and told a position within `reach`, nearest first, never its own;
+    /// unless its account has a request that stands at `created_at`.
+    fn create_help_request(
+        &self,
+        new: &NewHelpRequest,
+        reach: &HelpReach,
+    ) -> impl Future<Output = Result<HelpCreation, StoreError>> + Send;
+
+    /// A request for help, standing or not, if it is kept.
+    fn help_request(
+        &self,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<HelpRequest>, StoreError>> + Send;
+
+    /// Keeps whether an account that was asked can help, on a request
+    /// that stands at `now`.
+    fn answer_help_request(
+        &self,
+        id: &str,
+        account_id: &str,
+        can_help: bool,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<HelpAnswering, StoreError>> + Send;
+
+    /// Closes a request of an account that stands at `now`. Returns it as
+    /// it is then, or `None` if the account has no such request standing.
+    fn close_help_request(
+        &self,
+        id: &str,
+        account_id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Option<HelpRequest>, StoreError>> + Send;
+
+    /// The requests of an account that stand at `now`, the newest first.
+    fn help_requests_of(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Vec<HelpRequest>, StoreError>> + Send;
+
+    /// The requests an account was asked that stand at `now`, the newest
+    /// first.
+    fn help_requests_asked(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Vec<HelpRequest>, StoreError>> + Send;
+
+    /// Removes the positions told before `positions_before` and the
+    /// requests that ended before `requests_before`. Returns how many.
+    fn prune_nearby(
+        &self,
+        positions_before: Timestamp,
+        requests_before: Timestamp,
+    ) -> impl Future<Output = Result<u64, StoreError>> + Send;
 
     // --- Flights ----------------------------------------------------------
 

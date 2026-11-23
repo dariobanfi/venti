@@ -6,6 +6,7 @@ mod kept_sites;
 mod live;
 mod oauth;
 mod open_plans;
+mod phones;
 mod pilot_sites;
 mod push;
 mod reports;
@@ -81,6 +82,7 @@ struct Inner {
     kept_sites: kept_sites::KeptSites,
     alerts: alerts::Alerts,
     push: push::Push,
+    phones: phones::Phones,
     social: social::Social,
 }
 
@@ -706,6 +708,7 @@ impl Store for MemoryStore {
         inner.kept_sites.delete_account(account_id);
         inner.alerts.delete_account(account_id);
         inner.push.delete_account(account_id);
+        inner.phones.delete_account(account_id);
         Ok(())
     }
 
@@ -1297,6 +1300,158 @@ impl Store for MemoryStore {
 
     async fn keep_push_key(&self, key: &str, now: Timestamp) -> Result<String, StoreError> {
         Ok(self.lock().push.keep_key(key, now))
+    }
+
+    async fn add_device(
+        &self,
+        device: &crate::PhoneDevice,
+        most: usize,
+    ) -> Result<crate::AddingDevice, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner.phones.add_device(device, most, &inner.accounts))
+    }
+
+    async fn remove_device(
+        &self,
+        account_id: &str,
+        platform: &str,
+        token: &str,
+    ) -> Result<bool, StoreError> {
+        Ok(self
+            .lock()
+            .phones
+            .remove_device(account_id, platform, token))
+    }
+
+    async fn drop_device(&self, platform: &str, token: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().phones.drop_device(platform, token))
+    }
+
+    async fn devices_of(
+        &self,
+        account_ids: &[String],
+    ) -> Result<Vec<crate::PhoneDevice>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner.phones.devices_of(account_ids, &inner.accounts))
+    }
+
+    async fn nearby_settings(&self, account_id: &str) -> Result<crate::NearbySettings, StoreError> {
+        Ok(self.lock().phones.settings(account_id))
+    }
+
+    async fn set_nearby_settings(
+        &self,
+        account_id: &str,
+        settings: &crate::NearbySettings,
+        _now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        let inner = &mut *self.lock();
+        if !inner.accounts.has(account_id) {
+            return Ok(false);
+        }
+        inner.phones.set_settings(account_id, settings);
+        Ok(true)
+    }
+
+    async fn keep_position(
+        &self,
+        account_id: &str,
+        position: GeoPoint,
+        now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        Ok(self.lock().phones.keep_position(account_id, position, now))
+    }
+
+    async fn forget_position(&self, account_id: &str) -> Result<(), StoreError> {
+        self.lock().phones.forget_position(account_id);
+        Ok(())
+    }
+
+    async fn position_of(
+        &self,
+        account_id: &str,
+        since: Timestamp,
+    ) -> Result<Option<GeoPoint>, StoreError> {
+        Ok(self.lock().phones.position_of(account_id, since))
+    }
+
+    async fn open_plan_watchers(
+        &self,
+        position: GeoPoint,
+        except: &str,
+        most: usize,
+    ) -> Result<Vec<String>, StoreError> {
+        Ok(self
+            .lock()
+            .phones
+            .open_plan_watchers(position, except, most))
+    }
+
+    async fn create_help_request(
+        &self,
+        new: &crate::NewHelpRequest,
+        reach: &crate::HelpReach,
+    ) -> Result<crate::HelpCreation, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .phones
+            .create_help_request(new, reach, &inner.accounts))
+    }
+
+    async fn help_request(&self, id: &str) -> Result<Option<crate::HelpRequest>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner.phones.help_request(id, &inner.accounts))
+    }
+
+    async fn answer_help_request(
+        &self,
+        id: &str,
+        account_id: &str,
+        can_help: bool,
+        now: Timestamp,
+    ) -> Result<crate::HelpAnswering, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .phones
+            .answer(id, account_id, can_help, now, &inner.accounts))
+    }
+
+    async fn close_help_request(
+        &self,
+        id: &str,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Option<crate::HelpRequest>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner.phones.close(id, account_id, now, &inner.accounts))
+    }
+
+    async fn help_requests_of(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Vec<crate::HelpRequest>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner.phones.requests_of(account_id, now, &inner.accounts))
+    }
+
+    async fn help_requests_asked(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Vec<crate::HelpRequest>, StoreError> {
+        let inner = &*self.lock();
+        Ok(inner
+            .phones
+            .requests_asked(account_id, now, &inner.accounts))
+    }
+
+    async fn prune_nearby(
+        &self,
+        positions_before: Timestamp,
+        requests_before: Timestamp,
+    ) -> Result<u64, StoreError> {
+        Ok(self.lock().phones.prune(positions_before, requests_before))
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

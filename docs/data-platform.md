@@ -368,6 +368,20 @@ The owner's wish of 2026-11-22, trips to a take-off arranged some days ahead wit
 
 Built on the web on 2026-11-23 (Community); not yet on the phones; a tool of the connector; telling a pilot of a plan near them or of someone coming in (open question 7); a change list.
 
+## Push to the phones and help after landing: what stands (2026-11-23)
+
+Owner decision 24 and open question 7, on the server and in the core. [api.md](api.md#push-to-the-phone-apps) and [api.md](api.md#help-after-landing) have it for the maker of another program, the decision log of [architecture.md](architecture.md#decision-log) why, [running-a-server.md](running-a-server.md#push-to-the-phone-apps) where the keys go.
+
+**What was run.** The store's suite against the in-memory store and against PostgreSQL 16 with PostGIS in a container, with the migration `0032` (`crates/store/tests/suite/phones.rs`); the API through the real router with a push service of the test's own that answers as APNs, FCM and Google's token endpoint do (`crates/server/tests/phones.rs`), with golden answers that api.md shows; the signing of both tokens (`crates/server/src/push/apns.rs`, `fcm.rs`); the core against those answers (`crates/core/src/phones.rs`). Not run: a request to Apple or Google with real keys, which the owner has not made yet; a phone receiving anything; any app screen.
+
+- **Not data for others.** A phone's token, a pilot's settings, a coarse position and a call for help are each the pilot's private matter (principle 10): none is in a public answer, a dump, the connector or an export; a program's token can do none of it (`403` `session_required`), which is principle 8's exception, on purpose, for the device's own things and the pilot's own word to people near them.
+- **The record** (principles 1 and 2): a call for help keeps its author, its times, where it was sent and who answered, held by the database; it goes with its author's account (`ON DELETE CASCADE`), an answer with the answering pilot's, a phone with its session. **Who may read** (principle 5): the caller and the pilots it was sent to, the position only to the caller and to those who said they can help, while it stands; to anyone else a call does not exist.
+- **Kept short** (principle 12 and decision 15): a position is taken to 0.05° before it is kept, read for an hour and removed within the next, kept only while the pilot may be asked, and forgotten when they turn that off; a call stands 4 hours and is removed a day after it ends. Both settings are off until the pilot turns them on.
+- **Bounds** (principle 12): 10 phones an account; one call standing per account, 3 a day, a note of 280 characters, 30 pilots within 30 km asked; a circle for open plans of 1 to 100 km, 500 pilots told of one plan at most.
+- **Moderation**: a call can be reported by one it was sent to, as `help_request`, with its note and never its position; a suspended account calls none.
+
+Not built in this piece: any app screen or the apps' registering with APNs and FCM (the core has the requests, the answers and the words: `device_register_request`, `nearby_settings_change_request`, `position_request`, `help_ask_request`, `help_answer_request`, `help_requests`, `help_emergency_words`, `phone_message_target`); Web Push for open plans and calls for help; a word to the caller's own friends; a second answer beyond "I can help" (a chat); a scope for programs.
+
 ## A description for programs, and open reads: what stands (2026-11-21)
 
 Piece 4, on the server. [api.md](api.md#writing-a-program-against-venti) has a part for the maker of another program and says how to read the description; [architecture.md](architecture.md#the-description-of-the-api) how it is made and why.

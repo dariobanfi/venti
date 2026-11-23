@@ -1,0 +1,15 @@
+{
+  "request": {
+    "id": "4bq6x0vd5cwm2b9r8y1hzk3tns",
+    "pilot": {
+      "handle": "anna",
+      "display_name": "Pilot anna"
+    },
+    "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+    "created_at": "2026-11-18T19:05:00Z",
+    "ends_at": "2026-11-18T23:05:00Z",
+    "mine": false,
+    "distance_km": 2,
+    "can_help": false
+  }
+}

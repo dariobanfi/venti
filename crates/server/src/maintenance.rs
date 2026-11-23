@@ -56,6 +56,7 @@ pub async fn run<S: Store>(
         }
         remove_live_tracks(&*store, retention, now).await;
         remove_old_plans(&*store, retention, now).await;
+        remove_old_positions_and_calls_for_help(&*store, now).await;
         round += 1;
         tokio::select! {
             () = shutdown.cancelled() => return,
@@ -80,6 +81,29 @@ async fn clean_up_after_the_authorization_server<S: Store>(store: &S, now: Times
         Err(error) => tracing::warn!(
             "what the authorization server no longer needs could not be removed: {error}"
         ),
+    }
+}
+
+/// Removes the positions pilots' phones told longer ago than
+/// [`POSITION_KEPT_MINUTES`](venti_api_types::v1::POSITION_KEPT_MINUTES),
+/// which no request for help reads any more, and the requests for help
+/// that ended longer ago than
+/// [`HELP_KEPT_HOURS`](crate::api::HELP_KEPT_HOURS). Once an hour, as
+/// live tracks: a position is where a person was.
+///
+/// The log line says how many, and nothing about whose or where.
+async fn remove_old_positions_and_calls_for_help<S: Store>(store: &S, now: Timestamp) {
+    let positions_before =
+        now - chrono::Duration::minutes(venti_api_types::v1::POSITION_KEPT_MINUTES);
+    let requests_before = now - chrono::Duration::hours(crate::api::HELP_KEPT_HOURS);
+    match store.prune_nearby(positions_before, requests_before).await {
+        Ok(0) => {}
+        Ok(removed) => tracing::info!(
+            "removed {removed} positions of pilots who may be asked for help and ended              requests for help"
+        ),
+        Err(error) => {
+            tracing::warn!("old positions and requests for help could not be removed: {error}")
+        }
     }
 }
 

@@ -1129,6 +1129,42 @@
         ],
         "type": "object"
       },
+      "DeviceRemoveRequest": {
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/PushPlatform"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "token"
+        ],
+        "type": "object"
+      },
+      "DeviceRequest": {
+        "description": "A phone's token from its platform's push service.",
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/PushPlatform"
+          },
+          "sandbox": {
+            "description": "An iPhone app built for development, whose token is of Apple's sandbox. Left out for every other.",
+            "type": "boolean"
+          },
+          "token": {
+            "description": "On an iPhone the device token in hexadecimal; on Android the FCM registration token. At most 512 bytes.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "token"
+        ],
+        "type": "object"
+      },
       "DumpContent": {
         "description": "What a file of a dump holds: the sites of a layer as they stand, or every site the layer ever had with every revision.",
         "type": "string",
@@ -1329,6 +1365,14 @@
           "alert_not_found",
           "invalid_push_subscription",
           "too_many_push_subscriptions",
+          "invalid_device",
+          "too_many_devices",
+          "invalid_nearby",
+          "help_not_offered",
+          "invalid_help_request",
+          "help_request_open",
+          "help_request_not_found",
+          "help_request_ended",
           "invalid_follow",
           "too_many_follows",
           "invalid_cheer",
@@ -2726,6 +2770,9 @@
             "description": "Whether the server offers signing in with Google.",
             "type": "boolean"
           },
+          "phone_push": {
+            "$ref": "#/components/schemas/PhonePushHealth"
+          },
           "radar": {
             "items": {
               "$ref": "#/components/schemas/RadarHealth"
@@ -2780,6 +2827,124 @@
           "flight-level"
         ],
         "type": "string"
+      },
+      "HelpAnswerBody": {
+        "properties": {
+          "can_help": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "can_help"
+        ],
+        "type": "object"
+      },
+      "HelpListResponse": {
+        "properties": {
+          "asked": {
+            "items": {
+              "$ref": "#/components/schemas/HelpRequest"
+            },
+            "type": "array"
+          },
+          "mine": {
+            "items": {
+              "$ref": "#/components/schemas/HelpRequest"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "mine",
+          "asked"
+        ],
+        "type": "object"
+      },
+      "HelpRequest": {
+        "description": "A request for help, as the one reading it may see it.",
+        "properties": {
+          "asked": {
+            "description": "To the pilot who asks: how many pilots it was sent to.",
+            "type": "integer"
+          },
+          "can_help": {
+            "description": "To a pilot who was asked: their own answer.",
+            "type": "boolean"
+          },
+          "closed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "distance_km": {
+            "description": "To a pilot who was asked: how far, in whole kilometres, from the coarse position their phone last told.",
+            "type": "integer"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "helpers": {
+            "description": "To the pilot who asks: who can help, the first first.",
+            "items": {
+              "$ref": "#/components/schemas/Pilot"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "mine": {
+            "description": "Whether the reader is the pilot who asks.",
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          }
+        },
+        "required": [
+          "id",
+          "pilot",
+          "created_at",
+          "ends_at",
+          "mine"
+        ],
+        "type": "object"
+      },
+      "HelpRequestBody": {
+        "properties": {
+          "note": {
+            "description": "What the pilot needs, at most 280 characters.",
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          }
+        },
+        "required": [
+          "position"
+        ],
+        "type": "object"
+      },
+      "HelpResponse": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/HelpRequest"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "type": "object"
       },
       "HighestFlight": {
         "properties": {
@@ -3507,6 +3672,23 @@
         ],
         "type": "object"
       },
+      "NearbyCircle": {
+        "description": "A circle on the map.",
+        "properties": {
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "radius_km": {
+            "description": "1 to 100.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position",
+          "radius_km"
+        ],
+        "type": "object"
+      },
       "NearbyHour": {
         "properties": {
           "gust": {
@@ -3532,6 +3714,27 @@
           "model",
           "run"
         ],
+        "type": "object"
+      },
+      "NearbySettings": {
+        "description": "What pilots nearby do: both off until the pilot turns them on.",
+        "properties": {
+          "may_be_asked_for_help": {
+            "description": "Whether pilots nearby who have landed may ask this pilot for help.",
+            "type": "boolean"
+          },
+          "open_plans_near": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NearbyCircle"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the pilot wants to be told of a new open plan; null for nowhere."
+          }
+        },
         "type": "object"
       },
       "NearbyStrongest": {
@@ -3854,6 +4057,24 @@
           "time",
           "age_s",
           "position"
+        ],
+        "type": "object"
+      },
+      "PhonePushHealth": {
+        "description": "To which phones the server sends push messages.",
+        "properties": {
+          "apns": {
+            "description": "iPhones, through Apple's push service: the server has an APNs key.",
+            "type": "boolean"
+          },
+          "fcm": {
+            "description": "Android phones, through Firebase Cloud Messaging: the server has a Firebase service account.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "apns",
+          "fcm"
         ],
         "type": "object"
       },
@@ -4204,6 +4425,17 @@
         ],
         "type": "object"
       },
+      "PositionRequest": {
+        "properties": {
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          }
+        },
+        "required": [
+          "position"
+        ],
+        "type": "object"
+      },
       "PublicFlightChangesResponse": {
         "properties": {
           "cursor": {
@@ -4272,6 +4504,14 @@
           "auth"
         ],
         "type": "object"
+      },
+      "PushPlatform": {
+        "description": "Whose push service a phone's token is of.",
+        "enum": [
+          "apns",
+          "fcm"
+        ],
+        "type": "string"
       },
       "PushRemoveRequest": {
         "properties": {
@@ -4755,6 +4995,10 @@
             "type": "string"
           },
           "group": {
+            "type": "string"
+          },
+          "help_request": {
+            "description": "A request for help the reporter was asked, by its identifier.",
             "type": "string"
           },
           "open_plan": {
@@ -7555,6 +7799,101 @@
         "x-venti-docs": "GET /v1/account/archive"
       }
     },
+    "/v1/account/devices": {
+      "delete": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "delete_account_devices",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "device_remove_request": {
+                  "value": {
+                    "platform": "fcm",
+                    "token": "dXJxQ8sKT0e:APA91bF-test_token"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/DeviceRemoveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Remove a phone",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "POST and DELETE /v1/account/devices"
+      },
+      "post": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "post_account_devices",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "device_request": {
+                  "value": {
+                    "platform": "apns",
+                    "sandbox": true,
+                    "token": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/DeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Register this phone for push through APNs or FCM",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "POST and DELETE /v1/account/devices"
+      }
+    },
     "/v1/account/feed": {
       "get": {
         "description": "The pilot: a session's token, or a token for a program with the scope `social:read`.",
@@ -8521,6 +8860,102 @@
         "x-venti-docs": "PUT /v1/account/kept-sites/{id}"
       }
     },
+    "/v1/account/nearby": {
+      "get": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "get_account_nearby",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearbySettings"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "The settings for open plans nearby and being asked for help",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "GET and PUT /v1/account/nearby"
+      },
+      "put": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "put_account_nearby",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NearbySettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "nearby_settings": {
+                    "value": {
+                      "may_be_asked_for_help": true,
+                      "open_plans_near": {
+                        "position": {
+                          "lat": 47.6,
+                          "lon": 11.7
+                        },
+                        "radius_km": 30
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/NearbySettings"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Set the settings for open plans nearby and being asked for help",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "GET and PUT /v1/account/nearby"
+      }
+    },
     "/v1/account/notifications": {
       "get": {
         "description": "The pilot: a session's token, or a token for a program with the scope `social:read`.",
@@ -8817,6 +9252,84 @@
           "Accounts"
         ],
         "x-venti-docs": "PUT and DELETE /v1/account/picture"
+      }
+    },
+    "/v1/account/position": {
+      "delete": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "delete_account_position",
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Forget the phone's position",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "PUT and DELETE /v1/account/position"
+      },
+      "put": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "put_account_position",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "position_request": {
+                  "value": {
+                    "position": {
+                      "lat": 47.2694,
+                      "lon": 11.4041
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PositionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Tell the phone's coarse position, for being asked for help",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "PUT and DELETE /v1/account/position"
       }
     },
     "/v1/account/push": {
@@ -14230,6 +14743,10 @@
                     "value": {
                       "forecasts": "available",
                       "google_sign_in": true,
+                      "phone_push": {
+                        "apns": false,
+                        "fcm": false
+                      },
                       "radar": [
                         {
                           "bytes": 9267,
@@ -14425,6 +14942,292 @@
           "Server"
         ],
         "x-venti-docs": "GET /v1/health"
+      }
+    },
+    "/v1/help": {
+      "get": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "get_help",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpListResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "The pilot's own requests for help and those they were asked",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "GET /v1/help"
+      },
+      "post": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "post_help",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "help_ask_request": {
+                  "value": {
+                    "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+                    "position": {
+                      "lat": 47.2731,
+                      "lon": 11.3962
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/HelpRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "help_asked": {
+                    "value": {
+                      "request": {
+                        "asked": 2,
+                        "created_at": "2026-11-18T19:05:00Z",
+                        "ends_at": "2026-11-18T23:05:00Z",
+                        "id": "4bq6x0vd5cwm2b9r8y1hzk3tns",
+                        "mine": true,
+                        "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+                        "pilot": {
+                          "display_name": "Pilot anna",
+                          "handle": "anna"
+                        },
+                        "position": {
+                          "lat": 47.2731,
+                          "lon": 11.3962
+                        }
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HelpResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Ask the pilots nearby for a lift or a hand after landing",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "POST /v1/help"
+      }
+    },
+    "/v1/help/{id}": {
+      "delete": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "delete_help_id",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Close the pilot's own request for help",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "GET and DELETE /v1/help/{id}"
+      },
+      "get": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "get_help_id",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "help_seen": {
+                    "value": {
+                      "request": {
+                        "can_help": false,
+                        "created_at": "2026-11-18T19:05:00Z",
+                        "distance_km": 2,
+                        "ends_at": "2026-11-18T23:05:00Z",
+                        "id": "4bq6x0vd5cwm2b9r8y1hzk3tns",
+                        "mine": false,
+                        "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+                        "pilot": {
+                          "display_name": "Pilot anna",
+                          "handle": "anna"
+                        }
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HelpResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "One request for help",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "GET and DELETE /v1/help/{id}"
+      }
+    },
+    "/v1/help/{id}/answer": {
+      "put": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "put_help_id_answer",
+        "parameters": [
+          {
+            "description": "The identifier, as an answer of the server gave it.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "help_answer_request": {
+                  "value": {
+                    "can_help": true
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/HelpAnswerBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Say whether the pilot can help",
+        "tags": [
+          "Phones and help"
+        ],
+        "x-venti-docs": "PUT /v1/help/{id}/answer"
       }
     },
     "/v1/imagery/{source}/{z}/{x}/{y}": {
@@ -17518,6 +18321,14 @@
                       "group": "44444444444444444444444444"
                     },
                     "text": "This is not the club's group. The club has none here."
+                  }
+                },
+                "report_help_request": {
+                  "value": {
+                    "reason": "offensive",
+                    "subject": {
+                      "help_request": "4bq6x0vd5cwm2b9r8y1hzk3tns"
+                    }
                   }
                 },
                 "report_open_plan_request": {
@@ -21706,6 +22517,10 @@
     {
       "description": "Alarms for wind and pilots, and Web Push.",
       "name": "Alarms"
+    },
+    {
+      "description": "Phones registered for push, open plans and help near the pilot, and asking pilots nearby for a lift after landing.",
+      "name": "Phones and help"
     },
     {
       "description": "Live positions in the air, and what they say about climbs and sites.",

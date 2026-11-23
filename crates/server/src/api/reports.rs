@@ -42,7 +42,7 @@ use venti_store::{NewReport, ReportSaved, Store};
 
 use super::auth::{May, Viewer, WriteReports};
 use super::error::ApiError;
-use super::{Api, body, cache, flights, groups, live, open_plans, pilots};
+use super::{Api, body, cache, flights, groups, live, nearby, open_plans, pilots};
 use crate::accounts::secret;
 use crate::accounts::throttle::Counted;
 
@@ -174,6 +174,20 @@ pub(crate) async fn create<S: Store>(
                 Some(plan.author.account_id),
                 subject,
                 open_plans::no_such_open_plan(),
+            )
+        }
+        ReportSubject::HelpRequest(id) => {
+            // Read by its pilot and those it was sent to, so only one of
+            // them reports it. Its note goes along; its position does not.
+            let (request, _) = api.help_request_for(id, &signed.account.id, now).await?;
+            let subject = venti_store::ReportSubject::HelpRequest {
+                id: request.id,
+                note: request.note,
+            };
+            (
+                Some(request.pilot.account_id),
+                subject,
+                nearby::no_such_request(),
             )
         }
         ReportSubject::Comment(named) => {

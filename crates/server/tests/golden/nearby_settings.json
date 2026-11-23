@@ -1,0 +1,10 @@
+{
+  "open_plans_near": {
+    "position": {
+      "lat": 47.6,
+      "lon": 11.7
+    },
+    "radius_km": 30
+  },
+  "may_be_asked_for_help": true
+}

@@ -13,6 +13,7 @@ mod migrate;
 mod oauth;
 mod open_plans;
 mod partitions;
+mod phones;
 mod pictures;
 mod pilot_sites;
 mod push;
@@ -1252,6 +1253,132 @@ impl Store for PgStore {
 
     async fn keep_push_key(&self, key: &str, now: Timestamp) -> Result<String, StoreError> {
         push::keep_key(&self.client().await?, key, now).await
+    }
+
+    async fn add_device(
+        &self,
+        device: &crate::PhoneDevice,
+        most: usize,
+    ) -> Result<crate::AddingDevice, StoreError> {
+        phones::add_device(&mut self.client().await?, device, most).await
+    }
+
+    async fn remove_device(
+        &self,
+        account_id: &str,
+        platform: &str,
+        token: &str,
+    ) -> Result<bool, StoreError> {
+        phones::remove_device(&self.client().await?, account_id, platform, token).await
+    }
+
+    async fn drop_device(&self, platform: &str, token: &str) -> Result<bool, StoreError> {
+        phones::drop_device(&self.client().await?, platform, token).await
+    }
+
+    async fn devices_of(
+        &self,
+        account_ids: &[String],
+    ) -> Result<Vec<crate::PhoneDevice>, StoreError> {
+        phones::devices_of(&self.client().await?, account_ids).await
+    }
+
+    async fn nearby_settings(&self, account_id: &str) -> Result<crate::NearbySettings, StoreError> {
+        phones::settings(&self.client().await?, account_id).await
+    }
+
+    async fn set_nearby_settings(
+        &self,
+        account_id: &str,
+        settings: &crate::NearbySettings,
+        now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        phones::set_settings(&mut self.client().await?, account_id, settings, now).await
+    }
+
+    async fn keep_position(
+        &self,
+        account_id: &str,
+        position: GeoPoint,
+        now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        phones::keep_position(&self.client().await?, account_id, position, now).await
+    }
+
+    async fn forget_position(&self, account_id: &str) -> Result<(), StoreError> {
+        phones::forget_position(&self.client().await?, account_id).await
+    }
+
+    async fn position_of(
+        &self,
+        account_id: &str,
+        since: Timestamp,
+    ) -> Result<Option<GeoPoint>, StoreError> {
+        phones::position_of(&self.client().await?, account_id, since).await
+    }
+
+    async fn open_plan_watchers(
+        &self,
+        position: GeoPoint,
+        except: &str,
+        most: usize,
+    ) -> Result<Vec<String>, StoreError> {
+        phones::open_plan_watchers(&self.client().await?, position, except, most).await
+    }
+
+    async fn create_help_request(
+        &self,
+        new: &crate::NewHelpRequest,
+        reach: &crate::HelpReach,
+    ) -> Result<crate::HelpCreation, StoreError> {
+        phones::create_help_request(&mut self.client().await?, new, reach).await
+    }
+
+    async fn help_request(&self, id: &str) -> Result<Option<crate::HelpRequest>, StoreError> {
+        phones::help_request(&self.client().await?, id).await
+    }
+
+    async fn answer_help_request(
+        &self,
+        id: &str,
+        account_id: &str,
+        can_help: bool,
+        now: Timestamp,
+    ) -> Result<crate::HelpAnswering, StoreError> {
+        phones::answer(&mut self.client().await?, id, account_id, can_help, now).await
+    }
+
+    async fn close_help_request(
+        &self,
+        id: &str,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Option<crate::HelpRequest>, StoreError> {
+        phones::close(&self.client().await?, id, account_id, now).await
+    }
+
+    async fn help_requests_of(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Vec<crate::HelpRequest>, StoreError> {
+        phones::requests_of(&self.client().await?, account_id, now).await
+    }
+
+    async fn help_requests_asked(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Vec<crate::HelpRequest>, StoreError> {
+        phones::requests_asked(&self.client().await?, account_id, now).await
+    }
+
+    async fn prune_nearby(
+        &self,
+        positions_before: Timestamp,
+        requests_before: Timestamp,
+    ) -> Result<u64, StoreError> {
+        phones::prune(&self.client().await?, positions_before, requests_before).await
     }
 
     async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {

@@ -1,4 +1,12 @@
 {
+  "delete /v1/account/devices": {
+    "request": {
+      "device_remove_request": {
+        "platform": "fcm",
+        "token": "dXJxQ8sKT0e:APA91bF-test_token"
+      }
+    }
+  },
   "delete /v1/account/push": {
     "request": {
       "push_remove_request": {
@@ -3056,6 +3064,10 @@
       "health": {
         "forecasts": "available",
         "google_sign_in": true,
+        "phone_push": {
+          "apns": false,
+          "fcm": false
+        },
         "radar": [
           {
             "bytes": 9267,
@@ -3231,6 +3243,25 @@
         },
         "time": "2026-11-18T19:05:00Z",
         "version": "0.1.0"
+      }
+    }
+  },
+  "get /v1/help/{id}": {
+    "200": {
+      "help_seen": {
+        "request": {
+          "can_help": false,
+          "created_at": "2026-11-18T19:05:00Z",
+          "distance_km": 2,
+          "ends_at": "2026-11-18T23:05:00Z",
+          "id": "4bq6x0vd5cwm2b9r8y1hzk3tns",
+          "mine": false,
+          "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+          "pilot": {
+            "display_name": "Pilot anna",
+            "handle": "anna"
+          }
+        }
       }
     }
   },
@@ -7390,6 +7421,15 @@
       }
     }
   },
+  "post /v1/account/devices": {
+    "request": {
+      "device_request": {
+        "platform": "apns",
+        "sandbox": true,
+        "token": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+      }
+    }
+  },
   "post /v1/account/push": {
     "request": {
       "push_subscribe_request": {
@@ -7602,6 +7642,37 @@
       }
     }
   },
+  "post /v1/help": {
+    "201": {
+      "help_asked": {
+        "request": {
+          "asked": 2,
+          "created_at": "2026-11-18T19:05:00Z",
+          "ends_at": "2026-11-18T23:05:00Z",
+          "id": "4bq6x0vd5cwm2b9r8y1hzk3tns",
+          "mine": true,
+          "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+          "pilot": {
+            "display_name": "Pilot anna",
+            "handle": "anna"
+          },
+          "position": {
+            "lat": 47.2731,
+            "lon": 11.3962
+          }
+        }
+      }
+    },
+    "request": {
+      "help_ask_request": {
+        "note": "Landed by the Inn at Völs, anyone driving to Innsbruck?",
+        "position": {
+          "lat": 47.2731,
+          "lon": 11.3962
+        }
+      }
+    }
+  },
   "post /v1/live/positions": {
     "200": {
       "live_positions": {
@@ -7745,6 +7816,12 @@
           "group": "44444444444444444444444444"
         },
         "text": "This is not the club's group. The club has none here."
+      },
+      "report_help_request": {
+        "reason": "offensive",
+        "subject": {
+          "help_request": "4bq6x0vd5cwm2b9r8y1hzk3tns"
+        }
       },
       "report_open_plan_request": {
         "reason": "spam",
@@ -8059,11 +8136,42 @@
       }
     }
   },
+  "put /v1/account/nearby": {
+    "200": {
+      "nearby_settings": {
+        "may_be_asked_for_help": true,
+        "open_plans_near": {
+          "position": {
+            "lat": 47.6,
+            "lon": 11.7
+          },
+          "radius_km": 30
+        }
+      }
+    }
+  },
+  "put /v1/account/position": {
+    "request": {
+      "position_request": {
+        "position": {
+          "lat": 47.2694,
+          "lon": 11.4041
+        }
+      }
+    }
+  },
   "put /v1/flights/{id}/cheer": {
     "200": {
       "cheer": {
         "cheered": true,
         "cheers": 1
+      }
+    }
+  },
+  "put /v1/help/{id}/answer": {
+    "request": {
+      "help_answer_request": {
+        "can_help": true
       }
     }
   },

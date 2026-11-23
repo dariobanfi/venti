@@ -709,6 +709,111 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn add_device(
+        &self,
+        _: &crate::PhoneDevice,
+        _: usize,
+    ) -> Result<crate::AddingDevice, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_device(&self, _: &str, _: &str, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn drop_device(&self, _: &str, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn devices_of(&self, _: &[String]) -> Result<Vec<crate::PhoneDevice>, StoreError> {
+        self.fail().await
+    }
+
+    async fn nearby_settings(&self, _: &str) -> Result<crate::NearbySettings, StoreError> {
+        self.fail().await
+    }
+
+    async fn set_nearby_settings(
+        &self,
+        _: &str,
+        _: &crate::NearbySettings,
+        _: Timestamp,
+    ) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn keep_position(&self, _: &str, _: GeoPoint, _: Timestamp) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn forget_position(&self, _: &str) -> Result<(), StoreError> {
+        self.fail().await
+    }
+
+    async fn position_of(&self, _: &str, _: Timestamp) -> Result<Option<GeoPoint>, StoreError> {
+        self.fail().await
+    }
+
+    async fn open_plan_watchers(
+        &self,
+        _: GeoPoint,
+        _: &str,
+        _: usize,
+    ) -> Result<Vec<String>, StoreError> {
+        self.fail().await
+    }
+
+    async fn create_help_request(
+        &self,
+        _: &crate::NewHelpRequest,
+        _: &crate::HelpReach,
+    ) -> Result<crate::HelpCreation, StoreError> {
+        self.fail().await
+    }
+
+    async fn help_request(&self, _: &str) -> Result<Option<crate::HelpRequest>, StoreError> {
+        self.fail().await
+    }
+
+    async fn answer_help_request(
+        &self,
+        _: &str,
+        _: &str,
+        _: bool,
+        _: Timestamp,
+    ) -> Result<crate::HelpAnswering, StoreError> {
+        self.fail().await
+    }
+
+    async fn close_help_request(
+        &self,
+        _: &str,
+        _: &str,
+        _: Timestamp,
+    ) -> Result<Option<crate::HelpRequest>, StoreError> {
+        self.fail().await
+    }
+
+    async fn help_requests_of(
+        &self,
+        _: &str,
+        _: Timestamp,
+    ) -> Result<Vec<crate::HelpRequest>, StoreError> {
+        self.fail().await
+    }
+
+    async fn help_requests_asked(
+        &self,
+        _: &str,
+        _: Timestamp,
+    ) -> Result<Vec<crate::HelpRequest>, StoreError> {
+        self.fail().await
+    }
+
+    async fn prune_nearby(&self, _: Timestamp, _: Timestamp) -> Result<u64, StoreError> {
+        self.fail().await
+    }
+
     async fn add_push_subscription(
         &self,
         _: &crate::PushSubscription,

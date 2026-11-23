@@ -71,7 +71,39 @@ pub struct Config {
     /// iPhone), for signing in with Google. Empty: the server does not
     /// offer it. Client IDs are no secret.
     pub google_client_ids: Vec<String>,
+    /// The keys for push to the phone apps, as files. Without them the
+    /// server tells no phone anything.
+    pub push: PushConfig,
 }
+
+/// The files that let the server push to the phone apps. A secret each:
+/// they are named here and read when the server starts, and never
+/// printed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PushConfig {
+    /// Apple's push service, for the iPhone app.
+    pub apns: Option<ApnsConfig>,
+    /// The JSON file of the Firebase project's service account, for the
+    /// Android app.
+    pub fcm_service_account_file: Option<PathBuf>,
+}
+
+/// The APNs key, as Apple's developer site hands it out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApnsConfig {
+    /// The `.p8` file.
+    pub key_file: PathBuf,
+    /// The key's ID, ten characters.
+    pub key_id: String,
+    /// The team's ID, ten characters.
+    pub team_id: String,
+    /// The app's bundle ID, which APNs calls the topic.
+    pub topic: String,
+}
+
+/// The bundle ID of the iPhone app (`apps/ios/Config/Base.xcconfig`): the
+/// topic of APNs unless the configuration names another.
+pub const DEFAULT_APNS_TOPIC: &str = "fly.venti.app";
 
 /// The most flights an account may keep unless the configuration says
 /// otherwise, and the most megabytes of flight files.
@@ -187,6 +219,18 @@ struct File {
     retention: FileRetention,
     #[serde(default)]
     accounts: FileAccounts,
+    #[serde(default)]
+    push: FilePush,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FilePush {
+    apns_key_file: Option<String>,
+    apns_key_id: Option<String>,
+    apns_team_id: Option<String>,
+    apns_topic: Option<String>,
+    fcm_service_account_file: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -317,6 +361,26 @@ const ACCOUNT_FLIGHTS: Setting = Setting {
 const ACCOUNT_STORAGE_MB: Setting = Setting {
     key: "accounts.storage_mb",
     variable: "VENTI_ACCOUNT_STORAGE_MB",
+};
+const APNS_KEY_FILE: Setting = Setting {
+    key: "push.apns_key_file",
+    variable: "VENTI_APNS_KEY_FILE",
+};
+const APNS_KEY_ID: Setting = Setting {
+    key: "push.apns_key_id",
+    variable: "VENTI_APNS_KEY_ID",
+};
+const APNS_TEAM_ID: Setting = Setting {
+    key: "push.apns_team_id",
+    variable: "VENTI_APNS_TEAM_ID",
+};
+const APNS_TOPIC: Setting = Setting {
+    key: "push.apns_topic",
+    variable: "VENTI_APNS_TOPIC",
+};
+const FCM_SERVICE_ACCOUNT_FILE: Setting = Setting {
+    key: "push.fcm_service_account_file",
+    variable: "VENTI_FCM_SERVICE_ACCOUNT_FILE",
 };
 
 /// The `User-Agent` used when none is configured: the program and its
@@ -524,6 +588,14 @@ impl Config {
                 * 1024,
         };
 
+        let push = push_config(
+            env(&APNS_KEY_FILE).or(file.push.apns_key_file),
+            env(&APNS_KEY_ID).or(file.push.apns_key_id),
+            env(&APNS_TEAM_ID).or(file.push.apns_team_id),
+            env(&APNS_TOPIC).or(file.push.apns_topic),
+            env(&FCM_SERVICE_ACCOUNT_FILE).or(file.push.fcm_service_account_file),
+        )?;
+
         Ok(Self {
             listen,
             database_url: DatabaseUrl(database_url),
@@ -543,8 +615,54 @@ impl Config {
             room,
             sites_from_pilots,
             google_client_ids,
+            push,
         })
     }
+}
+
+/// The settings of push to phones: APNs with all three of its key's
+/// settings or none, FCM with its file or not.
+fn push_config(
+    key_file: Option<String>,
+    key_id: Option<String>,
+    team_id: Option<String>,
+    topic: Option<String>,
+    fcm_file: Option<String>,
+) -> Result<PushConfig, ConfigError> {
+    // Apple's IDs are ten letters and digits.
+    let apple_id = |setting: &Setting, value: String| {
+        if value.len() == 10 && value.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+            Ok(value)
+        } else {
+            Err(setting.invalid("is ten letters and digits, as Apple's developer site shows it"))
+        }
+    };
+    let apns = match (key_file, key_id, team_id) {
+        (None, None, None) => None,
+        (Some(key_file), Some(key_id), Some(team_id)) => {
+            let topic = topic.unwrap_or_else(|| DEFAULT_APNS_TOPIC.to_owned());
+            let plain = !topic.is_empty()
+                && topic
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b".-".contains(&byte));
+            if !plain {
+                return Err(APNS_TOPIC.invalid("is an app's bundle ID, such as fly.venti.app"));
+            }
+            Some(ApnsConfig {
+                key_file: PathBuf::from(key_file),
+                key_id: apple_id(&APNS_KEY_ID, key_id)?,
+                team_id: apple_id(&APNS_TEAM_ID, team_id)?,
+                topic,
+            })
+        }
+        (None, ..) => return Err(APNS_KEY_FILE.invalid("is needed with the key ID and team ID")),
+        (_, None, _) => return Err(APNS_KEY_ID.invalid("is needed with the key file")),
+        (_, _, None) => return Err(APNS_TEAM_ID.invalid("is needed with the key file")),
+    };
+    Ok(PushConfig {
+        apns,
+        fcm_service_account_file: fcm_file.map(PathBuf::from),
+    })
 }
 
 fn read_file(path: &Path) -> Result<File, ConfigError> {
@@ -595,6 +713,48 @@ mod tests {
 
     fn problem(result: Result<Config, ConfigError>) -> String {
         result.unwrap_err().to_string()
+    }
+
+    #[test]
+    fn push_to_phones_takes_all_of_apples_key_or_none() {
+        let base = [
+            ("VENTI_DATABASE_URL", "postgres://venti:pw@db/venti"),
+            ("VENTI_REGIONS", "a/region.toml"),
+        ];
+        let with = |more: &[(&str, &str)]| {
+            let mut env = base.to_vec();
+            env.extend_from_slice(more);
+            load(None, &env)
+        };
+        assert_eq!(with(&[]).unwrap().push, PushConfig::default());
+        let apple = [
+            ("VENTI_APNS_KEY_FILE", "/run/push/AuthKey.p8"),
+            ("VENTI_APNS_KEY_ID", "ABC123DEFG"),
+            ("VENTI_APNS_TEAM_ID", "TEAM456789"),
+            ("VENTI_FCM_SERVICE_ACCOUNT_FILE", "/run/push/firebase.json"),
+        ];
+        let push = with(&apple).unwrap().push;
+        assert_eq!(
+            push.apns,
+            Some(ApnsConfig {
+                key_file: PathBuf::from("/run/push/AuthKey.p8"),
+                key_id: "ABC123DEFG".to_owned(),
+                team_id: "TEAM456789".to_owned(),
+                topic: DEFAULT_APNS_TOPIC.to_owned(),
+            })
+        );
+        assert_eq!(
+            push.fcm_service_account_file,
+            Some(PathBuf::from("/run/push/firebase.json"))
+        );
+        assert!(problem(with(&apple[..2])).contains("VENTI_APNS_TEAM_ID"));
+        assert!(problem(with(&apple[1..3])).contains("VENTI_APNS_KEY_FILE"));
+        let mut short = apple.to_vec();
+        short[1] = ("VENTI_APNS_KEY_ID", "ABC");
+        assert!(problem(with(&short)).contains("VENTI_APNS_KEY_ID"));
+        short[1] = ("VENTI_APNS_TOPIC", "fly venti");
+        short.push(("VENTI_APNS_KEY_ID", "ABC123DEFG"));
+        assert!(problem(with(&short)).contains("VENTI_APNS_TOPIC"));
     }
 
     #[test]

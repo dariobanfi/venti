@@ -61,7 +61,8 @@ getrandom = "0.4.3"
 hkdf = "0.13.0"
 image-webp = "0.2.4"
 ipnet = "2.12.2"
-p256 = { version = "0.14.0", default-features = false, features = ["ecdh", "ecdsa", "std"] }
+# pem: reading the APNs key (.p8, PKCS #8) for push to iPhones.
+p256 = { version = "0.14.0", default-features = false, features = ["ecdh", "ecdsa", "pem", "std"] }
 js-sys = "=0.3.106"
 png = "0.18.1"
 # gzip: the fetcher asks for compressed answers and unpacks them; the
@@ -70,7 +71,9 @@ reqwest = { version = "0.13.5", features = ["gzip"] }
 # Sign in with Google: checking the RS256 signature of Google's ID tokens.
 # A release candidate: 0.10 is the first of sha2's generation, and the
 # registry mirror has no final release yet (2026-11-21).
-rsa = { version = "0.10.0-rc.19", default-features = false, features = ["std", "sha2"] }
+# encoding: reading the private key of the Firebase service account
+# (PKCS #8) that signs the OAuth assertion for push to Android phones.
+rsa = { version = "0.10.0-rc.19", default-features = false, features = ["encoding", "std", "sha2"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"

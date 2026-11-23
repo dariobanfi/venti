@@ -145,6 +145,11 @@ services:
       VENTI_ACCOUNT_FLIGHTS: ${VENTI_ACCOUNT_FLIGHTS:-}
       VENTI_ACCOUNT_STORAGE_MB: ${VENTI_ACCOUNT_STORAGE_MB:-}
       VENTI_PUBLIC_URL: ${VENTI_PUBLIC_URL:-}
+      VENTI_APNS_KEY_FILE: ${VENTI_APNS_KEY_FILE:-}
+      VENTI_APNS_KEY_ID: ${VENTI_APNS_KEY_ID:-}
+      VENTI_APNS_TEAM_ID: ${VENTI_APNS_TEAM_ID:-}
+      VENTI_APNS_TOPIC: ${VENTI_APNS_TOPIC:-}
+      VENTI_FCM_SERVICE_ACCOUNT_FILE: ${VENTI_FCM_SERVICE_ACCOUNT_FILE:-}
       # Every request reaches the server through Caddy, so every connection
       # comes from Caddy's address. Only from there is X-Forwarded-For
       # believed; see the Caddyfile.
@@ -162,6 +167,10 @@ services:
       # there. The server only reads them. In `.env`, VENTI_MAPS_DIR names
       # the folder on the host.
       - ${VENTI_MAPS_DIR:-./data/maps}:/srv/maps:ro
+      # The keys for push to the phone apps (Apple's .p8, the Firebase
+      # service account's JSON), kept on the host and only read. Empty
+      # until whoever runs the server puts them there; see env.example.
+      - ${VENTI_PUSH_DIR:-./data/push}:/run/venti/push:ro
     # A run in flight is dropped on shutdown and repeated after the restart,
     # so the default ten seconds are enough.
     stop_grace_period: 10s

@@ -1,0 +1,17 @@
+zones.bin in this folder holds the time zone of every place on land, made
+from timezone-boundary-builder's release 2026f, the outlines "same since
+1970" without the oceans (timezones-1970.geojson.zip from
+github.com/evansiroky/timezone-boundary-builder/releases, downloaded
+2026-11-23), which are made from OpenStreetMap and are under the Open
+Database License 1.0: "The outputted data is licensed under the Open Data
+Commons Open Database License (ODbL)."
+(https://github.com/evansiroky/timezone-boundary-builder#licenses, read
+2026-11-23). © OpenStreetMap contributors,
+https://www.openstreetmap.org/copyright. This file is a database made from
+them and is under the ODbL 1.0 too: https://opendatacommons.org/licenses/odbl/1-0/
+
+What was done to it: each zone's rings simplified by 0.001°
+(Douglas-Peucker), the world cut into cells of half a degree, a cell of
+one zone or of one zone and the sea given that zone, and only where zones
+share a cell their outlines kept, to 0.0001°. ../tools/build_zones.py makes
+it again from the file of the release.

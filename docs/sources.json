@@ -587,6 +587,53 @@
       },
       "manifest": "crates/sources-suedtirol/manifest.toml",
       "provider": "Autonome Provinz Bozen - Südtirol"
+    },
+    {
+      "assets": [
+        {
+          "licence": {
+            "commercial": true,
+            "credit": "© OpenStreetMap contributors",
+            "link": "https://www.openstreetmap.org/copyright",
+            "name": "ODbL 1.0",
+            "redistribution": true,
+            "share_alike": true,
+            "verified_on": "2026-11-23"
+          },
+          "name": "The time zones of the world's land",
+          "provider": "timezone-boundary-builder, from OpenStreetMap"
+        }
+      ],
+      "countries": [
+        "AT",
+        "BA",
+        "CH",
+        "DE",
+        "FR",
+        "HR",
+        "HU",
+        "IT",
+        "LI",
+        "MC",
+        "SI",
+        "SK",
+        "SM"
+      ],
+      "id": "timezone-boundary-builder",
+      "kinds": [
+        "boundaries"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "© OpenStreetMap contributors",
+        "link": "https://www.openstreetmap.org/copyright",
+        "name": "ODbL 1.0",
+        "redistribution": true,
+        "share_alike": true,
+        "verified_on": "2026-11-23"
+      },
+      "manifest": "crates/sources-timezones/manifest.toml",
+      "provider": "timezone-boundary-builder (github.com/evansiroky/timezone-boundary-builder), from OpenStreetMap"
     }
   ]
 }

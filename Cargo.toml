@@ -28,6 +28,7 @@ venti-outline = { path = "crates/outline" }
 venti-sources-basemapat = { path = "crates/sources-basemapat" }
 venti-sources-ign = { path = "crates/sources-ign" }
 venti-sources-naturalearth = { path = "crates/sources-naturalearth" }
+venti-sources-timezones = { path = "crates/sources-timezones" }
 venti-sources-openmeteo = { path = "crates/sources-openmeteo" }
 venti-sources-suedtirol = { path = "crates/sources-suedtirol" }
 venti-sources-awc = { path = "crates/sources-awc" }
@@ -53,6 +54,9 @@ argon2 = "0.6.0"
 base64 = "0.22.1"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] }
 chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
+# The rules of the world's time zones, for a flight's calendar by the clock
+# where it was flown (crates/core/src/time_zones.rs).
+chrono-tz = { version = "0.10.4", default-features = false, features = ["std"] }
 deadpool-postgres = "0.14.2"
 fastrand = "2.5.0"
 flate2 = "1.1.10"

@@ -13,7 +13,7 @@ the crates' own files; do not edit it. To write it again:
     python3 tools/licences/notices.py
 and to check that it is in step: python3 tools/licences/notices.py --check
 
-61 crates under MIT, Unicode-3.0, MPL-2.0.
+65 crates under MIT, Unicode-3.0, MPL-2.0.
 
 
 Crates
@@ -90,6 +90,13 @@ chrono 0.4.45
   Source: https://crates.io/crates/chrono/0.4.45
   Repository: https://github.com/chronotope/chrono
   Copyright (c) 2014, Kang Seonghoon.
+
+chrono-tz 0.10.4
+  Licence: MIT OR Apache-2.0, taken under MIT
+  Source: https://crates.io/crates/chrono-tz/0.10.4
+  Repository: https://github.com/chronotope/chrono-tz
+  Copyright (c) 2016-2024 Benjamin Sago & the chronotope maintainers
+  Copyright 2016 Djzin
 
 const-oid 0.10.2
   Licence: Apache-2.0 OR MIT, taken under MIT
@@ -256,6 +263,18 @@ once_cell 1.21.4
   Repository: https://github.com/matklad/once_cell
   No copyright line in its licence files; authors in its Cargo.toml: Aleksey Kladov <aleksey.kladov@gmail.com>
 
+phf 0.12.1
+  Licence: MIT
+  Source: https://crates.io/crates/phf/0.12.1
+  Repository: https://github.com/rust-phf/rust-phf
+  Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
+
+phf_shared 0.12.1
+  Licence: MIT
+  Source: https://crates.io/crates/phf_shared/0.12.1
+  Repository: https://github.com/rust-phf/rust-phf
+  Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
+
 pin-project-lite 0.2.17
   Licence: Apache-2.0 OR MIT, taken under MIT
   Source: https://crates.io/crates/pin-project-lite/0.2.17
@@ -318,6 +337,13 @@ simd-adler32 0.3.10
   Source: https://crates.io/crates/simd-adler32/0.3.10
   Repository: https://github.com/mcountryman/simd-adler32
   Copyright (c) [2021] [Marvin Countryman]
+
+siphasher 1.0.4
+  Licence: MIT OR Apache-2.0, taken under MIT
+  Source: https://crates.io/crates/siphasher/1.0.4
+  Repository: https://github.com/jedisct1/rust-siphash
+  Copyright 2012-2016 The Rust Project Developers.
+  Copyright 2016-2026 Frank Denis.
 
 slab 0.4.12
   Licence: MIT

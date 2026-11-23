@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Datelike};
+use chrono::Datelike;
 
 use venti_domain::GeoPoint;
 
@@ -20,7 +20,7 @@ const MONTHS: i32 = 12;
 /// and a meadow together.
 const SAME_PLACE_M: f64 = 300.0;
 
-/// One calendar month of flying (UTC).
+/// One calendar month of flying, by the clock where each flight was flown.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
@@ -53,7 +53,7 @@ pub struct GliderStatistics {
     pub distance_m: f64,
 }
 
-/// One calendar year of flying (UTC).
+/// One calendar year of flying, by the clock where each flight was flown.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
@@ -137,6 +137,13 @@ pub struct BestFlight {
     /// The figure, in the unit of what it measures: seconds, metres,
     /// metres per second or points.
     pub value: f64,
+    /// The time zone it was flown in, to show its times by the clock
+    /// there: an IANA name (`Europe/Vienna`), or `Etc/GMT-2` for a fixed
+    /// offset its file declares. `None` at sea away from a coast.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    #[cfg_attr(feature = "wasm", serde(skip_serializing_if = "Option::is_none"))]
+    pub time_zone: Option<String>,
 }
 
 /// The flights that began at one place.
@@ -210,13 +217,13 @@ impl Core {
 
         // Months are counted from year zero so that going back twelve is
         // plain subtraction.
-        let month_number = |unix_s: i64| {
-            DateTime::from_timestamp(unix_s, 0).map(|time| time.year() * 12 + time.month0() as i32)
-        };
-        let newest_month = flights
+        // Each flight's start by the clock where it was flown.
+        let starts: Vec<_> = flights
             .iter()
-            .filter_map(|(_, summary)| month_number(summary.start_unix_s))
-            .max();
+            .map(|(_, summary)| summary.local_start())
+            .collect();
+        let month_number = |time: &chrono::NaiveDateTime| time.year() * 12 + time.month0() as i32;
+        let newest_month = starts.iter().flatten().map(month_number).max();
         let mut months: Vec<MonthStatistics> = newest_month
             .map(|newest| {
                 (newest - MONTHS + 1..=newest)
@@ -247,10 +254,11 @@ impl Core {
                 .collect()
         };
         let mut routes: [Option<RouteStatistics>; 3] = Default::default();
-        for (id, summary) in &flights {
+        for ((id, summary), start) in flights.iter().zip(&starts) {
             let distance_m = summary.score.map_or(0.0, |score| score.distance_m);
+            let time_zone = summary.time_zone();
 
-            if let Some(time) = DateTime::from_timestamp(summary.start_unix_s, 0) {
+            if let Some(time) = start {
                 let year = years.entry(time.year()).or_insert(YearStatistics {
                     year: time.year(),
                     flights: 0,
@@ -300,11 +308,12 @@ impl Core {
                         flight_id: id.clone(),
                         start_unix_s: summary.start_unix_s,
                         value: score.distance_m,
+                        time_zone: time_zone.clone(),
                     });
                 }
             }
 
-            if let (Some(newest), Some(number)) = (newest_month, month_number(summary.start_unix_s))
+            if let (Some(newest), Some(number)) = (newest_month, start.as_ref().map(month_number))
                 && let Some(month) = usize::try_from(number - (newest - MONTHS + 1))
                     .ok()
                     .and_then(|index| months.get_mut(index))
@@ -347,6 +356,7 @@ impl Core {
                         flight_id: id.clone(),
                         start_unix_s: summary.start_unix_s,
                         value,
+                        time_zone: time_zone.clone(),
                     });
                 }
             }
@@ -468,6 +478,7 @@ impl Core {
                         flight_id: id.clone(),
                         start_unix_s: summary.start_unix_s,
                         value: score.distance_m,
+                        time_zone: summary.time_zone(),
                     });
                 }
             }

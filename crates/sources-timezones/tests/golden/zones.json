@@ -1,0 +1,83 @@
+{
+  "bytes": 1115475,
+  "cell_units": 5000,
+  "cells_of_one_zone": 96400,
+  "cells_shared": 8094,
+  "cells_without_zone": 154706,
+  "places": [
+    {
+      "place": "Torrey Pines, California",
+      "zone": "America/Los_Angeles"
+    },
+    {
+      "place": "Tijuana, Mexico",
+      "zone": "America/Tijuana"
+    },
+    {
+      "place": "El Paso, Texas",
+      "zone": "America/Denver"
+    },
+    {
+      "place": "Ciudad Juárez, Mexico",
+      "zone": "America/Ciudad_Juarez"
+    },
+    {
+      "place": "Geneva",
+      "zone": "Europe/Zurich"
+    },
+    {
+      "place": "Annemasse",
+      "zone": "Europe/Paris"
+    },
+    {
+      "place": "Basel",
+      "zone": "Europe/Zurich"
+    },
+    {
+      "place": "Lörrach",
+      "zone": "Europe/Berlin"
+    },
+    {
+      "place": "Chiasso",
+      "zone": "Europe/Zurich"
+    },
+    {
+      "place": "Como",
+      "zone": "Europe/Rome"
+    },
+    {
+      "place": "Vaduz",
+      "zone": "Europe/Zurich"
+    },
+    {
+      "place": "Feldkirch",
+      "zone": "Europe/Vienna"
+    },
+    {
+      "place": "Salzburg",
+      "zone": "Europe/Vienna"
+    },
+    {
+      "place": "Freilassing",
+      "zone": "Europe/Berlin"
+    },
+    {
+      "place": "Gorizia",
+      "zone": "Europe/Rome"
+    },
+    {
+      "place": "Nova Gorica",
+      "zone": "Europe/Belgrade"
+    },
+    {
+      "place": "Off Nice, 20 km out",
+      "zone": "Europe/Paris"
+    },
+    {
+      "place": "The Adriatic, between Ancona and Split",
+      "zone": "Europe/Belgrade"
+    }
+  ],
+  "points": 384793,
+  "zones": 301
+}

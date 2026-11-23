@@ -1,0 +1,55 @@
+id = "timezone-boundary-builder"
+provider = "timezone-boundary-builder (github.com/evansiroky/timezone-boundary-builder), from OpenStreetMap"
+kinds = ["boundaries"]
+# The asset covers every place on land, the whole world; a manifest lists
+# countries, and these are those of Venti's regions today, as the other
+# sources of OpenStreetMap list them.
+countries = ["AT", "BA", "CH", "DE", "FR", "HR", "HU", "IT", "LI", "MC", "SI", "SK", "SM"]
+# A few releases a year, after each release of the time zone database;
+# nothing is fetched at run time, so this is how often the asset should be
+# looked at again.
+cadence_seconds = 31536000
+auth = "none"
+
+[licence]
+name = "ODbL 1.0"
+commercial = true
+redistribution = true
+# A database made from the outlines may be passed on only under the same
+# licence.
+share_alike = true
+attribution = "© OpenStreetMap contributors"
+link = "https://www.openstreetmap.org/copyright"
+constraints = [
+    "timezone-boundary-builder's README, under Licenses: \"The outputted data is licensed under the Open Data Commons Open Database License (ODbL)\"; its DATA_LICENSE file is the ODbL 1.0. Its outlines are made from OpenStreetMap, whose credit is \"© OpenStreetMap contributors\" linked to https://www.openstreetmap.org/copyright.",
+    "The asset is a database made from the outlines and is under the ODbL too. A zone told for a place (a flight's take-off) is a work produced from it, which the ODbL lets be shown under any terms with the credit beside it; to verify: whether a logbook that keeps the zone's name with each flight is a produced work or a database of its own.",
+    "The outlines are \"same since 1970\": zones whose clocks have agreed since 1970 are one, under the name of the larger city. A time before 1970 may be given the wrong clock.",
+    "Simplified by about 110 m and cut into cells of half a degree: a place within about 100 m of a border between zones may be given the neighbour's zone, and the sea is the zone of the nearest coast up to half a degree from land.",
+]
+verified_on = "2026-11-23"
+verified_from = [
+    "https://github.com/evansiroky/timezone-boundary-builder#licenses",
+    "https://github.com/evansiroky/timezone-boundary-builder/blob/master/DATA_LICENSE",
+]
+
+[[asset]]
+name = "The time zones of the world's land"
+file = "assets/zones.bin"
+provider = "timezone-boundary-builder, from OpenStreetMap"
+made_from = "Release 2026f (published 2026-11-01, OpenStreetMap data of that release and the time zone database's 2026 rules), timezones-1970.geojson.zip from https://github.com/evansiroky/timezone-boundary-builder/releases/download/2026f/timezones-1970.geojson.zip (45,615,985 bytes, SHA-256 68e52c459f6d5c71566a92e7a451680ca4ce2ac026953c4e5dc6b2411a3b717f), downloaded 2026-11-23: its 301 zones \"same since 1970\" without the oceans, each ring simplified by 0.001° (about 110 m, Douglas-Peucker), cut into cells of half a degree, and only where zones share a cell kept as outlines, to 0.0001°. tools/build_zones.py makes it again."
+
+[asset.licence]
+name = "ODbL 1.0"
+commercial = true
+redistribution = true
+share_alike = true
+attribution = "© OpenStreetMap contributors"
+link = "https://www.openstreetmap.org/copyright"
+constraints = [
+    "As the source's own licence above.",
+]
+verified_on = "2026-11-23"
+verified_from = [
+    "https://github.com/evansiroky/timezone-boundary-builder#licenses",
+    "https://github.com/evansiroky/timezone-boundary-builder/blob/master/DATA_LICENSE",
+]

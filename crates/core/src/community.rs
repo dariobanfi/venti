@@ -99,6 +99,13 @@ pub struct PublicFlight {
     /// with [`crate::glider_class_name`].
     #[uniffi(default = None)]
     pub glider_class: Option<crate::GliderClassKind>,
+    /// The time zone it took off in, an IANA name (`Europe/Vienna`), to
+    /// show its times by the clock there. `None` where the recording shows
+    /// no take-off, or one at sea away from a coast.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    #[cfg_attr(feature = "wasm", serde(skip_serializing_if = "Option::is_none"))]
+    pub time_zone: Option<String>,
 }
 
 /// One page of a list of public flights.
@@ -324,16 +331,18 @@ pub fn pilot_page(status: u16, body: Vec<u8>) -> Result<PilotPage, CoreError> {
 }
 
 pub(crate) fn row(flight: &Flight) -> PublicFlight {
+    let takeoff = flight.takeoff.map(|takeoff| Coordinate {
+        lat: takeoff.position.lat(),
+        lon: takeoff.position.lon(),
+    });
     PublicFlight {
         id: flight.id.to_string(),
         handle: flight.pilot.handle.to_string(),
         pilot: one_line(&flight.pilot.display_name, 40),
         start_unix_s: flight.start.timestamp(),
         airtime_s: flight.airtime_s.max(0),
-        takeoff: flight.takeoff.map(|takeoff| Coordinate {
-            lat: takeoff.position.lat(),
-            lon: takeoff.position.lon(),
-        }),
+        takeoff,
+        time_zone: crate::time_zones::flight_zone(None, takeoff),
         takeoff_name: flight
             .takeoff_site
             .as_ref()

@@ -1,0 +1,18 @@
+[package]
+name = "venti-sources-timezones"
+description = "The time zone of a place on land (ODbL, from OpenStreetMap by timezone-boundary-builder), for a flight's times by the clock where it was flown. No requests: the zones are an asset of the crate."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# Nothing at run time: the crate is in every app, the browser's included.
+[dependencies]
+
+[dev-dependencies]
+venti-sources.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

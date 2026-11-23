@@ -21,7 +21,7 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use chrono::{DateTime, Datelike};
+use chrono::Datelike;
 use venti_flight::{igc, summarise, track};
 
 mod account;
@@ -85,6 +85,7 @@ mod terrain;
 mod testing;
 mod thermal_hours;
 mod thermal_map;
+mod time_zones;
 mod today;
 mod tokens;
 mod waypoints;
@@ -151,6 +152,7 @@ pub use tendencies::*;
 pub use terrain::*;
 pub use thermal_hours::*;
 pub use thermal_map::*;
+pub use time_zones::time_zone_at;
 pub use today::*;
 pub use tokens::*;
 pub use waypoints::*;
@@ -328,6 +330,13 @@ pub struct FlightView {
     pub profile: Vec<ProfilePoint>,
     /// How many lines of the file could not be read and were skipped.
     pub skipped_lines: u32,
+    /// The time zone it was flown in, to show its times by the clock
+    /// there: an IANA name (`Europe/Vienna`), or `Etc/GMT-2` for a fixed
+    /// offset its file declares. `None` at sea away from a coast.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    #[cfg_attr(feature = "wasm", serde(skip_serializing_if = "Option::is_none"))]
+    pub time_zone: Option<String>,
 }
 
 /// The result of importing a flight file.
@@ -395,6 +404,13 @@ pub struct LogbookEntry {
     /// of the site the server says the flight took off from, once the
     /// logbook was synced with it.
     pub takeoff_name: Option<String>,
+    /// The time zone it was flown in, to show its times by the clock
+    /// there: an IANA name (`Europe/Vienna`), or `Etc/GMT-2` for a fixed
+    /// offset its file declares. `None` at sea away from a coast.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    #[cfg_attr(feature = "wasm", serde(skip_serializing_if = "Option::is_none"))]
+    pub time_zone: Option<String>,
 }
 
 /// A flight's cross-country score, in short. `Core::flight_analysis` has
@@ -413,7 +429,8 @@ pub struct EntryScore {
     pub points: f64,
 }
 
-/// The flights of one calendar year (UTC), newest first.
+/// The flights of one calendar year, by the clock where each was flown,
+/// newest first.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
@@ -491,16 +508,25 @@ impl Core {
         };
         let from_server = self.server_takeoff_names();
         for (id, summary) in self.logbook.flights() {
-            let year = DateTime::from_timestamp(summary.start_unix_s, 0)
+            // The year by the clock where the flight was flown. Flights
+            // come newest first by the moment they began, so a flight of
+            // New Year's Eve in California can follow one of New Year's
+            // Day in Europe: it goes to its own year all the same.
+            let time_zone = summary.time_zone();
+            let year = time_zones::local_time(time_zone.as_deref(), summary.start_unix_s)
                 .map_or(1970, |start| start.year());
-            if view.years.last().is_none_or(|last| last.year != year) {
-                view.years.push(LogbookYear {
-                    year,
-                    totals: Totals::default(),
-                    flights: Vec::new(),
-                });
-            }
-            let section = view.years.last_mut().expect("a year was just pushed");
+            let index = match view.years.iter().rposition(|section| section.year == year) {
+                Some(index) => index,
+                None => {
+                    view.years.push(LogbookYear {
+                        year,
+                        totals: Totals::default(),
+                        flights: Vec::new(),
+                    });
+                    view.years.len() - 1
+                }
+            };
+            let section = &mut view.years[index];
             for totals in [&mut view.totals, &mut section.totals] {
                 totals.flights += 1;
                 totals.airtime_s += summary.duration_s;
@@ -531,8 +557,12 @@ impl Core {
                     .collect(),
                 score: summary.score.map(entry_score),
                 takeoff_name,
+                time_zone,
             });
         }
+        // The rare year that came after a later one, as above.
+        view.years
+            .sort_by_key(|section| std::cmp::Reverse(section.year));
         view
     }
 
@@ -620,6 +650,13 @@ fn flight_view(id: String, text: &str) -> Result<FlightView, CoreError> {
         track,
         profile,
         skipped_lines: u32::try_from(file.skipped_lines).unwrap_or(u32::MAX),
+        time_zone: time_zones::flight_zone(
+            time_zones::declared_zone(text).as_deref(),
+            file.fixes.first().map(|fix| Coordinate {
+                lat: fix.position.lat(),
+                lon: fix.position.lon(),
+            }),
+        ),
     })
 }
 

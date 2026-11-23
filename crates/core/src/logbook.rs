@@ -35,6 +35,7 @@ use venti_flight::{analysis, summarise, track};
 
 use crate::flight_pieces;
 use crate::storage::Storage;
+use crate::time_zones;
 
 /// The folder the flight files are in.
 const FLIGHTS_FOLDER: &str = "flights";
@@ -97,6 +98,29 @@ pub(crate) struct Summary {
     /// joined, when none was.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pieces: Vec<String>,
+    /// The zone the file declares for its recorder's clock
+    /// ([`time_zones::declared_zone`]). Missing from an index written
+    /// before it was kept: such a flight goes by the zone of its take-off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_zone: Option<String>,
+}
+
+impl Summary {
+    /// The zone the flight was flown in: the one its file declares, else
+    /// that of where it took off.
+    pub fn time_zone(&self) -> Option<String> {
+        time_zones::flight_zone(
+            self.declared_zone.as_deref(),
+            self.outline
+                .first()
+                .map(|&[lat, lon]| crate::Coordinate { lat, lon }),
+        )
+    }
+
+    /// What the clock where the flight was flown showed at its start.
+    pub fn local_start(&self) -> Option<chrono::NaiveDateTime> {
+        time_zones::local_time(self.time_zone().as_deref(), self.start_unix_s)
+    }
 }
 
 /// What importing a flight file did.
@@ -577,6 +601,7 @@ fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
         }),
         habits: Some(habits::habits(flown, &analysis).into()),
         pieces: flight_pieces::pieces(igc_text),
+        declared_zone: time_zones::declared_zone(igc_text),
     };
     Ok((file, summary))
 }

@@ -181,6 +181,61 @@ pub fn parse(text: &str) -> Result<IgcFile, IgcError> {
     })
 }
 
+/// The offset from UTC the file declares for its recorder's clock, in
+/// seconds east of Greenwich: the `HFTZN` header, `HFTZNTIMEZONE:+2` or
+/// `HFTZNTIMEZONE:-7`. `None` when the file has none or it cannot be read.
+///
+/// The value is read as hours, with a decimal part or minutes after a
+/// colon (`+5.5`, `+05:30`, `+5:45`), `UTC` or `GMT` before it and `h`
+/// after it allowed; an offset beyond 14 hours, or not a whole number of
+/// quarter hours, is no offset. The specification's exact form, and what
+/// recorders write when the pilot set nothing, are to verify against real
+/// files. A fixed offset knows no summer time: it is the clock the
+/// recorder was set to on the day.
+pub fn declared_utc_offset_s(text: &str) -> Option<i32> {
+    // The headers come before the fixes; the first fix ends the search.
+    let value = text
+        .lines()
+        .map(str::trim_end)
+        .take_while(|line| !line.starts_with('B'))
+        .filter(|line| line.starts_with('H'))
+        .find_map(|line| header(line).filter(|(subject, _)| *subject == "TZN"))?
+        .1;
+    utc_offset_s(value)
+}
+
+/// Reads an offset from UTC as [`declared_utc_offset_s`] describes it.
+fn utc_offset_s(value: &str) -> Option<i32> {
+    let value = value.trim();
+    let value = ["UTC", "GMT", "utc", "gmt"]
+        .iter()
+        .find_map(|prefix| value.strip_prefix(prefix))
+        .unwrap_or(value)
+        .trim();
+    let value = value.strip_suffix(['h', 'H']).unwrap_or(value).trim();
+    let (sign, digits) = match value.as_bytes().first()? {
+        b'-' => (-1, &value[1..]),
+        b'+' => (1, &value[1..]),
+        _ => (1, value),
+    };
+    let minutes = match digits.split_once(':') {
+        Some((hours, minutes)) => {
+            if minutes.len() != 2 || !minutes.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            hours.parse::<u32>().ok()? * 60 + minutes.parse::<u32>().ok()?
+        }
+        None => {
+            if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit() || b == b'.') {
+                return None;
+            }
+            let hours: f64 = digits.parse().ok()?;
+            (hours * 60.0).round() as u32
+        }
+    };
+    (minutes <= 14 * 60 && minutes % 15 == 0).then(|| sign * minutes as i32 * 60)
+}
+
 /// Writes a flight file.
 ///
 /// The output has the `A`, `H` and `B` lines a league upload needs, with the
@@ -346,6 +401,45 @@ mod tests {
     /// The example fix from the IGC specification: 16:02:40 UTC,
     /// 54° 07.121' N, 002° 49.342' W, 280 m pressure, 421 m GNSS.
     const SPEC_FIX: &str = "B1602405407121N00249342WA002800042120509950";
+
+    #[test]
+    fn the_declared_offset_from_utc_is_read_from_the_headers() {
+        let file = |header: &str| format!("AXCT001\r\nHFDTE181126\r\n{header}\r\n{SPEC_FIX}\r\n");
+        assert_eq!(declared_utc_offset_s(&file("HFTZNTIMEZONE:+2")), Some(7200));
+        assert_eq!(
+            declared_utc_offset_s(&file("HFTZNTIMEZONE:-7")),
+            Some(-25_200)
+        );
+        assert_eq!(declared_utc_offset_s(&file("HFTZNTIMEZONE:0")), Some(0));
+        assert_eq!(
+            declared_utc_offset_s(&file("HFTZNTIMEZONE:+5.5")),
+            Some(19_800)
+        );
+        assert_eq!(
+            declared_utc_offset_s(&file("HFTZNTIMEZONE:+05:45")),
+            Some(20_700)
+        );
+        assert_eq!(
+            declared_utc_offset_s(&file("HFTZNTIMEZONE: UTC+1h")),
+            Some(3600)
+        );
+        assert_eq!(declared_utc_offset_s(&file("HFTZN+3")), Some(10_800));
+        // What is not an offset, and no header at all.
+        assert_eq!(declared_utc_offset_s(&file("HFTZNTIMEZONE:+15")), None);
+        assert_eq!(declared_utc_offset_s(&file("HFTZNTIMEZONE:+1.2")), None);
+        assert_eq!(
+            declared_utc_offset_s(&file("HFTZNTIMEZONE:Europe/Rome")),
+            None
+        );
+        assert_eq!(declared_utc_offset_s(&file("HFTZNTIMEZONE:")), None);
+        assert_eq!(
+            declared_utc_offset_s(&file("HFPLTPILOTINCHARGE:Jane")),
+            None
+        );
+        // A header after the first fix is not looked for.
+        let late = format!("AXCT001\r\nHFDTE181126\r\n{SPEC_FIX}\r\nHFTZNTIMEZONE:+2\r\n");
+        assert_eq!(declared_utc_offset_s(&late), None);
+    }
 
     fn file_with(lines: &[&str]) -> String {
         let mut text = String::from("AXCT1234567\r\nHFDTE181126\r\n");

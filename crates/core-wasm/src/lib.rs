@@ -1541,6 +1541,17 @@ impl AlertsSync {
     }
 }
 
+// The time zone of a place, to show a time by the clock where it was:
+// the flights' own records carry theirs (`timeZone`).
+
+/// The IANA time zone of a place on land, as `Europe/Vienna`; none at sea
+/// away from a coast. Format a time in it with `Intl.DateTimeFormat`'s
+/// `timeZone`.
+#[wasm_bindgen(js_name = timeZoneAt)]
+pub fn time_zone_at(lat: f64, lon: f64) -> Option<String> {
+    venti_core::time_zone_at(lat, lon)
+}
+
 // The pilot's alarms. The core has the choices and the words, checks a
 // draft, says what to send and reads the answers; the page sends.
 

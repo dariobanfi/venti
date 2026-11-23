@@ -253,6 +253,7 @@ Each step's state is what the repository showed on 2026-11-22, with the commits 
 13. Home and Today merged on the website (the owner: "we don't need both a Home and Today section"): Today's take-offs and the day's forecast become Home's first card, `/today` sent to `/`, one tab fewer in the bar.
 14. The cockpit's "End": held two-thirds as long as now (the owner: "at least two-thirds"), on both phones.
 15. The cockpit before its first readings (the owner: "this dash before starting when there is no data yet … makes the UI look a bit ugly"): in place of "– –" each reading shows a quiet placeholder bar of the number's size in the muted colour until its first value comes; no made-up zero; the top line's "No GPS" keeps saying why; both phones.
+16. The cockpit's pages slide with the finger (the owner: "if I slide with the finger, there is no animation switching between pages"): a swipe moves the pages along under the finger and settles on the next one, as a paged view does, on both phones; the dots follow; nothing jumps.
 
 **Left open by the sessions on 2026-11-22**, found that day and not yet built; none waits for the owner:
 

@@ -40,6 +40,8 @@ export interface Cell {
 	over?: string;
 	/** Whether "Now" stands over the cell. */
 	now?: boolean;
+	/** Whether a day of the forecast begins at the cell, after other cells: a gap before it. */
+	startsDay?: boolean;
 }
 
 /**
@@ -117,8 +119,10 @@ export function lineCells({ what, radar, stations, days, hours }: LineOf): Cell[
 		// or is past. Which day is today the core says by its name for it.
 		const today = index === 0 && day.name === TODAY;
 		const from = today ? Math.max(view?.firstHour ?? 0, 0) : 0;
+		let hoursLeft = 0;
 		for (const [hour, mark] of (view?.hours ?? []).entries()) {
 			if (hour < from) continue;
+			hoursLeft += 1;
 			ofDay.push({
 				stop: { kind: 'hour', date: day.date, hour },
 				short: String(mark.clockHour),
@@ -128,9 +132,19 @@ export function lineCells({ what, radar, stations, days, hours }: LineOf): Cell[
 				...(today && hour === from && !(what === 'wind' && stations) ? { now: true } : {})
 			});
 		}
-		// Today's name gives way to "Now" where that stands on today's line.
-		if (ofDay.length > 0 && !ofDay.some((cell) => cell.now)) {
+		// A today whose hours are all past has nothing left to show, its day
+		// as a whole neither: its name would stand over one cell beside the
+		// next day's.
+		if (today && view && hoursLeft === 0) continue;
+		// Today's name gives way to "Now" where that stands on today's line or
+		// right before it, over the wind stations: the two would crowd each
+		// other and the next day's name.
+		const nowBefore = today && what === 'wind' && Boolean(stations);
+		if (ofDay.length > 0 && !nowBefore && !ofDay.some((cell) => cell.now)) {
 			ofDay[0] = { ...ofDay[0], over: day.name };
+		}
+		if (ofDay.length > 0 && measured.length + forecast.length > 0) {
+			ofDay[0] = { ...ofDay[0], startsDay: true };
 		}
 		forecast.push(...ofDay);
 	}

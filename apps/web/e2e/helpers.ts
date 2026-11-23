@@ -385,8 +385,18 @@ export function newHandle(): string {
  * in to it, from the account's screen. Tests run side by side and again on
  * the same server: whatever changes the pilot's flights does so in an
  * account of its own.
+ *
+ * Its new flights are kept private (the account's switch "New flights are
+ * public", on for every account until the pilot switches it off): a flight a
+ * test brings in would otherwise stand among everyone's flights, the ranking
+ * and a site's pilots while other tests count them. A test that wants its
+ * flights public says so, or makes them public itself.
  */
-export async function signUp(page: Page, handle = newHandle()): Promise<string> {
+export async function signUp(
+	page: Page,
+	handle = newHandle(),
+	{ newFlightsPublic = false }: { newFlightsPublic?: boolean } = {}
+): Promise<string> {
 	const field = (name: string) => page.getByRole('textbox', { name, exact: true });
 	await page.goto('/settings/account/');
 	await page.getByRole('radio', { name: 'New account' }).check();
@@ -395,6 +405,12 @@ export async function signUp(page: Page, handle = newHandle()): Promise<string> 
 	await field('Password').fill('correct horse battery staple');
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await expect(metric(page, 'Handle')).toHaveText(`@${handle}`);
+	if (!newFlightsPublic) {
+		const open = page.getByRole('switch', { name: 'New flights are public' });
+		await open.uncheck();
+		await expect(open).not.toBeChecked();
+		await expect(open).toBeEnabled();
+	}
 	return handle;
 }
 

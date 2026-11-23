@@ -106,7 +106,7 @@
 {:else}
 	<p class="lead">
 		With an account, your flights are copied to Venti. They appear on your other devices, and you
-		can share one with a link. A flight stays private until you share it.
+		can share one with a link.
 	</p>
 
 	{#if offersGoogle && account.googleWords}

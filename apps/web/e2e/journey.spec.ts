@@ -183,7 +183,8 @@ test('a pilot brings the sample flight in, inspects it and deletes it', async ({
 	const download = page.waitForEvent('download');
 	await page.getByRole('menuitem', { name: 'Download flight file' }).click();
 	const file = await download;
-	expect(file.suggestedFilename()).toMatch(/^venti-2026-07-04-[0-9a-z]{8}\.igc$/);
+	// The core's name for it, by the IGC convention: the day, the logger and the flight of the day.
+	expect(file.suggestedFilename()).toMatch(/^2026-07-04-[0-9A-Z]{3}-[0-9A-Z]{3}-\d{2}\.igc$/);
 	expect(readFileSync(await file.path(), 'utf8')).toBe(readFileSync(SAMPLE_FLIGHT, 'utf8'));
 	await expect(page.getByRole('menu', { name: 'More' })).toBeHidden();
 
@@ -292,6 +293,8 @@ test('the flight screen can be used from the keyboard', async ({ page, wide }) =
 	await expect(page.getByRole('menuitem', { name: 'Share with a link' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('menuitem', { name: 'Lay another flight beside it' })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.getByRole('menuitem', { name: 'Glider class' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('menuitem', { name: 'Download flight file' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');

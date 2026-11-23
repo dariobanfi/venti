@@ -68,10 +68,11 @@
 		{#if gliderClass}
 			<span class="class">{gliderClass}</span>
 		{/if}
-		{#if seen}
-			<span class="seen">{seen}</span>
-		{/if}
 	</span>
+	<!-- Beside the time, where a phone's row has room: the glider's name keeps its line. -->
+	{#if seen}
+		<span class="seen">{seen}</span>
+	{/if}
 	<span class="airtime numeric">
 		<span class="visually-hidden">Airtime</span>
 		{text.hoursMinutes(row.airtimeS)}<span class="unit">h</span>
@@ -101,11 +102,11 @@
 	li {
 		position: relative;
 		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) auto auto;
+		grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 		grid-template-areas:
-			'thumb time airtime chevron'
-			'thumb where where chevron'
-			'thumb glider distance chevron';
+			'thumb time seen airtime chevron'
+			'thumb where where where chevron'
+			'thumb glider glider distance chevron';
 		align-items: center;
 		column-gap: var(--space-3);
 		row-gap: 0.125rem;
@@ -177,10 +178,15 @@
 		font-weight: 600;
 	}
 
+	/* Who sees it: after the time on a phone, a column of its own when wide. */
 	.seen {
-		flex: none;
-		margin-left: var(--space-2);
+		grid-area: seen;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 		font-size: var(--footnote);
+		color: var(--text-secondary);
 	}
 
 	/* The whole row opens the flight. */
@@ -255,10 +261,10 @@
 	   what, then the airtime, the distance, the points and the highest. */
 	@media (min-width: 56rem) {
 		li {
-			grid-template-columns: 4.5rem auto minmax(0, 1fr) 5rem 5.5rem 5.5rem 4.5rem auto;
+			grid-template-columns: 4.5rem auto minmax(0, 1fr) 6.5rem 5rem 5.5rem 5.5rem 4.5rem auto;
 			grid-template-areas:
-				'time thumb where airtime distance points highest chevron'
-				'time thumb glider airtime distance points highest chevron';
+				'time thumb where seen airtime distance points highest chevron'
+				'time thumb glider seen airtime distance points highest chevron';
 			padding-block: var(--space-2);
 		}
 

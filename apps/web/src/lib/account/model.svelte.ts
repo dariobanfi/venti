@@ -11,7 +11,9 @@
 import {
 	type AccessWanted,
 	type AccountView,
+	type AllFlightsSet,
 	type CoreClient,
+	type FlightVisibility,
 	type GliderClassKind,
 	type GoogleSignUp,
 	type GoogleWords,
@@ -70,6 +72,12 @@ export class AccountModel {
 
 	/** Why signing out did not work, in words. */
 	problem = $state.raw<string>();
+
+	/**
+	 * How the account's flights stood after the last "Make all public" or
+	 * "Make all private" here, with the core's line to show under them.
+	 */
+	allFlights = $state.raw<AllFlightsSet>();
 
 	#core: CoreClient;
 	#now: () => number;
@@ -218,6 +226,34 @@ export class AccountModel {
 		return this.#changeAccount(() => this.#core.setGliderClass(gliderClass));
 	}
 
+	/** "New flights are public": whether flights sent from now on are public from the start. */
+	setNewFlightsPublic(open: boolean): Promise<string | undefined> {
+		return this.#changeAccount(() => this.#core.setNewFlightsPublic(open));
+	}
+
+	/** The core's question before every flight is made public or private; `flights` 0 when not known. */
+	allFlightsQuestion(flights: number, visibility: FlightVisibility): Promise<string> {
+		return this.#core.allFlightsQuestion(flights, visibility);
+	}
+
+	/**
+	 * "Make all public" or "Make all private", after the pilot answered the
+	 * core's question: every flight on the server at once. The answer's line
+	 * stands in `allFlights`. Returns why not, in words.
+	 */
+	async setAllFlights(visibility: FlightVisibility): Promise<string | undefined> {
+		if (this.working) return undefined;
+		this.working = true;
+		try {
+			this.allFlights = await this.#core.setAllFlights(visibility);
+			return undefined;
+		} catch (error) {
+			return words(error);
+		} finally {
+			this.working = false;
+		}
+	}
+
 	async #changeAccount(ask: () => Promise<AccountView | undefined>): Promise<string | undefined> {
 		if (this.working) return undefined;
 		this.working = true;
@@ -340,6 +376,7 @@ export class AccountModel {
 	#forget(): void {
 		this.account = undefined;
 		this.problem = undefined;
+		this.allFlights = undefined;
 		this.#lastSyncAt = undefined;
 		this.afterLeaving?.();
 	}

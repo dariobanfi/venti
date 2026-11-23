@@ -175,8 +175,10 @@ test('the radar layer shows both layers at the newest moment with its time, the 
 		"Austria's analysis of radar and gauges, every 15 minutes"
 	);
 	await expect(card(page)).toContainText("Germany's radars, every 5 minutes");
-	await expect(card(page)).toContainText('It is no forecast');
-	await expect(card(page)).toContainText('such places are marked as not seen, which is not dry');
+	await expect(card(page)).toContainText('no forecast');
+	await expect(card(page)).toContainText(
+		"beyond a radar's range nothing is seen, which is not dry"
+	);
 	await expect(card(page)).toContainText("the radar's picture lies on top");
 	await expect(card(page)).not.toContainText('to verify');
 	await keep('137-map-radar-key-and-notes');

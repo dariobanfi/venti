@@ -11,33 +11,49 @@
 	interface Props {
 		open: boolean;
 		title: string;
-		/** What will happen, in a sentence or two. */
-		message: string;
+		/** What will happen, in a sentence or two; none where the title says it all. */
+		message?: string;
 		/** The words on the button that goes ahead. */
 		confirm: string;
 		/** The words on the button that leaves things as they are, where the core has its own. */
 		cancel?: string;
 		onconfirm: () => void;
 		oncancel: () => void;
+		/** Whether going ahead cannot be undone: its button is then the danger colour. */
+		destructive?: boolean;
 	}
 
-	let { open, title, message, confirm, cancel, onconfirm, oncancel }: Props = $props();
+	let {
+		open,
+		title,
+		message,
+		confirm,
+		cancel,
+		onconfirm,
+		oncancel,
+		destructive = true
+	}: Props = $props();
+
+	/** Two of these in one page name their own words. */
+	const id = $props.id();
 </script>
 
 <Dialog
 	{open}
 	presentation="alert"
 	decision
-	labelledby="confirm-title"
-	describedby="confirm-message"
+	labelledby="{id}-title"
+	describedby={message ? `${id}-message` : undefined}
 	onclose={oncancel}
 >
 	<div class="words">
-		<h2 id="confirm-title">{title}</h2>
-		<p id="confirm-message">{message}</p>
+		<h2 id="{id}-title">{title}</h2>
+		{#if message}
+			<p id="{id}-message">{message}</p>
+		{/if}
 	</div>
 	<div class="choices">
-		<button class="choice destructive" type="button" onclick={onconfirm}>{confirm}</button>
+		<button class="choice" class:destructive type="button" onclick={onconfirm}>{confirm}</button>
 		<!-- svelte-ignore a11y_autofocus -->
 		<button class="choice cancel" type="button" autofocus onclick={oncancel}
 			>{cancel ?? app.said?.common.cancel}</button

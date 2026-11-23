@@ -61,7 +61,7 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	// The form says what an account does before it asks for anything.
 	await account.click();
 	await expect(page).toHaveTitle('Account · Venti');
-	await expect(page.getByText('A flight stays private until you share it.')).toBeVisible();
+	await expect(page.getByText('you can share one with a link.')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'localhost:4173' })).toBeVisible();
 	const submit = page.getByRole('button', { name: 'Sign in', exact: true });
 	await expect(submit).toBeDisabled();
@@ -145,19 +145,26 @@ test('a new account brings a flight in, shares it with a link, and is deleted ag
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await expect(metric(page, 'Handle')).toHaveText(`@${pilot.handle}`);
 	await expect(metric(page, 'Name')).toHaveText('Test Pilot');
+	// New flights are public until the pilot says otherwise; this one is kept
+	// to the pilot, as everyone's flights are counted by other tests.
+	const open = page.getByRole('switch', { name: 'New flights are public' });
+	await expect(open).toBeChecked();
+	await open.uncheck();
+	await expect(open).not.toBeChecked();
+	await expect(open).toBeEnabled();
 	await page.getByRole('link', { name: 'My flights' }).click();
 	await page
 		.locator('input[type=file]')
 		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
 
 	// It opens at once. Who sees a new flight is the account's setting (owner
-	// decision 21): the sheet says which, and the pilot changes it here.
+	// decision 21), switched off above: the sheet says so, and the pilot
+	// changes it here.
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await more.click();
 	await page.getByRole('menuitem', { name: 'Share with a link' }).click();
 	const sheet = page.getByRole('dialog', { name: 'Share flight' });
-	await expect(sheet.getByRole('radio', { checked: true })).toHaveCount(1);
-	await sheet.getByRole('radio', { name: 'Only me' }).check();
+	await expect(sheet.getByRole('radio', { name: 'Only me' })).toBeChecked();
 	await expect(sheet.getByRole('radio', { name: 'Only me' })).toBeChecked();
 	await expect(sheet.getByText('Nobody else can see it.')).toBeVisible();
 	await expect(sheet.getByRole('heading', { name: 'Link' })).toBeHidden();
@@ -391,10 +398,7 @@ test('the pilot’s country and glider class are the account’s, and shown with
 	await expect(row.locator('.glider')).toContainText('Sample Wing');
 	await expect(row.locator('.glider')).toContainText('EN B');
 	await keep('111-account-profile-flight');
-
-	// On the pilot's public page the flight has the class too.
-	await page.goto(`/logbook/everyone/pilot/?handle=${handle}`);
-	await expect(page.getByRole('main')).toContainText('Sample Wing · EN B');
+	// The pilot's public page has it once the flight is public: the next test.
 
 	// Cleared again: none.
 	await page.goto('/settings/account/');
@@ -402,5 +406,67 @@ test('the pilot’s country and glider class are the account’s, and shown with
 	await expect(profile.getByRole('img', { name: 'Germany' })).toBeHidden();
 	await page.reload();
 	await expect(country).toHaveValue('');
+	expect(problems).toEqual([]);
+});
+
+test('who sees the pilot’s flights is the account’s, and a flight takes a glider class of its own', async ({
+	page,
+	keep,
+	problems
+}) => {
+	// `signUp` switches "New flights are public" off: the flight comes in private.
+	const handle = await signUp(page);
+	const visibility = page.getByRole('region', { name: 'Who sees your flights' });
+	const open = visibility.getByRole('switch', { name: 'New flights are public' });
+	await expect(open).not.toBeChecked();
+	await expect(visibility).toContainText('Switch off to keep new flights to yourself.');
+	await page.goto('/settings/account/flights/');
+	await page
+		.locator('input[type=file]')
+		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
+	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+
+	// Brought in before the pilot set a class, the flight has none; its menu sets one.
+	await page.getByRole('button', { name: 'More' }).filter({ visible: true }).click();
+	await page.getByRole('menuitem', { name: 'Glider class' }).click();
+	const classes = page.getByRole('dialog', { name: 'Glider class' });
+	await expect(classes.getByRole('radio', { name: 'None' })).toBeChecked();
+	await keep('111c-flight-glider-class');
+	await classes.getByText('EN C', { exact: true }).click();
+	await expect(classes).toBeHidden();
+	await page.goto('/settings/account/flights/');
+	const row = page.getByRole('main').locator('section.day li').first();
+	await expect(row.locator('.glider')).toContainText('EN C');
+	await expect(row.locator('.seen')).toBeHidden();
+
+	// All at once: the core's question first, with the number of flights
+	// where My flights has read them all, and its line after.
+	await page.goto('/settings/account/');
+	await visibility.getByRole('button', { name: 'Make all public' }).click();
+	const asking = page.getByRole('alertdialog', {
+		name: /^Make (your flight|all flights) public\?$/
+	});
+	await asking.getByRole('button', { name: 'Make all public' }).click();
+	await expect(asking).toBeHidden();
+	await expect(visibility.getByRole('status')).toHaveText(/public/);
+	await keep('111b-account-who-sees');
+	// My flights reads them again: the row says so beside the time, and the glider still reads.
+	await page.goto('/settings/account/flights/');
+	await expect(row.locator('.seen')).toHaveText('Public');
+	await expect(row.locator('.glider')).toContainText('Sample Wing');
+	await keep('111d-my-flights-public');
+	await page.goto(`/logbook/everyone/pilot/?handle=${handle}`);
+	await expect(page.getByRole('main')).toContainText('Sample Wing · EN C');
+
+	// And private again, at once: gone from the pilot's public page.
+	await page.goto('/settings/account/');
+	await visibility.getByRole('button', { name: 'Make all private' }).click();
+	await page
+		.getByRole('alertdialog', { name: /^Make (your flight|all flights) private\?$/ })
+		.getByRole('button', { name: 'Make all private' })
+		.click();
+	await expect(visibility.getByRole('status')).toHaveText(/private/);
+	await page.goto(`/logbook/everyone/pilot/?handle=${handle}`);
+	await expect(page.getByRole('main')).not.toContainText('Sample Wing');
 	expect(problems).toEqual([]);
 });

@@ -62,6 +62,42 @@ describe('the map’s line of time', () => {
 		expect(cells.some((cell) => cell.now)).toBe(false);
 	});
 
+	it('keeps the words over the line apart in the evening, when today has one hour left', () => {
+		const words = (cells: ReturnType<typeof lineCells>) =>
+			cells.map((cell) => (cell.now ? 'Now' : (cell.over ?? '')));
+		// The wind: "Now" over the stations, today's name gives way to it.
+		const wind = lineCells({
+			what: 'wind',
+			stations: true,
+			days: DAYS,
+			hours: [hours(2, 9, 10, 11), hours(0, 9, 10)]
+		});
+		expect(words(wind)).toEqual(['Now', '', 'Tomorrow', '']);
+		// Each day begins a little apart, which leaves "Now" room before the next name.
+		expect(wind.map((cell) => Boolean(cell.startsDay))).toEqual([false, true, true, false]);
+		const thermals = lineCells({
+			what: 'thermals',
+			days: DAYS,
+			hours: [hours(2, 9, 10, 11), hours(0, 9, 10)]
+		});
+		expect(words(thermals)).toEqual(['', 'Now', 'Tomorrow', '', '']);
+		expect(thermals.map((cell) => cell.short)).toEqual(['Day', '11', 'Day', '9', '10']);
+		expect(thermals[0].startsDay).toBeUndefined();
+	});
+
+	it('leaves out a today whose hours are all past, and its day as a whole', () => {
+		const thermals = lineCells({
+			what: 'thermals',
+			days: DAYS,
+			hours: [hours(0), hours(0, 9, 10)]
+		});
+		expect(thermals.map((cell) => cell.short)).toEqual(['Day', '9', '10']);
+		expect(thermals[0]).toMatchObject({ over: 'Tomorrow', label: 'Tomorrow' });
+		// Hours not read yet are not hours past: the day stays.
+		const reading = lineCells({ what: 'thermals', days: DAYS });
+		expect(reading.map((cell) => cell.over)).toEqual(['Today', 'Tomorrow']);
+	});
+
 	it('tells stops apart', () => {
 		expect(sameStop({ kind: 'stations' }, { kind: 'stations' })).toBe(true);
 		expect(sameStop({ kind: 'radar', moment: 1 }, { kind: 'radar', moment: 2 })).toBe(false);

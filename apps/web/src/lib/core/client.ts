@@ -653,6 +653,21 @@ export class CoreClient {
 		return this.#call('setGliderClass', gliderClass);
 	}
 
+	/** Whether flights sent from now on are public from the start. */
+	setNewFlightsPublic(open: boolean) {
+		return this.#call('setNewFlightsPublic', open);
+	}
+
+	/** Makes every flight of the account public, or every one private. */
+	setAllFlights(visibility: FlightVisibility) {
+		return this.#call('setAllFlights', visibility);
+	}
+
+	/** The core's question before every flight is made public or private; `flights` 0 when not known. */
+	allFlightsQuestion(flights: number, visibility: FlightVisibility) {
+		return this.#call('allFlightsQuestion', { flights, visibility });
+	}
+
 	signIn(handle: string, password: string) {
 		return this.#call('signIn', { handle, password });
 	}

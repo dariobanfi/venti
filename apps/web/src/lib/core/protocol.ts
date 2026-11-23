@@ -137,10 +137,14 @@ import type {
 	SocialWords,
 	StationSheetWords,
 	TodayWords,
-	GliderWords
+	GliderWords,
+	AllFlightsSet,
+	FlightVisibilityWords
 } from './pkg/venti_core_wasm.js';
 import {
+	allFlightsQuestion,
 	commonWords,
+	flightVisibilityWords,
 	gliderClassName,
 	gliderWords,
 	leagueHandoverFromFile,
@@ -526,6 +530,12 @@ export interface Calls {
 	setCountry: { given: string | undefined; answer: AccountView | undefined };
 	/** Sets the class of the glider the pilot flies now, or clears it. */
 	setGliderClass: { given: GliderClassKind | undefined; answer: AccountView | undefined };
+	/** Whether flights sent from now on are public from the start: the account as the server then has it. */
+	setNewFlightsPublic: { given: boolean; answer: AccountView | undefined };
+	/** Makes every flight of the account public, or every one private: how they stand then. */
+	setAllFlights: { given: FlightVisibility; answer: AllFlightsSet };
+	/** The core's question before every flight is made public or private, for so many flights (0: not known). */
+	allFlightsQuestion: { given: { flights: number; visibility: FlightVisibility }; answer: string };
 	signIn: { given: { handle: string; password: string }; answer: AccountView };
 	createAccount: { given: NewAccount; answer: AccountView };
 	signOut: { given: undefined; answer: undefined };
@@ -725,6 +735,8 @@ export interface ScreenWords {
 	glider: GliderWords;
 	/** The glider classes as the core names them, "None" first: for menus and rows. */
 	gliderClasses: { kind: GliderClassKind | undefined; name: string }[];
+	/** Who sees the pilot's flights: the switch for new ones and the change of all at once. */
+	flightVisibility: FlightVisibilityWords;
 }
 
 /** Every glider class, in the order a menu lists them. */
@@ -915,6 +927,9 @@ export async function answer<Name extends CallName>(
 		refreshAccount: () => account.refresh(),
 		setCountry: (country) => account.setCountry(country),
 		setGliderClass: (gliderClass) => account.setGliderClass(gliderClass),
+		setNewFlightsPublic: (open) => account.setNewFlightsPublic(open),
+		setAllFlights: (visibility) => account.setAllFlights(visibility),
+		allFlightsQuestion: ({ flights, visibility }) => allFlightsQuestion(flights, visibility),
 		signIn: ({ handle, password }) => account.signIn(handle, password),
 		createAccount: (wanted) => account.createAccount(wanted),
 		signOut: () => account.signOut(),
@@ -966,7 +981,8 @@ export async function answer<Name extends CallName>(
 			gliderClasses: [undefined, ...GLIDER_CLASSES].map((kind) => ({
 				kind,
 				name: gliderClassName(kind)
-			}))
+			})),
+			flightVisibility: flightVisibilityWords()
 		}),
 		alertPoints: () => alerts.points(),
 		alertFormWords: () => alerts.formWords(),

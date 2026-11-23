@@ -13,6 +13,7 @@ import {
 	type CoreClient,
 	type FlightAirspace,
 	type FlightVisibility,
+	type GliderClassKind,
 	type LeagueHandover,
 	type PilotStatistics,
 	isCoreError,
@@ -167,6 +168,18 @@ export class MyFlightsModel {
 			flight.row.id === id ? { ...flight, sharing } : flight
 		);
 		return sharing;
+	}
+
+	/**
+	 * Sets the class of the glider a flight was flown on, or says it is not
+	 * known: for a flight brought in before the pilot set a class. The list
+	 * follows; the flight as the server now has it.
+	 */
+	async setGliderClass(id: string, gliderClass: GliderClassKind | undefined): Promise<OwnFlight> {
+		const changed = await this.#core.setFlightGliderClass(id, gliderClass);
+		this.flights = this.flights.map((flight) => (flight.row.id === id ? changed : flight));
+		this.revision += 1;
+		return changed;
 	}
 
 	/** Deletes a flight from the account, at once and for good. */

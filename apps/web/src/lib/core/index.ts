@@ -44,6 +44,8 @@
 
 export type {
 	AccountView,
+	AllFlightsSet,
+	FlightVisibilityWords,
 	AgreementOutcome,
 	AgreementPage,
 	AgreementRow,

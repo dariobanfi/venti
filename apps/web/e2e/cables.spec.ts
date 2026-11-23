@@ -46,7 +46,9 @@ test('the map draws the cables near the Tegernsee, and a click on one says what 
 	expect(drawn.dashed).toBe(drawn.lines);
 	await openCredits(page);
 	await expect(page.locator('.credits')).toContainText('Cables: © OpenStreetMap contributors');
-	await expect(page.getByText(/^Cables on this part of the map: .*no promise/)).toBeAttached();
+	await expect(
+		page.getByText(/^Cables on this part of the map: \d+\. Not every cable is mapped/)
+	).toBeAttached();
 	await mapDrawn();
 	await keep('246-map-cables');
 

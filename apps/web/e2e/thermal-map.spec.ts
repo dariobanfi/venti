@@ -226,6 +226,7 @@ test('the thermals show every kind of day, day by day, and what a square says', 
 	await unfoldTheKey(page);
 	const key = card(page).getByRole('list', { name: 'Key' });
 	await expect(key.getByRole('listitem')).toHaveText([
+		'No thermals',
 		'Weak thermals',
 		'Local thermals',
 		'Cross-country day',
@@ -443,9 +444,9 @@ test('the wind, the cloud and the rain hour by hour, and what a square says in a
 	// The hour's whole key and the layer's notes behind the "i".
 	await unfoldTheKey(page);
 	await expect(card(page).getByRole('list', { name: 'Key' }).getByRole('listitem')).toHaveText([
-		'Light rain, 0.2 to 1 mm',
-		'Rain, 1 to 4 mm',
-		'Heavy rain, 4 mm an hour and more'
+		'Light rain',
+		'Rain',
+		'Heavy rain'
 	]);
 	await mapDrawn();
 	await keep('131-map-forecast-key-and-notes-hour');

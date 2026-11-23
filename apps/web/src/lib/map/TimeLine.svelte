@@ -25,6 +25,26 @@
 
 	let strip = $state<HTMLDivElement>();
 
+	/**
+	 * How far each word over the line may reach: over its cell and those
+	 * after it up to the next word, which it never runs into. The last
+	 * reaches as far as it needs.
+	 */
+	const rooms = $derived.by(() => {
+		const said = (cell: Cell) => Boolean(cell.now || cell.over);
+		return cells.map((cell, index) => {
+			if (!said(cell)) return undefined;
+			const next = cells.findIndex((other, at) => at > index && said(other));
+			if (next === -1) return undefined;
+			const reach = cells.slice(index, next);
+			const narrow = reach.filter((one) => one.narrow).length;
+			const days = cells.slice(index + 1, next + 1).filter((one) => one.startsDay).length;
+			return `calc(${reach.length - narrow} * var(--space-6) + ${narrow} * var(--space-3) + ${
+				reach.length - 1
+			} * var(--cell-gap) + ${days} * var(--space-2))`;
+		});
+	});
+
 	function choose(index: number) {
 		const to = Math.min(Math.max(index, 0), cells.length - 1);
 		if (to !== value) onchange(to);
@@ -84,10 +104,11 @@
 			class:measured={cell.measured}
 			class:chosen={index === value}
 			class:now={cell.now}
+			class:starts-day={cell.startsDay}
 			data-index={index}
 			aria-hidden="true"
 		>
-			<b>{cell.now ? WORDS.now : (cell.over ?? '')}</b>
+			<b style:max-width={rooms[index]}>{cell.now ? WORDS.now : (cell.over ?? '')}</b>
 			<span class="short">{cell.short}</span>
 			<i></i>
 		</span>
@@ -96,9 +117,10 @@
 
 <style>
 	.line {
+		--cell-gap: 2px;
 		position: relative;
 		display: flex;
-		gap: 2px;
+		gap: var(--cell-gap);
 		min-width: 0;
 		overflow-x: auto;
 		scrollbar-width: none;
@@ -117,6 +139,7 @@
 		flex: none;
 		display: grid;
 		grid-template-rows: auto auto auto;
+		grid-template-columns: minmax(0, 1fr);
 		gap: var(--space-1);
 		width: var(--space-6);
 		padding-top: var(--space-1);
@@ -127,14 +150,21 @@
 		width: var(--space-3);
 	}
 
+	/* A day begins a little apart from the one before. */
+	.cell.starts-day {
+		margin-left: var(--space-2);
+	}
+
 	/* A day's name, a radar's full hour or "Now", over the cell it begins at;
-	   it may reach over the next. */
+	   it may reach over the next ones, up to the next word (`rooms`). */
 	.cell b {
+		width: max-content;
 		min-height: 1lh;
 		font-weight: 600;
 		text-align: left;
 		white-space: nowrap;
-		overflow: visible;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		color: var(--text);
 	}
 

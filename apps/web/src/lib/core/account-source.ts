@@ -19,6 +19,8 @@
 
 import {
 	type AccountView,
+	type AllFlightsSet,
+	type FlightVisibility,
 	type Core,
 	type GliderClassKind,
 	type GoogleSignUp,
@@ -232,6 +234,26 @@ export class AccountSource {
 	 */
 	setGliderClass(gliderClass: GliderClassKind | undefined): Promise<AccountView | undefined> {
 		return this.#changeSetting((core) => core.gliderClassRequest(gliderClass));
+	}
+
+	/**
+	 * Whether a flight sent to the server from now on is public from the
+	 * start: the pilot's own switch, on until they switch it off.
+	 */
+	setNewFlightsPublic(open: boolean): Promise<AccountView | undefined> {
+		return this.#changeSetting((core) => core.newFlightsPublicRequest(open));
+	}
+
+	/**
+	 * Makes every flight of the account public, or every one private, after
+	 * the pilot answered the core's question (`allFlightsQuestion`). How they
+	 * stand then, with the core's line. Throws, in the core's words, when
+	 * the browser is not signed in or the server refuses.
+	 */
+	async setAllFlights(visibility: FlightVisibility): Promise<AllFlightsSet> {
+		const request = await this.#session.ask((core) => core.allFlightsRequest(visibility));
+		const answer = await this.#send(request, await this.#session.token());
+		return this.#session.change((core) => core.allFlightsSet(answer.status, answer.body));
 	}
 
 	/** Sends a setting of the account's that the core wrote, and keeps the account it answers with. */

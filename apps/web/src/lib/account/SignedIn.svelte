@@ -18,7 +18,7 @@
 	import { alertsHref, myFlightsHref, notificationsHref, programsHref } from '#lib/app/routes.ts';
 	import { countries } from '#lib/community/country.ts';
 	import Flag from '#lib/community/Flag.svelte';
-	import type { AccountView, GliderClassKind } from '#lib/core/index.ts';
+	import type { AccountView, FlightVisibility, GliderClassKind } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Dialog from '#lib/design/Dialog.svelte';
 	import Icon from '#lib/design/Icon.svelte';
@@ -67,6 +67,38 @@
 		profileRefusal = await account.setGliderClass(
 			(kind || undefined) as GliderClassKind | undefined
 		);
+	}
+
+	/** The core's words of who sees the pilot's flights. */
+	const visibilityWords = $derived(app.said?.flightVisibility);
+	/** Read as on for an account an earlier build stored, as the server has it. */
+	const newFlightsPublic = $derived(signedIn.newFlightsPublic ?? true);
+	/** "Make all public" or "Make all private" while its question is asked, and the question. */
+	let asking = $state.raw<{ visibility: FlightVisibility; question: string }>();
+	/** Why who sees the flights did not change, in words. */
+	let visibilityRefusal = $state.raw<string>();
+
+	async function switchNewFlights(open: boolean) {
+		visibilityRefusal = await account.setNewFlightsPublic(open);
+	}
+
+	/**
+	 * Asks the core's question before every flight changes: with their
+	 * number where My flights has read every page, else without one.
+	 */
+	async function askAllFlights(visibility: FlightVisibility) {
+		const mine = app.myFlights;
+		const known = mine?.phase.is === 'loaded' && !mine.next ? mine.flights.length : 0;
+		asking = { visibility, question: await account.allFlightsQuestion(known, visibility) };
+	}
+
+	async function setAllFlights() {
+		const visibility = asking?.visibility;
+		asking = undefined;
+		if (!visibility) return;
+		visibilityRefusal = await account.setAllFlights(visibility);
+		// My flights shows each flight as the server now has it.
+		if (!visibilityRefusal) void app.myFlights?.reload();
 	}
 
 	let confirmingSignOut = $state(false);
@@ -164,6 +196,62 @@
 		<p class="group-note refusal" role="alert">{profileRefusal}</p>
 	{/if}
 </section>
+
+<!-- Who sees the pilot's flights: every word is the core's. -->
+{#if visibilityWords}
+	<section class="group" aria-label="Who sees your flights">
+		<div class="group-card">
+			<label class="group-row toggle">
+				<span class="lines">
+					<span>{visibilityWords.newFlightsPublic}</span>
+					<span class="line" id="account-new-flights-line"
+						>{visibilityWords.newFlightsPublicLine}</span
+					>
+				</span>
+				<input
+					type="checkbox"
+					role="switch"
+					aria-describedby="account-new-flights-line"
+					checked={newFlightsPublic}
+					disabled={account.working || signedIn.needsSignIn}
+					onchange={(event) => switchNewFlights(event.currentTarget.checked)}
+				/>
+			</label>
+			<button
+				class="group-row action"
+				type="button"
+				disabled={account.working || signedIn.needsSignIn}
+				onclick={() => askAllFlights('public')}
+			>
+				{visibilityWords.makeAllPublic}
+			</button>
+			<button
+				class="group-row action"
+				type="button"
+				disabled={account.working || signedIn.needsSignIn}
+				onclick={() => askAllFlights('private')}
+			>
+				{visibilityWords.makeAllPrivate}
+			</button>
+		</div>
+		{#if visibilityRefusal}
+			<p class="group-note refusal" role="alert">{visibilityRefusal}</p>
+		{:else if account.allFlights}
+			<p class="group-note" role="status">{account.allFlights.line}</p>
+		{/if}
+	</section>
+{/if}
+
+<ConfirmDialog
+	open={asking !== undefined}
+	title={asking?.question ?? ''}
+	confirm={asking?.visibility === 'private'
+		? (visibilityWords?.makeAllPrivate ?? '')
+		: (visibilityWords?.makeAllPublic ?? '')}
+	destructive={false}
+	onconfirm={setAllFlights}
+	oncancel={() => (asking = undefined)}
+/>
 
 {#if account.googleWords && (signedIn.googleEmail || account.googleSignIn)}
 	{@const words = account.googleWords}
@@ -405,6 +493,23 @@
 
 	.picked select {
 		max-width: 100%;
+	}
+
+	/* The switch's name with its one line under it. */
+	.lines {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+
+	.line {
+		color: var(--text-secondary);
+		font-size: var(--footnote);
+	}
+
+	.action {
+		color: var(--link);
 	}
 
 	.google-email {

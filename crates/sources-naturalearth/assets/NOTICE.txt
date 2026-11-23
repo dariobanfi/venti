@@ -1,0 +1,15 @@
+europe.geojson in this folder holds the outlines of the countries of
+Europe, made from Natural Earth's "Admin 0 - Countries" at 1:10m, version
+5.1.1 (ne_10m_admin_0_countries.zip from naciscdn.org, downloaded
+2026-11-23), which Natural Earth puts in the public domain: "All versions
+of Natural Earth raster + vector map data found on this website are in
+the public domain." (https://www.naturalearthdata.com/about/terms-of-use/,
+read 2026-11-23). No credit is asked; "Made with Natural Earth" is the
+line it offers.
+
+What was done to it: the countries Natural Earth puts in Europe, and
+Cyprus, kept, each by its ISO 3166-1 alpha-2 code (ISO_A2_EH), clipped to
+32° W to 45° E and 34° N to 72° N, each ring simplified by 0.001°
+(Douglas-Peucker) and rounded to five decimals, an island of less than
+about a square kilometre left out. ../tools/build_countries.py makes it
+again.

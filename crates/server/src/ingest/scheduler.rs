@@ -170,7 +170,12 @@ async fn falls_short<S: Store, F: Fetch, A: Archive>(
             Ok(sets) => sets.first().is_none_or(|set| !covers_area(&set.covers)),
             Err(_) => false,
         },
-        Kind::Observations | Kind::Forecasts | Kind::Radar | Kind::Imagery | Kind::Live => false,
+        Kind::Observations
+        | Kind::Forecasts
+        | Kind::Radar
+        | Kind::Imagery
+        | Kind::Live
+        | Kind::Boundaries => false,
     }
 }
 

@@ -1,0 +1,16 @@
+[package]
+name = "venti-sources-naturalearth"
+description = "Natural Earth's outlines of the countries of Europe (public domain), for the country a flight took off in. No requests: the outlines are an asset of the crate."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-outline.workspace = true
+venti-sources.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

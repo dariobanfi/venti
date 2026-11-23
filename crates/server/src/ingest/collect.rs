@@ -175,6 +175,11 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
                 tracing::error!(source = %job.source, "live positions are not collected");
                 false
             }
+            // Nor of boundaries, which are an asset of their crate.
+            Kind::Boundaries => {
+                tracing::error!(source = %job.source, "boundaries are not collected");
+                false
+            }
         }
     }
 

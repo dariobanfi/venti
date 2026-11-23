@@ -26,6 +26,7 @@ fn pilot(row: &Row) -> SocialPilot {
         account_id: row.get("id"),
         handle: row.get("handle"),
         name: row.get("display_name"),
+        picture: row.get("picture"),
         at: row.get("at"),
     }
 }
@@ -155,7 +156,8 @@ pub(super) async fn follows(
         ""
     };
     let query = format!(
-        "SELECT a.id, a.handle, a.display_name, w.followed_at AS at
+        "SELECT a.id, a.handle, a.display_name, w.followed_at AS at,
+                (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture
          FROM follows w JOIN accounts a ON a.id = w.{other}
          WHERE w.{of} = $1 {page} {only}
          ORDER BY w.followed_at DESC, w.{other} DESC
@@ -266,7 +268,8 @@ pub(super) async fn cheers(
         None => "",
     };
     let query = format!(
-        "SELECT a.id, a.handle, a.display_name, c.cheered_at AS at
+        "SELECT a.id, a.handle, a.display_name, c.cheered_at AS at,
+                (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture
          FROM flight_cheers c JOIN accounts a ON a.id = c.account_id
          WHERE c.flight_id = $1 {page}
          ORDER BY c.cheered_at DESC, c.account_id DESC
@@ -322,7 +325,8 @@ pub(super) async fn of_flights(
 }
 
 const COMMENT_COLUMNS: &str = "m.id, m.flight_id, m.author_id, a.handle, a.display_name, m.body, \
-                               m.created_at";
+                               m.created_at, \
+                               (SELECT p.id FROM pictures p WHERE p.account_id = a.id) AS picture";
 
 fn comment_from(row: &Row) -> Comment {
     Comment {
@@ -331,6 +335,7 @@ fn comment_from(row: &Row) -> Comment {
         author_id: row.get("author_id"),
         author_handle: row.get("handle"),
         author_name: row.get("display_name"),
+        author_picture: row.get("picture"),
         text: row.get("body"),
         created_at: row.get("created_at"),
     }

@@ -11,7 +11,8 @@
     {
       "pilot": {
         "handle": "mara",
-        "display_name": "Mara Muster"
+        "display_name": "Mara Muster",
+        "picture": "/v1/pictures/0000000000000000000000p001"
       },
       "at": "2026-11-18T18:05:00Z"
     }

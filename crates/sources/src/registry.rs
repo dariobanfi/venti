@@ -175,6 +175,8 @@ impl Registry {
             // Imagery is not collected, and its sources are not in the
             // registry: the server asks for a tile when a client does.
             Kind::Imagery => None,
+            // Nor are boundaries, which are an asset of their crate.
+            Kind::Boundaries => None,
         }
     }
 

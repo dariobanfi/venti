@@ -109,8 +109,9 @@ pub const TOOLS: [Tool; 3] = [
     Tool {
         name: "list_flights",
         description: "The pilot's flights, newest first, each with its id, date, take-off time, \
-            airtime, cross-country score and glider. Use it to find a flight by date or to \
-            compare flights. Give a year to see only that year.",
+            airtime, cross-country score, glider, the glider's class (EN A to D or CCC) and the \
+            take-off's country (ISO 3166-1 code) where they are known. Use it to find a flight \
+            by date or to compare flights. Give a year to see only that year.",
         read_only: true,
         schema: r#"{
             "type": "object",

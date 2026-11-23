@@ -219,6 +219,11 @@ pub struct FollowRow {
     pub name: String,
     /// Since when, seconds since the Unix epoch.
     pub since_unix_s: i64,
+    /// The path of the pilot's picture, to fetch with the server's address
+    /// in front. `None` without one: show the initials.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub picture_path: Option<String>,
 }
 
 /// One page of followers or of followed pilots, with the counts.
@@ -265,6 +270,7 @@ pub fn follow_list(status: u16, body: Vec<u8>) -> Result<FollowList, CoreError> 
                 handle: followed.pilot.handle.to_string(),
                 name: one_line(&followed.pilot.display_name, NAME_AT_MOST),
                 since_unix_s: followed.since.timestamp(),
+                picture_path: followed.pilot.picture.clone(),
             })
             .collect(),
         followers: held(response.followers),
@@ -434,6 +440,11 @@ pub struct CheerRow {
     pub name: String,
     /// When, seconds since the Unix epoch.
     pub at_unix_s: i64,
+    /// The path of the pilot's picture, to fetch with the server's address
+    /// in front. `None` without one: show the initials.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub picture_path: Option<String>,
 }
 
 /// The cheers of a flight: the count, the line, and one page of who.
@@ -472,6 +483,7 @@ pub fn cheer_list(status: u16, body: Vec<u8>) -> Result<CheerList, CoreError> {
                 handle: cheer.pilot.handle.to_string(),
                 name: one_line(&cheer.pilot.display_name, NAME_AT_MOST),
                 at_unix_s: cheer.at.timestamp(),
+                picture_path: cheer.pilot.picture.clone(),
             })
             .collect(),
         next: response.next,
@@ -529,6 +541,11 @@ pub struct CommentRow {
     /// Whether the signed-in pilot may remove it: its author, or the
     /// pilot of the flight it is under.
     pub can_remove: bool,
+    /// The path of its author's picture, to fetch with the server's
+    /// address in front. `None` without one: show the initials.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub picture_path: Option<String>,
 }
 
 fn comment_row(
@@ -549,6 +566,7 @@ fn comment_row(
         at_unix_s: comment.at.timestamp(),
         age,
         can_remove: own_handle.is_some_and(|own| own == author || Some(own) == flight_pilot),
+        picture_path: comment.pilot.picture.clone(),
     }
 }
 

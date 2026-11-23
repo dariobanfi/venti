@@ -38,6 +38,7 @@
             },
             "altitude_m": 786
           },
+          "takeoff_country": "DE",
           "track_length_m": 18402.3,
           "max_altitude_m": 2117,
           "max_climb_ms": 2.4,
@@ -82,6 +83,7 @@
             },
             "altitude_m": 1620
           },
+          "takeoff_country": "DE",
           "track_length_m": 15877.9,
           "max_altitude_m": 2117,
           "max_climb_ms": 2.4,
@@ -143,6 +145,7 @@
             },
             "altitude_m": 786
           },
+          "takeoff_country": "DE",
           "track_length_m": 18402.3,
           "max_altitude_m": 2117,
           "max_climb_ms": 2.4,

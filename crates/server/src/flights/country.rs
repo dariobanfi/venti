@@ -2,28 +2,26 @@
 //!
 //! Worked out with every answer, as the take-off's site is, so that a
 //! better outline changes every flight at once and nothing is stored that
-//! could go stale. The outlines are the ones the server has already, for
-//! cutting aerial photographs at a border: Austria's (BEV, CC BY 4.0) and
-//! France's (IGN, Licence Ouverte 2.0), each a crate's asset. A take-off
-//! in any other country has none; a public-domain outline of every country
-//! would fill that in (`docs/data-platform.md`, "Public flights as data").
+//! could go stale. The outlines are [`adapters::country_outlines`]: the
+//! finer ones first, Austria's (BEV, CC BY 4.0) and France's (IGN, Licence
+//! Ouverte 2.0), which the server has for cutting aerial photographs at a
+//! border, then Natural Earth's of every other country of Europe (public
+//! domain), drawn for 1:10 000 000. Outside Europe a take-off has none.
 //!
 //! Only the outline itself counts, without the band of a margin the
 //! photographs are cut with: a take-off a few metres over a border may be
-//! given the wrong one or none, as the outline is drawn for 1:50 000.
+//! given the wrong country, as the finer outlines are drawn for 1:50 000,
+//! and one a few hundred metres over a border of Natural Earth's too.
 
 use std::sync::{Arc, LazyLock};
 
 use venti_domain::GeoPoint;
 use venti_sources_basemapat::Outline;
 
-/// Every country an outline is had for, by its ISO 3166-1 alpha-2 code.
-static COUNTRIES: LazyLock<Vec<(&'static str, Arc<Outline>)>> = LazyLock::new(|| {
-    vec![
-        ("AT", venti_sources_basemapat::austria()),
-        ("FR", venti_sources_ign::france()),
-    ]
-});
+use crate::adapters;
+
+static COUNTRIES: LazyLock<Vec<(&'static str, Arc<Outline>)>> =
+    LazyLock::new(adapters::country_outlines);
 
 /// The country a place lies in, of those the server has an outline of.
 pub fn country_at(place: GeoPoint) -> Option<&'static str> {
@@ -47,9 +45,22 @@ mod tests {
         assert_eq!(at(47.4644, 12.1675), Some("AT"));
         // Planfait above Annecy.
         assert_eq!(at(45.8964, 6.2178), Some("FR"));
-        // The Brauneck above Lenggries, Bavaria: no outline of Germany.
-        assert_eq!(at(47.6650, 11.5236), None);
+        // The Brauneck above Lenggries, Bavaria, by Natural Earth's.
+        assert_eq!(at(47.6650, 11.5236), Some("DE"));
         // Monte Grappa, Italy.
-        assert_eq!(at(45.8728, 11.7967), None);
+        assert_eq!(at(45.8728, 11.7967), Some("IT"));
+        // Fiesch, Valais.
+        assert_eq!(at(46.4087, 8.1356), Some("CH"));
+        // The Atlantic.
+        assert_eq!(at(39.0, -12.0), None);
+    }
+
+    #[test]
+    fn the_finer_outline_decides_at_the_border() {
+        // Kufstein, by the Bavarian border: Austria's own outline holds
+        // it, whatever Natural Earth's coarser one says.
+        assert_eq!(at(47.5833, 12.1700), Some("AT"));
+        // Oberaudorf across the Inn, in Bavaria.
+        assert_eq!(at(47.6480, 12.1730), Some("DE"));
     }
 }

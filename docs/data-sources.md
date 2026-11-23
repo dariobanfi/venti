@@ -47,6 +47,7 @@ Each kind has one trait in the `sources` crate. An adapter implements the traits
 | Live positions | `LiveSource` (a connection that stays open; built 2026-11-21) | `LivePosition`, `DeviceDirectory` |
 | Transit routing | `TransitRouter` | `Itinerary` |
 | Map imagery | `ImagerySource` | tiles: `TileAddress`, `Coverage`, `CutTile` |
+| Boundaries | no trait: the outlines are an asset of the crate, which the server asks (`Kind::Boundaries`; built 2026-11-23) | `Outline` (`venti-outline`), by an ISO 3166-1 code |
 | Map layers | declared in the region pack only | |
 
 Adapters are pure. They do no I/O and read no clock. An adapter says which URLs it needs and turns the bytes that come back into canonical records; where a provider needs several steps, a response can ask for further requests. The pipeline does the fetching, archiving, merging and validation, the same way for every source.
@@ -306,7 +307,8 @@ As of 2026-11-19:
 | `RadarSource`, `RadarFrame` and the `Radar` kind, their registry and their run (`venti-sources`, `venti-domain`); the `[radar]` section of a region pack | Built 2026-11-21 |
 | Adapter: `dwd-radar-ry` (`venti-sources-dwd-radar`): DWD's five-minute rain radar composite, with a reader for its HDF5 files and its projection | Built 2026-11-21, with the list of frames and two frames recorded that day, whole, and golden files; in the first region's pack |
 | Rain radar in the server: collected every five minutes, the last two hours kept in memory as pictures, served at `GET /v1/radar` and `GET /v1/radar/{source}/{time}.png`, health, the development mode over the recorded frames, `ingest` and with it the canary | Built 2026-11-21; installed on no machine yet, and no app draws it |
-| Every kind other than observations, airspace, sites, point forecasts, map imagery and rain radar | Designed, not built |
+| Adapter: `natural-earth` (`venti-sources-naturalearth`): Natural Earth's outlines of the countries of Europe, the `Boundaries` kind, and the take-off's country of every flight in Europe from them, after Austria's and France's finer outlines | Built 2026-11-23: the asset `assets/europe.geojson` (1.5 MB, 52 countries, Admin 0 at 1:10m version 5.1.1, simplified by about 100 m) made by `tools/build_countries.py` from the file downloaded that day, and a golden file of what the crate reads of it; nothing is fetched, and no region pack names it |
+| Every kind other than observations, airspace, sites, point forecasts, map imagery, rain radar and boundaries | Designed, not built |
 
 A live run of the first region on 2026-11-18 delivered 50 DWD and 267 GeoSphere stations in under six seconds, using 104 and 2 requests.
 
@@ -838,7 +840,7 @@ Geometry is available from Bavarian and Austrian state geoportals and OpenStreet
 | swisstopo | Swiss maps and imagery | Free with credit, swisstopo's own terms | Open; the orthophoto SWISSIMAGE is in use for the aerial view |
 | Autonome Provinz Bozen - Südtirol | Orthophoto of 2023 at 20 cm | CC BY 4.0 | Open; in use for the aerial view |
 | Sentinel-2 cloudless 2016 | 10 m imagery fallback | CC BY 4.0 (later years are non-commercial share-alike) | Open; in use for the aerial view |
-| Natural Earth | The outlines of the countries, Admin 0 at 1:10m, for the country a flight took off in | Public domain: "All versions of Natural Earth raster + vector map data found on this website are in the public domain." "Crediting the authors is unnecessary." (<https://www.naturalearthdata.com/about/terms-of-use/>, read 2026-11-23) | Use. An adapter crate (`sources-naturalearth`: the countries of Europe as an asset, with its manifest, its notice and the tool that makes it) is written and waits for its file, `ne_10m_admin_0_countries.zip` from naciscdn.org, to be downloaded (*for the owner*); until then the take-off's country is Austria's and France's only ([data-platform.md](data-platform.md#the-pilots-own-flights-from-the-server-what-stands-2026-11-23)) |
+| Natural Earth | The outlines of the countries, Admin 0 at 1:10m, for the country a flight took off in | Public domain: "All versions of Natural Earth raster + vector map data found on this website are in the public domain." "Crediting the authors is unnecessary." (<https://www.naturalearthdata.com/about/terms-of-use/>, read 2026-11-23) | Built 2026-11-23 (`crates/sources-naturalearth`, kind `boundaries`): the countries Natural Earth puts in Europe, and Cyprus, 52 codes, clipped to 32° W to 45° E and 34° N to 72° N and simplified by about 100 m, a 1.5 MB asset of the crate. The server gives a take-off its country by Austria's and France's finer outlines first, then by these ([data-platform.md](data-platform.md#the-pilots-own-flights-from-the-server-what-stands-2026-11-23)). Its borders are drawn for 1:10 000 000: a place within a few hundred metres of one, a town at the border (Chiasso, Gorizia) included, may be given the neighbour. Turkey, Georgia and Northern Cyprus, which it puts in Asia, have no country here; nor has anywhere outside Europe. No credit is asked; the manifest gives "Made with Natural Earth" |
 | OpenTopoMap | Raster server shut down in January 2026 | | Skip |
 
 #### The map regions' sources

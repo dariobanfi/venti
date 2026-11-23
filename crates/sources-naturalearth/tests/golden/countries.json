@@ -1,0 +1,254 @@
+{
+  "countries": [
+    {
+      "code": "AD",
+      "segments": 44
+    },
+    {
+      "code": "AL",
+      "segments": 471
+    },
+    {
+      "code": "AT",
+      "segments": 923
+    },
+    {
+      "code": "AX",
+      "segments": 415
+    },
+    {
+      "code": "BA",
+      "segments": 531
+    },
+    {
+      "code": "BE",
+      "segments": 555
+    },
+    {
+      "code": "BG",
+      "segments": 744
+    },
+    {
+      "code": "BY",
+      "segments": 1064
+    },
+    {
+      "code": "CH",
+      "segments": 633
+    },
+    {
+      "code": "CY",
+      "segments": 252
+    },
+    {
+      "code": "CZ",
+      "segments": 812
+    },
+    {
+      "code": "DE",
+      "segments": 2675
+    },
+    {
+      "code": "DK",
+      "segments": 1994
+    },
+    {
+      "code": "EE",
+      "segments": 927
+    },
+    {
+      "code": "ES",
+      "segments": 2268
+    },
+    {
+      "code": "FI",
+      "segments": 2901
+    },
+    {
+      "code": "FO",
+      "segments": 432
+    },
+    {
+      "code": "FR",
+      "segments": 3225
+    },
+    {
+      "code": "GB",
+      "segments": 6275
+    },
+    {
+      "code": "GG",
+      "segments": 45
+    },
+    {
+      "code": "GI",
+      "segments": 5
+    },
+    {
+      "code": "GR",
+      "segments": 5278
+    },
+    {
+      "code": "HR",
+      "segments": 1974
+    },
+    {
+      "code": "HU",
+      "segments": 727
+    },
+    {
+      "code": "IE",
+      "segments": 2100
+    },
+    {
+      "code": "IM",
+      "segments": 62
+    },
+    {
+      "code": "IS",
+      "segments": 2822
+    },
+    {
+      "code": "IT",
+      "segments": 2997
+    },
+    {
+      "code": "JE",
+      "segments": 36
+    },
+    {
+      "code": "LI",
+      "segments": 28
+    },
+    {
+      "code": "LT",
+      "segments": 507
+    },
+    {
+      "code": "LU",
+      "segments": 164
+    },
+    {
+      "code": "LV",
+      "segments": 489
+    },
+    {
+      "code": "MC",
+      "segments": 10
+    },
+    {
+      "code": "MD",
+      "segments": 620
+    },
+    {
+      "code": "ME",
+      "segments": 313
+    },
+    {
+      "code": "MK",
+      "segments": 291
+    },
+    {
+      "code": "MT",
+      "segments": 48
+    },
+    {
+      "code": "NL",
+      "segments": 711
+    },
+    {
+      "code": "NO",
+      "segments": 11720
+    },
+    {
+      "code": "PL",
+      "segments": 1160
+    },
+    {
+      "code": "PT",
+      "segments": 1047
+    },
+    {
+      "code": "RO",
+      "segments": 1045
+    },
+    {
+      "code": "RS",
+      "segments": 817
+    },
+    {
+      "code": "RU",
+      "segments": 4730
+    },
+    {
+      "code": "SE",
+      "segments": 4174
+    },
+    {
+      "code": "SI",
+      "segments": 406
+    },
+    {
+      "code": "SK",
+      "segments": 498
+    },
+    {
+      "code": "SM",
+      "segments": 13
+    },
+    {
+      "code": "UA",
+      "segments": 2408
+    },
+    {
+      "code": "VA",
+      "segments": 6
+    },
+    {
+      "code": "XK",
+      "segments": 228
+    }
+  ],
+  "places": [
+    {
+      "country": "CH",
+      "place": "Geneva"
+    },
+    {
+      "country": "FR",
+      "place": "Annemasse"
+    },
+    {
+      "country": "CH",
+      "place": "Basel"
+    },
+    {
+      "country": "DE",
+      "place": "Lörrach"
+    },
+    {
+      "country": "IT",
+      "place": "Como"
+    },
+    {
+      "country": "IT",
+      "place": "Chiasso"
+    },
+    {
+      "country": "AT",
+      "place": "Salzburg"
+    },
+    {
+      "country": "DE",
+      "place": "Freilassing"
+    },
+    {
+      "country": "SI",
+      "place": "Gorizia"
+    },
+    {
+      "country": "SI",
+      "place": "Nova Gorica"
+    }
+  ]
+}

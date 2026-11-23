@@ -393,8 +393,8 @@ Built on 2026-11-22 (owner decision 16: everything is open through the connector
 | Tool | What it answers | Arguments |
 |---|---|---|
 | `logbook_statistics` | The pilot's flights on Venti added up: in all, by year, for the last twelve months, by glider, and the bests | none |
-| `list_flights` | The pilot's flights, newest first, each with its day, airtime, score, height, glider and who can see it (private, by link, public) | `year`; `limit`, 20 if left out, 100 at most |
-| `get_flight` | One of the pilot's own flights: take-off and landing with time and place, airtime, heights, climb, score, who can see it | `flight_id` from `list_flights` |
+| `list_flights` | The pilot's flights, newest first, each with its day, airtime, score, height, glider, the glider's class (`EN A` to `EN D`, `CCC`) and the take-off's country (ISO 3166-1 code) where they are known, and who can see it (private, by link, public) | `year`; `limit`, 20 if left out, 100 at most |
+| `get_flight` | One of the pilot's own flights: take-off and landing with time and place, airtime, heights, climb, score, the glider and its class, the take-off's country, who can see it | `flight_id` from `list_flights` |
 
 They are the app's own assistant's three tools, with the same names, descriptions and arguments. In the app they are answered from the logbook on the device; here from what the server holds of the pilot's flights, by the methods that answer `GET /v1/flights` and `GET /v1/flights/{id}` (`crates/server/src/api/logbook.rs`). The server keeps a flight's summary and its file and not the thermals and glides the app works out on the device; a result says so. A question about the whole logbook reads the newest 2,000 flights and says so if there are more.
 

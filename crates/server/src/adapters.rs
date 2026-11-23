@@ -15,7 +15,7 @@ use venti_sources::testing::FixtureFetch;
 use venti_sources::{
     ForecastSource, ImagerySource, LiveSource, RadarSource, Registry, StationNetwork,
 };
-use venti_sources_basemapat::BasemapAt;
+use venti_sources_basemapat::{BasemapAt, Outline};
 use venti_sources_dwd_radar::DwdRadarRy;
 use venti_sources_geosphere_radar::GeosphereIncaRr;
 use venti_sources_ign::Ign;
@@ -295,6 +295,31 @@ pub fn imagery_sources() -> Vec<Arc<dyn ImagerySource>> {
     vec![Arc::new(BasemapAt::new()), Arc::new(Ign::new())]
 }
 
+/// The outlines of countries a take-off's country is told by, each with
+/// its ISO 3166-1 alpha-2 code, in the order they are asked: the finer
+/// ones first, Austria's (BEV, CC BY 4.0) and France's (IGN, Licence
+/// Ouverte 2.0), which the imagery is cut with, then Natural Earth's of
+/// every other country of Europe (public domain, `Kind::Boundaries`),
+/// drawn for 1:10 000 000. Natural Earth's own outlines of the countries
+/// a finer one is had for are left out: a place the finer outline does not
+/// hold is in none of the two.
+///
+/// The first call reads the outlines, which takes a moment.
+pub fn country_outlines() -> Vec<(&'static str, Arc<Outline>)> {
+    let finer = [
+        ("AT", venti_sources_basemapat::austria()),
+        ("FR", venti_sources_ign::france()),
+    ];
+    let mut outlines = finer.to_vec();
+    outlines.extend(
+        venti_sources_naturalearth::countries()
+            .iter()
+            .filter(|(code, _)| finer.iter().all(|(finer, _)| *finer != code.as_str()))
+            .map(|(code, outline)| (code.as_str(), outline.clone())),
+    );
+    outlines
+}
+
 /// The tiles recorded from the providers of imagery, as a fetcher that
 /// answers from them and with "not found" for every other.
 pub fn recorded_imagery() -> FixtureFetch {
@@ -442,6 +467,8 @@ mod tests {
                     Kind::Live => registry.live(&manifest.id).is_some(),
                     // Imagery sources are not in the registry.
                     Kind::Imagery => false,
+                    // Nor are boundaries: see `country_outlines`.
+                    Kind::Boundaries => false,
                 };
                 assert!(registered, "{} is not registered for {kind:?}", manifest.id);
             }

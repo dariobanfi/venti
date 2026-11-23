@@ -6,7 +6,8 @@
       "id": "0000000000000000000000c001",
       "pilot": {
         "handle": "mara",
-        "display_name": "Mara Muster"
+        "display_name": "Mara Muster",
+        "picture": "/v1/pictures/0000000000000000000000p001"
       },
       "text": "Well flown. How was the air above the ridge?",
       "at": "2026-11-18T18:10:00Z"

@@ -452,6 +452,11 @@ pub struct RankedPilot {
     pub counted: String,
     /// The flights that count, the best first.
     pub flights: Vec<PublicFlight>,
+    /// The path of the pilot's picture, to fetch with the server's address
+    /// in front. `None` without one: show the initials.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub picture_path: Option<String>,
 }
 
 /// The pilots of a server's public flights, ranked.
@@ -729,6 +734,7 @@ pub fn ranking(status: u16, body: Vec<u8>) -> Result<Ranking, CoreError> {
                 (counting, scored) => format!("Best {counting} of {scored} flights"),
             },
             flights: ranked.flights.iter().map(row).collect(),
+            picture_path: ranked.pilot.picture.clone(),
         });
     }
     let rule = match response.counted {

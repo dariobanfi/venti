@@ -27,6 +27,7 @@ venti-sources-osm = { path = "crates/sources-osm" }
 venti-outline = { path = "crates/outline" }
 venti-sources-basemapat = { path = "crates/sources-basemapat" }
 venti-sources-ign = { path = "crates/sources-ign" }
+venti-sources-naturalearth = { path = "crates/sources-naturalearth" }
 venti-sources-openmeteo = { path = "crates/sources-openmeteo" }
 venti-sources-suedtirol = { path = "crates/sources-suedtirol" }
 venti-sources-awc = { path = "crates/sources-awc" }

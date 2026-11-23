@@ -3293,6 +3293,7 @@ dependencies = [
  "venti-sources-ign",
  "venti-sources-meteoswiss",
  "venti-sources-meteotrentino",
+ "venti-sources-naturalearth",
  "venti-sources-ogn",
  "venti-sources-openaip",
  "venti-sources-openmeteo",
@@ -3447,6 +3448,15 @@ dependencies = [
  "chrono",
  "serde_json",
  "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-naturalearth"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "venti-outline",
  "venti-sources",
 ]
 

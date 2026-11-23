@@ -84,6 +84,12 @@ pub struct OpenPlanView {
     pub pilots_in: Vec<String>,
     /// Who is in, in a line: "You, Mara Muster and Jonas Beispiel".
     pub in_words: String,
+    /// What the pilot is told before saying "I'm in" or changing the
+    /// plan: that everyone can read it, with their name. The same as
+    /// [`OpenPlans::public_words`], for a plan's page opened by its
+    /// address without the list.
+    #[uniffi(default = "")]
+    pub public_words: String,
 }
 
 /// The open plans of one day.
@@ -363,6 +369,7 @@ fn open_plan_view(plan: &OpenPlan, me: &str) -> OpenPlanView {
         is_mine,
         am_in,
         in_words: crate::groups::in_words(&pilots_in),
+        public_words: PUBLIC_WORDS.to_owned(),
         pilots_in,
     }
 }
@@ -466,6 +473,8 @@ mod tests {
         assert!(posted.is_mine && posted.am_in);
         assert_eq!(posted.in_words, "Only you so far");
         assert_eq!(posted.offer_words, "3 seats free");
+        // A plan's page opened by its address says what the list says.
+        assert!(posted.public_words.contains("Everyone can read"));
 
         let too_many = OpenPlanDraft {
             seats: Some(9),

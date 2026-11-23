@@ -428,8 +428,27 @@ pub fn pilot_statistics(status: u16, body: Vec<u8>) -> Result<PilotStatistics, C
         });
     }
     let response: PilotStatisticsResponse = answer(status, &body)?;
+    Ok(statistics(
+        &response,
+        "Of the flights this pilot shared with everyone. Years and months are those of UTC.",
+    ))
+}
+
+/// Reads the server's answer to [`crate::own_statistics_request`]: the
+/// pilot's own statistics, over every flight of theirs, the private ones
+/// too, in the shape of [`pilot_statistics`] with a note that says so.
+#[uniffi::export]
+pub fn own_statistics(status: u16, body: Vec<u8>) -> Result<PilotStatistics, CoreError> {
+    let response: PilotStatisticsResponse = answer(status, &body)?;
+    Ok(statistics(
+        &response,
+        "Of all your flights on the server, the private ones too. Years and months are those of UTC.",
+    ))
+}
+
+fn statistics(response: &PilotStatisticsResponse, note: &str) -> PilotStatistics {
     let counted = response.counted;
-    Ok(PilotStatistics {
+    PilotStatistics {
         handle: response.pilot.handle.to_string(),
         name: one_line(&response.pilot.display_name, 40),
         picture_path: response.pilot.picture.clone(),
@@ -446,10 +465,9 @@ pub fn pilot_statistics(status: u16, body: Vec<u8>) -> Result<PilotStatistics, C
                 )
             })
             .collect(),
-        note: "Of the flights this pilot shared with everyone. Years and months are those of UTC."
-            .to_owned(),
+        note: note.to_owned(),
         terms: terms(&response.terms),
-    })
+    }
 }
 
 #[cfg(test)]
@@ -623,6 +641,20 @@ mod tests {
         assert!(pilot_statistics(404, Vec::new()).is_err());
         assert!(pilot_statistics(503, Vec::new()).is_err());
         assert!(pilot_statistics(200, b"{}".to_vec()).is_err());
+    }
+
+    #[test]
+    fn the_pilots_own_statistics_say_they_count_every_flight() {
+        let public = pilot_statistics(200, golden("pilot_statistics.json")).unwrap();
+        let own = own_statistics(200, golden("account_statistics.json")).unwrap();
+        assert!(
+            public.note.contains("shared with everyone"),
+            "{}",
+            public.note
+        );
+        assert!(own.note.contains("private ones too"), "{}", own.note);
+        assert!(!own.note.contains("shared with everyone"));
+        assert!(own_statistics(401, Vec::new()).is_err());
     }
 
     #[test]

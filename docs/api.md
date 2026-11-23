@@ -5109,7 +5109,7 @@ A field of the wrong kind, a country that is not two letters and a class that is
 
 ### `PUT and DELETE /v1/account/picture`
 
-The pilot's picture: one per account, public, shown wherever the pilot is named with it (`picture` on [the account](#get-v1account), on the pilot of every flight, on [a pilot's page](#get-v1pilotshandleafterlimit) and totals, in [the search](#get-v1pilotsqlimit) and among [the pilots near a place](#get-v1pilotsnearlatlonradius_kmlimit)). Since 2026-11-23. **The pilot's own sign-in only**: a session's token; no token for a program sends or removes one (`403` with `session_required`).
+The pilot's picture: one per account, public, shown wherever the pilot is named with it (`picture` on [the account](#get-v1account), on the pilot of every flight, on [a pilot's page](#get-v1pilotshandleafterlimit) and totals, in [the search](#get-v1pilotsqlimit), among [the pilots near a place](#get-v1pilotsnearlatlonradius_kmlimit), in [the ranking](#get-v1rankingbboxfromtomonthlimit), and, since the same evening, in the lists of [followers](#get-v1pilotshandlefollowersafterlimit) and of followed pilots, of [cheers](#get-v1flightsidcheersafterlimit) and of [comments](#get-v1flightsidcommentsafterlimit)). Since 2026-11-23. **The pilot's own sign-in only**: a session's token; no token for a program sends or removes one (`403` with `session_required`).
 
 `PUT` sends a picture in place of the one the account has. The body is the picture as it is, a JPEG, a PNG or a WebP, and `Content-Type` says which:
 
@@ -6427,6 +6427,7 @@ The answer is `201` when the upload created the flight, and `200` when the accou
       },
       "altitude_m": 1620
     },
+    "takeoff_country": "DE",
     "track_length_m": 18402.3,
     "max_altitude_m": 2117,
     "max_climb_ms": 2.4,
@@ -6527,6 +6528,7 @@ Needs a token. What happened to the account's flights since the device last aske
         },
         "altitude_m": 786
       },
+      "takeoff_country": "DE",
       "track_length_m": 18402.3,
       "max_altitude_m": 2117,
       "max_climb_ms": 2.4,
@@ -6570,6 +6572,7 @@ Needs a token. What happened to the account's flights since the device last aske
         },
         "altitude_m": 1620
       },
+      "takeoff_country": "DE",
       "track_length_m": 18402.3,
       "max_altitude_m": 2117,
       "max_climb_ms": 2.4,
@@ -6658,6 +6661,7 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
       },
       "altitude_m": 786
     },
+    "takeoff_country": "DE",
     "track_length_m": 18402.3,
     "max_altitude_m": 2117,
     "max_climb_ms": 2.4,
@@ -6750,7 +6754,7 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
 | `score` | How the flight scores as a cross-country flight: `kind` is `free_flight`, `free_triangle` or `fai_triangle`; `closed` says whether a triangle is closed to within 5%; `distance_m` and `points` follow. Left out for a track too short to score. The rules are the World XContest's as this project reads them; the points are ours, not the league's, until they have been compared |
 | `glider` | The glider as the file names it. Left out if the file names none. This is text from a file anyone can write: show it as text, never as markup |
 | `glider_class` | The class of the glider it was flown on: `en_a`, `en_b`, `en_c`, `en_d` or `ccc`. The pilot's [setting](#get-v1account) when the flight was uploaded, or what the pilot set on it later with [`PATCH /v1/flights/{id}`](#patch-v1flightsid). Left out while it is not known, which it is for every flight uploaded before 2026-11-23 |
-| `takeoff_country` | The country the glider took off in, an ISO 3166-1 alpha-2 code in upper case, for a flag. The server finds it with every answer, as it does `takeoff_site`, from the country outlines it has: Austria's (BEV) and France's (IGN), the ones it cuts aerial photographs with. Left out for a take-off in any other country, a few metres over a border perhaps, and when there is no `takeoff`. It does not count as a change of the flight |
+| `takeoff_country` | The country the glider took off in, an ISO 3166-1 alpha-2 code in upper case, for a flag. The server finds it with every answer, as it does `takeoff_site`, from the country outlines it has: Austria's (BEV) and France's (IGN), the ones it cuts aerial photographs with, first, then, since 2026-11-23, Natural Earth's of every other country of Europe ([data-sources.md](data-sources.md#maps-terrain-and-imagery)), drawn for 1:10 000 000, so that a take-off within a few hundred metres of one of their borders may be given the neighbour. Left out for a take-off outside Europe (Turkey and Georgia included), and when there is no `takeoff`. It does not count as a change of the flight |
 | `outline` | The shape of the track for a thumbnail: at most 96 points, each a latitude and a longitude. Circles in thermals are smoothed away, so nothing may be measured on it |
 | `file_bytes` | The size of the flight file |
 | `analysis_version` | Which version of the server's analysis produced the numbers. When the analysis improves, the server works every flight out again, and the flight shows up in `/v1/flights/changes` |
@@ -7225,7 +7229,8 @@ curl http://127.0.0.1:8080/v1/pilots/demo/followers
     {
       "pilot": {
         "handle": "mara",
-        "display_name": "Mara Muster"
+        "display_name": "Mara Muster",
+        "picture": "/v1/pictures/0000000000000000000000p001"
       },
       "since": "2026-11-18T09:35:00Z"
     }
@@ -7498,6 +7503,8 @@ This is the development mode's answer for the demo account, whose three flights 
 }
 ```
 
+`venti_core::own_statistics_request` asks for it and `own_statistics` (`ownStatisticsRequest` and `ownStatistics` in the browser) reads it into the rows of a pilot's public statistics, with a note of its own: of all the pilot's flights, the private ones too, where the public statistics say they count the flights shared with everyone (since 2026-11-23).
+
 ### `GET /v1/account/habits`
 
 How each flight of the account was flown, in figures, the private ones and those shared by link too, the newest first: what the pilot's own "How you fly" is said from. Needs a token, with `flights:read` for a program. `Cache-Control: private, no-store`. It is not counted as a read of public flights, and there is no public one: how a pilot circles and leaves thermals is theirs.
@@ -7673,7 +7680,8 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg/cheers
     {
       "pilot": {
         "handle": "mara",
-        "display_name": "Mara Muster"
+        "display_name": "Mara Muster",
+        "picture": "/v1/pictures/0000000000000000000000p001"
       },
       "at": "2026-11-18T18:05:00Z"
     }
@@ -7696,7 +7704,8 @@ The comments under a public flight, the oldest first. Anyone may ask; the answer
       "id": "0000000000000000000000c001",
       "pilot": {
         "handle": "mara",
-        "display_name": "Mara Muster"
+        "display_name": "Mara Muster",
+        "picture": "/v1/pictures/0000000000000000000000p001"
       },
       "text": "Well flown. How was the air above the ridge?",
       "at": "2026-11-18T18:10:00Z"
@@ -7906,6 +7915,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
         },
         "altitude_m": 786
       },
+      "takeoff_country": "DE",
       "track_length_m": 18402.3,
       "max_altitude_m": 2117,
       "max_climb_ms": 2.4,
@@ -7950,6 +7960,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-
         },
         "altitude_m": 1620
       },
+      "takeoff_country": "DE",
       "track_length_m": 15877.9,
       "max_altitude_m": 2117,
       "max_climb_ms": 2.4,
@@ -8020,6 +8031,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
         },
         "altitude_m": 786
       },
+      "takeoff_country": "DE",
       "track_length_m": 18402.3,
       "max_altitude_m": 2117,
       "max_climb_ms": 2.4,
@@ -8072,6 +8084,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
         },
         "altitude_m": 786
       },
+      "takeoff_country": "DE",
       "track_length_m": 18402.3,
       "max_altitude_m": 2117,
       "max_climb_ms": 2.4,
@@ -8177,6 +8190,7 @@ curl 'http://127.0.0.1:8080/v1/flights/public/changes?since=1795028700000003&lim
         },
         "altitude_m": 786
       },
+      "takeoff_country": "DE",
       "track_length_m": 18402.3,
       "max_altitude_m": 2117,
       "max_climb_ms": 2.4,
@@ -8339,6 +8353,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             },
             "altitude_m": 786
           },
+          "takeoff_country": "DE",
           "track_length_m": 18402.3,
           "max_altitude_m": 2117,
           "max_climb_ms": 2.4,
@@ -8383,6 +8398,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             },
             "altitude_m": 1620
           },
+          "takeoff_country": "DE",
           "track_length_m": 15877.9,
           "max_altitude_m": 2117,
           "max_climb_ms": 2.4,
@@ -8444,6 +8460,7 @@ curl 'http://127.0.0.1:8080/v1/ranking?month=2026-08&limit=2'
             },
             "altitude_m": 786
           },
+          "takeoff_country": "DE",
           "track_length_m": 18402.3,
           "max_altitude_m": 2117,
           "max_climb_ms": 2.4,
@@ -10150,6 +10167,7 @@ This is the demo account's public flight after it was taken down, as its pilot r
       },
       "altitude_m": 786
     },
+    "takeoff_country": "DE",
     "track_length_m": 18402.3,
     "max_altitude_m": 2117,
     "max_climb_ms": 2.4,

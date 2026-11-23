@@ -19,6 +19,9 @@ pub struct SocialPilot {
     pub handle: String,
     /// Its display name, as the account is now.
     pub name: String,
+    /// The identifier of its picture, if it has one, as the account is
+    /// now.
+    pub picture: Option<String>,
     /// Since when they follow or are followed, or when they cheered.
     pub at: Timestamp,
 }
@@ -107,6 +110,9 @@ pub struct Comment {
     pub author_handle: String,
     /// That account's display name, as the account is now.
     pub author_name: String,
+    /// The identifier of that account's picture, if it has one, as the
+    /// account is now.
+    pub author_picture: Option<String>,
     /// What it says.
     pub text: String,
     /// When it was written.

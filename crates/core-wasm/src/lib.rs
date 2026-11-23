@@ -3760,10 +3760,18 @@ pub fn flight_deleted(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
 }
 
 /// The request for what all the pilot's flights add up to, the private
-/// ones too. Read the answer with `pilotStatistics`.
+/// ones too. Read the answer with `ownStatistics`.
 #[wasm_bindgen(js_name = ownStatisticsRequest)]
 pub fn own_statistics_request() -> Result<Ts<ServerRequest>, JsValue> {
     to_js(&venti_core::own_statistics_request())
+}
+
+/// Reads the answer to `ownStatisticsRequest`: `pilotStatistics`'s shape,
+/// with a note that every flight of the pilot's is counted, the private
+/// ones too.
+#[wasm_bindgen(js_name = ownStatistics)]
+pub fn own_statistics(status: u16, body: Vec<u8>) -> Result<Ts<PilotStatistics>, JsValue> {
+    to_js(&venti_core::own_statistics(status, body).map_err(thrown)?)
 }
 
 /// The request for how each of the pilot's flights on the server was

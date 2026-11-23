@@ -7682,6 +7682,7 @@
                               },
                               "time": "2026-09-06T13:00:00Z"
                             },
+                            "takeoff_country": "DE",
                             "track_length_m": 18402.3,
                             "uploaded_at": "2026-11-18T19:05:00Z",
                             "visibility": "public"
@@ -7783,6 +7784,7 @@
                               },
                               "time": "2026-08-16T12:05:00Z"
                             },
+                            "takeoff_country": "DE",
                             "track_length_m": 18402.3,
                             "uploaded_at": "2026-11-18T19:05:00Z",
                             "visibility": "public"
@@ -7863,6 +7865,7 @@
                               },
                               "time": "2026-08-16T10:00:00Z"
                             },
+                            "takeoff_country": "DE",
                             "track_length_m": 12723.3,
                             "uploaded_at": "2026-11-18T19:05:00Z",
                             "visibility": "public"
@@ -10436,6 +10439,7 @@
                             },
                             "time": "2026-08-15T10:30:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
@@ -10526,6 +10530,7 @@
                             },
                             "time": "2026-07-04T10:30:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "unlisted"
@@ -10592,6 +10597,7 @@
                             },
                             "time": "2025-06-21T10:30:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 7486.4,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "private"
@@ -10772,6 +10778,7 @@
                           },
                           "time": "2026-09-01T10:30:00Z"
                         },
+                        "takeoff_country": "DE",
                         "track_length_m": 18402.3,
                         "uploaded_at": "2026-11-18T19:05:00Z",
                         "visibility": "public"
@@ -10896,6 +10903,7 @@
                             },
                             "time": "2026-08-15T10:30:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
@@ -10938,6 +10946,7 @@
                             },
                             "time": "2026-07-04T10:30:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "unlisted"
@@ -11123,6 +11132,7 @@
                             },
                             "time": "2026-09-06T13:00:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
@@ -11175,6 +11185,7 @@
                             },
                             "time": "2026-08-16T12:05:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
@@ -11303,6 +11314,7 @@
                             },
                             "time": "2026-08-15T10:30:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
@@ -11347,6 +11359,7 @@
                             },
                             "time": "2026-08-15T11:10:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 15877.9,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
@@ -11469,6 +11482,7 @@
                             },
                             "time": "2026-09-06T13:00:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
@@ -11665,6 +11679,7 @@
                           },
                           "time": "2026-08-15T10:30:00Z"
                         },
+                        "takeoff_country": "DE",
                         "track_length_m": 18402.3,
                         "uploaded_at": "2026-11-18T19:05:00Z",
                         "visibility": "public"
@@ -11724,6 +11739,7 @@
                           },
                           "time": "2026-08-15T10:30:00Z"
                         },
+                        "takeoff_country": "DE",
                         "track_length_m": 18402.3,
                         "uploaded_at": "2026-11-18T19:05:00Z",
                         "visibility": "private"
@@ -12000,7 +12016,8 @@
                           "at": "2026-11-18T18:05:00Z",
                           "pilot": {
                             "display_name": "Mara Muster",
-                            "handle": "mara"
+                            "handle": "mara",
+                            "picture": "/v1/pictures/0000000000000000000000p001"
                           }
                         }
                       ],
@@ -12075,7 +12092,8 @@
                           "id": "0000000000000000000000c001",
                           "pilot": {
                             "display_name": "Mara Muster",
-                            "handle": "mara"
+                            "handle": "mara",
+                            "picture": "/v1/pictures/0000000000000000000000p001"
                           },
                           "text": "Well flown. How was the air above the ridge?"
                         },
@@ -16468,6 +16486,7 @@
                             },
                             "time": "2026-08-15T10:30:00Z"
                           },
+                          "takeoff_country": "DE",
                           "track_length_m": 18402.3,
                           "uploaded_at": "2026-11-18T19:05:00Z",
                           "visibility": "public"
@@ -16677,7 +16696,8 @@
                         {
                           "pilot": {
                             "display_name": "Mara Muster",
-                            "handle": "mara"
+                            "handle": "mara",
+                            "picture": "/v1/pictures/0000000000000000000000p001"
                           },
                           "since": "2026-11-18T09:35:00Z"
                         }
@@ -17334,6 +17354,7 @@
                                 },
                                 "time": "2026-08-16T12:05:00Z"
                               },
+                              "takeoff_country": "DE",
                               "track_length_m": 18402.3,
                               "uploaded_at": "2026-11-18T19:05:00Z",
                               "visibility": "public"
@@ -17378,6 +17399,7 @@
                                 },
                                 "time": "2026-08-15T11:10:00Z"
                               },
+                              "takeoff_country": "DE",
                               "track_length_m": 15877.9,
                               "uploaded_at": "2026-11-18T19:05:00Z",
                               "visibility": "public"
@@ -17440,6 +17462,7 @@
                                 },
                                 "time": "2026-08-15T10:30:00Z"
                               },
+                              "takeoff_country": "DE",
                               "track_length_m": 18402.3,
                               "uploaded_at": "2026-11-18T19:05:00Z",
                               "visibility": "public"

@@ -1,0 +1,49 @@
+id = "natural-earth"
+provider = "Natural Earth (naturalearthdata.com)"
+kinds = ["boundaries"]
+# The countries of Europe, each a code and an outline, clipped to Europe:
+# those Natural Earth puts in Europe, and Cyprus, 52 codes with Åland, the
+# Faroes, Guernsey, Jersey, the Isle of Man and Gibraltar, which it gives
+# codes of their own. Turkey, Georgia and Northern Cyprus, which it puts in
+# Asia, are not.
+countries = ["AD", "AL", "AT", "AX", "BA", "BE", "BG", "BY", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FO", "FR", "GB", "GG", "GI", "GR", "HR", "HU", "IE", "IM", "IS", "IT", "JE", "LI", "LT", "LU", "LV", "MC", "MD", "ME", "MK", "MT", "NL", "NO", "PL", "PT", "RO", "RS", "RU", "SE", "SI", "SK", "SM", "UA", "VA", "XK"]
+# Natural Earth releases a few times a year at most; nothing is fetched at
+# run time, so this is how often the asset should be looked at again.
+cadence_seconds = 31536000
+auth = "none"
+
+[licence]
+name = "Public domain"
+commercial = true
+redistribution = true
+share_alike = false
+# Natural Earth asks for no credit ("Crediting the authors is
+# unnecessary"); it offers this line for those who want to give one.
+attribution = "Made with Natural Earth"
+link = "https://www.naturalearthdata.com/about/terms-of-use/"
+constraints = [
+    "Natural Earth's terms of use: \"All versions of Natural Earth raster + vector map data found on this website are in the public domain.\" \"No permission is needed to use Natural Earth.\" \"Crediting the authors is unnecessary.\"",
+    "Its borders are drawn for 1:10 000 000 and simplified further here: a place within a few hundred metres of a border may be given the neighbour's country. Where a finer outline of a country is had (Austria's of BEV, France's of IGN), the server asks that one first.",
+    "Natural Earth draws borders where they are in fact controlled (\"de facto\"), as its own pages say; a disputed area has one country here, which is no statement of Venti's.",
+]
+verified_on = "2026-11-23"
+verified_from = ["https://www.naturalearthdata.com/about/terms-of-use/"]
+
+[[asset]]
+name = "The outlines of the countries of Europe"
+file = "assets/europe.geojson"
+provider = "Natural Earth"
+made_from = "Admin 0 - Countries at 1:10m, version 5.1.1, ne_10m_admin_0_countries.zip from https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip, downloaded 2026-11-23: the countries whose CONTINENT is Europe, with Cyprus, each by its ISO_A2_EH code (ISO_A2 is -99 for France, Norway and Kosovo), clipped to 32° W to 45° E and 34° N to 72° N, each ring simplified by 0.001° (about 100 m, Douglas-Peucker) and rounded to five decimals, an island of less than about a square kilometre left out. tools/build_countries.py makes it again."
+
+[asset.licence]
+name = "Public domain"
+commercial = true
+redistribution = true
+share_alike = false
+attribution = "Made with Natural Earth"
+link = "https://www.naturalearthdata.com/about/terms-of-use/"
+constraints = [
+    "As the source's own licence above; nothing is asked of who uses it.",
+]
+verified_on = "2026-11-23"
+verified_from = ["https://www.naturalearthdata.com/about/terms-of-use/"]

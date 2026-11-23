@@ -105,6 +105,11 @@ pub enum Kind {
     /// Live positions of aircraft, over a connection that stays open. Not
     /// collected by the pipeline; see `LiveSource`.
     Live,
+    /// Boundaries: outlines of countries, which the server tells a place's
+    /// country by. Not records, and not collected by the pipeline: the
+    /// outlines are an asset of the adapter's crate, and nothing is
+    /// fetched. No trait and no registry; the server asks the crate.
+    Boundaries,
 }
 
 /// What credential a provider requires.

@@ -493,7 +493,7 @@ impl<S: Store> Api<S> {
             let last_page = page.len() < PAGE;
             for pilot in &page {
                 following.push(venti_api_types::v1::FollowedPilot {
-                    pilot: wire::pilot(&pilot.handle, &pilot.name)?,
+                    pilot: wire::pictured(&pilot.handle, &pilot.name, pilot.picture.as_deref())?,
                     since: pilot.at,
                 });
             }

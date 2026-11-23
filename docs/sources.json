@@ -281,6 +281,92 @@
       "provider": "Provincia Autonoma di Trento - Meteotrentino"
     },
     {
+      "assets": [
+        {
+          "licence": {
+            "commercial": true,
+            "credit": "Made with Natural Earth",
+            "link": "https://www.naturalearthdata.com/about/terms-of-use/",
+            "name": "Public domain",
+            "redistribution": true,
+            "share_alike": false,
+            "verified_on": "2026-11-23"
+          },
+          "name": "The outlines of the countries of Europe",
+          "provider": "Natural Earth"
+        }
+      ],
+      "countries": [
+        "AD",
+        "AL",
+        "AT",
+        "AX",
+        "BA",
+        "BE",
+        "BG",
+        "BY",
+        "CH",
+        "CY",
+        "CZ",
+        "DE",
+        "DK",
+        "EE",
+        "ES",
+        "FI",
+        "FO",
+        "FR",
+        "GB",
+        "GG",
+        "GI",
+        "GR",
+        "HR",
+        "HU",
+        "IE",
+        "IM",
+        "IS",
+        "IT",
+        "JE",
+        "LI",
+        "LT",
+        "LU",
+        "LV",
+        "MC",
+        "MD",
+        "ME",
+        "MK",
+        "MT",
+        "NL",
+        "NO",
+        "PL",
+        "PT",
+        "RO",
+        "RS",
+        "RU",
+        "SE",
+        "SI",
+        "SK",
+        "SM",
+        "UA",
+        "VA",
+        "XK"
+      ],
+      "id": "natural-earth",
+      "kinds": [
+        "boundaries"
+      ],
+      "licence": {
+        "commercial": true,
+        "credit": "Made with Natural Earth",
+        "link": "https://www.naturalearthdata.com/about/terms-of-use/",
+        "name": "Public domain",
+        "redistribution": true,
+        "share_alike": false,
+        "verified_on": "2026-11-23"
+      },
+      "manifest": "crates/sources-naturalearth/manifest.toml",
+      "provider": "Natural Earth (naturalearthdata.com)"
+    },
+    {
       "countries": [
         "AT",
         "BA",

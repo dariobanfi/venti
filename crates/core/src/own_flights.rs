@@ -221,7 +221,7 @@ pub fn flight_deleted(status: u16, body: Vec<u8>) -> Result<(), CoreError> {
 
 /// The request for what all the pilot's flights add up to, the private
 /// ones too, all together and year by year. The answer has the shape of a
-/// pilot's public statistics and is read by [`crate::pilot_statistics`].
+/// pilot's public statistics and is read by [`crate::own_statistics`].
 #[uniffi::export]
 pub fn own_statistics_request() -> ServerRequest {
     ServerRequest {

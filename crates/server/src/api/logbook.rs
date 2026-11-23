@@ -19,12 +19,13 @@ use std::collections::BTreeMap;
 use chrono::{Datelike, Months};
 use serde_json::{Value, json};
 use venti_domain::Timestamp;
-use venti_store::{Account, Flight, Listing, ScoreKind, Store, Visibility};
+use venti_store::{Account, Flight, GliderClass, Listing, ScoreKind, Store, Visibility};
 use venti_tools::{Host, ToolError, source_text};
 
 use super::Api;
 use super::auth::Viewer;
 use super::error::ApiError;
+use crate::flights::country::country_at;
 
 /// Where every result says it comes from.
 const SOURCE: &str = "the pilot's logbook on the Venti server";
@@ -135,6 +136,28 @@ fn glider(flight: &Flight) -> Option<String> {
         .as_deref()
         .map(|glider| source_text(glider, MAX_GLIDER_CHARS))
         .filter(|glider| !glider.is_empty())
+}
+
+/// The glider's class, as the pilot set it on the account when the flight
+/// was uploaded, in the words of the certification.
+fn glider_class(flight: &Flight) -> Option<&'static str> {
+    flight.glider_class.map(|class| match class {
+        GliderClass::EnA => "EN A",
+        GliderClass::EnB => "EN B",
+        GliderClass::EnC => "EN C",
+        GliderClass::EnD => "EN D",
+        GliderClass::Ccc => "CCC",
+    })
+}
+
+/// The country the flight took off in, by its ISO 3166-1 alpha-2 code, as
+/// every answer of the API says it.
+fn takeoff_country(flight: &Flight) -> Option<&'static str> {
+    flight
+        .derived
+        .takeoff
+        .as_ref()
+        .and_then(|takeoff| country_at(takeoff.position))
 }
 
 /// Who can see a flight, in the words the apps use.
@@ -288,6 +311,8 @@ impl Host for Logbook {
                     "points": score.map(|score| tenth(score.points)),
                     "highest_m": flight.derived.max_altitude_m,
                     "glider": glider(flight),
+                    "glider_class": glider_class(flight),
+                    "takeoff_country": takeoff_country(flight),
                     "shared": shared(flight),
                 })
             })
@@ -332,6 +357,8 @@ impl Host for Logbook {
             "landed": derived.landing.is_some(),
             "airtime_min": derived.airtime_s.max(0) / 60,
             "glider": glider(flight),
+            "glider_class": glider_class(flight),
+            "takeoff_country": takeoff_country(flight),
             "highest_m": derived.max_altitude_m,
             "best_climb_m_per_s": tenth(derived.max_climb_ms),
             "track_length_km": tenth(derived.track_length_m / 1000.0),
@@ -442,6 +469,16 @@ mod tests {
         assert_eq!(all["flights"][0]["shared"], "public: everyone");
         assert_eq!(all["flights"][1]["shared"], "private: only the pilot");
         assert_eq!(all["flights"][0]["takeoff"].as_str().unwrap().len(), 20);
+        // The synthetic flight takes off above the Tegernsee, by Natural
+        // Earth's outline of Germany; no class was set.
+        assert_eq!(all["flights"][0]["takeoff_country"], "DE");
+        assert!(all["flights"][0]["glider_class"].is_null());
+        let mut classed = flown_on("060726", Visibility::Private);
+        classed.glider_class = Some(GliderClass::EnB);
+        let classed = logbook(vec![classed], true);
+        let listed = venti_tools::run(&classed, "list_flights", &json!({})).unwrap();
+        let listed: Value = serde_json::from_str(&listed).unwrap();
+        assert_eq!(listed["flights"][0]["glider_class"], "EN B");
 
         let one = venti_tools::run(&book, "list_flights", &json!({"year": 2026, "limit": 1}));
         let one: Value = serde_json::from_str(&one.unwrap()).unwrap();

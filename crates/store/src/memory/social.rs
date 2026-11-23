@@ -41,6 +41,7 @@ fn pilot(accounts: &Accounts, account_id: &str, at: Timestamp) -> Option<SocialP
         account_id: account.id.clone(),
         handle: account.handle.clone(),
         name: account.display_name.clone(),
+        picture: account.picture.clone(),
         at,
     })
 }
@@ -221,6 +222,7 @@ impl Social {
             author_id: comment.author_id.clone(),
             author_handle: author.handle.clone(),
             author_name: author.display_name.clone(),
+            author_picture: author.picture.clone(),
             text: comment.text.clone(),
             created_at: comment.created_at,
         })

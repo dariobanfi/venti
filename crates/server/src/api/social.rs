@@ -108,7 +108,7 @@ fn cut<T>(mut items: Vec<T>, limit: usize) -> (Vec<T>, bool) {
 
 fn followed(pilot: &SocialPilot) -> Result<FollowedPilot, ApiError> {
     Ok(FollowedPilot {
-        pilot: wire::pilot(&pilot.handle, &pilot.name)?,
+        pilot: wire::pictured(&pilot.handle, &pilot.name, pilot.picture.as_deref())?,
         since: pilot.at,
     })
 }
@@ -116,7 +116,11 @@ fn followed(pilot: &SocialPilot) -> Result<FollowedPilot, ApiError> {
 fn comment_wire(comment: &venti_store::Comment) -> Result<Comment, ApiError> {
     Ok(Comment {
         id: comment.id.clone(),
-        pilot: wire::pilot(&comment.author_handle, &comment.author_name)?,
+        pilot: wire::pictured(
+            &comment.author_handle,
+            &comment.author_name,
+            comment.author_picture.as_deref(),
+        )?,
         text: comment.text.clone(),
         at: comment.created_at,
     })
@@ -585,7 +589,7 @@ pub(crate) async fn cheers<S: Store>(
             .iter()
             .map(|pilot| {
                 Ok(Cheer {
-                    pilot: wire::pilot(&pilot.handle, &pilot.name)?,
+                    pilot: wire::pictured(&pilot.handle, &pilot.name, pilot.picture.as_deref())?,
                     at: pilot.at,
                 })
             })

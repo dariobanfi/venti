@@ -135,10 +135,10 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --color-bg: #1C1236;
-    --color-surface: #2A1C4F;
-    --color-surface-raised: #3A2A68;
-    --color-border: #4A3880;
+    --color-bg: #272239;
+    --color-surface: #332D49;
+    --color-surface-raised: #40395A;
+    --color-border: #544B70;
     --color-border-strong: #8F80B8;
     --color-text: #FFF4DA;
     --color-text-secondary: #CFC4E2;
@@ -208,10 +208,10 @@
 }
 
 [data-theme="dark"] {
-  --color-bg: #1C1236;
-  --color-surface: #2A1C4F;
-  --color-surface-raised: #3A2A68;
-  --color-border: #4A3880;
+  --color-bg: #272239;
+  --color-surface: #332D49;
+  --color-surface-raised: #40395A;
+  --color-border: #544B70;
   --color-border-strong: #8F80B8;
   --color-text: #FFF4DA;
   --color-text-secondary: #CFC4E2;

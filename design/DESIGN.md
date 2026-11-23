@@ -106,7 +106,7 @@ One family: **Fira Sans** (open licence, files in `fonts/`).
 | Component | Class | Rule |
 |---|---|---|
 | Button | `.v-btn` + `--accent`, `--quiet`, `--danger`, `--round` | Label is a verb: "Start flight" |
-| Chip | `.v-chip` | Toggles map layers |
+| Chip | `.v-chip` | Toggles map layers. An "on" chip shows the `check` icon before its word, in every theme, so on and off never rest on colour alone (the owner, 2026-11-23) |
 | Segmented control | `.v-seg` | 2–4 choices |
 | Status | `.v-status` | Icon and word required |
 | Alert | `.v-alert` | What, how far, which way |

@@ -88,10 +88,10 @@ struct VentiTheme {
         thermal: [0xFDE7CF, 0xFBCDA6, 0xF6A97C, 0xEC8260, 0xD95A4A, 0xA93640].map { Color(hex: $0) }
     )
     static let dark = VentiTheme(
-        bg: Color(hex: 0x1C1236),
-        surface: Color(hex: 0x2A1C4F),
-        surfaceRaised: Color(hex: 0x3A2A68),
-        border: Color(hex: 0x4A3880),
+        bg: Color(hex: 0x272239),
+        surface: Color(hex: 0x332D49),
+        surfaceRaised: Color(hex: 0x40395A),
+        border: Color(hex: 0x544B70),
         borderStrong: Color(hex: 0x8F80B8),
         text: Color(hex: 0xFFF4DA),
         textSecondary: Color(hex: 0xCFC4E2),

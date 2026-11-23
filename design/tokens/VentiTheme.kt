@@ -87,10 +87,10 @@ val VentiLight = VentiColors(
 )
 
 val VentiDark = VentiColors(
-    bg = Color(0xFF1C1236),
-    surface = Color(0xFF2A1C4F),
-    surfaceRaised = Color(0xFF3A2A68),
-    border = Color(0xFF4A3880),
+    bg = Color(0xFF272239),
+    surface = Color(0xFF332D49),
+    surfaceRaised = Color(0xFF40395A),
+    border = Color(0xFF544B70),
     borderStrong = Color(0xFF8F80B8),
     text = Color(0xFFFFF4DA),
     textSecondary = Color(0xFFCFC4E2),

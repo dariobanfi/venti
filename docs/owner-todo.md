@@ -4,8 +4,8 @@ A short list to pick up when there is time. Each line says what to do and where 
 
 ## Only you can do these
 
-- [ ] **Say yes to one download:** Natural Earth's countries, `ne_10m_admin_0_countries.zip` from https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip (about 5 MB, public domain by its own terms page), so that every flight in Europe knows its take-off's country; today only Austria and France do. Sessions download nothing without your word. The adapter is written and waits for the file (2026-11-23).
-- [ ] **Say yes to the downloads for maps without a network:** real regions (a valley, a country, the whole Alps) are built from OpenStreetMap's extract of the Alps (Geofabrik, `alps-latest.osm.pbf`, several GB, ODbL) and Mapterhorn's elevation tiles, with Planetiler (Apache 2.0, a Java program). Today only the Tegernsee demo exists (2026-11-23).
+- [ ] **Push notifications** (your choice of 2026-11-23: Apple's and Google's): make an APNs key (.p8) in your Apple developer account for the app's bundle identifier, and a Firebase project with Cloud Messaging for `fly.venti.app` (its `google-services.json` and a service account for the server). Keep them out of the repository; the server reads them from its own files.
+
 
 - [ ] **Météo-France:** make a free account at its API portal and a key, so its stations can be collected (16). The adapter is not written until then.
 - [ ] **Trentino:** ask the Province of Trento to bring its server's encryption up to date, so its 46 wind stations can come back (24). A draft can be written for you; nothing has been sent.
@@ -22,7 +22,6 @@ A short list to pick up when there is time. Each line says what to do and where 
 ## Decide, yes or no (what is built stands until you say otherwise)
 
 
-- [ ] **The map in 3D on the phones** waits for a MapLibre Native release that draws 3D terrain: the apps use 7.0.0, which cannot; the work is on an unmerged branch (draft pull request maplibre-native#4190, last pushed 2026-11-22), with nothing released as of 2026-11-23. Wait for the release (the plan), pin the branch's unreleased code, or build Venti's own renderer (weeks of work)? Either way the track lies on the ground; flown height needs the own renderer.
 
 - [ ] **One place shown once:** where two sources describe the same take-off within 150 m, the map shows one, taken in the order Venti's own > the FFVL > OpenStreetMap > pilots' suggestions (2026-11-23). In the French Alps about 590 of the FFVL's 1,004 places meet an OpenStreetMap one.
 
@@ -42,8 +41,6 @@ A short list to pick up when there is time. Each line says what to do and where 
 - [ ] **Icons the design pack lacks:** Android's two QR icons were drawn from memory of an open icon set, and the iPhone's radar switch uses a system symbol. The web's Community section uses Lucide's "users" for people (2026-11-23). Supply icons for a QR code, scanning one, the radar and people, or say that stand-ins are fine.
 - [ ] **A real phone's camera** has never read a task's QR code on Android: the tests have none. Try it once with a code from XCTrack or from the iPhone.
 
-- [ ] **A chip that is on** is told by its colour alone, and the pack's dark theme makes "on" cream and "off" purple, which you read the other way round (2026-11-22). Add a mark to an "on" chip, make "off" lighter in both themes, or keep it? The pack is yours.
-- [ ] **The dark theme's new background:** pick one of the swatches the sessions prepare (2026-11-22: "keep the dark style, but change it a bit").
 
 ## Look at, and say what is wrong
 

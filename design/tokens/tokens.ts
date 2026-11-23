@@ -47,10 +47,10 @@ export const venti = {
       "onDangerFill": "#FFFFFF"
     },
     "dark": {
-      "bg": "#1C1236",
-      "surface": "#2A1C4F",
-      "surfaceRaised": "#3A2A68",
-      "border": "#4A3880",
+      "bg": "#272239",
+      "surface": "#332D49",
+      "surfaceRaised": "#40395A",
+      "border": "#544B70",
       "borderStrong": "#8F80B8",
       "text": "#FFF4DA",
       "textSecondary": "#CFC4E2",

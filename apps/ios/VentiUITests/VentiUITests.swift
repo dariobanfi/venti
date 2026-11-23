@@ -1609,8 +1609,8 @@ final class VentiUITests: XCTestCase {
     /// The pilot's own take-offs, against a Venti server in development
     /// mode: a take-off of Today is kept on its page, which also says what
     /// its source says of a fee and names its web page; Today then begins
-    /// with it under "Your take-offs"; the settings list it; and forgotten
-    /// there, Today is as it was.
+    /// with it under "Your take-offs"; and forgotten on its page, Today is
+    /// as it was.
     func testTodayBeginsWithThePilotsOwnTakeoffs() throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")
@@ -1678,33 +1678,19 @@ final class VentiUITests: XCTestCase {
         usleep(400_000)
         keepScreenshot("own-4-today-the-others")
 
-        // The settings list the pilot's own, with the core's note.
-        app.buttons["Settings"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Settings"].appears(timeout: 15))
-        let link = element("kept-sites-link", in: app)
-        XCTAssertTrue(link.appears(timeout: 10))
+        // Forgotten on its page: the button says so again.
+        app.swipeDown()
+        XCTAssertTrue(own.appears(timeout: 30))
+        bringUp(own, in: app)
+        own.tap()
+        bringUp(keep, in: app)
+        XCTAssertTrue(app.buttons["Kept"].appears(timeout: 10))
+        app.buttons["Kept"].tap()
+        XCTAssertTrue(app.buttons["Keep as my take-off"].appears(timeout: 10))
         usleep(400_000)
-        keepScreenshot("own-5-settings")
-        link.tap()
-        let listed = app.descendants(matching: .any).matching(identifier: "kept-site-row")
-            .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
-        XCTAssertTrue(listed.appears(timeout: 15))
-        XCTAssertTrue(labelled(containing: "Kept on this device only", in: app).exists)
-        XCTAssertTrue(labelled(containing: "OpenStreetMap", in: app).exists)
-        usleep(400_000)
-        keepScreenshot("own-6-list")
-
-        // Forgotten with a swipe: the list is empty and says what to do.
-        listed.swipeLeft()
-        XCTAssertTrue(app.buttons["Forget"].appears(timeout: 10))
-        app.buttons["Forget"].tap()
-        XCTAssertTrue(app.staticTexts["No take-offs of your own yet"].appears(timeout: 15))
-        usleep(400_000)
-        keepScreenshot("own-7-list-empty")
+        keepScreenshot("own-5-site-forgotten")
 
         // And Today is as it was: no groups.
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Settings"].appears(timeout: 15))
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(element("today-card", in: app).appears(timeout: 30))
         let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: ownTitle)
@@ -5771,22 +5757,9 @@ extension VentiUITests {
         signIn(account, in: app)
 
         // The Jägerkamp, one of Today's rows, kept on its page.
-        // The settings are a page of the Today tab, and the sign-in left
-        // the account's page open there: a second tap goes back to Today.
-        openTab("Today", in: app)
-        app.tabBars.buttons["Today"].tap()
-        XCTAssertTrue(element("today-card", in: app).appears(timeout: 60))
         // Wherever the core's order puts it on the day: a row, or the card.
-        let row = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier IN %@", ["today-row", "today-card"]))
-            .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
-        XCTAssertTrue(row.appears(timeout: 30))
-        bringUp(row, in: app)
-        row.tap()
-        let keep = element("site-keep", in: app)
-        bringUp(keep, in: app)
-        XCTAssertTrue(keep.appears(timeout: 10))
-        keep.tap()
+        openJaegerkamp(in: app)
+        element("site-keep", in: app).tap()
         XCTAssertTrue(app.buttons["Kept"].appears(timeout: 10))
         // Sent to the account at once: the core's note says where it lives.
         XCTAssertTrue(
@@ -5801,27 +5774,46 @@ extension VentiUITests {
         app.terminate()
         let second = launch(bundledMap: true, extra: arguments)
         XCTAssertTrue(second.buttons["Show my position"].appears(timeout: 90))
-        openTab("Settings", in: second)
-        let link = element("kept-sites-link", in: second)
-        XCTAssertTrue(link.appears(timeout: 10))
-        link.tap()
-        XCTAssertTrue(second.staticTexts["No take-offs of your own yet"].appears(timeout: 15))
+        // Nothing kept on it: the Jägerkamp's page offers to keep it.
+        openJaegerkamp(in: second)
+        XCTAssertTrue(second.buttons["Keep as my take-off"].appears(timeout: 10))
         XCTAssertTrue(labelled(containing: "Kept on this device only", in: second).exists)
 
         // Signed in to the same account, the take-off comes back from it.
+        // The page reads whether it is kept as it opens, and the sync
+        // after the sign-in takes a moment: opened again until it has.
         signIn(account, in: second)
-        openTab("Settings", in: second)
-        XCTAssertTrue(link.appears(timeout: 10))
-        link.tap()
-        let listed = second.descendants(matching: .any).matching(identifier: "kept-site-row")
-            .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
-        XCTAssertTrue(listed.appears(timeout: 30))
+        var cameBack = false
+        for _ in 0..<4 where !cameBack {
+            openJaegerkamp(in: second)
+            cameBack = second.buttons["Kept"].appears(timeout: 8)
+        }
+        XCTAssertTrue(cameBack)
         XCTAssertTrue(
             labelled(containing: "Kept on your Venti account and on this device", in: second)
                 .appears(timeout: 15)
         )
         usleep(400_000)
         keepScreenshot("kept-account-2-back-from-the-account")
+    }
+
+    /// Opens the Jägerkamp's page from Today, a row or the card, with its
+    /// keep button brought up. The settings are a page of the Today tab,
+    /// and a sign-in leaves the account's page open there, or the page of
+    /// a site: a second tap on the tab goes back to Today.
+    private func openJaegerkamp(in app: XCUIApplication) {
+        openTab("Today", in: app)
+        app.tabBars.buttons["Today"].tap()
+        XCTAssertTrue(element("today-card", in: app).appears(timeout: 60))
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier IN %@", ["today-row", "today-card"]))
+            .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
+        XCTAssertTrue(row.appears(timeout: 30))
+        bringUp(row, in: app)
+        row.tap()
+        let keep = element("site-keep", in: app)
+        bringUp(keep, in: app)
+        XCTAssertTrue(keep.appears(timeout: 10))
     }
 
     /// Opens "Programs with access" from the account's page, signed in,

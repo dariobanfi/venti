@@ -127,17 +127,13 @@ final class TodayModelTests: XCTestCase {
         XCTAssertTrue(shown.kept.isEmpty)
         XCTAssertEqual(shown.near.map(\.site.name), ["Wallberg Süd"])
 
-        // The list of the pilot's own, with the core's note and the credit.
+        // The list of the pilot's own, with the core's note, which a
+        // site's page says beside its keep.
         await own.load(from: tegernsee)
         let list = try XCTUnwrap(own.list)
         XCTAssertEqual(list.sites.map(\.site.id), [ramp.id])
         XCTAssertNotNil(list.sites.first?.distanceM)
         XCTAssertTrue(list.note.hasPrefix("Kept on this device only"))
-        XCTAssertEqual(
-            KeptSitesScreen.footnote(list), "\(list.note)\n© OpenStreetMap contributors"
-        )
-        XCTAssertTrue(KeptSitesScreen.detail(of: list.sites[0]).contains(" km "))
-        XCTAssertTrue(KeptSitesScreen.detail(of: list.sites[0]).contains("as of "))
 
         try await own.forget(ramp.id)
         XCTAssertFalse(today.isFresh(for: tegernsee))

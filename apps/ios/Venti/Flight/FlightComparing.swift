@@ -192,7 +192,7 @@ struct CompareChooser: View {
             do {
                 let other = try await logbook.flight(id: entry.id)
                 let otherAnalysis = try? await logbook.analysis(id: entry.id)
-                let name = "Your flight of \(Format.dayShort(unixSeconds: entry.startUnixS))"
+                let name = "Your flight of \(Format.dayShort(unixSeconds: entry.startUnixS, zone: entry.timeZone))"
                 await finish(with: other, otherAnalysis, named: name)
             } catch {
                 problem = error.words
@@ -233,10 +233,10 @@ private struct OwnFlightLine: View {
         HStack(spacing: 12) {
             TrackThumbnail(outline: entry.outline)
             VStack(alignment: .leading, spacing: 2) {
-                Text(Format.day(unixSeconds: entry.startUnixS))
+                Text(Format.day(unixSeconds: entry.startUnixS, zone: entry.timeZone))
                     .font(.venti(.headline))
                     .lineLimit(1)
-                Text(entry.takeoffName ?? Format.time(unixSeconds: entry.startUnixS))
+                Text(entry.takeoffName ?? Format.time(unixSeconds: entry.startUnixS, zone: entry.timeZone))
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

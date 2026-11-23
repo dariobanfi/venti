@@ -29,15 +29,6 @@ struct SettingsScreen: View {
                 }
 
                 Section {
-                    NavigationLink("Your take-offs") {
-                        KeptSitesScreen()
-                    }
-                    .accessibilityIdentifier("kept-sites-link")
-                } footer: {
-                    Text("The sites you kept as your take-offs. Today lists them first.")
-                }
-
-                Section {
                     NavigationLink("Waypoints") {
                         WaypointsScreen()
                     }
@@ -120,6 +111,14 @@ struct CreditsScreen: View {
                     "Mapterhorn, built from the open elevation data of many survey agencies. The full list is on its attribution page.",
                     link: "https://mapterhorn.com/attribution"
                 )
+                // The core's map of the world's time zones, by which a
+                // flight's times are told (`venti-sources-timezones`).
+                credit(
+                    "Time zones",
+                    "© OpenStreetMap contributors, under the Open Database License, by timezone-boundary-builder.",
+                    link: "https://www.openstreetmap.org/copyright"
+                )
+                .accessibilityIdentifier("credit-time-zones")
                 credit(
                     "Labels",
                     "Noto Sans, under the SIL Open Font License.",

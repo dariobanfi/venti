@@ -26,9 +26,9 @@ struct FlightDetailsSheet: View {
         NavigationStack {
             VentiList {
                 Section("Flight") {
-                    row("Date", Format.day(unixSeconds: flight.startUnixS))
-                    row("Take-off", Format.time(unixSeconds: flight.startUnixS))
-                    row("Landing", Format.time(unixSeconds: flight.startUnixS + flight.durationS))
+                    row("Date", Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone))
+                    row("Take-off", Format.time(unixSeconds: flight.startUnixS, zone: flight.timeZone))
+                    row("Landing", Format.time(unixSeconds: flight.startUnixS + flight.durationS, zone: flight.timeZone))
                     row("Airtime", "\(Format.hoursMinutes(seconds: flight.durationS)) h")
                     row("Track length", "\(Format.kilometres(metres: flight.trackLengthM)) km")
                 }
@@ -63,7 +63,7 @@ struct FlightDetailsSheet: View {
                             Button {
                                 onSelect(Int(crossing.entry.trackIndex))
                             } label: {
-                                AirspaceCrossingRow(crossing: crossing, flightStart: flight.startUnixS)
+                                AirspaceCrossingRow(crossing: crossing, flightStart: flight.startUnixS, zone: flight.timeZone)
                                     .contentShape(.rect)
                             }
                             .buttonStyle(.plain)
@@ -100,7 +100,7 @@ struct FlightDetailsSheet: View {
                                 Button {
                                     onSelect(Int(thermal.entry.trackIndex))
                                 } label: {
-                                    ThermalRow(thermal: thermal, flightStart: flight.startUnixS)
+                                    ThermalRow(thermal: thermal, flightStart: flight.startUnixS, zone: flight.timeZone)
                                         .contentShape(.rect)
                                 }
                                 // Plain, so the row keeps its own text
@@ -116,7 +116,7 @@ struct FlightDetailsSheet: View {
                                 Button {
                                     onSelect(Int(glide.start.trackIndex))
                                 } label: {
-                                    GlideRow(glide: glide, flightStart: flight.startUnixS)
+                                    GlideRow(glide: glide, flightStart: flight.startUnixS, zone: flight.timeZone)
                                         .contentShape(.rect)
                                 }
                                 .buttonStyle(.plain)
@@ -211,6 +211,8 @@ struct FlightDetailsSheet: View {
 private struct AirspaceCrossingRow: View {
     let crossing: AirspaceCrossing
     let flightStart: Int64
+    /// The time zone the flight was flown in, by whose clock its times are told.
+    let zone: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -222,7 +224,7 @@ private struct AirspaceCrossingRow: View {
                 Text("\(crossing.kind) · \(crossing.lower) to \(crossing.upper)")
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
-                Text("\(Format.time(unixSeconds: flightStart + Int64(crossing.entry.seconds))) · \(Format.metres(crossing.lowestM)) to \(Format.metres(crossing.highestM)) m")
+                Text("\(Format.time(unixSeconds: flightStart + Int64(crossing.entry.seconds), zone: zone)) · \(Format.metres(crossing.lowestM)) to \(Format.metres(crossing.highestM)) m")
                     .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                 if let uncertain = crossing.uncertain {
@@ -241,11 +243,13 @@ private struct AirspaceCrossingRow: View {
 private struct ThermalRow: View {
     let thermal: ThermalSummary
     let flightStart: Int64
+    /// The time zone the flight was flown in, by whose clock its times are told.
+    let zone: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(Format.time(unixSeconds: flightStart + Int64(thermal.entry.seconds)))
+                Text(Format.time(unixSeconds: flightStart + Int64(thermal.entry.seconds), zone: zone))
                     .foregroundStyle(.primary)
                 Text(detail)
                     .font(.venti(.subheadline))
@@ -275,11 +279,13 @@ private struct ThermalRow: View {
 private struct GlideRow: View {
     let glide: GlideSummary
     let flightStart: Int64
+    /// The time zone the flight was flown in, by whose clock its times are told.
+    let zone: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(Format.time(unixSeconds: flightStart + Int64(glide.start.seconds)))
+                Text(Format.time(unixSeconds: flightStart + Int64(glide.start.seconds), zone: zone))
                     .foregroundStyle(.primary)
                 Text("\(Format.kilometresPerHour(metresPerSecond: glide.speedMs)) km/h")
                     .font(.venti(.subheadline))

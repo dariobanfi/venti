@@ -205,4 +205,54 @@ final class LogbookModelTests: XCTestCase {
         XCTAssertEqual(days[0].airtimeS, 5400)
         XCTAssertTrue(LogbookDay.days(of: [], in: utc).isEmpty)
     }
+
+    /// A flight's times are told by the clock where it was flown: a
+    /// California flight shows its Los Angeles take-off time on an iPhone
+    /// set to Berlin, and a moment without a flight's zone the iPhone's.
+    func testAFlightsTimeIsTheClocksWhereItWasFlown() throws {
+        let before = NSTimeZone.default
+        NSTimeZone.default = try XCTUnwrap(TimeZone(identifier: "Europe/Berlin"))
+        defer { NSTimeZone.default = before }
+        // 4 July 2026, 17:30 UTC: 10:30 in Los Angeles, 19:30 in Berlin.
+        let moment: Int64 = 1_783_123_200 + 17 * 3600 + 1800
+        XCTAssertTrue(Format.time(unixSeconds: moment, zone: "America/Los_Angeles").hasPrefix("10:30"))
+        let berlin = Format.time(unixSeconds: moment)
+        XCTAssertTrue(berlin.hasPrefix("19:30") || berlin.hasPrefix("7:30"), berlin)
+        // A name the system does not know is the iPhone's clock.
+        XCTAssertEqual(Format.time(unixSeconds: moment, zone: "Nowhere/Else"), berlin)
+        // 18:30 in Los Angeles is 03:30 of the next day in Berlin.
+        let evening: Int64 = 1_783_123_200 + 86_400 + 5400
+        XCTAssertEqual(
+            Format.day(unixSeconds: evening, zone: "America/Los_Angeles"),
+            Format.day(unixSeconds: 1_783_123_200 + 12 * 3600)
+        )
+    }
+
+    /// The logbook's days are the dates where each flight was flown, in
+    /// order of those dates, whatever the iPhone's clock.
+    func testTheDaysAreTheDatesWhereTheFlightsWereFlown() throws {
+        func entry(_ id: String, at start: Int64, in zone: String) -> LogbookEntry {
+            LogbookEntry(
+                id: id, startUnixS: start, durationS: 1800, trackLengthM: 0, maxAltitudeM: 0,
+                maxClimbMs: 0, pilot: nil, glider: nil, outline: [], score: nil, takeoffName: nil,
+                timeZone: zone
+            )
+        }
+        var berlin = Calendar(identifier: .gregorian)
+        berlin.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Berlin"))
+        let fourth: Int64 = 1_783_123_200  // 4 July 2026, 00:00 UTC
+        // Newest first by the moment: 18:30 on the 4th in California,
+        // 03:00 on the 5th in Europe, 16:30 on the 4th in California
+        // (01:30 on the 5th by Berlin's clock).
+        let flights = [
+            entry("evening", at: fourth + 86_400 + 5400, in: "America/Los_Angeles"),
+            entry("night", at: fourth + 86_400 + 3600, in: "Europe/Berlin"),
+            entry("afternoon", at: fourth + 23 * 3600 + 1800, in: "America/Los_Angeles"),
+        ]
+        let days = LogbookDay.days(of: flights, in: berlin)
+        XCTAssertEqual(days.map { $0.flights.map(\.id) }, [["night"], ["evening", "afternoon"]])
+        // The start of the 5th in Berlin, the start of the 4th in Los Angeles.
+        XCTAssertEqual(days.map(\.id), [fourth + 22 * 3600, fourth + 7 * 3600])
+        XCTAssertEqual(days.map(\.zone), ["Europe/Berlin", "America/Los_Angeles"])
+    }
 }

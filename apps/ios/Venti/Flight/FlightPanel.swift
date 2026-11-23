@@ -146,7 +146,7 @@ struct FlightPanel: View {
     /// What kind of flight it was and on which day: "FAI triangle · Sat,
     /// Jul 4, 2026". The day alone until the flight is scored.
     private var kindAndDay: String {
-        let day = Format.day(unixSeconds: flight.startUnixS)
+        let day = Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone)
         guard let score else { return day }
         let kind =
             switch score.kind {
@@ -158,8 +158,8 @@ struct FlightPanel: View {
     }
 
     private var subtitle: String {
-        let start = Format.time(unixSeconds: flight.startUnixS)
-        let end = Format.time(unixSeconds: flight.startUnixS + flight.durationS)
+        let start = Format.time(unixSeconds: flight.startUnixS, zone: flight.timeZone)
+        let end = Format.time(unixSeconds: flight.startUnixS + flight.durationS, zone: flight.timeZone)
         guard let glider = flight.glider, !glider.isEmpty else { return "\(start) – \(end)" }
         return "\(start) – \(end) · \(glider)"
     }
@@ -174,7 +174,7 @@ struct FlightPanel: View {
 
     private func moment(_ point: TrackPoint) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Metric(caption: "Time", value: Format.time(unixSeconds: flight.startUnixS + Int64(point.seconds)))
+            Metric(caption: "Time", value: Format.time(unixSeconds: flight.startUnixS + Int64(point.seconds), zone: flight.timeZone))
             // How high over the ground the glider was, where the ground
             // is known; else how long it had been in the air.
             if let above = Self.heightAboveGround(at: point.seconds, in: ground) {

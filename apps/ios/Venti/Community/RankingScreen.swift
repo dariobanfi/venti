@@ -175,7 +175,7 @@ private struct RankedFlightLine: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(Format.day(unixSeconds: flight.startUnixS))
+            Text(Format.day(unixSeconds: flight.startUnixS, zone: flight.timeZone))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 8)

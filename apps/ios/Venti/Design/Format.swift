@@ -9,30 +9,49 @@ enum Format {
         Date(timeIntervalSince1970: TimeInterval(unixSeconds))
     }
 
+    /// The clock a flight's times are told by: the time zone it was flown
+    /// in, as the core names it ("America/Los_Angeles", "Etc/GMT-2"), or
+    /// the iPhone's where the core names none or the system does not know
+    /// the name. Forecasts, readings and "now" keep the iPhone's clock and
+    /// pass no zone.
+    static func timeZone(_ name: String?) -> TimeZone {
+        name.flatMap(TimeZone.init(identifier:)) ?? .autoupdatingCurrent
+    }
+
+    /// A style of dates told by the clock of `zone` (see `timeZone(_:)`).
+    static func style(_ style: Date.FormatStyle, zone: String?) -> Date.FormatStyle {
+        guard zone != nil else { return style }
+        var style = style
+        style.timeZone = timeZone(zone)
+        return style
+    }
+
     /// "Sat, 4 Jul 2026"
-    static func day(unixSeconds: Int64) -> String {
-        date(unixSeconds).formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year())
+    static func day(unixSeconds: Int64, zone: String? = nil) -> String {
+        date(unixSeconds).formatted(
+            style(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year(), zone: zone)
+        )
     }
 
     /// A day without its weekday, for a line that has more to say:
     /// "6 Sep 2026".
-    static func dayShort(unixSeconds: Int64) -> String {
-        date(unixSeconds).formatted(.dateTime.day().month(.abbreviated).year())
+    static func dayShort(unixSeconds: Int64, zone: String? = nil) -> String {
+        date(unixSeconds).formatted(style(.dateTime.day().month(.abbreviated).year(), zone: zone))
     }
 
     /// "Sat, 4 Jul", for lists already grouped by year.
-    static func dayInYear(unixSeconds: Int64) -> String {
-        date(unixSeconds).formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+    static func dayInYear(unixSeconds: Int64, zone: String? = nil) -> String {
+        date(unixSeconds).formatted(style(.dateTime.weekday(.abbreviated).day().month(.abbreviated), zone: zone))
     }
 
     /// "Thu, 19 Nov at 15:00"
-    static func dayAndTime(unixSeconds: Int64) -> String {
-        "\(dayInYear(unixSeconds: unixSeconds)) at \(time(unixSeconds: unixSeconds))"
+    static func dayAndTime(unixSeconds: Int64, zone: String? = nil) -> String {
+        "\(dayInYear(unixSeconds: unixSeconds, zone: zone)) at \(time(unixSeconds: unixSeconds, zone: zone))"
     }
 
     /// "10:30"
-    static func time(unixSeconds: Int64) -> String {
-        date(unixSeconds).formatted(date: .omitted, time: .shortened)
+    static func time(unixSeconds: Int64, zone: String? = nil) -> String {
+        date(unixSeconds).formatted(style(Date.FormatStyle(date: .omitted, time: .shortened), zone: zone))
     }
 
     /// A minute of the day on a 24-hour clock, as the core writes its

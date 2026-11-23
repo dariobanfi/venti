@@ -265,28 +265,45 @@ private struct ImportProgressBar: View {
     }
 }
 
-/// The flights of one day, by the iPhone's own clock, newest first.
+/// The flights of one day, each by the clock where it was flown, newest
+/// first.
 struct LogbookDay: Identifiable, Equatable {
-    /// The start of the day, seconds since 1970.
+    /// The start of the day by the clock of its first flight, seconds
+    /// since 1970.
     let id: Int64
+    /// The time zone of its first flight, by which the day is named.
+    let zone: String?
     let flights: [LogbookEntry]
 
     /// The day's time in the air.
     var airtimeS: Int64 { flights.reduce(0) { $0 + $1.durationS } }
 
-    /// The flights, already newest first, in runs of one calendar day.
+    /// The flights, already newest first, by the calendar day on which
+    /// each took off where it was flown; `calendar`'s zone stands for a
+    /// flight that has none. Flights come by the moment they began, so a
+    /// California evening can come before a European morning of the next
+    /// day: the days are put in order by their dates, newest first, and a
+    /// flight keeps its place among the day's.
     static func days(of flights: [LogbookEntry], in calendar: Calendar = .current) -> [LogbookDay] {
-        var days: [LogbookDay] = []
+        // Each day under its date as one number, 20260706.
+        var days: [(date: Int, day: LogbookDay)] = []
         for entry in flights {
-            let start = calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(entry.startUnixS)))
-            let id = Int64(start.timeIntervalSince1970)
-            if let last = days.last, last.id == id {
-                days[days.count - 1] = LogbookDay(id: id, flights: last.flights + [entry])
+            var local = calendar
+            if entry.timeZone != nil {
+                local.timeZone = Format.timeZone(entry.timeZone)
+            }
+            let moment = Date(timeIntervalSince1970: TimeInterval(entry.startUnixS))
+            let parts = local.dateComponents([.year, .month, .day], from: moment)
+            let date = (parts.year ?? 0) * 10_000 + (parts.month ?? 0) * 100 + (parts.day ?? 0)
+            if let index = days.firstIndex(where: { $0.date == date }) {
+                let day = days[index].day
+                days[index].day = LogbookDay(id: day.id, zone: day.zone, flights: day.flights + [entry])
             } else {
-                days.append(LogbookDay(id: id, flights: [entry]))
+                let id = Int64(local.startOfDay(for: moment).timeIntervalSince1970)
+                days.append((date, LogbookDay(id: id, zone: entry.timeZone, flights: [entry])))
             }
         }
-        return days
+        return days.sorted { $0.date > $1.date }.map(\.day)
     }
 }
 
@@ -352,7 +369,7 @@ private struct DayHeader: View {
                 .accessibilityIdentifier("logbook-year-\(year.year)")
             }
             HStack(alignment: .firstTextBaseline) {
-                Text(Format.dayInYear(unixSeconds: day.id))
+                Text(Format.dayInYear(unixSeconds: day.id, zone: day.zone))
                     .font(.venti(.headline))
                     .foregroundStyle(.venti(.text))
                     .accessibilityAddTraits(.isHeader)
@@ -393,9 +410,9 @@ private struct LogbookRow: View {
             TrackThumbnail(outline: entry.outline, large: true)
             VStack(alignment: .leading, spacing: VentiSpace.s1) {
                 HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s2) {
-                    Text(Format.time(unixSeconds: entry.startUnixS))
+                    Text(Format.time(unixSeconds: entry.startUnixS, zone: entry.timeZone))
                         .font(.ventiType(.instrumentM))
-                        .accessibilityLabel("Took off at \(Format.time(unixSeconds: entry.startUnixS))")
+                        .accessibilityLabel("Took off at \(Format.time(unixSeconds: entry.startUnixS, zone: entry.timeZone))")
                     Spacer(minLength: 0)
                     Text("\(Text(Format.hoursMinutes(seconds: entry.durationS)).font(.ventiType(.instrumentM)))\(Text(" h").font(.venti(.subheadline, .medium)).foregroundStyle(.venti(.textSecondary)))")
                         .accessibilityLabel("Airtime \(Format.hoursMinutes(seconds: entry.durationS)) h")
@@ -449,7 +466,7 @@ private struct LogbookRow: View {
         if let first = entry.outline.first {
             return Format.place(lat: first.lat, lon: first.lon)
         }
-        return Format.dayInYear(unixSeconds: entry.startUnixS)
+        return Format.dayInYear(unixSeconds: entry.startUnixS, zone: entry.timeZone)
     }
 
     /// One of the pack's icons, in the quiet ink. Without a `label` it is

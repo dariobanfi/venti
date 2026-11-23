@@ -97,10 +97,15 @@ struct AltitudeChart: View {
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                 AxisGridLine()
-                // No AM or PM: the panel's heading already says which.
-                AxisValueLabel(format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+                // No AM or PM: the panel's heading already says which. By
+                // the clock where the flight was flown, as the panel's.
+                AxisValueLabel(
+                    format: Format.style(.dateTime.hour(.defaultDigits(amPM: .omitted)).minute(), zone: flight.timeZone)
+                )
             }
         }
+        // The axis's round hours are the flight's clock's too.
+        .environment(\.timeZone, Format.timeZone(flight.timeZone))
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
                 AxisGridLine()

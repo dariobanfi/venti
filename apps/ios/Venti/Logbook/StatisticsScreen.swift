@@ -220,7 +220,7 @@ struct StatisticsScreen: View {
                     Text(text(best.value))
                 } label: {
                     Text(title)
-                    Text(Format.day(unixSeconds: best.startUnixS))
+                    Text(Format.day(unixSeconds: best.startUnixS, zone: best.timeZone))
                 }
             }
         }
@@ -271,7 +271,7 @@ struct StatisticsScreen: View {
         if route.closed > 0 {
             parts.append("\(route.closed) closed")
         }
-        parts.append("farthest \(Format.kilometres(metres: farthest.value)) km on \(Format.day(unixSeconds: farthest.startUnixS))")
+        parts.append("farthest \(Format.kilometres(metres: farthest.value)) km on \(Format.day(unixSeconds: farthest.startUnixS, zone: farthest.timeZone))")
         return parts.joined(separator: " · ")
     }
 
@@ -280,7 +280,7 @@ struct StatisticsScreen: View {
     static func words(of place: SiteStatistics) -> String {
         var parts = ["\(Format.hoursMinutes(seconds: place.airtimeS)) h"]
         if let farthest = place.farthest {
-            parts.append("farthest \(Format.kilometres(metres: farthest.value)) km on \(Format.day(unixSeconds: farthest.startUnixS))")
+            parts.append("farthest \(Format.kilometres(metres: farthest.value)) km on \(Format.day(unixSeconds: farthest.startUnixS, zone: farthest.timeZone))")
         }
         return parts.joined(separator: " · ")
     }

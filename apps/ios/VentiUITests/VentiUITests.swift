@@ -5292,9 +5292,12 @@ extension VentiUITests {
         return layer
     }
 
-    /// Whether a switch is on.
+    /// Whether a switch is on. Waits for it first: a list drawn again (the
+    /// account's page after signing in) takes its rows away for a moment,
+    /// and reading a switch then failed the test on the iPhone Air.
     private func isOn(_ toggle: XCUIElement) -> Bool {
-        (toggle.value as? String) == "1"
+        _ = toggle.waitForExistence(timeout: 10)
+        return (toggle.value as? String) == "1"
     }
 
     /// Sets a switch of a list. A tap on the row's middle does not always
@@ -6409,12 +6412,27 @@ extension VentiUITests {
     /// Turns a switch of "Pilots nearby" on or off: one tap, what the system
     /// asks answered, and the switch as Venti kept it, which comes only
     /// once Venti has answered.
-    private func switchNearby(_ toggle: XCUIElement, on: Bool) {
+    private func switchNearby(_ toggle: XCUIElement, on: Bool, in app: XCUIApplication) {
         if isOn(toggle) != on {
+            clearOfTheTabBar(toggle, in: app)
             toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
         }
         allowWhatTheSystemAsks()
         XCTAssertTrue(waitUntil(timeout: 20) { self.isOn(toggle) == on }, toggle.identifier)
+    }
+
+    /// Scrolls a list a little until a row stands wholly above the tab bar,
+    /// which floats over the list's foot. `bring` takes a row under the
+    /// tab bar for on the screen: on the iPhone Air "nearby-help" lay
+    /// there, and the tap at its switch opened the Community tab.
+    private func clearOfTheTabBar(_ row: XCUIElement, in app: XCUIApplication) {
+        let bar = app.tabBars.firstMatch
+        let window = app.windows.firstMatch
+        for _ in 0..<4 where bar.exists && row.exists && row.frame.maxY > bar.frame.minY - 8 {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+                .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
+            usleep(600_000)
+        }
     }
 
     /// Opens the account's page and brings "Pilots nearby" in.
@@ -6448,7 +6466,7 @@ extension VentiUITests {
         usleep(400_000)
         keepScreenshot("nearby-1-settings-off")
 
-        switchNearby(plans, on: true)
+        switchNearby(plans, on: true, in: app)
         let place = element("nearby-place", in: app)
         XCTAssertTrue(place.appears(timeout: 20))
         XCTAssertTrue(place.label.hasPrefix("Around 47.2"), place.label)
@@ -6456,7 +6474,7 @@ extension VentiUITests {
         sleep(2)
         // The place and the distances pushed the second switch down.
         _ = bring("nearby-help", into: app)
-        switchNearby(help, on: true)
+        switchNearby(help, on: true, in: app)
         _ = bring("nearby-help", into: app)
         usleep(400_000)
         keepScreenshots(light: "nearby-2-settings-on", dark: "nearby-3-settings-on-dark")
@@ -6468,9 +6486,9 @@ extension VentiUITests {
         XCTAssertEqual(circle["radius_km"] as? Int, 50)
 
         // Off again, both.
-        switchNearby(help, on: false)
+        switchNearby(help, on: false, in: app)
         _ = bring("nearby-open-plans", into: app, down: true)
-        switchNearby(plans, on: false)
+        switchNearby(plans, on: false, in: app)
         XCTAssertTrue(place.vanishes(timeout: 20))
         app.resetAuthorizationStatus(for: .location)
     }
@@ -6495,7 +6513,7 @@ extension VentiUITests {
 
         // Bert may be asked: the app tells Venti where the iPhone is.
         let help = openPilotsNearby(in: app)
-        switchNearby(help, on: true)
+        switchNearby(help, on: true, in: app)
 
         // Anna landed a few kilometres away and asks. Bert's position comes
         // within half a minute of the switch.

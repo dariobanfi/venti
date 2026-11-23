@@ -30,6 +30,12 @@ final class NearbyModel {
     /// pilot may be asked for help (docs/design.md: every 10 minutes).
     static let positionEvery: Duration = .seconds(10 * 60)
 
+    /// The changes of the settings sent in this run, and those not yet
+    /// answered: a reading sent before a change, or during one, may carry
+    /// the settings as they were.
+    @ObservationIgnored private var changesSent = 0
+    @ObservationIgnored private var changesUnderway = 0
+
     @ObservationIgnored private let send: Send
     @ObservationIgnored private let isSignedIn: @MainActor () -> Bool
     /// Venti's clock in milliseconds, for whether a call still stands: the
@@ -66,13 +72,21 @@ final class NearbyModel {
 
     // MARK: The settings
 
+    /// Reads the settings again. An answer to a reading that a change
+    /// overtook is dropped: the app reads them each time it comes to the
+    /// front, which it also does when the pilot has answered what iOS asked
+    /// on turning a switch on, while the change is still on its way.
     func loadSettings() async {
         guard isSignedIn() else { return signedOut() }
+        let sentBefore = changesSent
+        let wasQuiet = changesUnderway == 0
         do {
-            choice = try await ask(nearbySettingsRequest()) { try nearbySettings(status: $0, body: $1) }
+            let read = try await ask(nearbySettingsRequest()) { try nearbySettings(status: $0, body: $1) }
+            guard wasQuiet, changesUnderway == 0, changesSent == sentBefore else { return }
+            choice = read
             settingsProblem = nil
         } catch {
-            if Self.isCancelled(error) { return }
+            guard !Self.isCancelled(error), wasQuiet, changesUnderway == 0, changesSent == sentBefore else { return }
             settingsProblem = Self.words(for: error)
         }
     }
@@ -82,6 +96,9 @@ final class NearbyModel {
     @discardableResult
     func change(_ wanted: NearbyChoice) async -> String? {
         let before = choice
+        changesSent += 1
+        changesUnderway += 1
+        defer { changesUnderway -= 1 }
         do {
             let kept = try await ask(try nearbySettingsChangeRequest(choice: wanted)) {
                 try nearbySettings(status: $0, body: $1)

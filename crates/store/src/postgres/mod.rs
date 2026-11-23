@@ -11,6 +11,7 @@ mod kept_sites;
 mod live;
 mod migrate;
 mod oauth;
+mod open_plans;
 mod partitions;
 mod pictures;
 mod pilot_sites;
@@ -52,6 +53,10 @@ use crate::{
 use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 use crate::{NearPilot, NewPicture, Picture};
+use crate::{
+    NewOpenPlan, OpenPlan, OpenPlanArea, OpenPlanChange, OpenPlanDetails, OpenPlanRemoval,
+    OpenPlanRoom, OpenPlanSaving,
+};
 
 /// Connections kept to the database. The API's queries take milliseconds,
 /// so a few connections serve many requests.
@@ -1604,7 +1609,96 @@ impl Store for PgStore {
     }
 
     async fn prune_plans(&self, before: NaiveDate) -> Result<u64, StoreError> {
-        groups::prune_plans(&self.client().await?, before).await
+        let client = self.client().await?;
+        let of_groups = groups::prune_plans(&client, before).await?;
+        Ok(of_groups + open_plans::prune(&client, before).await?)
+    }
+
+    async fn save_open_plan(
+        &self,
+        new: &NewOpenPlan,
+        room: &OpenPlanRoom,
+    ) -> Result<OpenPlanSaving, StoreError> {
+        open_plans::save(&mut self.client().await?, new, room).await
+    }
+
+    async fn change_open_plan(
+        &self,
+        plan_id: &str,
+        by_account_id: &str,
+        details: &OpenPlanDetails,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> Result<OpenPlanChange, StoreError> {
+        let mut client = self.client().await?;
+        open_plans::change(
+            &mut client,
+            plan_id,
+            by_account_id,
+            details,
+            (now, gone_before),
+        )
+        .await
+    }
+
+    async fn delete_open_plan(
+        &self,
+        plan_id: &str,
+        by_account_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<OpenPlanRemoval, StoreError> {
+        open_plans::delete(
+            &mut self.client().await?,
+            plan_id,
+            by_account_id,
+            gone_before,
+        )
+        .await
+    }
+
+    async fn set_open_plan_in(
+        &self,
+        plan_id: &str,
+        account_id: &str,
+        is_in: bool,
+        now: Timestamp,
+        room: &OpenPlanRoom,
+    ) -> Result<OpenPlanChange, StoreError> {
+        let mut client = self.client().await?;
+        open_plans::set_in(&mut client, plan_id, account_id, (is_in, now), room).await
+    }
+
+    async fn open_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<OpenPlan>, StoreError> {
+        open_plans::get(&self.client().await?, plan_id, gone_before).await
+    }
+
+    async fn open_plans_near(
+        &self,
+        area: &OpenPlanArea,
+        limit: usize,
+    ) -> Result<Vec<OpenPlan>, StoreError> {
+        open_plans::near(&self.client().await?, area, limit).await
+    }
+
+    async fn open_plans_of(
+        &self,
+        account_id: &str,
+        from: NaiveDate,
+        limit: usize,
+    ) -> Result<Vec<OpenPlan>, StoreError> {
+        open_plans::of(&self.client().await?, account_id, from, limit).await
+    }
+
+    async fn remove_open_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<OpenPlan>, StoreError> {
+        open_plans::remove(&mut self.client().await?, plan_id, gone_before).await
     }
 
     async fn any_group(&self, id: &str) -> Result<Option<GroupMembers>, StoreError> {

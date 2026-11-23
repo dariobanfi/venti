@@ -307,18 +307,7 @@ const DRIVEN_SPEED_MS: f64 = 22.0;
 /// longest of them that was flown. Splitting a recording into its flights
 /// is not built.
 fn takeoff_and_landing(fixes: &[Fix]) -> (Option<usize>, Option<usize>) {
-    let mut flights: Vec<(usize, Option<usize>)> = Vec::new();
-    let mut from = 0;
-    while from < fixes.len() {
-        let (Some(takeoff), landing, looked_at) = first_flight(&fixes[from..]) else {
-            break;
-        };
-        flights.push((from + takeoff, landing.map(|landing| from + landing)));
-        if landing.is_none() {
-            break;
-        }
-        from += looked_at.max(1);
-    }
+    let flights = flights_in(fixes);
     let seconds = |&(takeoff, landing): &(usize, Option<usize>)| {
         let last = landing.unwrap_or(fixes.len() - 1).max(takeoff);
         (fixes[last].time - fixes[takeoff].time).num_seconds()
@@ -334,6 +323,46 @@ fn takeoff_and_landing(fixes: &[Fix]) -> (Option<usize>, Option<usize>) {
         // before recordings were looked through to their end.
         .or(flights.first())
         .map_or((None, None), |&(takeoff, landing)| (Some(takeoff), landing))
+}
+
+/// Every flight in a recording, in order: the fix of each take-off and of
+/// its landing, `None` for a flight the recording ends in.
+fn flights_in(fixes: &[Fix]) -> Vec<(usize, Option<usize>)> {
+    let mut flights: Vec<(usize, Option<usize>)> = Vec::new();
+    let mut from = 0;
+    while from < fixes.len() {
+        let (Some(takeoff), landing, looked_at) = first_flight(&fixes[from..]) else {
+            break;
+        };
+        flights.push((from + takeoff, landing.map(|landing| from + landing)));
+        if landing.is_none() {
+            break;
+        }
+        from += looked_at.max(1);
+    }
+    flights
+}
+
+/// A recording whose first take-off is this many seconds or less after
+/// its first fix began in the air. One begun on the ground starts with
+/// the standing before the run: the cockpit keeps half a minute of it.
+const IN_THE_AIR_AT_THE_START_S: i64 = 10;
+
+/// Whether a recording began in the air and whether it ended in the air,
+/// by the cockpit's own rules. A recording that a kill by the system cut
+/// short ends in the air; the one the cockpit began when it came back
+/// begins in the air. A recording made the usual way does neither: it
+/// begins with the standing before the run and ends a while after the
+/// landing.
+pub fn in_the_air_at_its_ends(fixes: &[Fix]) -> (bool, bool) {
+    let flights = flights_in(fixes);
+    let began = flights.first().is_some_and(|&(takeoff, _)| {
+        (fixes[takeoff].time - fixes[0].time).num_seconds() <= IN_THE_AIR_AT_THE_START_S
+    });
+    let ended = flights
+        .last()
+        .is_some_and(|&(_, landing)| landing.is_none());
+    (began, ended)
 }
 
 /// The first flight in a stretch of a recording: where the glider took off

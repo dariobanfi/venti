@@ -676,7 +676,26 @@ pub async fn perform(
                 )));
             };
             let removed = store.remove_plan(id.as_str(), gone_before).await;
-            let Some(plan) = removed.map_err(failed)? else {
+            let removed = removed.map_err(failed)?;
+            if removed.is_none() {
+                // An open plan, then: it is removed the same way.
+                let open = store.remove_open_plan(id.as_str(), gone_before).await;
+                if let Some(plan) = open.map_err(failed)? {
+                    let pilots = plan.pilots_in.len();
+                    return Ok(Outcome::found(format!(
+                        "The open plan {id} of {} is removed: for {}, at {}; {}.\n\
+                         To everyone it is as if its author had deleted it: it is in no \
+                         list, and nobody is told that it was removed or by whom.\n\
+                         This cannot be undone. It does not stop its author from posting it \
+                         again; `venti-server suspend-publishing` does. No report was closed.",
+                        member(&plan.author),
+                        format_day(plan.details.day),
+                        quoted(&plan.details.place),
+                        counted(pilots, "pilot was in", "pilots were in"),
+                    )));
+                }
+            }
+            let Some(plan) = removed else {
                 return Ok(Outcome::nothing(format!(
                     "There is no plan with the identifier {id}: none ever was, it was \
                      deleted or removed, it went with its author or its group, or its day is \
@@ -1413,6 +1432,38 @@ async fn described(
                     "plan {} of {about}, in group {}",
                     on_one_line(id),
                     on_one_line(group_id)
+                ),
+                None,
+            )
+        }
+        ReportSubject::OpenPlan { id, place, note } => {
+            labelled(&mut kept, "Place then:", place);
+            if let Some(note) = note {
+                labelled(&mut kept, "Note then:", note);
+            }
+            let now = match store.open_plan(id, gone_before).await? {
+                Some(plan) if plan.details.place == *place && plan.details.note == *note => {
+                    "still there, the same".to_owned()
+                }
+                Some(plan) => {
+                    labelled(&mut kept, "Place now:", &plan.details.place);
+                    if let Some(note) = &plan.details.note {
+                        labelled(&mut kept, "Note now:", note);
+                    }
+                    "still there, changed".to_owned()
+                }
+                None => "gone: deleted, removed, gone with its author or its day".to_owned(),
+            };
+            labelled(&mut kept, "Now:", &now);
+            labelled(
+                &mut kept,
+                "Remove it:",
+                &format!("venti-server remove-plan {}", on_one_line(id)),
+            );
+            (
+                format!(
+                    "open plan {} of {about}, which everyone reads",
+                    on_one_line(id)
                 ),
                 None,
             )

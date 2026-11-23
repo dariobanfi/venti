@@ -1060,6 +1060,78 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn save_open_plan(
+        &self,
+        _: &crate::NewOpenPlan,
+        _: &crate::OpenPlanRoom,
+    ) -> Result<crate::OpenPlanSaving, StoreError> {
+        self.fail().await
+    }
+
+    async fn change_open_plan(
+        &self,
+        _: &str,
+        _: &str,
+        _: &crate::OpenPlanDetails,
+        _: Timestamp,
+        _: NaiveDate,
+    ) -> Result<crate::OpenPlanChange, StoreError> {
+        self.fail().await
+    }
+
+    async fn delete_open_plan(
+        &self,
+        _: &str,
+        _: &str,
+        _: NaiveDate,
+    ) -> Result<crate::OpenPlanRemoval, StoreError> {
+        self.fail().await
+    }
+
+    async fn set_open_plan_in(
+        &self,
+        _: &str,
+        _: &str,
+        _: bool,
+        _: Timestamp,
+        _: &crate::OpenPlanRoom,
+    ) -> Result<crate::OpenPlanChange, StoreError> {
+        self.fail().await
+    }
+
+    async fn open_plan(
+        &self,
+        _: &str,
+        _: NaiveDate,
+    ) -> Result<Option<crate::OpenPlan>, StoreError> {
+        self.fail().await
+    }
+
+    async fn open_plans_near(
+        &self,
+        _: &crate::OpenPlanArea,
+        _: usize,
+    ) -> Result<Vec<crate::OpenPlan>, StoreError> {
+        self.fail().await
+    }
+
+    async fn open_plans_of(
+        &self,
+        _: &str,
+        _: NaiveDate,
+        _: usize,
+    ) -> Result<Vec<crate::OpenPlan>, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_open_plan(
+        &self,
+        _: &str,
+        _: NaiveDate,
+    ) -> Result<Option<crate::OpenPlan>, StoreError> {
+        self.fail().await
+    }
+
     async fn any_group(&self, _: &str) -> Result<Option<GroupMembers>, StoreError> {
         self.fail().await
     }

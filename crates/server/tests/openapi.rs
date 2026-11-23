@@ -833,6 +833,15 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         Request,
     ),
     ("plan.json", "post", "/v1/groups/{id}/plans", Answer(201)),
+    ("open_plans.json", "get", "/v1/open-plans", Answer(200)),
+    ("open_plan_request.json", "post", "/v1/open-plans", Request),
+    ("open_plan.json", "post", "/v1/open-plans", Answer(201)),
+    (
+        "report_open_plan_request.json",
+        "post",
+        "/v1/reports",
+        Request,
+    ),
 ];
 
 /// The schemas no golden file reaches. Each is a record of a request

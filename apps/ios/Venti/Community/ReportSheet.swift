@@ -23,6 +23,7 @@ struct Reported: Identifiable {
         case .site(let id): "site \(id)"
         case .siteRevision(let id, let revision): "site \(id) revision \(revision)"
         case .picture(let handle): "picture \(handle)"
+        case .openPlan(let id): "open plan \(id)"
         }
     }
 

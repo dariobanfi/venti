@@ -5,6 +5,7 @@ mod groups;
 mod kept_sites;
 mod live;
 mod oauth;
+mod open_plans;
 mod pilot_sites;
 mod push;
 mod reports;
@@ -39,6 +40,10 @@ use crate::{
 use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 use crate::{NearPilot, NewPicture, Picture};
+use crate::{
+    NewOpenPlan, OpenPlan, OpenPlanArea, OpenPlanChange, OpenPlanDetails, OpenPlanRemoval,
+    OpenPlanRoom, OpenPlanSaving,
+};
 
 /// A store that lives in the process and forgets everything when it ends.
 ///
@@ -70,6 +75,7 @@ struct Inner {
     flights: flights::Flights,
     live: live::Live,
     groups: groups::Groups,
+    open_plans: open_plans::OpenPlans,
     reports: reports::Reports,
     pilot_sites: pilot_sites::PilotSites,
     kept_sites: kept_sites::KeptSites,
@@ -695,6 +701,7 @@ impl Store for MemoryStore {
         inner.flights.delete_account(account_id);
         inner.live.delete_account(account_id);
         inner.groups.delete_account(account_id);
+        inner.open_plans.delete_account(account_id);
         inner.reports.delete_account(account_id);
         inner.kept_sites.delete_account(account_id);
         inner.alerts.delete_account(account_id);
@@ -1754,7 +1761,102 @@ impl Store for MemoryStore {
     }
 
     async fn prune_plans(&self, before: NaiveDate) -> Result<u64, StoreError> {
-        Ok(self.lock().groups.prune_plans(before))
+        let mut inner = self.lock();
+        Ok(inner.groups.prune_plans(before) + inner.open_plans.prune(before))
+    }
+
+    async fn save_open_plan(
+        &self,
+        new: &NewOpenPlan,
+        room: &OpenPlanRoom,
+    ) -> Result<OpenPlanSaving, StoreError> {
+        let inner = &mut *self.lock();
+        inner.open_plans.save(new, room, &inner.accounts)
+    }
+
+    async fn change_open_plan(
+        &self,
+        plan_id: &str,
+        by_account_id: &str,
+        details: &OpenPlanDetails,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> Result<OpenPlanChange, StoreError> {
+        let inner = &mut *self.lock();
+        inner.open_plans.change(
+            plan_id,
+            by_account_id,
+            details,
+            (now, gone_before),
+            &inner.accounts,
+        )
+    }
+
+    async fn delete_open_plan(
+        &self,
+        plan_id: &str,
+        by_account_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<OpenPlanRemoval, StoreError> {
+        Ok(self
+            .lock()
+            .open_plans
+            .delete(plan_id, by_account_id, gone_before))
+    }
+
+    async fn set_open_plan_in(
+        &self,
+        plan_id: &str,
+        account_id: &str,
+        is_in: bool,
+        now: Timestamp,
+        room: &OpenPlanRoom,
+    ) -> Result<OpenPlanChange, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .open_plans
+            .set_in(plan_id, account_id, (is_in, now), room, &inner.accounts))
+    }
+
+    async fn open_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<OpenPlan>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.open_plans.get(plan_id, gone_before, &inner.accounts))
+    }
+
+    async fn open_plans_near(
+        &self,
+        area: &OpenPlanArea,
+        limit: usize,
+    ) -> Result<Vec<OpenPlan>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.open_plans.near(area, limit, &inner.accounts))
+    }
+
+    async fn open_plans_of(
+        &self,
+        account_id: &str,
+        from: NaiveDate,
+        limit: usize,
+    ) -> Result<Vec<OpenPlan>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .open_plans
+            .of(account_id, from, limit, &inner.accounts))
+    }
+
+    async fn remove_open_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<Option<OpenPlan>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .open_plans
+            .remove(plan_id, gone_before, &inner.accounts))
     }
 
     async fn any_group(&self, id: &str) -> Result<Option<GroupMembers>, StoreError> {

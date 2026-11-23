@@ -41,6 +41,9 @@ pub(crate) fn check(new: &NewReport) -> Result<(), StoreError> {
             group_id.as_str(),
             [place.as_str(), note.as_deref().unwrap_or_default()],
         ),
+        ReportSubject::OpenPlan { place, note, .. } => {
+            ("", [place.as_str(), note.as_deref().unwrap_or_default()])
+        }
     };
     let texts = [
         new.id.as_str(),
@@ -131,6 +134,15 @@ pub enum ReportSubject {
         /// Its note as it stood then, if it had one.
         note: Option<String>,
     },
+    /// An open plan. The report's other account is the plan's author.
+    OpenPlan {
+        /// The plan's identifier.
+        id: String,
+        /// Its place as it stood when the report was made.
+        place: String,
+        /// Its note as it stood then, if it had one.
+        note: Option<String>,
+    },
     /// A site that pilots made. The report has no other account: such a
     /// site is nobody's. Nothing of what the site says is kept with the
     /// report: every revision of a site is kept where the sites are.
@@ -188,6 +200,7 @@ impl ReportSubject {
             Self::LiveTrack(_) => "live_track",
             Self::Group { .. } => "group",
             Self::Plan { .. } => "plan",
+            Self::OpenPlan { .. } => "open_plan",
             Self::Site { .. } => "site",
             Self::Comment { .. } => "comment",
         }
@@ -202,6 +215,7 @@ impl ReportSubject {
             | Self::LiveTrack(id)
             | Self::Group { id, .. }
             | Self::Plan { id, .. }
+            | Self::OpenPlan { id, .. }
             | Self::Site { id, .. }
             | Self::Comment { id, .. } => id,
             Self::Pilot => "",
@@ -238,6 +252,11 @@ impl ReportSubject {
                 note: note.clone(),
                 ..ReportedWords::default()
             },
+            Self::OpenPlan { place, note, .. } => ReportedWords {
+                place: Some(place.clone()),
+                note: note.clone(),
+                ..ReportedWords::default()
+            },
             Self::Comment {
                 flight_id, text, ..
             } => ReportedWords {
@@ -268,6 +287,11 @@ impl ReportSubject {
             "plan" => Some(Self::Plan {
                 id: id.to_owned(),
                 group_id: words.group_id?,
+                place: words.place?,
+                note: words.note,
+            }),
+            "open_plan" => Some(Self::OpenPlan {
+                id: id.to_owned(),
                 place: words.place?,
                 note: words.note,
             }),

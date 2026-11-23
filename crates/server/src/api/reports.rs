@@ -42,7 +42,7 @@ use venti_store::{NewReport, ReportSaved, Store};
 
 use super::auth::{May, Viewer, WriteReports};
 use super::error::ApiError;
-use super::{Api, body, cache, flights, groups, live, pilots};
+use super::{Api, body, cache, flights, groups, live, open_plans, pilots};
 use crate::accounts::secret;
 use crate::accounts::throttle::Counted;
 
@@ -159,6 +159,21 @@ pub(crate) async fn create<S: Store>(
                 Some(plan.author.account_id),
                 subject,
                 groups::no_such_plan(),
+            )
+        }
+        ReportSubject::OpenPlan(id) => {
+            // Everyone reads an open plan, so anyone signed in may report
+            // one. The words go along, as for a group's plan.
+            let plan = api.open_plan_as_anyone(id, now).await?;
+            let subject = venti_store::ReportSubject::OpenPlan {
+                id: plan.id,
+                place: plan.details.place,
+                note: plan.details.note,
+            };
+            (
+                Some(plan.author.account_id),
+                subject,
+                open_plans::no_such_open_plan(),
             )
         }
         ReportSubject::Comment(named) => {

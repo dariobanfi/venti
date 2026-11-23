@@ -81,9 +81,9 @@ usage: venti-server <command>
       again.
 
   remove-plan <PLAN> [--config FILE]
-      Remove one plan of a group, with who was in on it. PLAN is the
-      plan's identifier, as reports and group print it. Tells nobody, and
-      cannot be undone.
+      Remove one plan of a group, or one open plan, with who was in on it.
+      PLAN is the plan's identifier, as reports and group print it. Tells
+      nobody, and cannot be undone.
 
   remove-comment <COMMENT> [--config FILE]
       Remove one comment under a flight. COMMENT is the comment's

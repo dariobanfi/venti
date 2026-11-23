@@ -1356,6 +1356,8 @@
           "plan_not_found",
           "not_plan_author",
           "group_plans_full",
+          "too_many_open_plans",
+          "open_plan_full",
           "invalid_live_track_id",
           "invalid_fixes",
           "fixes_out_of_time",
@@ -3663,6 +3665,120 @@
         ],
         "type": "object"
       },
+      "OpenPlan": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/Pilot"
+          },
+          "changed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "in": {
+            "items": {
+              "$ref": "#/components/schemas/Pilot"
+            },
+            "type": "array"
+          },
+          "meet_at": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "place": {
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "seats": {
+            "description": "The seats the author has free in a car, 1 to 8. Left out: the author is looking for company.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "day",
+          "place",
+          "position",
+          "author",
+          "created_at",
+          "changed_at",
+          "in"
+        ],
+        "type": "object"
+      },
+      "OpenPlanRequest": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "type": "string"
+          },
+          "meet_at": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "place": {
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "seats": {
+            "description": "The seats the pilot has free in a car, 1 to 8. Left out: the pilot is looking for company.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "place",
+          "position"
+        ],
+        "type": "object"
+      },
+      "OpenPlanResponse": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/OpenPlan"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "type": "object"
+      },
+      "OpenPlansResponse": {
+        "properties": {
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/OpenPlan"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "plans",
+          "truncated"
+        ],
+        "type": "object"
+      },
       "OperatingHours": {
         "properties": {
           "by_notam": {
@@ -4639,6 +4755,10 @@
             "type": "string"
           },
           "group": {
+            "type": "string"
+          },
+          "open_plan": {
+            "description": "An open plan, by its identifier.",
             "type": "string"
           },
           "picture": {
@@ -8516,6 +8636,48 @@
           "Pilots among each other"
         ],
         "x-venti-docs": "GET /v1/account/notifications?since=&limit="
+      }
+    },
+    "/v1/account/open-plans": {
+      "get": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:read`.",
+        "operationId": "get_account_open_plans",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPlansResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:read"
+            ]
+          }
+        ],
+        "summary": "The open plans the pilot posted or is in on",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET /v1/account/open-plans"
       }
     },
     "/v1/account/password": {
@@ -15339,6 +15501,482 @@
         "x-venti-docs": "POST /v1/oauth/requests/{id}"
       }
     },
+    "/v1/open-plans": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_open_plans",
+        "parameters": [
+          {
+            "description": "Latitude in WGS84 degrees.",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "description": "Longitude in WGS84 degrees.",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "description": "How far around the place, in whole kilometres: 1 to 100, 25 if left out.",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "The first day, written YYYY-MM-DD.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The last day, written YYYY-MM-DD.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "open_plans": {
+                    "value": {
+                      "plans": [
+                        {
+                          "author": {
+                            "display_name": "Mara Muster",
+                            "handle": "mara"
+                          },
+                          "changed_at": "2026-11-18T16:05:00Z",
+                          "created_at": "2026-11-18T16:05:00Z",
+                          "day": "2026-11-19",
+                          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+                          "in": [
+                            {
+                              "display_name": "Mara Muster",
+                              "handle": "mara"
+                            },
+                            {
+                              "display_name": "Jonas Beispiel",
+                              "handle": "jonas"
+                            }
+                          ],
+                          "meet_at": "09:00",
+                          "note": "A made-up open plan. Two seats free from the valley; back by six.",
+                          "place": "Musterberg, Talstation",
+                          "position": {
+                            "lat": 47.6642,
+                            "lon": 11.7967
+                          },
+                          "seats": 2
+                        },
+                        {
+                          "author": {
+                            "display_name": "Jonas Beispiel",
+                            "handle": "jonas"
+                          },
+                          "changed_at": "2026-11-18T17:05:00Z",
+                          "created_at": "2026-11-18T17:05:00Z",
+                          "day": "2026-11-20",
+                          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbb",
+                          "in": [
+                            {
+                              "display_name": "Jonas Beispiel",
+                              "handle": "jonas"
+                            }
+                          ],
+                          "place": "Musterberg",
+                          "position": {
+                            "lat": 47.6642,
+                            "lon": 11.7967
+                          }
+                        }
+                      ],
+                      "truncated": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPlansResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The open plans near a place for the coming days",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET /v1/open-plans?lat=&lon=&radius_km=&from=&to="
+      },
+      "post": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "post_open_plans",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "open_plan_request": {
+                  "value": {
+                    "day": "2026-11-21",
+                    "meet_at": "08:30",
+                    "note": "A made-up open plan. From the station at half past eight.",
+                    "place": "Beispielwiese, Parkplatz",
+                    "position": {
+                      "lat": 47.6922,
+                      "lon": 11.7675
+                    },
+                    "seats": 3
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/OpenPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "open_plan": {
+                    "value": {
+                      "plan": {
+                        "author": {
+                          "display_name": "Demo Pilot",
+                          "handle": "demo"
+                        },
+                        "changed_at": "2026-11-18T19:05:00Z",
+                        "created_at": "2026-11-18T19:05:00Z",
+                        "day": "2026-11-21",
+                        "id": "0123456789abcdefghjkmnpqrs",
+                        "in": [
+                          {
+                            "display_name": "Demo Pilot",
+                            "handle": "demo"
+                          }
+                        ],
+                        "meet_at": "08:30",
+                        "note": "A made-up open plan. From the station at half past eight.",
+                        "place": "Beispielwiese, Parkplatz",
+                        "position": {
+                          "lat": 47.6922,
+                          "lon": 11.7675
+                        },
+                        "seats": 3
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPlanResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Post a plan open to everyone flying from the area",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "POST /v1/open-plans"
+      }
+    },
+    "/v1/open-plans/{plan}": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "delete_open_plans_plan",
+        "parameters": [
+          {
+            "description": "The plan's identifier.",
+            "in": "path",
+            "name": "plan",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Delete an open plan",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET, PUT and DELETE /v1/open-plans/{plan}"
+      },
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_open_plans_plan",
+        "parameters": [
+          {
+            "description": "The plan's identifier.",
+            "in": "path",
+            "name": "plan",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPlanResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "One open plan",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET, PUT and DELETE /v1/open-plans/{plan}"
+      },
+      "put": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "put_open_plans_plan",
+        "parameters": [
+          {
+            "description": "The plan's identifier.",
+            "in": "path",
+            "name": "plan",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPlanResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Change an open plan",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "GET, PUT and DELETE /v1/open-plans/{plan}"
+      }
+    },
+    "/v1/open-plans/{plan}/in": {
+      "delete": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "delete_open_plans_plan_in",
+        "parameters": [
+          {
+            "description": "The plan's identifier.",
+            "in": "path",
+            "name": "plan",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPlanResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Take \"I am in\" back on an open plan",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "PUT and DELETE /v1/open-plans/{plan}/in"
+      },
+      "put": {
+        "description": "The pilot: a session's token, or a token for a program with the scope `groups:write`.",
+        "operationId": "put_open_plans_plan_in",
+        "parameters": [
+          {
+            "description": "The plan's identifier.",
+            "in": "path",
+            "name": "plan",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPlanResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "token": [
+              "groups:write"
+            ]
+          }
+        ],
+        "summary": "Say \"I am in\" on an open plan",
+        "tags": [
+          "Groups and plans"
+        ],
+        "x-venti-docs": "PUT and DELETE /v1/open-plans/{plan}/in"
+      }
+    },
     "/v1/openapi.json": {
       "get": {
         "description": "Anyone; no token.",
@@ -16857,6 +17495,15 @@
                       "group": "44444444444444444444444444"
                     },
                     "text": "This is not the club's group. The club has none here."
+                  }
+                },
+                "report_open_plan_request": {
+                  "value": {
+                    "reason": "spam",
+                    "subject": {
+                      "open_plan": "aaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    "text": "An advertisement, not a plan."
                   }
                 },
                 "report_picture_request": {
@@ -21042,7 +21689,7 @@
       "name": "Live tracks"
     },
     {
-      "description": "Groups of pilots and their plans for a flying day.",
+      "description": "Groups of pilots and their plans for a flying day, and plans open to everyone flying from an area.",
       "name": "Groups and plans"
     },
     {

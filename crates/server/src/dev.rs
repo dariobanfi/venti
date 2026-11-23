@@ -192,6 +192,12 @@ pub const DEMO_PLANS: [&str; 3] = [
 /// The identifier of the one plan of the other group, for 19 November.
 pub const DEMO_OTHER_PLAN: &str = "99999999999999999999999999";
 
+/// The identifiers of the development mode's open plans: `mara`'s, with
+/// two seats free from the valley to the sample flight's take-off on 19
+/// November, which `jonas` is in on; and `jonas`'s, looking for company
+/// at the same place on 20 November.
+pub const DEMO_OPEN_PLANS: [&str; 2] = ["aaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbb"];
+
 /// One plan of the development mode, as [`add_demo_groups`] stores it.
 struct DemoPlan {
     id: &'static str,
@@ -384,6 +390,86 @@ async fn add_demo_groups(
                 return Err(format!("{handle} could not be put down for {}", plan.place));
             }
         }
+    }
+    add_demo_open_plans(store, accounts, now).await
+}
+
+/// The development mode's open plans ([`DEMO_OPEN_PLANS`]), at the sample
+/// flight's take-off: the project's own coordinates and words.
+async fn add_demo_open_plans(
+    store: &MemoryStore,
+    accounts: &[Account],
+    now: Timestamp,
+) -> Result<(), String> {
+    let account = |handle: &str| {
+        accounts
+            .iter()
+            .find(|account| account.handle == handle)
+            .ok_or_else(|| format!("the development mode has no pilot {handle}"))
+    };
+    let takeoff = synthetic_flight()
+        .fixes
+        .first()
+        .map(|fix| fix.position)
+        .ok_or("the sample flight has no fixes")?;
+    let room = venti_store::OpenPlanRoom {
+        plans_per_account: u32::MAX,
+        pilots_per_plan: u32::MAX,
+        gone_before: NaiveDate::MIN,
+    };
+    let plans = [
+        (
+            DEMO_OPEN_PLANS[0],
+            "mara",
+            3,
+            19,
+            "Musterberg, Talstation",
+            Some((9, 0)),
+            Some(2),
+            Some("A made-up open plan. Two seats free from the valley; back by six."),
+        ),
+        (
+            DEMO_OPEN_PLANS[1],
+            "jonas",
+            2,
+            20,
+            "Musterberg",
+            None,
+            None,
+            None,
+        ),
+    ];
+    for (id, author, hours_ago, on, place, meet_at, seats, note) in plans {
+        let new = venti_store::NewOpenPlan {
+            id: id.to_owned(),
+            author_id: account(author)?.id.clone(),
+            created_at: now - Duration::hours(hours_ago),
+            details: venti_store::OpenPlanDetails {
+                day: day(2026, 11, on),
+                place: place.to_owned(),
+                position: takeoff,
+                meet_at: meet_at
+                    .and_then(|(hour, minute)| NaiveTime::from_hms_opt(hour, minute, 0)),
+                seats,
+                note: note.map(str::to_owned),
+            },
+        };
+        let stored = store.save_open_plan(&new, &room).await;
+        if !matches!(stored, Ok(venti_store::OpenPlanSaving::Stored(_))) {
+            return Err(format!("the open plan for {place} could not be stored"));
+        }
+    }
+    let said = store
+        .set_open_plan_in(
+            DEMO_OPEN_PLANS[0],
+            &account("jonas")?.id,
+            true,
+            now - Duration::minutes(50),
+            &room,
+        )
+        .await;
+    if !matches!(said, Ok(venti_store::OpenPlanChange::Now(_))) {
+        return Err("jonas could not be put down for the open plan".to_owned());
     }
     Ok(())
 }

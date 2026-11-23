@@ -93,6 +93,7 @@ mod maps;
 mod mcp;
 mod oauth;
 mod observations;
+mod open_plans;
 mod openapi;
 mod pictures;
 mod pilots;
@@ -869,6 +870,24 @@ impl<S: Store> Api<S> {
             )
             .route(GROUP_JOIN_PATH, post(groups::join::<S>))
             .route(PLAN_BOARD_PATH, get(groups::board::<S>))
+            .route(
+                venti_api_types::v1::OPEN_PLANS_PATH,
+                get(open_plans::near::<S>).post(open_plans::post::<S>),
+            )
+            .route(
+                "/v1/open-plans/{plan}",
+                get(open_plans::show::<S>)
+                    .put(open_plans::change::<S>)
+                    .delete(open_plans::delete::<S>),
+            )
+            .route(
+                "/v1/open-plans/{plan}/in",
+                put(open_plans::say_in::<S>).delete(open_plans::take_back::<S>),
+            )
+            .route(
+                venti_api_types::v1::ACCOUNT_OPEN_PLANS_PATH,
+                get(open_plans::mine::<S>),
+            )
             .route(DUMPS_PATH, get(dumps::list::<S>))
             .route(dumps::FILE_ROUTE, get(dumps::file::<S>))
             .route(MAPS_PATH, get(maps::list::<S>))

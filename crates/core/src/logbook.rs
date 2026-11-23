@@ -15,6 +15,14 @@
 //! different headers, is one flight. The server computes the same identity
 //! for an uploaded file, so a flight imported on two devices is one record
 //! there too.
+//!
+//! A flight cut into pieces is one flight ([`crate::flight_pieces`]). A
+//! recording that takes over from one in the logbook, or that one in the
+//! logbook takes over from, is joined with it on import: the joined file
+//! is stored, then the pieces' files are removed, then the index is
+//! written. A crash on the way leaves a piece beside its joined flight at
+//! worst, never a loss, and opening the logbook clears that piece. A piece
+//! imported again is the joined flight, already there.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
@@ -25,6 +33,7 @@ use venti_flight::habits::{self, FlightHabits};
 use venti_flight::igc::{self, IgcFile};
 use venti_flight::{analysis, summarise, track};
 
+use crate::flight_pieces;
 use crate::storage::Storage;
 
 /// The folder the flight files are in.
@@ -82,6 +91,25 @@ pub(crate) struct Summary {
     /// were kept, and then worked out the first time they are asked for.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub habits: Option<StoredHabits>,
+    /// The identities of the recordings the flight was joined from, in
+    /// order ([`flight_pieces::pieces`]); empty for a flight recorded in
+    /// one piece, and missing from an index written before flights were
+    /// joined, when none was.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pieces: Vec<String>,
+}
+
+/// What importing a flight file did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Imported {
+    /// The flight's identifier: the joined flight's, when it was joined.
+    pub id: String,
+    /// Whether the logbook already held the flight, or a flight it is a
+    /// piece of. Nothing was stored then.
+    pub already: bool,
+    /// The flights of the logbook it was joined with, oldest first. They
+    /// are gone from the logbook: the joined flight holds them.
+    pub joined: Vec<String>,
 }
 
 /// A flight's habits as the index keeps them: the figures of
@@ -262,6 +290,15 @@ impl Logbook {
             }
         }
 
+        // A piece beside the flight it was joined into: a join that a
+        // crash interrupted. The joined flight holds all of it.
+        for id in held_by_others(&index) {
+            index.flights.remove(&id);
+            // If it cannot be removed now it is cleared again next time.
+            let _ = self.storage.remove(&flight_file(&id));
+            changed = true;
+        }
+
         if changed {
             self.write_index(&index)?;
         }
@@ -271,17 +308,116 @@ impl Logbook {
     /// Stores a flight file. Returns the flight's identifier and whether it
     /// was already in the logbook.
     pub fn import(&self, igc_text: &str) -> Result<(String, bool), LogbookError> {
-        let (file, summary) = read(igc_text)?;
+        self.import_joining(igc_text)
+            .map(|imported| (imported.id, imported.already))
+    }
+
+    /// Stores a flight file, joined with the flights of the logbook it is
+    /// a piece of ([`crate::flight_pieces`]), and says what it did.
+    pub fn import_joining(&self, igc_text: &str) -> Result<Imported, LogbookError> {
+        let (mut file, mut summary) = read(igc_text)?;
         let id = venti_flight::identity(&file.fixes);
 
         let mut index = self.lock();
-        if index.flights.contains_key(&id) {
-            return Ok((id, true));
+        if let Some(holder) = holder(&index, &id, &summary.pieces) {
+            return Ok(Imported {
+                id: holder,
+                already: true,
+                joined: Vec::new(),
+            });
         }
-        self.storage.write(&flight_file(&id), igc_text.as_bytes())?;
+
+        let mut text = igc_text.to_owned();
+        let mut joined: Vec<(i64, String)> = Vec::new();
+        while let Some((other, other_text, other_file, other_first)) =
+            self.piece_beside(&index, &file, &joined)
+        {
+            let (earlier, later, cut_s) = if other_first {
+                let cut_s = cut_s(&other_file, &file);
+                (other_text, text, cut_s)
+            } else {
+                let cut_s = cut_s(&file, &other_file);
+                (text, other_text, cut_s)
+            };
+            text = flight_pieces::joined(&earlier, &later, cut_s);
+            (file, summary) = read(&text)?;
+            let start = other_file
+                .fixes
+                .first()
+                .map_or(0, |fix| fix.time.timestamp());
+            joined.push((start, other));
+        }
+        let id = venti_flight::identity(&file.fixes);
+        if joined.is_empty() {
+            self.storage.write(&flight_file(&id), text.as_bytes())?;
+            index.flights.insert(id.clone(), summary);
+            self.write_index(&index)?;
+            return Ok(Imported {
+                id,
+                already: false,
+                joined: Vec::new(),
+            });
+        }
+
+        // The joined file first: until it is written the pieces are all
+        // there is. Then the pieces, then the index.
+        if !index.flights.contains_key(&id) {
+            self.storage.write(&flight_file(&id), text.as_bytes())?;
+        }
+        joined.sort();
+        for (_, piece) in &joined {
+            index.flights.remove(piece);
+            // A file left behind is cleared when the logbook next opens.
+            let _ = self.storage.remove(&flight_file(piece));
+        }
         index.flights.insert(id.clone(), summary);
         self.write_index(&index)?;
-        Ok((id, false))
+        Ok(Imported {
+            id,
+            already: false,
+            joined: joined.into_iter().map(|(_, piece)| piece).collect(),
+        })
+    }
+
+    /// A flight of the logbook that `file` takes over from or that takes
+    /// over from `file`, other than those in `taken`: its identifier, its
+    /// text, its file, and whether it is the earlier of the two.
+    fn piece_beside(
+        &self,
+        index: &Index,
+        file: &IgcFile,
+        taken: &[(i64, String)],
+    ) -> Option<(String, String, IgcFile, bool)> {
+        let first = file.fixes.first()?.time.timestamp();
+        let last = file.fixes.last()?.time.timestamp();
+        // By the summaries first, which describe the flown part: for a
+        // piece that is the whole of it, give or take the take-off rule.
+        let near = |seconds: i64| (-NEAR_SLACK_S..=flight_pieces::LONGEST_CUT_S).contains(&seconds);
+        for (id, summary) in &index.flights {
+            if taken.iter().any(|(_, piece)| piece == id) {
+                continue;
+            }
+            let ends = summary.start_unix_s + summary.duration_s;
+            let before = near(first - ends);
+            let after = near(summary.start_unix_s - last);
+            if !before && !after {
+                continue;
+            }
+            // A file the storage has yet to fetch is not joined now.
+            let Ok(text) = self.read_flight(id) else {
+                continue;
+            };
+            let Ok(other) = igc::parse(&text) else {
+                continue;
+            };
+            if before && flight_pieces::continues(&other, file) {
+                return Some((id.clone(), text, other, true));
+            }
+            if after && flight_pieces::continues(file, &other) {
+                return Some((id.clone(), text, other, false));
+            }
+        }
+        None
     }
 
     /// The text of a stored flight file.
@@ -440,8 +576,77 @@ fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
             points: score.points,
         }),
         habits: Some(habits::habits(flown, &analysis).into()),
+        pieces: flight_pieces::pieces(igc_text),
     };
     Ok((file, summary))
+}
+
+/// How much sooner than a stored flight's flown part ends, or later than
+/// it begins, a recording may begin or end and still be looked at as a
+/// piece of it, seconds: the take-off rule places a take-off in the air a
+/// few seconds after the first fix.
+const NEAR_SLACK_S: i64 = 60;
+
+/// The seconds from the last fix of `earlier` to the first of `later`.
+fn cut_s(earlier: &IgcFile, later: &IgcFile) -> i64 {
+    match (earlier.fixes.last(), later.fixes.first()) {
+        (Some(last), Some(first)) => (first.time - last.time).num_seconds(),
+        _ => 0,
+    }
+}
+
+/// The recordings a flight is made of: its pieces, or itself.
+fn made_of<'a>(id: &'a str, pieces: &'a [String]) -> Vec<&'a str> {
+    if pieces.is_empty() {
+        vec![id]
+    } else {
+        pieces.iter().map(String::as_str).collect()
+    }
+}
+
+/// The stored flight that holds the whole of a flight with this identity
+/// and these pieces: the flight itself, or one joined from more pieces.
+fn holder(index: &Index, id: &str, pieces: &[String]) -> Option<String> {
+    if index.flights.contains_key(id) {
+        return Some(id.to_owned());
+    }
+    let ours = made_of(id, pieces);
+    index
+        .flights
+        .iter()
+        .filter(|(_, summary)| !summary.pieces.is_empty())
+        .find(|(_, summary)| {
+            ours.iter()
+                .all(|piece| summary.pieces.iter().any(|p| p == piece))
+        })
+        .map(|(holder, _)| holder.clone())
+}
+
+/// The stored flights that a joined flight beside them holds the whole
+/// of, with more besides.
+fn held_by_others(index: &Index) -> Vec<String> {
+    let joined: Vec<(&String, &Vec<String>)> = index
+        .flights
+        .iter()
+        .filter(|(_, summary)| !summary.pieces.is_empty())
+        .map(|(id, summary)| (id, &summary.pieces))
+        .collect();
+    if joined.is_empty() {
+        return Vec::new();
+    }
+    index
+        .flights
+        .iter()
+        .filter(|(id, summary)| {
+            let ours = made_of(id, &summary.pieces);
+            joined.iter().any(|&(other, pieces)| {
+                other != *id
+                    && pieces.len() > ours.len()
+                    && ours.iter().all(|piece| pieces.iter().any(|p| p == piece))
+            })
+        })
+        .map(|(id, _)| id.clone())
+        .collect()
 }
 
 /// The straight distance between the first and last points of an outline,
@@ -790,6 +995,182 @@ mod tests {
 
             assert!(logbook.habits().is_empty());
             assert_eq!(logbook.flights().len(), 1);
+        });
+    }
+
+    /// The cut at fix 700 of the made-up recording, `cut_s` long.
+    fn cut(cut_s: usize) -> (String, String) {
+        crate::flight_pieces::testing::cut(700, cut_s)
+    }
+
+    #[test]
+    fn a_flight_cut_by_ten_seconds_or_five_minutes_is_one_flight() {
+        for cut_s in [10, 300] {
+            on_every_storage(|backing| {
+                let logbook = open(backing);
+                let (first, second) = cut(cut_s);
+
+                let (first_id, _) = logbook.import(&first).unwrap();
+                let imported = logbook.import_joining(&second).unwrap();
+
+                assert!(!imported.already);
+                assert_eq!(imported.joined, std::slice::from_ref(&first_id));
+                let flights = logbook.flights();
+                assert_eq!(flights.len(), 1, "a cut of {cut_s} s");
+                assert_eq!(flights[0].0, imported.id);
+                // One file, in the order of its fixes, the gap a gap.
+                let text = logbook.flight_text(&imported.id).unwrap();
+                assert_eq!(
+                    text,
+                    crate::flight_pieces::joined(&first, &second, cut_s as i64 + 1)
+                );
+                let file = igc::parse(&text).unwrap();
+                assert!(
+                    file.fixes
+                        .windows(2)
+                        .all(|pair| pair[0].time < pair[1].time)
+                );
+                // The analysis is over the whole: the made-up flight's
+                // half hour from its take-off to its landing.
+                let whole = crate::flight_pieces::testing::recording();
+                let (_, alone) = read(&igc::write(&whole)).unwrap();
+                assert_eq!(flights[0].1.duration_s, alone.duration_s);
+                assert_eq!(flights[0].1.max_altitude_m, alone.max_altitude_m);
+                assert_eq!(flights[0].1.pieces.len(), 2);
+                // The piece's own file has gone.
+                let left = backing.open().list(FLIGHTS_FOLDER).unwrap();
+                assert_eq!(left, [flight_file(&imported.id)]);
+                assert!(matches!(
+                    logbook.flight_text(&first_id),
+                    Err(LogbookError::Unknown)
+                ));
+                // And it stays one when the logbook opens again.
+                let reopened = open(backing).flights();
+                assert_eq!(reopened.len(), 1);
+                assert_eq!(reopened[0].0, imported.id);
+            });
+        }
+    }
+
+    #[test]
+    fn pieces_imported_the_other_way_round_make_the_same_flight() {
+        on_every_storage(|backing| {
+            let (first, second) = cut(10);
+            let in_order = {
+                let logbook = Logbook::open(Arc::new(StagedStorage::default())).unwrap();
+                logbook.import(&first).unwrap();
+                logbook.import(&second).unwrap().0
+            };
+
+            let logbook = open(backing);
+            let (second_id, _) = logbook.import(&second).unwrap();
+            let imported = logbook.import_joining(&first).unwrap();
+
+            assert_eq!(imported.id, in_order);
+            assert_eq!(imported.joined, [second_id]);
+            assert_eq!(logbook.flights().len(), 1);
+        });
+    }
+
+    #[test]
+    fn a_flight_cut_twice_is_one_flight_whatever_the_order_its_pieces_come_in() {
+        let whole = crate::flight_pieces::testing::recording();
+        let (first, rest) = crate::flight_pieces::testing::cut_file(&whole, 500, 10);
+        let rest = igc::parse(&rest).unwrap();
+        let (second, third) = crate::flight_pieces::testing::cut_file(&rest, 500, 30);
+        let mut ids = BTreeSet::new();
+        // Not the first and the last before the middle: those two would
+        // be joined across the middle's ten minutes, which then stays a
+        // flight of its own. On a phone the pieces come in their order.
+        for order in [
+            [&first, &second, &third],
+            [&third, &second, &first],
+            [&second, &first, &third],
+            [&second, &third, &first],
+        ] {
+            let logbook = Logbook::open(Arc::new(StagedStorage::default())).unwrap();
+            for piece in order {
+                logbook.import(piece).unwrap();
+            }
+            let flights = logbook.flights();
+            assert_eq!(flights.len(), 1);
+            assert_eq!(flights[0].1.pieces.len(), 3);
+            ids.insert(flights[0].0.clone());
+        }
+        // The same file every time.
+        assert_eq!(ids.len(), 1, "{ids:?}");
+    }
+
+    #[test]
+    fn a_second_flight_after_the_landing_stays_a_flight_of_its_own() {
+        on_every_storage(|backing| {
+            let logbook = open(backing);
+            let first = crate::flight_pieces::testing::recording();
+            // Off again a minute after the first recording ended, from
+            // where it came down.
+            let landed = first.fixes.last().unwrap().time;
+            let shift = (landed - first.fixes[0].time).num_seconds() + 60;
+            let second = crate::flight_pieces::testing::later_by(&first, shift);
+
+            logbook.import(&igc::write(&first)).unwrap();
+            let imported = logbook.import_joining(&igc::write(&second)).unwrap();
+
+            assert!(imported.joined.is_empty());
+            assert_eq!(logbook.flights().len(), 2);
+        });
+    }
+
+    #[test]
+    fn a_piece_imported_again_is_the_joined_flight_already_there() {
+        on_every_storage(|backing| {
+            let logbook = open(backing);
+            let (first, second) = cut(10);
+            logbook.import(&first).unwrap();
+            let (joined, _) = logbook.import(&second).unwrap();
+
+            // The recording found again at the next launch, because the
+            // app was ended before it was cleared.
+            for piece in [&first, &second] {
+                let again = logbook.import_joining(piece).unwrap();
+                assert_eq!(
+                    again,
+                    Imported {
+                        id: joined.clone(),
+                        already: true,
+                        joined: Vec::new(),
+                    }
+                );
+            }
+            let text = logbook.flight_text(&joined).unwrap();
+            assert_eq!(logbook.import(&text).unwrap(), (joined, true));
+            assert_eq!(logbook.flights().len(), 1);
+        });
+    }
+
+    #[test]
+    fn a_join_cut_short_by_a_crash_leaves_one_flight_when_the_logbook_opens() {
+        on_every_storage(|backing| {
+            let (first, second) = cut(10);
+            let (first_id, _) = open(backing).import(&first).unwrap();
+            // The joined file was written, and then the app was ended:
+            // the piece's file and the index are as they were.
+            let text = crate::flight_pieces::joined(&first, &second, 11);
+            let joined = venti_flight::identity(&igc::parse(&text).unwrap().fixes);
+            backing
+                .open()
+                .write(&flight_file(&joined), text.as_bytes())
+                .unwrap();
+
+            let logbook = open(backing);
+            let ids: Vec<String> = logbook.flights().into_iter().map(|(id, _)| id).collect();
+            assert_eq!(ids, std::slice::from_ref(&joined));
+            assert_eq!(
+                backing.open().list(FLIGHTS_FOLDER).unwrap(),
+                [flight_file(&joined)]
+            );
+            assert!(!ids.contains(&first_id));
+            // The recording still waiting is the flight already there.
+            assert_eq!(logbook.import(&second).unwrap(), (joined, true));
         });
     }
 

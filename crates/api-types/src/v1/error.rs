@@ -236,6 +236,11 @@ pub enum ErrorCode {
     NotPlanAuthor,
     /// The group holds as many plans as a group may hold at a time.
     GroupPlansFull,
+    /// The account holds as many open plans as an account may hold at a
+    /// time.
+    TooManyOpenPlans,
+    /// As many pilots are in on the open plan as may be.
+    OpenPlanFull,
     /// The identifier of a live track is not 26 characters of its
     /// alphabet.
     InvalidLiveTrackId,

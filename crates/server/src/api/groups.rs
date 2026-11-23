@@ -60,6 +60,8 @@ pub(crate) struct Groups {
     joins: Throttle,
     /// Plans posted or changed, by account.
     plans: Throttle,
+    /// Open plans posted or changed, by account.
+    pub(crate) open_plans: Throttle,
 }
 
 impl Groups {
@@ -70,6 +72,7 @@ impl Groups {
             made: Throttle::new("accounts that made groups", a_day, watched_keys),
             joins: Throttle::new("accounts that tried invite codes", a_day, watched_keys),
             plans: Throttle::new("accounts that posted plans", a_day, watched_keys),
+            open_plans: Throttle::new("accounts that posted open plans", a_day, watched_keys),
         }
     }
 }
@@ -132,7 +135,7 @@ fn too_many_groups(limits: &Limits) -> ApiError {
 
 /// What is wrong with a name, a place or a note, in words that repeat
 /// nothing of it.
-fn text_problem(what: &str, error: GroupTextError) -> String {
+pub(crate) fn text_problem(what: &str, error: GroupTextError) -> String {
     match error {
         GroupTextError::Empty => format!("{what} must not be empty"),
         GroupTextError::TooLong(most) => format!("{what} has at most {most} characters"),
@@ -146,7 +149,7 @@ fn invalid_name(error: GroupTextError) -> ApiError {
     )
 }
 
-fn invalid_plan(problem: impl Into<String>) -> ApiError {
+pub(crate) fn invalid_plan(problem: impl Into<String>) -> ApiError {
     ApiError::bad_request(ErrorCode::InvalidPlan, problem)
 }
 
@@ -179,8 +182,8 @@ fn member_handle(text: &str) -> String {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct DayParams {
-    from: Option<String>,
-    to: Option<String>,
+    pub(crate) from: Option<String>,
+    pub(crate) to: Option<String>,
 }
 
 impl<S: Store> Api<S> {

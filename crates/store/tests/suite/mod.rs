@@ -18,6 +18,7 @@ mod kept_sites;
 mod live;
 mod moderation;
 mod oauth;
+mod open_plans;
 mod pictures;
 mod pilot_sites;
 mod push;
@@ -35,6 +36,7 @@ pub(crate) use kept_sites::*;
 pub(crate) use live::*;
 pub(crate) use moderation::*;
 pub(crate) use oauth::*;
+pub(crate) use open_plans::*;
 pub(crate) use pictures::*;
 pub(crate) use pilot_sites::*;
 pub(crate) use push::*;
@@ -237,6 +239,13 @@ macro_rules! store_suite {
             a_report_about_a_group_or_a_plan_keeps_its_words,
             one_open_report_about_a_group_whoever_keeps_it,
             a_report_about_a_site_names_no_second_account,
+            an_open_plan_is_stored_and_found_near_its_place,
+            open_plans_are_listed_by_day_and_time,
+            pilots_say_they_are_in_on_an_open_plan,
+            only_its_author_changes_an_open_plan,
+            an_account_holds_few_open_plans,
+            open_plans_go_with_their_day_and_author,
+            the_operator_removes_a_reported_open_plan,
         );
     };
     (@tests $make:path; $($name:ident),* $(,)?) => {

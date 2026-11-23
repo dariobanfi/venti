@@ -79,8 +79,21 @@ pub struct Limits {
     /// day that never comes would never be removed. `None` in the
     /// development mode, whose clock stands still.
     pub days_ahead: Option<u32>,
-    /// For how many days a plan is kept after its day.
+    /// For how many days a plan is kept after its day. Open plans are
+    /// kept as long.
     pub plan_days: u32,
+    /// Open plans one account may hold at a time, those kept after their
+    /// day included. A pilot plans a few days ahead at most a trip or two
+    /// at once (an estimate).
+    pub open_plans_per_account: u32,
+    /// Open plans one account may post or change within a day, whatever
+    /// becomes of them. Everyone reads an open plan: this bounds what one
+    /// account can put before everyone in a day.
+    pub open_plans_posted_per_day: u32,
+    /// Pilots who may be in on one open plan, its author included: a few
+    /// cars to a take-off (an estimate). It bounds what one plan's answer
+    /// carries.
+    pub pilots_per_open_plan: u32,
 }
 
 impl Limits {
@@ -96,6 +109,9 @@ impl Limits {
             plans_posted_per_day: 50,
             days_ahead: Some(365),
             plan_days,
+            open_plans_per_account: 5,
+            open_plans_posted_per_day: 10,
+            pilots_per_open_plan: 30,
         }
     }
 
@@ -109,6 +125,7 @@ impl Limits {
             groups_made_per_day: u32::MAX,
             joins_per_day: u32::MAX,
             plans_posted_per_day: u32::MAX,
+            open_plans_posted_per_day: u32::MAX,
             days_ahead: None,
             ..Self::default()
         }

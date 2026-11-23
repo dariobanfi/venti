@@ -650,7 +650,7 @@ fn plan_view(plan: &Plan, group: Option<&Group>, me: &str) -> PlanView {
 
 /// Who is in, in a line: every name up to three, then the first two and
 /// how many more.
-fn in_words(names: &[String]) -> String {
+pub(crate) fn in_words(names: &[String]) -> String {
     match names {
         [] => "Nobody is in yet".to_owned(),
         [only] if only == "You" => "Only you so far".to_owned(),

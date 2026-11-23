@@ -1,0 +1,11 @@
+{
+  "day": "2026-11-21",
+  "place": "Beispielwiese, Parkplatz",
+  "position": {
+    "lat": 47.6922,
+    "lon": 11.7675
+  },
+  "meet_at": "08:30",
+  "seats": 3,
+  "note": "A made-up open plan. From the station at half past eight."
+}

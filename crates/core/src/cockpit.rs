@@ -11,7 +11,10 @@
 //! it arrives, and that file is a valid flight file at every moment. When
 //! the pilot stops, the shell imports it into the logbook and then clears
 //! it. A file still there at the next launch is a recording that was cut
-//! short; [`pending_recordings`] finds it so it can be imported.
+//! short; [`pending_recordings`] finds it so it can be imported. When the
+//! system started the app again in flight, the recording the new cockpit
+//! begins in the air is joined with it in the logbook: one flight, in one
+//! file ([`crate::flight_pieces`]).
 //!
 //! A flight records itself. [`FlightSession::record_from_takeoff`] makes the
 //! session wait on the ground: it keeps the last half minute of positions

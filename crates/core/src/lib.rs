@@ -41,6 +41,7 @@ mod community;
 mod compare;
 mod export;
 mod flight_airspace;
+mod flight_pieces;
 mod foehn;
 mod forecast;
 mod glide_reach;
@@ -55,6 +56,7 @@ mod live_air;
 mod live_others;
 mod logbook;
 mod maps;
+mod open_plans;
 mod own_flights;
 mod picture;
 mod pilots;
@@ -117,6 +119,7 @@ pub use live::*;
 pub use live_air::*;
 pub use live_others::*;
 pub use maps::*;
+pub use open_plans::*;
 pub use own_flights::*;
 pub use picture::*;
 pub use pilots::*;
@@ -334,6 +337,12 @@ pub struct ImportedFlight {
     pub id: String,
     /// Whether the logbook already held this flight. Nothing was stored then.
     pub already_in_logbook: bool,
+    /// The flights of the logbook this one was joined with, oldest first:
+    /// pieces of one flight that a kill by the system cut into two
+    /// recordings. They are gone from the logbook, `id` holds them, and
+    /// with an account the server's copies go at the next sync.
+    #[uniffi(default = [])]
+    pub joined: Vec<String>,
 }
 
 /// Flights counted together.
@@ -455,12 +464,20 @@ impl Core {
     }
 
     /// Adds a flight file to the logbook. Importing a flight that is already
-    /// there changes nothing and says so.
+    /// there changes nothing and says so. A recording that continues one
+    /// in the logbook after a cut, or that one in the logbook continues,
+    /// is joined with it into one flight (`ImportedFlight::joined`).
     pub fn import_flight(&self, igc_text: String) -> Result<ImportedFlight, CoreError> {
-        let (id, already_in_logbook) = self.logbook.import(&igc_text)?;
+        let imported = self.logbook.import_joining(&igc_text)?;
+        // The pieces are deleted flights now: with an account, the
+        // server's copies go at the next sync and the joined one is sent.
+        for piece in &imported.joined {
+            self.note_flight_deleted(piece);
+        }
         Ok(ImportedFlight {
-            id,
-            already_in_logbook,
+            id: imported.id,
+            already_in_logbook: imported.already,
+            joined: imported.joined,
         })
     }
 
@@ -697,6 +714,22 @@ mod tests {
         assert!((worst + 1.9).abs() < 0.11, "{worst}");
         assert!(view.profile.len() <= PROFILE_POINTS);
         assert_eq!(view.profile.first().unwrap().seconds, 0);
+    }
+
+    #[test]
+    fn a_recording_that_takes_over_after_a_cut_is_joined_with_the_one_before() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        let (first, second) = crate::flight_pieces::testing::cut(700, 10);
+
+        let before = core.import_flight(first).unwrap();
+        let imported = core.import_flight(second).unwrap();
+
+        assert!(!imported.already_in_logbook);
+        assert_eq!(imported.joined, std::slice::from_ref(&before.id));
+        assert_eq!(core.logbook().totals.flights, 1);
+        assert!(core.flight(before.id).is_err());
+        assert_eq!(core.flight(imported.id).unwrap().recorder, "XVE 001");
     }
 
     #[test]

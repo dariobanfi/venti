@@ -77,6 +77,12 @@
 //! | [`plan_path`] | DELETE | | nothing |
 //! | [`plan_in_path`] | PUT, DELETE | | [`PlanResponse`] |
 //! | [`PLAN_BOARD_PATH`] | GET | [`PlanBoardRequest`] | [`PlanBoardResponse`] |
+//! | [`OPEN_PLANS_PATH`] | POST | [`OpenPlanRequest`] | [`OpenPlanResponse`] |
+//! | [`OPEN_PLANS_PATH`] | GET | [`OpenPlansRequest`] | [`OpenPlansResponse`] |
+//! | [`open_plan_path`] | GET, DELETE | | [`OpenPlanResponse`], nothing |
+//! | [`open_plan_path`] | PUT | [`OpenPlanRequest`] | [`OpenPlanResponse`] |
+//! | [`open_plan_in_path`] | PUT, DELETE | | [`OpenPlanResponse`] |
+//! | [`ACCOUNT_OPEN_PLANS_PATH`] | GET | | [`OpenPlansResponse`] |
 //! | [`RADAR_PATH`] | GET | | [`RadarResponse`] |
 //! | [`FOEHN_PATH`] | GET | | [`FoehnResponse`] |
 //! | [`radar_frame_path`] | GET | | the frame's picture, a PNG |
@@ -119,6 +125,7 @@ mod kept_sites;
 mod live;
 mod maps;
 mod observations;
+mod open_plans;
 mod patch;
 mod pictures;
 mod push;
@@ -227,6 +234,12 @@ pub use maps::{
     is_map_name, map_file_path,
 };
 pub use observations::{ObservationsResponse, Reading};
+pub use open_plans::{
+    ACCOUNT_OPEN_PLANS_PATH, DEFAULT_OPEN_PLANS_RADIUS_KM, MAX_OPEN_PLAN_NOTE_LENGTH,
+    MAX_OPEN_PLAN_SEATS, MAX_OPEN_PLANS, MAX_OPEN_PLANS_RADIUS_KM, OPEN_PLAN_DAYS_AHEAD,
+    OPEN_PLANS_DAYS, OPEN_PLANS_PATH, OpenPlan, OpenPlanRequest, OpenPlanResponse,
+    OpenPlansRequest, OpenPlansResponse, open_plan_in_path, open_plan_path, parse_open_plan_note,
+};
 pub use pictures::{
     ACCOUNT_PICTURE_PATH, DEFAULT_PILOTS_NEAR, DEFAULT_PILOTS_NEAR_RADIUS_KM, MAX_PICTURE_BYTES,
     MAX_PICTURE_PIXELS, MAX_PICTURE_SIDE, MAX_PILOTS_NEAR, MAX_PILOTS_NEAR_RADIUS_KM,

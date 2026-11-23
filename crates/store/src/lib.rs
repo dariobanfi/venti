@@ -44,6 +44,7 @@ mod live;
 mod memory;
 mod month;
 mod oauth;
+mod open_plan;
 mod picture;
 mod pilot_site;
 mod postgres;
@@ -94,6 +95,10 @@ pub use month::Month;
 pub use oauth::{
     AuthorizationCode, AuthorizationRequest, NewGrant, OauthClient, Redeemed, Refreshed,
     RequestState, Rotation, StoredCode, TokenClient,
+};
+pub use open_plan::{
+    NewOpenPlan, OpenPlan, OpenPlanArea, OpenPlanChange, OpenPlanDetails, OpenPlanRemoval,
+    OpenPlanRoom, OpenPlanSaving,
 };
 pub use picture::{NearPilot, NewPicture, Picture, PictureOrigin};
 pub use pilot_site::{
@@ -1951,11 +1956,98 @@ pub trait Store: Send + Sync + 'static {
     ) -> impl Future<Output = Result<Vec<Plan>, StoreError>> + Send;
 
     /// Removes the plans for days before `before`, with who was in, and
-    /// returns how many there were.
+    /// returns how many there were: the plans of groups and the open
+    /// plans.
     fn prune_plans(
         &self,
         before: NaiveDate,
     ) -> impl Future<Output = Result<u64, StoreError>> + Send;
+
+    // --- Open plans -------------------------------------------------------
+
+    /// Stores an open plan with its author as the first who is in, unless
+    /// the author holds as many as `room` lets an account hold; see
+    /// [`OpenPlanSaving`]. Of two calls that race for an account's last
+    /// place, one gets it. Plans that `room` counts as gone take no place.
+    ///
+    /// An identifier that is in use, and an author that is no account,
+    /// are refused with [`StoreError::Invalid`].
+    fn save_open_plan(
+        &self,
+        new: &NewOpenPlan,
+        room: &OpenPlanRoom,
+    ) -> impl Future<Output = Result<OpenPlanSaving, StoreError>> + Send;
+
+    /// Replaces what an open plan says. Only the pilot who posted it may;
+    /// see [`OpenPlanChange`]. Who is in stays as it is. A plan for a day
+    /// before `gone_before` is not there to change.
+    fn change_open_plan(
+        &self,
+        plan_id: &str,
+        by_account_id: &str,
+        details: &OpenPlanDetails,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<OpenPlanChange, StoreError>> + Send;
+
+    /// Removes an open plan with who was in. Only the pilot who posted it
+    /// may; see [`OpenPlanRemoval`].
+    fn delete_open_plan(
+        &self,
+        plan_id: &str,
+        by_account_id: &str,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<OpenPlanRemoval, StoreError>> + Send;
+
+    /// Notes that a pilot is in on an open plan (`is_in`), since `now`,
+    /// or takes that back; see [`OpenPlanChange`], of which this never
+    /// answers `NotAuthor`. Saying again what is already so changes
+    /// nothing and keeps the moment of the first time. A pilot more than
+    /// `room` lets in is refused with `Full`.
+    fn set_open_plan_in(
+        &self,
+        plan_id: &str,
+        account_id: &str,
+        is_in: bool,
+        now: Timestamp,
+        room: &OpenPlanRoom,
+    ) -> impl Future<Output = Result<OpenPlanChange, StoreError>> + Send;
+
+    /// One open plan. `None` if there is none, or none any more: a plan
+    /// for a day before `gone_before` is gone.
+    fn open_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<Option<OpenPlan>, StoreError>> + Send;
+
+    /// The open plans of an area ([`OpenPlan::is_near`]), in the order of
+    /// [`OpenPlan::key`]. At most `limit` are returned: the first in that
+    /// order.
+    fn open_plans_near(
+        &self,
+        area: &OpenPlanArea,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<OpenPlan>, StoreError>> + Send;
+
+    /// The open plans an account posted or is in on, for the days from
+    /// `from` on, in the order of [`OpenPlan::key`]. At most `limit`.
+    fn open_plans_of(
+        &self,
+        account_id: &str,
+        from: NaiveDate,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<OpenPlan>, StoreError>> + Send;
+
+    /// Removes an open plan with who was in, whoever posted it, as its
+    /// author's own deletion would. Returns the plan as it was; `None` if
+    /// there is none, or none any more by `gone_before`. For whoever runs
+    /// the server.
+    fn remove_open_plan(
+        &self,
+        plan_id: &str,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<Option<OpenPlan>, StoreError>> + Send;
 
     // --- Groups and plans, for whoever runs the server ---------------------
 

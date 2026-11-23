@@ -1325,6 +1325,8 @@
       "plan_not_found",
       "not_plan_author",
       "group_plans_full",
+      "too_many_open_plans",
+      "open_plan_full",
       "invalid_live_track_id",
       "invalid_fixes",
       "fixes_out_of_time",
@@ -4048,6 +4050,10 @@
       "picture": {
         "type": "string",
         "description": "A pilot's picture, by the pilot's handle: the picture they show when the report is made."
+      },
+      "open_plan": {
+        "type": "string",
+        "description": "An open plan, by its identifier."
       }
     }
   },
@@ -6669,6 +6675,120 @@
       "pilot",
       "flights",
       "takeoffs"
+    ]
+  },
+  "OpenPlanRequest": {
+    "type": "object",
+    "properties": {
+      "day": {
+        "type": "string",
+        "format": "date"
+      },
+      "place": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "meet_at": {
+        "type": "string"
+      },
+      "seats": {
+        "type": "integer",
+        "description": "The seats the pilot has free in a car, 1 to 8. Left out: the pilot is looking for company."
+      },
+      "note": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "day",
+      "place",
+      "position"
+    ]
+  },
+  "OpenPlan": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "day": {
+        "type": "string",
+        "format": "date"
+      },
+      "place": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "meet_at": {
+        "type": "string"
+      },
+      "seats": {
+        "type": "integer",
+        "description": "The seats the author has free in a car, 1 to 8. Left out: the author is looking for company."
+      },
+      "note": {
+        "type": "string"
+      },
+      "author": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "changed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "in": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Pilot"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "day",
+      "place",
+      "position",
+      "author",
+      "created_at",
+      "changed_at",
+      "in"
+    ]
+  },
+  "OpenPlanResponse": {
+    "type": "object",
+    "properties": {
+      "plan": {
+        "$ref": "#/components/schemas/OpenPlan"
+      }
+    },
+    "required": [
+      "plan"
+    ]
+  },
+  "OpenPlansResponse": {
+    "type": "object",
+    "properties": {
+      "plans": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OpenPlan"
+        }
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "plans",
+      "truncated"
     ]
   }
 }

@@ -49,15 +49,16 @@ use venti_core::{
     FlightAirspace, FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView,
     FlightVisibility, ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade,
     ImportedFlight, KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveLayer, LiveMap,
-    LiveOthers, LogbookStatistics, LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView,
-    PublicFlight, PublicFlights, PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm,
-    ReportReason, ReportSubject, RouteAlong, RoutePlace, RouteSetting, ServerRequest, ServerStatus,
-    SignedIn, SiteAtPlace, SiteDraftFault, SiteDraftView, SiteForm, SiteHistory, SiteInTheWay,
-    SiteOutlook, SitePage, SiteStatistics, SiteView, SiteWritten, SitesFilter, SitesFilterChoices,
-    SitesFiltered, SitesMap, StagedStorage, StationAir, StationDay, StationDays, StationHistory,
-    Storage, SyncStep, SyncSummary, Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap,
-    ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
-    TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
+    LiveOthers, LogbookStatistics, LogbookView, OpenPlanDraft, OpenPlanView, OpenPlans, PilotPage,
+    PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder, RadarView,
+    Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject, RouteAlong, RoutePlace,
+    RouteSetting, ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteDraftFault,
+    SiteDraftView, SiteForm, SiteHistory, SiteInTheWay, SiteOutlook, SitePage, SiteStatistics,
+    SiteView, SiteWritten, SitesFilter, SitesFilterChoices, SitesFiltered, SitesMap, StagedStorage,
+    StationAir, StationDay, StationDays, StationHistory, Storage, SyncStep, SyncSummary,
+    Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap, ThermalMapHourSquare,
+    ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder, TodayStanding,
+    TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
 use venti_core::{AgreementOutcome, AgreementPage, AgreementWords};
 use venti_core::{
@@ -1326,6 +1327,93 @@ impl Core {
         let plan = self
             .session
             .call(|core| core.plan(status, body))
+            .map_err(thrown)?;
+        to_js(&plan)
+    }
+
+    /// The request for the open plans near a place, from a day on and, if
+    /// given, up to one, within `radius_km` (25 when left out). Anyone may
+    /// ask, signed in or not.
+    #[wasm_bindgen(js_name = openPlansNearRequest)]
+    pub fn open_plans_near_request(
+        &self,
+        place: Ts<Coordinate>,
+        radius_km: Option<u32>,
+        from_day: String,
+        to_day: Option<String>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let place = from_js(&place)?;
+        self.request(|core| core.open_plans_near_request(place, radius_km, from_day, to_day))
+    }
+
+    /// The request for the open plans the pilot posted or is in on.
+    #[wasm_bindgen(js_name = myOpenPlansRequest)]
+    pub fn my_open_plans_request(&self) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.my_open_plans_request())
+    }
+
+    /// Reads the server's answer to `openPlansNearRequest` and to
+    /// `myOpenPlansRequest`: the plans by day.
+    #[wasm_bindgen(js_name = openPlans)]
+    pub fn open_plans(&self, status: u16, body: Vec<u8>) -> Result<Ts<OpenPlans>, JsValue> {
+        let plans = self
+            .session
+            .call(|core| core.open_plans(status, body))
+            .map_err(thrown)?;
+        to_js(&plans)
+    }
+
+    /// The request for one open plan, which anyone may read.
+    #[wasm_bindgen(js_name = openPlanRequest)]
+    pub fn open_plan_request(&self, plan: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.open_plan_request(plan))
+    }
+
+    /// The request that posts an open plan, which everyone can read.
+    #[wasm_bindgen(js_name = postOpenPlanRequest)]
+    pub fn post_open_plan_request(
+        &self,
+        draft: Ts<OpenPlanDraft>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let draft = from_js(&draft)?;
+        self.request(|core| core.post_open_plan_request(draft))
+    }
+
+    /// The request that changes an open plan: the whole plan as it is to
+    /// be. Its author's to send.
+    #[wasm_bindgen(js_name = changeOpenPlanRequest)]
+    pub fn change_open_plan_request(
+        &self,
+        plan: String,
+        draft: Ts<OpenPlanDraft>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let draft = from_js(&draft)?;
+        self.request(|core| core.change_open_plan_request(plan, draft))
+    }
+
+    /// The request that deletes an open plan; `groupDone` reads the answer.
+    #[wasm_bindgen(js_name = deleteOpenPlanRequest)]
+    pub fn delete_open_plan_request(&self, plan: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.delete_open_plan_request(plan))
+    }
+
+    /// The request that says "I'm in" on an open plan, or takes that back.
+    #[wasm_bindgen(js_name = openPlanInRequest)]
+    pub fn open_plan_in_request(
+        &self,
+        plan: String,
+        is_in: bool,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.open_plan_in_request(plan, is_in))
+    }
+
+    /// Reads one open plan: the answer to reading, posting and changing
+    /// it, and to the pilot's word on it.
+    #[wasm_bindgen(js_name = openPlan)]
+    pub fn open_plan(&self, status: u16, body: Vec<u8>) -> Result<Ts<OpenPlanView>, JsValue> {
+        let plan = self
+            .session
+            .call(|core| core.open_plan(status, body))
             .map_err(thrown)?;
         to_js(&plan)
     }

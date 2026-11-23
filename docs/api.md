@@ -5384,8 +5384,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `flights:write` | Uploading flights, changing who may see one or all of them, deleting one; and whether new flights are public |
 | `live:write` | Sending the positions of a live track, and ending one |
 | `sites:write` | Adding, correcting, removing and restoring [sites that pilots make](#sites-that-ventis-partners-and-pilots-add) |
-| `groups:read` | The pilot's groups, their members and their plans |
-| `groups:write` | Everything a pilot writes in groups: making, renaming and deleting a group, a new invite code, handing the keeping over, removing a member, joining and leaving, plans, and "I am in" |
+| `groups:read` | The pilot's groups, their members and their plans, and the open plans the pilot posted or is in on |
+| `groups:write` | Everything a pilot writes in groups: making, renaming and deleting a group, a new invite code, handing the keeping over, removing a member, joining and leaving, plans, and "I am in"; and open plans, with "I am in" on them |
 | `reports:write` | Sending a report |
 | `kept-sites:read` | [The sites the pilot keeps as their own](#the-sites-a-pilot-keeps): what changed among them since |
 | `kept-sites:write` | Keeping a site as the pilot's own, and forgetting one |
@@ -5433,6 +5433,12 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `DELETE /v1/groups/{id}/plans/{plan}` | `groups:write` |
 | `PUT /v1/groups/{id}/plans/{plan}/in` | `groups:write` |
 | `DELETE /v1/groups/{id}/plans/{plan}/in` | `groups:write` |
+| `GET /v1/account/open-plans` | `groups:read` |
+| `POST /v1/open-plans` | `groups:write` |
+| `PUT /v1/open-plans/{plan}` | `groups:write` |
+| `DELETE /v1/open-plans/{plan}` | `groups:write` |
+| `PUT /v1/open-plans/{plan}/in` | `groups:write` |
+| `DELETE /v1/open-plans/{plan}/in` | `groups:write` |
 | `POST /v1/reports` | `reports:write` |
 | `GET /v1/account/kept-sites/changes` | `kept-sites:read` |
 | `PUT /v1/account/kept-sites/{id}` | `kept-sites:write` |
@@ -9743,6 +9749,208 @@ Needs a token. Deletes a plan, with who was in on it. The member who posted it m
 
 Need a token, and take no body. `PUT` says that the asker is in on the plan; `DELETE` takes that back. Both answer `200` with the plan as it now is, and both may be sent again without changing anything: a pilot who is in stays where they are in the list, and a pilot who is not in stays out. Neither is counted. `404` with `plan_not_found` or `group_not_found` as for changing a plan.
 
+## Open plans
+
+An open plan is a pilot's word to everyone flying from an area: on this day I mean to fly from here, with seats free in my car or looking for company. It is the plan of a group without the group. Anyone may read the open plans near a place for the coming days, and every signed-in pilot may say that they are in. Since 2026-11-23.
+
+What a client has to know:
+
+- **Public, by its author's choice.** A plan posted open is public data of the platform (owner decision 16), read without a token like a public flight; a plan meant for friends is posted to a [group](#groups) instead. Who is in chose that too, by saying so. A plan, its author and everyone in on it are named by `handle` and `display_name` and nothing else: no picture, no country, no flight. Say so where the pilot posts one and where they say "I'm in".
+- **The place has a position.** An open plan is found by where it is, so `position` is needed; `place` is the pilot's words for it, one line of at most 80 characters, as for a group's plan, and names no record of a flying site.
+- **The day and the time** are as for a [group's plan](#plans-for-a-flying-day): a calendar date and a clock time at the place, with no zone. A plan is taken for a day from the server's yesterday to 30 days after its date (the development mode takes any day from 17 November 2026 on), and is kept for 2 days after its day, then gone from every answer and removed as a group's plan is.
+- **`seats`** is how many seats, 1 to 8, the author has free in a car. Left out, the author is looking for company. A change sends the plan whole: a change without `seats` says the car is full or gone.
+- **The note** is short: at most 280 characters after cleaning, line breaks kept.
+- **Who is in** is the list `in`, in the order in which pilots said so; the author is in from the start and can take that back. A plan has room for 30 pilots, the author included; one more is answered `403` with `open_plan_full`.
+- **Changing and deleting** a plan is its author's alone, and whoever runs the server can remove one (`venti-server remove-plan`), which looks to everyone as if its author had deleted it.
+- **Limits.** An account holds at most 5 open plans at a time, those kept after their day included, and posts or changes at most 10 a day, whatever becomes of each attempt; then `429` with `rate_limited`. An account whose publishing is suspended posts none and says it is in on none (`403` with `publishing_suspended`); it can still delete its own and take its word back. The development mode counts no attempts.
+- **Reporting.** Anyone signed in can report an open plan to whoever runs the server, with [`POST /v1/reports`](#post-v1reports) and the subject `open_plan`. The report keeps the plan's place and note as they stood, as for a group's plan.
+- **Nothing tells a pilot** that someone is in on their plan, or that a plan was posted near them. Notifications for open plans are not built (open question 7 in [plan.md](plan.md)).
+
+An open plan, in every answer that carries one:
+
+| Field | Meaning |
+|---|---|
+| `id` | The plan's identifier: 26 lower-case letters and digits |
+| `day` | The day it is for, `YYYY-MM-DD` |
+| `place` | The place, as its author typed it |
+| `position` | Where the place is, `lat` and `lon` in degrees |
+| `meet_at` | When to meet or to start, `HH:MM`. Left out if the author named no time |
+| `seats` | The seats free in the author's car, 1 to 8. Left out when the author is looking for company |
+| `note` | What else the author had to say: at most 280 characters, with line breaks. Left out if there is none |
+| `author` | The pilot who posted it: `handle` and `display_name` |
+| `created_at` | When it was posted |
+| `changed_at` | When its author last changed what it says |
+| `in` | The pilots who are in, `handle` and `display_name`, in the order in which they said so |
+
+### `GET /v1/open-plans?lat=&lon=&radius_km=&from=&to=`
+
+Open to anyone, and counted as a read of public data is. The open plans whose place lies within the radius of a place, for the days asked for.
+
+| Parameter | Meaning |
+|---|---|
+| `lat`, `lon` | The place, in degrees. Needed |
+| `radius_km` | How far around it, in whole kilometres: 1 to 100, 25 if left out |
+| `from` | The first day, `YYYY-MM-DD`. Left out: the date the server's clock shows in UTC. An app names the pilot's own today, as for a group's plans |
+| `to` | The last day, at most 13 days after `from`. Left out: 14 days from `from` |
+
+These are the development mode's two, asked for with `?lat=47.7&lon=11.75&radius_km=25&from=2026-11-18`:
+
+```json
+{
+  "plans": [
+    {
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "day": "2026-11-19",
+      "place": "Musterberg, Talstation",
+      "position": {
+        "lat": 47.6642,
+        "lon": 11.7967
+      },
+      "meet_at": "09:00",
+      "seats": 2,
+      "note": "A made-up open plan. Two seats free from the valley; back by six.",
+      "author": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "created_at": "2026-11-18T16:05:00Z",
+      "changed_at": "2026-11-18T16:05:00Z",
+      "in": [
+        {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        }
+      ]
+    },
+    {
+      "id": "bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "day": "2026-11-20",
+      "place": "Musterberg",
+      "position": {
+        "lat": 47.6642,
+        "lon": 11.7967
+      },
+      "author": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "created_at": "2026-11-18T17:05:00Z",
+      "changed_at": "2026-11-18T17:05:00Z",
+      "in": [
+        {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        }
+      ]
+    }
+  ],
+  "truncated": false
+}
+```
+
+The order is that of a group's plans: by day, within a day by `meet_at` with the plans that have none last, then in the order in which they were posted. `truncated` is `true` when more than 100 plans matched and the answer has the first 100; ask for fewer days or a smaller radius.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_position` | `lat` or `lon` is missing or is no place on the globe |
+| 400 | `invalid_request` | `radius_km` is no whole number from 1 to 100 |
+| 400 | `invalid_day` | `from` or `to` is not a date written `YYYY-MM-DD` |
+| 400 | `invalid_range` | `from` lies after `to`, or the days are more than 14 |
+
+### `POST /v1/open-plans`
+
+Needs a token. A pilot posts an open plan.
+
+```json
+{
+  "day": "2026-11-21",
+  "place": "Beispielwiese, Parkplatz",
+  "position": {
+    "lat": 47.6922,
+    "lon": 11.7675
+  },
+  "meet_at": "08:30",
+  "seats": 3,
+  "note": "A made-up open plan. From the station at half past eight."
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `day` | The day, `YYYY-MM-DD` |
+| `place` | The place, in the pilot's words: 1 to 80 characters once cleaned |
+| `position` | Where that is: `lat` and `lon` in degrees. Needed |
+| `meet_at` | When to meet or to start, `HH:MM`. May be left out |
+| `seats` | Seats free in the pilot's car, 1 to 8. Left out: looking for company |
+| `note` | Anything else: at most 280 characters after cleaning. May be left out |
+
+The answer is `201` with the plan. This is the development mode's, with the plan's identifier replaced:
+
+```json
+{
+  "plan": {
+    "id": "0123456789abcdefghjkmnpqrs",
+    "day": "2026-11-21",
+    "place": "Beispielwiese, Parkplatz",
+    "position": {
+      "lat": 47.6922,
+      "lon": 11.7675
+    },
+    "meet_at": "08:30",
+    "seats": 3,
+    "note": "A made-up open plan. From the station at half past eight.",
+    "author": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "created_at": "2026-11-18T19:05:00Z",
+    "changed_at": "2026-11-18T19:05:00Z",
+    "in": [
+      {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      }
+    ]
+  }
+}
+```
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_plan` | `day` lies before the server's yesterday or more than 30 days ahead, `place` is empty or too long once cleaned, `note` is too long, or `seats` is not 1 to 8. `message` says which and repeats no text that was sent |
+| 400 | `invalid_request` | The body is not JSON of this shape: no `day`, `place` or `position`, a `meet_at` that is no time of day |
+| 403 | `too_many_open_plans` | The account holds 5 open plans. Deleting one makes room; so does time |
+| 403 | `publishing_suspended` | Whoever runs the server has suspended the account's publishing |
+| 429 | `rate_limited` | The account has posted or changed 10 open plans within a day |
+
+### `GET, PUT and DELETE /v1/open-plans/{plan}`
+
+`GET` is open to anyone and answers `200` with `{"plan": …}`. `PUT` needs a token: the pilot who posted the plan replaces what it says, with the body of posting one, whole, and gets `200` with the plan as it now is; `changed_at` moves and `in` does not. `DELETE` needs a token: the pilot who posted it deletes it, with who was in, and gets `204`. `403` with `not_plan_author` for anyone else; `404` with `plan_not_found` for a plan that is not there: none ever, deleted, removed, or one whose day lies further back than plans are kept. `PUT` has the errors of posting one besides.
+
+### `PUT and DELETE /v1/open-plans/{plan}/in`
+
+Need a token, and take no body. `PUT` says that the asker is in on the plan; `DELETE` takes that back. Both answer `200` with the plan as it now is, and both may be sent again without changing anything. `PUT` answers `403` with `open_plan_full` when 30 pilots are in, and `403` with `publishing_suspended` for an account whose publishing is suspended; `404` with `plan_not_found` as above.
+
+### `GET /v1/account/open-plans`
+
+Needs a token. The open plans the asker posted or is in on, from the server's yesterday on, in the order above, as `{"plans": […], "truncated": false}`: what an app shows as "my plans" beside the plans of the pilot's groups.
+
+A report about an open plan, the body of [`POST /v1/reports`](#post-v1reports):
+
+```json
+{
+  "subject": {
+    "open_plan": "aaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "reason": "spam",
+  "text": "An advertisement, not a plan."
+}
+```
+
 ## Reports
 
 A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track, in a group the pilot is in, the group's name or one of its plans, and a [site that pilots made](#sites-that-ventis-partners-and-pilots-add). That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, no group is changed, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
@@ -9786,13 +9994,14 @@ The body of that request:
 
 | Field | Meaning |
 |---|---|
-| `subject` | What is reported: an object with exactly one of the eight members below |
+| `subject` | What is reported: an object with exactly one of the nine members below |
 | `subject.flight` | A flight, by its address: the `id` of the flight, which is the end of its share link |
 | `subject.pilot` | A pilot's page, by the pilot's handle, in upper or lower case |
 | `subject.picture` | A pilot's [picture](#put-and-delete-v1accountpicture), by the pilot's handle: the picture they show when the report is made, which the server notes. The reasons are those of a group and a plan. A pilot without a page, or without a picture, has none to report: `404` with `pilot_not_found` or `picture_not_found`. Since 2026-11-23 |
 | `subject.live_track` | A live track, by its identifier, which is the end of its link |
 | `subject.group` | A group the reporter is in, by its `id` |
 | `subject.plan` | A plan of a group the reporter is in: an object with `group`, the group's `id`, and `id`, the plan's. A plan is named with its group here as in every path about a plan, and the `plan` of every answer carries both |
+| `subject.open_plan` | An [open plan](#open-plans), by its `id`. Anyone signed in may report one, since everyone reads it. What is reported is its place and its note, which the server keeps with the report as for a group's plan; the reasons are those of a group and a plan; the report is about the plan's author. `404` with `plan_not_found` for one that is not there. Since 2026-11-23 |
 | `subject.site` | A site that pilots made: an object with `id`, the site's identifier (`venti:` or `venti-pilots:` and 26 characters: a site of either layer is reported the same way), and, if the report is about one revision of it, `revision`, that revision's number. Without `revision` the report is about the site as it stands, and the server notes the revision it stands at |
 | `subject.comment` | A [comment](#pilots-among-each-other) under a public flight: an object with `flight`, the address of the flight, and `id`, the comment's. What is reported is its words, which the server keeps with the report as they stood: its author or the flight's pilot can remove it a moment later. The reasons are those of a group and a plan. The report is about the comment's author |
 | `reason` | Why; one of the values below |

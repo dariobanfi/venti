@@ -157,8 +157,8 @@ const TAGS: &[(&str, &str, &[&str])] = &[
     ),
     (
         "Groups and plans",
-        "Groups of pilots and their plans for a flying day.",
-        &["/v1/groups"],
+        "Groups of pilots and their plans for a flying day, and plans open to everyone flying from an area.",
+        &["/v1/groups", "/v1/open-plans", "/v1/account/open-plans"],
     ),
     (
         "Reports",
@@ -1075,6 +1075,54 @@ fn operations() -> Vec<Op> {
             .docs("PUT and DELETE /v1/groups/{id}/plans/{plan}/in")
             .with(GroupsWrite)
             .json("PlanResponse"),
+        // Open plans.
+        post(
+            venti_api_types::v1::OPEN_PLANS_PATH,
+            "Post a plan open to everyone flying from the area",
+        )
+        .with(GroupsWrite)
+        .takes("OpenPlanRequest")
+        .statuses(&[201])
+        .json("OpenPlanResponse"),
+        get(
+            venti_api_types::v1::OPEN_PLANS_PATH,
+            "The open plans near a place for the coming days",
+        )
+        .docs("GET /v1/open-plans?lat=&lon=&radius_km=&from=&to=")
+        .query(&["lat!", "lon!", "radius_km", "from:day", "to:day"])
+        .json("OpenPlansResponse"),
+        get("/v1/open-plans/{plan}", "One open plan")
+            .docs("GET, PUT and DELETE /v1/open-plans/{plan}")
+            .json("OpenPlanResponse"),
+        put("/v1/open-plans/{plan}", "Change an open plan")
+            .docs("GET, PUT and DELETE /v1/open-plans/{plan}")
+            .with(GroupsWrite)
+            .takes("OpenPlanRequest")
+            .json("OpenPlanResponse"),
+        delete("/v1/open-plans/{plan}", "Delete an open plan")
+            .docs("GET, PUT and DELETE /v1/open-plans/{plan}")
+            .with(GroupsWrite)
+            .nothing(),
+        put(
+            "/v1/open-plans/{plan}/in",
+            "Say \"I am in\" on an open plan",
+        )
+        .docs("PUT and DELETE /v1/open-plans/{plan}/in")
+        .with(GroupsWrite)
+        .json("OpenPlanResponse"),
+        delete(
+            "/v1/open-plans/{plan}/in",
+            "Take \"I am in\" back on an open plan",
+        )
+        .docs("PUT and DELETE /v1/open-plans/{plan}/in")
+        .with(GroupsWrite)
+        .json("OpenPlanResponse"),
+        get(
+            venti_api_types::v1::ACCOUNT_OPEN_PLANS_PATH,
+            "The open plans the pilot posted or is in on",
+        )
+        .with(GroupsRead)
+        .json("OpenPlansResponse"),
         // Reports.
         post(
             REPORTS_PATH,

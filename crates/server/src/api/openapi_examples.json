@@ -3631,6 +3631,64 @@
       }
     }
   },
+  "get /v1/open-plans": {
+    "200": {
+      "open_plans": {
+        "plans": [
+          {
+            "author": {
+              "display_name": "Mara Muster",
+              "handle": "mara"
+            },
+            "changed_at": "2026-11-18T16:05:00Z",
+            "created_at": "2026-11-18T16:05:00Z",
+            "day": "2026-11-19",
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "in": [
+              {
+                "display_name": "Mara Muster",
+                "handle": "mara"
+              },
+              {
+                "display_name": "Jonas Beispiel",
+                "handle": "jonas"
+              }
+            ],
+            "meet_at": "09:00",
+            "note": "A made-up open plan. Two seats free from the valley; back by six.",
+            "place": "Musterberg, Talstation",
+            "position": {
+              "lat": 47.6642,
+              "lon": 11.7967
+            },
+            "seats": 2
+          },
+          {
+            "author": {
+              "display_name": "Jonas Beispiel",
+              "handle": "jonas"
+            },
+            "changed_at": "2026-11-18T17:05:00Z",
+            "created_at": "2026-11-18T17:05:00Z",
+            "day": "2026-11-20",
+            "id": "bbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "in": [
+              {
+                "display_name": "Jonas Beispiel",
+                "handle": "jonas"
+              }
+            ],
+            "place": "Musterberg",
+            "position": {
+              "lat": 47.6642,
+              "lon": 11.7967
+            }
+          }
+        ],
+        "truncated": false
+      }
+    }
+  },
   "get /v1/pilots": {
     "200": {
       "pilots": {
@@ -7608,6 +7666,49 @@
       }
     }
   },
+  "post /v1/open-plans": {
+    "201": {
+      "open_plan": {
+        "plan": {
+          "author": {
+            "display_name": "Demo Pilot",
+            "handle": "demo"
+          },
+          "changed_at": "2026-11-18T19:05:00Z",
+          "created_at": "2026-11-18T19:05:00Z",
+          "day": "2026-11-21",
+          "id": "0123456789abcdefghjkmnpqrs",
+          "in": [
+            {
+              "display_name": "Demo Pilot",
+              "handle": "demo"
+            }
+          ],
+          "meet_at": "08:30",
+          "note": "A made-up open plan. From the station at half past eight.",
+          "place": "Beispielwiese, Parkplatz",
+          "position": {
+            "lat": 47.6922,
+            "lon": 11.7675
+          },
+          "seats": 3
+        }
+      }
+    },
+    "request": {
+      "open_plan_request": {
+        "day": "2026-11-21",
+        "meet_at": "08:30",
+        "note": "A made-up open plan. From the station at half past eight.",
+        "place": "Beispielwiese, Parkplatz",
+        "position": {
+          "lat": 47.6922,
+          "lon": 11.7675
+        },
+        "seats": 3
+      }
+    }
+  },
   "post /v1/reports": {
     "201": {
       "report": {
@@ -7621,6 +7722,13 @@
           "group": "44444444444444444444444444"
         },
         "text": "This is not the club's group. The club has none here."
+      },
+      "report_open_plan_request": {
+        "reason": "spam",
+        "subject": {
+          "open_plan": "aaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "text": "An advertisement, not a plan."
       },
       "report_picture_request": {
         "reason": "offensive",

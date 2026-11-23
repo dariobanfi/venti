@@ -14,7 +14,7 @@ use super::text;
 /// The most characters the text of a report may have.
 pub const MAX_REPORT_TEXT_LENGTH: usize = 1000;
 
-/// What a report is about. Exactly one of the eight.
+/// What a report is about. Exactly one of the nine.
 ///
 /// The list is closed, and a subject travels one way only, from a client
 /// to the server: no answer carries one. A server that is sent a kind of
@@ -41,6 +41,9 @@ pub enum ReportSubject {
     /// A plan of a group the reporter is in. What is reported is its
     /// place and its note.
     Plan(ReportedPlan),
+    /// An open plan, by its identifier. What is reported is its place and
+    /// its note. Since 2026-11-23.
+    OpenPlan(String),
     /// A site that pilots made on Venti, as it stands or as one of its
     /// revisions said it. What is reported is what the record says: its
     /// place, its name and its texts. A site of a source the server
@@ -94,9 +97,11 @@ impl ReportSubject {
     pub fn reasons(&self) -> &'static [ReportReason] {
         match self {
             Self::Flight(_) | Self::Pilot(_) | Self::LiveTrack(_) => &ReportReason::ALL,
-            Self::Group(_) | Self::Plan(_) | Self::Comment(_) | Self::Picture(_) => {
-                &ReportReason::ABOUT_WORDS
-            }
+            Self::Group(_)
+            | Self::Plan(_)
+            | Self::OpenPlan(_)
+            | Self::Comment(_)
+            | Self::Picture(_) => &ReportReason::ABOUT_WORDS,
             Self::Site(_) => &ReportReason::ABOUT_A_SITE,
         }
     }

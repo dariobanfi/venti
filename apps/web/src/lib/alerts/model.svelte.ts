@@ -8,8 +8,9 @@
  * draw, runs the fetch when the account's sync runs (the site opened or
  * back at the front, after signing in) and every five minutes while a page
  * is open, and after an alarm was saved; and it tells the pilot of what
- * fired: the browser's notification where the pilot allowed it, otherwise
- * a count on the account's row until "What fired" was seen.
+ * fired: the browser's notification where the pilot allowed it. The count
+ * of what is new is the server's, on the pilot's picture
+ * (`social/unread.svelte.ts`).
  */
 
 import type {
@@ -44,7 +45,7 @@ export const browserNotifier: Notifier = {
 		try {
 			await Notification.requestPermission();
 		} catch {
-			// A browser that will not ask keeps the count on the account's row.
+			// A browser that will not ask has the bubble on the pilot's picture.
 		}
 	},
 	show: (line, onclick) => {
@@ -119,8 +120,6 @@ export class AlertsModel {
 	fired = $state.raw<FiredLine[]>([]);
 	/** Whether what the browser holds was read once. */
 	read = $state(false);
-	/** What fired that no notification told of, until "What fired" was seen. */
-	unseen = $state(0);
 	/** Why the last fetch stopped, in words. */
 	problem = $state.raw<string>();
 	/** Every word of the alarms' screens, the core's, once `words()` was asked. */
@@ -205,17 +204,8 @@ export class AlertsModel {
 	}
 
 	#tell(lines: FiredLine[]): void {
-		if (lines.length === 0) return;
-		if (this.#notifier.permission() === 'granted') {
-			for (const line of lines) this.#notifier.show(line, this.#open);
-		} else {
-			this.unseen += lines.length;
-		}
-	}
-
-	/** "What fired" was seen. */
-	seen(): void {
-		this.unseen = 0;
+		if (this.#notifier.permission() !== 'granted') return;
+		for (const line of lines) this.#notifier.show(line, this.#open);
 	}
 
 	/**

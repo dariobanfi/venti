@@ -3,7 +3,9 @@
  * one custom layer of MapLibre's: the track at its height as a crossed
  * ribbon in the climb colours on its dark casing, the curtain down to the
  * ground, the thermals' columns, and the marked moment's line down to the
- * ground. It is a 3D layer, so the terrain hides what lies behind it.
+ * ground, and the glider there: a small paraglider pointed along the track
+ * and banked into its turns (`glider.ts`), drawn at a size on the screen.
+ * It is a 3D layer, so the terrain hides what lies behind it.
  *
  * Everything is built once, by `air.ts`, into buffers; a frame only sets
  * the matrix and the ribbon's width and draws. The words beside the flight
@@ -15,6 +17,7 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map } from 'maplibre-gl';
 import type { Local, Mesh, Ribbon, Rgba } from './air';
 import { frameMatrix, type Frame, multiply, onScreen } from './air';
+import { gliderMatrix } from './glider';
 
 /** What the layer draws, built by `air.ts`. */
 export interface AirScene {
@@ -24,6 +27,15 @@ export interface AirScene {
 	columns: Ribbon;
 	/** The colour of the track's casing. */
 	casing: Rgba;
+	/** The glider's wing and its lines, in its own frame, in pixels (`glider.ts`). */
+	wing: { canopy: Mesh; lines: Mesh };
+}
+
+/** The glider at the marked moment: where, which way and how banked. */
+export interface GliderAt {
+	at: Local;
+	headingDeg: number;
+	bankDeg: number;
 }
 
 /** What a test can read of the layer: how many frames it drew, and what the last cost. */
@@ -31,6 +43,8 @@ export interface AirStats {
 	frames: number;
 	lastFrameMs: number;
 	vertices: number;
+	/** The glider as the last frame drew it, if it drew one. */
+	glider?: { headingDeg: number; bankDeg: number };
 }
 
 /** How wide the track's ribbon is on the screen, in pixels, and its casing. */
@@ -114,6 +128,10 @@ export class AirLayer implements CustomLayerInterface {
 	#curtain: Bound | undefined;
 	#columns: Bound | undefined;
 	#marker: Bound | undefined;
+	#canopy: Bound | undefined;
+	#lines: Bound | undefined;
+	/** The glider at the marked moment, while one is marked. */
+	#glider: GliderAt | undefined;
 	/** The marked moment's line down to the ground, while one is marked. */
 	#markerLine: [top: Local, bottom: Local] | undefined;
 	/** Whether the line's buffer is to be made again before the next frame. */
@@ -136,12 +154,21 @@ export class AirLayer implements CustomLayerInterface {
 		this.#track = this.#ribbonOf(gl, this.#scene.track);
 		this.#columns = this.#ribbonOf(gl, this.#scene.columns);
 		this.#curtain = this.#meshOf(gl, this.#scene.curtain);
+		this.#canopy = this.#meshOf(gl, this.#scene.wing.canopy);
+		this.#lines = this.#meshOf(gl, this.#scene.wing.lines, 'lines');
 		this.stats.vertices =
 			this.#scene.track.count + this.#scene.columns.count + this.#scene.curtain.count;
 	}
 
 	onRemove(_map: Map, gl: WebGL2RenderingContext): void {
-		for (const bound of [this.#track, this.#columns, this.#curtain, this.#marker]) {
+		for (const bound of [
+			this.#track,
+			this.#columns,
+			this.#curtain,
+			this.#marker,
+			this.#canopy,
+			this.#lines
+		]) {
 			for (const made of bound?.buffers ?? []) gl.deleteBuffer(made);
 		}
 		if (this.#ribbonProgram) gl.deleteProgram(this.#ribbonProgram);
@@ -152,6 +179,12 @@ export class AirLayer implements CustomLayerInterface {
 	mark(line: [top: Local, bottom: Local] | undefined): void {
 		this.#markerLine = line;
 		this.#markerChanged = true;
+		this.#map?.triggerRepaint();
+	}
+
+	/** Puts the glider at the marked moment, or takes it away. */
+	glider(at: GliderAt | undefined): void {
+		this.#glider = at;
 		this.#map?.triggerRepaint();
 	}
 
@@ -182,7 +215,11 @@ export class AirLayer implements CustomLayerInterface {
 		};
 	}
 
-	#meshOf(gl: WebGL2RenderingContext, mesh: Mesh): Bound {
+	#meshOf(
+		gl: WebGL2RenderingContext,
+		mesh: Mesh,
+		mode: 'triangles' | 'lines' = 'triangles'
+	): Bound {
 		const made = this.#meshProgram!;
 		const buffers = [buffer(gl, mesh.positions), buffer(gl, mesh.colours)];
 		return {
@@ -200,7 +237,7 @@ export class AirLayer implements CustomLayerInterface {
 					gl.enableVertexAttribArray(location);
 					gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
 				});
-				gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+				gl.drawArrays(mode === 'lines' ? gl.LINES : gl.TRIANGLES, 0, mesh.count);
 			}
 		};
 	}
@@ -275,13 +312,28 @@ export class AirLayer implements CustomLayerInterface {
 			gl.drawArrays(gl.LINES, 0, 2);
 		}
 
+		// The glider: its wing over the marked moment, hidden by the terrain in front of it.
+		const glider = this.#glider;
+		if (glider && this.#canopy && this.#lines) {
+			gl.useProgram(this.#meshProgram);
+			const placed = multiply(
+				matrix,
+				gliderMatrix(glider.at, glider.headingDeg, glider.bankDeg, pixelM)
+			);
+			gl.uniformMatrix4fv(gl.getUniformLocation(this.#meshProgram, 'u_matrix'), false, placed);
+			gl.uniform1f(gl.getUniformLocation(this.#meshProgram, 'u_tinted'), 0);
+			this.#lines.draw(gl);
+			this.#canopy.draw(gl);
+		}
+
 		const canvas = map.getCanvas();
 		const [w, h] = [canvas.clientWidth, canvas.clientHeight];
 		this.#placed((at) => onScreen(matrix, at, w, h));
 		this.stats = {
 			...this.stats,
 			frames: this.stats.frames + 1,
-			lastFrameMs: performance.now() - started
+			lastFrameMs: performance.now() - started,
+			glider: glider && { headingDeg: glider.headingDeg, bankDeg: glider.bankDeg }
 		};
 	}
 }

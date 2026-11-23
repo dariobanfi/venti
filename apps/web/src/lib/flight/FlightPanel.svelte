@@ -13,8 +13,10 @@
 	import { flightFormat } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Metric from '#lib/design/Metric.svelte';
+	import Segmented from '#lib/design/Segmented.svelte';
 	import type { Beside } from './beside';
 	import FlightChart from './FlightChart.svelte';
+	import { REPLAY_SPEEDS, type ReplaySpeed, speedWords } from './glider';
 	import { heightAboveGround } from './ground';
 
 	interface Props {
@@ -25,6 +27,8 @@
 		cursor: number | undefined;
 		/** Whether the marker is moving through the flight by itself. */
 		playing: boolean;
+		/** How fast it moves, times the flight's own time; the choice shows once a moment is marked. */
+		speed?: ReplaySpeed;
 		/** Opens everything else known about the flight, where that is not on screen already. */
 		ondetails?: () => void;
 		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
@@ -46,6 +50,7 @@
 		ground = [],
 		cursor = $bindable(),
 		playing = $bindable(),
+		speed = $bindable(30),
 		ondetails,
 		whose,
 		beside,
@@ -66,6 +71,12 @@
 		}[score.kind];
 		return `${kind}, ${day}`;
 	});
+
+	/** The replay's speeds in words. */
+	const speeds = REPLAY_SPEEDS.map(speedWords);
+	function chooseSpeed(words: string) {
+		speed = REPLAY_SPEEDS.find((each) => speedWords(each) === words) ?? speed;
+	}
 
 	// The clock and the date of the place it was flown.
 	const text = $derived(flightFormat(flight));
@@ -169,6 +180,17 @@
 			<Metric caption="Best climb" value={text.climb(flight.maxClimbMs)} unit="m/s" />
 		{/if}
 	</dl>
+
+	<!-- How fast the flight plays: once it plays, or a moment is marked. -->
+	{#if moment}
+		<div class="speed">
+			<Segmented
+				label="Replay speed"
+				options={speeds}
+				bind:value={() => speedWords(speed), chooseSpeed}
+			/>
+		</div>
+	{/if}
 
 	{#if chart}
 		<FlightChart {flight} {ground} bind:cursor {playing} {beside} {onbeside} />
@@ -290,5 +312,9 @@
 	.numbers {
 		display: flex;
 		gap: 0.5rem;
+	}
+
+	.speed {
+		font-variant-numeric: tabular-nums;
 	}
 </style>

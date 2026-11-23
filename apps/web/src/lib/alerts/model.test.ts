@@ -82,19 +82,16 @@ describe('alarms on the page', () => {
 		const model = new AlertsModel(core, () => {}, shown.it);
 		await model.sync();
 		expect(shown.shown).toEqual([FIRED]);
-		expect(model.unseen).toBe(0);
 		expect(model.fired).toEqual([FIRED]);
 	});
 
-	it('count what is new on the account’s row otherwise, until it was seen', async () => {
+	it('show no notification where the pilot did not allow it: the bubble on the picture tells', async () => {
 		const { core } = fakeCore({ kind: 'finished', newLines: [FIRED, FIRED] });
 		const shown = notifier('default');
 		const model = new AlertsModel(core, () => {}, shown.it);
 		await model.sync();
 		expect(shown.shown).toEqual([]);
-		expect(model.unseen).toBe(2);
-		model.seen();
-		expect(model.unseen).toBe(0);
+		expect(model.fired).toEqual([FIRED]);
 	});
 
 	it('say why a fetch stopped, in the core’s words', async () => {

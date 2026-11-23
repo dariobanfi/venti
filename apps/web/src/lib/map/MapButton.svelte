@@ -13,12 +13,14 @@
 		pressed?: boolean;
 		/** Keeps the sign an outline when on, for a sign that filled in is a blob (airspace). */
 		outlined?: boolean;
+		/** A word or two shown in place of the sign ("3D"), where a word says it better. */
+		text?: string;
 		/** The link this leads to, for a button that goes somewhere. */
 		href?: string;
 		onclick?: () => void;
 	}
 
-	let { label, icon, pressed, outlined = false, href, onclick }: Props = $props();
+	let { label, icon, pressed, outlined = false, text, href, onclick }: Props = $props();
 </script>
 
 {#if href}
@@ -35,7 +37,11 @@
 		title={label}
 		{onclick}
 	>
-		<Icon name={icon} filled={pressed && !outlined} />
+		{#if text}
+			<span class="text">{text}</span>
+		{:else}
+			<Icon name={icon} filled={pressed && !outlined} />
+		{/if}
 	</button>
 {/if}
 
@@ -53,6 +59,12 @@
 
 	.pressed {
 		color: var(--link);
+	}
+
+	.text {
+		font-size: var(--subheadline);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
 	}
 
 	/* A wide screen's controls are compact, about 32 px: a mouse needs no

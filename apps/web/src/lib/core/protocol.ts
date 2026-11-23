@@ -132,6 +132,7 @@ import type {
 	FollowList,
 	FollowState,
 	Notifications,
+	Unread,
 	PilotsAlarmNumbers,
 	PilotsWords,
 	PlannerWords,
@@ -651,6 +652,13 @@ export interface Calls {
 	setCommentsOpen: { given: { flightId: string; open: boolean }; answer: CommentsSwitch };
 	/** What the pilot was told; given the cursor of the answer before. Nothing when signed out. */
 	notifications: { given: string | undefined; answer: Notifications | undefined };
+	/** How much is new for the pilot, for the badge. Nothing when signed out. */
+	unread: { given: undefined; answer: Unread | undefined };
+	/** Given the cursors of the lists shown: they were seen. Answers what is new after it. */
+	unreadSeen: {
+		given: { notifications: string | undefined; alarms: string | undefined };
+		answer: Unread | undefined;
+	};
 	/** The line beside the switch that lets this browser be told of an alarm. */
 	pushLine: { given: undefined; answer: string };
 	/** The server's public key for Web Push, base64url. */
@@ -1012,6 +1020,8 @@ export async function answer<Name extends CallName>(
 		commentsSwitch: (open) => social.commentsSwitch(open),
 		setCommentsOpen: ({ flightId, open }) => social.setCommentsOpen(flightId, open),
 		notifications: (since) => social.notifications(since),
+		unread: () => social.unread(),
+		unreadSeen: ({ notifications, alarms }) => social.unreadSeen(notifications, alarms),
 		pushLine: () => social.pushLine(),
 		pushKey: () => social.pushKey(),
 		pushSubscribe: (subscribed) => social.pushSubscribe(subscribed),

@@ -24,8 +24,8 @@
 	const text = format();
 	const account = $derived(app.account);
 	const airspace = $derived(app.airspace);
-	/** What the alarms fired that no notification told of. */
-	const unseen = $derived(account?.signedIn ? (app.alerts?.unseen ?? 0) : 0);
+	/** What is new on the account: the server's count, the bubble on the pilot's picture. */
+	const unread = $derived(account?.signedIn ? app.unread : undefined);
 
 	/** Light, dark or the system's, kept in this browser. */
 	const storage = () => {
@@ -67,8 +67,8 @@
 				<a class="group-row" href={accountHref()}>
 					<span>Account</span>
 					<span class="trailing">
-						{#if unseen > 0}
-							<span class="badge numeric" aria-label="{unseen} new alerts">{unseen}</span>
+						{#if unread?.badge}
+							<span class="badge numeric" aria-label={unread.label}>{unread.badge}</span>
 						{/if}
 						<span class="group-value">{accountSaid}</span>
 						<span class="chevron"><Icon name="forward" /></span>

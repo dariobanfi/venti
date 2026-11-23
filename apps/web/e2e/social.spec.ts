@@ -216,3 +216,50 @@ test('a pilot follows another, cheers a flight and writes under it', async ({
 
 	expect(problems).toEqual([]);
 });
+
+test('what is new shows on the pilot’s picture until the notifications are seen', async ({
+	page,
+	keep,
+	wide,
+	problems
+}) => {
+	const handle = await signUp(page);
+	// The server's count is played here: one new notification, none once
+	// seen. The server's own tests hold what it counts.
+	const seen: unknown[] = [];
+	let news = 1;
+	await page.route('**/v1/account/unread', async (route) => {
+		if (route.request().method() === 'PUT') {
+			seen.push(route.request().postDataJSON());
+			news = 0;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({ notifications: news, alarms: 0, total: news })
+		});
+	});
+	const marked = page
+		.getByRole('navigation', { name: 'Sections' })
+		.getByRole('link', { name: /1 new/ });
+
+	// Read when the page opens: on the picture in the wide bar, on Settings
+	// in a phone's, which has no picture.
+	await page.goto('/');
+	await expect(marked).toBeVisible();
+	await expect(marked.locator('.bubble')).toHaveText('1');
+	await expect(marked).toHaveAccessibleName(wide ? `${handle} 1 new` : 'Settings 1 new');
+	await keep('277-unread-marker');
+
+	// The notifications seen, up to the cursor of what was shown and the
+	// alarms' mark left as it is, the bubble goes.
+	await page.goto('/settings/account/notifications/');
+	await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toBeVisible();
+	await expect.poll(() => seen.length).toBe(1);
+	expect(seen[0]).toMatchObject({ alarms_cursor: '0' });
+	expect(seen[0]).toHaveProperty('notifications_cursor');
+	await expect(marked).toHaveCount(0);
+	await keep('278-unread-seen');
+
+	expect(problems).toEqual([]);
+});

@@ -20,6 +20,8 @@
 	import ChipTick from '#lib/design/ChipTick.svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import { keyColor, NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
+	import { fitColour } from '#lib/sites/fans.ts';
+	import { wedges } from '#lib/sites/rose.ts';
 	import { format } from '#lib/design/format.ts';
 	import type { ThermalMapModel } from '#lib/forecast/thermal-map.svelte.ts';
 	import { runLine, WORDS as FORECAST_WORDS } from '#lib/forecast/thermal-map.ts';
@@ -49,6 +51,8 @@
 		ongusts: (on: boolean) => void;
 		/** Whether the forecast shown has squares in the part of the map in view. */
 		inView: boolean;
+		/** Whether the take-offs' fans are coloured by the wind shown: their key is then here too. */
+		fans?: boolean;
 	}
 
 	let {
@@ -62,8 +66,22 @@
 		thermals,
 		gusts,
 		ongusts,
-		inView
+		inView,
+		fans = false
 	}: Props = $props();
+
+	/** The fan the key draws: a quarter of the compass to the north. */
+	const FAN = wedges([{ fromDeg: 315, toDeg: 45 }], 8, 8)[0];
+
+	/** The key of the take-offs' fans, while they are coloured by the wind. */
+	const fanKey = $derived(
+		fans
+			? [
+					{ fit: 'fits' as const, words: 'Take-off fits' },
+					{ fit: 'misfits' as const, words: 'Does not fit' }
+				]
+			: []
+	);
 
 	/** Nothing moves by itself for a pilot who asked the system for less motion. */
 	const still = new MediaQuery('prefers-reduced-motion: reduce', false);
@@ -141,7 +159,11 @@
 		}
 		return { steps: [] };
 	});
-	const keyLines = $derived([...key.steps, ...(key.veil ? [key.veil] : [])]);
+	const keyLines = $derived([
+		...key.steps,
+		...(key.veil ? [key.veil] : []),
+		...fanKey.map((one) => ({ colour: fitColour(one.fit), words: one.words }))
+	]);
 
 	/** What stands behind the "i": the notes of what is shown, without the project's own caveats. */
 	const notes = $derived.by((): string[] => {
@@ -261,6 +283,20 @@
 					<i style:background={key.veil.colour}></i>{shortWords(key.veil.words)}
 				</span>
 			{/if}
+		</div>
+	{/if}
+
+	<!-- The take-offs' fans in the wind shown: a small fan of each colour and its words. -->
+	{#if fanKey.length > 0}
+		<div class="fans" aria-hidden="true">
+			{#each fanKey as one (one.fit)}
+				<span>
+					<svg viewBox="0 0 16 16" width="16" height="16">
+						<path d={FAN} fill={fitColour(one.fit)} fill-opacity="0.55" />
+					</svg>
+					{one.words}
+				</span>
+			{/each}
 		</div>
 	{/if}
 
@@ -409,6 +445,20 @@
 		background: var(--accent);
 		color: var(--on-accent);
 		box-shadow: none;
+	}
+
+	.fans {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1) var(--space-3);
+		font-size: var(--caption);
+		color: var(--text-secondary);
+	}
+
+	.fans span {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 	}
 
 	/* The pack's scale legend (`.v-scale`), its two ends named; the veil beside it. */

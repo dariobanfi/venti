@@ -15,6 +15,7 @@ import { asset, resolve } from '$app/paths';
 import { AccountModel } from '#lib/account/model.svelte.ts';
 import { pushOff, pushState, thisBrowser } from '#lib/alerts/push.ts';
 import { SocialModel } from '#lib/social/model.svelte.ts';
+import { UNREAD_EVERY_MS, UnreadModel } from '#lib/social/unread.svelte.ts';
 import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
 import { ALERTS_EVERY_MS, AlertsModel } from '#lib/alerts/model.svelte.ts';
 import { CommunityModel } from '#lib/community/model.svelte.ts';
@@ -115,6 +116,9 @@ export class App {
 	/** The pilot's alarms and what they fired. Nothing until the core has started. */
 	alerts = $state.raw<AlertsModel>();
 
+	/** What is new for the pilot, for the bubble on their picture. Nothing until the core has started. */
+	unread = $state.raw<UnreadModel>();
+
 	/**
 	 * The pilot's groups and their plans for a flying day. Nothing until
 	 * the core has started.
@@ -181,6 +185,8 @@ export class App {
 				const alerts = new AlertsModel(core, () => void goto(`${alertsHref()}#fired`));
 				this.alerts = alerts;
 				void alerts.reread();
+				const unread = new UnreadModel(core);
+				this.unread = unread;
 				// A sync may have fetched or removed take-offs the pilot keeps
 				// as their own; what the alarms fired is fetched with it. It
 				// runs after signing in, when the pilot's flights are read anew.
@@ -188,6 +194,7 @@ export class App {
 					void myFlights.reload();
 					await kept.synced(keptSites).catch(() => {});
 					void alerts.sync();
+					void unread.read();
 				});
 				const airspace = await AirspaceModel.open(core);
 				// Another tab signed in or out, or synced: show what is stored now.
@@ -195,6 +202,7 @@ export class App {
 					void myFlights.reload();
 					void account.refresh();
 					void alerts.reread();
+					void unread.read();
 					void airspace.reload();
 					kept.changedElsewhere();
 				};
@@ -205,7 +213,10 @@ export class App {
 					if (browser && (await pushState(browser)) === 'on') await pushOff(browser, core);
 				};
 				// Signed out, the pilot's flights are asked for no more.
-				account.afterLeaving = () => void myFlights.reload();
+				account.afterLeaving = () => {
+					void myFlights.reload();
+					unread.clear();
+				};
 				this.myFlights = myFlights;
 				this.account = account;
 				this.groups = new GroupsModel(core, account);
@@ -411,13 +422,16 @@ export class App {
 	}
 
 	/**
-	 * Keeps the pilot's own sites in step with the account while the page
-	 * is open: now, and whenever the page comes back to the front. Returns what to call
+	 * Keeps the pilot's own sites and the count of what is new in step with
+	 * the account while the page is open: now, and whenever the page comes
+	 * back to the front. Returns what to call
 	 * when the page goes away.
 	 */
 	keepInStep(): () => void {
 		const sync = () => {
-			if (document.visibilityState === 'visible') void this.account?.sync();
+			if (document.visibilityState !== 'visible') return;
+			void this.account?.sync();
+			if (this.account?.signedIn) void this.unread?.read();
 		};
 		void this.#started?.then(sync);
 		document.addEventListener('visibilitychange', sync);
@@ -426,9 +440,16 @@ export class App {
 		const alerts = setInterval(() => {
 			if (this.account?.signedIn) void this.alerts?.sync();
 		}, ALERTS_EVERY_MS);
+		// What is new for the bubble on the pilot's picture, while a page is in front.
+		const unread = setInterval(() => {
+			if (this.account?.signedIn && document.visibilityState === 'visible') {
+				void this.unread?.read();
+			}
+		}, UNREAD_EVERY_MS);
 		return () => {
 			document.removeEventListener('visibilitychange', sync);
 			clearInterval(alerts);
+			clearInterval(unread);
 		};
 	}
 }

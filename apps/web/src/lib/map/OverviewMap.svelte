@@ -108,6 +108,14 @@
 		sitesLayer
 	} from '#lib/sites/mark.ts';
 	import { sitePictures } from '#lib/sites/symbols.ts';
+	import {
+		fanFeatures,
+		fanOf,
+		fanPicture,
+		FANS_SOURCE,
+		fansLayer,
+		groundWinds
+	} from '#lib/sites/fans.ts';
 	import { stationFeatures } from '#lib/wind/mark.ts';
 	import { windPictures } from '#lib/wind/symbols.ts';
 	import { type Fix, type PositionProblem, watchPosition } from './position';
@@ -126,6 +134,12 @@
 		 * apart from the others, as muted signs.
 		 */
 		sitesApart?: readonly SiteView[];
+		/**
+		 * The forecast's wind at the ground in the hour the map shows, as the
+		 * core's arrows of that hour, while it shows one: each take-off's fan
+		 * is then coloured by whether it fits. Otherwise the fans are neutral.
+		 */
+		groundWind?: GeoJSON.FeatureCollection;
 		/**
 		 * The places where pilots take off and no site stands, while their
 		 * layer is on: drawn as small rings under the sites' signs.
@@ -288,6 +302,7 @@
 		stations,
 		sites,
 		sitesApart = [],
+		groundWind,
 		candidates = [],
 		oncandidate,
 		gliders,
@@ -445,6 +460,16 @@
 		// The take-offs without a site, rings under the signs.
 		map.addSource(CANDIDATES_SOURCE, { type: 'geojson', data: NOTHING });
 		map.addLayer(candidatesLayer());
+		// Each take-off's fan over the wind directions it works in, under its
+		// pin. A fan's picture is drawn when the map first asks for it.
+		map.addSource(FANS_SOURCE, { type: 'geojson', data: NOTHING });
+		map.addLayer(fansLayer());
+		map.on('styleimagemissing', (event) => {
+			const fan = fanOf(event.id);
+			if (!fan || map.hasImage(event.id)) return;
+			const { image, pixelRatio } = fanPicture(fan.spans, fan.fit);
+			map.addImage(event.id, image, { pixelRatio });
+		});
 		map.addSource(SITES_SOURCE, { type: 'geojson', data: NOTHING });
 		map.addLayer(sitesLayer(module.LABEL_FONT));
 
@@ -712,7 +737,7 @@
 			[[LIVE_SOURCE], onglider, 'pilots'],
 			[OTHERS_LAYERS, (id: string) => onother?.(id), 'pilots'],
 			[[WIND], onstation, 'wind'],
-			[[SITES_SOURCE], onsite, 'sites'],
+			[[SITES_SOURCE, FANS_SOURCE], onsite, 'sites'],
 			[[CANDIDATES_SOURCE], (key: string) => oncandidate?.(key), 'sites']
 		] as const) {
 			// A layer just switched off can still be in the frame drawn last.
@@ -1000,6 +1025,22 @@
 			cells: slopes?.cells ?? 0,
 			classed: slopes?.classed ?? 0,
 			byClass: slopes?.byClass ?? []
+		};
+	});
+
+	// Draws the take-offs' fans when the sites change, and when the hour of
+	// the forecast's wind at the ground does: coloured by it while there is one.
+	$effect(() => {
+		if (!map || !setup) return;
+		const windAt = groundWind ? groundWinds(groundWind) : undefined;
+		const fans = fanFeatures(sites, windAt);
+		setup.shapes(map, FANS_SOURCE)?.setData(fans);
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiFans?: unknown }).ventiFans = {
+			fans: fans.features.map((fan) => ({
+				id: fan.properties?.id,
+				picture: fan.properties?.picture
+			}))
 		};
 	});
 

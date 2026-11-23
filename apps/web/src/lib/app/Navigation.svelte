@@ -32,6 +32,12 @@
 	const app = getApp();
 	/** Who is signed in, for the right of the wide bar. */
 	const account = $derived(app.account?.signedIn ? app.account.account : undefined);
+	/**
+	 * What is new for the pilot, the server's count in the core's words:
+	 * a bubble on their picture, and on Settings in the phone's bar, which
+	 * has no picture. Nothing signed out.
+	 */
+	const unread = $derived(account ? app.unread : undefined);
 
 	interface Section {
 		name: string;
@@ -134,10 +140,19 @@
 			<li class={section.on}>
 				<a
 					href={section.href()}
-					aria-label={section.breaks ? section.name : undefined}
+					aria-label={section.breaks
+						? [section.name, section.root === '/settings' ? unread?.label : undefined]
+								.filter(Boolean)
+								.join(' ')
+						: undefined}
 					aria-current={current === section.name ? 'page' : undefined}
 				>
-					<span class="icon"><Icon name={section.icon} /></span>
+					<span class="icon">
+						<Icon name={section.icon} />
+						{#if section.root === '/settings' && unread?.badge}
+							<span class="bubble numeric" aria-hidden="true">{unread.badge}</span>
+						{/if}
+					</span>
 					<span class="name">{section.breaks ?? section.name}</span>
 				</a>
 			</li>
@@ -150,12 +165,20 @@
 		</a>
 		<a class="account" href={accountHref()} class:here={page.route.id === '/settings/account'}>
 			{#if account}
-				<PilotFace
-					picture={account.picturePath}
-					name={account.displayName || account.handle}
-					size="xs"
-				/>
-				<span>{account.handle}</span>
+				<span class="pictured">
+					<PilotFace
+						picture={account.picturePath}
+						name={account.displayName || account.handle}
+						size="xs"
+					/>
+					{#if unread?.badge}
+						<span class="bubble numeric" aria-hidden="true">{unread.badge}</span>
+					{/if}
+				</span>
+				<span class="handle">{account.handle}</span>
+				{#if unread?.label}
+					<span class="visually-hidden">{unread.label}</span>
+				{/if}
 			{:else}
 				<span class="icon"><Icon name="person" /></span>
 				<span>Sign in</span>
@@ -179,6 +202,32 @@
 
 	nav.covered {
 		display: none;
+	}
+
+	/* What is new: a small bubble at the top right of the picture or the
+	   icon, ringed in the bar's colour so that it stands off what it sits on. */
+	.icon,
+	.pictured {
+		position: relative;
+		display: inline-flex;
+	}
+
+	.bubble {
+		position: absolute;
+		top: calc(-1 * var(--space-1));
+		right: calc(-1 * var(--space-2));
+		min-width: var(--space-4);
+		height: var(--space-4);
+		padding: 0 var(--space-1);
+		border-radius: var(--radius-pill);
+		box-shadow: 0 0 0 2px var(--surface);
+		background: var(--accent);
+		color: var(--on-accent);
+		font-size: var(--caption);
+		font-weight: 600;
+		line-height: var(--space-4);
+		text-align: center;
+		white-space: nowrap;
 	}
 
 	.brand,
@@ -366,7 +415,8 @@
 		}
 
 		/* A long handle is cut short on the wide bar, not wrapped. */
-		.end a span:last-child {
+		.end a span:last-child,
+		.end a .handle {
 			max-width: 100%;
 			overflow: hidden;
 			text-overflow: ellipsis;

@@ -21,11 +21,13 @@
 		toLocal
 	} from './air';
 	import { AirLayer } from './AirLayer';
+	import { bankAt, caughtUp, type Chase, chaseStep, wing } from './glider';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import type { FlightScore, FlightView, TrackPoint } from '#lib/core/index.ts';
 	import {
 		ACCENT_ON_MAP,
 		CLIMB_BANDS,
+		GLIDER_ON_MAP,
 		INK_ON_MAP,
 		OTHER_ON_MAP,
 		PAPER_ON_MAP,
@@ -59,7 +61,10 @@
 		analysis?: FlightAnalysis;
 		/** The ground under the flight, for the curtain and the marked moment's line. */
 		ground?: readonly GroundUnderFlight[];
-		/** Whether the camera follows the marked moment from behind, in 3D. */
+		/**
+		 * Whether the camera chases the glider at the marked moment, in 3D:
+		 * from behind and above it, smoothly.
+		 */
 		follow?: boolean;
 		/**
 		 * Called when the pilot moves the map by hand (drags, turns or tilts
@@ -141,6 +146,17 @@
 				for (const moved of ['dragstart', 'rotatestart', 'pitchstart'] as const) {
 					styled.on(moved, (event) => {
 						if (event.originalEvent) onletgo?.();
+					});
+				}
+				// While a finger or the mouse is down, the chasing camera holds
+				// still, so that a drag can begin and take the camera.
+				for (const down of ['mousedown', 'touchstart'] as const) {
+					styled.on(down, () => (held = true));
+				}
+				for (const up of ['mouseup', 'touchend', 'touchcancel'] as const) {
+					styled.on(up, () => {
+						held = false;
+						if (chased) chaseOn();
 					});
 				}
 				// Whose photographs can show, read from the style the map loaded.
@@ -326,7 +342,8 @@
 						: [],
 					columns.flatMap(() => [THERMAL, THERMAL])
 				),
-				casing: rgba(INK_ON_MAP)
+				casing: rgba(INK_ON_MAP),
+				wing: wing(rgba(GLIDER_ON_MAP), rgba(INK_ON_MAP))
 			},
 			(place) => {
 				labels.forEach((label, index) => {
@@ -359,25 +376,141 @@
 		cursor ? toLocal(frame, cursor.lat, cursor.lon, cursor.altitudeM) : undefined
 	);
 
-	// The marked moment: its line down to the ground, and the camera with it
-	// when it follows.
+	// The marked moment: its line down to the ground, and the glider there,
+	// pointed along the track and banked into its turn.
 	$effect(() => {
 		if (!air) return;
 		const groundM = cursor ? groundAtSeconds(ground, cursor.seconds) : undefined;
 		air.mark(
 			marked && groundM !== undefined ? [marked, [marked[0], marked[1], groundM]] : undefined
 		);
-		if (follow && cursor && map) {
-			const index = flight.track.indexOf(cursor);
-			untrack(() =>
-				map?.jumpTo({
-					center: [cursor.lon, cursor.lat],
-					bearing: headingAt(flight.track, Math.max(index, 0)),
-					pitch: 62
-				})
-			);
-		}
+		const index = cursor ? Math.max(flight.track.indexOf(cursor), 0) : 0;
+		air.glider(
+			marked
+				? {
+						at: marked,
+						headingDeg: headingAt(flight.track, index),
+						bankDeg: bankAt(flight.track, index)
+					}
+				: undefined
+		);
 	});
+
+	/*
+	 * The chasing camera: behind the glider and above it, looking at it,
+	 * catching up smoothly frame by frame and resting once it has. The map
+	 * looks at a point at the glider's height (the map's centre is then not
+	 * on the ground), so that the glider stays where the eye is.
+	 */
+	/** How far the camera leans back when it chases, and how close it comes when the flight plays. */
+	const CHASE_PITCH = 68;
+	const CHASE_ZOOM = 14.5;
+	/** How many seconds of the flight the camera's way is taken over. */
+	const COURSE_S = 60;
+	/** Where the camera looks now, while it chases. */
+	let chased: Chase | undefined;
+	let chaseFrame = 0;
+	let chasedAt = 0;
+	/** A zoom the camera is on its way to, while it chases. */
+	let zoomTarget: number | undefined;
+	/** Whether a finger or the mouse is down on the map. */
+	let held = false;
+
+	function glider(): Chase | undefined {
+		if (!cursor) return undefined;
+		const index = Math.max(flight.track.indexOf(cursor), 0);
+		return {
+			lat: cursor.lat,
+			lon: cursor.lon,
+			altitudeM: cursor.altitudeM,
+			// Along the course of the last minute, so that circling in a
+			// thermal turns the glider and not the whole view.
+			bearing: headingAt(flight.track, index, COURSE_S)
+		};
+	}
+
+	function chaseOn() {
+		if (chaseFrame) return;
+		chasedAt = performance.now();
+		chaseFrame = requestAnimationFrame(chaseFrom);
+	}
+
+	function chaseOff() {
+		cancelAnimationFrame(chaseFrame);
+		chaseFrame = 0;
+		// The room the chase kept for the covered parts goes with it.
+		if (chased) map?.setPadding({ top: 0, right: 0, bottom: 0, left: 0 });
+		chased = undefined;
+		zoomTarget = undefined;
+	}
+
+	function chaseFrom(now: number) {
+		chaseFrame = 0;
+		const target = glider();
+		if (!map || !target || held) return;
+		const seconds = Math.min((now - chasedAt) / 1000, 0.1);
+		chasedAt = now;
+		if (!chased) {
+			map.setCenterClampedToGround(false);
+			const centre = map.getCenter();
+			chased = {
+				lat: centre.lat,
+				lon: centre.lng,
+				altitudeM: map.getCenterElevation(),
+				bearing: map.getBearing()
+			};
+		}
+		chased = chaseStep(chased, target, seconds);
+		const ease = 1 - Math.exp(-seconds / 0.4);
+		const pitch = map.getPitch() + (CHASE_PITCH - map.getPitch()) * ease;
+		let zoom: number | undefined;
+		if (zoomTarget !== undefined) {
+			zoom = map.getZoom() + (zoomTarget - map.getZoom()) * ease;
+			if (Math.abs(zoomTarget - zoom) < 0.01) zoomTarget = undefined;
+		}
+		map.jumpTo({
+			center: [chased.lon, chased.lat],
+			// The glider in the middle of the part of the map that shows.
+			padding: { top: coveredTop, right: 0, bottom: coveredBottom, left: 0 },
+			elevation: chased.altitudeM,
+			bearing: chased.bearing,
+			pitch,
+			zoom
+		});
+		// A map says nothing of its camera; the browser tests read it here.
+		(globalThis as { ventiChase?: unknown }).ventiChase = {
+			bearing: map.getBearing(),
+			course: target.bearing,
+			pitch: map.getPitch(),
+			zoom: map.getZoom()
+		};
+		const resting =
+			caughtUp(chased, target) && Math.abs(CHASE_PITCH - pitch) < 0.05 && zoomTarget === undefined;
+		if (!resting) chaseFrame = requestAnimationFrame(chaseFrom);
+	}
+
+	// The camera chases while it follows in 3D, and again whenever the marked moment moves.
+	$effect(() => {
+		if (!map || !terrain3d || !follow) {
+			untrack(chaseOff);
+			return;
+		}
+		if (cursor) untrack(chaseOn);
+	});
+
+	// Flat again, the map's centre is on the ground again.
+	$effect(() => {
+		if (map && !terrain3d) map.setCenterClampedToGround(true);
+	});
+
+	$effect(() => () => chaseOff());
+
+	/** The flight plays: the camera comes close behind the glider and follows it. */
+	export function chase() {
+		if (!map) return;
+		zoomTarget = Math.max(map.getZoom(), CHASE_ZOOM);
+		chaseOn();
+	}
 
 	$effect(() => {
 		if (!map || !setup) return;
@@ -387,6 +520,8 @@
 	/** Shows the whole flight in 3D from a good angle: from the south, leaning back. */
 	export function wholeFlight() {
 		if (!map) return;
+		chaseOff();
+		map.setCenterClampedToGround(true);
 		const { south, west, north, east } = flight.bounds;
 		const camera = map.cameraForBounds(
 			[
@@ -405,7 +540,14 @@
 
 	/** One step closer or further away, for the buttons of a wide screen. */
 	export function zoomBy(steps: number) {
-		map?.easeTo({ zoom: map.getZoom() + steps, duration: 250 });
+		if (!map) return;
+		// While the camera chases, it takes the zoom along; else the map eases there.
+		if (chased) {
+			zoomTarget = (zoomTarget ?? map.getZoom()) + steps;
+			chaseOn();
+			return;
+		}
+		map.easeTo({ zoom: map.getZoom() + steps, duration: 250 });
 	}
 </script>
 
@@ -453,13 +595,14 @@
 		box-shadow: inset 0.1875rem 0 0 var(--vario-1);
 	}
 
+	/* The pilot under the wing that the layer draws: a small dot. */
 	.marker {
 		position: absolute;
 		top: 0;
 		left: 0;
-		width: 0.875rem;
-		height: 0.875rem;
-		margin: -0.4375rem 0 0 -0.4375rem;
+		width: var(--space-2);
+		height: var(--space-2);
+		margin: calc(-1 * var(--space-1)) 0 0 calc(-1 * var(--space-1));
 		border-radius: 50%;
 		background: var(--on-map-ink);
 		box-shadow: 0 0 0 0.1875rem var(--on-map-paper-solid);

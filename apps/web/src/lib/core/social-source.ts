@@ -59,7 +59,11 @@ import {
 	reportSent,
 	socialDone,
 	socialWords,
-	type SocialWords
+	type SocialWords,
+	unread,
+	type Unread,
+	unreadRequest,
+	unreadSeenRequest
 } from './pkg/venti_core_wasm.js';
 import type { CoreSession } from './session';
 
@@ -207,6 +211,28 @@ export class SocialSource {
 		if (!(await this.#signedIn())) return undefined;
 		const answer = await this.#ask(notificationsRequest(since));
 		return notifications(answer.status, answer.body, await this.#now());
+	}
+
+	/** How much is new for the pilot, the same on every device. Nothing when signed out. */
+	async unread(): Promise<Unread | undefined> {
+		if (!(await this.#signedIn())) return undefined;
+		const answer = await this.#ask(unreadRequest());
+		return unread(answer.status, answer.body);
+	}
+
+	/**
+	 * Tells the server that the pilot saw the lists, up to the cursors of
+	 * the answers shown, each left out for up to the newest; "0" leaves a
+	 * list's mark where it is, which only moves forward. Answers what is
+	 * new after it. Nothing when signed out.
+	 */
+	async unreadSeen(
+		notificationsCursor: string | undefined,
+		alarmsCursor: string | undefined
+	): Promise<Unread | undefined> {
+		if (!(await this.#signedIn())) return undefined;
+		const answer = await this.#ask(unreadSeenRequest(notificationsCursor, alarmsCursor));
+		return unread(answer.status, answer.body);
 	}
 
 	/** The line beside the switch that asks for the browser's permission. */

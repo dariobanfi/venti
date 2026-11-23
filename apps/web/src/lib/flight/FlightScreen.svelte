@@ -33,6 +33,7 @@
 	import FlightDetails from './FlightDetails.svelte';
 	import FlightMap from './FlightMap.svelte';
 	import FlightPanel from './FlightPanel.svelte';
+	import { FIRST_SPEED, type ReplaySpeed, replayed } from './glider';
 
 	interface Props {
 		flight: FlightView;
@@ -186,34 +187,56 @@
 	let playing = $state(false);
 	let showingDetails = $state(false);
 
-	// Playing moves the marker from where it is to the end of the flight in
-	// about half a minute, whatever the flight's length.
+	/** How fast the flight plays, times its own time: the pilot's choice. */
+	let speed = $state<ReplaySpeed>(FIRST_SPEED);
+
+	// Playing moves the marker from where it is to the end of the flight at
+	// the speed chosen, by the flight's own clock: a step each fifteenth of
+	// a second, as far as the time that passed takes it.
 	$effect(() => {
 		if (!playing) return;
-		const last = flight.track.length - 1;
+		const track = flight.track;
+		const last = track.length - 1;
+		const times = speed;
 		if (last < 1) {
 			playing = false;
 			return;
 		}
-		const step = Math.max(1, Math.floor(flight.track.length / 450));
 		// From the end of the flight, playing starts over.
-		untrack(() => {
+		let playhead = untrack(() => {
 			if ((cursor ?? 0) >= last) cursor = 0;
+			return track[cursor ?? 0].seconds;
 		});
-		// Each step starts from where the marker is, so the pilot can drag
-		// it elsewhere while it plays.
+		let shown = untrack(() => cursor ?? 0);
+		let before = performance.now();
 		const timer = setInterval(() => {
-			const next = Math.min((cursor ?? 0) + step, last);
-			cursor = next;
-			if (next >= last) playing = false;
+			const now = performance.now();
+			// The pilot may drag the marker elsewhere while it plays: it goes on from there.
+			if (cursor !== undefined && cursor !== shown) playhead = track[cursor].seconds;
+			const next = replayed(track, playhead, (now - before) / 1000, times);
+			before = now;
+			playhead = next.playhead;
+			shown = next.index;
+			cursor = next.index;
+			if (next.index >= last) playing = false;
 		}, 66);
 		return () => clearInterval(timer);
 	});
+
+	// Pressing Play in 3D brings the camera behind the glider, to follow it.
+	$effect(() => {
+		if (!playing || !terrain3d) return;
+		untrack(() => {
+			follow = true;
+			map?.chase();
+		});
+	});
 	let terrain3d = $state(false);
 	/**
-	 * Whether the camera follows the marked moment from behind, in 3D: from
-	 * the start, so that the glider stays in frame while the flight plays.
-	 * Moving the map by hand lets go; "Follow the glider" comes back.
+	 * Whether the camera chases the glider from behind and above, in 3D:
+	 * from the start, and again whenever Play is pressed, so that the
+	 * glider stays in frame while the flight plays. Moving the map by hand
+	 * lets go; "Follow the glider" comes back.
 	 */
 	let follow = $state(true);
 	/** Whether the ground is photographs from above: the pilot's choice for every map. */
@@ -288,6 +311,7 @@
 			<MapButton
 				label="Terrain in 3D"
 				icon="mountain"
+				text="3D"
 				pressed={terrain3d}
 				onclick={() => {
 					terrain3d = !terrain3d;
@@ -358,6 +382,7 @@
 					{ground}
 					bind:cursor
 					bind:playing
+					bind:speed
 					{whose}
 					{beside}
 					onbeside={() => (sideBySide = true)}

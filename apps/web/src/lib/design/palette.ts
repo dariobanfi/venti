@@ -25,6 +25,17 @@ function step(scale: 'vario' | 'wind', index: number): string {
 /** The pilot's own flights on the overview map, and the marker on a flight: the pack's primary. */
 export const ACCENT_ON_MAP = light(tokens.theme.light, 'primary');
 
+/** The glider's wing in a flight's 3D view: the pack's coral, its brand. */
+export const GLIDER_ON_MAP = light(tokens.theme.light, 'accent');
+
+/**
+ * A take-off's fan while the map shows the forecast's wind at the ground:
+ * the pack's good colour where that wind fits the take-off's directions,
+ * its caution colour where it does not.
+ */
+export const GOOD_ON_MAP = light(tokens.theme.light, 'good');
+export const CAUTION_ON_MAP = light(tokens.theme.light, 'caution');
+
 /** The dark ink of the dots that mark where a track starts and ends: the track's casing. */
 export const INK_ON_MAP = light(tokens.map.light, 'track-casing');
 

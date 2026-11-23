@@ -50,6 +50,7 @@ class Server {
 			return answer(201, recorded('comment.json'));
 		}
 		if (path.includes('/notifications')) return answer(200, recorded('notifications.json'));
+		if (path === '/v1/account/unread') return answer(200, recorded('unread.json'));
 		if (path === '/v1/push/key') return answer(200, recorded('push_key.json'));
 		if (path === '/v1/account/push') return answer(204);
 		return answer(
@@ -99,6 +100,8 @@ describe('pilots among each other', () => {
 		const { server, social } = await open(false);
 		expect(await social.feed()).toBeUndefined();
 		expect(await social.notifications()).toBeUndefined();
+		expect(await social.unread()).toBeUndefined();
+		expect(await social.unreadSeen(undefined, undefined)).toBeUndefined();
 		expect(server.asked).toEqual([]);
 	});
 
@@ -167,5 +170,21 @@ describe('pilots among each other', () => {
 			endpoint: 'https://fcm.googleapis.com/fcm/send/abc'
 		});
 		expect(social.pushLine()).toMatch(/alarm fires/);
+	});
+
+	it('reads what is new for the badge, and tells the server what the pilot saw', async () => {
+		const { server, social } = await open(true);
+		const found = await social.unread();
+		expect(found).toMatchObject({ notifications: 4, alarms: 1, total: 5, badge: '5' });
+		expect(found?.label).toBe('5 new');
+		expect(server.asked[0]).toMatchObject({ method: 'GET', path: '/v1/account/unread' });
+		expect(server.asked[0].token).toBeDefined();
+
+		await social.unreadSeen('9', '0');
+		expect(server.asked[1]).toMatchObject({ method: 'PUT', path: '/v1/account/unread' });
+		expect(JSON.parse(server.asked[1].body)).toEqual({
+			notifications_cursor: '9',
+			alarms_cursor: '0'
+		});
 	});
 });

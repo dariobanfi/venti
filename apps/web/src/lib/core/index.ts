@@ -289,6 +289,7 @@ export type {
 	FollowState,
 	NotificationLine,
 	Notifications,
+	Unread,
 	PilotsWords,
 	PlannerWords,
 	RouteFromFile,

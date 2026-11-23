@@ -314,6 +314,16 @@
 		return { squares: shapes.squares, arrows: shapes.arrows, legend: choice?.legend ?? [] };
 	});
 	/**
+	 * The forecast's wind at the ground in the hour drawn, while the hour is
+	 * the wind's or the gusts' at the ground: the take-offs' fans are
+	 * coloured by it.
+	 */
+	const groundWind = $derived.by(() => {
+		const asked = thermals?.shapes?.asked;
+		if (!thermalHour || !asked || asked.heightM !== undefined) return undefined;
+		return asked.layer === 'wind' || asked.layer === 'gusts' ? thermalHour.arrows : undefined;
+	});
+	/**
 	 * The day of the thermal map on the map, while the layer is on: not while
 	 * the hours of another layer are asked for, so that its squares do not
 	 * stand under another key, and not while an hour is drawn.
@@ -1395,6 +1405,7 @@
 		hotspots={thermalMap}
 		{thermalDay}
 		{thermalHour}
+		{groundWind}
 		radar={radarWanted && measured ? radar?.onMap : undefined}
 		slopes={slopesChosen ? slopes.shown : undefined}
 		onsquare={openSquare}
@@ -1835,6 +1846,7 @@
 					{thermals}
 					{gusts}
 					ongusts={(on) => thermals?.chooseLayer(on ? 'gusts' : 'wind')}
+					fans={Boolean(groundWind) && !hiddenLayers.includes('sites')}
 					inView={!view ||
 						!showForecast ||
 						!thermals?.day ||

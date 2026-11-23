@@ -905,6 +905,19 @@ export class CoreClient {
 		return this.#call('notifications', since);
 	}
 
+	/** How much is new for the pilot, for the badge. Nothing when signed out. */
+	unread() {
+		return this.#call('unread', undefined);
+	}
+
+	/** The lists were seen, up to these cursors; each left out for up to the newest. */
+	unreadSeen(seen: { notifications?: string; alarms?: string }) {
+		return this.#call('unreadSeen', {
+			notifications: seen.notifications,
+			alarms: seen.alarms
+		});
+	}
+
 	/** The line beside the switch that lets this browser be told of an alarm. */
 	pushLine() {
 		return this.#call('pushLine', undefined);

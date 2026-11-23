@@ -15,6 +15,7 @@
 	import { type PushState, pushOff, pushOn, pushState, thisBrowser } from '#lib/alerts/push.ts';
 	import AlertForm from '#lib/alerts/AlertForm.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import { LEFT_AS_IT_IS } from '#lib/social/unread.svelte.ts';
 	import { accountHref } from '#lib/app/routes.ts';
 	import type { AlertDraft, AlertView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
@@ -25,14 +26,18 @@
 	const alerts = $derived(app.alerts);
 	const text = format();
 
-	// Read from the browser at once, then fetched anew; what fired counts as seen.
+	// Read from the browser at once, then fetched anew; what fired is then
+	// shown up to the newest, and the marker on the pilot's picture moves
+	// past it, the notifications' as it is.
 	$effect(() => {
 		const model = alerts;
 		const signedIn = account?.signedIn;
 		if (!model || !signedIn) return;
 		untrack(() => {
-			model.seen();
-			void model.reread().then(() => model.sync());
+			void model
+				.reread()
+				.then(() => model.sync())
+				.then(() => app.unread?.seen({ notifications: LEFT_AS_IT_IS }));
 		});
 	});
 

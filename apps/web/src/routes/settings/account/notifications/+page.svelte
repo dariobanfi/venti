@@ -4,11 +4,12 @@
 	theirs, who wrote under one. Each line is the core's (`notifications`), with its age; it opens
 	the flight where it is about one, and the pilot's page otherwise.
 
-	Fetched when the page opens and kept nowhere. No badge, and nothing is
-	pushed.
+	Fetched when the page opens and kept nowhere. Once shown, the marker on
+	the pilot's picture moves past what was shown. Nothing is pushed.
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import { LEFT_AS_IT_IS } from '#lib/social/unread.svelte.ts';
 	import { accountHref, pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { Notifications } from '#lib/core/index.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -32,7 +33,10 @@
 		problem = undefined;
 		core.notifications().then(
 			(answer) => {
-				if (current) told = answer;
+				if (!current) return;
+				told = answer;
+				// Shown: the marker of what is new moves past it, the alarms' as it is.
+				if (answer) void app.unread?.seen({ notifications: answer.cursor, alarms: LEFT_AS_IT_IS });
 			},
 			(error) => {
 				// The core's line that the list could not be loaded, then why.

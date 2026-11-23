@@ -538,3 +538,64 @@ test('while the hours are asked for the panel says so, and when they cannot be h
 	await mapDrawn();
 	await keep('129-map-forecast-hours-refused');
 });
+
+/** The fans the map tab last drew, with the name of each one's picture: what it says and its spans. */
+const fans = (page: Page) =>
+	page.evaluate(
+		() =>
+			(globalThis as unknown as { ventiFans?: { fans: { id: string; picture: string }[] } })
+				.ventiFans?.fans ?? []
+	);
+
+test('the take-offs are fans over their wind directions, coloured by the forecast’s wind at the ground', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide
+}) => {
+	// MADE UP: the stand-in's map and its hours; see `tools/made-up-day/serve.py`.
+	await madeUpMap(page);
+	const low = await squareWhereGround(false, 1000);
+	await forecastAt(context, page, mapDrawn, low);
+	await switchLayers(page, ['Sites'], true);
+	// A phone shows less of the valley: a step out brings take-offs that name their wind.
+	if (!wide) await zoom(page, mapDrawn, -1);
+	await mapDrawn();
+
+	// Without the wind's forecast every fan is in one neutral ink.
+	await expect.poll(async () => (await fans(page)).length).toBeGreaterThan(0);
+	expect((await fans(page)).every((fan) => fan.picture.startsWith('site-fan:neutral:'))).toBe(true);
+	// Landings have their own sign and no fan.
+	expect((await fans(page)).map((fan) => fan.picture)).not.toContain(undefined);
+
+	// The wind at the ground at 13:00: a fan the wind fits, and one it does not, in their colours.
+	await what(page, 'Wind').click();
+	await along(page, '13:00');
+	await expect(card(page)).toContainText(/Wind at the ground, (\w+ )?13:00, forecast/);
+	await expect
+		.poll(
+			async () =>
+				(await fans(page)).filter((fan) => !fan.picture.startsWith('site-fan:neutral:')).length
+		)
+		.toBeGreaterThan(0);
+	// The key says what the colours mean.
+	await expect(card(page).locator('.fans')).toContainText('Take-off fits');
+	await expect(card(page).locator('.fans')).toContainText('Does not fit');
+	await mapDrawn();
+	await keep('300-map-take-off-fans');
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await mapDrawn();
+	await keep('301-map-take-off-fans-dark');
+	await page.emulateMedia({ colorScheme: test.info().project.use.colorScheme ?? 'light' });
+
+	// At a height the wind is not the ground's: the fans are neutral again.
+	await card(page).getByRole('combobox', { name: 'Height' }).selectOption({ label: '2000 m' });
+	await expect(card(page)).toContainText(/Wind at 2000 m/);
+	await expect
+		.poll(async () =>
+			(await fans(page)).every((fan) => fan.picture.startsWith('site-fan:neutral:'))
+		)
+		.toBe(true);
+	await expect(card(page).locator('.fans')).toHaveCount(0);
+});

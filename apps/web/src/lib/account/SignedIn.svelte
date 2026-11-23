@@ -37,8 +37,8 @@
 
 	let { account, signedIn }: Props = $props();
 
-	/** What the alarms fired that no notification told of. */
-	const unseen = $derived(getApp().alerts?.unseen ?? 0);
+	/** What is new on the account, on every device: the server's count. */
+	const unread = $derived(getApp().unread);
 
 	/** The core's words around follows, cheers and comments: the row's name. */
 	const said = $derived(getApp().social?.words);
@@ -390,8 +390,8 @@
 		<a class="group-row" href={alertsHref()}>
 			<span>Alerts</span>
 			<span class="trailing">
-				{#if unseen > 0}
-					<span class="badge numeric" aria-label="{unseen} new">{unseen}</span>
+				{#if unread && unread.alarms > 0}
+					<span class="badge numeric" aria-label="{unread.alarms} new">{unread.alarms}</span>
 				{/if}
 				<span class="chevron"><Icon name="forward" /></span>
 			</span>
@@ -400,7 +400,14 @@
 		{#if said}
 			<a class="group-row" href={notificationsHref()}>
 				<span>{said.notificationsTitle}</span>
-				<span class="chevron"><Icon name="forward" /></span>
+				<span class="trailing">
+					{#if unread && unread.notifications > 0}
+						<span class="badge numeric" aria-label="{unread.notifications} new"
+							>{unread.notifications}</span
+						>
+					{/if}
+					<span class="chevron"><Icon name="forward" /></span>
+				</span>
 			</a>
 		{/if}
 		{#await account.programsForm() then programs}

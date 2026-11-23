@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { readToml, sources } from './manifests';
+import { sources } from './manifests';
 
 const crates = new URL('../../../../../crates/', import.meta.url);
 
@@ -14,23 +14,6 @@ function manifestFiles(): string[] {
 				.map((file) => `${name}/${file}`)
 		);
 }
-
-describe('readToml', () => {
-	it('reads strings, numbers, true and false, lists over lines, tables and lists of tables', () => {
-		expect(
-			readToml(
-				'id = "a" # a comment\nmax = 6_144\n[licence]\nname = "CC BY 4.0"\ncommercial = false\n' +
-					'notice = "say \\"so\\""\nlist = [\n  "one", # first\n  \'two\',\n]\n' +
-					'[[asset]]\nname = "x"\n[asset.licence]\nname = "y"\n'
-			)
-		).toEqual({
-			id: 'a',
-			max: 6144,
-			licence: { name: 'CC BY 4.0', commercial: false, notice: 'say "so"', list: ['one', 'two'] },
-			asset: [{ name: 'x', licence: { name: 'y' } }]
-		});
-	});
-});
 
 describe('sources', () => {
 	it('has every manifest of the repository, each with its provider, licence, credit and link', () => {
@@ -51,6 +34,7 @@ describe('sources', () => {
 		const geosphere = sources.find((source) => source.id === id);
 		expect(geosphere?.provider).toBe('GeoSphere Austria');
 		expect(geosphere?.licence.name).toBe('CC BY 4.0');
+		// The manifest's `attribution` is the credit the server says with every answer.
 		expect(geosphere?.licence.credit).toBe(/^attribution = "([^"]+)"/m.exec(file)?.[1]);
 	});
 

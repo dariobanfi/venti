@@ -8,6 +8,7 @@
 	to the totals.
 -->
 <script lang="ts">
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import type { FlightScore, FlightView, GroundUnderFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -27,7 +28,7 @@
 		/** Opens everything else known about the flight, where that is not on screen already. */
 		ondetails?: () => void;
 		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
-		whose?: { name: string; href: string };
+		whose?: { name: string; href: string; picture?: string };
 		/** A second flight laid beside this one. */
 		beside?: Beside;
 		/** Opens the two flights side by side in numbers. */
@@ -89,7 +90,10 @@
 	<header>
 		<div class="when">
 			{#if whose}
-				<a class="whose" href={whose.href}>{whose.name}</a>
+				<a class="whose" href={whose.href}>
+					<PilotFace picture={whose.picture} name={whose.name} />
+					<span class="whose-name">{whose.name}</span>
+				</a>
 			{/if}
 			<!-- The flight in one number, as the logbook's list has it: the
 			     scored distance, or the track's length until it is scored. -->
@@ -225,9 +229,15 @@
 	   that pilot's other flights. Underlined, in the text's own colour: the
 	   accent does not hold its contrast on glass. */
 	.whose {
-		display: block;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		font-size: var(--subheadline);
 		font-weight: 600;
+	}
+
+	.whose-name {
+		min-width: 0;
 		text-decoration: underline;
 		text-decoration-thickness: 0.0625em;
 		text-underline-offset: 0.15em;

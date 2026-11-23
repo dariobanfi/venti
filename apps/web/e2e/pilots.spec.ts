@@ -2,11 +2,12 @@
  * Finding a pilot by name, what a pilot's public flights add up to, and the
  * ranking of one month, from the Venti server in its development mode:
  * Lena Probe has three public flights there, of May, June and July 2026,
- * two of them from Musterkogel West. `playwright.config.ts` starts the
- * server.
+ * two of them from Musterkogel West. Mara Muster has a picture, made up
+ * by the development mode; the others have none. `playwright.config.ts`
+ * starts the server.
  */
 
-import { expect, rowsOf, test } from './helpers';
+import { expect, rowsOf, signUp, test } from './helpers';
 
 test('a pilot is found by name, and the pilot’s page says what the flights add up to', async ({
 	page,
@@ -30,7 +31,8 @@ test('a pilot is found by name, and the pilot’s page says what the flights add
 
 	// Two letters: the pilots whose name begins with them first.
 	await field.fill('le');
-	await expect(found.first()).toHaveText('Lena Probe (@lena), 3 public flights');
+	// The core's line beside the pilot's face, here the initials.
+	await expect(found.first()).toHaveAccessibleName('Lena Probe (@lena), 3 public flights');
 	await keep('64b-pilot-search');
 
 	// A pilot found opens that pilot's page.
@@ -117,5 +119,50 @@ test('the ranking of a month is chosen beside the years, and is in the address',
 	await expect(page).not.toHaveURL(/month=/);
 	await expect(page.getByText(/^2026: \d+ flights$/)).toBeVisible();
 	await expect(page.getByRole('radio', { name: '2026' })).toBeChecked();
+	expect(problems).toEqual([]);
+});
+
+test('a pilot’s picture stands beside their name wherever it is, and can be reported', async ({
+	page,
+	keep,
+	problems
+}) => {
+	const PICTURE = '/v1/pictures/0000000000000000000000p001';
+	await signUp(page);
+
+	// In the search: Mara's picture, Lena's initials.
+	await page.goto('/logbook/everyone/');
+	const field = page.getByRole('searchbox', { name: 'Pilot' });
+	const found = page.getByRole('list', { name: 'Pilots found' }).getByRole('link');
+	await field.fill('mara');
+	await expect(found.first()).toContainText('Mara Muster');
+	await expect(found.first().locator('img')).toHaveAttribute('src', PICTURE);
+	await field.fill('lena');
+	await expect(found.first()).toContainText('Lena Probe');
+	await expect(found.first().locator('.face')).toHaveText('LP');
+	await field.fill('');
+
+	// Beside the name on everyone's flights.
+	const mara = page.locator(`img[src="${PICTURE}"]`).first();
+	await expect(mara).toBeVisible();
+	await expect.poll(() => mara.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(256);
+
+	// On the pilot's page, large, with a report of the picture beside the page's.
+	await page.goto('/logbook/everyone/pilot/?handle=mara');
+	await expect(page.getByRole('heading', { level: 1, name: 'Mara Muster' })).toBeVisible();
+	await expect(page.locator('header .face img')).toHaveAttribute('src', PICTURE);
+	await keep('64d-pilot-picture');
+	await page.getByRole('button', { name: 'Report picture' }).click();
+	const form = page.getByRole('dialog', { name: 'Report picture' });
+	await form.getByRole('radio', { name: 'Pretends to be someone else' }).check();
+	await keep('64e-report-picture');
+	await form.getByRole('button', { name: 'Send report' }).click();
+	await expect(form.getByRole('status')).toHaveText('Sent. Whoever runs Venti will read it.');
+
+	// A pilot without a picture has their initials and no such report.
+	await page.goto('/logbook/everyone/pilot/?handle=lena');
+	await expect(page.getByRole('heading', { level: 1, name: 'Lena Probe' })).toBeVisible();
+	await expect(page.locator('header .face')).toHaveText('LP');
+	await expect(page.getByRole('button', { name: 'Report picture' })).toBeHidden();
 	expect(problems).toEqual([]);
 });

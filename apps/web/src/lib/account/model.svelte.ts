@@ -231,6 +231,21 @@ export class AccountModel {
 		return this.#changeAccount(() => this.#core.setNewFlightsPublic(open));
 	}
 
+	/** "Show me among pilots near a place": the pilot's own setting. Returns why not, in words. */
+	setShownNearPlaces(shown: boolean): Promise<string | undefined> {
+		return this.#changeAccount(() => this.#core.setShownNearPlaces(shown));
+	}
+
+	/** Sends a picture as the pilot's own, as `picture.ts` makes it ready. Returns why not, in words. */
+	setPicture(bytes: Uint8Array, mediaType: string): Promise<string | undefined> {
+		return this.#changeAccount(() => this.#core.setPicture(bytes, mediaType));
+	}
+
+	/** Removes the pilot's picture. Returns why not, in words. */
+	removePicture(): Promise<string | undefined> {
+		return this.#changeAccount(() => this.#core.removePicture());
+	}
+
 	/** The core's question before every flight is made public or private; `flights` 0 when not known. */
 	allFlightsQuestion(flights: number, visibility: FlightVisibility): Promise<string> {
 		return this.#core.allFlightsQuestion(flights, visibility);

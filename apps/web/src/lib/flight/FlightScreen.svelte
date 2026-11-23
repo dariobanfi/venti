@@ -45,7 +45,7 @@
 		/** What can be done with the flight besides looking at it. */
 		actions: MenuItem[];
 		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
-		whose?: { name: string; href: string };
+		whose?: { name: string; href: string; picture?: string };
 		/**
 		 * The site it took off from, where one is known: its name, and the
 		 * site's identifier where the server named it.

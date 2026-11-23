@@ -57,6 +57,11 @@ export function myStatisticsHref(): string {
 	return resolve('/settings/account/flights/statistics');
 }
 
+/** "How you fly": what the pilot's flights on the account say about how they fly. */
+export function howYouFlyHref(): string {
+	return resolve('/settings/account/flights/statistics/how-you-fly');
+}
+
 export function settingsHref(): string {
 	return resolve('/settings');
 }

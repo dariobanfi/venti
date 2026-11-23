@@ -65,7 +65,7 @@ test('the REST API has every operation of the description, each with its paramet
 		.click();
 	await expect(page).toHaveTitle('REST API · Developers · Venti');
 	await expect(page.locator('[data-operation]')).toHaveCount(describedOperations());
-	await expect(page.getByRole('heading', { level: 2, name: 'Sites' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 2, name: 'Sites', exact: true })).toBeVisible();
 	await expect(page.getByText('flights:read', { exact: true }).first()).toBeVisible();
 	expect(await sideways(page)).toBe(false);
 	await keep('208-developers-api');
@@ -74,6 +74,8 @@ test('the REST API has every operation of the description, each with its paramet
 	const sites = page.locator('[data-operation="GET /v1/sites"]');
 	await sites.locator('summary').click();
 	await expect(sites.getByText('bbox', { exact: true })).toBeVisible();
+	// The description's examples: the server's own golden answers.
+	await expect(sites.locator('pre').first()).toContainText('"sites"');
 	await expect(sites.getByRole('link', { name: 'In words, in api.md' })).toHaveAttribute(
 		'href',
 		'https://github.com/dariobanfi/venti/blob/main/docs/api.md#get-v1sitesbboxwestsoutheastnorth'
@@ -96,7 +98,7 @@ test('the REST API has every operation of the description, each with its paramet
 	expect(problems).toEqual([]);
 });
 
-test('the connector lists its tools as the server offers them, with their arguments', async ({
+test('the connector lists its tools as the server describes them, with their arguments', async ({
 	page,
 	keep,
 	problems
@@ -113,24 +115,6 @@ test('the connector lists its tools as the server offers them, with their argume
 	expect(await sideways(page)).toBe(false);
 	await keep('211-developers-connector');
 	expect(problems).toEqual([]);
-});
-
-test('the connector says so when it cannot be asked, and asks again', async ({
-	page,
-	problems
-}) => {
-	// Made up: the connector refuses once, then answers as it does.
-	let refusals = 1;
-	await page.route('**/mcp', (route) =>
-		refusals-- > 0
-			? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
-			: route.fallback()
-	);
-	await page.goto('/developers/connector/');
-	await expect(page.getByRole('alert')).toContainText('could not be asked for its tools');
-	await page.getByRole('button', { name: 'Try again' }).click();
-	await expect(page.locator('[data-tool="sites_in_box"]')).toBeVisible();
-	expect(problems.filter((problem) => !/503/.test(problem))).toEqual([]);
 });
 
 test('data and licences: each source with its credit, and Venti’s own sites to download', async ({

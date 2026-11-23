@@ -12,6 +12,7 @@
 import type { Page } from '@playwright/test';
 import { asUpload, expect, metric, SAMPLE_FLIGHT, signUp, test } from './helpers';
 import { readFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 
 const DEMO = { handle: 'demo', password: 'demo-pilot-password' };
 
@@ -153,6 +154,8 @@ test('a new account brings a flight in, shares it with a link, and is deleted ag
 	await expect(open).not.toBeChecked();
 	await expect(open).toBeEnabled();
 	await page.getByRole('link', { name: 'My flights' }).click();
+	// The account's screen has a file input of its own, for the picture.
+	await expect(page).toHaveURL(/\/settings\/account\/flights\/$/);
 	await page
 		.locator('input[type=file]')
 		.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
@@ -468,5 +471,95 @@ test('who sees the pilot’s flights is the account’s, and a flight takes a gl
 	await expect(visibility.getByRole('status')).toHaveText(/private/);
 	await page.goto(`/logbook/everyone/pilot/?handle=${handle}`);
 	await expect(page.getByRole('main')).not.toContainText('Sample Wing');
+	expect(problems).toEqual([]);
+});
+
+/**
+ * A PNG of one colour, made here: as many pixels as a phone's photograph,
+ * so that the page draws it anew at most 1024 pixels long before sending.
+ */
+function photograph(width: number, height: number): Buffer {
+	const crcTable = Array.from({ length: 256 }, (_, n) => {
+		let c = n;
+		for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+		return c >>> 0;
+	});
+	const crc = (bytes: Buffer) => {
+		let c = 0xffffffff;
+		for (const byte of bytes) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+		return (c ^ 0xffffffff) >>> 0;
+	};
+	const chunk = (kind: string, data: Buffer) => {
+		const length = Buffer.alloc(4);
+		length.writeUInt32BE(data.length);
+		const body = Buffer.concat([Buffer.from(kind, 'ascii'), data]);
+		const sum = Buffer.alloc(4);
+		sum.writeUInt32BE(crc(body));
+		return Buffer.concat([length, body, sum]);
+	};
+	const header = Buffer.alloc(13);
+	header.writeUInt32BE(width, 0);
+	header.writeUInt32BE(height, 4);
+	header.set([8, 2, 0, 0, 0], 8);
+	const row = Buffer.alloc(1 + width * 3);
+	for (let x = 0; x < width; x++) row.set([230, 120, 90], 1 + x * 3);
+	const pixels = Buffer.concat(Array.from({ length: height }, () => row));
+	return Buffer.concat([
+		Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+		chunk('IHDR', header),
+		chunk('IDAT', deflateSync(pixels)),
+		chunk('IEND', Buffer.alloc(0))
+	]);
+}
+
+test('the pilot’s picture is the account’s, and whether they are among the pilots near a place', async ({
+	page,
+	keep,
+	problems
+}) => {
+	await signUp(page);
+	const account = page.getByRole('region', { name: 'Account' });
+	const picture = account.getByRole('group', { name: 'Picture' });
+	// Without a picture: the initials of "Test Pilot".
+	await expect(picture.locator('.face')).toHaveText('TP');
+	await expect(picture.getByRole('button', { name: 'Remove picture' })).toBeHidden();
+	await expect(account).toContainText('Everyone sees it, on your page and beside your flights.');
+
+	// A photograph from a phone is drawn smaller in the browser and sent.
+	const asked = page.waitForRequest(
+		(request) => request.method() === 'PUT' && request.url().endsWith('/v1/account/picture')
+	);
+	await picture
+		.locator('input[type=file]')
+		.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: photograph(2400, 1800) });
+	const sent = await asked;
+	expect(sent.postDataBuffer()!.length).toBeLessThan(2 * 1024 * 1024);
+	const image = picture.locator('img');
+	await expect(image).toHaveAttribute('src', /^\/v1\/pictures\/\w+$/);
+	await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(256);
+	await keep('112-account-picture');
+
+	// The server's: there after a reload.
+	await page.reload();
+	await expect(image).toHaveAttribute('src', /^\/v1\/pictures\/\w+$/);
+
+	// Shown among the pilots near a place until the pilot says otherwise.
+	const near = page.getByRole('switch', { name: 'Show me among pilots near a place' });
+	await expect(near).toBeChecked();
+	await expect(page.getByText('From your public flights only.')).toBeVisible();
+	await near.uncheck();
+	await expect(near).not.toBeChecked();
+	await expect(near).toBeEnabled();
+	await page.reload();
+	await expect(near).not.toBeChecked();
+	await near.check();
+	await expect(near).toBeChecked();
+
+	// Removed: the initials again.
+	await picture.getByRole('button', { name: 'Remove picture' }).click();
+	await expect(image).toBeHidden();
+	await expect(picture.locator('.face')).toHaveText('TP');
+	await page.reload();
+	await expect(picture.locator('.face')).toHaveText('TP');
 	expect(problems).toEqual([]);
 });

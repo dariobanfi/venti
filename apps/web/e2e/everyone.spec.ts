@@ -231,7 +231,8 @@ test('what another pilot wrote is shown as text, never as markup', async ({ cont
 	await expect(rows(page).first().getByRole('link').first()).toHaveText(written.slice(0, 39) + '…');
 	await expect(rows(page).first()).toContainText('<script>document.title = 2</script>');
 	// Nothing of them became an element, and nothing of them ran.
-	await expect(rows(page).locator('img, b, script')).toHaveCount(0);
+	// (A pilot's picture is an image of the server's, at its own address.)
+	await expect(rows(page).locator('img:not([src^="/v1/pictures/"]), b, script')).toHaveCount(0);
 	await expect(page).toHaveTitle('Everyone’s flights · Venti');
 });
 

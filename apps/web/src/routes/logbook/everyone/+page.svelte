@@ -13,6 +13,7 @@
 	words for a text too short to ask for.
 -->
 <script lang="ts">
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -245,7 +246,12 @@
 					{#if answered && search.found && search.found.pilots.length > 0}
 						<ul aria-label="Pilots found">
 							{#each search.found.pilots as pilot (pilot.handle)}
-								<li><a href={pilotHref(pilot.handle)}>{pilot.words}</a></li>
+								<li>
+									<a href={pilotHref(pilot.handle)}>
+										<PilotFace picture={pilot.picturePath} name={pilot.name} />
+										<span>{pilot.words}</span>
+									</a>
+								</li>
 							{/each}
 						</ul>
 					{/if}
@@ -495,6 +501,7 @@
 	.found a {
 		display: flex;
 		align-items: center;
+		gap: var(--space-2);
 		min-height: var(--target);
 		padding: var(--space-2) var(--space-3);
 		box-shadow: inset 0 0.5px 0 var(--separator);

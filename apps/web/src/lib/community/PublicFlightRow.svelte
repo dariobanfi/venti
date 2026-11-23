@@ -14,6 +14,7 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import TrackThumbnail from '#lib/logbook/TrackThumbnail.svelte';
 	import Flag from './Flag.svelte';
+	import PilotFace from './PilotFace.svelte';
 	import { detail, distance, gliderLine, shape } from './words';
 
 	interface Props {
@@ -39,6 +40,7 @@
 		<!-- The flight's link is stretched over the whole row. -->
 		{#if named}
 			<span class="named">
+				<PilotFace picture={flight.pilotPicture} name={flight.pilot} />
 				<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
 				<Flag code={flight.pilotCountry} />
 			</span>
@@ -128,8 +130,8 @@
 	/* The pilot's name with their country's flag after it. */
 	.named {
 		display: flex;
-		align-items: baseline;
-		gap: var(--space-1);
+		align-items: center;
+		gap: var(--space-2);
 		max-width: 100%;
 	}
 

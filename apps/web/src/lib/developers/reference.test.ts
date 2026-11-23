@@ -36,6 +36,21 @@ describe('the reference', () => {
 		for (const group of groups) expect(group.name).not.toBe('');
 	});
 
+	it('reads the groups in the order of the description’s tags', () => {
+		const tags = (document.tags as { name: string }[]).map((tag) => tag.name);
+		const names = groupsOf(description).map((group) => group.name);
+		expect(names).toEqual(tags.filter((tag) => names.includes(tag)));
+		expect(names.length).toBeGreaterThan(5);
+	});
+
+	it('shows the examples the description carries', () => {
+		const examples = groupsOf(description)
+			.flatMap((group) => group.operations)
+			.flatMap((operation) => operation.responses.flatMap((response) => response.bodies))
+			.flatMap((body) => body.examples);
+		expect(examples.length).toBeGreaterThan(10);
+	});
+
 	it('links every operation to the heading of api.md that says it in words', () => {
 		const anchors = new Set(
 			[...apiDocs.matchAll(/^#{2,4} (.+)$/gm)].map((found) =>

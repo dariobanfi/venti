@@ -7,6 +7,7 @@
 	What another pilot wrote, a name or a place, is set as text.
 -->
 <script lang="ts">
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { PublicFlight } from '#lib/core/index.ts';
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
@@ -67,7 +68,10 @@
 								{/if}
 								{distance(flight, text)}<small>km</small>
 							</a>
-							<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
+							<span class="named">
+								<PilotFace picture={flight.pilotPicture} name={flight.pilot} />
+								<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
+							</span>
 							<span class="where">
 								{flight.takeoffName ??
 									(flight.takeoff ? text.place(flight.takeoff.lat, flight.takeoff.lon) : '')}
@@ -172,6 +176,13 @@
 	}
 
 	/* Above the flight's link, which covers the card: a target of its own. */
+	.named {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+
 	.pilot {
 		position: relative;
 		z-index: 1;

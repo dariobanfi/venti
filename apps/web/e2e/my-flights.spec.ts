@@ -210,3 +210,51 @@ test('the statistics add up all the pilot’s flights, the private ones too', as
 	await expect(flights.locator('dd')).toHaveText('1');
 	expect(problems).toEqual([]);
 });
+
+test('how you fly is said from the flights on the account, each observation with the flight that shows it most', async ({
+	page,
+	keep,
+	problems
+}) => {
+	// One flight has two thermals: too few to say anything.
+	await addSampleFlight(page);
+	await page.goto('/settings/account/flights/statistics/');
+	await page.getByRole('link', { name: 'How you fly' }).click();
+	await expect(page).toHaveTitle('How you fly · Venti');
+	await expect(page.getByRole('heading', { level: 1, name: 'How you fly' })).toBeVisible();
+	await expect(
+		page.getByText(
+			'Nothing to say yet. The observations begin once the logbook holds ten thermals.'
+		)
+	).toBeVisible();
+	// What the observations are and are not, under them in any case.
+	await expect(page.getByText(/not a judgement of you or of what is safe/)).toBeVisible();
+	await keep('09b-how-you-fly-empty');
+
+	// Five more copies on other days of July: ten thermals and more.
+	await page.goto('/settings/account/flights/');
+	await page
+		.locator('input[type=file]')
+		.setInputFiles(
+			[1, 2, 3, 5, 6].map((day) => asUpload(`2026-07-0${day}.igc`, sampleFlightOn(day)))
+		);
+	await expect(page.getByRole('heading', { name: 'Mon, 6 Jul 2026' })).toBeVisible();
+	// The logbook's old address leads here.
+	await page.goto('/logbook/statistics/how-you-fly/');
+	await expect(page).toHaveURL(/\/settings\/account\/flights\/statistics\/how-you-fly\/$/);
+	const climbing = page.getByRole('group', { name: 'Climbing' });
+	await expect(climbing).toContainText(/m\/s on average over \d+ m gained in thermals/);
+	await expect(page.getByRole('group', { name: 'Which way you circle' })).toContainText(
+		/thermals circled one way/
+	);
+	// Never a word of praise or of what is safe.
+	await expect(page.getByRole('main').getByText(/\bshould\b|\bgood\b|\bsafe to\b/i)).toHaveCount(0);
+	await keep('09c-how-you-fly');
+
+	// The flight that shows it most opens that flight among the pilot's own.
+	const flight = climbing.getByRole('link', { name: /The flight that shows it most/ });
+	await expect(flight).toContainText(/\w{3}, \d+ Jul 2026/);
+	await flight.click();
+	await expect(page).toHaveURL(/\/settings\/account\/flights\/flight\/\?id=/);
+	expect(problems).toEqual([]);
+});

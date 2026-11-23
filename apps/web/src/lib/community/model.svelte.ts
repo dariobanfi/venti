@@ -18,6 +18,7 @@ import type {
 	CoreClient,
 	OpenedFlight,
 	PilotStatistics,
+	PilotsNear,
 	PilotsWords,
 	PublicFlight,
 	PublicFlightsOrder,
@@ -230,6 +231,15 @@ export class CommunityModel {
 	 */
 	findPilots(typed: string): void {
 		this.#search.look(typed);
+	}
+
+	/**
+	 * The pilots whose public flights took off near a place, as the core's
+	 * lines. Nothing if this site has no server; throws the core's words
+	 * when the server refuses.
+	 */
+	pilotsNear(place: Coordinate): Promise<PilotsNear | undefined> {
+		return this.#core.pilotsNear(place);
 	}
 
 	/**

@@ -6,11 +6,18 @@
 
 	It belongs to My flights and is drawn whole-width as it is, out of the
 	settings' frame. A row about one flight opens it among the pilot's own.
+	At its foot, "How you fly" (`how-you-fly/`).
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { accountHref, myFlightHref, myFlightsHref, pilotHref } from '#lib/app/routes.ts';
+	import {
+		accountHref,
+		howYouFlyHref,
+		myFlightHref,
+		myFlightsHref,
+		pilotHref
+	} from '#lib/app/routes.ts';
 	import PilotTotals from '#lib/community/PilotTotals.svelte';
 	import type { PilotStatistics } from '#lib/core/index.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -82,6 +89,11 @@
 	{#if phase.is === 'loaded'}
 		<p class="said">All your flights, the private ones too.</p>
 		<PilotTotals statistics={phase.statistics} flightHref={myFlightHref} whole shared={false} />
+		<!-- What the flights say about how the pilot flies, on a page of its own. -->
+		<a class="group-card group-row how" href={howYouFlyHref()}>
+			<span>How you fly</span>
+			<span class="chevron"><Icon name="forward" /></span>
+		</a>
 	{:else if phase.is === 'signedOut'}
 		<div class="unavailable">
 			<span class="symbol"><Icon name="person" /></span>
@@ -111,6 +123,22 @@
 		margin-bottom: var(--space-3);
 		font-size: var(--subheadline);
 		color: var(--text-secondary);
+	}
+
+	.how {
+		margin-top: var(--space-5);
+		color: var(--text);
+	}
+
+	.chevron {
+		color: var(--icon-quiet);
+		font-size: 0.75rem;
+	}
+
+	@media (hover: hover) {
+		.how:hover {
+			background: var(--fill);
+		}
 	}
 
 	.unavailable {

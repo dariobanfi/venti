@@ -1,16 +1,16 @@
 <!--
-	An old address of the logbook's statistics. The website keeps no logbook of its own (owner
-	decision 20): the pilot's flights are on the account, at My flights.
+	An old address of "How you fly". The website keeps no logbook of its own (owner decision 20):
+	the pilot's flights and what they say are on the account, under My flights' statistics.
 	Others link here, so the address leads on.
 -->
 <script lang="ts">
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
-	import { myFlightsHref } from '#lib/app/routes.ts';
+	import { howYouFlyHref } from '#lib/app/routes.ts';
 
-	if (browser) void goto(myFlightsHref(), { replaceState: true });
+	if (browser) void goto(howYouFlyHref(), { replaceState: true });
 </script>
 
 <svelte:head>
-	<title>My flights · Venti</title>
+	<title>How you fly · Venti</title>
 </svelte:head>

@@ -6,7 +6,8 @@
 	the pilots they follow, each a card with the track's shape and the
 	airtime and distance large; finding a pilot by name; and what the
 	pilot was told. A wide screen has the plans across the page and the
-	feed beside the search and the notifications.
+	feed beside the search and the notifications. Under it, for everyone,
+	the pilots who fly near the pilot (`PilotsNear.svelte`).
 
 	Signed out, only finding a pilot is there, with a sign-in for the rest.
 	Every part asks for itself: the board as the plans' pages always have
@@ -18,6 +19,8 @@
 	itself leads here.
 -->
 <script lang="ts">
+	import PilotFace from '#lib/community/PilotFace.svelte';
+	import PilotsNear from '#lib/community/PilotsNear.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import {
 		accountHref,
@@ -236,7 +239,7 @@
 									{#each search.found.pilots as pilot (pilot.handle)}
 										<li>
 											<a class="group-row" href={pilotHref(pilot.handle)}>
-												<span class="sign"><Icon name="person" /></span>
+												<PilotFace picture={pilot.picturePath} name={pilot.name} />
 												<span class="line">{pilot.words}</span>
 												<span class="chevron"><Icon name="forward" /></span>
 											</a>
@@ -289,6 +292,12 @@
 					</section>
 				{/if}
 			</div>
+
+			<!-- The pilots who fly near the pilot, for everyone. -->
+			<section class="part span-12" aria-labelledby="{id}-near">
+				<header><h2 id="{id}-near">{app.said?.picture.nearTitle ?? 'Pilots near'}</h2></header>
+				<PilotsNear labelledby="{id}-near" />
+			</section>
 		</div>
 	{/if}
 </div>
@@ -410,12 +419,6 @@
 	.group-row {
 		align-items: center;
 		gap: var(--space-3);
-	}
-
-	.sign {
-		flex: none;
-		display: inline-flex;
-		color: var(--icon-quiet);
 	}
 
 	.line {

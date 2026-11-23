@@ -33,11 +33,14 @@ import {
 	type OwnFlights,
 	ownFlights,
 	ownFlightsRequest,
+	ownHabitsRequest,
 	ownStatisticsRequest,
+	ownTendencies,
 	pilotStatistics,
 	type PilotStatistics,
 	publicFlight,
 	type ServerRequest,
+	type Tendencies,
 	uploadedFlight,
 	type UploadedFlight,
 	uploadRequest
@@ -169,6 +172,17 @@ export class OwnFlightsSource {
 	async statistics(): Promise<PilotStatistics | undefined> {
 		const answer = await this.#ask(ownStatisticsRequest());
 		return answer && pilotStatistics(answer.status, answer.body);
+	}
+
+	/**
+	 * What the account's flights, the private ones too, say about how the
+	 * pilot flies: the core's observations ("How you fly") over the figures
+	 * the server keeps of each flight. Nothing when this browser is not
+	 * signed in.
+	 */
+	async tendencies(): Promise<Tendencies | undefined> {
+		const answer = await this.#ask(ownHabitsRequest());
+		return answer && ownTendencies(answer.status, answer.body);
 	}
 
 	/** A change to one flight, read as the flight now is. */

@@ -31,6 +31,7 @@
 	import { type Sort, sortBy, sorted } from '#lib/design/sort.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import Flag from './Flag.svelte';
+	import PilotFace from './PilotFace.svelte';
 	import { distance, gliderLine, kindOf, shape } from './words';
 
 	interface Props {
@@ -106,6 +107,7 @@
 			<tr onclick={(event) => open(event, flight)}>
 				{#if named}
 					<td class="words">
+						<PilotFace picture={flight.pilotPicture} name={flight.pilot} />
 						<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
 						<Flag code={flight.pilotCountry} />
 					</td>
@@ -189,6 +191,14 @@
 		max-width: 14rem;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	/* The pilot's face before the name, as small as the row. */
+	.words :global(.face) {
+		width: 1.5rem;
+		height: 1.5rem;
+		margin-right: var(--space-2);
+		vertical-align: middle;
 	}
 
 	.number {

@@ -18,11 +18,13 @@
 	import { alertsHref, myFlightsHref, notificationsHref, programsHref } from '#lib/app/routes.ts';
 	import { countries } from '#lib/community/country.ts';
 	import Flag from '#lib/community/Flag.svelte';
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import type { AccountView, FlightVisibility, GliderClassKind } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Dialog from '#lib/design/Dialog.svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import { goToGoogle } from './google';
+	import { PICTURE_KINDS, pictureToSend } from './picture';
 	import GoogleButton from './GoogleButton.svelte';
 	import type { AccountModel } from './model.svelte';
 
@@ -67,6 +69,36 @@
 		profileRefusal = await account.setGliderClass(
 			(kind || undefined) as GliderClassKind | undefined
 		);
+	}
+
+	/** The core's words of the pilot's picture and of the pilots near a place. */
+	const pictureWords = $derived(app.said?.picture);
+	/** Why the picture did not change, or the switch of the pilots near did not, in words. */
+	let pictureRefusal = $state.raw<string>();
+	let shownNearRefusal = $state.raw<string>();
+	/** While a chosen picture is made ready and sent. */
+	let sendingPicture = $state(false);
+	let picker = $state<HTMLInputElement>();
+
+	async function choosePicture(input: HTMLInputElement) {
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		sendingPicture = true;
+		try {
+			const { bytes, mediaType } = await pictureToSend(file);
+			pictureRefusal = await account.setPicture(bytes, mediaType);
+		} finally {
+			sendingPicture = false;
+		}
+	}
+
+	async function removePicture() {
+		pictureRefusal = await account.removePicture();
+	}
+
+	async function switchShownNear(shown: boolean) {
+		shownNearRefusal = await account.setShownNearPlaces(shown);
 	}
 
 	/** The core's words of who sees the pilot's flights. */
@@ -139,20 +171,63 @@
 </script>
 
 <section class="group" aria-label="Account">
-	<dl class="group-card">
-		<div class="group-row">
-			<dt>Handle</dt>
-			<dd>@{signedIn.handle}</dd>
+	<div class="group-card">
+		<!-- The pilot's picture: public, beside their name wherever it stands. -->
+		<div class="group-row picture" aria-label="Picture" role="group">
+			<PilotFace picture={signedIn.picturePath} name={signedIn.displayName} size="l" />
+			{#if pictureWords}
+				<span class="picture-actions">
+					<button
+						class="action"
+						type="button"
+						disabled={account.working || sendingPicture || signedIn.needsSignIn}
+						onclick={() => picker?.click()}
+					>
+						{sendingPicture ? 'Sending…' : pictureWords.change}
+					</button>
+					{#if signedIn.picturePath}
+						<button
+							class="action destructive"
+							type="button"
+							disabled={account.working || sendingPicture || signedIn.needsSignIn}
+							onclick={removePicture}
+						>
+							{pictureWords.remove}
+						</button>
+					{/if}
+				</span>
+				<input
+					class="visually-hidden"
+					type="file"
+					accept={PICTURE_KINDS}
+					tabindex="-1"
+					aria-label={pictureWords.change}
+					bind:this={picker}
+					onchange={(event) => choosePicture(event.currentTarget)}
+				/>
+			{/if}
 		</div>
-		<div class="group-row">
-			<dt>Name</dt>
-			<dd>{signedIn.displayName}</dd>
-		</div>
-		<div class="group-row">
-			<dt>Address</dt>
-			<dd>{host}</dd>
-		</div>
-	</dl>
+		<dl>
+			<div class="group-row">
+				<dt>Handle</dt>
+				<dd>@{signedIn.handle}</dd>
+			</div>
+			<div class="group-row">
+				<dt>Name</dt>
+				<dd>{signedIn.displayName}</dd>
+			</div>
+			<div class="group-row">
+				<dt>Address</dt>
+				<dd>{host}</dd>
+			</div>
+		</dl>
+	</div>
+	{#if pictureWords}
+		<p class="group-note">{pictureWords.publicLine}</p>
+	{/if}
+	{#if pictureRefusal}
+		<p class="group-note refusal" role="alert">{pictureRefusal}</p>
+	{/if}
 </section>
 
 <!-- What is shown with the pilot's name and flights, and what new flights take. -->
@@ -217,6 +292,23 @@
 					onchange={(event) => switchNewFlights(event.currentTarget.checked)}
 				/>
 			</label>
+			{#if pictureWords}
+				<label class="group-row toggle">
+					<span class="lines">
+						<span>{pictureWords.shownNearPlaces}</span>
+						<span class="line" id="account-shown-near-line">{pictureWords.shownNearPlacesLine}</span
+						>
+					</span>
+					<input
+						type="checkbox"
+						role="switch"
+						aria-describedby="account-shown-near-line"
+						checked={signedIn.shownNearPlaces ?? true}
+						disabled={account.working || signedIn.needsSignIn}
+						onchange={(event) => switchShownNear(event.currentTarget.checked)}
+					/>
+				</label>
+			{/if}
 			<button
 				class="group-row action"
 				type="button"
@@ -234,6 +326,9 @@
 				{visibilityWords.makeAllPrivate}
 			</button>
 		</div>
+		{#if shownNearRefusal}
+			<p class="group-note refusal" role="alert">{shownNearRefusal}</p>
+		{/if}
 		{#if visibilityRefusal}
 			<p class="group-note refusal" role="alert">{visibilityRefusal}</p>
 		{:else if account.allFlights}
@@ -510,6 +605,26 @@
 
 	.action {
 		color: var(--link);
+	}
+
+	/* The picture with what can be done to it beside it. */
+	.picture {
+		justify-content: flex-start;
+		align-items: center;
+		gap: var(--space-4);
+		padding-block: var(--space-3);
+	}
+
+	.picture-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1) var(--space-4);
+		min-width: 0;
+	}
+
+	.picture-actions button {
+		min-height: var(--target);
+		font: inherit;
 	}
 
 	.google-email {

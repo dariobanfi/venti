@@ -35,8 +35,10 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	await expect(legs).toHaveCount(1);
 	await expect(words).toContainText('A third place inside a dashed area makes an FAI triangle');
 	// A phone's card at the foot is tall by now, with the weather along
-	// the route under the legs, and reaches up to about the map's middle.
-	await at(0.55, 0.32);
+	// the route under the legs, and reaches up to a third of the map from
+	// its top: the third place goes above the first two there, under the
+	// chips of what the map shows.
+	await at(0.55, wide ? 0.32 : 0.12);
 	await expect(legs).toHaveCount(2);
 	await expect(words).toContainText('km along the route. Flown like this it scores as');
 	await expect(card.getByRole('heading', { level: 3 })).toBeVisible();

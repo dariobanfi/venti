@@ -1,32 +1,20 @@
 <!--
 	The connector (MCP): its address, how an assistant signs in to read a
 	pilot's own logbook, and its tools as the server the site is served by
-	lists them, each with what it is for and its arguments.
+	lists them (`docs/mcp-tools.json`, read at build time), each with what
+	it is for and its arguments.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { CONNECTOR_PATH, listTools, type Tool } from '#lib/developers/connector.ts';
+	import { CONNECTOR_PATH, tools } from '#lib/developers/connector.ts';
 	import { apiDocsHref } from '#lib/developers/reference.ts';
 	import SchemaView from '#lib/developers/SchemaView.svelte';
 	import { SOURCE_CODE } from '#lib/app/routes.ts';
 
 	let origin = $state('');
-	let tools = $state<Tool[] | undefined>();
-	let failed = $state('');
-
-	async function load(): Promise<void> {
-		failed = '';
-		tools = undefined;
-		try {
-			tools = await listTools();
-		} catch (error) {
-			failed = error instanceof Error ? error.message : String(error);
-		}
-	}
 
 	onMount(() => {
 		origin = location.origin;
-		void load();
 	});
 
 	const MCP_DOCS = `${SOURCE_CODE}/blob/main/docs/mcp.md`;
@@ -67,15 +55,7 @@
 
 <section class="tools" aria-labelledby="mcp-tools">
 	<h2 id="mcp-tools">Tools</h2>
-	{#if failed}
-		<div class="problem" role="alert">
-			<p>The connector could not be asked for its tools.</p>
-			<p class="quiet">{failed}</p>
-			<button class="button-plain" type="button" onclick={load}>Try again</button>
-		</div>
-	{:else if !tools}
-		<p class="quiet" role="status">Loading…</p>
-	{:else if tools.length === 0}
+	{#if tools.length === 0}
 		<p class="quiet">This server offers no tools.</p>
 	{:else}
 		<ul>
@@ -160,12 +140,5 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
-	}
-
-	.problem {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: var(--space-2);
 	}
 </style>

@@ -139,7 +139,10 @@ import type {
 	TodayWords,
 	GliderWords,
 	AllFlightsSet,
-	FlightVisibilityWords
+	FlightVisibilityWords,
+	PictureWords,
+	PilotsNear,
+	Tendencies
 } from './pkg/venti_core_wasm.js';
 import {
 	allFlightsQuestion,
@@ -149,6 +152,7 @@ import {
 	gliderWords,
 	leagueHandoverFromFile,
 	pagesWords,
+	pictureWords,
 	pilotsAlarmNumbers,
 	pilotsWords,
 	plannerWords,
@@ -212,6 +216,8 @@ export interface Calls {
 	};
 	/** What all the pilot's flights add up to, the private ones too; nothing signed out. */
 	ownStatistics: { given: undefined; answer: PilotStatistics | undefined };
+	/** What the pilot's flights on the server say about how they fly; nothing signed out. */
+	ownTendencies: { given: undefined; answer: Tendencies | undefined };
 	/**
 	 * One of the pilot's flights checked against the airspace the app has,
 	 * given its file's text. Throws while any of that airspace is still to
@@ -381,6 +387,11 @@ export interface Calls {
 	/** What a pilot's public flights add up to, by handle. Nothing if this site has no server. */
 	pilotStatistics: { given: string; answer: PilotStatistics | undefined };
 	/**
+	 * The pilots whose public flights took off near a place, as the core's
+	 * lines. Nothing if this site has no server.
+	 */
+	pilotsNear: { given: Coordinate; answer: PilotsNear | undefined };
+	/**
 	 * The flying site at a place: the one of that identifier, or the
 	 * nearest take-off. Nothing if this site has no server.
 	 */
@@ -532,6 +543,12 @@ export interface Calls {
 	setGliderClass: { given: GliderClassKind | undefined; answer: AccountView | undefined };
 	/** Whether flights sent from now on are public from the start: the account as the server then has it. */
 	setNewFlightsPublic: { given: boolean; answer: AccountView | undefined };
+	/** Whether the pilot is among the pilots near a place: the account as the server then has it. */
+	setShownNearPlaces: { given: boolean; answer: AccountView | undefined };
+	/** Given a picture's bytes and media type: the pilot's picture, in place of the one before. */
+	setPicture: { given: { bytes: Uint8Array; mediaType: string }; answer: AccountView | undefined };
+	/** Removes the pilot's picture. */
+	removePicture: { given: undefined; answer: AccountView | undefined };
 	/** Makes every flight of the account public, or every one private: how they stand then. */
 	setAllFlights: { given: FlightVisibility; answer: AllFlightsSet };
 	/** The core's question before every flight is made public or private, for so many flights (0: not known). */
@@ -733,6 +750,8 @@ export interface ScreenWords {
 	today: TodayWords;
 	/** The glider's words: "Glider class" among them. */
 	glider: GliderWords;
+	/** The words of a pilot's picture and of the pilots near a place. */
+	picture: PictureWords;
 	/** The glider classes as the core names them, "None" first: for menus and rows. */
 	gliderClasses: { kind: GliderClassKind | undefined; name: string }[];
 	/** Who sees the pilot's flights: the switch for new ones and the change of all at once. */
@@ -822,6 +841,7 @@ export async function answer<Name extends CallName>(
 		deleteOwnFlight: (id) => own.delete(id),
 		setFlightGliderClass: ({ id, gliderClass }) => own.setGliderClass(id, gliderClass),
 		ownStatistics: () => own.statistics(),
+		ownTendencies: () => own.tendencies(),
 		ownFlightAirspace: (text) => session.ask((core) => core.flightAirspaceFromFile(text)),
 		// Judged by the server's clock, never the browser's.
 		leagueHandover: async (text) => leagueHandoverFromFile(text, await wind.serverNow()),
@@ -878,6 +898,7 @@ export async function answer<Name extends CallName>(
 		ranking: ({ season, near, month }) => community.ranking(season, near, undefined, month),
 		pilotsFound: (text) => community.pilots(text),
 		pilotStatistics: (handle) => community.statistics(handle),
+		pilotsNear: (place) => community.pilotsNear(place),
 		siteAt: ({ place, id }) => sites.siteAt(place, id),
 		openPublicFlight: (id) => community.open(id),
 		todayTakeoffs: (place) => today.takeoffs(place),
@@ -928,6 +949,9 @@ export async function answer<Name extends CallName>(
 		setCountry: (country) => account.setCountry(country),
 		setGliderClass: (gliderClass) => account.setGliderClass(gliderClass),
 		setNewFlightsPublic: (open) => account.setNewFlightsPublic(open),
+		setShownNearPlaces: (shown) => account.setShownNearPlaces(shown),
+		setPicture: ({ bytes, mediaType }) => account.setPicture(bytes, mediaType),
+		removePicture: () => account.removePicture(),
 		setAllFlights: (visibility) => account.setAllFlights(visibility),
 		allFlightsQuestion: ({ flights, visibility }) => allFlightsQuestion(flights, visibility),
 		signIn: ({ handle, password }) => account.signIn(handle, password),
@@ -982,7 +1006,8 @@ export async function answer<Name extends CallName>(
 				kind,
 				name: gliderClassName(kind)
 			})),
-			flightVisibility: flightVisibilityWords()
+			flightVisibility: flightVisibilityWords(),
+			picture: pictureWords()
 		}),
 		alertPoints: () => alerts.points(),
 		alertFormWords: () => alerts.formWords(),

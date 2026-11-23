@@ -29,6 +29,7 @@ function flight(given: Partial<PublicFlight> = {}): PublicFlight {
 		takeoffSiteId: undefined,
 		takeoffCountry: undefined,
 		pilotCountry: undefined,
+		pilotPicture: undefined,
 		gliderClass: undefined,
 		trackLengthM: 21_340,
 		maxAltitudeM: 2117,

@@ -18,8 +18,7 @@ const base = (process.env.VENTI_BASE_PATH ?? '') as '' | `/${string}`;
 // `cargo run -p venti-server -- dev`.
 const server = process.env.VENTI_DEV_SERVER ?? 'http://127.0.0.1:8080';
 // With the slash: "/f" alone would also take "/favicon.svg" away from the app.
-// The connector (`/mcp`) too, which the developers' page asks for its tools.
-const api = { '/v1/': server, '/f/': server, '/live/': server, '/mcp': server };
+const api = { '/v1/': server, '/f/': server, '/live/': server };
 
 /** What SvelteKit's `csp` setting takes as a policy. */
 type Directives = NonNullable<

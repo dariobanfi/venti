@@ -16,6 +16,7 @@ import {
 	type GliderClassKind,
 	type LeagueHandover,
 	type PilotStatistics,
+	type Tendencies,
 	isCoreError,
 	isInWords,
 	type OpenedOwnFlight,
@@ -149,6 +150,13 @@ export class MyFlightsModel {
 		const statistics = await this.#core.ownStatistics();
 		if (!statistics) throw new Error(SIGN_IN);
 		return statistics;
+	}
+
+	/** What the pilot's flights on the account say about how they fly ("How you fly"). */
+	async tendencies(): Promise<Tendencies> {
+		const tendencies = await this.#core.ownTendencies();
+		if (!tendencies) throw new Error(SIGN_IN);
+		return tendencies;
 	}
 
 	/** One of the pilot's flights checked against the airspace the app has, from its file's text. */

@@ -180,7 +180,11 @@
 			wide={wide.current}
 			back={{ href: back, label: 'Everyone' }}
 			actions={actions(opened)}
-			whose={{ name: opened.row.pilot, href: pilotHref(opened.row.handle) }}
+			whose={{
+				name: opened.row.pilot,
+				href: pilotHref(opened.row.handle),
+				picture: opened.row.pilotPicture
+			}}
 			takeoffSite={opened.row.takeoffName
 				? { name: opened.row.takeoffName, id: opened.row.takeoffSiteId }
 				: undefined}

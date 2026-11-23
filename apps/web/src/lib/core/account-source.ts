@@ -244,6 +244,25 @@ export class AccountSource {
 		return this.#changeSetting((core) => core.newFlightsPublicRequest(open));
 	}
 
+	/** Whether the pilot is among the pilots near a place, made of their public flights. */
+	setShownNearPlaces(shown: boolean): Promise<AccountView | undefined> {
+		return this.#changeSetting((core) => core.shownNearPlacesRequest(shown));
+	}
+
+	/**
+	 * Sends a picture as the pilot's own, its bytes as they are: the server
+	 * keeps a square of its own made from it. Refused in the core's words
+	 * before anything is sent for a kind or a size the server would refuse.
+	 */
+	setPicture(bytes: Uint8Array, mediaType: string): Promise<AccountView | undefined> {
+		return this.#changeSetting((core) => core.pictureRequest(bytes, mediaType));
+	}
+
+	/** Removes the pilot's picture. */
+	removePicture(): Promise<AccountView | undefined> {
+		return this.#changeSetting((core) => core.pictureRemovalRequest());
+	}
+
 	/**
 	 * Makes every flight of the account public, or every one private, after
 	 * the pilot answered the core's question (`allFlightsQuestion`). How they

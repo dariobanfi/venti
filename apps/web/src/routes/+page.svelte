@@ -16,6 +16,7 @@
 	What another pilot wrote, a name or a place, is set as text.
 -->
 <script lang="ts">
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
@@ -365,7 +366,10 @@
 									{@const triangle = shape(flight)}
 									<tr>
 										<th scope="row" class="name">
-											<a href={pilotHref(flight.handle)}>{flight.pilot}</a>
+											<span class="named">
+												<PilotFace picture={flight.pilotPicture} name={flight.pilot} />
+												<a href={pilotHref(flight.handle)}>{flight.pilot}</a>
+											</span>
 										</th>
 										<td class="words">
 											{#if flight.takeoff}
@@ -445,7 +449,10 @@
 									{@const triangle = shape(flight)}
 									<tr>
 										<th scope="row" class="name">
-											<a href={pilotHref(flight.handle)}>{flight.pilot}</a>
+											<span class="named">
+												<PilotFace picture={flight.pilotPicture} name={flight.pilot} />
+												<a href={pilotHref(flight.handle)}>{flight.pilot}</a>
+											</span>
 										</th>
 										<td class="words">
 											{#if flight.takeoff}
@@ -621,6 +628,14 @@
 		max-width: 12rem;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	/* The pilot's face before the name, as small as the row. */
+	.rows .named :global(.face) {
+		width: 1.5rem;
+		height: 1.5rem;
+		margin-right: var(--space-2);
+		vertical-align: middle;
 	}
 
 	.rows .words {

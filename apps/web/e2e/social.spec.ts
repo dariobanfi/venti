@@ -92,6 +92,11 @@ test('the demo pilot sees whom they follow, their feed and what they were told',
 	await expect(cards.first()).toBeVisible();
 	await expect(cards.first().locator('svg polyline')).toHaveCount(1);
 	await expect(cards.filter({ hasText: 'Mara Muster' }).first()).toContainText(/\d+:\d\dh/);
+	// Mara has a picture, beside her name on her cards.
+	await expect(cards.filter({ hasText: 'Mara Muster' }).first().locator('img')).toHaveAttribute(
+		'src',
+		/^\/v1\/pictures\//
+	);
 	await expect(page.getByRole('searchbox', { name: 'Find a pilot' })).toBeVisible();
 	const newest = page.getByRole('region', { name: 'Notifications' });
 	await expect(newest.getByRole('list', { name: 'Notifications' })).toContainText(

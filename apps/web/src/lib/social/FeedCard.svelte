@@ -8,6 +8,7 @@
 <script lang="ts">
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import Flag from '#lib/community/Flag.svelte';
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import { distance, shape } from '#lib/community/words.ts';
 	import type { FeedRow } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
@@ -29,6 +30,7 @@
 <li class="flight">
 	<span class="thumb"><TrackThumbnail outline={flight.outline} large /></span>
 	<span class="pilot-line">
+		<PilotFace picture={flight.pilotPicture} name={flight.pilot} />
 		<a class="pilot" href={pilotHref(flight.handle)}>{flight.pilot}</a>
 		<Flag code={flight.pilotCountry} />
 	</span>
@@ -88,8 +90,8 @@
 	.pilot-line {
 		grid-area: pilot;
 		display: flex;
-		align-items: baseline;
-		gap: var(--space-1);
+		align-items: center;
+		gap: var(--space-2);
 		min-width: 0;
 	}
 

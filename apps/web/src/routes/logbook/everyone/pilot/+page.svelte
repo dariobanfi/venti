@@ -17,7 +17,8 @@
 	import { format } from '#lib/design/format.ts';
 	import { NOT_LISTED, queryOf } from '#lib/community/pages.ts';
 	import PublicFlightList from '#lib/community/PublicFlightList.svelte';
-	import { reportedPilot } from '#lib/community/report.ts';
+	import { reportedPicture, reportedPilot } from '#lib/community/report.ts';
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import { nothingListed, PILOTS_RECKONING } from '#lib/community/words.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -37,8 +38,11 @@
 
 	/** The pilot's name as the server has it. What another pilot wrote is shown as text. */
 	const name = $derived(pilot?.name ?? (handle ? `@${handle}` : 'Pilot'));
-	/** Whether the form that reports the pilot's page is open. */
-	let reporting = $state(false);
+	/** The pilot's picture, from their totals or else from one of their flights. */
+	const picture = $derived(pilot?.statistics?.picturePath ?? list.flights[0]?.pilotPicture);
+	/** Which form of report is open: about the pilot's page, or their picture. */
+	let reporting = $state<'pilot' | 'picture'>();
+	const pictureReport = $derived(app.said?.picture.report ?? 'Report picture');
 
 	// The pilot's place in the newest season, for the head.
 	$effect(() => everyone?.showRanking(''));
@@ -61,10 +65,17 @@
 	</a>
 	<header>
 		<div class="who">
-			<h1>{name}</h1>
-			{#if pilot?.name && handle}
-				<p>@{handle}</p>
-			{/if}
+			<div class="named">
+				{#if pilot?.name}
+					<PilotFace {picture} name={pilot.name} size="l" />
+				{/if}
+				<div class="names">
+					<h1>{name}</h1>
+					{#if pilot?.name && handle}
+						<p>@{handle}</p>
+					{/if}
+				</div>
+			</div>
 			<!-- Who follows this pilot, and for a signed-in pilot the button. -->
 			{#if pilot?.name && handle}
 				<FollowBar {handle} />
@@ -132,14 +143,24 @@
 		<!-- A page the server has can be reported to whoever runs the server. -->
 		{#if pilot?.name && handle}
 			<div class="report">
-				<button class="button-plain" type="button" onclick={() => (reporting = true)}>
+				<button class="button-plain" type="button" onclick={() => (reporting = 'pilot')}>
 					Report this pilot
 				</button>
+				{#if picture}
+					<button class="button-plain" type="button" onclick={() => (reporting = 'picture')}>
+						{pictureReport}
+					</button>
+				{/if}
 			</div>
 			<ReportSheet
-				open={reporting}
+				open={reporting === 'pilot'}
 				{...reportedPilot(handle)}
-				onclose={() => (reporting = false)}
+				onclose={() => (reporting = undefined)}
+			/>
+			<ReportSheet
+				open={reporting === 'picture'}
+				{...reportedPicture(handle, pictureReport)}
+				onclose={() => (reporting = undefined)}
 			/>
 		{/if}
 	{/if}
@@ -167,6 +188,18 @@
 
 	header {
 		margin-bottom: 1rem;
+	}
+
+	/* The pilot's face beside the name and handle. */
+	.named {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		min-width: 0;
+	}
+
+	.names {
+		min-width: 0;
 	}
 
 	h1 {
@@ -204,6 +237,9 @@
 	}
 
 	.report {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
 		margin-top: 1rem;
 		padding: 0 0.25rem;
 	}

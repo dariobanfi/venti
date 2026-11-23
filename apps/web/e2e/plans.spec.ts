@@ -144,7 +144,7 @@ test('signed out, Community finds a pilot and asks to sign in for the rest', asy
 	const find = page.getByRole('region', { name: 'Find a pilot' });
 	await find.getByRole('searchbox', { name: 'Find a pilot' }).fill('le');
 	const found = find.getByRole('list', { name: 'Pilots found' }).getByRole('link');
-	await expect(found.first()).toHaveText('Lena Probe (@lena), 3 public flights');
+	await expect(found.first()).toHaveAccessibleName('Lena Probe (@lena), 3 public flights');
 	await keep('74-plans-signed-out');
 	await found.first().click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Lena Probe' })).toBeVisible();
@@ -528,7 +528,8 @@ test('the board is asked for from the day on the pilot’s own clock, not UTC’
 	await savePlan(page, 'New plan', { where: place, note: '<b>Bring a torch.</b>' });
 	const posted = plansOf(page, 'Today').filter({ hasText: place });
 	await expect(posted).toBeVisible();
-	await expect(page.getByRole('main').locator('img')).toHaveCount(0);
+	// (Pilots' pictures, among the pilots near, are images of the server's.)
+	await expect(page.getByRole('main').locator('img:not([src^="/v1/pictures/"])')).toHaveCount(0);
 	await posted.getByRole('link').click();
 	await expect(metric(page, 'Where')).toHaveText(place);
 	await expect(page.getByText('<b>Bring a torch.</b>')).toBeVisible();

@@ -3,7 +3,8 @@
  * description, `docs/openapi.json`, which a test of the server holds equal
  * to what `GET /v1/openapi.json` hands out. Nothing of it is written here:
  * this file only puts the operations in groups and in order, and says what
- * a schema is in a few words.
+ * a schema is in a few words. The groups and their order are the
+ * description's own `tags`.
  */
 
 import source from '../../../../../docs/openapi.json?raw';
@@ -63,6 +64,8 @@ interface RawOperation {
 
 export interface Description {
 	openapi: string;
+	/** The groups of operations, in the order the reference reads them. */
+	tags?: { name: string; description?: string }[];
 	info: { title: string; summary?: string; description?: string; version: string };
 	paths: Record<string, Record<string, RawOperation>>;
 	components: {
@@ -113,23 +116,6 @@ export interface Group {
 
 const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
 
-/**
- * The groups the reference is read in, by the first part of a path after
- * `/v1/`, while the description names no tags. A path of a part not named
- * here gets a group of its own name; an operation with tags is put under
- * its first tag.
- */
-const GROUPS: [string, string[]][] = [
-	['The server', ['health', 'openapi.json']],
-	['Weather', ['stations', 'forecast', 'thermals', 'radar', 'foehn', 'route']],
-	['Airspace and maps', ['airspace', 'cables', 'maps', 'imagery']],
-	['Sites', ['sites', 'dumps']],
-	['Flights and pilots', ['flights', 'pilots', 'ranking', 'reports']],
-	['Live tracks', ['live']],
-	['Groups and plans', ['groups']],
-	['Accounts', ['accounts', 'sessions', 'auth', 'account', 'push', 'oauth', 'dev']]
-];
-
 /** The description the site was built with. */
 export const description: Description = JSON.parse(source);
 
@@ -171,17 +157,21 @@ function response(document: Description, status: string, answer: Answer): Respon
 	};
 }
 
-/** Every operation of a description, in groups, in the order of the groups and of the paths. */
+/**
+ * Every operation of a description, in groups: under its first tag, in
+ * the order of the description's tags, and in each in the order of the
+ * paths. An operation without a tag, which the server's own test does
+ * not let through, stands in a group of the first part of its path.
+ */
 export function groupsOf(document: Description): Group[] {
 	const byName = new Map<string, Operation[]>();
-	const order = GROUPS.map(([name]) => name);
-	for (const [name] of GROUPS) byName.set(name, []);
+	const order = (document.tags ?? []).map((tag) => tag.name);
+	for (const name of order) byName.set(name, []);
 	for (const [path, item] of Object.entries(document.paths)) {
-		const part = path.split('/')[2] ?? '';
 		for (const method of METHODS) {
 			const raw = item[method];
 			if (!raw) continue;
-			const name = raw.tags?.[0] ?? GROUPS.find(([, parts]) => parts.includes(part))?.[0] ?? part;
+			const name = raw.tags?.[0] ?? path.split('/')[2] ?? '';
 			if (!byName.has(name)) {
 				byName.set(name, []);
 				order.push(name);

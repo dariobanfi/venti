@@ -31,6 +31,9 @@ import {
 	pilotPagePath,
 	pilotsFound,
 	type PilotsFound,
+	pilotsNear,
+	type PilotsNear,
+	pilotsNearPath,
 	pilotsSearchPath,
 	pilotStatistics,
 	type PilotStatistics,
@@ -187,6 +190,17 @@ export class CommunitySource {
 		if (!(await this.#present())) return undefined;
 		const answer = await this.#get(pilotsSearchPath(text));
 		return pilotsFound(answer.status, answer.body);
+	}
+
+	/**
+	 * The pilots whose public flights took off near a place in the last
+	 * months, as the core's lines: the server takes the place to about a
+	 * kilometre and keeps it nowhere. Nothing if this site has no server.
+	 */
+	async pilotsNear(place: Coordinate): Promise<PilotsNear | undefined> {
+		if (!(await this.#present())) return undefined;
+		const answer = await this.#get(pilotsNearPath(place.lat, place.lon));
+		return pilotsNear(answer.status, answer.body);
 	}
 
 	/**

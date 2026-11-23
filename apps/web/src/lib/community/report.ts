@@ -23,6 +23,11 @@ export function reportedPilot(handle: string): Reported {
 	return { subject: { kind: 'pilot', handle }, title: 'Report this pilot' };
 }
 
+/** A pilot's picture, the one they show now, by the pilot's handle; `title` is the core's "Report picture". */
+export function reportedPicture(handle: string, title: string): Reported {
+	return { subject: { kind: 'picture', handle }, title };
+}
+
 /** A flight shared while it is under way, by its track's identifier. */
 export function reportedTrack(id: string): Reported {
 	return { subject: { kind: 'liveTrack', id }, title: 'Report this track' };

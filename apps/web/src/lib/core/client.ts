@@ -129,6 +129,11 @@ export class CoreClient {
 		return this.#call('ownStatistics', undefined);
 	}
 
+	/** What the pilot's flights on the server say about how they fly; nothing signed out. */
+	ownTendencies() {
+		return this.#call('ownTendencies', undefined);
+	}
+
 	/**
 	 * One of the pilot's flights checked against the airspace the app has,
 	 * from its file's text. Throws while that airspace is still being
@@ -399,6 +404,11 @@ export class CoreClient {
 		return this.#call('pilotsFound', text);
 	}
 
+	/** The pilots who fly near a place, as the core's lines. Nothing if this site has no server. */
+	pilotsNear(place: Coordinate) {
+		return this.#call('pilotsNear', place);
+	}
+
 	/** What a pilot's public flights add up to. Nothing if this site has no server. */
 	pilotStatistics(handle: string) {
 		return this.#call('pilotStatistics', handle);
@@ -656,6 +666,21 @@ export class CoreClient {
 	/** Whether flights sent from now on are public from the start. */
 	setNewFlightsPublic(open: boolean) {
 		return this.#call('setNewFlightsPublic', open);
+	}
+
+	/** Whether the pilot is among the pilots near a place. */
+	setShownNearPlaces(shown: boolean) {
+		return this.#call('setShownNearPlaces', shown);
+	}
+
+	/** Sends a picture, JPEG, PNG or WebP, as the pilot's own. */
+	setPicture(bytes: Uint8Array, mediaType: string) {
+		return this.#call('setPicture', { bytes, mediaType });
+	}
+
+	/** Removes the pilot's picture. */
+	removePicture() {
+		return this.#call('removePicture', undefined);
 	}
 
 	/** Makes every flight of the account public, or every one private. */

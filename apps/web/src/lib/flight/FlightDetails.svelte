@@ -21,7 +21,7 @@
 		GlideSummary,
 		ThermalSummary
 	} from '#lib/core/index.ts';
-	import { compassPoint, format } from '#lib/design/format.ts';
+	import { compassPoint, flightFormat } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import { CLIMB_BANDS } from '#lib/design/palette.ts';
 
@@ -45,7 +45,8 @@
 
 	let { flight, analysis, airspace, onselect, fromHere, takeoffName }: Props = $props();
 
-	const text = format();
+	// The clock and the date of the place it was flown.
+	const text = $derived(flightFormat(flight));
 
 	/** A duration with its share of the airtime: "0:07 h, 24%". */
 	function share(seconds: number, analysis: FlightAnalysis): string {

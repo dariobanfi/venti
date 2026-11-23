@@ -80,11 +80,18 @@
 		opacity: 0.7;
 	}
 
+	/* Google's dark button, in the system's dark or the one chosen in Settings. */
 	@media (prefers-color-scheme: dark) {
-		.google-button {
+		:global(:root:not([data-theme])) .google-button {
 			border-color: #8e918f;
 			background: #131314;
 			color: #e3e3e3;
 		}
+	}
+
+	:global(:root[data-theme='dark']) .google-button {
+		border-color: #8e918f;
+		background: #131314;
+		color: #e3e3e3;
 	}
 </style>

@@ -10,7 +10,7 @@
 <script lang="ts">
 	import PilotFace from '#lib/community/PilotFace.svelte';
 	import type { FlightScore, FlightView, GroundUnderFlight } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Metric from '#lib/design/Metric.svelte';
 	import type { Beside } from './beside';
@@ -67,7 +67,8 @@
 		return `${kind}, ${day}`;
 	});
 
-	const text = format();
+	// The clock and the date of the place it was flown.
+	const text = $derived(flightFormat(flight));
 	const moment = $derived(cursor === undefined ? undefined : flight.track[cursor]);
 	/** How high over the ground the glider was at the marked moment, where the ground is known. */
 	const above = $derived(moment ? heightAboveGround(moment.seconds, ground) : undefined);

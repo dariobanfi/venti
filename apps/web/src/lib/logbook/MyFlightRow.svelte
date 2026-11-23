@@ -16,7 +16,7 @@
 	import Flag from '#lib/community/Flag.svelte';
 	import { className, distance, shape } from '#lib/community/words.ts';
 	import type { OwnFlight } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import TrackThumbnail from './TrackThumbnail.svelte';
 
@@ -26,8 +26,9 @@
 
 	let { flight }: Props = $props();
 
-	const text = format();
 	const row = $derived(flight.row);
+	// The clock and the date of the place it was flown.
+	const text = $derived(flightFormat(row));
 	const triangle = $derived(shape(row));
 	/** The class of its glider, in the core's name ("EN B"). */
 	const gliderClass = $derived(className(row.gliderClass, getApp().said?.gliderClasses));

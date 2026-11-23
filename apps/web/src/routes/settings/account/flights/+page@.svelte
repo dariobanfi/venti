@@ -14,7 +14,7 @@
 	import { queryOf } from '#lib/community/pages.ts';
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
 	import type { OwnFlight } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat, format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import MyFlightRow from '#lib/logbook/MyFlightRow.svelte';
 
@@ -33,11 +33,11 @@
 		void app.importFiles(files);
 	}
 
-	/** The flights by the day they began on, in the reader's own clock, the newest first. */
+	/** The flights by the day they began on, by the clock of the place each was flown, the newest first. */
 	const days = $derived.by(() => {
 		const grouped: { day: string; flights: OwnFlight[]; airtimeS: number }[] = [];
 		for (const flight of flights?.flights ?? []) {
-			const day = text.day(flight.row.startUnixS);
+			const day = flightFormat(flight.row).day(flight.row.startUnixS);
 			const last = grouped.at(-1);
 			if (last?.day === day) {
 				last.flights.push(flight);

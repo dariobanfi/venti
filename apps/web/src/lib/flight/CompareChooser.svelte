@@ -11,7 +11,7 @@
 	import { words } from '#lib/community/pages.ts';
 	import { distance } from '#lib/community/words.ts';
 	import type { FlightRef, FlightView, PublicFlight } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat, format } from '#lib/design/format.ts';
 	import Sheet from '#lib/design/Sheet.svelte';
 
 	interface Props {
@@ -76,6 +76,7 @@
 				{#if others?.flights && others.flights.length > 0}
 					<ul class="group-card" aria-labelledby="compare-others">
 						{#each others.flights as other (other.id)}
+							{@const when = flightFormat(other)}
 							<li>
 								<button
 									class="group-row"
@@ -85,7 +86,7 @@
 									<span class="who">
 										<span class="name">{other.pilot}</span>
 										<span class="lesser">
-											{text.day(other.startUnixS)} · {text.time(other.startUnixS)}
+											{when.day(other.startUnixS)} · {when.time(other.startUnixS)}
 										</span>
 									</span>
 									<span class="lesser numeric">
@@ -116,11 +117,12 @@
 			{#if own.length > 0}
 				<ul class="group-card" aria-labelledby="compare-own">
 					{#each own as entry (entry.id)}
+						{@const when = flightFormat(entry)}
 						<li>
 							<button class="group-row" type="button" onclick={() => onchoose({ own: entry.id })}>
 								<span>
-									{text.day(entry.startUnixS)}
-									<span class="lesser">{text.time(entry.startUnixS)}</span>
+									{when.day(entry.startUnixS)}
+									<span class="lesser">{when.time(entry.startUnixS)}</span>
 								</span>
 								<span class="lesser numeric">
 									{distance(entry, text)} km · {text.hoursMinutes(entry.airtimeS)} h

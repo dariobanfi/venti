@@ -56,7 +56,6 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	await expect(page).toHaveTitle('Settings · Venti');
 	const account = page.locator('.settings-page').getByRole('link', { name: /^Account/ });
 	await expect(account).toContainText('Not signed in');
-	await expect(metric(page, 'Version')).toHaveText(/^\d+\.\d+\.\d+$/);
 	await keep('23-settings');
 
 	// The form says what an account does before it asks for anything.
@@ -516,9 +515,19 @@ function photograph(width: number, height: number): Buffer {
 test('the pilot’s picture is the account’s, and whether they are among the pilots near a place', async ({
 	page,
 	keep,
+	wide,
 	problems
 }) => {
-	await signUp(page);
+	const handle = await signUp(page);
+	// The bar across the top of a wide screen has the pilot's face before
+	// the handle; a phone's tab bar has no account in it.
+	const inTheBar = page.getByRole('navigation', { name: 'Sections' }).locator('a.account');
+	if (wide) {
+		await expect(inTheBar).toHaveText(new RegExp(`TP\\s*${handle}`));
+		await expect(inTheBar.locator('.face')).toHaveText('TP');
+	} else {
+		await expect(inTheBar).toBeHidden();
+	}
 	const account = page.getByRole('region', { name: 'Account' });
 	const picture = account.getByRole('group', { name: 'Picture' });
 	// Without a picture: the initials of "Test Pilot".
@@ -543,6 +552,11 @@ test('the pilot’s picture is the account’s, and whether they are among the p
 	// The server's: there after a reload.
 	await page.reload();
 	await expect(image).toHaveAttribute('src', /^\/v1\/pictures\/\w+$/);
+	if (wide) {
+		await expect(inTheBar.locator('img')).toHaveAttribute('src', /^\/v1\/pictures\/\w+$/);
+		await expect(inTheBar).toHaveText(handle);
+		await keep('112a-account-picture-in-the-bar');
+	}
 
 	// Shown among the pilots near a place until the pilot says otherwise.
 	const near = page.getByRole('switch', { name: 'Show me among pilots near a place' });

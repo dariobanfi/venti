@@ -12,6 +12,7 @@ use venti_sources::{
 };
 use venti_store::{Coverage, ForecastModel, RunRecord, SiteDelivery, Store};
 
+use super::schedule::Pace;
 use super::{airspace_summary, forecast_summary, radar_summary, sites_summary, summary};
 use crate::alerts::Watch;
 use crate::clock::Clock;
@@ -138,15 +139,16 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         self.clock.now()
     }
 
-    /// How often a job's source is collected, in seconds.
+    /// How often a job's source is collected, and how soon again after a
+    /// failed run: what its manifest says.
     ///
     /// # Panics
     ///
     /// Panics if the registry has no adapter for the job. Jobs come from
     /// region packs that were checked against the registry when the plan
     /// was made.
-    pub fn cadence_seconds(&self, job: &Job) -> u32 {
-        job.manifest(&self.registry).cadence_seconds
+    pub fn pace(&self, job: &Job) -> Pace {
+        Pace::of(job.manifest(&self.registry))
     }
 
     /// Runs one source once and stores the result. Returns whether the run

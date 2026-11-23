@@ -314,6 +314,15 @@
 		min-height: calc(100dvh - var(--nav-top));
 	}
 
+	/* The best of today and the season beside the table where both fit,
+	   under it where they do not. */
+	@media (max-width: 79.99rem) {
+		.columns > .span-9,
+		.columns > .span-3 {
+			grid-column: 1 / -1;
+		}
+	}
+
 	header {
 		display: flex;
 		align-items: center;

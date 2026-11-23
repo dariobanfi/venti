@@ -10,7 +10,6 @@ use venti_sources::{Archive, Fetch, Kind};
 use venti_store::{SourceStatus, Store};
 
 use super::Collector;
-use super::schedule::Pace;
 use crate::plan::Job;
 
 /// Runs each job at its source's cadence until `shutdown` is cancelled.
@@ -53,7 +52,7 @@ async fn run_source<S, F, A>(
     F: Fetch,
     A: Archive,
 {
-    let pace = Pace::new(collector.cadence_seconds(&job));
+    let pace = collector.pace(&job);
     let status = latest_status(&collector, &job).await;
     let since = status
         .as_ref()
@@ -629,6 +628,63 @@ mod tests {
         let calls = fetch.0.calls.lock().unwrap();
         let hours: Vec<u64> = calls.iter().map(|(_, seconds)| seconds / 3600).collect();
         assert_eq!(hours, [0, 24, 48]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_run_waits_what_the_manifest_asks_also_across_a_restart() {
+        const HOUR: Duration = Duration::from_secs(3600);
+        // A daily source, as OpenStreetMap's sites, that is to be left two
+        // days after a failure. The first run works, the second fails.
+        let fetch = ScriptedFetch::answering(Duration::ZERO, [true, false, true]);
+        let store = Arc::new(MemoryStore::new());
+        let mut source = TestSource::new("air", 86_400);
+        source.manifest.rate_limit.retry_failed_run_after_hours = Some(48);
+        let mut registry = Registry::new();
+        registry.register_airspace(Box::new(source)).unwrap();
+        let collector = Arc::new(Collector::new(
+            registry,
+            store.clone(),
+            fetch.clone(),
+            None::<DirArchive>,
+            Arc::new(VirtualClock::new()),
+            Some(chrono::Duration::hours(3)),
+        ));
+        let airspace_job = || Job {
+            kind: Kind::Airspace,
+            ..job("air")
+        };
+        let hours = || -> Vec<u64> {
+            let calls = fetch.0.calls.lock().unwrap();
+            calls.iter().map(|(_, seconds)| seconds / 3600).collect()
+        };
+        let shutdown = CancellationToken::new();
+        let schedule = tokio::spawn(run(
+            collector.clone(),
+            vec![airspace_job()],
+            no_jitter,
+            shutdown.clone(),
+        ));
+        // The server stops ten hours after the failed run.
+        tokio::time::sleep(34 * HOUR).await;
+        shutdown.cancel();
+        schedule.await.unwrap();
+        assert_eq!(hours(), [0, 24]);
+
+        // Started again, it waits out the two days from the failed run:
+        // nothing at the day, the next run at hour 72.
+        let shutdown = CancellationToken::new();
+        let schedule = tokio::spawn(run(
+            collector,
+            vec![airspace_job()],
+            no_jitter,
+            shutdown.clone(),
+        ));
+        tokio::time::sleep(37 * HOUR).await;
+        assert_eq!(hours(), [0, 24]);
+        tokio::time::sleep(2 * HOUR).await;
+        shutdown.cancel();
+        schedule.await.unwrap();
+        assert_eq!(hours(), [0, 24, 72]);
     }
 
     #[tokio::test(start_paused = true)]

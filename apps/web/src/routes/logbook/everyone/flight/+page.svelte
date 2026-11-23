@@ -16,7 +16,7 @@
 	import { reportedFlight } from '#lib/community/report.ts';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import type { FlightRef, OpenedFlight } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import type { MenuItem } from '#lib/design/Menu.svelte';
 	import { type Beside, besideIn, besideValue } from '#lib/flight/beside.ts';
@@ -94,7 +94,9 @@
 				if (!current) return;
 				beside = {
 					flight: compared.other,
-					name: compared.pilot ?? `Your flight of ${format().day(compared.other.startUnixS)}`,
+					name:
+						compared.pilot ??
+						`Your flight of ${flightFormat(compared.other).day(compared.other.startUnixS)}`,
 					comparison: compared.comparison
 				};
 			},
@@ -162,7 +164,7 @@
 
 	const title = $derived(
 		phase.is === 'loaded'
-			? `${phase.opened.row.pilot} · ${format().day(phase.opened.flight.startUnixS)} · Venti`
+			? `${phase.opened.row.pilot} · ${flightFormat(phase.opened.flight).day(phase.opened.flight.startUnixS)} · Venti`
 			: 'Flight · Venti'
 	);
 </script>

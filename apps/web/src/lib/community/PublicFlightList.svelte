@@ -149,7 +149,9 @@
 	.card.wide {
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-m);
-		/* Clipped, not scrolled: the table's heading then sticks to the page. */
-		overflow: clip;
+		/* A table wider than the card scrolls sideways in it: the page never
+		   does. (A heading that stuck to the page under the bar cannot stay
+		   so inside a box that scrolls.) */
+		overflow-x: auto;
 	}
 </style>

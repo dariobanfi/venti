@@ -39,24 +39,24 @@ test('a kept take-off goes to the pilot’s account and comes back in a browser 
 	keep,
 	problems
 }) => {
-	const NAME = 'Fluggelände Jägerkamp/Nagelspitz';
+	const SITE = `/logbook/everyone/place/?lat=47.6791413&lon=11.9051032&site=${encodeURIComponent('osm-free-flying:way/1080986173')}`;
 	const handle = newHandle();
 	await createAccount(page, handle);
+	const kept = (on: Page) => on.getByRole('button', { name: 'Kept' });
+	const notKept = (on: Page) => on.getByRole('button', { name: 'Keep as my take-off' });
 
-	// Signed in, a take-off is kept as ever, on its page.
-	await page.goto(
-		`/logbook/everyone/place/?lat=47.6791413&lon=11.9051032&site=${encodeURIComponent('osm-free-flying:way/1080986173')}`
+	// Signed in, a take-off is kept as ever, on its page, and goes to the
+	// account with the sync that follows.
+	const synced = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'PUT' &&
+			response.url().includes('/v1/account/kept-sites/') &&
+			response.ok()
 	);
-	await page.getByRole('button', { name: 'Keep as my take-off' }).click();
-	await expect(page.getByRole('button', { name: 'Kept' })).toHaveAttribute('aria-pressed', 'true');
-
-	// The list says, in the core's sentence, that it is on the account: the
-	// sync that follows keeping it has run.
-	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
-	const own = page.getByRole('list', { name: 'Your take-offs' });
-	await expect(own.getByRole('listitem')).toHaveCount(1);
-	await expect(own.getByRole('link', { name: new RegExp(NAME) })).toBeVisible();
-	await expect(page.getByText(/^Kept on your Venti account and on this device\./)).toBeVisible();
+	await page.goto(SITE);
+	await notKept(page).click();
+	await expect(kept(page)).toHaveAttribute('aria-pressed', 'true');
+	await synced;
 	await keep('168-take-offs-on-the-account');
 
 	// Another browser, which holds nothing, signs in to the same account
@@ -65,39 +65,33 @@ test('a kept take-off goes to the pilot’s account and comes back in a browser 
 	await withPasswordForm(elsewhere);
 	try {
 		const second = await elsewhere.newPage();
-		await second.goto('/settings/');
-		await expect(second.getByRole('list', { name: 'Your take-offs' })).toHaveText('None kept');
-		await expect(second.getByText(/^Kept on this device only: sign in/)).toBeVisible();
-		await second
-			.locator('.settings-page')
-			.getByRole('link', { name: /^Account/ })
-			.click();
+		await second.goto(SITE);
+		await expect(notKept(second)).toHaveAttribute('aria-pressed', 'false');
+		await second.goto('/settings/account/');
 		await field(second, 'Handle').fill(handle);
 		await field(second, 'Password').fill(PASSWORD);
 		await second.getByRole('button', { name: 'Sign in', exact: true }).click();
 		await expect(metric(second, 'Handle')).toHaveText(`@${handle}`);
-		await sections(second).getByRole('link', { name: 'Settings', exact: true }).click();
-		const theirs = second.getByRole('list', { name: 'Your take-offs' });
-		await expect(theirs.getByRole('link', { name: new RegExp(NAME) })).toBeVisible();
-		await expect(theirs.getByRole('listitem')).toHaveCount(1);
-		await expect(
-			second.getByText(/^Kept on your Venti account and on this device\./)
-		).toBeVisible();
+		await second.goto(SITE);
+		await expect(kept(second)).toHaveAttribute('aria-pressed', 'true');
 
 		// Forgotten there, it goes from the account, and from the first
 		// browser with its next sync, when the site is opened again.
-		await theirs.getByRole('button', { name: `Forget ${NAME}` }).click();
-		await expect(theirs).toHaveText('None kept');
-		// The account has heard of it once the note no longer speaks of the next sync.
-		await expect(
-			second.getByText(/^Kept on your Venti account and on this device\./)
-		).toBeVisible();
+		const forgotten = second.waitForResponse(
+			(response) =>
+				response.request().method() === 'DELETE' &&
+				response.url().includes('/v1/account/kept-sites/') &&
+				response.ok()
+		);
+		await kept(second).click();
+		await expect(notKept(second)).toHaveAttribute('aria-pressed', 'false');
+		await forgotten;
 	} finally {
 		await elsewhere.close();
 	}
 	// Opened again, the site syncs the pilot's own sites by itself.
-	await page.goto('/settings/');
-	await expect(own).toHaveText('None kept');
+	await page.goto(SITE);
+	await expect(notKept(page)).toHaveAttribute('aria-pressed', 'false');
 	expect(problems).toEqual([]);
 });
 

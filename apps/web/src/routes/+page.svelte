@@ -37,7 +37,7 @@
 	import { queryOf } from '#lib/community/pages.ts';
 	import PublicFlightRow from '#lib/community/PublicFlightRow.svelte';
 	import { distance, shape } from '#lib/community/words.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat, format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import { dayOf } from '#lib/groups/days.ts';
 	import Achievements from '#lib/home/Achievements.svelte';
@@ -395,7 +395,7 @@
 											>
 										</td>
 										<td class="number">{flight.score ? text.points(flight.score.points) : '–'}</td>
-										<td class="number">{text.day(flight.startUnixS)}</td>
+										<td class="number">{flightFormat(flight).day(flight.startUnixS)}</td>
 										<td class="words quiet">{row.cheersLine}</td>
 										<td class="words quiet">{row.commentsLine}</td>
 									</tr>
@@ -479,7 +479,9 @@
 										</td>
 										<td class="number">{flight.score ? text.points(flight.score.points) : '–'}</td>
 										<td class="number">
-											{flights.ofToday ? text.time(flight.startUnixS) : text.day(flight.startUnixS)}
+											{flights.ofToday
+												? flightFormat(flight).time(flight.startUnixS)
+												: flightFormat(flight).day(flight.startUnixS)}
 										</td>
 									</tr>
 								{/each}

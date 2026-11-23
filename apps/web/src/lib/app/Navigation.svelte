@@ -12,6 +12,7 @@
 -->
 <script lang="ts">
 	import { page } from '$app/state';
+	import PilotFace from '#lib/community/PilotFace.svelte';
 	import Icon, { type IconName } from '#lib/design/Icon.svelte';
 	// The logo, from the design pack, where the repository keeps it: the
 	// lockup for paper and the one for the indigo slope.
@@ -127,10 +128,10 @@
 
 <nav class:covered aria-label="Sections">
 	<a class="brand" href={homeHref()}>
-		<picture>
-			<source srcset={logoOnDark} media="(prefers-color-scheme: dark)" />
-			<img src={logoOnLight} alt="Venti" width="97" height="28" />
-		</picture>
+		<!-- By the theme, the system's or the one chosen in Settings: both are
+		     drawn and the style sheet shows one, before any script runs. -->
+		<img class="on-light" src={logoOnLight} alt="Venti" width="97" height="28" />
+		<img class="on-dark" src={logoOnDark} alt="Venti" width="97" height="28" />
 	</a>
 	<ul>
 		{#each sections as section (section.name)}
@@ -152,8 +153,17 @@
 			<span>Settings</span>
 		</a>
 		<a class="account" href={accountHref()} class:here={page.route.id === '/settings/account'}>
-			<span class="icon"><Icon name="person" /></span>
-			<span>{account ? account.handle : 'Sign in'}</span>
+			{#if account}
+				<PilotFace
+					picture={account.picturePath}
+					name={account.displayName || account.handle}
+					size="xs"
+				/>
+				<span>{account.handle}</span>
+			{:else}
+				<span class="icon"><Icon name="person" /></span>
+				<span>Sign in</span>
+			{/if}
 		</a>
 	</div>
 </nav>
@@ -274,6 +284,25 @@
 			width: auto;
 		}
 
+		.brand img.on-dark,
+		:global(:root[data-theme='dark']) .brand img.on-light {
+			display: none;
+		}
+
+		:global(:root[data-theme='dark']) .brand img.on-dark {
+			display: block;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			:global(:root:not([data-theme])) .brand img.on-light {
+				display: none;
+			}
+
+			:global(:root:not([data-theme])) .brand img.on-dark {
+				display: block;
+			}
+		}
+
 		ul {
 			flex: 1;
 			align-items: center;
@@ -329,6 +358,11 @@
 
 		.account {
 			border: 1px solid var(--separator);
+		}
+
+		/* The pilot's face in place of the icon, nearer the round end. */
+		.account:has(:global(.face)) {
+			padding-left: var(--space-1);
 		}
 
 		.name {

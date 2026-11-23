@@ -142,6 +142,15 @@ pub struct RateLimit {
     /// at a time. Left out, a run asks as fast as its other limits allow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pause_seconds: Option<u32>,
+    /// How many hours after the start of a run that failed the server runs
+    /// the source again, the wait doubling with each further failure up to
+    /// the cadence. For a provider that is better left alone for a while,
+    /// or a source whose data changes too rarely to be asked again soon.
+    /// Left out, the scheduler's own rule applies
+    /// (`crates/server/src/ingest/schedule.rs`): six hours for a source
+    /// whose cadence is longer than a day, the cadence for any other.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_failed_run_after_hours: Option<u32>,
 }
 
 /// Licence terms of a source.
@@ -303,6 +312,11 @@ impl Manifest {
         if self.rate_limit.pause_seconds == Some(0) {
             return Err(invalid(
                 "rate_limit.pause_seconds is zero; leave it out instead",
+            ));
+        }
+        if self.rate_limit.retry_failed_run_after_hours == Some(0) {
+            return Err(invalid(
+                "rate_limit.retry_failed_run_after_hours is zero; leave it out instead",
             ));
         }
         check_licence(&self.licence, "licence").map_err(|problem| invalid(&problem))?;
@@ -472,6 +486,33 @@ mod tests {
         );
 
         let text = GOOD.replace("per_hour = 240", "per_hour = 240\npause_seconds = 0");
+        assert!(matches!(
+            Manifest::from_toml(&text),
+            Err(ManifestError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn a_manifest_may_say_when_a_failed_run_is_tried_again() {
+        let manifest = Manifest::from_toml(GOOD).unwrap();
+        assert_eq!(manifest.rate_limit.retry_failed_run_after_hours, None);
+        let written = toml::to_string(&manifest).unwrap();
+        assert!(
+            !written.contains("retry_failed_run_after_hours"),
+            "{written}"
+        );
+
+        let text = GOOD.replace(
+            "per_hour = 240",
+            "per_hour = 240\nretry_failed_run_after_hours = 48",
+        );
+        let manifest = Manifest::from_toml(&text).unwrap();
+        assert_eq!(manifest.rate_limit.retry_failed_run_after_hours, Some(48));
+
+        let text = GOOD.replace(
+            "per_hour = 240",
+            "per_hour = 240\nretry_failed_run_after_hours = 0",
+        );
         assert!(matches!(
             Manifest::from_toml(&text),
             Err(ManifestError::Invalid { .. })

@@ -15,8 +15,8 @@
 		name: string;
 		/** The core's initials, where it gives them. */
 		initials?: string;
-		/** How large: a row's, a card's, or a page's head. */
-		size?: 's' | 'm' | 'l';
+		/** How large: an icon's (the top bar's account), a row's, a card's, or a page's head. */
+		size?: 'xs' | 's' | 'm' | 'l';
 	}
 
 	let { picture, name, initials, size = 's' }: Props = $props();
@@ -49,6 +49,11 @@
 		font-size: var(--caption);
 		font-weight: 600;
 		letter-spacing: 0.02em;
+	}
+
+	.face.xs {
+		width: var(--size-icon);
+		height: var(--size-icon);
 	}
 
 	.face.m {

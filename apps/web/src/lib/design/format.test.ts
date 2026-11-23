@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { compassPoint, createFormat, displayLocale } from './format';
+import { afterEach, describe, expect, it } from 'vitest';
+import { compassPoint, createFormat, displayLocale, flightFormat } from './format';
 
 /** The sample flight's take-off: 4 July 2026, 10:30:00 UTC. */
 const TAKE_OFF = 1783161000;
@@ -216,5 +216,35 @@ describe('what the wind screens write', () => {
 			'Deutscher Wetterdienst and GeoSphere Austria'
 		);
 		expect(german.list(['A', 'B', 'C'])).toBe('A, B and C');
+	});
+});
+
+describe('a flight by the clock of the place it was flown', () => {
+	// 18:05 UTC on 4 July 2026: 11:05 in California, 20:05 in Berlin, and
+	// a later date in Berlin than in California for 23:30 UTC.
+	const takeOff = Date.UTC(2026, 6, 4, 18, 5) / 1000;
+	const lateTakeOff = Date.UTC(2026, 6, 4, 23, 30) / 1000;
+	const zone = process.env.TZ;
+	afterEach(() => {
+		if (zone === undefined) delete process.env.TZ;
+		else process.env.TZ = zone;
+	});
+
+	it('writes a California take-off in Los Angeles time for a reader in Berlin', () => {
+		process.env.TZ = 'Europe/Berlin';
+		const flight = flightFormat({ timeZone: 'America/Los_Angeles' }, 'en-GB');
+		expect(flight.time(takeOff)).toBe('11:05');
+		expect(flight.day(lateTakeOff)).toBe('Sat, 4 Jul 2026');
+		expect(flight.secondsIntoDay(takeOff)).toBe(11 * 3600 + 5 * 60);
+
+		const reader = flightFormat({}, 'en-GB');
+		expect(reader.time(takeOff)).toBe('20:05');
+		expect(reader.day(lateTakeOff)).toBe('Sun, 5 Jul 2026');
+	});
+
+	it('reads by the reader’s clock where the zone is unknown', () => {
+		process.env.TZ = 'Europe/Berlin';
+		expect(flightFormat({ timeZone: 'Nowhere/Atlantis' }, 'en-GB').time(takeOff)).toBe('20:05');
+		expect(flightFormat(undefined, 'en-GB').time(takeOff)).toBe('20:05');
 	});
 });

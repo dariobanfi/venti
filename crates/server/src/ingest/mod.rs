@@ -12,7 +12,7 @@ mod archive;
 mod collect;
 mod http;
 pub mod oneshot;
-mod schedule;
+pub mod schedule;
 pub mod scheduler;
 
 use venti_domain::Timestamp;

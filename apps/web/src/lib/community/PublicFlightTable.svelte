@@ -1,8 +1,9 @@
 <!--
 	Other pilots' flights as a table, on a wide screen: rows 32 px high with
 	the pilot, the day, the take-off, the glider, the kind of route and the
-	figures in columns that line up, under a heading that stays at the top
-	while the page scrolls and sorts what has been fetched so far. A click
+	figures in columns that line up, under a heading that sorts what has
+	been fetched so far. Wider than its card, it scrolls sideways in the
+	card, never the page (`PublicFlightList.svelte`). A click
 	anywhere on a row opens the flight; the pilot's name and the take-off
 	are links of their own.
 
@@ -25,7 +26,7 @@
 	import { goto } from '$app/navigation';
 	import { pilotHref, placeHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { PublicFlight } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat, format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import SortHeading from '#lib/design/SortHeading.svelte';
 	import { type Sort, sortBy, sorted } from '#lib/design/sort.ts';
@@ -113,7 +114,9 @@
 					</td>
 				{/if}
 				<td>
-					<a class="flight" href={publicFlightHref(flight.id)}>{text.day(flight.startUnixS)}</a>
+					<a class="flight" href={publicFlightHref(flight.id)}
+						>{flightFormat(flight).day(flight.startUnixS)}</a
+					>
 				</td>
 				<td class="words lesser">
 					<Flag code={flight.takeoffCountry} />
@@ -152,12 +155,7 @@
 		border-collapse: collapse;
 	}
 
-	/* The heading stays in view while the rows scroll under it, below the
-	   site's bar. */
 	thead :global(th) {
-		position: sticky;
-		top: var(--nav-top);
-		z-index: 1;
 		background: var(--surface);
 	}
 

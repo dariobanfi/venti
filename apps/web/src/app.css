@@ -5,12 +5,22 @@
  * names below are the app's own, mapped onto the tokens, so that no screen
  * writes a colour, a size or a radius of its own.
  *
- * Light and dark follow the system, through the pack's own themes. Sizes of
+ * Light and dark follow the system, through the pack's own themes, unless
+ * the pilot chose one in Settings (src/lib/app/theme.ts). Sizes of
  * type are the pack's styles in rem, so the reader's text-size setting
  * scales the whole app.
  */
 
 @import '../../../design/tokens/tokens.css';
+
+/* A chosen theme draws the browser's own controls and scroll bars in it too. */
+:root[data-theme='light'] {
+	color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+	color-scheme: dark;
+}
 
 :root {
 	color-scheme: light dark;

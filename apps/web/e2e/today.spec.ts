@@ -152,7 +152,7 @@ test('a strong day puts the take-offs in the order of their thermals, with the c
 	expect(problems).toEqual([]);
 });
 
-test('a take-off the pilot keeps leads Today under its heading, is listed in the settings and is forgotten there', async ({
+test('a take-off the pilot keeps leads Today under its heading, and is forgotten on its page', async ({
 	page,
 	keep,
 	wide,
@@ -182,6 +182,7 @@ test('a take-off the pilot keeps leads Today under its heading, is listed in the
 			.click();
 	}
 	await expect(page).toHaveURL(/\/logbook\/everyone\/place\/\?lat=/);
+	const sitePage = page.url();
 	await page.getByRole('button', { name: 'Keep as my take-off' }).click();
 	await expect(page.getByRole('button', { name: 'Kept' })).toHaveAttribute('aria-pressed', 'true');
 	// What its source says of a fee, and its web page.
@@ -223,18 +224,13 @@ test('a take-off the pilot keeps leads Today under its heading, is listed in the
 	await expect(page.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeVisible();
 	await keep('133-today-kept');
 
-	// The list of the pilot's own, with the core's sentence about where it is kept.
-	await sections.getByRole('link', { name: 'Settings' }).click();
-	const own = page.getByRole('list', { name: 'Your take-offs' });
-	await expect(own.getByRole('listitem')).toHaveCount(1);
-	await expect(own.getByRole('link', { name: new RegExp(NAME) })).toContainText('1560');
-	await expect(own).toContainText('As of Wed, 18 Nov 2026.');
-	await expect(page.getByText(/^Kept on this device only/)).toBeVisible();
-	await keep('134-settings-your-take-offs');
-
-	// Forgotten there, it no longer leads Today.
-	await own.getByRole('button', { name: `Forget ${NAME}` }).click();
-	await expect(own).toHaveText('None kept');
+	// Forgotten on its page, it no longer leads Today.
+	await page.goto(sitePage);
+	await page.getByRole('button', { name: 'Kept' }).click();
+	await expect(page.getByRole('button', { name: 'Keep as my take-off' })).toHaveAttribute(
+		'aria-pressed',
+		'false'
+	);
 	await sections.getByRole('link', { name: 'Today' }).click();
 	await forecasts();
 	await expect(page.getByText('Your take-offs')).toHaveCount(0);

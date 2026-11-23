@@ -11,13 +11,14 @@
 	import PilotFace from '#lib/community/PilotFace.svelte';
 	import { distance, shape } from '#lib/community/words.ts';
 	import type { FeedRow } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import TrackThumbnail from '#lib/logbook/TrackThumbnail.svelte';
 
 	let { row }: { row: FeedRow } = $props();
 
-	const text = format();
+	// The clock and the date of the place it was flown.
+	const text = $derived(flightFormat(row.flight));
 	const flight = $derived(row.flight);
 	const triangle = $derived(shape(flight));
 	const where = $derived(

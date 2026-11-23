@@ -12,7 +12,7 @@
 	import type { PublicFlight } from '#lib/core/index.ts';
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import { distance, shape } from '#lib/community/words.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat, format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import TrackThumbnail from '#lib/logbook/TrackThumbnail.svelte';
 	import type { Achievement } from './achievements.ts';
@@ -31,7 +31,7 @@
 
 	/** The day, and the points where the flight scores: "Sat, 9 May 2026 · 12.01 points". */
 	function when(flight: PublicFlight): string {
-		const day = text.day(flight.startUnixS);
+		const day = flightFormat(flight).day(flight.startUnixS);
 		return flight.score ? `${day} · ${text.points(flight.score.points)} points` : day;
 	}
 </script>

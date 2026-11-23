@@ -23,11 +23,14 @@ max_response_kb = 4096
 # it is too busy to take the query; it answered one query in seven with 502
 # on 2026-11-22. A run needs one request; it may ask twice more, one after
 # the other and two minutes apart, after such an answer: three queries on a
-# bad day, one on a good one.
+# bad day, one on a good one. A run that failed is tried again two days
+# later, not the next day: the owner's choice on 2026-11-23, sites changing
+# too rarely to be asked for sooner.
 [rate_limit]
 per_second = 1
 per_hour = 3
 retry_after_seconds = 120
+retry_failed_run_after_hours = 48
 
 [licence]
 name = "ODbL 1.0"

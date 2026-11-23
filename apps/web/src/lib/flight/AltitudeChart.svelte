@@ -10,7 +10,7 @@
 -->
 <script lang="ts">
 	import type { FlightView, GroundUnderFlight } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat } from '#lib/design/format.ts';
 	import { altitudeRange, roundTicks, nearestIndex, scale, timeTicks } from './chart';
 	import type { Beside } from './beside';
 	import { groundRuns, heightAboveGround } from './ground';
@@ -27,7 +27,8 @@
 
 	let { flight, ground = [], cursor = $bindable(), other }: Props = $props();
 
-	const text = format();
+	// The clock and the date of the place it was flown.
+	const text = $derived(flightFormat(flight));
 
 	/** The size of the plot in pixels, as the browser laid it out. */
 	let width = $state(0);

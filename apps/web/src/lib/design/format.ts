@@ -231,10 +231,40 @@ export function compassPoint(degrees: number): string {
 
 let shared: Format | undefined;
 
+const readerLocale = () =>
+	displayLocale(typeof navigator === 'undefined' ? undefined : navigator.language);
+
 /** The formatters for whoever is looking at the page, in their time zone. */
 export function format(): Format {
-	shared ??= createFormat(
-		displayLocale(typeof navigator === 'undefined' ? undefined : navigator.language)
-	);
+	shared ??= createFormat(readerLocale());
 	return shared;
+}
+
+const inZones = new Map<string, Format>();
+
+/**
+ * The formatters for a flight's clock times and dates: in the time zone it
+ * was flown in (the core's `timeZone`, an IANA name), so a flight in
+ * California reads by California's clock wherever the reader is. A flight
+ * without one, or with a zone the browser does not know, reads by the
+ * reader's clock. The zone's name is never shown: a zone merged into
+ * another carries that one's city.
+ */
+export function flightFormat(
+	flight: { timeZone?: string } | undefined,
+	locale: string = readerLocale()
+): Format {
+	const zone = flight?.timeZone;
+	if (!zone) return locale === readerLocale() ? format() : createFormat(locale);
+	const key = `${locale} ${zone}`;
+	let found = inZones.get(key);
+	if (!found) {
+		try {
+			found = createFormat(locale, zone);
+		} catch {
+			found = locale === readerLocale() ? format() : createFormat(locale);
+		}
+		inZones.set(key, found);
+	}
+	return found;
 }

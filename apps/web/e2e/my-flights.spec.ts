@@ -8,12 +8,14 @@
  * pilot's flights, the private ones too, are the server's, read by the core.
  */
 
+import { readFileSync } from 'node:fs';
 import {
 	addSampleFlight,
 	asUpload,
 	dropFiles,
 	expect,
 	mapTabDrawn,
+	SAMPLE_FLIGHT,
 	sampleFlightOn,
 	signUp,
 	test
@@ -261,4 +263,28 @@ test('how you fly is said from the flights on the account, each observation with
 	await flight.click();
 	await expect(page).toHaveURL(/\/settings\/account\/flights\/flight\/\?id=/);
 	expect(problems).toEqual([]);
+});
+
+test.describe('in a browser in California', () => {
+	test.use({ timezoneId: 'America/Los_Angeles' });
+
+	test('a flight reads by the clock of the place it was flown, not the reader’s', async ({
+		page,
+		problems
+	}) => {
+		// The sample flight took off at 10:30 UTC at the Tegernsee: 12:30
+		// there, 03:30 in Los Angeles.
+		await signUp(page);
+		await page.goto('/settings/account/flights/');
+		await page
+			.locator('input[type=file]')
+			.setInputFiles(asUpload('sample.igc', readFileSync(SAMPLE_FLIGHT, 'utf8')));
+		await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+		await expect(page.getByText('12:30 – 12:59 · Sample Wing')).toBeVisible();
+
+		await page.goto('/settings/account/flights/');
+		await expect(page.getByRole('main').locator('section.day h2')).toHaveText([/^Sat, 4 Jul 2026/]);
+		await expect(flightRows(page).first().locator('.time')).toHaveText(/\b12:30$/);
+		expect(problems).toEqual([]);
+	});
 });

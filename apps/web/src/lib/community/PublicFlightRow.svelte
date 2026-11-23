@@ -9,7 +9,7 @@
 <script lang="ts">
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { PublicFlight } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import TrackThumbnail from '#lib/logbook/TrackThumbnail.svelte';
@@ -27,7 +27,8 @@
 
 	let { flight, named, under = '' }: Props = $props();
 
-	const text = format();
+	// The clock and the date of the place it was flown.
+	const text = $derived(flightFormat(flight));
 	const triangle = $derived(shape(flight));
 	/** The glider classes in the core's names. */
 	const classes = $derived(getApp().said?.gliderClasses);

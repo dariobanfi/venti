@@ -14,7 +14,7 @@ use crate::ingest::DirArchive;
 
 /// How often old data is looked for. Observations leave by the month and
 /// payloads by the day, so once a day is as often as anything can change.
-const INTERVAL: Duration = Duration::from_secs(24 * 3600);
+pub const INTERVAL: Duration = Duration::from_secs(24 * 3600);
 
 /// How often live tracks that ended long enough ago are looked for. A live
 /// track is where a person was. The API stops showing one the moment its
@@ -22,7 +22,7 @@ const INTERVAL: Duration = Duration::from_secs(24 * 3600);
 /// too, and a day would be half as long again as a track is kept. The
 /// plans of groups are looked at as often, for the same reason: a plan is
 /// where people meant to be.
-const LIVE_INTERVAL: Duration = Duration::from_secs(3600);
+pub const LIVE_INTERVAL: Duration = Duration::from_secs(3600);
 
 /// Cleans up when the server starts and once a day after that, and removes
 /// ended live tracks and the plans of days gone by once an hour, until

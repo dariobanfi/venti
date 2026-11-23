@@ -160,31 +160,22 @@
 </script>
 
 <section class="group" aria-label="Account">
-	<div class="group-card">
-		<!-- The pilot's picture: public, beside their name wherever it stands. -->
-		<div class="group-row picture" aria-label="Picture" role="group">
-			<PilotFace picture={signedIn.picturePath} name={signedIn.displayName} size="l" />
+	<!-- One row: the pilot's picture, public beside their name wherever it
+	     stands, with the pencil that changes it; the name and the handle. -->
+	<div class="group-card who" aria-label="Picture" role="group">
+		<div class="picture">
 			{#if pictureWords}
-				<span class="picture-actions">
-					<button
-						class="action"
-						type="button"
-						disabled={account.busy || sendingPicture || signedIn.needsSignIn}
-						onclick={() => picker?.click()}
-					>
-						{sendingPicture ? 'Sending…' : pictureWords.change}
-					</button>
-					{#if signedIn.picturePath}
-						<button
-							class="action destructive"
-							type="button"
-							disabled={account.busy || sendingPicture || signedIn.needsSignIn}
-							onclick={removePicture}
-						>
-							{pictureWords.remove}
-						</button>
-					{/if}
-				</span>
+				<button
+					class="change"
+					type="button"
+					aria-label={pictureWords.change}
+					aria-busy={sendingPicture}
+					disabled={account.busy || sendingPicture || signedIn.needsSignIn}
+					onclick={() => picker?.click()}
+				>
+					<PilotFace picture={signedIn.picturePath} name={signedIn.displayName} size="m" />
+					<span class="pencil"><Icon name="pencil" /></span>
+				</button>
 				<input
 					class="visually-hidden"
 					type="file"
@@ -194,18 +185,32 @@
 					bind:this={picker}
 					onchange={(event) => choosePicture(event.currentTarget)}
 				/>
+			{:else}
+				<PilotFace picture={signedIn.picturePath} name={signedIn.displayName} size="m" />
 			{/if}
 		</div>
-		<dl>
-			<div class="group-row">
-				<dt>Handle</dt>
-				<dd>@{signedIn.handle}</dd>
+		<dl class="names">
+			<div>
+				<dt class="visually-hidden">Name</dt>
+				<dd class="name">{signedIn.displayName}</dd>
 			</div>
-			<div class="group-row">
-				<dt>Name</dt>
-				<dd>{signedIn.displayName}</dd>
+			<div>
+				<dt class="visually-hidden">Handle</dt>
+				<dd class="handle">@{signedIn.handle}</dd>
 			</div>
 		</dl>
+		{#if sendingPicture}
+			<span class="quiet" role="status">Sending…</span>
+		{:else if pictureWords && signedIn.picturePath}
+			<button
+				class="remove"
+				type="button"
+				disabled={account.busy || signedIn.needsSignIn}
+				onclick={removePicture}
+			>
+				{pictureWords.remove}
+			</button>
+		{/if}
 	</div>
 	{#if pictureWords}
 		<p class="group-note">{pictureWords.publicLine}</p>
@@ -588,24 +593,85 @@
 		color: var(--link);
 	}
 
-	/* The picture with what can be done to it beside it. */
-	.picture {
-		justify-content: flex-start;
-		align-items: center;
-		gap: var(--space-4);
-		padding-block: var(--space-3);
-	}
-
-	.picture-actions {
+	/* One row: the picture, the name over the handle, and the quiet way
+	   to take the picture away while there is one. */
+	.who {
 		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1) var(--space-4);
-		min-width: 0;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--space-3);
 	}
 
-	.picture-actions button {
+	/* No hairlines inside the row: it is one row. */
+	.who > *,
+	.names > * {
+		box-shadow: none;
+	}
+
+	.picture {
+		flex: none;
+		display: flex;
+	}
+
+	/* The whole face is the button, the pencil on its corner says what it does. */
+	.change {
+		position: relative;
+		display: flex;
+		border-radius: var(--radius-pill);
+	}
+
+	.change:disabled {
+		opacity: 0.6;
+	}
+
+	.pencil {
+		position: absolute;
+		right: calc(-1 * var(--space-1));
+		bottom: calc(-1 * var(--space-1));
+		display: grid;
+		place-items: center;
+		width: var(--size-icon);
+		height: var(--size-icon);
+		border-radius: var(--radius-pill);
+		border: 2px solid var(--surface);
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+
+	.pencil :global(svg) {
+		width: 0.875rem;
+		height: 0.875rem;
+	}
+
+	.names {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		margin: 0;
+	}
+
+	.names dd {
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.name {
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.handle,
+	.quiet {
+		font-size: var(--footnote);
+		color: var(--text-secondary);
+	}
+
+	.remove {
+		flex: none;
 		min-height: var(--target);
-		font: inherit;
+		font-size: var(--footnote);
+		color: var(--text-secondary);
 	}
 
 	.google-email {

@@ -78,18 +78,21 @@ const MAX_LINE: u64 = 1024;
 
 /// How long the network may say nothing before the connection is dropped.
 /// It sends a comment line about every 20 seconds.
-const SILENCE: StdDuration = StdDuration::from_secs(60);
+pub const SILENCE: StdDuration = StdDuration::from_secs(60);
 
 /// How often a keepalive is sent.
-const KEEPALIVE: StdDuration = StdDuration::from_secs(240);
+pub const KEEPALIVE: StdDuration = StdDuration::from_secs(240);
 
-/// The first wait before connecting again, and the longest.
-const FIRST_BACKOFF: StdDuration = StdDuration::from_secs(5);
-const LONGEST_BACKOFF: StdDuration = StdDuration::from_secs(300);
+/// The first wait before connecting again, doubling after every end up to
+/// [`LONGEST_BACKOFF`].
+pub const FIRST_BACKOFF: StdDuration = StdDuration::from_secs(5);
+/// The longest wait before connecting again.
+pub const LONGEST_BACKOFF: StdDuration = StdDuration::from_secs(300);
 
-/// How often the directory is fetched, and how soon again after a failure.
-const DIRECTORY_EVERY: StdDuration = StdDuration::from_secs(24 * 3600);
-const DIRECTORY_RETRY: StdDuration = StdDuration::from_secs(3600);
+/// How often the directory is fetched.
+pub const DIRECTORY_EVERY: StdDuration = StdDuration::from_secs(24 * 3600);
+/// How soon the directory is fetched again after a failure.
+pub const DIRECTORY_RETRY: StdDuration = StdDuration::from_secs(3600);
 
 /// Ten seconds to connect.
 const CONNECT: StdDuration = StdDuration::from_secs(10);

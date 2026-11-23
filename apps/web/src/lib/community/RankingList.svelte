@@ -9,7 +9,7 @@
 <script lang="ts">
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { RankedPilot } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat, format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import PilotFace from './PilotFace.svelte';
 	import { distance, shape } from './words';
@@ -49,7 +49,7 @@
 						{@const triangle = shape(flight)}
 						<li>
 							<a href={publicFlightHref(flight.id)}>
-								<span class="day">{text.day(flight.startUnixS)}</span>
+								<span class="day">{flightFormat(flight).day(flight.startUnixS)}</span>
 								<span class="distance numeric">
 									{#if triangle}
 										<span class="shape" role="img" aria-label={triangle}>

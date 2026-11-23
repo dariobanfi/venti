@@ -10,7 +10,7 @@
 <script lang="ts">
 	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { RankedPilot } from '#lib/core/index.ts';
-	import { format } from '#lib/design/format.ts';
+	import { flightFormat, format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import PilotFace from './PilotFace.svelte';
 	import SortHeading from '#lib/design/SortHeading.svelte';
@@ -78,7 +78,7 @@
 								{flight.score ? text.points(flight.score.points) : '–'}
 							</a>
 							<span class="lesser small">
-								{text.day(flight.startUnixS)} ·
+								{flightFormat(flight).day(flight.startUnixS)} ·
 								{#if triangle}
 									<span class="shape" role="img" aria-label={triangle}>
 										<Icon name="triangle" />

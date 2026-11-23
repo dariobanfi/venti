@@ -604,6 +604,12 @@ docker compose exec -T db psql --username postgres --dbname restore_test --comma
 docker compose exec -T db dropdb --username postgres restore_test
 ```
 
+## What runs by itself
+
+There is no cron job to set up. The server process collects every source of its regions at the source's cadence, makes the thermal map with each new model run, checks the pilots' alarms, and removes what is older than the retention, each in a loop of its own. [schedule.md](schedule.md) lists every one of them: what it does, how often, how soon again after a failure, and where that is set. A test writes that page from the manifests and the server's constants, so it is never behind the code.
+
+A source's cadence and its wait after a failed run are in its manifest (`crates/sources-*/manifest*.toml`), not in the server's settings: changing one is a change to the code. `/v1/health` shows each source's cadence, its last success and its last failure.
+
 ## Looking inside
 
 ```bash
@@ -654,7 +660,7 @@ docker compose exec server venti-server ingest /app/regions/alps-de-at/region.to
 docker compose exec server venti-server ingest /app/regions/alps-de-at/region.toml --source openaip
 ```
 
-Airspace (`openaip`) and flying sites (`osm-free-flying`) are fetched once a day. A failed run is tried again a day later, not sooner, also after a restart; meanwhile the server serves the last complete set, and after two failed days `/v1/health` reports the source as stale. An airspace the server could not read is named in the log (`left out`, `rejected`). If the Overpass instance for flying sites keeps refusing, name another in `VENTI_OVERPASS_URL` from the OpenStreetMap wiki's list (<https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances>).
+Airspace (`openaip`) and flying sites (`osm-free-flying`) are fetched once a day. A failed run of airspace is tried again a day later, one of flying sites two days later, not sooner, also after a restart ([schedule.md](schedule.md)); meanwhile the server serves the last complete set, and after two failed days `/v1/health` reports the source as stale. An airspace the server could not read is named in the log (`left out`, `rejected`). If the Overpass instance for flying sites keeps refusing, name another in `VENTI_OVERPASS_URL` from the OpenStreetMap wiki's list (<https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances>).
 
 If the log says `the table of addresses that asked the connector is full: 100000 are being counted` (or the same of sign-in or new accounts), someone is sending requests from a very large number of addresses. The server keeps working under a shared limit; the machine then needs protection from outside it: the hosting company's, or a firewall rule for the networks the requests come from.
 

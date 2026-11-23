@@ -337,6 +337,14 @@
       "url": "https://www.openstreetmap.org/way/927265023"
     }
   ],
+  "covers": [
+    {
+      "east": 11.82,
+      "north": 47.74,
+      "south": 47.66,
+      "west": 11.7
+    }
+  ],
   "report": {
     "budget_exhausted": false,
     "cables": 8,

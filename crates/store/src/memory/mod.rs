@@ -408,7 +408,7 @@ impl Store for MemoryStore {
         delivery: &SiteDelivery,
         cables: &[Cable],
     ) -> Result<(), StoreError> {
-        cable::check(run, cables)?;
+        cable::check(run, delivery, cables)?;
         let mut inner = self.lock();
         inner
             .runs
@@ -417,13 +417,45 @@ impl Store for MemoryStore {
             .cables
             .get(&run.source)
             .is_some_and(|(set, _)| set.fetched_at > run.started_at);
-        if run.healthy && !newer_is_stored {
-            let mut sorted = cables.to_vec();
-            sorted.sort_by(|one, two| one.local.cmp(&two.local));
-            inner.cables.insert(
-                run.source.clone(),
-                (CableSet::of(run, delivery, cables), sorted),
-            );
+        if newer_is_stored {
+            return Ok(());
+        }
+        match cable::Replacing::of(run, delivery) {
+            cable::Replacing::Whole => {
+                let mut sorted = cables.to_vec();
+                sorted.sort_by(|one, two| one.local.cmp(&two.local));
+                inner.cables.insert(
+                    run.source.clone(),
+                    (CableSet::of(run, delivery, cables), sorted),
+                );
+            }
+            cable::Replacing::Inside => {
+                let before = inner.cables.remove(&run.source);
+                let mut kept: BTreeMap<String, Cable> = BTreeMap::new();
+                if let Some((_, stored)) = &before {
+                    for cable in stored {
+                        if !cable
+                            .bounds()
+                            .is_some_and(|bounds| cable::goes(&bounds, &delivery.covers))
+                        {
+                            kept.insert(cable.local.clone(), cable.clone());
+                        }
+                    }
+                }
+                for cable in cables {
+                    kept.insert(cable.local.clone(), cable.clone());
+                }
+                let set = cable::partly_replaced(
+                    before.as_ref().map(|(set, _)| set),
+                    run,
+                    delivery,
+                    kept.len(),
+                );
+                inner
+                    .cables
+                    .insert(run.source.clone(), (set, kept.into_values().collect()));
+            }
+            cable::Replacing::Nothing => {}
         }
         Ok(())
     }

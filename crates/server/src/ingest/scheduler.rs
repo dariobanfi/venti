@@ -62,13 +62,16 @@ async fn run_source<S, F, A>(
         Some(status) if latest_run_was_healthy(status) => falls_short(&collector, &job).await,
         _ => false,
     };
+    let latest_failed = status
+        .as_ref()
+        .is_some_and(|status| status.last_failure.is_some() && !latest_run_was_healthy(status));
     if short && since.is_some() {
         tracing::info!(
             source = %job.source,
             "what is stored was collected over less than the plan asks for: running now"
         );
     }
-    let mut next = Instant::now() + pace.first_delay(since, short);
+    let mut next = Instant::now() + pace.first_delay(since, short, latest_failed);
     let mut failures: u32 = 0;
 
     loop {
@@ -992,5 +995,32 @@ mod tests {
         let calls = minutes_of_calls(collector, vec![wide], &fetch, no_jitter, 23 * 60).await;
 
         assert_eq!(hours_of(&calls, "air"), [22.0]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_weekly_source_whose_run_failed_is_tried_again_hours_later() {
+        // A source that runs once a week failed two hours before the server
+        // started again. It is tried four hours on, six after the failure;
+        // that try fails too and the next is six hours later still, and
+        // works.
+        let fetch = ScriptedFetch::answering(Duration::ZERO, [false, true]);
+        let mut registry = Registry::new();
+        registry
+            .register_airspace(Box::new(TestSource::new("weekly", 7 * 86_400)))
+            .unwrap();
+        let collector = Arc::new(Collector::new(
+            registry,
+            Arc::new(MemoryStore::new()),
+            fetch.clone(),
+            None,
+            Arc::new(VirtualClock::new()),
+            Some(chrono::Duration::hours(3)),
+        ));
+        let job = daily_job("weekly", Kind::Airspace, first_region());
+        ran_before(&collector, &job, first_region(), &["DE"], 2, false).await;
+
+        let calls = minutes_of_calls(collector, vec![job], &fetch, no_jitter, 24 * 60).await;
+
+        assert_eq!(hours_of(&calls, "weekly"), [4.0, 10.0]);
     }
 }

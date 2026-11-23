@@ -181,13 +181,21 @@ pub struct ParsedCables {
     pub as_of: Option<Timestamp>,
     /// Records, or parts of the response, that were left out, and why.
     pub skipped: Vec<Skipped>,
+    /// The box inside which the response holds every cable the source
+    /// has, when the adapter asked for a box in pieces. A response that
+    /// names one can replace the stored cables inside it while another
+    /// piece of the same run failed; `None` makes the run whole or nothing.
+    pub covers: Option<BoundingBox>,
 }
 
 /// An adapter for a source of cables.
 ///
 /// Pure, like the others. A cable run is a snapshot, like a site run: it
 /// delivers every cable the source has in the area, and that set replaces
-/// the one before. See [`run_cables`](crate::run_cables).
+/// the one before. An adapter that asks for the area in pieces and names
+/// the box of each answer ([`ParsedCables::covers`]) lets a run whose
+/// pieces did not all answer replace the stored cables piece by piece. See
+/// [`run_cables`](crate::run_cables).
 pub trait CableSource: Send + Sync {
     /// The declared facts about this source.
     fn manifest(&self) -> &Manifest;

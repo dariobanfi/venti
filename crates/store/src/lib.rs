@@ -396,6 +396,17 @@ pub trait Store: Send + Sync + 'static {
     /// of sites: the set replaces the stored one only if the run was
     /// healthy and is not older than it. A healthy run must deliver at
     /// least one cable, each of the run's source, no two with one key.
+    ///
+    /// A run that was not healthy but whose `delivery` names boxes
+    /// (`covers`: those of its pieces that answered) replaces the stored
+    /// cables inside them instead, if it is not older than the stored set:
+    /// a stored cable whose line's box lies wholly inside one of the boxes
+    /// goes, every cable delivered is stored in place of the one with its
+    /// key, and every other stored cable stays. The set then covers what
+    /// it covered and the run's boxes, is of the older of the two dates,
+    /// and was fetched at the run's start. Such a run may deliver no cable
+    /// at all: a piece over the sea holds none. An unhealthy run with no
+    /// boxes stores nothing but itself.
     fn save_cable_run(
         &self,
         run: &RunRecord,

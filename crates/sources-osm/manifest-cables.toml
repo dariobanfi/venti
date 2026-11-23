@@ -19,7 +19,12 @@ auth = "none"
 # room for others: a run of the whole Alps takes an hour or more. At most
 # 120 requests an hour, which is also a run's budget: the 78 tiles, and 42
 # for those the instance asks to send again, two minutes on, up to three
-# times each.
+# times each, as many as the 42 reach. After a tile the instance refused
+# (429, 502, 503, 504) the next tile waits the two minutes too, so that a
+# busy instance is not asked every half minute. A tile that still fails
+# keeps the cables stored inside it, the tiles that answered replace
+# theirs, and the run is tried again six hours later (the scheduler's rule
+# for a cadence longer than a day), not a week later.
 [rate_limit]
 per_second = 1
 per_hour = 120

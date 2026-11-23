@@ -449,7 +449,9 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
     }
 
     /// Runs a source of cables once. As for sites, the set it delivers
-    /// replaces the stored one only if every request worked.
+    /// replaces the stored one whole only if every request worked; when
+    /// some did not, the cables of the pieces that answered replace the
+    /// stored ones inside those pieces, and the run still counts as failed.
     async fn collect_cables(&self, job: &Job) -> bool {
         let source = self
             .registry
@@ -475,19 +477,43 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         let healthy = report.is_healthy();
         if healthy {
             tracing::info!(source = %job.source, "{}", cables_summary(report));
-        } else {
+        } else if output.covers.is_empty() {
             tracing::warn!(
                 source = %job.source,
                 "unhealthy run, the stored cables stay as they are: {}",
+                cables_summary(report)
+            );
+        } else {
+            tracing::warn!(
+                source = %job.source,
+                "unhealthy run, the stored cables are replaced inside the {} pieces that \
+                 answered and stay as they are elsewhere: {}",
+                output.covers.len(),
                 cables_summary(report)
             );
         }
         for failure in report.failures.iter().take(LOGGED_PROBLEMS) {
             tracing::warn!(source = %job.source, "failed {}: {}", failure.tag, failure.error);
         }
+        for rejected in report.rejected.iter().take(LOGGED_PROBLEMS) {
+            tracing::warn!(
+                source = %job.source,
+                "rejected {} of {}: {}",
+                rejected.field,
+                rejected.site,
+                rejected.reason
+            );
+        }
+        // Where the set of this run is whole: the area it was collected
+        // for, or, after a run that is not, the pieces that answered, inside
+        // which alone its cables replace the stored ones.
         let delivery = SiteDelivery {
             as_of: output.as_of,
-            covers: vec![job.area],
+            covers: if healthy {
+                vec![job.area]
+            } else {
+                output.covers.clone()
+            },
         };
         let record = self.record(&job.source, started_at, &Outcome::of_cables(report));
         self.save_cables(&record, &delivery, &output.cables).await && healthy

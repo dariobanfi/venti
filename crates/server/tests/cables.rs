@@ -68,7 +68,7 @@ async fn a_box_is_needed() {
 }
 
 #[tokio::test]
-async fn a_tile_that_fails_leaves_the_stored_cables_as_they_were() {
+async fn a_tile_that_fails_leaves_its_stored_cables_and_the_other_tile_replaces_its_own() {
     let source = SourceId::new("osm-cables").unwrap();
     let job = Job {
         source: source.clone(),
@@ -90,21 +90,49 @@ async fn a_tile_that_fails_leaves_the_stored_cables_as_they_were() {
     let held = || async {
         let sets = store.cable_sets(std::slice::from_ref(&source)).await;
         let set = sets.unwrap().remove(0);
-        (set.fetched_at, set.cables)
+        (set.fetched_at, set.cables, set.covers)
     };
+    let tiles = fixtures::cables_tiles();
+    let (south, north) = (tiles[0].0.clone(), tiles[1].0.clone());
+    let area = fixtures::cables_tiles_area();
 
     // Both tiles answer: their seventeen cables are the stored set.
-    let both = FixtureFetch::new().with_all(fixtures::cables_tiles());
+    let both = FixtureFetch::new().with_all(tiles.clone());
     assert!(collect(both, first_run).collect(&job).await);
-    assert_eq!(held().await, (first_run, 17));
+    assert_eq!(held().await, (first_run, 17, vec![area]));
 
-    // A week later the northern tile is refused three times. The southern
-    // one's answer is not half a set to store: the week before's stays.
-    let north = fixtures::cables_tiles()[1].0.clone();
+    // A week later the northern tile is refused three times. The run
+    // failed, but the southern tile's answer replaces the cables inside
+    // it, and those of the northern tile stay: still seventeen, here the
+    // same ones, as the recording is the same.
     let busy = FixtureFetch::new()
-        .with_all(fixtures::cables_tiles())
+        .with_all(tiles.clone())
         .refusing(&north, 502, 3);
     let a_week_later = first_run + chrono::Duration::days(7);
     assert!(!collect(busy, a_week_later).collect(&job).await);
-    assert_eq!(held().await, (first_run, 17));
+    assert_eq!(held().await, (a_week_later, 17, vec![area]));
+
+    // On an empty store, a run whose southern tile fails stores the
+    // northern tile's cables, and says it covers that tile alone.
+    let empty = Arc::new(MemoryStore::new());
+    let half = FixtureFetch::new().with_all(tiles).refusing(&south, 502, 3);
+    let collector = Collector::new(
+        registry_for(&Providers::recorded()).unwrap(),
+        empty.clone(),
+        half,
+        MemoryArchive::default(),
+        Arc::new(FixedClock(first_run)),
+        None,
+    );
+    assert!(!collector.collect(&job).await);
+    let set = empty
+        .cable_sets(std::slice::from_ref(&source))
+        .await
+        .unwrap()
+        .remove(0);
+    let northern_tile = venti_domain::BoundingBox::new(48.0, 11.42, 48.03, 11.6).unwrap();
+    assert_eq!(set.covers, [northern_tile]);
+    // The northern tile's answer holds three ways, which reach into the
+    // southern tile.
+    assert_eq!(set.cables, 3);
 }

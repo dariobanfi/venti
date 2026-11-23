@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -129,7 +130,9 @@ pub(crate) struct Fetching {
 ///
 /// A source whose manifest sets `rate_limit.pause_seconds` is asked one
 /// request at a time, with that pause before every request but the run's
-/// first, so that a run of many requests is spread over its length.
+/// first, so that a run of many requests is spread over its length. After
+/// a request the provider answered with "come back later", the next one
+/// waits the longer of the two pauses.
 pub(crate) async fn fetch_all(
     manifest: &Manifest,
     first: Vec<Request>,
@@ -168,15 +171,31 @@ pub(crate) async fn fetch_all(
         }
         let asked_before = requests;
         requests += wave.len();
+        // Whether the provider answered the request before "come back
+        // later". A wave starts after the pause for that, if any.
+        let refused = AtomicBool::new(false);
 
         let mut responses: Vec<(Request, _)> = stream::iter(wave.into_iter().enumerate())
             .map(|(index, request)| {
                 let wait = spacing.filter(|_| asked_before + index > 0);
+                let refused = &refused;
                 async move {
                     if let Some(wait) = wait {
+                        // A provider that is overloaded is given the longer
+                        // pause before the next request too, not only
+                        // before the one it refused is asked again.
+                        let wait = match retry_after {
+                            Some(longer) if refused.swap(false, Ordering::Relaxed) => {
+                                longer.max(wait)
+                            }
+                            _ => wait,
+                        };
                         fetch.pause(wait).await;
                     }
                     let result = fetch.get_within(&request, max_bytes).await;
+                    if matches!(&result, Err(error) if error.asks_to_come_back()) {
+                        refused.store(true, Ordering::Relaxed);
+                    }
                     (request, result)
                 }
             })
@@ -221,27 +240,32 @@ pub(crate) async fn fetch_all(
             }
         }
         // What the provider asked to come back for is asked again after the
-        // pause its manifest names, up to `MAX_TRIES` times in all and if
-        // the budget has room for all of it; otherwise each is a failed
-        // request, with how often it was tried.
+        // pause its manifest names, each request up to `MAX_TRIES` times in
+        // all, as many of them as the budget has room for, in their order;
+        // the others are failed requests, with how often each was tried.
         if let Some(pause) = retry_after.filter(|_| !again.is_empty()) {
-            let tries = |request: &Request| refusals.get(&request.url).copied().unwrap_or(1);
-            let room = again.len() <= budget - requests;
-            if room && again.iter().all(|(request, _)| tries(request) < MAX_TRIES) {
-                fetch.pause(pause).await;
-                next.splice(0..0, again.into_iter().map(|(request, _)| request));
-            } else {
-                for (request, error) in again {
-                    let error = match tries(&request) {
-                        1 => format!("{error}; the run's budget left no request to ask again"),
-                        n => format!("{error}, {n} times, {} s apart", pause.as_secs()),
-                    };
-                    failures.push(Failure {
-                        tag: request.tag,
-                        url: request.url,
-                        error,
-                    });
+            let mut room = budget - requests;
+            let mut asked_again = Vec::new();
+            for (request, error) in again {
+                let tries = refusals.get(&request.url).copied().unwrap_or(1);
+                if tries < MAX_TRIES && room > 0 {
+                    room -= 1;
+                    asked_again.push(request);
+                    continue;
                 }
+                let error = match tries {
+                    1 => format!("{error}; the run's budget left no request to ask again"),
+                    n => format!("{error}, {n} times, {} s apart", pause.as_secs()),
+                };
+                failures.push(Failure {
+                    tag: request.tag,
+                    url: request.url,
+                    error,
+                });
+            }
+            if !asked_again.is_empty() {
+                fetch.pause(pause).await;
+                next.splice(0..0, asked_again);
             }
         }
         if budget_exhausted {

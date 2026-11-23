@@ -29,7 +29,10 @@
 //! longer (33 s for a tile of 0.03° by 0.18° on 2026-11-23). A line across
 //! the edge of two tiles is in the answers to both; the pipeline keeps it
 //! once. A box smaller than a cell that crosses no grid line is one tile,
-//! the box itself.
+//! the box itself. Each answer names its tile as the box it is whole for,
+//! so that a tile that answered replaces the stored cables inside it while
+//! another tile of the run failed: on 2026-11-23 an overloaded instance
+//! answered 31 of the 78 tiles of the Alps and refused the others.
 //!
 //! # What is read
 //!
@@ -135,6 +138,21 @@ fn tag(tile: &BoundingBox) -> String {
     )
 }
 
+/// The tile a request's tag names: the box its answer holds every cable
+/// of. `None` for a tag that is not one of this adapter's.
+fn tile_of(tag: &str) -> Option<BoundingBox> {
+    let edges = tag.strip_prefix(TAG)?.strip_prefix(' ')?;
+    let edges: Vec<f64> = edges
+        .split(',')
+        .map(str::parse)
+        .collect::<Result<_, _>>()
+        .ok()?;
+    match edges[..] {
+        [south, west, north, east] => BoundingBox::new(south, west, north, east).ok(),
+        _ => None,
+    }
+}
+
 /// The query for the cables inside a box, in Overpass QL.
 fn query(area: &BoundingBox) -> String {
     format!(
@@ -166,9 +184,9 @@ impl CableSource for OsmCables {
         body: &[u8],
         _ctx: &PlanCtx,
     ) -> Result<ParsedCables, SourceError> {
-        if request.tag.split(' ').next() != Some(TAG) {
+        let Some(tile) = tile_of(&request.tag) else {
             return Err(SourceError::UnknownRequest(request.tag.clone()));
-        }
+        };
         let answer: Answer = serde_json::from_slice(body)
             .map_err(|e| SourceError::Malformed(format!("the answer is not Overpass JSON: {e}")))?;
         if let Some(remark) = answer.remark {
@@ -181,6 +199,7 @@ impl CableSource for OsmCables {
                 .osm3s
                 .and_then(|about| about.timestamp_osm_base)
                 .and_then(|text| time(&text)),
+            covers: Some(tile),
             ..ParsedCables::default()
         };
         for element in answer.elements {
@@ -391,6 +410,15 @@ mod tests {
         assert_eq!(plan.len(), 1);
         assert_eq!(plan[0].tag, "cables 47.66,11.7,47.74,11.82");
         assert_eq!(plan[0].url, source.url(&small));
+        // Each tag names its tile exactly, so that its answer can say which
+        // box it is whole for.
+        for tile in &all {
+            assert_eq!(tile_of(&tag(tile)), Some(*tile));
+        }
+        assert_eq!(tile_of(&plan[0].tag), Some(small));
+        assert_eq!(tile_of("cables"), None);
+        assert_eq!(tile_of("cables 1,2,3"), None);
+        assert_eq!(tile_of("sites 47,11,48,12"), None);
     }
 
     #[test]

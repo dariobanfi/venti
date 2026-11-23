@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
-use venti_domain::{Cable, SourceId, Timestamp};
+use venti_domain::{BoundingBox, Cable, SourceId, Timestamp};
 
 use crate::run::fetch_all;
 use crate::sites::SiteRejection;
@@ -35,9 +35,11 @@ pub struct CableRunReport {
 }
 
 impl CableRunReport {
-    /// Whether the set this run delivered may replace the one before: as
-    /// for sites, only when every request worked, so that a set with a
-    /// hole in it never replaces a whole one.
+    /// Whether the set this run delivered may replace the one before
+    /// whole: as for sites, only when every request worked, so that a set
+    /// with a hole in it never replaces a whole one. A run that is not
+    /// healthy may still replace the stored cables inside the boxes of its
+    /// pieces that answered ([`CableRunOutput::covers`]).
     pub fn is_healthy(&self) -> bool {
         self.cables > 0 && self.failures.is_empty() && !self.budget_exhausted
     }
@@ -51,6 +53,11 @@ pub struct CableRunOutput {
     /// The date the set is of, as for sites: the oldest date among the
     /// responses, never later than the run.
     pub as_of: Timestamp,
+    /// The boxes inside which the set holds every cable of the source: one
+    /// for each request that answered in full, in the order they answered,
+    /// as far as the adapter names them ([`crate::ParsedCables::covers`]). The
+    /// boxes of requests that failed are not among them.
+    pub covers: Vec<BoundingBox>,
     /// What happened.
     pub report: CableRunReport,
 }
@@ -66,9 +73,11 @@ pub struct CableRunOutput {
 /// An adapter may ask for its area in pieces, one request each. A cable
 /// in the answers to several of them is merged by its key: the copy of the
 /// answer taken first is kept, and the others, with what the adapter left
-/// out of them a second time, are dropped without a word. The set is still
-/// whole or nothing: one request that fails makes the run unhealthy, and
-/// an unhealthy run's set replaces no stored one.
+/// out of them a second time, are dropped without a word. One request that
+/// fails makes the run unhealthy, and an unhealthy run's set does not
+/// replace a stored one whole; but where the adapter names the box of each
+/// answer, the output lists the boxes that answered, and a store replaces
+/// the cables inside those alone.
 pub async fn run_cables(
     source: &dyn CableSource,
     fetch: &impl Fetch,
@@ -83,6 +92,8 @@ pub async fn run_cables(
     let mut found: Vec<(usize, Cable)> = Vec::new();
     let mut answers = 0;
     let mut as_of: Option<Timestamp> = None;
+    // The box each answer is whole for, by the tag of its request.
+    let mut answered: Vec<(String, BoundingBox)> = Vec::new();
 
     let take = |request: &Request, response: &Fetched| {
         let parsed = source.parse(request, &response.body, ctx)?;
@@ -92,6 +103,9 @@ pub async fn run_cables(
             .unwrap_or(ctx.now)
             .min(ctx.now);
         as_of = Some(as_of.map_or(date, |oldest| oldest.min(date)));
+        if let Some(tile) = parsed.covers {
+            answered.push((request.tag.clone(), tile));
+        }
         found.extend(parsed.cables.into_iter().map(|cable| (answers, cable)));
         answers += 1;
         for left_out in parsed.skipped {
@@ -159,6 +173,15 @@ pub async fn run_cables(
     }
 
     let cables: Vec<Cable> = cables.into_values().collect();
+    // An answer that was taken, but whose request still failed (its
+    // payload could not be archived), is not counted as whole.
+    let failed: BTreeSet<&str> = fetched.failures.iter().map(|f| f.tag.as_str()).collect();
+    let mut covers: Vec<BoundingBox> = answered
+        .into_iter()
+        .filter(|(tag, _)| !failed.contains(tag.as_str()))
+        .map(|(_, tile)| tile)
+        .collect();
+    covers.dedup();
     let report = CableRunReport {
         source: manifest.id.clone(),
         requests: fetched.requests,
@@ -172,6 +195,7 @@ pub async fn run_cables(
     CableRunOutput {
         cables,
         as_of: as_of.unwrap_or(ctx.now),
+        covers,
         report,
     }
 }

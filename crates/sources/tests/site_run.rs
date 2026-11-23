@@ -21,7 +21,21 @@ struct Club(Manifest);
 
 impl Club {
     fn new() -> Self {
-        let text = r#"
+        Self(Manifest::from_toml(CLUB).unwrap())
+    }
+
+    /// The club with a budget of three requests a run, whose server asks to
+    /// come back a minute later when it is busy.
+    fn with_a_small_budget() -> Self {
+        let text = CLUB.replace(
+            "[licence]",
+            "[rate_limit]\nper_hour = 3\nretry_after_seconds = 60\n\n[licence]",
+        );
+        Self(Manifest::from_toml(&text).unwrap())
+    }
+}
+
+const CLUB: &str = r#"
             id = "club"
             provider = "Example Flying Club"
             kinds = ["sites"]
@@ -39,9 +53,6 @@ impl Club {
             verified_on = "2026-11-19"
             verified_from = ["https://sites.example/licence"]
         "#;
-        Self(Manifest::from_toml(text).unwrap())
-    }
-}
 
 /// What the stand-in provider sends: the date its data is of, if it says,
 /// and its records.
@@ -268,4 +279,30 @@ fn a_source_registers_for_the_kind_its_manifest_lists() {
         registry.register_sites(Box::new(Club::new())),
         Err(RegistryError::Duplicate(id))
     );
+}
+
+#[test]
+fn what_the_budget_has_room_for_is_asked_again_and_the_rest_fails() {
+    // Both halves are refused once. The budget of three has room to ask
+    // one of them again: that one answers, the other is a failed request.
+    let fetch = FixtureFetch::new()
+        .with(WEST, answer(None, &[record("brauneck", 47.66, 11.52)]))
+        .with(EAST, answer(None, &[record("gaisberg", 47.80, 13.11)]))
+        .refusing(WEST, 503, 1)
+        .refusing(EAST, 503, 1);
+    let output = block_on(run_sites(
+        &Club::with_a_small_budget(),
+        &fetch,
+        &MemoryArchive::default(),
+        &ctx(),
+        &RunOptions::default(),
+    ));
+    assert_eq!(output.report.requests, 3);
+    assert_eq!(output.sites.len(), 1);
+    assert_eq!(output.report.failures.len(), 1);
+    assert_eq!(
+        output.report.failures[0].error,
+        "HTTP status 503; the run's budget left no request to ask again"
+    );
+    assert!(!output.report.budget_exhausted);
 }

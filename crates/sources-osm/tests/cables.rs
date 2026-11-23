@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use venti_domain::CableKind;
+use venti_domain::{BoundingBox, CableKind};
 use venti_sources::testing::{FixtureFetch, MemoryArchive, assert_golden, block_on};
 use venti_sources::{CableRunOutput, PlanCtx, RunOptions, run_cables};
 use venti_sources_osm::{OsmCables, fixtures};
@@ -112,9 +112,16 @@ fn a_tile_that_keeps_failing_makes_the_whole_run_unhealthy() {
         .refusing(&north, 502, 3);
     let output = tiles_run(&fetch);
     // The southern tile's cables are there, but the run says it is not
-    // whole, and a store keeps the set it holds (the server's test
-    // a_tile_that_fails_leaves_the_stored_cables_as_they_were).
+    // whole, and names the southern tile alone as the box it is whole for:
+    // a store replaces the cables inside that tile and keeps the others
+    // (the server's test
+    // a_tile_that_fails_leaves_its_stored_cables_and_the_other_tile_replaces_its_own).
     assert!(!output.report.is_healthy());
+    assert_eq!(
+        output.covers,
+        [BoundingBox::new(47.97, 11.42, 48.0, 11.6).unwrap()]
+    );
+    assert_eq!(output.cables.len(), 17);
     assert_eq!(output.report.failures.len(), 1);
     assert_eq!(output.report.failures[0].url, north);
     assert!(
@@ -138,4 +145,20 @@ fn a_tile_that_answers_at_the_second_try_gives_a_whole_set() {
     assert!(output.report.is_healthy(), "{:?}", output.report);
     assert_eq!(output.report.requests, 3);
     assert_eq!(output.cables.len(), 17);
+    assert_eq!(output.covers.len(), 2);
+}
+
+#[test]
+fn after_a_refusal_the_next_tile_waits_the_longer_pause() {
+    // The southern tile is asked first and refused once: the northern one
+    // waits two minutes, not half a minute, then the southern one is asked
+    // again after the two minutes for that, and half a minute's spacing.
+    let south = fixtures::cables_tiles()[0].0.clone();
+    let fetch = FixtureFetch::new()
+        .with_all(fixtures::cables_tiles())
+        .refusing(&south, 429, 1);
+    let output = tiles_run(&fetch);
+    assert!(output.report.is_healthy(), "{:?}", output.report);
+    let pauses: Vec<u64> = fetch.pauses().iter().map(Duration::as_secs).collect();
+    assert_eq!(pauses, [120, 120, 30]);
 }

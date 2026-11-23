@@ -4,13 +4,14 @@
 //! each against its own implementation. A new behaviour is added once, as a
 //! function and a name in [`store_suite`], and both stores must pass it.
 //! Stations and observations are below; airspace, flying sites, the sites
-//! that pilots make, forecasts, accounts, flights, live tracks, groups with
+//! that pilots make, cables, forecasts, accounts, flights, live tracks, groups with
 //! their plans, and what whoever runs the server does about what is shared
 //! have files of their own.
 
 mod accounts;
 mod airspace;
 mod alerts;
+mod cables;
 mod flights;
 mod forecasts;
 mod groups;
@@ -30,6 +31,7 @@ mod takeoffs;
 pub(crate) use accounts::*;
 pub(crate) use airspace::*;
 pub(crate) use alerts::*;
+pub(crate) use cables::*;
 pub(crate) use flights::*;
 pub(crate) use forecasts::*;
 pub(crate) use groups::*;
@@ -78,6 +80,12 @@ macro_rules! store_suite {
             a_bad_airspace_set_is_refused_and_nothing_is_stored,
             airspace_layers_are_kept_apart_and_sorted,
             a_set_says_where_it_is_whole_as_its_run_said,
+            a_healthy_cable_run_replaces_the_whole_set,
+            a_tile_that_answered_replaces_the_cables_inside_it,
+            a_line_across_the_edge_of_a_failed_tile_is_kept,
+            tiles_that_answered_build_up_a_set_from_nothing,
+            a_failed_run_without_tiles_or_an_older_one_changes_nothing,
+            a_bad_partial_cable_run_is_refused,
             pruning_leaves_airspace_alone,
             a_site_set_is_stored_and_read_back_exactly,
             sites_are_found_by_box_edges_included,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inline, parse } from './markdown';
+import { anchorOf, inline, parse } from './markdown';
 import { posts, read } from './posts';
 
 describe('inline', () => {
@@ -30,12 +30,57 @@ describe('parse', () => {
 		expect(head).toEqual({ title: 'Hello: world', draft: 'true' });
 		expect(blocks).toEqual([
 			{ kind: 'paragraph', line: [{ kind: 'text', text: 'One line and its second.' }] },
-			{ kind: 'heading', line: [{ kind: 'text', text: 'A heading' }] },
+			{
+				kind: 'heading',
+				level: 2,
+				id: 'a-heading',
+				line: [{ kind: 'text', text: 'A heading' }]
+			},
 			{
 				kind: 'list',
 				items: [[{ kind: 'text', text: 'first' }], [{ kind: 'text', text: 'second' }]]
 			}
 		]);
+	});
+});
+
+describe('documents', () => {
+	it('reads code, fenced code with its blank lines, tables and deeper headings', () => {
+		const { blocks } = parse(
+			'### 1. The `skeleton`\n\nRun `new.sh`:\n\n```toml\n# a comment\n\nkey = 1\n```\n\n| Kind | Copy |\n|---|---|\n| Airspace | `openaip` |\n'
+		);
+		expect(blocks).toEqual([
+			{
+				kind: 'heading',
+				level: 3,
+				id: '1-the-skeleton',
+				line: [
+					{ kind: 'text', text: '1. The ' },
+					{ kind: 'code', text: 'skeleton' }
+				]
+			},
+			{
+				kind: 'paragraph',
+				line: [
+					{ kind: 'text', text: 'Run ' },
+					{ kind: 'code', text: 'new.sh' },
+					{ kind: 'text', text: ':' }
+				]
+			},
+			{ kind: 'code', language: 'toml', text: '# a comment\n\nkey = 1' },
+			{
+				kind: 'table',
+				head: [[{ kind: 'text', text: 'Kind' }], [{ kind: 'text', text: 'Copy' }]],
+				rows: [[[{ kind: 'text', text: 'Airspace' }], [{ kind: 'code', text: 'openaip' }]]]
+			}
+		]);
+	});
+
+	it('gives a heading the anchor GitHub gives it', () => {
+		expect(anchorOf('GET /v1/sites?bbox=west,south,east,north')).toBe(
+			'get-v1sitesbboxwestsoutheastnorth'
+		);
+		expect(anchorOf('Pioupiou’s condition')).toBe('pioupious-condition');
 	});
 });
 

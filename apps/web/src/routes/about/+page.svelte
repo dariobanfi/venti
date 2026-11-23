@@ -5,7 +5,8 @@
 	arrival moment with no data on it. The words are the web's own.
 -->
 <script lang="ts">
-	import { API_DESCRIPTION, newsHref, SOURCE_CODE } from '#lib/app/routes.ts';
+	import { developersHref, newsHref, SOURCE_CODE } from '#lib/app/routes.ts';
+	import SiteFooter from '#lib/app/SiteFooter.svelte';
 	import hero from '../../../../../design/assets/illustration/hero-wide.svg?url';
 </script>
 
@@ -45,7 +46,7 @@
 				Take-offs, flights and what pilots know of them belong to everyone who flies. All of it is
 				open to anyone through Venti’s API, under each source’s licence. Only the flights you keep
 				private stay private.
-				<a href={API_DESCRIPTION} rel="external">The API</a>
+				<a href={developersHref()}>For developers</a>
 			</p>
 		</section>
 
@@ -58,6 +59,7 @@
 			</p>
 		</section>
 	</article>
+	<SiteFooter />
 </div>
 
 <style>
@@ -76,6 +78,11 @@
 		object-fit: cover;
 		object-position: 60% 30%;
 		border-radius: var(--radius-card);
+	}
+
+	.about > :global(.site-footer) {
+		width: 100%;
+		max-width: 40rem;
 	}
 
 	article {

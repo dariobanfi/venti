@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
 	import { newsPostHref } from '#lib/app/routes.ts';
+	import SiteFooter from '#lib/app/SiteFooter.svelte';
 	import { format } from '#lib/design/format.ts';
 	import DraftMark from '#lib/news/DraftMark.svelte';
 	import NewsPicture from '#lib/news/NewsPicture.svelte';
@@ -43,6 +44,7 @@
 			{/each}
 		</ul>
 	{/if}
+	<SiteFooter />
 </div>
 
 <style>

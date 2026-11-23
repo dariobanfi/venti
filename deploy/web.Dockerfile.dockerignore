@@ -7,7 +7,6 @@
 .claude
 target
 var
-docs
 deploy
 **/.DS_Store
 **/node_modules

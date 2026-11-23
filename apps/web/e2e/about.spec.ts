@@ -5,7 +5,7 @@
 
 import { expect, test } from './helpers';
 
-test('the about page says what Venti stands for, with the code and the API', async ({
+test('the about page says what Venti stands for, with the code and the developers’ pages', async ({
 	page,
 	keep,
 	problems
@@ -31,9 +31,9 @@ test('the about page says what Venti stands for, with the code and the API', asy
 		'href',
 		'https://github.com/dariobanfi/venti'
 	);
-	await expect(page.getByRole('link', { name: 'The API' })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'For developers' })).toHaveAttribute(
 		'href',
-		'/v1/openapi.json'
+		/\/developers\/?$/
 	);
 	await expect(page.getByText(/donat/i)).toHaveCount(0);
 	await keep('204-about');

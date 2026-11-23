@@ -51,6 +51,8 @@ COPY design /build/design
 COPY map /build/map
 COPY apps/ios/Venti/Resources/MapDemo/fonts /build/apps/ios/Venti/Resources/MapDemo/fonts
 COPY apps/ios/Venti/Resources/sample.igc /build/apps/ios/Venti/Resources/sample.igc
+COPY docs /build/docs
+COPY crates /build/crates
 COPY apps/web ./
 COPY --from=core /out/pkg src/lib/core/pkg
 RUN node scripts/strip-core.mjs src/lib/core/pkg/venti_core_wasm_bg.wasm \

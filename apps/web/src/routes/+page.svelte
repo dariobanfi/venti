@@ -41,6 +41,7 @@
 	import { dayOf } from '#lib/groups/days.ts';
 	import Achievements from '#lib/home/Achievements.svelte';
 	import HomePanel from '#lib/home/HomePanel.svelte';
+	import SiteFooter from '#lib/app/SiteFooter.svelte';
 	import StandsFor from '#lib/home/StandsFor.svelte';
 	import WeatherPanel from '#lib/home/WeatherPanel.svelte';
 	import DraftMark from '#lib/news/DraftMark.svelte';
@@ -536,6 +537,7 @@
 			{/if}
 		</HomePanel>
 	</div>
+	<SiteFooter />
 </div>
 
 <style>

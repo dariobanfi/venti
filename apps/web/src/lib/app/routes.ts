@@ -164,6 +164,35 @@ export function newsPostHref(slug: string): string {
 	return resolve('/news/[slug]', { slug });
 }
 
+/**
+ * The pages for developers: where Venti's data is and who may use it, the
+ * REST API's reference and its schemas, the connector, the sources and
+ * their licences with the downloads, and how to add a source.
+ */
+export function developersHref(
+	page: '' | 'api' | 'api/schemas' | 'connector' | 'data' | 'add-a-source' = ''
+): string {
+	switch (page) {
+		case 'api':
+			return resolve('/developers/api');
+		case 'api/schemas':
+			return resolve('/developers/api/schemas');
+		case 'connector':
+			return resolve('/developers/connector');
+		case 'data':
+			return resolve('/developers/data');
+		case 'add-a-source':
+			return resolve('/developers/add-a-source');
+		default:
+			return resolve('/developers');
+	}
+}
+
+/** One schema of the API's description, on the page of the schemas. */
+export function schemaHref(name: string): string {
+	return `${resolve('/developers/api/schemas')}#schema-${name}`;
+}
+
 /** Where the code of Venti is kept. */
 export const SOURCE_CODE = 'https://github.com/dariobanfi/venti';
 

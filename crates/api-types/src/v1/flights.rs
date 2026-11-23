@@ -108,6 +108,42 @@ pub struct Pilot {
     pub handle: Handle,
     /// The name the pilot is shown by.
     pub display_name: String,
+    /// The pilot's country, an ISO 3166-1 alpha-2 code in upper case, if
+    /// they set one ([`super::Account::country`]). It is said with their
+    /// flights and on their page; left out where the pilot set none, and
+    /// in answers that are not about flights (a group's members, a live
+    /// track).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub country: Option<String>,
+}
+
+/// The class a paraglider is certified in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GliderClass {
+    /// EN A.
+    EnA,
+    /// EN B.
+    EnB,
+    /// EN C.
+    EnC,
+    /// EN D.
+    EnD,
+    /// CCC, the competition class.
+    Ccc,
+    /// A class this version of the client does not know. Do not send it
+    /// back.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Whether text is a country as the API takes one: two letters, an ISO
+/// 3166-1 alpha-2 code. Returns it in upper case. Whether the code is one
+/// ISO has assigned is not checked.
+pub fn country_code(text: &str) -> Option<String> {
+    let text = text.trim();
+    (text.len() == 2 && text.bytes().all(|byte| byte.is_ascii_alphabetic()))
+        .then(|| text.to_ascii_uppercase())
 }
 
 /// One flight.
@@ -156,6 +192,13 @@ pub struct Flight {
     /// so here too.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub takeoff_site: Option<FlightSite>,
+    /// The country the glider took off in, an ISO 3166-1 alpha-2 code, as
+    /// the server finds it with every answer from the country outlines it
+    /// has. Left out where the take-off is in no country it has an
+    /// outline of (in November 2026 it has Austria's and France's), and
+    /// for a recording that never shows the glider flying.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub takeoff_country: Option<String>,
     /// Distance along the track, metres.
     pub track_length_m: f64,
     /// Highest satellite altitude, metres above mean sea level.
@@ -170,6 +213,11 @@ pub struct Flight {
     /// as text and never as markup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub glider: Option<String>,
+    /// The class of the glider it was flown on: the pilot's setting
+    /// ([`super::Account::glider_class`]) when it was uploaded, or what
+    /// the pilot set on the flight later. Left out while it is not known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glider_class: Option<GliderClass>,
     /// The shape of the track for a thumbnail: at most 96 points, each a
     /// latitude and a longitude in degrees. Circles in thermals are
     /// smoothed away; nothing may be measured on it.
@@ -603,11 +651,22 @@ pub struct RankedPilot {
     pub flights: Vec<Flight>,
 }
 
-/// The body of `PATCH /v1/flights/{id}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// The body of `PATCH /v1/flights/{id}`: what changes of one of the
+/// account's flights. A field that is left out stays as it is; at least
+/// one is named.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct UpdateFlightRequest {
     /// Who may see the flight from now on.
-    pub visibility: Visibility,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<Visibility>,
+    /// The class of the glider the flight was flown on; `null` says it is
+    /// not known.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "super::patch"
+    )]
+    pub glider_class: Option<Option<GliderClass>>,
 }
 
 /// The body of `PATCH /v1/flights`: who may see every flight of the
@@ -836,6 +895,7 @@ mod tests {
             pilot: Pilot {
                 handle: Handle::new("demo").unwrap(),
                 display_name: "Demo Pilot".to_owned(),
+                country: None,
             },
             visibility: Visibility::Private,
             uploaded_at: start,
@@ -844,11 +904,13 @@ mod tests {
             takeoff: None,
             landing: None,
             takeoff_site: None,
+            takeoff_country: None,
             track_length_m: 600.0,
             max_altitude_m: 1620,
             max_climb_ms: 0.0,
             score: None,
             glider: None,
+            glider_class: None,
             outline: vec![[47.6642, 11.7967], [47.67, 11.79]],
             file_bytes: 2300,
             analysis_version: 1,
@@ -864,6 +926,8 @@ mod tests {
             "landing",
             "score",
             "glider",
+            "glider_class",
+            "takeoff_country",
             "taken_down_at",
             "published_at",
         ] {
@@ -872,5 +936,42 @@ mod tests {
         assert_eq!(json["outline"][0][0], 47.6642);
         assert_eq!(json["pilot"]["handle"], "demo");
         assert_eq!(serde_json::from_value::<Flight>(json).unwrap(), flight);
+    }
+
+    #[test]
+    fn a_change_of_a_flight_names_what_changes_and_null_clears_the_class() {
+        let read = |text: &str| serde_json::from_str::<UpdateFlightRequest>(text).unwrap();
+        assert_eq!(
+            read(r#"{"visibility":"public"}"#),
+            UpdateFlightRequest {
+                visibility: Some(Visibility::Public),
+                glider_class: None,
+            }
+        );
+        assert_eq!(
+            read(r#"{"glider_class":"en_b"}"#).glider_class,
+            Some(Some(GliderClass::EnB))
+        );
+        assert_eq!(read(r#"{"glider_class":null}"#).glider_class, Some(None));
+        assert_eq!(read("{}"), UpdateFlightRequest::default());
+        let clear = UpdateFlightRequest {
+            visibility: None,
+            glider_class: Some(None),
+        };
+        assert_eq!(
+            serde_json::to_string(&clear).unwrap(),
+            r#"{"glider_class":null}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&GliderClass::Ccc).unwrap(),
+            r#""ccc""#
+        );
+        assert_eq!(
+            serde_json::from_str::<GliderClass>(r#""tandem""#).unwrap(),
+            GliderClass::Unknown
+        );
+        assert_eq!(country_code(" de ").as_deref(), Some("DE"));
+        assert_eq!(country_code("DEU"), None);
+        assert_eq!(country_code("D1"), None);
     }
 }

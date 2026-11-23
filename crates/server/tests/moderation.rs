@@ -112,7 +112,10 @@ async fn fly(router: &Router, token: &str, file: &[u8], visibility: Visibility) 
 async fn patch(router: &Router, token: &str, id: &FlightId, visibility: Visibility) -> Answer {
     ask(Method::PATCH, &flight_path(id))
         .token(token)
-        .json(&UpdateFlightRequest { visibility })
+        .json(&UpdateFlightRequest {
+            visibility: Some(visibility),
+            ..UpdateFlightRequest::default()
+        })
         .send(router)
         .await
 }

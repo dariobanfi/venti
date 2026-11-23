@@ -329,10 +329,10 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
-    async fn set_new_flights_public(
+    async fn update_account_settings(
         &self,
         _: &str,
-        _: bool,
+        _: &crate::AccountSettings,
     ) -> Result<Option<Account>, StoreError> {
         self.fail().await
     }
@@ -790,7 +790,7 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
-    async fn flown_by(&self, _: &str) -> Result<Vec<crate::Flown>, StoreError> {
+    async fn flown_by(&self, _: &str, _: Listing) -> Result<Vec<crate::Flown>, StoreError> {
         self.fail().await
     }
 
@@ -844,6 +844,16 @@ impl Store for TroubledStore {
         _: Option<&(u32, String)>,
         _: usize,
     ) -> Result<Vec<OutdatedFlight>, StoreError> {
+        self.fail().await
+    }
+
+    async fn set_glider_class(
+        &self,
+        _: &str,
+        _: &str,
+        _: Option<crate::GliderClass>,
+        _: Timestamp,
+    ) -> Result<Option<Flight>, StoreError> {
         self.fail().await
     }
 

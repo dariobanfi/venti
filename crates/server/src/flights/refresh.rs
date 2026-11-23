@@ -119,6 +119,8 @@ mod tests {
             publishing_suspended_at: None,
             edits_sites_since: None,
             new_flights_public: false,
+            country: None,
+            glider_class: None,
         };
         let new = NewAccount {
             account: account.clone(),
@@ -141,7 +143,7 @@ mod tests {
                 glider: None,
                 ..current.derived.clone()
             },
-            ..new_flight(&account.id, &sample, current.clone(), uploaded)
+            ..new_flight(&account.id, &sample, current.clone(), None, uploaded)
         };
         // One whose stored file cannot be read any more.
         let broken = NewFlight {
@@ -156,6 +158,7 @@ mod tests {
             &account.id,
             other.as_bytes(),
             derive(other.as_bytes()).unwrap(),
+            None,
             uploaded,
         );
         for flight in [&stale, &broken, &fresh] {

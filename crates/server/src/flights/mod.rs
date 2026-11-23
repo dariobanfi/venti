@@ -7,6 +7,7 @@
 //! - [`refresh`] works stored flights out again after the analysis changed.
 //! - [`track`] is a flight's recording as a GeoJSON line, for programs
 //!   that do not read flight files.
+//! - [`country`] is the country a flight took off in.
 //!
 //! A flight file is kept byte for byte as it was uploaded: a recorder's
 //! signature covers every byte, and a league will only accept the file it
@@ -14,6 +15,7 @@
 //! thirds, and is unpacked when someone asks for it.
 
 pub mod analyser;
+pub mod country;
 pub mod derive;
 pub mod flown;
 pub mod picture;
@@ -28,7 +30,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use venti_api_types::v1::MAX_FLIGHT_FILE_BYTES;
 use venti_domain::Timestamp;
-use venti_store::NewFlight;
+use venti_store::{GliderClass, NewFlight};
 
 use crate::accounts::secret;
 use derive::Derivation;
@@ -63,6 +65,7 @@ pub fn new_flight(
     account_id: &str,
     file: &[u8],
     derivation: Derivation,
+    glider_class: Option<GliderClass>,
     now: Timestamp,
 ) -> NewFlight {
     NewFlight {
@@ -73,6 +76,7 @@ pub fn new_flight(
         file: pack(file),
         file_bytes: u32::try_from(file.len()).unwrap_or(u32::MAX),
         derived: derivation.derived,
+        glider_class,
     }
 }
 
@@ -127,6 +131,7 @@ mod tests {
             "0123456789abcdefghjkmnpqrs",
             &sample,
             derivation.clone(),
+            None,
             now,
         );
 

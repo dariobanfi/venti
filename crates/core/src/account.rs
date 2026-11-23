@@ -127,6 +127,18 @@ pub struct AccountView {
     #[uniffi(default = true)]
     #[cfg_attr(feature = "wasm", tsify(optional))]
     pub new_flights_public: bool,
+    /// The pilot's country, an ISO 3166-1 alpha-2 code, as the server said
+    /// it last: shown with their name on their public flights and page
+    /// once set ([`Core::country_request`]). A shell draws its flag.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub country: Option<String>,
+    /// The class of the glider the pilot flies now, as the server said it
+    /// last; a flight sent to the server takes it
+    /// ([`Core::glider_class_request`]).
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub glider_class: Option<crate::GliderClassKind>,
 }
 
 /// The words of who sees a pilot's flights, the same on every platform:
@@ -439,6 +451,13 @@ struct Stored {
     /// server until its pilot switches it off.
     #[serde(default = "on")]
     new_flights_public: bool,
+    /// The pilot's country, as the server said it last.
+    #[serde(default)]
+    country: Option<String>,
+    /// The class of the glider the pilot flies now, as the server said
+    /// it last.
+    #[serde(default, with = "crate::own_flights::stored_class")]
+    glider_class: Option<crate::GliderClassKind>,
 }
 
 /// What a setting that is on unless it was switched off reads as.
@@ -559,6 +578,11 @@ impl Core {
         stored.publishing_suspended = response.account.publishing_suspended_at.is_some();
         stored.google_email = response.account.google_email;
         stored.new_flights_public = response.account.new_flights_public;
+        stored.country.clone_from(&response.account.country);
+        stored.glider_class = response
+            .account
+            .glider_class
+            .and_then(crate::own_flights::glider_class_kind);
         stored.session_id = response.session.id;
         self.store_account(&stored)?;
         Ok(SignedIn {
@@ -762,6 +786,11 @@ impl Core {
             stored.publishing_suspended = response.account.publishing_suspended_at.is_some();
             stored.google_email = response.account.google_email;
             stored.new_flights_public = response.account.new_flights_public;
+            stored.country.clone_from(&response.account.country);
+            stored.glider_class = response
+                .account
+                .glider_class
+                .and_then(crate::own_flights::glider_class_kind);
             self.store_account(&stored)?;
         }
         Ok(Some(self.account_view(&stored)))
@@ -779,6 +808,53 @@ impl Core {
             api::ACCOUNT_PATH,
             &api::UpdateAccountRequest {
                 new_flights_public: Some(public),
+                ..api::UpdateAccountRequest::default()
+            },
+            true,
+        )
+    }
+
+    /// The request that sets the pilot's country, or clears it with
+    /// `None`: two letters, an ISO 3166-1 alpha-2 code such as `DE`, in
+    /// either case. Its answer is the account, which goes to
+    /// [`Core::account_read`]. Text that is no such code is refused here,
+    /// in words.
+    pub fn country_request(&self, country: Option<String>) -> Result<ServerRequest, CoreError> {
+        self.stored_account()?.ok_or_else(not_signed_in)?;
+        let country = country
+            .filter(|text| !text.trim().is_empty())
+            .map(|text| {
+                api::country_code(&text)
+                    .ok_or_else(|| invalid("A country is two letters, such as DE or AT."))
+            })
+            .transpose()?;
+        json_request(
+            "PATCH",
+            api::ACCOUNT_PATH,
+            &api::UpdateAccountRequest {
+                country: Some(country),
+                ..api::UpdateAccountRequest::default()
+            },
+            true,
+        )
+    }
+
+    /// The request that sets the class of the glider the pilot flies now,
+    /// or clears it with `None`. A flight the server takes from then on is
+    /// marked with it; flights it has already keep theirs
+    /// ([`crate::flight_glider_class_request`] changes one). Its answer goes to
+    /// [`Core::account_read`].
+    pub fn glider_class_request(
+        &self,
+        class: Option<crate::GliderClassKind>,
+    ) -> Result<ServerRequest, CoreError> {
+        self.stored_account()?.ok_or_else(not_signed_in)?;
+        json_request(
+            "PATCH",
+            api::ACCOUNT_PATH,
+            &api::UpdateAccountRequest {
+                glider_class: Some(class.map(crate::own_flights::wire_class)),
+                ..api::UpdateAccountRequest::default()
             },
             true,
         )
@@ -944,11 +1020,8 @@ impl Core {
             "PATCH",
             &api::flight_path(&address),
             &UpdateFlightRequest {
-                visibility: match visibility {
-                    FlightVisibility::Private => Visibility::Private,
-                    FlightVisibility::Unlisted => Visibility::Unlisted,
-                    FlightVisibility::Public => Visibility::Public,
-                },
+                visibility: Some(wire_visibility(visibility)),
+                ..UpdateFlightRequest::default()
             },
             true,
         )
@@ -1081,6 +1154,8 @@ impl Core {
             may_edit_partner_sites: stored.edits_sites,
             google_email: stored.google_email.clone(),
             new_flights_public: stored.new_flights_public,
+            country: stored.country.clone(),
+            glider_class: stored.glider_class,
         }
     }
 
@@ -1647,7 +1722,13 @@ pub(crate) fn json_request<T: Serialize>(
 /// How a flight on the server is shared, with the link to its page.
 /// `None` for a setting this version does not know.
 fn sharing(server: &str, remote: &Remote) -> Option<FlightSharing> {
-    let visibility = match remote.visibility {
+    sharing_of(server, &remote.id, remote.visibility)
+}
+
+/// How the flight at `id` on `server` is shared. `None` for a setting
+/// this version does not know.
+pub(crate) fn sharing_of(server: &str, id: &str, visibility: Visibility) -> Option<FlightSharing> {
+    let visibility = match visibility {
         Visibility::Private => FlightVisibility::Private,
         Visibility::Unlisted => FlightVisibility::Unlisted,
         Visibility::Public => FlightVisibility::Public,
@@ -1655,9 +1736,18 @@ fn sharing(server: &str, remote: &Remote) -> Option<FlightSharing> {
     };
     Some(FlightSharing {
         visibility,
-        link: format!("{server}/f/{}", remote.id),
-        flight_id: remote.id.clone(),
+        link: format!("{}/f/{id}", server.trim().trim_end_matches('/')),
+        flight_id: id.to_owned(),
     })
+}
+
+/// Who may see a flight, as the API names it.
+pub(crate) fn wire_visibility(visibility: FlightVisibility) -> Visibility {
+    match visibility {
+        FlightVisibility::Private => Visibility::Private,
+        FlightVisibility::Unlisted => Visibility::Unlisted,
+        FlightVisibility::Public => Visibility::Public,
+    }
 }
 
 #[cfg(test)]
@@ -1981,6 +2071,53 @@ mod tests {
         drop(core);
         let core = self::core(&folder);
         assert!(core.account().unwrap().unwrap().new_flights_public);
+    }
+
+    #[test]
+    fn the_pilots_country_and_glider_class_are_set_and_remembered() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        assert!(core.country_request(Some("DE".to_owned())).is_err());
+        signed_in(&core);
+
+        // The documentation's example, sent as one request each.
+        let sent: Value = serde_json::from_slice(&golden("account_details_request.json")).unwrap();
+        let country = core.country_request(Some("de".to_owned())).unwrap();
+        assert_eq!(country.path, "/v1/account");
+        assert_eq!(body_of(&country), json!({"country": "DE"}));
+        assert_eq!(sent["country"], "de");
+        let class = core
+            .glider_class_request(Some(crate::GliderClassKind::B))
+            .unwrap();
+        assert_eq!(
+            body_of(&class),
+            json!({"glider_class": sent["glider_class"]})
+        );
+        // None clears either; what is no code is refused in words.
+        assert_eq!(
+            body_of(&core.country_request(None).unwrap()),
+            json!({"country": null})
+        );
+        assert_eq!(
+            body_of(&core.glider_class_request(None).unwrap()),
+            json!({"glider_class": null})
+        );
+        assert!(core.country_request(Some("Germany".to_owned())).is_err());
+
+        // The answer is the account, remembered across a restart.
+        let read = core
+            .account_read(200, golden("account_details.json"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(read.country.as_deref(), Some("DE"));
+        assert_eq!(read.glider_class, Some(crate::GliderClassKind::B));
+        drop(core);
+        let core = self::core(&folder);
+        let again = core.account().unwrap().unwrap();
+        assert_eq!(
+            (again.country.as_deref(), again.glider_class),
+            (Some("DE"), Some(crate::GliderClassKind::B))
+        );
     }
 
     #[test]

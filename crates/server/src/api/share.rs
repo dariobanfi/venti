@@ -270,6 +270,8 @@ mod tests {
             publishing_suspended_at: None,
             edits_sites_since: None,
             new_flights_public: false,
+            country: None,
+            glider_class: None,
         };
         let new = NewAccount {
             account: account.clone(),
@@ -293,7 +295,7 @@ mod tests {
         let text = igc::write(&synthetic_flight())
             .replace("HFDTEDATE:040726", &format!("HFDTEDATE:{day:02}0726"));
         let derivation = derive(text.as_bytes()).unwrap();
-        let new = new_flight(&account.id, text.as_bytes(), derivation, now);
+        let new = new_flight(&account.id, text.as_bytes(), derivation, None, now);
         store.save_flight(&new, &Room::UNLIMITED).await.unwrap();
         store
             .set_visibility(&account.id, &new.id, Visibility::Unlisted, now)

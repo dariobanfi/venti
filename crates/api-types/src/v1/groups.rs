@@ -559,6 +559,7 @@ mod tests {
         let pilot = |handle: &str| Pilot {
             handle: Handle::new(handle).unwrap(),
             display_name: handle.to_owned(),
+            country: None,
         };
         let plan = Plan {
             id: "0123456789abcdefghjkmnpqrs".parse().unwrap(),

@@ -376,6 +376,8 @@ mod tests {
             taken_down_at: None,
             published_at: None,
             public_change: None,
+            glider_class: None,
+            pilot_country: None,
         }
     }
 

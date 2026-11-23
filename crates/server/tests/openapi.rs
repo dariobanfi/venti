@@ -552,6 +552,25 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         Request,
     ),
     ("account_settings.json", "patch", "/v1/account", Answer(200)),
+    (
+        "account_details_request.json",
+        "patch",
+        "/v1/account",
+        Request,
+    ),
+    ("account_details.json", "patch", "/v1/account", Answer(200)),
+    (
+        "account_statistics.json",
+        "get",
+        "/v1/account/statistics",
+        Answer(200),
+    ),
+    (
+        "flight_glider_class_request.json",
+        "patch",
+        "/v1/flights/{id}",
+        Request,
+    ),
     ("tokens.json", "get", "/v1/account/tokens", Answer(200)),
     (
         "token_create_request.json",
@@ -828,7 +847,6 @@ const SCHEMAS_NO_GOLDEN_FILE_REACHES: &[&str] = &[
     "SamePlace",
     "SignInRequest",
     "TokenClient",
-    "UpdateFlightRequest",
     "UpdateGroupRequest",
 ];
 

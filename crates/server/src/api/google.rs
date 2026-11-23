@@ -209,6 +209,8 @@ pub(crate) async fn create<S: Store>(
         edits_sites_since: None,
         // As for an account with a password (owner decision 21).
         new_flights_public: true,
+        country: None,
+        glider_class: None,
     };
     let new = NewGoogleAccount {
         account: account.clone(),

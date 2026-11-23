@@ -15,13 +15,16 @@ use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
+use venti_api_types::v1;
 use venti_api_types::v1::{
     AccessTokensResponse, AccountResponse, ChangePasswordRequest, CreateAccessTokenRequest,
     CreateAccessTokenResponse, CreateAccountRequest, DeleteAccountRequest, ErrorCode, Handle,
     Password, Scope, SessionsResponse, SignInRequest, SignInResponse, UpdateAccountRequest,
     parse_display_name, parse_token_name,
 };
-use venti_store::{AccessToken, Account, AccountCreation, NewAccount, Session, Store};
+use venti_store::{
+    AccessToken, Account, AccountCreation, AccountSettings, NewAccount, Session, Store,
+};
 
 use super::auth::{Client, May, OwnSession, ReadAccount, WriteFlights};
 use super::error::ApiError;
@@ -322,6 +325,8 @@ pub(crate) async fn create<S: Store>(
         // A pilot's flights are public unless the pilot keeps them
         // private (owner decision 21).
         new_flights_public: true,
+        country: None,
+        glider_class: None,
     };
     let new = NewAccount {
         account: account.clone(),
@@ -447,9 +452,10 @@ pub(crate) async fn show<S: Store>(
 /// `PATCH /v1/account`: changes the pilot's own settings of the account,
 /// and answers with the account as `GET /v1/account` does.
 ///
-/// Its one setting today is whether new flights are public, a setting of
-/// the pilot's flights: a program needs `flights:write`, as it does to
-/// change who sees one flight.
+/// Its settings are those of what the pilot's flights show: whether new
+/// flights are public, the pilot's country and the class of their glider.
+/// A program needs `flights:write`, as it does to change who sees one
+/// flight.
 pub(crate) async fn update<S: Store>(
     State(api): State<Arc<Api<S>>>,
     May(signed, ..): May<WriteFlights>,
@@ -457,12 +463,37 @@ pub(crate) async fn update<S: Store>(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let request: UpdateAccountRequest = body::json(&headers, &body)?;
+    let country = request
+        .country
+        .map(|country| {
+            country
+                .map(|text| {
+                    v1::country_code(&text).ok_or_else(|| {
+                        ApiError::bad_request(
+                            ErrorCode::InvalidRequest,
+                            "country must be two letters, an ISO 3166-1 alpha-2 code such as DE, \
+                             or null",
+                        )
+                    })
+                })
+                .transpose()
+        })
+        .transpose()?;
+    let glider_class = request
+        .glider_class
+        .map(|class| class.map(wire::stored_glider_class).transpose())
+        .transpose()?;
+    let settings = AccountSettings {
+        new_flights_public: request.new_flights_public,
+        country,
+        glider_class,
+    };
     let mut account = signed.account;
-    if let Some(public) = request.new_flights_public {
+    if settings != AccountSettings::default() {
         // The account can go between the token's check and this.
         account = api
             .store
-            .set_new_flights_public(&account.id, public)
+            .update_account_settings(&account.id, &settings)
             .await?
             .ok_or_else(|| ApiError::unauthorized("the account is gone"))?;
     }

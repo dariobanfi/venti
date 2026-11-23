@@ -102,7 +102,15 @@ impl Core {
     /// from the take-off, like the track `flight` returns.
     pub fn flight_airspace(&self, id: String) -> Result<FlightAirspace, CoreError> {
         let text = self.logbook.flight_text(&id)?;
-        let file = igc::parse(&text).map_err(LogbookError::Invalid)?;
+        self.flight_airspace_from_file(text)
+    }
+
+    /// Checks a flight that is not in the logbook against the airspace the
+    /// app has, from its file's text: one of the pilot's flights as the
+    /// server hands it out, on the website, which keeps no logbook. The
+    /// same check as [`Core::flight_airspace`].
+    pub fn flight_airspace_from_file(&self, igc_text: String) -> Result<FlightAirspace, CoreError> {
+        let file = igc::parse(&igc_text).map_err(LogbookError::Invalid)?;
         let set = self.airspace()?;
         Ok(check(&set, analysis::flown_part(&file.fixes)))
     }
@@ -315,6 +323,12 @@ mod tests {
 
         let checked = core.flight_airspace(id).unwrap();
         assert_eq!(checked.cover, AirspaceCover::Whole);
+        // The same flight's file from the server is checked the same.
+        assert_eq!(
+            core.flight_airspace_from_file(igc::write(&synthetic_flight()))
+                .unwrap(),
+            checked
+        );
         // In flight order: the zone around the first thermal, which the
         // take-off lies in too, and the edge of the zone the second
         // thermal drifts into. Not the zone far above, nor the one far away.

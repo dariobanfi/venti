@@ -171,6 +171,7 @@ macro_rules! store_suite {
             scored_months_are_counted,
             pilots_are_found_by_name,
             flown_by_has_public_flights,
+            settings_and_glider_class_are_kept,
             a_flight_has_the_moment_it_became_public,
             public_flights_are_found_by_their_pilot,
             what_changed_for_the_public_is_told_with_withdrawals,

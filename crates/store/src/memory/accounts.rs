@@ -7,8 +7,8 @@ use venti_domain::Timestamp;
 
 use crate::flight::next_change;
 use crate::{
-    AccessToken, Account, AccountCreation, GoogleLink, GoogleLinking, NewAccount, NewGoogleAccount,
-    NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
+    AccessToken, Account, AccountCreation, AccountSettings, GoogleLink, GoogleLinking, NewAccount,
+    NewGoogleAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
 };
 
 #[derive(Debug, Default)]
@@ -306,16 +306,24 @@ impl Accounts {
             .is_some_and(|account| account.new_flights_public)
     }
 
-    /// Sets it, and returns the account as it then is. `None` for an
-    /// account that is not there.
-    pub(super) fn set_new_flights_public(
+    /// Changes the settings `settings` names, and returns the account as
+    /// it then is. `None` for an account that is not there.
+    pub(super) fn update_settings(
         &mut self,
         account_id: &str,
-        public: bool,
+        settings: &AccountSettings,
     ) -> Option<Account> {
-        let entry = self.accounts.get_mut(account_id)?;
-        entry.account.new_flights_public = public;
-        Some(entry.account.clone())
+        let account = &mut self.accounts.get_mut(account_id)?.account;
+        if let Some(public) = settings.new_flights_public {
+            account.new_flights_public = public;
+        }
+        if let Some(country) = &settings.country {
+            account.country.clone_from(country);
+        }
+        if let Some(class) = settings.glider_class {
+            account.glider_class = class;
+        }
+        Some(account.clone())
     }
 
     /// Marks an account as suspended since `now`, or leaves the mark it

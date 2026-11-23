@@ -275,17 +275,45 @@ pub struct Account {
     /// private: that is how it reads.
     #[serde(default)]
     pub new_flights_public: bool,
+    /// The pilot's own country, an ISO 3166-1 alpha-2 code in upper case,
+    /// if they set one. It is shown with their name on their public
+    /// flights and their page ([`super::Pilot::country`]), and nowhere
+    /// while it is not set. Left out while it is not set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub country: Option<String>,
+    /// The class of the glider the pilot flies now, if they set it. A
+    /// flight they upload takes it ([`super::Flight::glider_class`]).
+    /// Left out while it is not set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glider_class: Option<super::GliderClass>,
 }
 
 /// The body of `PATCH /v1/account`: the pilot's own settings of the
-/// account. A field that is left out stays as it is.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// account. A field that is left out stays as it is; `null` clears a
+/// setting that may be unset.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct UpdateAccountRequest {
     /// Whether a flight the pilot uploads from now on is public from the
     /// start. It changes no flight the account has; `PATCH /v1/flights`
     /// does that ([`super::UpdateFlightsRequest`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub new_flights_public: Option<bool>,
+    /// The pilot's country: two letters, an ISO 3166-1 alpha-2 code, in
+    /// either case ([`super::country_code`]).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "super::patch"
+    )]
+    pub country: Option<Option<String>>,
+    /// The class of the glider the pilot flies now. It changes no flight
+    /// the account has: `PATCH /v1/flights/{id}` does that.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "super::patch"
+    )]
+    pub glider_class: Option<Option<super::GliderClass>>,
 }
 
 /// The body of `POST /v1/auth/google`: signs this device in with a Google
@@ -615,6 +643,8 @@ mod tests {
                 edits_sites: false,
                 google_email: None,
                 new_flights_public: true,
+                country: None,
+                glider_class: None,
             },
             session: Session {
                 id: "s".to_owned(),
@@ -640,6 +670,8 @@ mod tests {
             edits_sites: false,
             google_email: None,
             new_flights_public: true,
+            country: None,
+            glider_class: None,
         };
         let json = serde_json::to_value(&account).unwrap();
         assert!(
@@ -671,6 +703,8 @@ mod tests {
             edits_sites: false,
             google_email: None,
             new_flights_public: false,
+            country: None,
+            glider_class: None,
         };
         let mut json = serde_json::to_value(&account).unwrap();
         assert_eq!(json["new_flights_public"], false);
@@ -681,6 +715,7 @@ mod tests {
         // A change names what it changes, and nothing else.
         let request = UpdateAccountRequest {
             new_flights_public: Some(false),
+            ..UpdateAccountRequest::default()
         };
         assert_eq!(
             serde_json::to_string(&request).unwrap(),

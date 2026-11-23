@@ -62,8 +62,8 @@ use venti_domain::{
 };
 
 pub use account::{
-    AccessToken, Account, AccountCreation, GoogleLink, GoogleLinking, NewAccount, NewGoogleAccount,
-    NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session, Suspension,
+    AccessToken, Account, AccountCreation, AccountSettings, GoogleLink, GoogleLinking, NewAccount,
+    NewGoogleAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session, Suspension,
 };
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use alert::{
@@ -73,9 +73,9 @@ pub use alert::{
 pub use cable::{CableLayer, CableSet};
 pub use flight::{
     AllFlightsSet, AllVisibilityChange, DeletedFlight, Derived, Flight, FlightChanges, FlightKey,
-    Flown, FoundPilot, Kept, Listing, Near, NewFlight, OutdatedFlight, Place, PublicFlightChanges,
-    PublicFlights, PublicOrder, Ranked, Room, Saved, Score, ScoreKey, ScoreKind, Visibility,
-    VisibilityChange, WithdrawnFlight,
+    Flown, FoundPilot, GliderClass, Kept, Listing, Near, NewFlight, OutdatedFlight, Place,
+    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Room, Saved, Score, ScoreKey,
+    ScoreKind, Visibility, VisibilityChange, WithdrawnFlight,
 };
 pub use forecast::{ForecastModel, ThermalPart};
 pub use group::{
@@ -736,16 +736,18 @@ pub trait Store: Send + Sync + 'static {
     /// order of the handles.
     fn site_editors(&self) -> impl Future<Output = Result<Vec<Account>, StoreError>> + Send;
 
-    /// Sets whether a flight the account uploads from now on is public
-    /// from the start ([`Account::new_flights_public`]), and returns the
-    /// account as it then is. `None` if there is no such account.
+    /// Changes the account's own settings, those that `settings` names:
+    /// whether a flight it uploads from now on is public from the start
+    /// ([`Account::new_flights_public`]), the pilot's country and the class
+    /// of their glider. Returns the account as it then is; `None` if there
+    /// is no such account.
     ///
     /// It changes no flight the account has: [`Store::set_all_visibility`]
-    /// does that.
-    fn set_new_flights_public(
+    /// and [`Store::set_glider_class`] do that.
+    fn update_account_settings(
         &self,
         account_id: &str,
-        public: bool,
+        settings: &AccountSettings,
     ) -> impl Future<Output = Result<Option<Account>, StoreError>> + Send;
 
     /// Stores an invite that one account can be created with.
@@ -1398,14 +1400,14 @@ pub trait Store: Send + Sync + 'static {
         limit: usize,
     ) -> impl Future<Output = Result<Vec<FoundPilot>, StoreError>> + Send;
 
-    /// Every public flight of an account in the few numbers a pilot's
-    /// totals are made of, newest first as [`Store::flights_of`] orders
-    /// them. See [`Flown`].
-    ///
-    /// A flight that is private or unlisted is not among them.
+    /// The flights of an account in the few numbers a pilot's totals are
+    /// made of, newest first as [`Store::flights_of`] orders them. See
+    /// [`Flown`]. With [`Listing::Public`] the public ones, for everyone;
+    /// with [`Listing::All`] every one, for the pilot themself.
     fn flown_by(
         &self,
         account_id: &str,
+        listing: Listing,
     ) -> impl Future<Output = Result<Vec<Flown>, StoreError>> + Send;
 
     /// What the public flights that began within `within_m` metres of a
@@ -1578,6 +1580,18 @@ pub trait Store: Send + Sync + 'static {
         after: Option<&(u32, String)>,
         limit: usize,
     ) -> impl Future<Output = Result<Vec<OutdatedFlight>, StoreError>> + Send;
+
+    /// Sets the class of the glider a flight of the account was flown on,
+    /// or clears it. The flight counts as changed, for the account and,
+    /// when it is public, for everyone. Returns the flight as it then is;
+    /// `None` if the account has no such flight.
+    fn set_glider_class(
+        &self,
+        account_id: &str,
+        id: &str,
+        class: Option<GliderClass>,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Option<Flight>, StoreError>> + Send;
 
     /// Replaces a flight's derived values. The flight counts as changed.
     /// Returns whether the flight exists.

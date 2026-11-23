@@ -342,6 +342,8 @@ mod tests {
             publishing_suspended_at: None,
             edits_sites_since: None,
             new_flights_public: false,
+            country: None,
+            glider_class: None,
         };
         let new = NewAccount {
             account: account.clone(),
@@ -420,6 +422,8 @@ mod tests {
             publishing_suspended_at: None,
             edits_sites_since: None,
             new_flights_public: false,
+            country: None,
+            glider_class: None,
         };
         for handle in ["dario", "anna"] {
             let new = NewAccount {
@@ -496,6 +500,8 @@ mod tests {
             publishing_suspended_at: None,
             edits_sites_since: None,
             new_flights_public: false,
+            country: None,
+            glider_class: None,
         };
         let new = NewAccount {
             account: account.clone(),

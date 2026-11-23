@@ -82,6 +82,18 @@ pub struct PublicFlight {
     pub page_path: String,
     /// The path to fetch its file from, to open the flight.
     pub file_path: String,
+    /// The country it took off in, an ISO 3166-1 alpha-2 code, where the
+    /// server knows it. A shell draws its flag from the code.
+    #[uniffi(default = None)]
+    pub takeoff_country: Option<String>,
+    /// Its pilot's country, an ISO 3166-1 alpha-2 code, if the pilot set
+    /// one. A shell draws its flag from the code.
+    #[uniffi(default = None)]
+    pub pilot_country: Option<String>,
+    /// The class of the glider it was flown on, where it is known; name it
+    /// with [`crate::glider_class_name`].
+    #[uniffi(default = None)]
+    pub glider_class: Option<crate::GliderClassKind>,
 }
 
 /// One page of a list of public flights.
@@ -353,6 +365,14 @@ pub(crate) fn row(flight: &Flight) -> PublicFlight {
             .collect(),
         page_path: api::share_path(&flight.id),
         file_path: api::flight_file_path(&flight.id),
+        takeoff_country: flight
+            .takeoff_country
+            .as_deref()
+            .and_then(api::country_code),
+        pilot_country: flight.pilot.country.as_deref().and_then(api::country_code),
+        glider_class: flight
+            .glider_class
+            .and_then(crate::own_flights::glider_class_kind),
     }
 }
 

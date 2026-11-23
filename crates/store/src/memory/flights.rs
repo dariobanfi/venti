@@ -12,7 +12,7 @@ use crate::flight::{
 use crate::takeoff::{Cell, Tally, cell_of, cells_of};
 use crate::{
     AllFlightsSet, AllVisibilityChange, DeletedFlight, Derived, Flight, FlightChanges, FlightKey,
-    FlightsFrom, Flown, FoundPilot, Listing, Month, NewFlight, OutdatedFlight, Place,
+    FlightsFrom, Flown, FoundPilot, GliderClass, Listing, Month, NewFlight, OutdatedFlight, Place,
     PublicFlightChanges, PublicFlights, PublicOrder, Ranked, ScoreKey, StoreError, Visibility,
     VisibilityChange, WithdrawnFlight,
 };
@@ -101,6 +101,7 @@ impl Flights {
         if let Some(account) = accounts.by_id(&flight.account_id) {
             flight.pilot_handle.clone_from(&account.handle);
             flight.pilot_name.clone_from(&account.display_name);
+            flight.pilot_country.clone_from(&account.country);
         }
         flight
     }
@@ -141,6 +142,7 @@ impl Flights {
                 account_id: new.account_id.clone(),
                 pilot_handle: String::new(),
                 pilot_name: String::new(),
+                pilot_country: None,
                 identity: new.identity.clone(),
                 visibility: Visibility::Private,
                 uploaded_at: new.uploaded_at,
@@ -150,6 +152,7 @@ impl Flights {
                 taken_down_at,
                 published_at: None,
                 public_change: None,
+                glider_class: new.glider_class,
             },
             file: new.file.clone(),
         };
@@ -387,13 +390,14 @@ impl Flights {
         found.into_iter().map(|(_, pilot)| pilot).collect()
     }
 
-    pub(super) fn flown_by(&self, account_id: &str) -> Vec<Flown> {
+    pub(super) fn flown_by(&self, account_id: &str, listing: Listing) -> Vec<Flown> {
         let mut flights: Vec<&Flight> = self
             .flights
             .values()
             .map(|entry| &entry.flight)
             .filter(|flight| {
-                flight.account_id == account_id && flight.visibility == Visibility::Public
+                flight.account_id == account_id
+                    && (listing == Listing::All || flight.visibility == Visibility::Public)
             })
             .collect();
         flights.sort_by_key(|flight| std::cmp::Reverse(flight.key()));
@@ -736,6 +740,29 @@ impl Flights {
         outdated.sort_by_key(OutdatedFlight::key);
         outdated.truncate(limit);
         outdated
+    }
+
+    pub(super) fn set_glider_class(
+        &mut self,
+        account_id: &str,
+        id: &str,
+        class: Option<GliderClass>,
+        now: Timestamp,
+        accounts: &mut Accounts,
+    ) -> Option<Flight> {
+        let entry = self
+            .flights
+            .get_mut(id)
+            .filter(|entry| entry.flight.account_id == account_id)?;
+        let change = accounts.next_flight_change(account_id, now)?;
+        entry.flight.glider_class = class;
+        entry.flight.change = change;
+        // What the public sees of a public flight has changed with it.
+        if entry.flight.visibility == Visibility::Public {
+            entry.flight.public_change = Some(self.public.take(Some(now)));
+        }
+        let entry = &self.flights[id];
+        Some(Self::read(entry, accounts))
     }
 
     pub(super) fn set_derived(

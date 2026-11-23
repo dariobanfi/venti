@@ -76,6 +76,7 @@ use venti_core::{
 };
 use venti_core::{FlownThermals, LiveClimbs, SitesAir};
 use venti_core::{GoogleSignIn, GoogleWords};
+use venti_core::{OwnFlight, OwnFlights, UploadedFlight};
 use venti_core::{PilotStatistics, PilotsFound, PilotsWords, RouteFromFile};
 use venti_core::{
     SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteCorrecting,
@@ -228,6 +229,22 @@ impl Core {
         let checked = self
             .session
             .call(|core| core.flight_airspace(id))
+            .map_err(thrown)?;
+        to_js(&checked)
+    }
+
+    /// Checks a flight that is not in the logbook against the airspace the
+    /// app has, from its file's text: one of the pilot's flights fetched
+    /// from the server. Like `flightAirspace` it throws while any of the
+    /// airspace is still to be fetched.
+    #[wasm_bindgen(js_name = flightAirspaceFromFile)]
+    pub fn flight_airspace_from_file(
+        &self,
+        igc_text: String,
+    ) -> Result<Ts<FlightAirspace>, JsValue> {
+        let checked = self
+            .session
+            .call(|core| core.flight_airspace_from_file(igc_text))
             .map_err(thrown)?;
         to_js(&checked)
     }
@@ -472,6 +489,33 @@ impl Core {
             .call(|core| core.account_request())
             .map_err(thrown)?;
         request.as_ref().map(to_js).transpose()
+    }
+
+    /// The request that sets the pilot's country, or clears it without
+    /// one: two letters, such as `DE`. Its answer goes to `accountRead`.
+    #[wasm_bindgen(js_name = countryRequest)]
+    pub fn country_request(&self, country: Option<String>) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .call(|core| core.country_request(country))
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// The request that sets the class of the glider the pilot flies now,
+    /// or clears it without one. Flights sent from then on take it. Its
+    /// answer goes to `accountRead`.
+    #[wasm_bindgen(js_name = gliderClassRequest)]
+    pub fn glider_class_request(
+        &self,
+        class: Option<Ts<GliderClassKind>>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let class = class.as_ref().map(from_js).transpose()?;
+        let request = self
+            .session
+            .call(|core| core.glider_class_request(class))
+            .map_err(thrown)?;
+        to_js(&request)
     }
 
     /// Reads the server's answer to `accountRequest` and remembers what
@@ -3479,6 +3523,121 @@ pub fn notifications(
     now_unix_s: f64,
 ) -> Result<Ts<Notifications>, JsValue> {
     to_js(&venti_core::notifications(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+// The pilot's own flights on the server, for a page that keeps no
+// logbook: the requests, with the session's token, and their answers read
+// into the rows everyone's flights have, with who may see each one.
+
+/// The request for one page of the pilot's own flights, the private ones
+/// too, the newest first. `after` is the `next` of the page before. Read
+/// the answer with `ownFlights`.
+#[wasm_bindgen(js_name = ownFlightsRequest)]
+pub fn own_flights_request(after: Option<String>) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::own_flights_request(after))
+}
+
+/// Reads the answer to `ownFlightsRequest`. `server` is the address the
+/// request went to, for the flights' links.
+#[wasm_bindgen(js_name = ownFlights)]
+pub fn own_flights(server: String, status: u16, body: Vec<u8>) -> Result<Ts<OwnFlights>, JsValue> {
+    to_js(&venti_core::own_flights(server, status, body).map_err(thrown)?)
+}
+
+/// The request for one of the pilot's flights by its address. Read the
+/// answer with `ownFlight`.
+#[wasm_bindgen(js_name = ownFlightRequest)]
+pub fn own_flight_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::own_flight_request(id).map_err(thrown)?)
+}
+
+/// Reads the answer to `ownFlightRequest`, `flightVisibilityRequest` and
+/// `flightGliderClassRequest`: the flight as it now is.
+#[wasm_bindgen(js_name = ownFlight)]
+pub fn own_flight(server: String, status: u16, body: Vec<u8>) -> Result<Ts<OwnFlight>, JsValue> {
+    to_js(&venti_core::own_flight(server, status, body).map_err(thrown)?)
+}
+
+/// The request that sends a flight file to the account. Read the answer
+/// with `uploadedFlight`.
+#[wasm_bindgen(js_name = uploadRequest)]
+pub fn upload_request(file: Vec<u8>) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::upload_request(file))
+}
+
+/// Reads the answer to `uploadRequest`.
+#[wasm_bindgen(js_name = uploadedFlight)]
+pub fn uploaded_flight(
+    server: String,
+    status: u16,
+    body: Vec<u8>,
+) -> Result<Ts<UploadedFlight>, JsValue> {
+    to_js(&venti_core::uploaded_flight(server, status, body).map_err(thrown)?)
+}
+
+/// The request that changes who may see one of the pilot's flights. Read
+/// the answer with `ownFlight`.
+#[wasm_bindgen(js_name = flightVisibilityRequest)]
+pub fn flight_visibility_request(
+    id: String,
+    visibility: Ts<FlightVisibility>,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let visibility = from_js(&visibility)?;
+    to_js(&venti_core::flight_visibility_request(id, visibility).map_err(thrown)?)
+}
+
+/// The request that sets the class of the glider one of the pilot's
+/// flights was flown on, or says without one that it is not known. Read
+/// the answer with `ownFlight`.
+#[wasm_bindgen(js_name = flightGliderClassRequest)]
+pub fn flight_glider_class_request(
+    id: String,
+    class: Option<Ts<GliderClassKind>>,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let class = class.as_ref().map(from_js).transpose()?;
+    to_js(&venti_core::flight_glider_class_request(id, class).map_err(thrown)?)
+}
+
+/// The request that deletes one of the pilot's flights, at once and for
+/// good. Read the answer with `flightDeleted`.
+#[wasm_bindgen(js_name = deleteFlightRequest)]
+pub fn delete_flight_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::delete_flight_request(id).map_err(thrown)?)
+}
+
+/// Reads the answer to `deleteFlightRequest`: throws the refusal in words
+/// when the flight is not gone.
+#[wasm_bindgen(js_name = flightDeleted)]
+pub fn flight_deleted(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
+    venti_core::flight_deleted(status, body).map_err(thrown)
+}
+
+/// The request for what all the pilot's flights add up to, the private
+/// ones too. Read the answer with `pilotStatistics`.
+#[wasm_bindgen(js_name = ownStatisticsRequest)]
+pub fn own_statistics_request() -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::own_statistics_request())
+}
+
+/// A flight file fetched from the server, with the name the logbook would
+/// save it under.
+#[wasm_bindgen(js_name = flightFileFromText)]
+pub fn flight_file_from_text(igc_text: String) -> Result<Ts<FlightFile>, JsValue> {
+    to_js(&venti_core::flight_file_from_text(igc_text).map_err(thrown)?)
+}
+
+/// What to tell the pilot before a flight goes to a league, from its
+/// file's text fetched from the server. `now_unix_s` is the moment the
+/// pilot asks at.
+#[wasm_bindgen(js_name = leagueHandoverFromFile)]
+pub fn league_handover_from_file(
+    igc_text: String,
+    now_unix_s: f64,
+) -> Result<Ts<LeagueHandover>, JsValue> {
+    to_js(
+        &venti_core::league_handover_from_file(igc_text, whole_seconds(now_unix_s))
+            .map_err(thrown)?,
+    )
 }
 
 /// A flight that is not in the logbook, prepared for display from its

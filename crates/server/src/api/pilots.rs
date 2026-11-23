@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use chrono::Datelike;
 use serde::Deserialize;
@@ -23,6 +23,7 @@ use venti_api_types::v1::{
 use venti_domain::{GeoPoint, SiteId};
 use venti_store::{Account, Flown, Listing, Store};
 
+use super::auth::{May, ReadFlights};
 use super::budget::Reader;
 use super::cache::Keeper;
 use super::error::ApiError;
@@ -102,7 +103,11 @@ pub(crate) async fn show<S: Store>(
         return Err(no_such_pilot());
     }
     let answer = PilotResponse {
-        pilot: wire::pilot(&account.handle, &account.display_name)?,
+        pilot: wire::pilot_with_country(
+            &account.handle,
+            &account.display_name,
+            account.country.as_deref(),
+        )?,
         flights: api.shown_flights(&flights).await?,
         next,
         terms: Some(FlightTerms::current()),
@@ -289,11 +294,21 @@ impl<S: Store> Api<S> {
         let account = self.account_of(handle).await?;
         // The store lists public flights only: one that is private or
         // shared by link is in no number here.
-        let flown = self.store.flown_by(&account.id).await?;
+        let flown = self.store.flown_by(&account.id, Listing::Public).await?;
         if flown.is_empty() {
             return Err(no_such_pilot());
         }
-        let sites = self.sites_flown_from(&flown).await?;
+        self.statistics_of(&account, &flown).await
+    }
+
+    /// What some flights of an account add up to, all together and year
+    /// by year.
+    pub(crate) async fn statistics_of(
+        &self,
+        account: &Account,
+        flown: &[Flown],
+    ) -> Result<PilotStatisticsResponse, ApiError> {
+        let sites = self.sites_flown_from(flown).await?;
         let all: Vec<(&Flown, Option<&Placed>)> = flown
             .iter()
             .zip(&sites)
@@ -304,7 +319,11 @@ impl<S: Store> Api<S> {
             years.entry(flight.0.start.year()).or_default().push(flight);
         }
         Ok(PilotStatisticsResponse {
-            pilot: wire::pilot(&account.handle, &account.display_name)?,
+            pilot: wire::pilot_with_country(
+                &account.handle,
+                &account.display_name,
+                account.country.as_deref(),
+            )?,
             counted: u32::try_from(RANKING_COUNTED).unwrap_or(u32::MAX),
             overall: totals(&all)?,
             seasons: years
@@ -339,6 +358,20 @@ pub(crate) async fn statistics<S: Store>(
     // Checked before every reuse: a flight made private is in no number
     // of the next answer.
     Ok(cache::shared_json(&headers, &answer, Keeper::Anyone))
+}
+
+/// `GET /v1/account/statistics`: what all the flights of the account add
+/// up to, the private ones and those shared by link too, in the shape of
+/// a pilot's public statistics. For the pilot themself: a session, or a
+/// token with `flights:read`. An account without flights has totals of
+/// nothing.
+pub(crate) async fn own_statistics<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    May(signed, ..): May<ReadFlights>,
+) -> Result<Response, ApiError> {
+    let flown = api.store.flown_by(&signed.account.id, Listing::All).await?;
+    let answer = api.statistics_of(&signed.account, &flown).await?;
+    Ok(cache::private_json(StatusCode::OK, &answer))
 }
 
 #[cfg(test)]

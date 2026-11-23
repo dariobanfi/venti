@@ -441,6 +441,8 @@ mod tests {
             publishing_suspended_at: None,
             edits_sites_since: None,
             new_flights_public: false,
+            country: None,
+            glider_class: None,
         }
     }
 

@@ -86,64 +86,7 @@ impl Core {
         id: String,
         now_unix_s: i64,
     ) -> Result<LeagueHandover, CoreError> {
-        let file = self.flight_file(id)?;
-        let flight = igc::parse(&file.igc_text).map_err(LogbookError::Invalid)?;
-        // A recording without a position has a day and nothing else: the
-        // day's first second stands for the flight.
-        let start = flight.fixes.first().map_or_else(
-            || flight.date.and_time(chrono::NaiveTime::MIN).and_utc(),
-            |fix| fix.time,
-        );
-        let ends = claim_ends(start);
-        let last_day = ends
-            .date_naive()
-            .checked_sub_days(Days::new(1))
-            .unwrap_or_else(|| ends.date_naive())
-            .format("%-d %b %Y");
-        let is_late = now_unix_s > 0 && now_unix_s >= ends.timestamp();
-        let deadline = if is_late {
-            format!(
-                "The {CLAIM_DAYS} days in which the leagues take a flight for their contests \
-                 ended with {last_day}. XContest rejects a claim after them; the DHV-XC still \
-                 takes the flight unscored or as private."
-            )
-        } else {
-            format!(
-                "XContest and the DHV-XC take a flight for their contests until {CLAIM_DAYS} \
-                 days after the day it was flown: this one until the end of {last_day}, by UTC."
-            )
-        };
-
-        let facts = FileFacts::of(&file.igc_text);
-        let unscored = "XContest lists such a flight and gives it no points, and the DHV-XC \
-                        does not score it.";
-        let signature = if facts.signed {
-            let recorder = if facts.recorder.is_empty() {
-                String::new()
-            } else {
-                format!(" ({})", facts.recorder)
-            };
-            format!(
-                "The file carries the signature of its recorder{recorder}. A league checks it \
-                 when the file arrives; this app cannot."
-            )
-        } else if facts.recorder == OWN_RECORDER {
-            format!("Venti recorded this flight and does not sign its files yet. {unscored}")
-        } else {
-            format!("This file carries no recorder's signature. {unscored}")
-        };
-
-        Ok(LeagueHandover {
-            file,
-            is_signed: facts.signed,
-            signature,
-            is_late,
-            deadline,
-            xcontest_claim_url: xcontest::CLAIM_URL.to_owned(),
-            xcontest_rules_url: xcontest::RULES_URL.to_owned(),
-            dhvxc_profile_url: dhvxc::PROFILE_URL.to_owned(),
-            dhvxc_rules_url: dhvxc::RULES_URL.to_owned(),
-        })
+        handover(self.flight_file(id)?, now_unix_s)
     }
 
     /// The request that sends a flight of the logbook to the DHV-XC.
@@ -176,6 +119,80 @@ impl Core {
             }),
         })
     }
+}
+
+/// What to tell the pilot before a flight goes to a league, from its
+/// file's text as the server handed it out: what
+/// [`Core::league_handover`] says of a flight of the logbook. The website,
+/// which keeps no logbook, fetches the file of one of the pilot's flights
+/// and asks this. `now_unix_s` is as there.
+#[uniffi::export]
+pub fn league_handover_from_file(
+    igc_text: String,
+    now_unix_s: i64,
+) -> Result<LeagueHandover, CoreError> {
+    handover(crate::flight_file_from_text(igc_text)?, now_unix_s)
+}
+
+/// What to tell the pilot before `file` goes to a league.
+fn handover(file: FlightFile, now_unix_s: i64) -> Result<LeagueHandover, CoreError> {
+    let flight = igc::parse(&file.igc_text).map_err(LogbookError::Invalid)?;
+    // A recording without a position has a day and nothing else: the
+    // day's first second stands for the flight.
+    let start = flight.fixes.first().map_or_else(
+        || flight.date.and_time(chrono::NaiveTime::MIN).and_utc(),
+        |fix| fix.time,
+    );
+    let ends = claim_ends(start);
+    let last_day = ends
+        .date_naive()
+        .checked_sub_days(Days::new(1))
+        .unwrap_or_else(|| ends.date_naive())
+        .format("%-d %b %Y");
+    let is_late = now_unix_s > 0 && now_unix_s >= ends.timestamp();
+    let deadline = if is_late {
+        format!(
+            "The {CLAIM_DAYS} days in which the leagues take a flight for their contests \
+             ended with {last_day}. XContest rejects a claim after them; the DHV-XC still \
+             takes the flight unscored or as private."
+        )
+    } else {
+        format!(
+            "XContest and the DHV-XC take a flight for their contests until {CLAIM_DAYS} \
+             days after the day it was flown: this one until the end of {last_day}, by UTC."
+        )
+    };
+
+    let facts = FileFacts::of(&file.igc_text);
+    let unscored = "XContest lists such a flight and gives it no points, and the DHV-XC \
+                    does not score it.";
+    let signature = if facts.signed {
+        let recorder = if facts.recorder.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", facts.recorder)
+        };
+        format!(
+            "The file carries the signature of its recorder{recorder}. A league checks it \
+             when the file arrives; this app cannot."
+        )
+    } else if facts.recorder == OWN_RECORDER {
+        format!("Venti recorded this flight and does not sign its files yet. {unscored}")
+    } else {
+        format!("This file carries no recorder's signature. {unscored}")
+    };
+
+    Ok(LeagueHandover {
+        file,
+        is_signed: facts.signed,
+        signature,
+        is_late,
+        deadline,
+        xcontest_claim_url: xcontest::CLAIM_URL.to_owned(),
+        xcontest_rules_url: xcontest::RULES_URL.to_owned(),
+        dhvxc_profile_url: dhvxc::PROFILE_URL.to_owned(),
+        dhvxc_rules_url: dhvxc::RULES_URL.to_owned(),
+    })
 }
 
 /// Reads the DHV-XC's answer to [`Core::dhvxc_upload_request`] into words
@@ -259,6 +276,11 @@ mod tests {
         let now = Utc.with_ymd_and_hms(2026, 7, 14, 9, 0, 0).unwrap();
 
         let handover = core.league_handover(id.clone(), now.timestamp()).unwrap();
+        // The same file fetched from the server says the same.
+        assert_eq!(
+            league_handover_from_file(text.clone(), now.timestamp()).unwrap(),
+            handover
+        );
 
         // Byte for byte what was imported: the signature covers every one.
         assert_eq!(handover.file.igc_text, text);

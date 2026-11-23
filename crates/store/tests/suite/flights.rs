@@ -3,9 +3,9 @@
 use chrono::Duration;
 use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
-    Account, AllFlightsSet, AllVisibilityChange, Derived, Flight, Flown, Kept, Listing, Month,
-    NewFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Room, Saved, Score,
-    ScoreKind, Store, StoreError, Visibility, VisibilityChange,
+    Account, AccountSettings, AllFlightsSet, AllVisibilityChange, Derived, Flight, Flown,
+    GliderClass, Kept, Listing, Month, NewFlight, Place, PublicFlightChanges, PublicFlights,
+    PublicOrder, Room, Saved, Score, ScoreKind, Store, StoreError, Visibility, VisibilityChange,
 };
 
 use super::accounts::{create, id};
@@ -55,6 +55,16 @@ pub(crate) fn new_flight(account: &Account, n: u8, start: Timestamp) -> NewFligh
         file: format!("gzip of flight {n}").into_bytes(),
         file_bytes: 64_000 + u32::from(n),
         derived: derived(start),
+        glider_class: None,
+    }
+}
+
+/// The settings that switch whether new flights are public, and nothing
+/// else.
+pub(crate) fn public_setting(public: bool) -> AccountSettings {
+    AccountSettings {
+        new_flights_public: Some(public),
+        ..AccountSettings::default()
     }
 }
 
@@ -74,6 +84,8 @@ fn stored(new: &NewFlight, account: &Account, change: i64) -> Flight {
         taken_down_at: None,
         published_at: None,
         public_change: None,
+        glider_class: None,
+        pilot_country: None,
     }
 }
 
@@ -1707,7 +1719,7 @@ pub(crate) async fn suspending_and_deleting_an_account_withdraws_flights(store: 
 async fn create_sharing(store: &impl Store, handle: &str) -> Account {
     let account = create(store, handle).await;
     store
-        .set_new_flights_public(&account.id, true)
+        .update_account_settings(&account.id, &public_setting(true))
         .await
         .unwrap()
         .expect("the account was just made")
@@ -1734,7 +1746,7 @@ pub(crate) async fn new_flights_are_public_by_their_pilots_setting(store: &impl 
 
     // Switched off, the next flight starts private; the first stays.
     let off = store
-        .set_new_flights_public(&dario.id, false)
+        .update_account_settings(&dario.id, &public_setting(false))
         .await
         .unwrap()
         .unwrap();
@@ -1748,7 +1760,10 @@ pub(crate) async fn new_flights_are_public_by_their_pilots_setting(store: &impl 
 
     // A public flight that is deleted is withdrawn; uploaded again with the
     // setting on, it is public again and told as withdrawn no longer.
-    store.set_new_flights_public(&dario.id, true).await.unwrap();
+    store
+        .update_account_settings(&dario.id, &public_setting(true))
+        .await
+        .unwrap();
     assert!(
         store
             .delete_flight(&dario.id, &first.id, at(20, 10))
@@ -1774,7 +1789,7 @@ pub(crate) async fn new_flights_are_public_by_their_pilots_setting(store: &impl 
     assert_eq!(annas.visibility, Visibility::Private);
     assert_eq!(
         store
-            .set_new_flights_public(&id("nobody"), true)
+            .update_account_settings(&id("nobody"), &public_setting(true))
             .await
             .unwrap(),
         None
@@ -2163,7 +2178,13 @@ pub(crate) async fn pilots_are_found_by_name(store: &impl Store) {
 pub(crate) async fn flown_by_has_public_flights(store: &impl Store) {
     let dario = create(store, "dario").await;
     let anna = create(store, "anna").await;
-    assert!(store.flown_by(&dario.id).await.unwrap().is_empty());
+    assert!(
+        store
+            .flown_by(&dario.id, Listing::Public)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     let scored = flown(&dario, 1, at(9, 0), BRAUNECK, Some(42.5));
     publish(store, &scored).await;
@@ -2179,7 +2200,7 @@ pub(crate) async fn flown_by_has_public_flights(store: &impl Store) {
     publish(store, &flown(&anna, 1, at(10, 0), KOESSEN, Some(120.0))).await;
 
     assert_eq!(
-        store.flown_by(&dario.id).await.unwrap(),
+        store.flown_by(&dario.id, Listing::Public).await.unwrap(),
         [
             Flown {
                 id: ground.id.clone(),
@@ -2199,6 +2220,117 @@ pub(crate) async fn flown_by_has_public_flights(store: &impl Store) {
             },
         ]
     );
-    assert_eq!(store.flown_by(&anna.id).await.unwrap().len(), 1);
-    assert!(store.flown_by("nobody").await.unwrap().is_empty());
+    assert_eq!(
+        store
+            .flown_by(&anna.id, Listing::Public)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    // For the pilot themself, every flight, newest first.
+    let all: Vec<String> = store
+        .flown_by(&dario.id, Listing::All)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|flown| flown.id)
+        .collect();
+    assert_eq!(
+        all,
+        [
+            unlisted.id.clone(),
+            new_flight(&dario, 3, at(13, 0)).id,
+            ground.id.clone(),
+            scored.id.clone()
+        ]
+    );
+    assert!(
+        store
+            .flown_by("nobody", Listing::Public)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+pub(crate) async fn settings_and_glider_class_are_kept(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    assert_eq!((dario.country.as_deref(), dario.glider_class), (None, None));
+
+    // A setting that is not named stays; one that is, changes.
+    let set = store
+        .update_account_settings(
+            &dario.id,
+            &AccountSettings {
+                country: Some(Some("DE".to_owned())),
+                glider_class: Some(Some(GliderClass::EnB)),
+                ..AccountSettings::default()
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(set.country.as_deref(), Some("DE"));
+    assert_eq!(set.glider_class, Some(GliderClass::EnB));
+    assert_eq!(set.new_flights_public, dario.new_flights_public);
+    assert_eq!(store.account("dario").await.unwrap(), Some(set.clone()));
+    let only_public = store
+        .update_account_settings(&dario.id, &public_setting(false))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(only_public.country.as_deref(), Some("DE"));
+    assert!(!only_public.new_flights_public);
+
+    // A flight takes the class it is uploaded with and its pilot's
+    // country; the class can be changed later, which counts as a change.
+    let mut new = new_flight(&dario, 1, at(9, 0));
+    new.glider_class = Some(GliderClass::EnB);
+    let (flight, _) = put(store, &new).await;
+    assert_eq!(flight.glider_class, Some(GliderClass::EnB));
+    assert_eq!(flight.pilot_country.as_deref(), Some("DE"));
+    let changed = store
+        .set_glider_class(&dario.id, &flight.id, Some(GliderClass::EnC), at(21, 0))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(changed.glider_class, Some(GliderClass::EnC));
+    assert!(changed.change > flight.change);
+    let cleared = store
+        .set_glider_class(&dario.id, &flight.id, None, at(21, 1))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(cleared.glider_class, None);
+    // Another account's flight, and none at all, are not there.
+    let anna = create(store, "anna").await;
+    assert_eq!(
+        store
+            .set_glider_class(&anna.id, &flight.id, Some(GliderClass::EnA), at(21, 2))
+            .await
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        store
+            .set_glider_class(&dario.id, &id("nothing"), None, at(21, 2))
+            .await
+            .unwrap(),
+        None
+    );
+
+    // Clearing the country takes it from the flights' pilot too.
+    store
+        .update_account_settings(
+            &dario.id,
+            &AccountSettings {
+                country: Some(None),
+                ..AccountSettings::default()
+            },
+        )
+        .await
+        .unwrap();
+    let flight = store.flight(&flight.id).await.unwrap().unwrap();
+    assert_eq!(flight.pilot_country, None);
 }

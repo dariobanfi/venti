@@ -1,0 +1,110 @@
+{
+  "pilot": {
+    "handle": "demo",
+    "display_name": "Demo Pilot",
+    "country": "DE"
+  },
+  "counted": 3,
+  "overall": {
+    "flights": 3,
+    "scored": 3,
+    "distance_m": 29737.0,
+    "points": 29.75,
+    "airtime_s": 4203,
+    "longest": {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "distance_m": 11975.7
+    },
+    "highest": {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "max_altitude_m": 2117
+    },
+    "sites": [],
+    "by_month": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "seasons": [
+    {
+      "year": 2026,
+      "totals": {
+        "flights": 2,
+        "scored": 2,
+        "distance_m": 23951.4,
+        "points": 23.96,
+        "airtime_s": 3496,
+        "longest": {
+          "id": "5t1eshypdtvrq7rxw39a18vsrg",
+          "distance_m": 11975.7
+        },
+        "highest": {
+          "id": "5t1eshypdtvrq7rxw39a18vsrg",
+          "max_altitude_m": 2117
+        },
+        "sites": [],
+        "by_month": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "year": 2025,
+      "totals": {
+        "flights": 1,
+        "scored": 1,
+        "distance_m": 5785.6,
+        "points": 5.79,
+        "airtime_s": 707,
+        "longest": {
+          "id": "7fvpx515951prsvkemfbvgkd3w",
+          "distance_m": 5785.6
+        },
+        "highest": {
+          "id": "7fvpx515951prsvkemfbvgkd3w",
+          "max_altitude_m": 2117
+        },
+        "sites": [],
+        "by_month": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}

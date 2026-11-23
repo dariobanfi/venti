@@ -3,12 +3,13 @@
 use chrono::Timelike;
 use venti_api_types::v1;
 use venti_store::{
-    AccessToken, Account, Flight, GoogleLink, Group, GroupMembers, GroupPilot, LiveFix, LiveTrack,
-    LiveVisibility, Place, Plan, ScoreKind, Session, Visibility,
+    AccessToken, Account, Flight, GliderClass, GoogleLink, Group, GroupMembers, GroupPilot,
+    LiveFix, LiveTrack, LiveVisibility, Place, Plan, ScoreKind, Session, Visibility,
 };
 
 use super::error::ApiError;
 use super::log::Sparse;
+use crate::flights::country::country_at;
 
 /// A stored value that no longer has the form it was stored in.
 fn damaged(what: &str, problem: impl std::fmt::Display) -> ApiError {
@@ -37,7 +38,36 @@ pub(crate) fn account(
         publishing_suspended_at: account.publishing_suspended_at,
         edits_sites: account.edits_sites_since.is_some(),
         new_flights_public: account.new_flights_public,
+        country: account.country.clone(),
+        glider_class: account.glider_class.map(glider_class),
     })
+}
+
+/// A glider's class as the API names it.
+pub(crate) fn glider_class(class: GliderClass) -> v1::GliderClass {
+    match class {
+        GliderClass::EnA => v1::GliderClass::EnA,
+        GliderClass::EnB => v1::GliderClass::EnB,
+        GliderClass::EnC => v1::GliderClass::EnC,
+        GliderClass::EnD => v1::GliderClass::EnD,
+        GliderClass::Ccc => v1::GliderClass::Ccc,
+    }
+}
+
+/// The store's class for one a client sent, refused in words for one this
+/// server does not know.
+pub(crate) fn stored_glider_class(class: v1::GliderClass) -> Result<GliderClass, ApiError> {
+    match class {
+        v1::GliderClass::EnA => Ok(GliderClass::EnA),
+        v1::GliderClass::EnB => Ok(GliderClass::EnB),
+        v1::GliderClass::EnC => Ok(GliderClass::EnC),
+        v1::GliderClass::EnD => Ok(GliderClass::EnD),
+        v1::GliderClass::Ccc => Ok(GliderClass::Ccc),
+        v1::GliderClass::Unknown => Err(ApiError::bad_request(
+            v1::ErrorCode::InvalidRequest,
+            "glider_class must be one of en_a, en_b, en_c, en_d, ccc, or null",
+        )),
+    }
 }
 
 /// A session as the API shows it. `current` is the identifier of the
@@ -104,6 +134,20 @@ pub(crate) fn pilot(handle_text: &str, display_name: &str) -> Result<v1::Pilot, 
     Ok(v1::Pilot {
         handle: handle(handle_text)?,
         display_name: display_name.to_owned(),
+        country: None,
+    })
+}
+
+/// A pilot as their flights and their page show them: with their country,
+/// if they set one.
+pub(crate) fn pilot_with_country(
+    handle_text: &str,
+    display_name: &str,
+    country: Option<&str>,
+) -> Result<v1::Pilot, ApiError> {
+    Ok(v1::Pilot {
+        country: country.map(str::to_owned),
+        ..pilot(handle_text, display_name)?
     })
 }
 
@@ -115,7 +159,11 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
             .parse()
             .map_err(|e| damaged("flight address", e))?,
         identity: flight.identity.clone(),
-        pilot: pilot(&flight.pilot_handle, &flight.pilot_name)?,
+        pilot: pilot_with_country(
+            &flight.pilot_handle,
+            &flight.pilot_name,
+            flight.pilot_country.as_deref(),
+        )?,
         visibility: visibility(flight.visibility),
         uploaded_at: flight.uploaded_at,
         start: derived.start,
@@ -124,6 +172,10 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
         landing: derived.landing.as_ref().map(place),
         // Looked up for a page at once: `Api::shown_flights`.
         takeoff_site: None,
+        takeoff_country: derived
+            .takeoff
+            .and_then(|takeoff| country_at(takeoff.position))
+            .map(str::to_owned),
         track_length_m: derived.track_length_m,
         max_altitude_m: derived.max_altitude_m,
         max_climb_ms: derived.max_climb_ms,
@@ -138,6 +190,7 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
             points: score.points,
         }),
         glider: derived.glider.clone(),
+        glider_class: flight.glider_class.map(glider_class),
         outline: derived.outline.clone(),
         file_bytes: flight.file_bytes,
         analysis_version: derived.version,

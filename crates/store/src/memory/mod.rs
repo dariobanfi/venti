@@ -33,7 +33,9 @@ use crate::{
     SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
     VisibilityChange, airspace, batch, cable, forecast, site, takeoff,
 };
-use crate::{AllVisibilityChange, GoogleLink, GoogleLinking, NewGoogleAccount};
+use crate::{
+    AccountSettings, AllVisibilityChange, GliderClass, GoogleLink, GoogleLinking, NewGoogleAccount,
+};
 use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
@@ -737,15 +739,12 @@ impl Store for MemoryStore {
         Ok(self.lock().accounts.site_editors())
     }
 
-    async fn set_new_flights_public(
+    async fn update_account_settings(
         &self,
         account_id: &str,
-        public: bool,
+        settings: &AccountSettings,
     ) -> Result<Option<Account>, StoreError> {
-        Ok(self
-            .lock()
-            .accounts
-            .set_new_flights_public(account_id, public))
+        Ok(self.lock().accounts.update_settings(account_id, settings))
     }
 
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {
@@ -1379,8 +1378,8 @@ impl Store for MemoryStore {
         Ok(inner.flights.pilots_named(text, limit, &inner.accounts))
     }
 
-    async fn flown_by(&self, account_id: &str) -> Result<Vec<Flown>, StoreError> {
-        Ok(self.lock().flights.flown_by(account_id))
+    async fn flown_by(&self, account_id: &str, listing: Listing) -> Result<Vec<Flown>, StoreError> {
+        Ok(self.lock().flights.flown_by(account_id, listing))
     }
 
     async fn flight_changes(
@@ -1469,6 +1468,19 @@ impl Store for MemoryStore {
         limit: usize,
     ) -> Result<Vec<OutdatedFlight>, StoreError> {
         Ok(self.lock().flights.outdated(version, after, limit))
+    }
+
+    async fn set_glider_class(
+        &self,
+        account_id: &str,
+        id: &str,
+        class: Option<GliderClass>,
+        now: Timestamp,
+    ) -> Result<Option<Flight>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .flights
+            .set_glider_class(account_id, id, class, now, &mut inner.accounts))
     }
 
     async fn set_derived(

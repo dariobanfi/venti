@@ -5022,6 +5022,8 @@ Needs a token. The account the token belongs to.
 | `google_email` | The email of the Google account the account [signs in with](#sign-in-with-google), if it is linked to one. Only the account itself sees it. Left out otherwise |
 | `edits_sites` | `true` for an account whoever runs the server named as a [partner for flying sites](#sites-that-ventis-partners-and-pilots-add): it adds to the partners' layer `venti` and corrects sites of both layers. Left out for every other account, which is nearly every account. A token with `account:read` reads it too. The demo account of the development mode is one |
 | `new_flights_public` | Whether a flight the pilot [uploads](#post-v1flights) is public from the start. The pilot's own setting, changed with [`PATCH /v1/account`](#patch-v1account): `true` for every account until its pilot switches it off, accounts made before the setting (2026-11-22) included. While `publishing_suspended_at` is there an upload is private whatever this says. Always there; a server from before the setting leaves it out, and made every new flight private |
+| `country` | The pilot's own country, an ISO 3166-1 alpha-2 code in upper case (`DE`), if they set one with [`PATCH /v1/account`](#patch-v1account). It is said with their name on their flights and their [page](#pilots) (`pilot.country`), and nowhere while it is not set. An app draws the flag from the code. Left out while it is not set |
+| `glider_class` | The class of the glider the pilot flies now: `en_a`, `en_b`, `en_c`, `en_d` or `ccc`, if they set it. A flight they [upload](#post-v1flights) from then on takes it as its own `glider_class`. Left out while it is not set; a value a client does not know is to be read as none |
 
 The answers to creating an account and to signing in carry the same `account`. This is the demo account after its publishing was suspended:
 
@@ -5040,7 +5042,7 @@ The answers to creating an account and to signing in carry the same `account`. T
 
 ### `PATCH /v1/account`
 
-Needs a token, with `flights:write` for a program: its one setting today is one of the pilot's flights. Changes the pilot's own settings of the account. A field that is left out stays as it is; `{}` changes nothing. The answer is `200` with the account, as [`GET /v1/account`](#get-v1account) has it.
+Needs a token, with `flights:write` for a program: its settings are those of what the pilot's flights show. Changes the pilot's own settings of the account. A field that is left out stays as it is, `null` clears a setting that may be unset, and `{}` changes nothing. The answer is `200` with the account, as [`GET /v1/account`](#get-v1account) has it.
 
 ```json
 {
@@ -5065,8 +5067,35 @@ This is the development mode's answer to that body:
 | Field | Meaning |
 |---|---|
 | `new_flights_public` | Whether a flight the pilot uploads from now on is public from the start. It changes no flight the account has: [`PATCH /v1/flights`](#patch-v1flights) makes all of them public or private at once |
+| `country` | The pilot's country: two letters, an ISO 3166-1 alpha-2 code, in either case; it is kept in upper case. `null` clears it. Whether ISO has assigned the code is not checked |
+| `glider_class` | The class of the glider the pilot flies now, `en_a`, `en_b`, `en_c`, `en_d` or `ccc`; `null` clears it. It changes no flight the account has: [`PATCH /v1/flights/{id}`](#patch-v1flightsid) sets one flight's |
 
-A field of the wrong kind is `400` with `invalid_request`. An app shows the setting as a switch where the pilot chooses who sees their flights, with the two buttons of `PATCH /v1/flights` beside it; the core has the words for both (`flight_visibility_words`).
+The pilot's country and glider class, set in one request:
+
+```json
+{
+  "country": "de",
+  "glider_class": "en_b"
+}
+```
+
+and the development mode's answer:
+
+```json
+{
+  "account": {
+    "handle": "demo",
+    "display_name": "Demo Pilot",
+    "created_at": "2026-11-18T19:05:00Z",
+    "edits_sites": true,
+    "new_flights_public": true,
+    "country": "DE",
+    "glider_class": "en_b"
+  }
+}
+```
+
+A field of the wrong kind, a country that is not two letters and a class that is none of the five are `400` with `invalid_request`. An app shows the setting as a switch where the pilot chooses who sees their flights, with the two buttons of `PATCH /v1/flights` beside it; the core has the words for both (`flight_visibility_words`).
 
 ### `GET /v1/account/archive`
 
@@ -5313,6 +5342,7 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `GET /v1/account` | `account:read` |
 | `PATCH /v1/account` | `flights:write` |
 | `GET /v1/flights` | `flights:read` |
+| `GET /v1/account/statistics` | `flights:read` |
 | `GET /v1/flights/changes` | `flights:read` |
 | `GET /v1/flights/{id}`, `GET /v1/flights/{id}/igc`, `GET /v1/flights/{id}/track` | Nothing for a flight that is public or shared by link. `flights:read` for the pilot's own private flight |
 | `POST /v1/flights` | `flights:write` |
@@ -6639,7 +6669,7 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
 |---|---|
 | `id` | The flight's address on the server |
 | `identity` | The hash of its fixes: what the apps' logbooks know the flight by |
-| `pilot` | Handle and display name of the pilot |
+| `pilot` | Handle and display name of the pilot, and `country`, the pilot's country, where they [set one](#get-v1account) |
 | `visibility` | Who may see the flight |
 | `uploaded_at` | When the server first received it |
 | `start` | When the flown part begins: the take-off, or the first fix of a recording that never shows the glider flying |
@@ -6651,6 +6681,8 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
 | `max_climb_ms` | Best climb averaged over half a minute |
 | `score` | How the flight scores as a cross-country flight: `kind` is `free_flight`, `free_triangle` or `fai_triangle`; `closed` says whether a triangle is closed to within 5%; `distance_m` and `points` follow. Left out for a track too short to score. The rules are the World XContest's as this project reads them; the points are ours, not the league's, until they have been compared |
 | `glider` | The glider as the file names it. Left out if the file names none. This is text from a file anyone can write: show it as text, never as markup |
+| `glider_class` | The class of the glider it was flown on: `en_a`, `en_b`, `en_c`, `en_d` or `ccc`. The pilot's [setting](#get-v1account) when the flight was uploaded, or what the pilot set on it later with [`PATCH /v1/flights/{id}`](#patch-v1flightsid). Left out while it is not known, which it is for every flight uploaded before 2026-11-23 |
+| `takeoff_country` | The country the glider took off in, an ISO 3166-1 alpha-2 code in upper case, for a flag. The server finds it with every answer, as it does `takeoff_site`, from the country outlines it has: Austria's (BEV) and France's (IGN), the ones it cuts aerial photographs with. Left out for a take-off in any other country, a few metres over a border perhaps, and when there is no `takeoff`. It does not count as a change of the flight |
 | `outline` | The shape of the track for a thumbnail: at most 96 points, each a latitude and a longitude. Circles in thermals are smoothed away, so nothing may be measured on it |
 | `file_bytes` | The size of the flight file |
 | `analysis_version` | Which version of the server's analysis produced the numbers. When the analysis improves, the server works every flight out again, and the flight shows up in `/v1/flights/changes` |
@@ -6739,7 +6771,7 @@ The track is read from the file for every answer, so this request is counted for
 
 ### `PATCH /v1/flights/{id}`
 
-Needs a token. Changes who may see a flight of the account.
+Needs a token. Changes who may see a flight of the account, the class of the glider it was flown on, or both. A field that is left out stays as it is; at least one is named, else `400` with `invalid_request`.
 
 ```json
 {
@@ -6747,7 +6779,15 @@ Needs a token. Changes who may see a flight of the account.
 }
 ```
 
-The answer is `200` with the flight as it then is, in the shape of `GET /v1/flights/{id}`. A value other than `private`, `unlisted` and `public` gives `400` with `invalid_visibility`. A flight of another pilot is no flight of this account, whoever may see it: `404` with `flight_not_found`.
+```json
+{
+  "glider_class": "en_c"
+}
+```
+
+`glider_class` is `en_a`, `en_b`, `en_c`, `en_d` or `ccc`, or `null` for a class that is not known; another value gives `400` with `invalid_request`. A change of the class counts as a change of the flight, in [what changed](#get-v1flightschangessincelimit) and, for a public flight, in [what changed of everyone's](#following-ventis-public-flights).
+
+The answer is `200` with the flight as it then is, in the shape of `GET /v1/flights/{id}`. A value other than `private`, `unlisted` and `public` gives `400` with `invalid_visibility`. Of a request that names both, a refused visibility changes nothing. A flight of another pilot is no flight of this account, whoever may see it: `404` with `flight_not_found`.
 
 Two answers say that whoever runs the server stands in the way, and nothing changed:
 
@@ -7043,6 +7083,127 @@ curl http://127.0.0.1:8080/v1/pilots/lena/statistics
 **Who has totals.** A pilot who has a [page](#get-v1pilotshandleafterlimit): one with at least one public flight. Any other handle gives `404` `pilot_not_found`, the same answer as for a handle nobody has.
 
 **The bound.** It counts as a read of public flights for the address that asks: [600 an hour](#how-often-an-address-may-read). `Cache-Control: public, no-cache` and an `ETag`: a flight that is made private is in no number of the next answer.
+
+### `GET /v1/account/statistics`
+
+What all the flights of the account add up to, the private ones and those shared by link too: the pilot's statistics for the pilot themself. Needs a token, with `flights:read` for a program. The answer has the shape of [a pilot's public statistics](#get-v1pilotshandlestatistics), field for field, with `pilot` the account; `flights` counts every flight of the account, and an account without flights has totals of nothing, not `404`. `Cache-Control: private, no-store`. It is not counted as a read of public flights.
+
+It is an address of its own, not the public one answered differently for its pilot: the public answer is the same for everyone, is kept by caches and is open to every origin, and what is private stays under `/v1/account`, where every read is the account's own.
+
+This is the development mode's answer for the demo account, whose three flights are one public, one shared by link and one private:
+
+```json
+{
+  "pilot": {
+    "handle": "demo",
+    "display_name": "Demo Pilot",
+    "country": "DE"
+  },
+  "counted": 3,
+  "overall": {
+    "flights": 3,
+    "scored": 3,
+    "distance_m": 29737.0,
+    "points": 29.75,
+    "airtime_s": 4203,
+    "longest": {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "distance_m": 11975.7
+    },
+    "highest": {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "max_altitude_m": 2117
+    },
+    "sites": [],
+    "by_month": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "seasons": [
+    {
+      "year": 2026,
+      "totals": {
+        "flights": 2,
+        "scored": 2,
+        "distance_m": 23951.4,
+        "points": 23.96,
+        "airtime_s": 3496,
+        "longest": {
+          "id": "5t1eshypdtvrq7rxw39a18vsrg",
+          "distance_m": 11975.7
+        },
+        "highest": {
+          "id": "5t1eshypdtvrq7rxw39a18vsrg",
+          "max_altitude_m": 2117
+        },
+        "sites": [],
+        "by_month": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "year": 2025,
+      "totals": {
+        "flights": 1,
+        "scored": 1,
+        "distance_m": 5785.6,
+        "points": 5.79,
+        "airtime_s": 707,
+        "longest": {
+          "id": "7fvpx515951prsvkemfbvgkd3w",
+          "distance_m": 5785.6
+        },
+        "highest": {
+          "id": "7fvpx515951prsvkemfbvgkd3w",
+          "max_altitude_m": 2117
+        },
+        "sites": [],
+        "by_month": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}
+```
       "since": "2026-11-18T17:35:00Z"
     },
     {

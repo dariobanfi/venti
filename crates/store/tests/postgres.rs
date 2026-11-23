@@ -11,6 +11,7 @@
 
 mod suite;
 
+use suite::public_setting;
 use tokio_postgres::NoTls;
 use venti_store::{PgStore, Store, StoreError};
 
@@ -175,7 +176,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         versions,
         [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27
+            25, 26, 27, 28
         ]
     );
 }
@@ -186,12 +187,16 @@ async fn accounts_from_before_the_setting_make_their_new_flights_public() {
         return;
     };
     // A database as the server left it before migration 27, with an
-    // account in it: the newest schema with that migration taken back.
+    // account in it: the newest schema with that migration and the ones
+    // after it taken back.
     drop(PgStore::connect(&url).await.unwrap());
     let old = look(&url).await;
     old.batch_execute(
         "ALTER TABLE accounts DROP COLUMN new_flights_public;
-         DELETE FROM schema_migrations WHERE version = 27;
+         ALTER TABLE accounts DROP COLUMN country;
+         ALTER TABLE accounts DROP COLUMN glider_class;
+         ALTER TABLE flights DROP COLUMN glider_class;
+         DELETE FROM schema_migrations WHERE version >= 27;
          INSERT INTO accounts (id, handle, display_name, created_at)
              VALUES ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00');",
     )
@@ -205,7 +210,7 @@ async fn accounts_from_before_the_setting_make_their_new_flights_public() {
     assert!(account.new_flights_public);
     // And a pilot can switch it off.
     let off = store
-        .set_new_flights_public(&account.id, false)
+        .update_account_settings(&account.id, &public_setting(false))
         .await
         .unwrap()
         .unwrap();

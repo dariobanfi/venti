@@ -12,12 +12,13 @@ use axum::http::{Method, StatusCode, header};
 use chrono::Duration;
 use futures::StreamExt;
 use venti_api_types::v1::{
-    ACCOUNT_PATH, AccountResponse, ErrorCode, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, Flight,
-    FlightChangesRequest, FlightChangesResponse, FlightId, FlightResponse, FlightsRequest,
-    FlightsResponse, Handle, MAX_FLIGHT_FILE_BYTES, PUBLIC_FLIGHTS_PATH, PilotRequest,
-    PilotResponse, RouteKind, UpdateAccountRequest, UpdateFlightRequest, UpdateFlightsRequest,
-    UpdateFlightsResponse, UploadResponse, Visibility, flight_file_path, flight_path, pilot_path,
-    share_image_path, share_path,
+    ACCOUNT_PATH, ACCOUNT_STATISTICS_PATH, AccountResponse, ErrorCode, FLIGHT_CHANGES_PATH,
+    FLIGHTS_PATH, Flight, FlightChangesRequest, FlightChangesResponse, FlightId, FlightResponse,
+    FlightsRequest, FlightsResponse, GliderClass, Handle, MAX_FLIGHT_FILE_BYTES,
+    PUBLIC_FLIGHTS_PATH, PilotRequest, PilotResponse, PilotStatisticsResponse, RouteKind,
+    UpdateAccountRequest, UpdateFlightRequest, UpdateFlightsRequest, UpdateFlightsResponse,
+    UploadResponse, Visibility, flight_file_path, flight_path, pilot_path, share_image_path,
+    share_path,
 };
 use venti_server::accounts::Limits;
 use venti_server::api::Settings;
@@ -211,6 +212,7 @@ async fn new_flights_are_public_until_the_pilot_switches_that_off() {
     // public. The answer is the account, as `GET /v1/account` has it.
     let off = UpdateAccountRequest {
         new_flights_public: Some(false),
+        ..UpdateAccountRequest::default()
     };
     let answer = ask(Method::PATCH, ACCOUNT_PATH)
         .token(&dario.token)
@@ -398,6 +400,7 @@ async fn the_demo_account_changes_its_settings_and_all_its_flights() {
     // The examples of the documentation, as the development mode answers.
     let off = UpdateAccountRequest {
         new_flights_public: Some(false),
+        ..UpdateAccountRequest::default()
     };
     assert_golden(&golden("account_settings_request.json"), &off);
     let changed: AccountResponse = ask(Method::PATCH, ACCOUNT_PATH)
@@ -424,6 +427,116 @@ async fn the_demo_account_changes_its_settings_and_all_its_flights() {
     assert_golden(&golden("flights_visibility.json"), &set);
     let page: PilotResponse = get(&router, "/v1/pilots/demo").await.ok(StatusCode::OK);
     assert_eq!(page.flights.len(), 3);
+}
+
+#[tokio::test]
+async fn the_pilots_country_and_glider_class_go_with_their_flights() {
+    let router = recorded().await;
+
+    // The examples of the documentation, as the development mode answers.
+    let set = UpdateAccountRequest {
+        country: Some(Some("de".to_owned())),
+        glider_class: Some(Some(GliderClass::EnB)),
+        ..UpdateAccountRequest::default()
+    };
+    assert_golden(&golden("account_details_request.json"), &set);
+    let changed: AccountResponse = ask(Method::PATCH, ACCOUNT_PATH)
+        .token(DEMO_TOKEN)
+        .json(&set)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!(changed.account.country.as_deref(), Some("DE"));
+    assert_eq!(changed.account.glider_class, Some(GliderClass::EnB));
+    assert_golden(&golden("account_details.json"), &changed);
+
+    // The pilot's country goes with their public flights and their page.
+    let page: PilotResponse = get(&router, "/v1/pilots/demo").await.ok(StatusCode::OK);
+    assert_eq!(page.pilot.country.as_deref(), Some("DE"));
+    assert!(
+        page.flights
+            .iter()
+            .all(|flight| flight.pilot.country.as_deref() == Some("DE"))
+    );
+
+    // The class of one flight is set later, and cleared.
+    let id = page.flights[0].id.clone();
+    let class = UpdateFlightRequest {
+        glider_class: Some(Some(GliderClass::EnC)),
+        ..UpdateFlightRequest::default()
+    };
+    assert_golden(&golden("flight_glider_class_request.json"), &class);
+    let marked: FlightResponse = ask(Method::PATCH, &flight_path(&id))
+        .token(DEMO_TOKEN)
+        .json(&class)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!(marked.flight.glider_class, Some(GliderClass::EnC));
+    assert_eq!(marked.flight.visibility, page.flights[0].visibility);
+    let cleared: FlightResponse = ask(Method::PATCH, &flight_path(&id))
+        .token(DEMO_TOKEN)
+        .json(&serde_json::json!({"glider_class": null}))
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!(cleared.flight.glider_class, None);
+    // A change that names nothing, a class nobody knows and a country
+    // that is none are refused.
+    for (path, body) in [
+        (flight_path(&id), serde_json::json!({})),
+        (
+            flight_path(&id),
+            serde_json::json!({"glider_class": "tandem"}),
+        ),
+        (
+            ACCOUNT_PATH.to_owned(),
+            serde_json::json!({"country": "Germany"}),
+        ),
+    ] {
+        ask(Method::PATCH, &path)
+            .token(DEMO_TOKEN)
+            .json(&body)
+            .send(&router)
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest);
+    }
+
+    // The pilot's own statistics count every flight, the private ones too;
+    // the public ones only those everyone sees.
+    let own: PilotStatisticsResponse = ask(Method::GET, ACCOUNT_STATISTICS_PATH)
+        .token(DEMO_TOKEN)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert_golden(&golden("account_statistics.json"), &own);
+    let public: PilotStatisticsResponse = get(&router, "/v1/pilots/demo/statistics")
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!(own.overall.flights, 3);
+    assert!(public.overall.flights < own.overall.flights);
+    assert_eq!(own.pilot.country.as_deref(), Some("DE"));
+    get(&router, ACCOUNT_STATISTICS_PATH)
+        .await
+        .error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
+
+    // A flight uploaded from now on takes the class the pilot set.
+    let fresh = open_server();
+    let dario = sign_up(&fresh, "dario").await;
+    let set = UpdateAccountRequest {
+        glider_class: Some(Some(GliderClass::Ccc)),
+        ..UpdateAccountRequest::default()
+    };
+    ask(Method::PATCH, ACCOUNT_PATH)
+        .token(&dario.token)
+        .json(&set)
+        .send(&fresh)
+        .await
+        .ok::<AccountResponse>(StatusCode::OK);
+    let uploaded = upload(&fresh, &dario.token, &sample_file()).await.flight;
+    assert_eq!(uploaded.glider_class, Some(GliderClass::Ccc));
+    // Without a country set, none is said.
+    assert_eq!(uploaded.pilot.country, None);
 }
 
 #[tokio::test]
@@ -1207,7 +1320,8 @@ async fn a_private_flight_looks_like_no_flight_to_everyone_but_its_pilot() {
         let patch = ask(Method::PATCH, &flight_path(id))
             .token(&anna.token)
             .json(&UpdateFlightRequest {
-                visibility: Visibility::Public,
+                visibility: Some(Visibility::Public),
+                ..UpdateFlightRequest::default()
             })
             .send(&router)
             .await;
@@ -1289,7 +1403,8 @@ async fn a_shared_flight_is_seen_by_others_and_changed_by_its_pilot_only() {
         let patch = ask(Method::PATCH, &flight_path(id))
             .token(&anna.token)
             .json(&UpdateFlightRequest {
-                visibility: Visibility::Private,
+                visibility: Some(Visibility::Private),
+                ..UpdateFlightRequest::default()
             })
             .send(&router)
             .await;

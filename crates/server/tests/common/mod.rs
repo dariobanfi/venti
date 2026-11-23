@@ -336,6 +336,7 @@ pub async fn keep_new_flights_private(router: &Router, token: &str) {
         .token(token)
         .json(&UpdateAccountRequest {
             new_flights_public: Some(false),
+            ..UpdateAccountRequest::default()
         })
         .send(router)
         .await
@@ -389,7 +390,10 @@ pub async fn set_visibility(
 ) {
     let answer = ask(Method::PATCH, &flight_path(flight))
         .token(token)
-        .json(&UpdateFlightRequest { visibility })
+        .json(&UpdateFlightRequest {
+            visibility: Some(visibility),
+            ..UpdateFlightRequest::default()
+        })
         .send(router)
         .await;
     let updated: FlightResponse = answer.ok(StatusCode::OK);

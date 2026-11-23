@@ -33,15 +33,15 @@ use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
     ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_FEED_PATH, ACCOUNT_FOLLOWING_PATH,
     ACCOUNT_GOOGLE_PATH, ACCOUNT_NOTIFICATIONS_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
-    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH, ALERTS_PATH,
-    ARCHIVE_MEDIA_TYPE, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, CABLES_PATH, CSV_MEDIA_TYPE,
-    DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
-    GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, JSON_LINES_MEDIA_TYPE,
-    KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH,
-    PILOTS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, PUSH_KEY_PATH,
-    PUSH_SUBSCRIPTION_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH,
-    SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope,
-    THERMAL_HOURS_PATH, THERMALS_PATH,
+    ACCOUNT_STATISTICS_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH,
+    ALERTS_PATH, ARCHIVE_MEDIA_TYPE, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, CABLES_PATH,
+    CSV_MEDIA_TYPE, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
+    FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
+    JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
+    LIVE_POSITIONS_PATH, MAPS_PATH, PILOTS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
+    PUBLIC_FLIGHTS_PATH, PUSH_KEY_PATH, PUSH_SUBSCRIPTION_PATH, RADAR_PATH, RANKING_PATH,
+    REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH,
+    SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_api_types::v1::{FLOWN_THERMALS_PATH, LIVE_CLIMBS_PATH, LIVE_SITES_PATH};
 
@@ -483,7 +483,8 @@ fn operations() -> Vec<Op> {
             .json("AccountResponse"),
         patch(
             ACCOUNT_PATH,
-            "Change the pilot's settings: whether new flights are public",
+            "Change the pilot's settings: whether new flights are public, the pilot's country, \
+             the glider's class",
         )
         .with(FlightsWrite)
         .takes("UpdateAccountRequest")
@@ -617,10 +618,13 @@ fn operations() -> Vec<Op> {
         get("/v1/flights/{id}", "One flight")
             .shared_or(FlightsRead)
             .json("FlightResponse"),
-        patch("/v1/flights/{id}", "Change who may see a flight")
-            .with(FlightsWrite)
-            .takes("UpdateFlightRequest")
-            .json("FlightResponse"),
+        patch(
+            "/v1/flights/{id}",
+            "Change who may see a flight, or the class of its glider",
+        )
+        .with(FlightsWrite)
+        .takes("UpdateFlightRequest")
+        .json("FlightResponse"),
         delete("/v1/flights/{id}", "Delete a flight")
             .with(FlightsWrite)
             .nothing(),
@@ -651,6 +655,12 @@ fn operations() -> Vec<Op> {
             "/v1/pilots/{handle}/statistics",
             "What a pilot's public flights add up to, all together and year by year",
         )
+        .json("PilotStatisticsResponse"),
+        get(
+            ACCOUNT_STATISTICS_PATH,
+            "What all the account's flights add up to, the private ones too",
+        )
+        .with(FlightsRead)
         .json("PilotStatisticsResponse"),
         // Pilots among each other.
         put("/v1/pilots/{handle}/follow", "Follow a pilot")

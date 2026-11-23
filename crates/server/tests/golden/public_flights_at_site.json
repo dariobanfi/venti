@@ -31,6 +31,7 @@
         "id": "venti:0000000000000000000000s001",
         "name": "Musterkogel West"
       },
+      "takeoff_country": "AT",
       "track_length_m": 15923.3,
       "max_altitude_m": 2117,
       "max_climb_ms": 2.4,

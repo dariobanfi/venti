@@ -974,6 +974,8 @@ pub async fn add_demo_takeoffs(store: &MemoryStore, password_cost: Cost) -> Resu
             publishing_suspended_at: None,
             edits_sites_since: None,
             new_flights_public: true,
+            country: None,
+            glider_class: None,
         };
         add_pilot(store, &account, flights, password_cost).await?;
     }
@@ -998,6 +1000,8 @@ async fn add_pilot(
     let new = NewAccount {
         account: Account {
             new_flights_public: false,
+            country: None,
+            glider_class: None,
             ..account.clone()
         },
         password_hash,
@@ -1016,7 +1020,7 @@ async fn add_pilot(
     for (file, visibility) in flights {
         // These files are the server's own; they are analysed right here.
         let derivation = derive(&file).map_err(|e| format!("a demo flight is unusable: {e}"))?;
-        let new = new_flight(&account.id, &file, derivation, now);
+        let new = new_flight(&account.id, &file, derivation, None, now);
         store
             .save_flight(&new, &Room::UNLIMITED)
             .await
@@ -1027,7 +1031,13 @@ async fn add_pilot(
             .map_err(|e| e.to_string())?;
     }
     store
-        .set_new_flights_public(&account.id, account.new_flights_public)
+        .update_account_settings(
+            &account.id,
+            &venti_store::AccountSettings {
+                new_flights_public: Some(account.new_flights_public),
+                ..venti_store::AccountSettings::default()
+            },
+        )
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -1076,6 +1086,8 @@ async fn add_demo_account(
         publishing_suspended_at: None,
         edits_sites_since: None,
         new_flights_public: true,
+        country: None,
+        glider_class: None,
     };
     add_pilot(store, &account, demo_flights(), password_cost).await?;
     // The demo account is this mode's one partner for flying sites: it
@@ -1095,6 +1107,8 @@ async fn add_demo_account(
             publishing_suspended_at: None,
             edits_sites_since: None,
             new_flights_public: true,
+            country: None,
+            glider_class: None,
         };
         add_pilot(store, &further, flights, password_cost).await?;
         pilots.push(further);
@@ -1281,6 +1295,7 @@ async fn add_demo_social(store: &MemoryStore, now: Timestamp) -> Result<(), Stri
                 .parse()
                 .map_err(|_| "a made-up handle is none")?,
             display_name: pilot.name.to_owned(),
+            country: None,
         })
     };
     let flight = NotifiedFlight {

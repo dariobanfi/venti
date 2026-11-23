@@ -20,28 +20,34 @@ pub struct FlightFile {
 impl Core {
     /// The stored file of one flight, with a name to save it under.
     pub fn flight_file(&self, id: String) -> Result<FlightFile, CoreError> {
-        let igc_text = self.logbook.flight_text(&id)?;
-        let file = igc::parse(&igc_text).map_err(LogbookError::Invalid)?;
-        // Only letters and digits of the recorder's codes may reach a file
-        // name.
-        let code = |text: &str| -> String {
-            let kept: String = text.chars().filter(char::is_ascii_alphanumeric).collect();
-            if kept.is_empty() {
-                "000".to_owned()
-            } else {
-                kept
-            }
-        };
-        Ok(FlightFile {
-            name: format!(
-                "{}-{}-{}-01.igc",
-                file.date.format("%Y-%m-%d"),
-                code(&file.manufacturer),
-                code(&file.recorder_id)
-            ),
-            igc_text,
-        })
+        flight_file_from_text(self.logbook.flight_text(&id)?)
     }
+}
+
+/// A flight file that is not in the logbook, as the server handed it
+/// out, with a name to save it under: the same name the logbook gives it.
+#[uniffi::export]
+pub fn flight_file_from_text(igc_text: String) -> Result<FlightFile, CoreError> {
+    let file = igc::parse(&igc_text).map_err(LogbookError::Invalid)?;
+    // Only letters and digits of the recorder's codes may reach a file
+    // name.
+    let code = |text: &str| -> String {
+        let kept: String = text.chars().filter(char::is_ascii_alphanumeric).collect();
+        if kept.is_empty() {
+            "000".to_owned()
+        } else {
+            kept
+        }
+    };
+    Ok(FlightFile {
+        name: format!(
+            "{}-{}-{}-01.igc",
+            file.date.format("%Y-%m-%d"),
+            code(&file.manufacturer),
+            code(&file.recorder_id)
+        ),
+        igc_text,
+    })
 }
 
 #[cfg(test)]
@@ -63,5 +69,8 @@ mod tests {
         assert_eq!(file.name, "2026-07-04-XVE-000-01.igc");
         assert_eq!(file.igc_text, text);
         assert!(core.flight_file("nothing".to_owned()).is_err());
+        // A file from the server is named as the logbook names it.
+        assert_eq!(flight_file_from_text(text).unwrap(), file);
+        assert!(flight_file_from_text("no flight".to_owned()).is_err());
     }
 }

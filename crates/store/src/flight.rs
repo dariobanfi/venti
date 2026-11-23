@@ -200,6 +200,45 @@ pub struct NewFlight {
     pub file_bytes: u32,
     /// What was worked out from the file.
     pub derived: Derived,
+    /// The class of the glider it was flown on: the account's
+    /// ([`crate::Account::glider_class`]) at the upload. For a flight the
+    /// account has already, the stored one stays.
+    pub glider_class: Option<GliderClass>,
+}
+
+/// The class a paraglider is certified in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GliderClass {
+    /// EN A.
+    EnA,
+    /// EN B.
+    EnB,
+    /// EN C.
+    EnC,
+    /// EN D.
+    EnD,
+    /// CCC, the competition class.
+    Ccc,
+}
+
+impl GliderClass {
+    /// The name the database and the API use.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::EnA => "en_a",
+            Self::EnB => "en_b",
+            Self::EnC => "en_c",
+            Self::EnD => "en_d",
+            Self::Ccc => "ccc",
+        }
+    }
+
+    /// The class of a name [`GliderClass::as_str`] gives.
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::EnA, Self::EnB, Self::EnC, Self::EnD, Self::Ccc]
+            .into_iter()
+            .find(|class| class.as_str() == name)
+    }
 }
 
 /// A stored flight, without its file.
@@ -213,6 +252,9 @@ pub struct Flight {
     pub pilot_handle: String,
     /// That account's display name.
     pub pilot_name: String,
+    /// That account's country, if its pilot set one
+    /// ([`crate::Account::country`]).
+    pub pilot_country: Option<String>,
     /// The flight's identity: the hash of its fixes.
     pub identity: String,
     /// Who may see it.
@@ -238,6 +280,10 @@ pub struct Flight {
     /// flight, in the one count all accounts share; `None` while it is not
     /// public. See [`PublicFlightChanges`].
     pub public_change: Option<i64>,
+    /// The class of the glider it was flown on, if it is known: the
+    /// account's at the upload, or what the pilot set later
+    /// ([`crate::Store::set_glider_class`]).
+    pub glider_class: Option<GliderClass>,
 }
 
 /// What became of a call that sets who may see a flight.

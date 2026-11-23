@@ -8,8 +8,9 @@ use venti_domain::Timestamp;
 use super::{db_error, flights, groups};
 use crate::flight::next_change;
 use crate::{
-    AccessToken, Account, AccountCreation, GoogleLink, GoogleLinking, NewAccount, NewGoogleAccount,
-    NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session, StoreError, Suspension, TokenClient,
+    AccessToken, Account, AccountCreation, AccountSettings, GliderClass, GoogleLink, GoogleLinking,
+    NewAccount, NewGoogleAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
+    StoreError, Suspension, TokenClient,
 };
 
 fn account_from(row: &Row) -> Account {
@@ -21,6 +22,10 @@ fn account_from(row: &Row) -> Account {
         publishing_suspended_at: row.get("publishing_suspended_at"),
         edits_sites_since: row.get("edits_sites_since"),
         new_flights_public: row.get("new_flights_public"),
+        country: row.get("country"),
+        glider_class: row
+            .get::<_, Option<&str>>("glider_class")
+            .and_then(GliderClass::from_name),
     }
 }
 
@@ -37,7 +42,7 @@ fn session_from(row: &Row) -> Session {
 /// The columns [`account_from`] reads, for an `accounts` table named `a`.
 const ACCOUNT_COLUMNS: &str = "a.id AS account_id, a.handle, a.display_name, \
      a.created_at AS account_created_at, a.publishing_suspended_at, a.edits_sites_since, \
-     a.new_flights_public";
+     a.new_flights_public, a.country, a.glider_class";
 
 pub(super) async fn create(
     client: &mut Client,
@@ -579,19 +584,36 @@ pub(super) async fn site_editors(client: &Client) -> Result<Vec<Account>, StoreE
     Ok(rows.iter().map(account_from).collect())
 }
 
-pub(super) async fn set_new_flights_public(
+pub(super) async fn update_settings(
     client: &Client,
     account_id: &str,
-    public: bool,
+    settings: &AccountSettings,
 ) -> Result<Option<Account>, StoreError> {
-    // One statement: an upload that locks the row reads the setting as it
-    // was before or as it is after, never between.
+    // One statement: an upload that locks the row reads the settings as
+    // they were before or as they are after, never between. A setting
+    // that is not named keeps its value.
     let query = format!(
-        "UPDATE accounts a SET new_flights_public = $2 WHERE a.id = $1
+        "UPDATE accounts a SET
+             new_flights_public = COALESCE($2, a.new_flights_public),
+             country = CASE WHEN $3 THEN $4 ELSE a.country END,
+             glider_class = CASE WHEN $5 THEN $6 ELSE a.glider_class END
+         WHERE a.id = $1
          RETURNING {ACCOUNT_COLUMNS}"
     );
+    let country = settings.country.clone().flatten();
+    let class = settings.glider_class.flatten().map(GliderClass::as_str);
     let row = client
-        .query_opt(&query, &[&account_id, &public])
+        .query_opt(
+            &query,
+            &[
+                &account_id,
+                &settings.new_flights_public,
+                &settings.country.is_some(),
+                &country,
+                &settings.glider_class.is_some(),
+                &class,
+            ],
+        )
         .await
         .map_err(db_error)?;
     Ok(row.as_ref().map(account_from))
@@ -661,7 +683,8 @@ const USE_SESSION: &str = "
     SELECT s.id, s.account_id, s.device, s.created_at,
            CASE WHEN s.last_used_at < $4 THEN $2 ELSE s.last_used_at END AS last_used_at,
            a.handle, a.display_name, a.created_at AS account_created_at,
-           a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public
+           a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public,
+           a.country, a.glider_class
     FROM sessions s
     JOIN accounts a ON a.id = s.account_id
     WHERE s.token_hash = $1 AND s.last_used_at >= $3";
@@ -848,7 +871,8 @@ const USE_ACCESS_TOKEN: &str = "
            CASE WHEN t.last_used_on IS NULL OR t.last_used_on < $3 THEN $3
                 ELSE t.last_used_on END AS last_used_on,
            a.handle, a.display_name, a.created_at AS account_created_at,
-           a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public
+           a.publishing_suspended_at, a.edits_sites_since, a.new_flights_public,
+           a.country, a.glider_class
     FROM access_tokens t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.token_hash = $1 AND (t.expires_at IS NULL OR t.expires_at > $2)

@@ -378,9 +378,13 @@ pub(crate) async fn upload<S: Store>(
 
     // Compressing is work too; keep it off the threads that answer.
     let account = account_id.clone();
-    let new = tokio::task::spawn_blocking(move || new_flight(&account, &file, derivation, now))
-        .await
-        .map_err(|_| ApiError::internal())?;
+    // The class of the glider the pilot flies now goes with the flight.
+    let glider_class = signed.account.glider_class;
+    let new = tokio::task::spawn_blocking(move || {
+        new_flight(&account, &file, derivation, glider_class, now)
+    })
+    .await
+    .map_err(|_| ApiError::internal())?;
     let (flight, created) = match api.store.save_flight(&new, &api.room).await? {
         Saved::Created(flight) => (flight, true),
         Saved::AlreadyThere(flight) => (flight, false),
@@ -662,7 +666,9 @@ pub(crate) async fn track<S: Store>(
     Ok(response)
 }
 
-/// `PATCH /v1/flights/{id}`: changes who may see a flight.
+/// `PATCH /v1/flights/{id}`: changes who may see a flight, the class of
+/// the glider it was flown on, or both. The class is set after who may
+/// see it, so a refused visibility changes nothing.
 pub(crate) async fn update<S: Store>(
     State(api): State<Arc<Api<S>>>,
     May(signed, ..): May<WriteFlights>,
@@ -671,41 +677,69 @@ pub(crate) async fn update<S: Store>(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let request: UpdateFlightRequest = body::json(&headers, &body)?;
-    let visibility = wire::stored_visibility(request.visibility).ok_or_else(|| {
-        ApiError::bad_request(
-            ErrorCode::InvalidVisibility,
-            "visibility must be one of private, unlisted, public",
-        )
-    })?;
+    let visibility = request
+        .visibility
+        .map(|visibility| {
+            wire::stored_visibility(visibility).ok_or_else(|| {
+                ApiError::bad_request(
+                    ErrorCode::InvalidVisibility,
+                    "visibility must be one of private, unlisted, public",
+                )
+            })
+        })
+        .transpose()?;
+    let glider_class = request
+        .glider_class
+        .map(|class| class.map(wire::stored_glider_class).transpose())
+        .transpose()?;
+    if visibility.is_none() && glider_class.is_none() {
+        return Err(ApiError::bad_request(
+            ErrorCode::InvalidRequest,
+            "name what changes: visibility, glider_class or both",
+        ));
+    }
     let id: FlightId = id.parse().map_err(|_| no_such_flight())?;
+    let now = api.clock.now();
 
-    let change = api
-        .store
-        .set_visibility(&signed.account.id, id.as_str(), visibility, api.clock.now())
-        .await?;
-    let flight = match change {
-        VisibilityChange::Set(flight) => *flight,
-        // A flight of someone else is no flight of this account, whoever
-        // may see it.
-        VisibilityChange::NoSuchFlight => return Err(no_such_flight()),
-        // What whoever runs the server did, only they undo. The pilot is
-        // told that it was them, and not why: the server does not know.
-        VisibilityChange::TakenDown => {
-            return Err(ApiError::forbidden(
-                ErrorCode::FlightTakenDown,
-                "whoever runs this server has taken the flight down; it stays private until \
-                 they release it",
-            ));
-        }
-        VisibilityChange::PublishingSuspended => {
-            return Err(ApiError::forbidden(
-                ErrorCode::PublishingSuspended,
-                "whoever runs this server has suspended this account's publishing: it can \
-                 make no flight public; a flight can still be shared with those who have its \
-                 link",
-            ));
-        }
-    };
+    let mut flight = None;
+    if let Some(visibility) = visibility {
+        let change = api
+            .store
+            .set_visibility(&signed.account.id, id.as_str(), visibility, now)
+            .await?;
+        flight = Some(match change {
+            VisibilityChange::Set(flight) => *flight,
+            // A flight of someone else is no flight of this account, whoever
+            // may see it.
+            VisibilityChange::NoSuchFlight => return Err(no_such_flight()),
+            // What whoever runs the server did, only they undo. The pilot is
+            // told that it was them, and not why: the server does not know.
+            VisibilityChange::TakenDown => {
+                return Err(ApiError::forbidden(
+                    ErrorCode::FlightTakenDown,
+                    "whoever runs this server has taken the flight down; it stays private until \
+                     they release it",
+                ));
+            }
+            VisibilityChange::PublishingSuspended => {
+                return Err(ApiError::forbidden(
+                    ErrorCode::PublishingSuspended,
+                    "whoever runs this server has suspended this account's publishing: it can \
+                     make no flight public; a flight can still be shared with those who have its \
+                     link",
+                ));
+            }
+        });
+    }
+    if let Some(class) = glider_class {
+        flight = Some(
+            api.store
+                .set_glider_class(&signed.account.id, id.as_str(), class, now)
+                .await?
+                .ok_or_else(no_such_flight)?,
+        );
+    }
+    let flight = flight.ok_or_else(ApiError::internal)?;
     let answer = FlightResponse {
         flight: api.shown_flight(&flight).await?,
         terms: terms_of(&flight),

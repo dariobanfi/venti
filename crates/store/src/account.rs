@@ -40,6 +40,25 @@ pub struct Account {
     /// uploads, and a flight that comes back taken down, are private
     /// whatever this says.
     pub new_flights_public: bool,
+    /// The pilot's own country, an ISO 3166-1 alpha-2 code in upper case,
+    /// if they set it: shown with their name wherever their public flights
+    /// are. A new account is created without one.
+    pub country: Option<String>,
+    /// The class of the glider the pilot flies now, if they set it: an
+    /// upload takes it into the flight ([`crate::NewFlight::glider_class`]).
+    pub glider_class: Option<crate::GliderClass>,
+}
+
+/// A change to an account's own settings: a field that is `None` stays as
+/// it is; `Some(None)` clears a setting that may be unset.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AccountSettings {
+    /// [`Account::new_flights_public`].
+    pub new_flights_public: Option<bool>,
+    /// [`Account::country`], already checked to be two upper-case letters.
+    pub country: Option<Option<String>>,
+    /// [`Account::glider_class`].
+    pub glider_class: Option<Option<crate::GliderClass>>,
 }
 
 /// What became of suspending an account's publishing.

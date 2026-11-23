@@ -20,9 +20,9 @@ use crate::flight::{
 use crate::takeoff::around;
 use crate::{
     AllFlightsSet, AllVisibilityChange, DeletedFlight, Derived, Flight, FlightChanges, FlightKey,
-    Flown, FoundPilot, Listing, Month, NewFlight, OutdatedFlight, Place, PublicFlightChanges,
-    PublicFlights, PublicOrder, Ranked, Score, ScoreKind, StoreError, Visibility, VisibilityChange,
-    WithdrawnFlight,
+    Flown, FoundPilot, GliderClass, Listing, Month, NewFlight, OutdatedFlight, Place,
+    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, Score, ScoreKind, StoreError,
+    Visibility, VisibilityChange, WithdrawnFlight,
 };
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
@@ -33,7 +33,8 @@ pub(super) const FLIGHT_COLUMNS: &str = "
     f.landing_at, f.landing_lat, f.landing_lon, f.landing_altitude_m,
     f.track_length_m, f.max_altitude_m, f.max_climb_ms,
     f.score_kind, f.score_closed, f.score_distance_m, f.score_points,
-    f.glider, f.outline, f.profile, f.taken_down_at, f.published_at, f.public_change";
+    f.glider, f.outline, f.profile, f.taken_down_at, f.published_at, f.public_change,
+    a.country AS pilot_country, f.glider_class";
 
 pub(super) const FLIGHT_FROM: &str = "FROM flights f JOIN accounts a ON a.id = f.account_id";
 
@@ -101,6 +102,7 @@ pub(super) fn flight_from(row: &Row) -> Result<Flight, StoreError> {
         account_id: row.get("account_id"),
         pilot_handle: row.get("handle"),
         pilot_name: row.get("display_name"),
+        pilot_country: row.get("pilot_country"),
         identity: row.get("identity"),
         visibility: Visibility::from_name(visibility)
             .ok_or_else(|| corrupt("visibility", visibility))?,
@@ -124,6 +126,10 @@ pub(super) fn flight_from(row: &Row) -> Result<Flight, StoreError> {
         taken_down_at: row.get("taken_down_at"),
         published_at: row.get("published_at"),
         public_change: row.get("public_change"),
+        glider_class: row
+            .get::<_, Option<&str>>("glider_class")
+            .map(|name| GliderClass::from_name(name).ok_or_else(|| corrupt("glider class", name)))
+            .transpose()?,
     })
 }
 
@@ -410,8 +416,8 @@ pub(super) async fn save(
     let insert = format!(
         "INSERT INTO flights
              (id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
-              {}, profile, taken_down_at, published_at, public_change)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, {}, $29, $30, $31, $32)",
+              {}, profile, taken_down_at, published_at, public_change, glider_class)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, {}, $29, $30, $31, $32, $33)",
         DERIVED_COLUMNS.join(", "),
         (9..29)
             .map(|n| format!("${n}"))
@@ -454,6 +460,7 @@ pub(super) async fn save(
             &taken_down_at,
             &published_at,
             &public_change,
+            &new.glider_class.map(GliderClass::as_str),
         ],
     )
     .await
@@ -822,17 +829,26 @@ pub(super) async fn pilots_named(
         .collect())
 }
 
-/// An account's public flights in the numbers its totals are made of.
-pub(super) async fn flown_by(client: &Client, account_id: &str) -> Result<Vec<Flown>, StoreError> {
+/// An account's flights in the numbers its totals are made of: the public
+/// ones, or all of them.
+pub(super) async fn flown_by(
+    client: &Client,
+    account_id: &str,
+    listing: Listing,
+) -> Result<Vec<Flown>, StoreError> {
     // The condition on visibility is spelled as in the partial index.
+    let which = match listing {
+        Listing::Public => "AND f.visibility = 'public'",
+        Listing::All => "",
+    };
     let statement = client
-        .prepare_cached(
+        .prepare_cached(&format!(
             "SELECT f.id, f.started_at, f.airtime_s, f.score_distance_m, f.score_points,
                     f.max_altitude_m, f.takeoff_lat, f.takeoff_lon
              FROM flights f
-             WHERE f.account_id = $1 AND f.visibility = 'public'
-             ORDER BY f.started_at DESC, f.id DESC",
-        )
+             WHERE f.account_id = $1 {which}
+             ORDER BY f.started_at DESC, f.id DESC"
+        ))
         .await
         .map_err(db_error)?;
     let rows = client
@@ -1349,6 +1365,57 @@ pub(super) async fn outdated(
             })
         })
         .collect()
+}
+
+pub(super) async fn set_glider_class(
+    client: &mut Client,
+    account_id: &str,
+    id: &str,
+    class: Option<GliderClass>,
+    now: Timestamp,
+) -> Result<Option<Flight>, StoreError> {
+    let tx = client.transaction().await.map_err(db_error)?;
+    let Some(Locked { latest, .. }) = lock_account(&tx, account_id).await? else {
+        return Ok(None);
+    };
+    // Read under the account's lock: what the public sees of a public
+    // flight changes with it.
+    let found = tx
+        .query_opt(
+            "SELECT visibility = 'public' FROM flights WHERE id = $1 AND account_id = $2",
+            &[&id, &account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    let Some(found) = found else {
+        return Ok(None);
+    };
+    let change = take_change(&tx, account_id, latest, now).await?;
+    let public_change = if found.get::<_, bool>(0) {
+        Some(
+            take_public_changes(&tx, 1, Some(now))
+                .await
+                .map_err(db_error)?,
+        )
+    } else {
+        None
+    };
+    tx.execute(
+        "UPDATE flights SET glider_class = $2, change = $3,
+             public_change = COALESCE($4, public_change)
+         WHERE id = $1",
+        &[
+            &id,
+            &class.map(GliderClass::as_str),
+            &change,
+            &public_change,
+        ],
+    )
+    .await
+    .map_err(db_error)?;
+    let flight = one(&tx, "f.id = $1", &[&id]).await?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(flight)
 }
 
 pub(super) async fn set_derived(

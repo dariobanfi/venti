@@ -45,7 +45,9 @@ use crate::{
     SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
     VisibilityChange, batch,
 };
-use crate::{AllVisibilityChange, GoogleLink, GoogleLinking, NewGoogleAccount};
+use crate::{
+    AccountSettings, AllVisibilityChange, GliderClass, GoogleLink, GoogleLinking, NewGoogleAccount,
+};
 use crate::{CandidateRule, FlightsFrom, Flown, FoundPilot, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
@@ -786,12 +788,12 @@ impl Store for PgStore {
         accounts::site_editors(&self.client().await?).await
     }
 
-    async fn set_new_flights_public(
+    async fn update_account_settings(
         &self,
         account_id: &str,
-        public: bool,
+        settings: &AccountSettings,
     ) -> Result<Option<Account>, StoreError> {
-        accounts::set_new_flights_public(&self.client().await?, account_id, public).await
+        accounts::update_settings(&self.client().await?, account_id, settings).await
     }
 
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {
@@ -1295,8 +1297,8 @@ impl Store for PgStore {
         flights::pilots_named(&self.client().await?, text, limit).await
     }
 
-    async fn flown_by(&self, account_id: &str) -> Result<Vec<Flown>, StoreError> {
-        flights::flown_by(&self.client().await?, account_id).await
+    async fn flown_by(&self, account_id: &str, listing: Listing) -> Result<Vec<Flown>, StoreError> {
+        flights::flown_by(&self.client().await?, account_id, listing).await
     }
 
     async fn flight_changes(
@@ -1366,6 +1368,16 @@ impl Store for PgStore {
         limit: usize,
     ) -> Result<Vec<OutdatedFlight>, StoreError> {
         flights::outdated(&self.client().await?, version, after, limit).await
+    }
+
+    async fn set_glider_class(
+        &self,
+        account_id: &str,
+        id: &str,
+        class: Option<GliderClass>,
+        now: Timestamp,
+    ) -> Result<Option<Flight>, StoreError> {
+        flights::set_glider_class(&mut self.client().await?, account_id, id, class, now).await
     }
 
     async fn set_derived(

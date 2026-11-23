@@ -79,6 +79,13 @@
       "new_flights_public": {
         "type": "boolean",
         "description": "Whether a flight the pilot uploads is public from the start: the pilot's own setting, on until they switch it off. A suspended account's uploads are private whatever it says. Left out by a server from before the setting, which made new flights private."
+      },
+      "country": {
+        "type": "string",
+        "description": "The pilot's own country, an ISO 3166-1 alpha-2 code, if they set one. Left out while it is not set."
+      },
+      "glider_class": {
+        "$ref": "#/components/schemas/GliderClass"
       }
     },
     "required": [
@@ -892,6 +899,17 @@
       "at_least"
     ]
   },
+  "GliderClass": {
+    "description": "The class a paraglider is certified in: EN A to EN D, and CCC, the competition class.",
+    "type": "string",
+    "x-venti-values": [
+      "en_a",
+      "en_b",
+      "en_c",
+      "en_d",
+      "ccc"
+    ]
+  },
   "PilotsAlert": {
     "description": "Pilots in the air at a place: fires when at least `min_pilots` paragliders and hang gliders are in the air within 5 km of it by one source of live positions, then rests `rest_hours` hours. The server looks once a minute.",
     "type": "object",
@@ -1471,6 +1489,13 @@
       "published_at": {
         "type": "string",
         "format": "date-time"
+      },
+      "takeoff_country": {
+        "type": "string",
+        "description": "The country the glider took off in, as the server finds it from the country outlines it has. Left out where it has none for the place."
+      },
+      "glider_class": {
+        "$ref": "#/components/schemas/GliderClass"
       }
     },
     "required": [
@@ -3193,6 +3218,10 @@
       },
       "display_name": {
         "type": "string"
+      },
+      "country": {
+        "type": "string",
+        "description": "The pilot's country, if they set one. Said with flights and on the pilot's page only."
       }
     },
     "required": [
@@ -5665,6 +5694,28 @@
       "new_flights_public": {
         "type": "boolean",
         "description": "Whether a flight the pilot uploads from now on is public from the start. Left out, it stays as it is."
+      },
+      "country": {
+        "description": "The pilot's country: two letters, an ISO 3166-1 alpha-2 code in either case; null clears it. Left out, it stays as it is.",
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "glider_class": {
+        "description": "The class of the glider the pilot flies now; null clears it. Left out, it stays as it is.",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/GliderClass"
+          },
+          {
+            "type": "null"
+          }
+        ]
       }
     }
   },
@@ -5673,11 +5724,19 @@
     "properties": {
       "visibility": {
         "$ref": "#/components/schemas/Visibility"
+      },
+      "glider_class": {
+        "description": "The class of the glider the flight was flown on; null says it is not known. Left out, it stays as it is.",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/GliderClass"
+          },
+          {
+            "type": "null"
+          }
+        ]
       }
-    },
-    "required": [
-      "visibility"
-    ]
+    }
   },
   "UpdateFlightsRequest": {
     "type": "object",

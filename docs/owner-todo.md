@@ -21,6 +21,8 @@ A short list to pick up when there is time. Each line says what to do and where 
 
 ## Decide, yes or no (what is built stands until you say otherwise)
 
+- [ ] **The fifth tab's name:** the iPhone now calls it "Community" (it holds Community, Everyone and Ranking), Android keeps "League" with the same three inside, and the design pack's tab bar says "League" (2026-11-23). Which name for both?
+
 - [ ] **The map in 3D on the phones** waits for a MapLibre Native release that draws 3D terrain: the apps use 7.0.0, which cannot; the work is on an unmerged branch (draft pull request maplibre-native#4190, last pushed 2026-11-22), with nothing released as of 2026-11-23. Wait for the release (the plan), pin the branch's unreleased code, or build Venti's own renderer (weeks of work)? Either way the track lies on the ground; flown height needs the own renderer.
 
 - [ ] **One place shown once:** where two sources describe the same take-off within 150 m, the map shows one, taken in the order Venti's own > the FFVL > OpenStreetMap > pilots' suggestions (2026-11-23). In the French Alps about 590 of the FFVL's 1,004 places meet an OpenStreetMap one.

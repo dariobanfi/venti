@@ -5,6 +5,7 @@ A short list to pick up when there is time. Each line says what to do and where 
 ## Only you can do these
 
 - [ ] **Say yes to one download:** Natural Earth's countries, `ne_10m_admin_0_countries.zip` from https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip (about 5 MB, public domain by its own terms page), so that every flight in Europe knows its take-off's country; today only Austria and France do. Sessions download nothing without your word. The adapter is written and waits for the file (2026-11-23).
+- [ ] **Say yes to the downloads for maps without a network:** real regions (a valley, a country, the whole Alps) are built from OpenStreetMap's extract of the Alps (Geofabrik, `alps-latest.osm.pbf`, several GB, ODbL) and Mapterhorn's elevation tiles, with Planetiler (Apache 2.0, a Java program). Today only the Tegernsee demo exists (2026-11-23).
 
 - [ ] **Météo-France:** make a free account at its API portal and a key, so its stations can be collected (16). The adapter is not written until then.
 - [ ] **Trentino:** ask the Province of Trento to bring its server's encryption up to date, so its 46 wind stations can come back (24). A draft can be written for you; nothing has been sent.

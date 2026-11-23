@@ -43,6 +43,11 @@ export function reportedPlan(groupId: string, id: string): Reported {
 	return { subject: { kind: 'plan', groupId, id }, title: 'Report this plan' };
 }
 
+/** An open plan, which everyone can read, by its identifier. */
+export function reportedOpenPlan(id: string): Reported {
+	return { subject: { kind: 'openPlan', id }, title: 'Report this plan' };
+}
+
 /** A flying site that pilots made, by its identifier. */
 export function reportedSite(id: string): Reported {
 	return { subject: { kind: 'site', id }, title: 'Report this site' };

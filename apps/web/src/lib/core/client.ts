@@ -23,6 +23,7 @@ import type {
 	FlightVisibility,
 	GliderClassKind,
 	GlideReachSetting,
+	OpenPlanDraft,
 	PlanDraft,
 	ReportReason,
 	ReportSubject,
@@ -1021,6 +1022,41 @@ export class CoreClient {
 	/** Says that the pilot is in on a plan, or takes that back. */
 	planIn(group: string, plan: string, isIn: boolean) {
 		return this.#call('planIn', { group, plan, isIn });
+	}
+
+	/**
+	 * The open plans near a place, for everyone, from the pilot's own today
+	 * (written `2026-11-21`) on.
+	 */
+	openPlansNear(place: Coordinate, fromDay: string) {
+		return this.#call('openPlansNear', { place, fromDay });
+	}
+
+	/** The open plans the pilot posted or is in on. */
+	myOpenPlans() {
+		return this.#call('myOpenPlans', undefined);
+	}
+
+	/** One open plan, which anyone may read. */
+	openPlan(id: string) {
+		return this.#call('openPlan', id);
+	}
+
+	postOpenPlan(draft: OpenPlanDraft) {
+		return this.#call('postOpenPlan', draft);
+	}
+
+	changeOpenPlan(id: string, draft: OpenPlanDraft) {
+		return this.#call('changeOpenPlan', { id, draft });
+	}
+
+	deleteOpenPlan(id: string) {
+		return this.#call('deleteOpenPlan', id);
+	}
+
+	/** Says that the pilot is in on an open plan, or takes that back. */
+	openPlanIn(id: string, isIn: boolean) {
+		return this.#call('openPlanIn', { id, isIn });
 	}
 
 	/** Takes in an airspace file. Its bytes are handed over, not copied. */

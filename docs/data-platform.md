@@ -366,7 +366,7 @@ The owner's wish of 2026-11-22, trips to a take-off arranged some days ahead wit
 - **Bounds** (principle 12): 5 open plans an account at a time, 10 posts or changes a day, 30 pilots in a plan, a note of 280 characters, a day up to 30 days ahead; an answer covers 100 km and 14 days at most and carries 100 plans.
 - **Moderation**: reported as `open_plan` with its words kept, removed with `remove-plan`; a suspended account posts none.
 
-Not built: a screen in any of the three apps; a tool of the connector; telling a pilot of a plan near them or of someone coming in (open question 7); a change list.
+Built on the web on 2026-11-23 (Community); not yet on the phones; a tool of the connector; telling a pilot of a plan near them or of someone coming in (open question 7); a change list.
 
 ## A description for programs, and open reads: what stands (2026-11-21)
 

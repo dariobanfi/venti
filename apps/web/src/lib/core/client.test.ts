@@ -11,6 +11,7 @@ import { type Channel, CoreClient } from './client';
 import { flightFileText } from './flight-text';
 import { ForecastSource } from './forecast-source';
 import { GroupsSource } from './groups-source';
+import { OpenPlansSource } from './open-plans-source';
 import { LiveSource } from './live-source';
 import { answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
@@ -78,6 +79,7 @@ class SameProcess implements Channel {
 						// A browser that is not signed in: no session to ask with.
 						own: new OwnFlightsSource(async () => undefined, unreachable, 'https://venti.example'),
 						groups: new GroupsSource(session, unreachable),
+						openPlans: new OpenPlansSource(session, unreachable),
 						// A browser that is offline: no elevation tile is to be had.
 						terrain: new TerrainSource(unreachable),
 						today: new TodaySource(session, async () => false),

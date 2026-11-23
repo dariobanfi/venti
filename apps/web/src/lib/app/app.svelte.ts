@@ -18,6 +18,7 @@ import { SocialModel } from '#lib/social/model.svelte.ts';
 import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
 import { ALERTS_EVERY_MS, AlertsModel } from '#lib/alerts/model.svelte.ts';
 import { CommunityModel } from '#lib/community/model.svelte.ts';
+import { OpenPlansModel } from '#lib/community/open-plans.svelte.ts';
 import { ConnectModel } from '#lib/connect/model.svelte.ts';
 import {
 	canRunWebAssembly,
@@ -120,6 +121,12 @@ export class App {
 	 */
 	groups = $state.raw<GroupsModel>();
 
+	/**
+	 * The open plans near a place, for everyone flying from there. Nothing
+	 * until the core has started.
+	 */
+	openPlans = $state.raw<OpenPlansModel>();
+
 	/** The pilot's airspace, for the maps. Nothing until the core has started. */
 	airspace = $state.raw<AirspaceModel>();
 
@@ -202,6 +209,7 @@ export class App {
 				this.myFlights = myFlights;
 				this.account = account;
 				this.groups = new GroupsModel(core, account);
+				this.openPlans = new OpenPlansModel(core, account);
 				this.airspace = airspace;
 			})
 			.catch((error) => {

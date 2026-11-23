@@ -6,10 +6,14 @@
 	the pilots they follow, each a card with the track's shape and the
 	airtime and distance large; finding a pilot by name; and what the
 	pilot was told. A wide screen has the plans across the page and the
-	feed beside the search and the notifications. Under it, for everyone,
-	the pilots who fly near the pilot (`PilotsNear.svelte`).
+	feed beside the search and the notifications. For everyone, the open
+	plans near the pilot for the coming days (`OpenPlansNear.svelte`), after
+	the groups' plans, with the form for a new one; and at the foot the
+	pilots who fly near the pilot (`PilotsNear.svelte`). Both lists are for
+	one place (`near-place.svelte.ts`).
 
-	Signed out, only finding a pilot is there, with a sign-in for the rest.
+	Signed out, the open plans, finding a pilot and the pilots near are
+	there, with a sign-in for the rest.
 	Every part asks for itself: the board as the plans' pages always have
 	(`GroupsModel.keepCurrent`), the feed as the home page does, the search
 	as everyone's flights do, the notifications when the page opens. No
@@ -21,6 +25,9 @@
 <script lang="ts">
 	import PilotFace from '#lib/community/PilotFace.svelte';
 	import PilotsNear from '#lib/community/PilotsNear.svelte';
+	import { NearPlace } from '#lib/community/near-place.svelte.ts';
+	import OpenPlanForm from '#lib/community/OpenPlanForm.svelte';
+	import OpenPlansNear from '#lib/community/OpenPlansNear.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import {
 		accountHref,
@@ -101,8 +108,37 @@
 		};
 	});
 
+	/* The open plans near the pilot, for everyone, and the pilots near: one place. */
+	const near = new NearPlace();
+	$effect(() => near.watch());
+	const openPlans = $derived(app.openPlans);
+	/** Whether the form for a new open plan is open. */
+	let addingOpen = $state(false);
+
 	const id = $props.id();
 </script>
+
+<!-- The open plans near the pilot, for everyone: after the groups' plans, or first. -->
+{#snippet openPlansNear()}
+	{#if openPlans}
+		<section class="part span-12" aria-labelledby="{id}-open">
+			<header>
+				<h2 id="{id}-open">Open plans near</h2>
+				{#if signedIn}
+					<button class="more" type="button" onclick={() => (addingOpen = true)}>
+						New open plan
+					</button>
+				{/if}
+			</header>
+			<OpenPlansNear
+				model={openPlans}
+				place={near.place}
+				labelledby="{id}-open"
+				myName={own?.displayName}
+			/>
+		</section>
+	{/if}
+{/snippet}
 
 <svelte:head>
 	<title>Community · Venti</title>
@@ -177,6 +213,8 @@
 					{/if}
 				</section>
 
+				{@render openPlansNear()}
+
 				<!-- The flights of the pilots followed. -->
 				{#if said && feed}
 					<section class="part span-8" aria-labelledby="{id}-following">
@@ -205,6 +243,8 @@
 					</section>
 				{/if}
 			{:else}
+				{@render openPlansNear()}
+
 				<!-- Signed out: what needs an account, and the way to one. -->
 				<section class="part span-8" aria-label="Sign in">
 					<div class="group-card words sign-in">
@@ -296,7 +336,7 @@
 			<!-- The pilots who fly near the pilot, for everyone. -->
 			<section class="part span-12" aria-labelledby="{id}-near">
 				<header><h2 id="{id}-near">{app.said?.picture.nearTitle ?? 'Pilots near'}</h2></header>
-				<PilotsNear labelledby="{id}-near" />
+				<PilotsNear labelledby="{id}-near" place={near.place} />
 			</section>
 		</div>
 	{/if}
@@ -304,6 +344,14 @@
 
 {#if groups && signedIn}
 	<PlanForm open={adding} {groups} onclose={() => (adding = false)} />
+{/if}
+{#if openPlans && signedIn}
+	<OpenPlanForm
+		open={addingOpen}
+		model={openPlans}
+		near={near.place}
+		onclose={() => (addingOpen = false)}
+	/>
 {/if}
 
 <style>
@@ -332,9 +380,16 @@
 
 	.more {
 		flex: none;
+		padding: 0;
+		background: none;
 		color: var(--link);
 		font-size: var(--subheadline);
 		font-weight: 500;
+	}
+
+	button.more {
+		min-height: var(--target);
+		font-weight: 600;
 	}
 
 	@media (hover: hover) {

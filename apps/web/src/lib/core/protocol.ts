@@ -69,6 +69,9 @@ import type {
 	PilotPage,
 	PilotsFound,
 	PilotStatistics,
+	OpenPlanDraft,
+	OpenPlans,
+	OpenPlanView,
 	PlanBoard,
 	PlanDraft,
 	PlanView,
@@ -164,6 +167,7 @@ import {
 } from './pkg/venti_core_wasm.js';
 import type { ForecastSource } from './forecast-source';
 import type { GroupsSource } from './groups-source';
+import type { OpenPlansSource } from './open-plans-source';
 import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SiteDraftChecked, SiteEditSource, SiteSent } from './site-edit-source';
@@ -702,6 +706,21 @@ export interface Calls {
 	deletePlan: { given: { group: string; plan: string }; answer: undefined };
 	/** Says that the pilot is in on a plan, or takes that back. */
 	planIn: { given: { group: string; plan: string; isIn: boolean }; answer: PlanView };
+	/**
+	 * The open plans near a place, for everyone, from the pilot's own today
+	 * (written `2026-11-21`) on. The calls after it, down to `openPlanIn`,
+	 * fail in the core's words where the core or the server refuses.
+	 */
+	openPlansNear: { given: { place: Coordinate; fromDay: string }; answer: OpenPlans };
+	/** The open plans the pilot posted or is in on. */
+	myOpenPlans: { given: undefined; answer: OpenPlans };
+	/** Given an open plan's identifier: the plan, which anyone may read. */
+	openPlan: { given: string; answer: OpenPlanView };
+	postOpenPlan: { given: OpenPlanDraft; answer: OpenPlanView };
+	changeOpenPlan: { given: { id: string; draft: OpenPlanDraft }; answer: OpenPlanView };
+	deleteOpenPlan: { given: string; answer: undefined };
+	/** Says that the pilot is in on an open plan, or takes that back. */
+	openPlanIn: { given: { id: string; isIn: boolean }; answer: OpenPlanView };
 	/** An airspace file's name and bytes, as the pilot picked or dropped it. */
 	importAirspace: { given: { name: string; bytes: ArrayBuffer }; answer: AirspaceImport };
 	airspaceFiles: { given: undefined; answer: AirspaceFile[] };
@@ -788,6 +807,7 @@ export interface Answering {
 	community: CommunitySource;
 	own: OwnFlightsSource;
 	groups: GroupsSource;
+	openPlans: OpenPlansSource;
 	terrain: TerrainSource;
 	today: TodaySource;
 	thermals: ThermalMapSource;
@@ -819,6 +839,7 @@ export async function answer<Name extends CallName>(
 		community,
 		own,
 		groups,
+		openPlans,
 		terrain,
 		today,
 		thermals,
@@ -1035,6 +1056,13 @@ export async function answer<Name extends CallName>(
 		changePlan: ({ group, plan, draft }) => groups.changePlan(group, plan, draft),
 		deletePlan: ({ group, plan }) => groups.deletePlan(group, plan),
 		planIn: ({ group, plan, isIn }) => groups.setIn(group, plan, isIn),
+		openPlansNear: ({ place, fromDay }) => openPlans.near(place, fromDay),
+		myOpenPlans: () => openPlans.mine(),
+		openPlan: (id) => openPlans.plan(id),
+		postOpenPlan: (draft) => openPlans.post(draft),
+		changeOpenPlan: ({ id, draft }) => openPlans.change(id, draft),
+		deleteOpenPlan: (id) => openPlans.delete(id),
+		openPlanIn: ({ id, isIn }) => openPlans.setIn(id, isIn),
 		importAirspace: ({ name, bytes }) =>
 			session.importAirspace(name, new Uint8Array(bytes), Math.floor(Date.now() / 1000)),
 		airspaceFiles: () => session.airspaceFiles(),

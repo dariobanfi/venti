@@ -144,6 +144,11 @@ export function planHref(id: string): string {
 	return `${resolve('/plans/plan')}?id=${encodeURIComponent(id)}`;
 }
 
+/** One open plan, for everyone flying from its area, by its identifier on the server. */
+export function openPlanHref(id: string): string {
+	return `${resolve('/plans/open')}?id=${encodeURIComponent(id)}`;
+}
+
 /** The pilot's groups. */
 export function groupsHref(): string {
 	return resolve('/plans/groups');

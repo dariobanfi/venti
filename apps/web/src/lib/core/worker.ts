@@ -16,6 +16,7 @@ import { GroupsSource } from './groups-source';
 import { GlideReachSource } from './glide-reach-source';
 import { IdbStore } from './idb-store';
 import { LiveSource } from './live-source';
+import { OpenPlansSource } from './open-plans-source';
 import { OwnFlightsSource } from './own-flights-source';
 import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
@@ -86,6 +87,7 @@ const starting: Promise<Answering> = (async () => {
 		),
 		own: new OwnFlightsSource(() => session.token()),
 		groups: new GroupsSource(session),
+		openPlans: new OpenPlansSource(session),
 		terrain: new TerrainSource(),
 		today: new TodaySource(
 			session,

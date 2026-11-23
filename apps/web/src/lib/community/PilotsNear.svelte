@@ -4,64 +4,31 @@
 	name, the core's line of their flights and take-offs from there, and
 	what their season adds up to, each to the pilot's page. Every word of a
 	card is the core's (`pilotsNear`), and the empty list says the core's
-	sentence.
-
-	Which place: the browser's position where the pilot has allowed the
-	site to have it already (nothing is asked: the browser is not made to
-	put its question for this list); else the place the home page's weather
-	is for (`place.ts`: the position the browser gave before, or a take-off
-	chosen there); else the region's middle, which is where the map opens.
-	The server takes the place to about a kilometre and keeps it nowhere.
+	sentence. Which place is Community's (`near-place.svelte.ts`), the same
+	as the open plans near.
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { pilotHref } from '#lib/app/routes.ts';
 	import type { Coordinate, PilotsNear } from '#lib/core/index.ts';
-	import { rememberedPlace } from '#lib/home/place.ts';
-	import { watchPosition } from '#lib/map/position.ts';
-	import { FIRST_REGION } from '#lib/today/model.svelte.ts';
 	import PilotFace from './PilotFace.svelte';
 
 	interface Props {
 		/** The id of the section's heading, for its name. */
 		labelledby: string;
+		/** Where the list is for. */
+		place: Coordinate;
 	}
 
-	let { labelledby }: Props = $props();
+	let { labelledby, place }: Props = $props();
 
 	const app = getApp();
 	const everyone = $derived(app.everyone);
 
-	/** Where the list is for: what this browser remembers, until the position comes. */
-	let place = $state.raw<Coordinate>(rememberedPlace()?.at ?? FIRST_REGION);
 	let near = $state.raw<PilotsNear>();
 	let problem = $state.raw<string>();
 	/** Counts the pilot's "Try again". */
 	let again = $state(0);
-
-	// The browser's position, where it was allowed already: once.
-	$effect(() => {
-		let current = true;
-		let stop = () => {};
-		navigator.permissions
-			?.query({ name: 'geolocation' })
-			.then((status) => {
-				if (!current || status.state !== 'granted') return;
-				stop = watchPosition(
-					navigator.geolocation,
-					(fix) => {
-						stop();
-						if (current) place = fix;
-					},
-					() => {}
-				);
-			})
-			.catch(() => {});
-		return () => {
-			current = false;
-			stop();
-		};
-	});
 
 	$effect(() => {
 		const model = everyone;
